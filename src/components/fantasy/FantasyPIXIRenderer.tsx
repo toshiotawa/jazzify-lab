@@ -93,6 +93,12 @@ interface MagicCircle {
   type: 'success' | 'failure';
 }
 
+interface RenderedTaikoNote {
+  container: PIXI.Container;
+  currentX: number;
+  targetX: number;
+}
+
 // ===== 魔法タイプ定義 =====
 const MAGIC_TYPES: Record<string, MagicType> = {
   fire: { // フレア -> インフェルノ
@@ -248,7 +254,9 @@ export class FantasyPIXIInstance {
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
   // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+    private taikoNotes: Map<string, RenderedTaikoNote> = new Map();
+    private readonly taikoSmoothingFactor = 0.3;
+    private lastTaikoUpdateTime: number = typeof performance !== 'undefined' ? performance.now() : 0;
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
@@ -2129,37 +2137,55 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
+    if (this.isDestroyed) {
+      return;
+    }
+    
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const deltaMs = now - this.lastTaikoUpdateTime;
+    this.lastTaikoUpdateTime = now;
+    const normalizedDelta = Math.max(0.5, Math.min(2, deltaMs / (1000 / 60)));
+    const smoothing = Math.min(0.8, this.taikoSmoothingFactor * normalizedDelta);
+    
+    const visibleIds = new Set<string>();
+    
+    notes.forEach(noteData => {
+      visibleIds.add(noteData.id);
+      let rendered = this.taikoNotes.get(noteData.id);
+      
+      if (!rendered) {
+        const container = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        this.notesContainer.addChild(container);
+        rendered = {
+          container,
+          currentX: noteData.x,
+          targetX: noteData.x
+        };
+        this.taikoNotes.set(noteData.id, rendered);
+      } else if ((rendered.container as any).destroyed || !(rendered.container as any).transform) {
         try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
+          rendered.container.destroy({ children: true });
         } catch {}
-        this.activeNotes.delete(id);
+        const container = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        this.notesContainer.addChild(container);
+        rendered.container = container;
+        rendered.currentX = noteData.x;
       }
+      
+      rendered.targetX = noteData.x;
+      const delta = rendered.targetX - rendered.currentX;
+      rendered.currentX += delta * smoothing;
+      rendered.container.x = rendered.currentX;
     });
     
-    // 新しいノーツを追加・更新
-    notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
-      
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+    for (const [noteId, rendered] of this.taikoNotes) {
+      if (!visibleIds.has(noteId)) {
+        try {
+          rendered.container.destroy({ children: true });
+        } catch {}
+        this.taikoNotes.delete(noteId);
       }
-    });
+    }
   }
 
   // 太鼓モードの切り替え
@@ -2174,8 +2200,12 @@ export class FantasyPIXIInstance {
       // シングルモードの場合、判定ラインを非表示
       this.judgeLineContainer.visible = false;
       // ノーツもクリア
-      this.activeNotes.forEach(note => note.destroy());
-      this.activeNotes.clear();
+      this.taikoNotes.forEach(rendered => {
+        try {
+          rendered.container.destroy({ children: true });
+        } catch {}
+      });
+      this.taikoNotes.clear();
     }
   }
   
@@ -2255,6 +2285,12 @@ export class FantasyPIXIInstance {
       data.sprite.destroy();
     });
     this.monsterSprites.clear();
+    this.taikoNotes.forEach(rendered => {
+      try {
+        rendered.container.destroy({ children: true });
+      } catch {}
+    });
+    this.taikoNotes.clear();
     
     // エフェクトの安全な削除
     try {

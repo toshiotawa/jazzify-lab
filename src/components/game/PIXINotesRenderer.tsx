@@ -252,6 +252,8 @@ export class PIXINotesRendererInstance {
   private particles!: PIXI.Container; // パーティクル用コンテナ
   
   private noteSprites: Map<string, NoteSprite> = new Map();
+  private noteSpritePool: NoteSprite[] = [];
+  private readonly noteSpritePoolLimit = 256;
   private hitEffectPool: HitEffectInstance[] = [];
   private activeNoteLookup: Map<string, ActiveNote> = new Map();
 
@@ -1785,12 +1787,11 @@ export class PIXINotesRendererInstance {
     
     // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
     if (seekDetected) {
-      // 全てのノートスプライトを削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
+        // 全てのノートスプライトを削除
+        const noteIds = Array.from(this.noteSprites.keys());
+        for (const noteId of noteIds) {
+          this.removeNoteSprite(noteId);
+        }
     }
     
       this.lastUpdateTime = currentTime;
@@ -1954,7 +1955,7 @@ export class PIXINotesRendererInstance {
    * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
-  private updateSpriteStates(activeNoteLookup: Map<string, ActiveNote>): void {
+    private updateSpriteStates(activeNoteLookup: Map<string, ActiveNote>): void {
     const spritesToRemove: string[] = [];
     let stateChanges = 0;
     
@@ -1992,9 +1993,86 @@ export class PIXINotesRendererInstance {
       }
     }
     
-  private createNoteSprite(note: ActiveNote): NoteSprite {
+    private resolveNoteLabel(note: ActiveNote, effectivePitch: number): string | undefined {
+      if (this.settings.simpleDisplayMode) {
+        if (note.noteName) {
+          if (this.settings.noteNameStyle === 'solfege') {
+            return this.getSimplifiedDisplayName(note.noteName);
+          }
+          return this.getEnglishSimplifiedDisplayName(note.noteName);
+        }
+        return this.getMidiNoteName(effectivePitch);
+      }
+
+      if (note.noteName) {
+        return note.noteName;
+      }
+
+      return this.getMidiNoteName(effectivePitch);
+    }
+
+    private syncNoteLabel(
+      noteSprite: NoteSprite,
+      note: ActiveNote,
+      effectivePitch: number,
+      x: number
+    ): void {
+      const noteNameForLabel = this.resolveNoteLabel(note, effectivePitch);
+      if (!noteNameForLabel || this.settings.noteNameStyle === 'off') {
+        if (noteSprite.label && noteSprite.label.parent) {
+          noteSprite.label.parent.removeChild(noteSprite.label);
+        }
+        return;
+      }
+
+      const labelTexture = this.getLabelTexture(noteNameForLabel);
+      if (!labelTexture) {
+        if (noteSprite.label && noteSprite.label.parent) {
+          noteSprite.label.parent.removeChild(noteSprite.label);
+        }
+        return;
+      }
+
+      if (!noteSprite.label || noteSprite.label.destroyed) {
+        noteSprite.label = new PIXI.Sprite(labelTexture);
+        noteSprite.label.anchor.set(0.5, 1);
+      } else {
+        noteSprite.label.texture = labelTexture;
+      }
+      noteSprite.label.x = x;
+      noteSprite.label.y = 0;
+      if (!noteSprite.label.parent) {
+        this.labelsContainer.addChild(noteSprite.label);
+      }
+    }
+
+    private syncGlowSprite(noteSprite: NoteSprite, x: number): void {
+      if (!this.settings.effects.glow) {
+        if (noteSprite.glowSprite && noteSprite.glowSprite.parent) {
+          noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+        }
+        return;
+      }
+
+      if (!noteSprite.glowSprite || noteSprite.glowSprite.destroyed) {
+        noteSprite.glowSprite = new PIXI.Graphics();
+      } else {
+        noteSprite.glowSprite.clear();
+      }
+      noteSprite.glowSprite.x = x;
+      noteSprite.glowSprite.y = 0;
+      if (!noteSprite.glowSprite.parent) {
+        this.effectsContainer.addChild(noteSprite.glowSprite);
+      }
+    }
+
+    private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
+      const pooledSprite = this.noteSpritePool.pop();
+      if (pooledSprite) {
+        return this.reuseNoteSprite(pooledSprite, note);
+      }
     
     // ===== 適切なテクスチャを選択 =====
     const isBlackNote = this.isBlackKey(effectivePitch);
@@ -2010,68 +2088,9 @@ export class PIXINotesRendererInstance {
     sprite.x = x;
     sprite.y = 0; // 後で設定
     
-    // 音名ラベル（MusicXMLから取得した音名を優先）
-    let label: PIXI.Sprite | undefined;
-    let noteNameForLabel: string | undefined;
-    
-    // 音名決定ロジック（MECE構造）
-    if (this.settings.simpleDisplayMode) {
-      // 簡易表示モード: 複雑な音名を基本音名に変換
-      if (note.noteName) {
-        if (this.settings.noteNameStyle === 'solfege') {
-          // ドレミ簡易表示
-          noteNameForLabel = this.getSimplifiedDisplayName(note.noteName);
-        } else {
-          // 英語簡易表示
-          noteNameForLabel = this.getEnglishSimplifiedDisplayName(note.noteName);
-        }
-      } else {
-        // フォールバック: 基本的な音名を生成
-        noteNameForLabel = this.getMidiNoteName(effectivePitch);
-      }
-    } else {
-      // 通常モード：MusicXMLから取得した音名を優先
-      if (note.noteName) {
-        noteNameForLabel = note.noteName;
-      } else {
-        // フォールバック: 従来のロジックで音名を生成
-        noteNameForLabel = this.getMidiNoteName(effectivePitch);
-      }
-    }
-    
-    if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
-      try {
-        const labelTexture = this.getLabelTexture(noteNameForLabel);
-        if (labelTexture) {
-          label = new PIXI.Sprite(labelTexture);
-          label.anchor.set(0.5, 1);
-          label.x = x;
-          label.y = 0; // 後で設定
-          
-          // 通常のContainerへ追加
-          try {
-            this.labelsContainer.addChild(label);
-          } catch (containerError) {
-            log.error(`❌ Failed to add label to container for "${noteNameForLabel}":`, containerError);
-            label.destroy();
-            label = undefined;
-          }
-        }
-      } catch (error) {
-        log.error(`❌ Error creating label sprite for "${noteNameForLabel}":`, error);
-        label = undefined;
-      }
-    }
-    
-    // グロー効果スプライト（デフォルトOFF、必要時のみ）
-    let glowSprite: PIXI.Graphics | undefined;
-    if (this.settings.effects.glow) {
-      glowSprite = new PIXI.Graphics();
-      glowSprite.x = x;
-      glowSprite.y = 0; // 後で設定
-      this.effectsContainer.addChild(glowSprite);
-    }
-    
+      let label: PIXI.Sprite | undefined;
+      let glowSprite: PIXI.Graphics | undefined;
+
     try {
       // 適切なコンテナにノーツを追加（白鍵 or 黒鍵）
       const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
@@ -2081,14 +2100,16 @@ export class PIXINotesRendererInstance {
       log.error(`❌ Failed to add note sprite to container:`, error);
     }
     
-    const noteSprite: NoteSprite = {
-      sprite,
-      glowSprite,
-      noteData: note,
-      label,
-      effectPlayed: false,
-      transposeAtCreation: this.settings.transpose
-    };
+      const noteSprite: NoteSprite = {
+        sprite,
+        glowSprite,
+        noteData: note,
+        label,
+        effectPlayed: false,
+        transposeAtCreation: this.settings.transpose
+      };
+      this.syncNoteLabel(noteSprite, note, effectivePitch, x);
+      this.syncGlowSprite(noteSprite, x);
     
     this.noteSprites.set(note.id, noteSprite);
     
@@ -2096,7 +2117,44 @@ export class PIXINotesRendererInstance {
     const noteUpdater = new NoteUpdater(noteSprite, this.settings, this.disposeManager);
     this.noteUpdaters.set(note.id, noteUpdater);
     
-    return noteSprite;
+      return noteSprite;
+    }
+
+    private reuseNoteSprite(noteSprite: NoteSprite, note: ActiveNote): NoteSprite {
+      const effectivePitch = note.pitch + this.settings.transpose;
+      const x = this.pitchToX(note.pitch);
+      const isBlackNote = this.isBlackKey(effectivePitch);
+      const texture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
+
+      const sprite = noteSprite.sprite;
+      sprite.texture = texture;
+      sprite.x = x;
+      sprite.y = 0;
+      sprite.alpha = 1;
+      sprite.visible = true;
+      sprite.tint = 0xffffff;
+      sprite.scale.set(1);
+      sprite.rotation = 0;
+
+      if (sprite.parent) {
+        sprite.parent.removeChild(sprite);
+      }
+      const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
+      targetContainer.addChild(sprite);
+
+      this.syncNoteLabel(noteSprite, note, effectivePitch, x);
+      this.syncGlowSprite(noteSprite, x);
+
+      noteSprite.noteData = note;
+      noteSprite.effectPlayed = false;
+      noteSprite.transposeAtCreation = this.settings.transpose;
+
+      this.noteSprites.set(note.id, noteSprite);
+
+      const noteUpdater = new NoteUpdater(noteSprite, this.settings, this.disposeManager);
+      this.noteUpdaters.set(note.id, noteUpdater);
+
+      return noteSprite;
   }
   
   /**
@@ -2215,43 +2273,71 @@ export class PIXINotesRendererInstance {
     noteSprite.noteData = note;
   }
   
-  private removeNoteSprite(noteId: string): void {
-    const noteSprite = this.noteSprites.get(noteId);
-    if (!noteSprite) return;
-    
-    // 安全な削除処理
-    try {
-      // ラベルを先に削除（labelsContainer から削除）
-      if (noteSprite.label) {
-        if (this.labelsContainer.children.includes(noteSprite.label)) {
-          this.labelsContainer.removeChild(noteSprite.label);
-        }
-        noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
-      }
-
-      // メインスプライト削除
-      if (noteSprite.sprite && noteSprite.sprite.parent) {
-        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
-      }
-      if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
-        noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
+    private removeNoteSprite(noteId: string): void {
+      const noteSprite = this.noteSprites.get(noteId);
+      if (!noteSprite) return;
+      
+      const updater = this.noteUpdaters.get(noteId);
+      if (updater) {
+        updater.dispose();
+        this.noteUpdaters.delete(noteId);
       }
       
-      // グロースプライト削除
-      if (noteSprite.glowSprite) {
-        if (noteSprite.glowSprite.parent) {
-          noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
-        }
-        if (!noteSprite.glowSprite.destroyed) {
-          noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
-        }
+      if (noteSprite.label && noteSprite.label.parent) {
+        noteSprite.label.parent.removeChild(noteSprite.label);
       }
-          } catch (error) {
-        log.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
+      if (noteSprite.glowSprite && noteSprite.glowSprite.parent) {
+        noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+        noteSprite.glowSprite.clear();
       }
-    
-    this.noteSprites.delete(noteId);
-  }
+      if (noteSprite.sprite.parent) {
+        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
+      }
+      
+      noteSprite.effectPlayed = false;
+      noteSprite.sprite.alpha = 1;
+      noteSprite.sprite.visible = true;
+      noteSprite.sprite.tint = 0xffffff;
+      noteSprite.sprite.scale.set(1);
+      
+      if (this.noteSpritePool.length < this.noteSpritePoolLimit) {
+        this.noteSpritePool.push(noteSprite);
+      } else {
+        this.destroyNoteSpriteAssets(noteSprite);
+      }
+      
+      this.noteSprites.delete(noteId);
+    }
+
+    private destroyNoteSpriteAssets(noteSprite: NoteSprite): void {
+      try {
+        if (noteSprite.label) {
+          if (noteSprite.label.parent) {
+            noteSprite.label.parent.removeChild(noteSprite.label);
+          }
+          if (!noteSprite.label.destroyed) {
+            noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
+          }
+          noteSprite.label = undefined;
+        }
+        
+        if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
+          noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
+        }
+        
+        if (noteSprite.glowSprite) {
+          if (noteSprite.glowSprite.parent) {
+            noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+          }
+          if (!noteSprite.glowSprite.destroyed) {
+            noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
+          }
+          noteSprite.glowSprite = undefined;
+        }
+      } catch (error) {
+        log.warn('⚠️ Note sprite cleanup error:', error);
+      }
+    }
   
   private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
     graphics.clear();
@@ -2768,6 +2854,8 @@ export class PIXINotesRendererInstance {
           this.removeNoteSprite(noteId);
         }
         this.noteSprites.clear();
+        this.noteSpritePool.forEach(sprite => this.destroyNoteSpriteAssets(sprite));
+        this.noteSpritePool.length = 0;
         this.activeHitEffects.forEach(({ instance }) => {
           this.releaseHitEffect(instance);
         });
