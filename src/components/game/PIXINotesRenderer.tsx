@@ -198,6 +198,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+  enableEffects: boolean;
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -308,7 +309,7 @@ export class PIXINotesRendererInstance {
     hitLineY: 0,
       pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
     noteSpeed: 400,
-    colors: {
+      colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
       hit: 0x48BB78,
@@ -320,11 +321,12 @@ export class PIXINotesRendererInstance {
       activeKey: 0xFF8C00,
       guideKey: 0x22C55E
     },
-            effects: {
-          glow: true,
-          particles: false,
-          trails: false
-        },
+              effects: {
+            glow: false,
+            particles: false,
+            trails: false
+          },
+      enableEffects: false,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -452,32 +454,36 @@ export class PIXINotesRendererInstance {
       }
     };
 
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
+    if (this.settings.enableEffects) {
+      // エフェクト更新関数（低頻度実行）
+      this.effectUpdateFunction = () => {
+        if (this.isDestroyed || this.disposeManager.disposed) return;
 
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
+        const deltaMs = PIXI.Ticker.shared.deltaMS;
+        this.effectsElapsed += deltaMs;
 
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
+        if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
+          const normalizedDelta = this.effectsElapsed / 16;
 
-        for (const updater of this.effectUpdaters) {
-          if (!updater.active) {
-            this.effectUpdaters.delete(updater);
-            continue;
+          for (const updater of this.effectUpdaters) {
+            if (!updater.active) {
+              this.effectUpdaters.delete(updater);
+              continue;
+            }
+            updater.update(normalizedDelta);
           }
-          updater.update(normalizedDelta);
-        }
 
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
+          this.updateHitEffects(this.effectsElapsed);
+          this.effectsElapsed = 0;
+        }
+      };
+    }
 
     // Tickerに登録
     PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
+    if (this.effectUpdateFunction) {
+      PIXI.Ticker.shared.add(this.effectUpdateFunction);
+    }
 
     // 破棄時にTicker関数を削除するよう登録
     this.disposeManager.add(() => {
@@ -485,7 +491,7 @@ export class PIXINotesRendererInstance {
         PIXI.Ticker.shared.remove(this.mainUpdateFunction);
         this.mainUpdateFunction = undefined;
       }
-      if (this.effectUpdateFunction) {
+        if (this.effectUpdateFunction) {
         PIXI.Ticker.shared.remove(this.effectUpdateFunction);
         this.effectUpdateFunction = undefined;
       }
@@ -2065,7 +2071,7 @@ export class PIXINotesRendererInstance {
     
     // グロー効果スプライト（デフォルトOFF、必要時のみ）
     let glowSprite: PIXI.Graphics | undefined;
-    if (this.settings.effects.glow) {
+    if (this.settings.enableEffects && this.settings.effects.glow) {
       glowSprite = new PIXI.Graphics();
       glowSprite.x = x;
       glowSprite.y = 0; // 後で設定
@@ -2493,6 +2499,7 @@ export class PIXINotesRendererInstance {
       }
     
     Object.assign(this.settings, newSettings);
+      this.settings.enableEffects = false;
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;

@@ -27,9 +27,9 @@ export const JUDGMENT_TIMING: JudgmentTiming = {
   missMs: 150     // 判定ライン通過後150ms = Miss
 };
 
-export const LOOKAHEAD_TIME = 5.0; // 5秒先まで表示（より長く表示）
-export const CLEANUP_TIME = 3.0;        // 3秒後にクリーンアップ（より長く残す）
-export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
+export const LOOKAHEAD_TIME = 1.5; // 1.5秒先までに制限しCPU/GPU負荷を削減
+export const CLEANUP_TIME = 0.75;        // 表示済みノーツは0.75秒で破棄
+export const MISSED_CLEANUP_TIME = 0.5; // Miss 判定後 0.5秒だけ残す
 const HIT_DISPLAY_DURATION = 0.016; // 1フレーム相当
 const MISS_DELAY_AFTER_LINE = 0.12; // 判定ライン通過後の猶予
 
