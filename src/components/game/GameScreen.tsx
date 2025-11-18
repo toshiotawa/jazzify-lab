@@ -13,6 +13,7 @@ import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSong
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import { preloadHighQualityPiano } from '@/utils/highQualityPianoPreloader';
 
 /**
  * メインゲーム画面コンポーネント
@@ -31,6 +32,10 @@ const GameScreen: React.FC = () => {
   
   // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
+
+  useEffect(() => {
+    void preloadHighQualityPiano().catch(() => {});
+  }, []);
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {

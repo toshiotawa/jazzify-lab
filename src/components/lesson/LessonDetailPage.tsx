@@ -37,6 +37,7 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { preloadHighQualityPiano } from '@/utils/highQualityPianoPreloader';
 
 /**
  * レッスン詳細画面
@@ -76,6 +77,11 @@ const LessonDetailPage: React.FC = () => {
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
   const [isNavigating, setIsNavigating] = useState(false);
   const gameActions = useGameActions();
+
+  useEffect(() => {
+    if (!open) return;
+    void preloadHighQualityPiano().catch(() => {});
+  }, [open]);
 
   useEffect(() => {
     const checkHash = () => {
