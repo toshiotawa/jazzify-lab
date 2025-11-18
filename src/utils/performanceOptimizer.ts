@@ -81,6 +81,12 @@ export const STANDARD_CONFIG: PerformanceConfig = {
 export type FrameChannel = 'global' | 'logic' | 'render' | 'effects';
 const FRAME_CHANNELS: FrameChannel[] = ['global', 'logic', 'render', 'effects'];
 
+export interface FrameSample {
+  channel: FrameChannel;
+  duration: number;
+  timestamp: number;
+}
+
 interface ChannelState {
   lastFrameTime: number;
   skipCount: number;
@@ -91,6 +97,10 @@ export class UnifiedFrameController {
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+  private frameLogs: Record<FrameChannel, FrameSample[]>;
+  private frameLogLimit = 180;
+  private frameTokenCounter = 0;
+  private activeFrameTokens = new Map<string, { channel: FrameChannel; startTime: number }>();
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -98,6 +108,10 @@ export class UnifiedFrameController {
       acc[channel] = { lastFrameTime: 0, skipCount: 0 };
       return acc;
     }, {} as Record<FrameChannel, ChannelState>);
+    this.frameLogs = FRAME_CHANNELS.reduce<Record<FrameChannel, FrameSample[]>>((acc, channel) => {
+      acc[channel] = [];
+      return acc;
+    }, {} as Record<FrameChannel, FrameSample[]>);
   }
   
   private getChannelState(channel: FrameChannel): ChannelState {
@@ -105,6 +119,13 @@ export class UnifiedFrameController {
       this.channelStates[channel] = { lastFrameTime: 0, skipCount: 0 };
     }
     return this.channelStates[channel];
+  }
+
+  private now(): number {
+    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+      return performance.now();
+    }
+    return Date.now();
   }
   
   shouldSkipFrame(currentTime: number, channel: FrameChannel = 'global'): boolean {
@@ -143,6 +164,68 @@ export class UnifiedFrameController {
   
   getConfig(): PerformanceConfig {
     return { ...this.config };
+  }
+
+  beginFrame(channel: FrameChannel): string {
+    const token = `${channel}-${this.frameTokenCounter++}`;
+    this.activeFrameTokens.set(token, { channel, startTime: this.now() });
+    if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
+      performance.mark(`${token}-start`);
+    }
+    return token;
+  }
+
+  endFrame(token: string | null): number {
+    if (!token) return 0;
+    const meta = this.activeFrameTokens.get(token);
+    if (!meta) return 0;
+    const duration = this.now() - meta.startTime;
+    this.recordFrame(meta.channel, duration);
+    if (
+      typeof performance !== 'undefined' &&
+      typeof performance.mark === 'function' &&
+      typeof performance.measure === 'function'
+    ) {
+      const startLabel = `${token}-start`;
+      const endLabel = `${token}-end`;
+      const measureLabel = `${token}-measure`;
+      performance.mark(endLabel);
+      performance.measure(measureLabel, startLabel, endLabel);
+      if (typeof performance.clearMarks === 'function') {
+        performance.clearMarks(startLabel);
+        performance.clearMarks(endLabel);
+      }
+      if (typeof performance.clearMeasures === 'function') {
+        performance.clearMeasures(measureLabel);
+      }
+    }
+    this.activeFrameTokens.delete(token);
+    return duration;
+  }
+
+  recordFrame(channel: FrameChannel, duration: number): void {
+    const log = this.frameLogs[channel];
+    log.push({ channel, duration, timestamp: Date.now() });
+    if (log.length > this.frameLogLimit) {
+      log.shift();
+    }
+  }
+
+  getFrameLog(channel?: FrameChannel): FrameSample[] {
+    if (channel) {
+      return [...this.frameLogs[channel]];
+    }
+    return FRAME_CHANNELS.flatMap((name) => this.frameLogs[name]);
+  }
+
+  clearFrameLog(channel?: FrameChannel): void {
+    if (channel) {
+      this.frameLogs[channel] = [];
+      return;
+    }
+    FRAME_CHANNELS.forEach((name) => {
+      this.frameLogs[name] = [];
+    });
   }
 }
 

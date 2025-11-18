@@ -1,2593 +1,650 @@
-/**
- * Phase 3: PIXI.js ノーツレンダリングシステム
- * 高性能なノーツ降下アニメーション - ParticleContainer + テクスチャ最適化版
- * 
- * 🚀 改良版: "Cannot set properties of null" を根本的に防ぐ設計
- */
-
 import React, { useEffect, useRef } from 'react';
-import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
-import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { unifiedFrameController } from '@/utils/performanceOptimizer';
 
-const PIXI_LOOKAHEAD_SECONDS = 15;
+const WHITE_KEY_COUNT = 52;
+const MIN_PIANO_HEIGHT = 70;
+const POINTER_RELEASE_DELAY_MS = 150;
 
-// ===== 破棄管理システム =====
-/**
- * 1. 破棄を1か所に集約 - "Dispose Manager"
- * バラバラのdestroy()呼び出しは漏れや二重実行が起こりがちなので一元管理する
- */
-class DisposeManager {
-  private disposables: (() => void)[] = [];
-  private isDisposed: boolean = false;
+type NoteState = ActiveNote['state'];
+type NoteNameStyle = 'off' | 'abc' | 'solfege';
 
-  add(fn: () => void): void {
-    if (this.isDisposed) {
-      log.warn('⚠️ DisposeManager already disposed, ignoring new disposable');
-      return;
-    }
-    this.disposables.push(fn);
-  }
-
-  flush(): void {
-    if (this.isDisposed) return;
-    
-    log.debug(`🗑️ Disposing ${this.disposables.length} resources`);
-    for (const fn of this.disposables) {
-      try {
-        fn();
-      } catch (error) {
-        log.error('⚠️ Dispose error:', error);
-      }
-    }
-    this.disposables.length = 0;
-    this.isDisposed = true;
-  }
-
-  get disposed(): boolean {
-    return this.isDisposed;
-  }
-}
-
-// ===== アップデータシステム =====
-/**
- * 2. "更新ループ ⇔ オブジェクト" の結び付けを外せる構造
- * 各オブジェクトの更新処理を独立したクラスに分離し、
- * Tickerに登録/解除することで破棄されたオブジェクトを触らない仕組みを作る
- */
-
-// ===== ノート状態判定ヘルパー =====
-// Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
-const isHitState = (state: ActiveNote['state']) =>
-  state === 'good' || state === 'perfect' || state === 'hit';
-
-// ===== 型定義 =====
-
-interface PIXINotesRendererProps {
-  width: number;
-  height: number;
-  /** レンダラー準備完了・破棄通知。null で破棄を示す */
-  onReady?: (renderer: PIXINotesRendererInstance | null) => void;
-  className?: string;
-}
-
-interface NoteSprite {
-  sprite: PIXI.Sprite; // Graphics から Sprite に変更
-  noteData: ActiveNote;
-  label?: PIXI.Sprite; // Text から Sprite に変更（テクスチャアトラス用）
-  transposeAtCreation?: number; // 作成時のトランスポーズ値を記録
+interface RendererColors {
+  visible: string;
+  visibleBlack: string;
+  hit: string;
+  missed: string;
+  perfect: string;
+  good: string;
+  whiteKey: string;
+  blackKey: string;
+  activeKey: string;
+  guideKey: string;
+  backgroundTop: string;
+  backgroundBottom: string;
+  grid: string;
+  hitLine: string;
 }
 
 interface RendererSettings {
   noteWidth: number;
   noteHeight: number;
-  hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
-  colors: {
-    visible: number;
-    visibleBlack: number;
-    hit: number;
-    missed: number;
-    perfect: number;
-    good: number;
-    whiteKey: number;
-    blackKey: number;
-    activeKey: number;
-    guideKey: number;
-  };
-  /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
-  noteNameStyle: 'off' | 'abc' | 'solfege';
-  /** 簡易表示モード: 複雑な音名を基本音名に変換 */
-  simpleDisplayMode: boolean;
-  /** ストアの transpose 値（±6） */
-  transpose: number;
-  /** 移調楽器設定 */
-  transposingInstrument: string;
-  /** 練習モードガイド設定 */
-  practiceGuide?: 'off' | 'key' | 'key_auto';
   showHitLine: boolean;
   viewportHeight: number;
   timingAdjustment: number;
+  transpose: number;
+  noteNameStyle: NoteNameStyle;
+  simpleDisplayMode: boolean;
+  transposingInstrument: string;
+  practiceGuide?: 'off' | 'key' | 'key_auto';
+  colors: RendererColors;
 }
 
-// ===== テクスチャキャッシュ =====
-interface NoteTextures {
-  whiteVisible: PIXI.Texture;
-  blackVisible: PIXI.Texture;
-  hit: PIXI.Texture;
-  missed: PIXI.Texture;
+interface NoteRenderState {
+  id: string;
+  pitch: number;
+  x: number;
+  y: number;
+  state: NoteState;
+  noteName?: string;
+  crossingLogged?: boolean;
+  isBlack: boolean;
 }
 
-interface LabelTextures {
-  abc: Map<string, PIXI.Texture>;
-  solfege: Map<string, PIXI.Texture>;
+interface KeyRegion {
+  midi: number;
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  isBlack: boolean;
 }
 
+export interface PIXINotesRendererProps {
+  width: number;
+  height: number;
+  onReady?: (renderer: PIXINotesRendererInstance | null) => void;
+  className?: string;
+}
 
-// ===== PIXI.js レンダラークラス =====
+const DEFAULT_COLORS: RendererColors = {
+  visible: '#4A90E2',
+  visibleBlack: '#2C5282',
+  hit: '#48BB78',
+  missed: '#E53E3E',
+  perfect: '#F6E05E',
+  good: '#48BB78',
+  whiteKey: '#FFFFFF',
+  blackKey: '#2D2D2D',
+  activeKey: '#FF8C00',
+  guideKey: '#22C55E',
+  backgroundTop: '#0A0F1F',
+  backgroundBottom: '#1F2937',
+  grid: 'rgba(148, 163, 184, 0.25)',
+  hitLine: '#FBBF24'
+};
+
+const clamp = (value: number, min: number, max: number): number => {
+  if (Number.isNaN(value)) return min;
+  return Math.min(Math.max(value, min), max);
+};
 
 export class PIXINotesRendererInstance {
-  private app: PIXI.Application;
-  private container!: PIXI.Container;
-  private whiteNotes!: PIXI.ParticleContainer; // 白鍵ノーツ専用コンテナ
-  private blackNotes!: PIXI.ParticleContainer; // 黒鍵ノーツ専用コンテナ
-  private labelsContainer!: PIXI.Container; // ラベル専用コンテナ
-  private hitLineContainer!: PIXI.Container;
-  private pianoContainer!: PIXI.Container;
-  
-  private noteSprites: Map<string, NoteSprite> = new Map();
-  private activeNoteLookup: Map<string, ActiveNote> = new Map();
+  private readonly canvas: HTMLCanvasElement;
+  private readonly ctx: CanvasRenderingContext2D;
+  private width: number;
+  private height: number;
+  private devicePixelRatio: number;
 
-  private pianoSprites: Map<number, PIXI.Sprite> = new Map();
-  private whiteKeyTexture: PIXI.Texture | null = null;
-  private blackKeyTexture: PIXI.Texture | null = null;
-  private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
-  
-  // ★ ガイドライン管理用プロパティを追加
-  private guidelines?: PIXI.Graphics;
-  
-  // ガイド用ハイライト（演奏と独立して保持）
-  private guideHighlightedKeys: Set<number> = new Set();
-  
-  private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
-  
-  // ===== テクスチャキャッシュ =====
-  private noteTextures!: NoteTextures;
-  private labelTextures!: LabelTextures;
-  
-  // キーボード入力コールバック
+  private readonly noteStates = new Map<string, NoteRenderState>();
+  private readonly recycledNotes: NoteRenderState[] = [];
+  private readonly tempActiveIds = new Set<string>();
+  private readonly pointerActiveNotes = new Map<number, number>();
+  private readonly activeKeyPresses = new Set<number>();
+  private readonly highlightedKeys = new Set<number>();
+  private readonly guideHighlightedKeys = new Set<number>();
+
+  private keyRegions: KeyRegion[] = [];
+  private animationFrame: number | null = null;
+  private isDestroyed = false;
+  private needsRedraw = true;
+  private currentTime = 0;
+  private frameToken: string | null = null;
+
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
-  
-  
-  // ===== 新しい設計: 破棄管理＆アップデータシステム =====
-  private disposeManager: DisposeManager = new DisposeManager();
 
-  
-  // Ticker関数への参照（削除用）
-  private mainUpdateFunction?: (delta: number) => void;
-  
-  // リアルタイムアニメーション用
-  // リアルタイムアニメーション用（将来の拡張用）
-  private _currentTime: number = 0;
-  private _animationSpeed: number = 1.0;
-  private lastFrameTime: number = performance.now();
-  
-  // パフォーマンス監視フラグ
-  private performanceEnabled: boolean = true;
-  
-  // 破棄状態の追跡
-  private isDestroyed: boolean = false;
-  
-  
-  // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-    public readonly settings: RendererSettings = {
-    noteWidth: 28,
+  private readonly settings: RendererSettings = {
+    noteWidth: 24,
     noteHeight: 4,
-    hitLineY: 0,
-      pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
+    pianoHeight: 100,
     noteSpeed: 400,
-    colors: {
-      visible: 0x4A90E2,
-      visibleBlack: 0x2C5282,
-      hit: 0x48BB78,
-      missed: 0xE53E3E,
-      perfect: 0xF6E05E,
-      good: 0x48BB78,
-      whiteKey: 0xFFFFFF,
-      blackKey: 0x2D2D2D,
-      activeKey: 0xFF8C00,
-      guideKey: 0x22C55E
-    },
+    showHitLine: true,
+    viewportHeight: 600,
+    timingAdjustment: 0,
+    transpose: 0,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
-    transpose: 0,
     transposingInstrument: 'concert_pitch',
     practiceGuide: 'off',
-      showHitLine: true,
-      viewportHeight: 600,
-    timingAdjustment: 0
+    colors: DEFAULT_COLORS
   };
-  
-  private onDragActive: boolean = false;
-  private currentDragNote: number | null = null;
-  
-  // キープレス状態追跡（音が伸び続けるバグ防止の保険）
-  private activeKeyPresses: Set<number> = new Set();
-  
-  
+
   constructor(width: number, height: number) {
-    log.info(`🎯 PIXINotesRenderer constructor: ${width}x${height}`);
-    
-    // 指定された高さをそのまま使用
-    const adjustedHeight = height;
-    
-    // ★ まず白鍵幅を求めてnoteWidthを設定
-    const totalWhite = this.calculateTotalWhiteKeys();
-    const whiteKeyWidth = width / totalWhite;
-    this.settings.noteWidth = whiteKeyWidth - 2;   // 1px ずつ余白
-    log.info(`🎹 White key width: ${whiteKeyWidth.toFixed(2)}px, Note width: ${this.settings.noteWidth.toFixed(2)}px`);
-    
-    // PIXI.js アプリケーション初期化（統合レンダリングループ版）
-    this.app = new PIXI.Application({
-      width,
-      height: adjustedHeight, // ★ 最小高さを保証した高さを使用
-      // 🎯 統合フレーム制御を使用して競合ループを回避
-      autoStart: false, // 自動開始を無効化
-      backgroundColor: 0x0A0A0F, // より暗い宇宙的な背景
-      antialias: true,
-      resolution: 1, // 解像度を固定して一貫性を保つ
-      autoDensity: false, // 自動密度調整を無効化
-      resizeTo: undefined, // 自動リサイズを無効化
-      powerPreference: 'high-performance', // 高性能GPU使用
-      backgroundAlpha: 1,
-      clearBeforeRender: true,
-      preserveDrawingBuffer: false, // パフォーマンス向上
-      // 統一フレーム制御: SharedTicker を使用して GameEngine と同期
-      sharedTicker: true
-    });
-    
-    // 強制的にCanvasサイズを設定
-    this.app.renderer.resize(width, adjustedHeight);
-    
-    log.debug(`🎯 PIXI.js App created - Canvas: ${this.app.view.width}x${this.app.view.height}`);
-    
-    // インタラクションを有効化（重要）
-    // モバイルスクロールのため、ステージレベルでは`static`に設定
-    // 背景エリアは`none`で、ピアノキーのみ`static`で個別に制御
-    this.app.stage.eventMode = 'static';
-    
-    // 判定ラインをピアノの上端に正確に配置
-    const actualHeight = this.app.view.height;
-    this.settings.hitLineY = actualHeight - this.settings.pianoHeight;
-    
-    // サイズ不整合がある場合のみ警告
-    if (width !== this.app.view.width || height !== this.app.view.height) {
-      log.warn(`🚨 Canvas size mismatch - Expected: ${width}x${height}, Actual: ${this.app.view.width}x${this.app.view.height}`);
+    this.canvas = document.createElement('canvas');
+    const context = this.canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Failed to acquire 2D rendering context');
     }
-    
-    // テクスチャを事前生成
-    try {
-      this.generateNoteTextures();
-      this.generateLabelTextures();
-      log.debug('✅ Texture generation completed');
-    } catch (error) {
-      log.error('❌ Texture generation failed:', error);
-    }
-    
-    // セットアップシーケンス
-    try {
-      this.setupContainers();
-      this.createNotesAreaBackground();
-      this.setupPiano();
-      this.setupHitLine();
-      log.debug('✅ PIXI setup sequence completed');
-    } catch (error) {
-      log.error('❌ PIXI setup failed:', error);
-    }
-    
-    // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
-    this.app.stage.on('globalpointerup', () => {
-      // アクティブなキープレスを全て解除
-      for (const midiNote of this.activeKeyPresses) {
-        this.handleKeyRelease(midiNote);
-      }
-      this.activeKeyPresses.clear();
-    });
-    
-    // 🎯 統合フレーム制御でPIXIアプリケーションを開始
-    this.startUnifiedRendering();
-    
-    log.info('✅ PIXI.js renderer initialized successfully');
+    this.ctx = context;
+    this.width = width;
+    this.height = height;
+    this.devicePixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+
+    this.applyCanvasSize();
+    this.settings.pianoHeight = Math.max(MIN_PIANO_HEIGHT, this.settings.pianoHeight);
+    this.settings.viewportHeight = height;
+    this.recalculateNoteWidth();
+    this.rebuildKeyRegions();
+    this.attachPointerHandlers();
+    this.startLoop();
   }
 
+  updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
+    if (typeof currentTime === 'number') {
+      this.currentTime = currentTime;
+    }
 
-  
-  /**
-   * 🎯 統合フレーム制御でPIXIアプリケーションを開始
-   */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
-  private startUnifiedRendering(): void {
-    const ticker = this.app.ticker;
-    const renderStep = () => {
-      const currentTime = performance.now();
-      const controller = (window as any).unifiedFrameController;
-      if (controller && controller.shouldSkipFrame(currentTime, 'render')) {
-        return;
+    this.tempActiveIds.clear();
+
+    for (const note of activeNotes) {
+      this.tempActiveIds.add(note.id);
+      let cached = this.noteStates.get(note.id);
+      if (!cached) {
+        cached = this.obtainNoteState();
+        cached.id = note.id;
+        this.noteStates.set(note.id, cached);
       }
 
-      if (this.isDestroyed) {
-        return;
-      }
+      const previouslyCrossed = cached.crossingLogged;
+      cached.pitch = note.pitch;
+      cached.state = note.state;
+      cached.noteName = note.noteName;
+      cached.crossingLogged = note.crossingLogged;
+      cached.x = this.pitchToX(note.pitch);
+      cached.y = typeof note.y === 'number' ? note.y : this.computeNoteY(note);
+      cached.isBlack = this.isBlackKey(note.pitch + this.settings.transpose);
 
-      try {
-        this.app.render();
-      } catch (error) {
-        log.warn('⚠️ PIXI render error (likely destroyed):', error);
-      }
-    };
-
-    ticker.add(renderStep);
-    this.disposeManager.add(() => {
-      ticker.remove(renderStep);
-    });
-
-    log.info('🎯 PIXI.js unified frame control started (shared ticker)');
-  }
-  
-  /**
-   * ノーツテクスチャを事前生成
-   */
-  private generateNoteTextures(): void {
-    // ★ 既存のテクスチャを破棄（再生成時）
-    if (this.noteTextures) {
-      Object.values(this.noteTextures).forEach(texture => {
-        if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-          texture.destroy();
-        }
-      });
-    }
-    let { noteWidth, noteHeight } = this.settings;
-    
-    // 最小サイズを保証（平らなノーツ対応）
-    if (noteHeight < 3) {
-      log.warn(`⚠️ Note height too small (${noteHeight}), using minimum 3px`);
-      noteHeight = 3;
-    }
-    if (noteWidth < 8) {
-      log.warn(`⚠️ Note width too small (${noteWidth}), using minimum 8px`);
-      noteWidth = 8;
-    }
-    
-    log.info(`🎯 Generating note textures with size: ${noteWidth}x${noteHeight}`);
-    
-    // 白鍵ノーツテクスチャ
-    const whiteGraphics = new PIXI.Graphics();
-    this.drawNoteShapeToGraphics(whiteGraphics, 'visible', false, noteWidth, noteHeight);
-    this.noteTextures = {
-      whiteVisible: this.app.renderer.generateTexture(whiteGraphics),
-      blackVisible: PIXI.Texture.EMPTY,
-      hit: PIXI.Texture.EMPTY,
-      missed: PIXI.Texture.EMPTY
-    };
-    
-    // 黒鍵ノーツテクスチャ（白鍵の0.6倍の幅）
-    const blackGraphics = new PIXI.Graphics();
-    const blackRatio = 0.6;
-    const blackWidth = noteWidth * blackRatio;
-    this.drawNoteShapeToGraphics(blackGraphics, 'visible', true, blackWidth, noteHeight);
-    this.noteTextures.blackVisible = this.app.renderer.generateTexture(blackGraphics);
-    
-    // ヒット状態テクスチャ（透明）
-    const hitGraphics = new PIXI.Graphics();
-    this.drawNoteShapeToGraphics(hitGraphics, 'hit', false, noteWidth, noteHeight);
-    this.noteTextures.hit = this.app.renderer.generateTexture(hitGraphics);
-    
-    // ミス状態テクスチャ
-    const missedGraphics = new PIXI.Graphics();
-    this.drawNoteShapeToGraphics(missedGraphics, 'missed', false, noteWidth, noteHeight);
-    this.noteTextures.missed = this.app.renderer.generateTexture(missedGraphics);
-    
-    // Graphics オブジェクトをクリーンアップ
-    whiteGraphics.destroy();
-    blackGraphics.destroy();
-    hitGraphics.destroy();
-    missedGraphics.destroy();
-  }
-
-  /**
-   * ラベル用テクスチャアトラスを生成
-   */
-  private generateLabelTextures(): void {
-    log.info('🎯 Starting comprehensive label texture generation...');
-
-    // 既存のテクスチャを破棄
-    if (this.labelTextures) {
-      this.labelTextures.abc?.forEach(t => t.destroy());
-      this.labelTextures.solfege?.forEach(t => t.destroy());
-    }
-
-    // ABC表記とソルフェージュ表記の包括的なマッピング
-    // ダブルシャープ、ダブルフラット、白鍵の異名同音を含む
-    const noteNameMapping: { [abc: string]: string } = {
-      // Naturals
-      'A': 'ラ', 'B': 'シ', 'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 'G': 'ソ',
-      // Sharps
-      'A#': 'ラ#', 'C#': 'ド#', 'D#': 'レ#', 'F#': 'ファ#', 'G#': 'ソ#',
-      // Flats
-      'Ab': 'ラ♭', 'Bb': 'シ♭', 'Db': 'レ♭', 'Eb': 'ミ♭', 'Gb': 'ソ♭',
-      // Enharmonic White Keys
-      'B#': 'シ#', 'E#': 'ミ#',
-      'Cb': 'ド♭', 'Fb': 'ファ♭',
-      // Double Sharps
-      'Ax': 'ラx', 'Bx': 'シx', 'Cx': 'ドx', 'Dx': 'レx', 'Ex': 'ミx', 'Fx': 'ファx', 'Gx': 'ソx',
-      // Double Flats
-      'Abb': 'ラ♭♭', 'Bbb': 'シ♭♭', 'Cbb': 'ド♭♭', 'Dbb': 'レ♭♭', 'Ebb': 'ミ♭♭', 'Fbb': 'ファ♭♭', 'Gbb': 'ソ♭♭',
-    };
-
-    // ラベルスタイル設定
-    const labelStyle = new PIXI.TextStyle({
-        fontSize: 14,
-        fill: 0xFFFFFF,
-        fontFamily: '"Kaisei Opti", serif',
-        fontWeight: 'bold',
-        align: 'center',
-        stroke: 0x000000,
-        strokeThickness: 2
-    });
-
-    this.labelTextures = {
-      abc: new Map(),
-      solfege: new Map()
-    };
-
-    for (const abcName in noteNameMapping) {
-      try {
-        // ABC
-        const abcText = new PIXI.Text(abcName, labelStyle);
-        const abcTexture = this.app.renderer.generateTexture(abcText);
-        if (abcTexture && abcTexture !== PIXI.Texture.EMPTY) {
-          this.labelTextures.abc.set(abcName, abcTexture);
-        }
-        abcText.destroy();
-
-        // Solfege
-        const solfegeName = noteNameMapping[abcName];
-        const solfegeText = new PIXI.Text(solfegeName, labelStyle);
-        const solfegeTexture = this.app.renderer.generateTexture(solfegeText);
-        if (solfegeTexture && solfegeTexture !== PIXI.Texture.EMPTY) {
-          this.labelTextures.solfege.set(abcName, solfegeTexture); // キーはABC表記で統一
-        }
-        solfegeText.destroy();
-
-            } catch (error) {
-        log.error(`❌ Error generating texture for ${abcName}:`, error);
+      if (note.crossingLogged && !previouslyCrossed && this.settings.practiceGuide !== 'off') {
+        this.flashGuideHighlight(note.pitch + this.settings.transpose);
       }
     }
 
-    log.info(`🎯 Label texture generation completed! Total ABC textures: ${this.labelTextures.abc.size}`);
-  }
-
-  /**
-   * 複雑な音名を基本的な音名に変換（簡易表示モード用）
-   */
-  private getSimplifiedNoteName(noteName: string): string {
-    // 複雑な音名を基本的な12音階に変換するマッピング
-    const noteToMidiMap: { [key: string]: number } = {
-      // 白鍵
-      'C': 0, 'D': 2, 'E': 4, 'F': 5, 'G': 7, 'A': 9, 'B': 11,
-      // 黒鍵（シャープ）
-      'C#': 1, 'D#': 3, 'F#': 6, 'G#': 8, 'A#': 10,
-      // 黒鍵（フラット）
-      'Db': 1, 'Eb': 3, 'Gb': 6, 'Ab': 8, 'Bb': 10,
-      // 異名同音（白鍵）
-      'B#': 0, 'E#': 5, 'Cb': 11, 'Fb': 4,
-      // ダブルシャープ
-      'Ax': 11, 'Bx': 1, 'Cx': 1, 'Dx': 4, 'Ex': 6, 'Fx': 7, 'Gx': 9,
-      // ダブルフラット
-      'Abb': 7, 'Bbb': 9, 'Cbb': 10, 'Dbb': 0, 'Ebb': 2, 'Fbb': 3, 'Gbb': 5,
-    };
-
-    // 基本的な12音階の音名（シャープ記号使用）
-    const basicNoteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-
-    // 音名をMIDIノート番号に変換
-    const midiNote = noteToMidiMap[noteName];
-    if (midiNote === undefined) {
-      log.warn(`⚠️ Unknown note name for simplification: ${noteName}`);
-      return noteName; // 変換できない場合は元の音名を返す
-    }
-
-    // 基本的な音名に変換
-    return basicNoteNames[midiNote];
-  }
-
-  /**
-   * 簡易表示用の音名変換（複雑な音名のみを基本音名に変換）
-   */
-  private getSimplifiedDisplayName(noteName: string): string {
-    // オクターブ番号を除去
-    const noteNameWithoutOctave = noteName.replace(/\d+$/, '');
-    
-    // 複雑な音名（ダブルシャープ、ダブルフラット、異名同音）の変換マッピング
-    const complexToSimpleMap: { [key: string]: string } = {
-      // 異名同音（白鍵）
-      'B#': 'C', 'E#': 'F', 'Cb': 'B', 'Fb': 'E',
-      // ダブルシャープ → 基本的な音名
-      'Ax': 'B', 'Bx': 'C#', 'Cx': 'D', 'Dx': 'Eb', 'Ex': 'F#', 'Fx': 'G', 'Gx': 'A',
-      // ダブルフラット → 基本的な音名
-      'Abb': 'G', 'Bbb': 'A', 'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb', 'Gbb': 'F',
-    };
-    
-    // 複雑な音名の場合は変換、シンプルな音名（基本音名、シングル#、シングル♭）はそのまま
-    const simplifiedEnglishName = complexToSimpleMap[noteNameWithoutOctave] || noteNameWithoutOctave;
-    
-    // 英語音名を日本語音名に変換
-    const englishToJapaneseMap: { [key: string]: string } = {
-      // 基本音名
-      'C': 'ド', 'D': 'レ', 'E': 'ミ', 'F': 'ファ', 'G': 'ソ', 'A': 'ラ', 'B': 'シ',
-      // シャープ
-      'C#': 'ド#', 'D#': 'レ#', 'F#': 'ファ#', 'G#': 'ソ#', 'A#': 'ラ#',
-      // フラット
-      'Db': 'レ♭', 'Eb': 'ミ♭', 'Gb': 'ソ♭', 'Ab': 'ラ♭', 'Bb': 'シ♭',
-    };
-    
-    return englishToJapaneseMap[simplifiedEnglishName] || simplifiedEnglishName;
-  }
-
-  /**
-   * 英語音名簡易表示用の音名変換（複雑な音名のみを基本音名に変換）
-   */
-  private getEnglishSimplifiedDisplayName(noteName: string): string {
-    // オクターブ番号を除去
-    const noteNameWithoutOctave = noteName.replace(/\d+$/, '');
-    
-    // 複雑な音名（ダブルシャープ、ダブルフラット、異名同音）の変換マッピング
-    const complexToSimpleMap: { [key: string]: string } = {
-      // 異名同音（白鍵）
-      'B#': 'C', 'E#': 'F', 'Cb': 'B', 'Fb': 'E',
-      // ダブルシャープ → 基本的な音名
-      'Ax': 'B', 'Bx': 'C#', 'Cx': 'D', 'Dx': 'Eb', 'Ex': 'F#', 'Fx': 'G', 'Gx': 'A',
-      // ダブルフラット → 基本的な音名
-      'Abb': 'G', 'Bbb': 'A', 'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb', 'Gbb': 'F',
-    };
-    
-    // 複雑な音名の場合は変換、シンプルな音名（基本音名、シングル#、シングル♭）はそのまま
-    return complexToSimpleMap[noteNameWithoutOctave] || noteNameWithoutOctave;
-  }
-
-  /**
-   * 日本語音名から英語音名に変換（テクスチャキー用）
-   */
-  private convertJapaneseToEnglishNoteName(japaneseName: string): string {
-    // 日本語音名から英語音名への逆変換マッピング
-    const japaneseToEnglishMap: { [key: string]: string } = {
-      // 基本音名
-      'ド': 'C', 'レ': 'D', 'ミ': 'E', 'ファ': 'F', 'ソ': 'G', 'ラ': 'A', 'シ': 'B',
-      // シャープ
-      'ド#': 'C#', 'レ#': 'D#', 'ファ#': 'F#', 'ソ#': 'G#', 'ラ#': 'A#',
-      // フラット
-      'レ♭': 'Db', 'ミ♭': 'Eb', 'ソ♭': 'Gb', 'ラ♭': 'Ab', 'シ♭': 'Bb',
-      // 異名同音
-      'シ#': 'B#', 'ミ#': 'E#', 'ド♭': 'Cb', 'ファ♭': 'Fb',
-      // ダブルシャープ
-      'ドx': 'Cx', 'レx': 'Dx', 'ミx': 'Ex', 'ファx': 'Fx', 'ソx': 'Gx', 'ラx': 'Ax', 'シx': 'Bx',
-      // ダブルフラット
-      'ド♭♭': 'Cbb', 'レ♭♭': 'Dbb', 'ミ♭♭': 'Ebb', 'ファ♭♭': 'Fbb', 'ソ♭♭': 'Gbb', 'ラ♭♭': 'Abb', 'シ♭♭': 'Bbb',
-    };
-
-    return japaneseToEnglishMap[japaneseName] || japaneseName;
-  }
-
-  /**
-   * 音名に対応するラベルテクスチャを取得
-   */
-  private getLabelTexture(noteName: string): PIXI.Texture | null {
-    if (!noteName || this.settings.noteNameStyle === 'off') {
-      return null;
-    }
-
-    if (!this.labelTextures) {
-      log.error('❌ getLabelTexture: labelTextures not initialized!');
-      return null;
-    }
-
-    const style = this.settings.noteNameStyle;
-    const noteNameWithoutOctave = noteName.replace(/\d+$/, '');
-
-    let texture: PIXI.Texture | undefined;
-
-    if (style === 'abc') {
-      texture = this.labelTextures.abc.get(noteNameWithoutOctave);
-    } else if (style === 'solfege') {
-      if (/^[A-G]/.test(noteNameWithoutOctave)) {
-        // 英語音名の場合：通常通り
-        texture = this.labelTextures.solfege.get(noteNameWithoutOctave);
-      } else {
-        // 日本語音名の場合：英語音名に逆変換してからテクスチャを取得
-        const englishName = this.convertJapaneseToEnglishNoteName(noteNameWithoutOctave);
-        texture = this.labelTextures.solfege.get(englishName);
+    for (const [id, state] of this.noteStates) {
+      if (!this.tempActiveIds.has(id)) {
+        this.noteStates.delete(id);
+        this.recycleNoteState(state);
       }
     }
 
-    if (!texture || texture === PIXI.Texture.EMPTY) {
-      log.warn(`⚠️ getLabelTexture: No texture found for "${noteNameWithoutOctave}" (style: ${style})`);
-      return null;
-    }
-
-    return texture;
+    this.needsRedraw = true;
   }
 
-
-  
-  /**
-   * Graphics に描画（テクスチャ生成用）
-   */
-  private drawNoteShapeToGraphics(graphics: PIXI.Graphics, state: ActiveNote['state'], isBlackKey: boolean, noteWidth?: number, noteHeight?: number): void {
-    graphics.clear();
-    
-    // サイズのパラメータが指定されていない場合はsettingsから取得
-    const width = noteWidth ?? this.settings.noteWidth;
-    const height = noteHeight ?? this.settings.noteHeight;
-    
-    // GOOD 判定（state === 'hit') ではノーツを透明にする
-    if (state === 'hit') {
-      // 透明化してスペースを残す（クリック判定など影響させない）
-      graphics.beginFill(0x000000, 0);
-      graphics.drawRect(-width / 2, -height / 2, width, height);
-      graphics.endFill();
-      return;
-    }
-
-    // より美しいグラデーション効果を再現（平らなノーツ対応）
-    if (state === 'visible') {
-      if (isBlackKey) {
-        // 黒鍵ノーツ（紫系のグラデーション）- 平らなノーツ用に調整
-        const steps = Math.max(2, Math.min(4, Math.floor(height / 2))); // 高さに応じて段数を調整
-        const stepHeight = height / steps;
-        
-        for (let i = 0; i < steps; i++) {
-          const progress = i / (steps - 1);
-          
-          // 紫系のグラデーション
-          const r1 = 0x4C, g1 = 0x1D, b1 = 0x95; // purple-800
-          const r2 = 0x7C, g2 = 0x3A, b2 = 0xED; // purple-600
-          
-          const r = Math.round(r1 + (r2 - r1) * progress);
-          const g = Math.round(g1 + (g2 - g1) * progress);
-          const b = Math.round(b1 + (b2 - b1) * progress);
-          
-          const color = (r << 16) | (g << 8) | b;
-          const alpha = 0.9 + 0.05 * progress;
-          
-          graphics.beginFill(color, alpha);
-          graphics.drawRoundedRect(
-            -width / 2,
-            -height / 2 + i * stepHeight,
-            width,
-            stepHeight + 1,
-            i === 0 ? Math.min(3, height / 2) : 0 // 高さに応じて角丸を調整
-          );
-          graphics.endFill();
-        }
-        
-        // 紫のハイライト効果
-        graphics.beginFill(0x9333EA, 0.4);
-        graphics.drawRoundedRect(
-          -width / 2,
-          -height / 2,
-          width,
-          height / 3,
-          Math.min(3, height / 2) // 高さに応じて角丸を調整
-        );
-        graphics.endFill();
-        
-        // 紫の輪郭線
-        graphics.lineStyle(1, 0x8B5CF6, 0.8);
-        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
-      } else {
-        // 白鍵ノーツ（青系のグラデーション）- 平らなノーツ用に調整
-        const steps = Math.max(2, Math.min(4, Math.floor(height / 2))); // 高さに応じて段数を調整
-        const stepHeight = height / steps;
-        
-        for (let i = 0; i < steps; i++) {
-          const progress = i / (steps - 1);
-          
-          // 青系のグラデーション
-          const r1 = 0x16, g1 = 0x21, b1 = 0x3E; // topColor RGB
-          const r2 = 0x0F, g2 = 0x34, b2 = 0x60; // bottomColor RGB
-          
-          const r = Math.round(r1 + (r2 - r1) * progress);
-          const g = Math.round(g1 + (g2 - g1) * progress);
-          const b = Math.round(b1 + (b2 - b1) * progress);
-          
-          const color = (r << 16) | (g << 8) | b;
-          const alpha = 0.9 + 0.05 * progress;
-          
-          graphics.beginFill(color, alpha);
-          graphics.drawRoundedRect(
-            -width / 2,
-            -height / 2 + i * stepHeight,
-            width,
-            stepHeight + 1,
-            i === 0 ? Math.min(3, height / 2) : 0 // 高さに応じて角丸を調整
-          );
-          graphics.endFill();
-        }
-        
-        // 青のハイライト効果
-        graphics.beginFill(0x667EEA, 0.3);
-        graphics.drawRoundedRect(
-          -width / 2,
-          -height / 2,
-          width,
-          height / 3,
-          Math.min(3, height / 2) // 高さに応じて角丸を調整
-        );
-        graphics.endFill();
-        
-        // 青の輪郭線
-        graphics.lineStyle(1, 0x4F46E5, 0.8);
-        graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
-      }
-    } else {
-      const color = this.getStateColor(state);
-      graphics.beginFill(color);
-      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
-      graphics.endFill();
-      
-      // 輪郭線
-      graphics.lineStyle(1, color, 0.8);
-      graphics.drawRoundedRect(-width / 2, -height / 2, width, height, Math.min(3, height / 2)); // 高さに応じて角丸を調整
-    }
-  }
-  
-  private setupContainers(): void {
-    // メインコンテナ
-    this.container = new PIXI.Container();
-    this.container.sortableChildren = true;
-    this.app.stage.addChild(this.container);
-
-    // ノーツ専用コンテナ（ParticleContainer使用でパフォーマンス向上）
-    this.whiteNotes = new PIXI.ParticleContainer(1000, {
-      scale: true,
-      position: true,
-      rotation: false,
-      uvs: false,
-      alpha: true
-    });
-    (this.whiteNotes as any).eventMode = 'none';
-    (this.whiteNotes as any).interactiveChildren = false;
-    (this.whiteNotes as any).interactive = false;
-    this.whiteNotes.zIndex = 12;
-    this.container.addChild(this.whiteNotes);
-
-    this.blackNotes = new PIXI.ParticleContainer(1000, {
-      scale: true,
-      position: true,
-      rotation: false,
-      uvs: false,
-      alpha: true
-    });
-    (this.blackNotes as any).eventMode = 'none';
-    (this.blackNotes as any).interactiveChildren = false;
-    (this.blackNotes as any).interactive = false;
-    this.blackNotes.zIndex = 13;
-    this.container.addChild(this.blackNotes);
-
-    // ラベル専用コンテナ（通常のContainer）
-    this.labelsContainer = new PIXI.Container();
-    this.labelsContainer.eventMode = 'none';
-    this.labelsContainer.zIndex = 14;
-    this.container.addChild(this.labelsContainer);
-
-    // ヒットライン用コンテナ
-    this.hitLineContainer = new PIXI.Container();
-    this.hitLineContainer.zIndex = 20;
-    this.hitLineContainer.eventMode = 'none';
-    ;(this.hitLineContainer as any).interactive = false;
-    ;(this.hitLineContainer as any).interactiveChildren = false;
-    this.container.addChild(this.hitLineContainer);
-
-    // ピアノコンテナ（最上層）- 横スクロール機能を追加
-    this.pianoContainer = new PIXI.Container();
-    this.pianoContainer.zIndex = 10;
-    this.pianoContainer.interactive = true;
-    this.pianoContainer.cursor = 'pointer';
-    
-    // ピアノコンテナの横スクロール設定
-    this.pianoContainer.on('wheel', (e: PIXI.FederatedWheelEvent) => {
-      // Shiftキー押下時または横スクロールイベント時に横スクロール
-      if (e.deltaX !== 0 || e.shiftKey) {
-        e.preventDefault();
-        const deltaX = e.deltaX !== 0 ? e.deltaX : e.deltaY;
-        this.pianoContainer.x = Math.max(
-          Math.min(this.pianoContainer.x - deltaX, 0),
-          -(this.pianoContainer.width - this.app.screen.width)
-        );
-      }
-    });
-    
-    // ドラッグによる横スクロール
-    let isDragging = false;
-    let dragStartX = 0;
-    let containerStartX = 0;
-    
-    this.pianoContainer.on('pointerdown', (e: PIXI.FederatedPointerEvent) => {
-      if (e.button === 1) { // 中ボタンでドラッグスクロール
-        isDragging = true;
-        dragStartX = e.globalX;
-        containerStartX = this.pianoContainer.x;
-        this.pianoContainer.cursor = 'grabbing';
-        e.stopPropagation();
-      }
-    });
-    
-    this.pianoContainer.on('pointerup', () => {
-      if (isDragging) {
-        isDragging = false;
-        this.pianoContainer.cursor = 'pointer';
-      }
-    });
-    
-    this.pianoContainer.on('pointermove', (e: PIXI.FederatedPointerEvent) => {
-      if (isDragging) {
-        const deltaX = e.globalX - dragStartX;
-        this.pianoContainer.x = Math.max(
-          Math.min(containerStartX + deltaX, 0),
-          -(this.pianoContainer.width - this.app.screen.width)
-        );
-        e.stopPropagation();
-      }
-    });
-    
-    this.container.addChild(this.pianoContainer);
-
-    // ヒットライン表示
-    this.setupHitLine();
-
-    // ピアノ鍵盤の設定
-    this.setupPiano();
-
-
-
-    // 背景とガイドライン（全コンテナ作成後に実行）
-    this.createNotesAreaBackground();
-    this.createVerticalGuidelines();
-
-    log.debug('✅ PIXI.js コンテナセットアップ完了');
-  }
-  
-  private setupHitLine(): void {
-    const hitLine = new PIXI.Graphics();
-    // 1px のヘアラインをピアノ上端に完全一致で描画（アンチエイリアス対策で -0.5）
-    hitLine.lineStyle(1, 0xFBBF24, 1.0); // amber-400
-    const y = this.settings.hitLineY - 0.5;
-    hitLine.moveTo(0, y);
-    hitLine.lineTo(this.app.screen.width, y);
-    
-    // 余計なグローは除去（位置ズレの原因になるため）
-    this.hitLineContainer.addChild(hitLine);
-    this.hitLineContainer.visible = this.settings.showHitLine;
-  }
-  
-  private generatePianoKeyTextures(whiteKeyWidth: number, pianoHeight: number): void {
-    if (this.whiteKeyTexture && !this.whiteKeyTexture.destroyed) {
-      this.whiteKeyTexture.destroy(true);
-    }
-    if (this.blackKeyTexture && !this.blackKeyTexture.destroyed) {
-      this.blackKeyTexture.destroy(true);
-    }
-
-    const whiteGraphics = new PIXI.Graphics();
-    whiteGraphics.beginFill(this.settings.colors.whiteKey);
-    whiteGraphics.drawRoundedRect(0, 0, whiteKeyWidth - 1, pianoHeight, Math.min(8, pianoHeight * 0.15));
-    whiteGraphics.endFill();
-    whiteGraphics.lineStyle(1, 0x000000, 0.2);
-    whiteGraphics.moveTo(0, 0);
-    whiteGraphics.lineTo(0, pianoHeight);
-    whiteGraphics.moveTo(whiteKeyWidth - 1, 0);
-    whiteGraphics.lineTo(whiteKeyWidth - 1, pianoHeight);
-    this.whiteKeyTexture = this.app.renderer.generateTexture(whiteGraphics);
-    whiteGraphics.destroy();
-
-    const blackWidth = whiteKeyWidth * 0.7;
-    const blackHeight = pianoHeight * 0.65;
-    const blackGraphics = new PIXI.Graphics();
-    blackGraphics.beginFill(this.settings.colors.blackKey);
-    blackGraphics.drawRoundedRect(0, 0, blackWidth, blackHeight, Math.min(6, blackHeight * 0.2));
-    blackGraphics.endFill();
-    blackGraphics.beginFill(0x333333, 0.6);
-    blackGraphics.drawRoundedRect(0, 0, blackWidth, 3, 1.5);
-    blackGraphics.endFill();
-    this.blackKeyTexture = this.app.renderer.generateTexture(blackGraphics);
-    blackGraphics.destroy();
-  }
-  
-  private setupPiano(): void {
-    // ピアノ背景のグラデーション効果を追加
-    this.createPianoBackground();
-    
-    // 88鍵ピアノの描画（A0=21 to C8=108）
-    const minNote = 21;
-    const maxNote = 108;
-    
-    // 白鍵の総数を計算
-    let totalWhiteKeys = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        totalWhiteKeys++;
-      }
-    }
-    
-    // 画面幅に合わせて白鍵幅を動的計算（最小12px確保）
-    const whiteKeyWidth = Math.max(this.app.screen.width / totalWhiteKeys, 12);
-    this.generatePianoKeyTextures(whiteKeyWidth, this.settings.pianoHeight);
-    
-    // 白鍵コンテナと黒鍵コンテナを分離して Z-index を確実に制御
-    const whiteKeysContainer = new PIXI.Container();
-    const blackKeysContainer = new PIXI.Container();
-    
-    // 白鍵を描画
-    let whiteKeyIndex = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        const whiteKey = this.createWhiteKey(whiteKeyIndex * whiteKeyWidth, whiteKeyWidth, note);
-        whiteKeysContainer.addChild(whiteKey);
-        this.pianoSprites.set(note, whiteKey);
-        whiteKeyIndex++;
-      }
-    }
-    
-    // 黒鍵を描画（白鍵の上、正確な位置計算）
-    for (let note = minNote; note <= maxNote; note++) {
-      if (this.isBlackKey(note)) {
-        const position = this.calculateBlackKeyPosition(note, minNote, maxNote, totalWhiteKeys);
-        const blackKey = this.createBlackKey(
-          position, 
-          whiteKeyWidth, // 白鍵の幅を渡し、createBlackKey内で比率計算
-          note
-        );
-        blackKeysContainer.addChild(blackKey);
-        this.pianoSprites.set(note, blackKey);
-      }
-    }
-    
-    // コンテナを順序付けて追加（白鍵が背面、黒鍵が前面）
-    this.pianoContainer.addChild(whiteKeysContainer);
-    this.pianoContainer.addChild(blackKeysContainer);
-    
-    // ピアノコンテナ全体のサイズを画面に合わせて設定
-    this.pianoContainer.width = this.app.screen.width;
-    this.pianoContainer.height = this.settings.pianoHeight;
-    
-    log.debug('🎹 ピアノコンテナサイズ設定:', {
-      width: this.pianoContainer.width,
-      height: this.pianoContainer.height,
-      screenWidth: this.app.screen.width,
-      settingsPianoHeight: this.settings.pianoHeight
-    });
-    
-    // ===== グリッサンド用ドラッグハンドラ =====
-    // 安定性向上のためグリッサンド機能を無効化。
-    // マウス／タッチ操作によるキーのドラッグ移動での連続発音を行わない。
-    // 個別鍵盤の pointerdown / pointerup はそれぞれの鍵盤に実装済み。
-    // this.pianoContainer.eventMode = 'static';
-    // this.pianoContainer.on('pointerdown', this.handleDragStart.bind(this));
-    // this.pianoContainer.on('pointermove', this.handleDragMove.bind(this));
-    // this.pianoContainer.on('pointerup', this.handleDragEnd.bind(this));
-    // this.pianoContainer.on('pointerupoutside', this.handleDragEnd.bind(this));
-    // this.pianoContainer.on('pointercancel', this.handleDragEnd.bind(this));
-    
-    // 既存のガイドハイライトを再適用
-    for (const note of this.guideHighlightedKeys) {
-      this.applyKeyHighlightVisual(note, true);
-    }
-  }
-  
-  /**
-   * ノーツ降下エリアの宇宙的背景とガイドラインを作成
-   */
-  private createNotesAreaBackground(): void {
-    // === 宇宙的ホライズングラデーション背景 ===
-    const background = new PIXI.Graphics();
-    const steps = 50; // より滑らかなグラデーション
-    const stepHeight = this.settings.hitLineY / steps;
-    
-    for (let i = 0; i < steps; i++) {
-      const progress = i / (steps - 1);
-      
-      // 宇宙的な色の遷移: 深い紫から星空の青、そして地平線の赤紫へ
-      // 上部: 深い宇宙の紫 (深い紺)
-      // 中央: 星雲の青紫
-      // 下部: 地平線の暖かい紫
-      const r1 = 10, g1 = 5, b1 = 25;    // 深い宇宙の紫（上部）
-      const r2 = 25, g2 = 15, b2 = 45;   // 中間の青紫
-      const r3 = 45, g3 = 20, b3 = 35;   // 地平線の暖かい紫（下部）
-      
-      let r, g, b;
-      if (progress < 0.5) {
-        // 上半分: 深い宇宙から中間色へ
-        const localProgress = progress * 2;
-        r = Math.round(r1 + (r2 - r1) * localProgress);
-        g = Math.round(g1 + (g2 - g1) * localProgress);
-        b = Math.round(b1 + (b2 - b1) * localProgress);
-      } else {
-        // 下半分: 中間色から地平線へ
-        const localProgress = (progress - 0.5) * 2;
-        r = Math.round(r2 + (r3 - r2) * localProgress);
-        g = Math.round(g2 + (g3 - g2) * localProgress);
-        b = Math.round(b2 + (b3 - b2) * localProgress);
-      }
-      
-      const color = (r << 16) | (g << 8) | b;
-      const alpha = 0.9 + 0.1 * progress; // 下部に向かって少し濃く
-      
-      background.beginFill(color, alpha);
-      background.drawRect(0, i * stepHeight, this.app.screen.width, stepHeight + 1);
-      background.endFill();
-    }
-    
-    // 星のエフェクトを追加
-    this.createStarField(background);
-    
-    // 背景エリアのイベントを透過（スクロール可能に）
-    background.eventMode = 'none';
-    
-    this.container.addChildAt(background, 0); // 最背面に配置
-    
-    // === 縦ガイドライン（白鍵レーン）===
-    this.createVerticalGuidelines();
-  }
-  
-  /**
-   * 星空エフェクトを作成
-   */
-  private createStarField(background: PIXI.Graphics): void {
-    const starCount = 80;
-    
-    for (let i = 0; i < starCount; i++) {
-      const x = Math.random() * this.app.screen.width;
-      const y = Math.random() * this.settings.hitLineY;
-      const size = Math.random() * 2 + 0.5;
-      const brightness = Math.random() * 0.8 + 0.2;
-      
-      // 星の色をランダムに（青白、白、薄紫）
-      const starColors = [0xFFFFFF, 0xE0E7FF, 0xDDD6FE, 0xFAF5FF];
-      const color = starColors[Math.floor(Math.random() * starColors.length)];
-      
-      background.beginFill(color, brightness);
-      background.drawCircle(x, y, size);
-      background.endFill();
-      
-      // 輝く星（大きめ）
-      if (Math.random() < 0.1) {
-        background.beginFill(color, brightness * 0.3);
-        background.drawCircle(x, y, size * 3);
-        background.endFill();
-      }
-    }
-  }
-  
-  /**
-   * 白鍵に合わせた縦ガイドラインを作成（簡素化版）
-   */
-  private createVerticalGuidelines(): void {
-    // ★ 再生成時に古いものを破棄
-    if (this.guidelines) {
-      this.guidelines.destroy();
-      this.guidelines = undefined;
-    }
-    
-    const guidelines = new PIXI.Graphics();
-    this.guidelines = guidelines; // ★ 保持しておく
-    
-    // ガイドラインのイベントを透過（スクロール可能に）
-    guidelines.eventMode = 'none';
-    
-    // 88鍵ピアノの設定
-    const minNote = 21; // A0
-    const maxNote = 108; // C8
-    
-    // 白鍵の総数を計算
-    let totalWhiteKeys = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        totalWhiteKeys++;
-      }
-    }
-    
-    const whiteKeyWidth = this.app.screen.width / totalWhiteKeys;
-    
-    // オクターブのCノートのみにガイドラインを描画（視覚的な目安）
-    let whiteKeyIndex = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        // ★ ピクセル中央に合わせるため 0.5px シフト
-        const x = Math.round(whiteKeyIndex * whiteKeyWidth) + 0.5;
-        
-        // 全ての白鍵に境界線を描画
-        const noteName = this.getMidiNoteName(note);
-        const isOctaveMarker = noteName === 'C';
-        
-        // Cノートは少し濃く、他も見やすい濃さに調整
-        const lineWidth = isOctaveMarker ? 2 : 1;
-        const alpha = isOctaveMarker ? 0.4 : 0.35; // ★ 0.25 → 0.35 に変更
-        const color = isOctaveMarker ? 0x8B5CF6 : 0x6B7280;
-        
-        guidelines.lineStyle(lineWidth, color, alpha);
-        guidelines.moveTo(x, 0);
-        // ★ ヒットラインの1px上で止める
-        guidelines.lineTo(x, this.settings.hitLineY - 1);
-        
-        whiteKeyIndex++;
-      }
-    }
-    
-    // ガイドラインは Graphics なので ParticleContainer ではなく通常のコンテナに追加
-    // 白鍵ノーツの後ろに配置するため、whiteNotes の直前に挿入
-    const whiteNotesIndex = this.container.getChildIndex(this.whiteNotes);
-    this.container.addChildAt(guidelines, whiteNotesIndex);
-  }
-  
-  /**
-   * ピアノ背景のグラデーション効果を作成
-   */
-  private createPianoBackground(): void {
-    const background = new PIXI.Graphics();
-    
-    // より滑らかなグラデーション効果を作成
-    const steps = 10;
-    const stepHeight = this.settings.pianoHeight / steps;
-    
-    for (let i = 0; i < steps; i++) {
-      const progress = i / (steps - 1);
-      
-      // ピアノ部分は暖かい色調で背景と調和
-      const r1 = 30, g1 = 25, b1 = 50;   // 上部：深い紫
-      const r2 = 20, g2 = 30, b2 = 60;   // 下部：濃い青紫
-      
-      const r = Math.round(r1 + (r2 - r1) * progress);
-      const g = Math.round(g1 + (g2 - g1) * progress);
-      const b = Math.round(b1 + (b2 - b1) * progress);
-      
-      const color = (r << 16) | (g << 8) | b;
-      const alpha = 0.8 + 0.1 * progress; // 透明度を下げて判定ラインを見やすく
-      
-      background.beginFill(color, alpha);
-      background.drawRect(0, i * stepHeight, this.app.screen.width, stepHeight + 1);
-      background.endFill();
-    }
-    
-    // ピアノ背景の位置設定 - 画面底部に固定
-    background.x = 0;
-    background.y = this.settings.hitLineY;
-    
-    // ピアノ背景のイベントを透過
-    background.eventMode = 'none';
-    background.interactive = false;
-    
-    this.pianoContainer.addChild(background);
-  }
-  
-
-  
-  private setupLightweightEffectsTicker(): void {
-    // 統合済みのため空実装（エフェクト更新はPIXIのTickerに統合済み）
-  }
-  
-
-  
-  private createWhiteKey(x: number, width: number, midiNote?: number): PIXI.Sprite {
-    const key = new PIXI.Sprite(this.whiteKeyTexture ?? PIXI.Texture.WHITE);
-    key.width = width - 1;
-    key.height = this.settings.pianoHeight;
-    key.x = x;
-    key.y = this.settings.hitLineY;
-    key.tint = this.settings.colors.whiteKey;
-    
-    if (midiNote !== undefined && !this.isBlackKey(midiNote)) {
-      const noteName = this.getMidiNoteName(midiNote);
-      const text = new PIXI.Text(noteName, {
-        fontSize: Math.min(width * 0.4, 16),
-        fill: 0x666666,
-        fontFamily: '"Kaisei Opti", serif',
-        fontWeight: 'bold',
-        align: 'center'
-      });
-      text.anchor.set(0.5, 1);
-      text.x = (width - 1) / 2;
-      text.y = this.settings.pianoHeight - 8;
-      key.addChild(text);
-    }
-    
-    if (midiNote !== undefined) {
-      key.eventMode = 'static';
-      key.cursor = 'pointer';
-      const releaseKey = (event?: PIXI.FederatedPointerEvent) => {
-        this.handleKeyRelease(midiNote);
-        if (event) {
-          try {
-            (event.currentTarget as any).releasePointer?.(event.pointerId);
-          } catch {}
-        }
-      };
-      key.on('pointerdown', (event) => {
-        event.stopPropagation();
-        try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
-        } catch {}
-        this.handleKeyPress(midiNote);
-      });
-      key.on('pointerup', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointerupoutside', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointercancel', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointerleave', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-    }
-    
-    return key;
-  }
-  
-  private createBlackKey(x: number, width: number, midiNote?: number): PIXI.Sprite {
-    const key = new PIXI.Sprite(this.blackKeyTexture ?? PIXI.Texture.WHITE);
-    const blackKeyWidthRatio = 0.8;
-    const adjustedWidth = width * blackKeyWidthRatio;
-    const blackKeyHeight = this.settings.pianoHeight * 0.65;
-    key.width = adjustedWidth;
-    key.height = blackKeyHeight;
-    key.anchor.set(0.5, 0);
-    key.x = x;
-    key.y = this.settings.hitLineY;
-    key.tint = this.settings.colors.blackKey;
-    
-    if (midiNote !== undefined) {
-      key.eventMode = 'static';
-      key.cursor = 'pointer';
-      const releaseKey = (event?: PIXI.FederatedPointerEvent) => {
-        this.handleKeyRelease(midiNote);
-        if (event) {
-          try {
-            (event.currentTarget as any).releasePointer?.(event.pointerId);
-          } catch {}
-        }
-      };
-      key.on('pointerdown', (event) => {
-        event.stopPropagation();
-        try {
-          (event.currentTarget as any).capturePointer?.(event.pointerId);
-        } catch {}
-        this.handleKeyPress(midiNote);
-      });
-      key.on('pointerup', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointerupoutside', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointercancel', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-      key.on('pointerleave', (event) => {
-        event.stopPropagation();
-        releaseKey(event);
-      });
-    }
-    
-    return key;
-  }
-  
-  /**
-   * MIDIノート番号から音名を取得（統一された設定を使用）
-   */
-  private getMidiNoteName(midiNote: number): string {
-    // 統一された表示スタイルを取得
-    const style = this.settings.noteNameStyle;
-
-    if (style === 'off') return '';
-
-    // 移調楽器の設定を考慮した音名計算
-    let displayNote = midiNote;
-    
-    // 移調楽器の移調量を取得（音名表示用）
-    if (this.settings.transposingInstrument !== 'concert_pitch') {
-      // 移調楽器の移調量をハードコードで計算（musicXmlTransposer.tsと同じロジック）
-      let transposingInstrumentSemitones = 0;
-      switch (this.settings.transposingInstrument) {
-        case 'bb_major_2nd':
-          transposingInstrumentSemitones = 2; // in Bb (長2度上) - 実音より2半音低く聞こえる → 楽譜は2半音上に書く
-          break;
-        case 'bb_major_9th':
-          transposingInstrumentSemitones = 14; // in Bb (1オクターブ+長2度上) - 実音より14半音低く聞こえる → 楽譜は14半音上に書く
-          break;
-        case 'eb_major_6th':
-          transposingInstrumentSemitones = 9; // in Eb (長6度上) - 実音より9半音低く聞こえる → 楽譜は9半音上に書く
-          break;
-        case 'eb_major_13th':
-          transposingInstrumentSemitones = 21; // in Eb (1オクターブ+長6度上) - 実音より21半音低く聞こえる → 楽譜は21半音上に書く
-          break;
-      }
-      displayNote = midiNote + transposingInstrumentSemitones;
-    }
-
-    // 12音階の名前テーブル（デフォルトはシャープ）
-    const sharpNamesABC = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-    const sharpNamesSolfege = ['ド', 'ド#', 'レ', 'レ#', 'ミ', 'ファ', 'ファ#', 'ソ', 'ソ#', 'ラ', 'ラ#', 'シ'];
-
-    const index = displayNote % 12;
-
-    if (style === 'abc') {
-      return sharpNamesABC[index];
-    }
-    if (style === 'solfege') {
-      return sharpNamesSolfege[index];
-    }
-
-    // fallback
-    return sharpNamesABC[index];
-  }
-  
-  private isBlackKey(midiNote: number): boolean {
-    const noteInOctave = midiNote % 12;
-    return [1, 3, 6, 8, 10].includes(noteInOctave);
-  }
-  
-  /**
-   * キーがハイライト状態かどうかを確認
-   */
-  private isKeyHighlighted(midiNote: number): boolean {
-    return this.highlightedKeys.has(midiNote) || this.guideHighlightedKeys.has(midiNote);
-  }
-  
-  private calculateBlackKeyPosition(note: number, minNote: number, _maxNote: number, totalWhiteKeys: number): number {
-    const noteInOctave = note % 12;
-    
-    // 隣接する白鍵のMIDIノート番号を特定
-    let prevWhiteNote: number, nextWhiteNote: number;
-    
-    switch (noteInOctave) {
-      case 1:  // C#
-        prevWhiteNote = note - 1;  // C
-        nextWhiteNote = note + 1;  // D
-        break;
-      case 3:  // D#
-        prevWhiteNote = note - 1;  // D
-        nextWhiteNote = note + 1;  // E
-        break;
-      case 6:  // F#
-        prevWhiteNote = note - 1;  // F
-        nextWhiteNote = note + 1;  // G
-        break;
-      case 8:  // G#
-        prevWhiteNote = note - 1;  // G
-        nextWhiteNote = note + 1;  // A
-        break;
-      case 10: // A#
-        prevWhiteNote = note - 1;  // A
-        nextWhiteNote = note + 1;  // B
-        break;
-      default:
-        log.error(`❌ Invalid black key note: ${note}`);
-        return 0; // 無効な黒鍵
-    }
-    
-    // Piano.tsと同じロジックで白鍵インデックスを計算
-    let prevWhiteKeyIndex = 0;
-    for (let n = minNote; n < prevWhiteNote; n++) {
-      if (!this.isBlackKey(n)) {
-        prevWhiteKeyIndex++;
-      }
-    }
-    
-    let nextWhiteKeyIndex = 0;
-    for (let n = minNote; n < nextWhiteNote; n++) {
-      if (!this.isBlackKey(n)) {
-        nextWhiteKeyIndex++;
-      }
-    }
-    
-    // 白鍵の幅を計算
-    const whiteKeyWidth = this.app.screen.width / totalWhiteKeys;
-    
-    // より正確な位置計算
-    // 左の白鍵の中央位置
-    const prevKeyCenter = (prevWhiteKeyIndex + 0.5) * whiteKeyWidth;
-    
-    // 右の白鍵の中央位置
-    const nextKeyCenter = (nextWhiteKeyIndex + 0.5) * whiteKeyWidth;
-    
-    // 2つの白鍵の中央位置の中点を計算
-    const centerPosition = (prevKeyCenter + nextKeyCenter) / 2;
-    
-    return centerPosition;
-  }
-  
-  /**
-   * ピアノキーの状態更新（演奏時のハイライト）
-   */
   highlightKey(midiNote: number, active: boolean): void {
-    const keySprite = this.pianoSprites.get(midiNote);
-    if (!keySprite) {
-      log.warn(`⚠️ Key sprite not found for note: ${midiNote}`);
-      return;
-    }
-    
     if (active) {
       this.highlightedKeys.add(midiNote);
     } else {
-      // リリース時は常に演奏ハイライトを解除する（ガイドがあれば緑に戻る）
       this.highlightedKeys.delete(midiNote);
     }
-    
-    const shouldHighlight = this.isKeyHighlighted(midiNote);
-    // ガイド/演奏の合算状態を元に見た目を一元適用
-    this.applyKeyHighlightVisual(midiNote, shouldHighlight);
-  }
-  
-  /**
-   * 白鍵の総数を計算（ヘルパーメソッド）
-   */
-  private calculateTotalWhiteKeys(): number {
-    const minNote = 21;
-    const maxNote = 108;
-    let count = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        count++;
-      }
-    }
-    return count;
-  }
-  
-  /**
-   * 88鍵中の白鍵幅（ピクセル）を返す
-   */
-  private getWhiteKeyWidth(): number {
-    const totalWhite = this.calculateTotalWhiteKeys();   // 52鍵
-    return this.app.screen.width / totalWhite;
-  }
-  
-  /**
-   * ノーツ表示の更新 - ループ分離最適化版
-   * 位置更新と状態更新を分離してCPU使用量を30-50%削減
-   */
-    updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
-    if (typeof currentTime !== 'number') return; // 絶対時刻が必要
-    
-    // ===== 巻き戻し検出とノートリスト更新 =====
-    const timeMovedBackward = currentTime < this.lastUpdateTime;
-    const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
-    const jumpThreshold = PIXI_LOOKAHEAD_SECONDS > 0 ? PIXI_LOOKAHEAD_SECONDS * 0.5 : 1;
-    
-    // ===== シーク検出: 時間が逆行または大きく飛んだ場合のみ =====
-    const jumpedFar = timeDelta > jumpThreshold;
-    const seekDetected = timeMovedBackward || jumpedFar;
-    
-    // シーク時は既存のスプライトをクリア（ノート数変化に関係なく実施）
-    if (seekDetected) {
-      // 全てのノートスプライトを削除
-      const noteIds = Array.from(this.noteSprites.keys());
-      for (const noteId of noteIds) {
-        this.removeNoteSprite(noteId);
-      }
-      this.noteSprites.clear();
-    }
-    
-      this.lastUpdateTime = currentTime;
-      this.refreshActiveNoteLookup(activeNotes);
-      
-      // GameEngine提供のアクティブノート一覧に合わせてスプライトを補充
-      for (const note of activeNotes) {
-        if (!this.noteSprites.has(note.id)) {
-          this.createNoteSprite(note);
-        }
-      }
-      
-      // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-      const visualSpeedMultiplier = this.settings.noteSpeed;
-      const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-      const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
-    // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
-    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
-    
-    // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    // const frameStartTime = performance.now(); // パフォーマンス監視用（現在未使用）
-    
-    // 状態・削除処理ループ（フレーム間引き無効化）
-    this.updateSpriteStates(this.activeNoteLookup);
-    
-    
-    
+    this.needsRedraw = true;
   }
 
-  /**
-   * 🚀 位置更新専用ループ（毎フレーム実行）
-   * Y座標・X座標更新のみの軽量処理
-   */
-  private updateSpritePositions(activeNoteLookup: Map<string, ActiveNote>, currentTime: number, speedPxPerSec: number): void {
-    for (const [noteId, sprite] of this.noteSprites) {
-      const note = activeNoteLookup.get(noteId);
-      if (!note) {
-        continue;
-      }
-      
-      // ===== Y座標更新（毎フレーム、軽量処理） =====
-      const suppliedY = note.y;
-      let newY: number;
-
-      if (suppliedY !== undefined) {
-        newY = suppliedY; // Engine提供の絶対座標を最優先
-      } else {
-        // フォールバック: 自前計算
-        newY = this.settings.hitLineY - (note.time - currentTime) * speedPxPerSec;
-      }
-
-      sprite.sprite.y = newY;
-        if (sprite.label) sprite.label.y = newY - 8;
-      
-      // ===== X座標更新（ピッチ変更時のみ） =====
-      if (sprite.noteData.pitch !== note.pitch) {
-        const x = this.pitchToX(note.pitch);
-        sprite.sprite.x = x;
-          if (sprite.label) sprite.label.x = x;
-      }
-      
-      // ===== トランスポーズ変更検出 =====
-      if (sprite.transposeAtCreation !== this.settings.transpose) {
-        const effectivePitch = note.pitch + this.settings.transpose;
-        const isBlackNote = this.isBlackKey(effectivePitch);
-        
-        // テクスチャを即座に更新
-        if (note.state === 'visible' || note.state === 'missed') {
-          const newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-          sprite.sprite.texture = newTexture;
-        }
-        
-        // 適切なコンテナに移動
-        const currentContainer = sprite.sprite.parent;
-        const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
-        
-        if (currentContainer !== targetContainer) {
-          if (currentContainer) {
-            currentContainer.removeChild(sprite.sprite);
-          }
-          targetContainer.addChild(sprite.sprite);
-        }
-        
-        // ===== 音名ラベルを即座に更新 =====
-        if (sprite.label) {
-          // 既存ラベルを削除
-          if (sprite.label.parent) {
-            sprite.label.parent.removeChild(sprite.label);
-          }
-          sprite.label.destroy();
-          sprite.label = undefined;
-        }
-        
-        // 新しい音名でラベルを再生成
-        if (this.settings.noteNameStyle !== 'off') {
-          let newNoteName: string | undefined;
-          
-          // 音名決定ロジック（MECE構造）
-          if (this.settings.simpleDisplayMode) {
-            // 簡易表示モード: 複雑な音名を基本音名に変換
-            if (note.noteName) {
-              if (this.settings.noteNameStyle === 'solfege') {
-                // ドレミ簡易表示
-                newNoteName = this.getSimplifiedDisplayName(note.noteName);
-              } else {
-                // 英語簡易表示
-                newNoteName = this.getEnglishSimplifiedDisplayName(note.noteName);
-              }
-            } else {
-              // フォールバック: 基本的な音名を生成
-              newNoteName = this.getMidiNoteName(effectivePitch);
-            }
-          } else {
-            // 通常モード：MusicXMLの音名を使用、なければMIDI音名を生成
-            newNoteName = note.noteName || this.getMidiNoteName(effectivePitch);
-          }
-          
-          if (newNoteName) {
-            const newTexture = this.getLabelTexture(newNoteName);
-            if (newTexture) {
-              const newLabel = new PIXI.Sprite(newTexture);
-              newLabel.anchor.set(0.5, 1);
-              newLabel.x = sprite.sprite.x;
-              newLabel.y = sprite.sprite.y - 8;
-              sprite.label = newLabel;
-              this.labelsContainer.addChild(newLabel);
-            }
-          }
-        }
-        
-        // トランスポーズ値を更新
-        sprite.transposeAtCreation = this.settings.transpose;
-      }
-      
-      // ===== 🚀 位置関連プロパティのみ部分更新（state保持） =====
-      // 新しいオブジェクトを作成し、座標のみ更新、状態は元のまま保持
-      sprite.noteData = {
-        ...sprite.noteData,  // state は保持
-        y: note.y,
-        previousY: note.previousY,
-        time: note.time,
-        pitch: note.pitch,
-        crossingLogged: note.crossingLogged // crossingLogged を同期してハイライト多重発火を防止
-      };
-    }
-  }
-
-  private refreshActiveNoteLookup(notes: ActiveNote[]): void {
-    this.activeNoteLookup.clear();
-    for (const note of notes) {
-      this.activeNoteLookup.set(note.id, note);
-    }
-  }
-
-  /**
-   * 🎯 状態・削除処理専用ループ（フレーム間引き実行）
-   * 重い処理（判定、状態変更、削除）のみ
-   */
-  private updateSpriteStates(activeNoteLookup: Map<string, ActiveNote>): void {
-    const spritesToRemove: string[] = [];
-    let stateChanges = 0;
-    
-    for (const [noteId, sprite] of this.noteSprites) {
-      const note = activeNoteLookup.get(noteId);
-      if (!note) {
-        // 画面外に出たノーツをマーク（後でバッチ削除）
-        spritesToRemove.push(noteId);
-        continue;
-      }
-      
-      // ===== 状態 or 音名 変更チェック（変更時のみ、重い処理） =====
-      if (sprite.noteData.state !== note.state || sprite.noteData.noteName !== note.noteName) {
-        // 🚀 ヒット系判定時は即座処理
-        if (isHitState(note.state)) {
-          // エフェクトは updateNoteState 内で生成するためここでは作成しない
-          // 2. ノートステータスを更新（α=0にする）
-          this.updateNoteState(sprite, note);
-          
-          // 3. 即座に削除マーク（0.3秒待機なし）
-          spritesToRemove.push(noteId);
-                      // ログ削除: FPS最適化のため
-            // log.debug(`🎯 Hit即座削除: ${noteId}`);
-        } else {
-          // Hit以外の通常の状態更新
-          this.updateNoteState(sprite, note);
-        }
-        stateChanges++;
-      }
-    }
-    
-      // ===== 不要なスプライトをバッチ削除 =====
-      for (const noteId of spritesToRemove) {
-        this.removeNoteSprite(noteId);
-      }
-    }
-    
-  private createNoteSprite(note: ActiveNote): NoteSprite {
-    const effectivePitch = note.pitch + this.settings.transpose;
-    const x = this.pitchToX(note.pitch);
-    
-    // ===== 適切なテクスチャを選択 =====
-    const isBlackNote = this.isBlackKey(effectivePitch);
-    const texture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-    
-    // メインノートスプライト（位置は後でupdateNotesで設定）
-    const sprite = new PIXI.Sprite(texture);
-    // ノーツスプライトは完全にイベント非対象（クリック透過）
-    ;(sprite as any).eventMode = 'none';
-    ;(sprite as any).interactive = false;
-    ;(sprite as any).interactiveChildren = false;
-    sprite.anchor.set(0.5, 0.5);
-    sprite.x = x;
-    sprite.y = 0; // 後で設定
-    
-    // 音名ラベル（MusicXMLから取得した音名を優先）
-    let label: PIXI.Sprite | undefined;
-    let noteNameForLabel: string | undefined;
-    
-    // 音名決定ロジック（MECE構造）
-    if (this.settings.simpleDisplayMode) {
-      // 簡易表示モード: 複雑な音名を基本音名に変換
-      if (note.noteName) {
-        if (this.settings.noteNameStyle === 'solfege') {
-          // ドレミ簡易表示
-          noteNameForLabel = this.getSimplifiedDisplayName(note.noteName);
-        } else {
-          // 英語簡易表示
-          noteNameForLabel = this.getEnglishSimplifiedDisplayName(note.noteName);
-        }
-      } else {
-        // フォールバック: 基本的な音名を生成
-        noteNameForLabel = this.getMidiNoteName(effectivePitch);
-      }
-    } else {
-      // 通常モード：MusicXMLから取得した音名を優先
-      if (note.noteName) {
-        noteNameForLabel = note.noteName;
-      } else {
-        // フォールバック: 従来のロジックで音名を生成
-        noteNameForLabel = this.getMidiNoteName(effectivePitch);
-      }
-    }
-    
-    if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
-      try {
-        const labelTexture = this.getLabelTexture(noteNameForLabel);
-        if (labelTexture) {
-          label = new PIXI.Sprite(labelTexture);
-          label.anchor.set(0.5, 1);
-          label.x = x;
-          label.y = 0; // 後で設定
-          
-          // 通常のContainerへ追加
-          try {
-            this.labelsContainer.addChild(label);
-          } catch (containerError) {
-            log.error(`❌ Failed to add label to container for "${noteNameForLabel}":`, containerError);
-            label.destroy();
-            label = undefined;
-          }
-        }
-      } catch (error) {
-        log.error(`❌ Error creating label sprite for "${noteNameForLabel}":`, error);
-        label = undefined;
-      }
-    }
-    
-    try {
-      // 適切なコンテナにノーツを追加（白鍵 or 黒鍵）
-      const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
-      targetContainer.addChild(sprite);
-      // 頻繁に実行されるため、成功ログは削除
-    } catch (error) {
-      log.error(`❌ Failed to add note sprite to container:`, error);
-    }
-    
-    const noteSprite: NoteSprite = {
-      sprite,
-      noteData: note,
-      label,
-      transposeAtCreation: this.settings.transpose
-    };
-    
-    this.noteSprites.set(note.id, noteSprite);
-    
-    return noteSprite;
-  }
-  
-  /**
-   * ノーツ状態変更処理（頻度が低い処理のみ）
-   */
-  private updateNoteState(noteSprite: NoteSprite, note: ActiveNote): void {
-    const effectivePitch = note.pitch + this.settings.transpose;
-    const oldNoteName = noteSprite.noteData.noteName;
-
-    // ==== ラベル更新ロジック ====
-    // 音名が変更された場合、ラベルを再生成する
-    if (oldNoteName !== note.noteName) {
-      // 既存ラベルを破棄
-      if (noteSprite.label) {
-        if (noteSprite.label.parent) {
-          noteSprite.label.parent.removeChild(noteSprite.label);
-        }
-        noteSprite.label.destroy();
-        noteSprite.label = undefined;
-      }
-      
-      // 新しい音名でラベルを生成
-      if (this.settings.noteNameStyle !== 'off') {
-        let newNoteName: string | undefined;
-        
-        // 音名決定ロジック（MECE構造）
-        if (this.settings.simpleDisplayMode) {
-          // 簡易表示モード: 複雑な音名を基本音名に変換
-          if (note.noteName) {
-            if (this.settings.noteNameStyle === 'solfege') {
-              // ドレミ簡易表示
-              newNoteName = this.getSimplifiedDisplayName(note.noteName);
-            } else {
-              // 英語簡易表示
-              newNoteName = this.getEnglishSimplifiedDisplayName(note.noteName);
-            }
-          } else {
-            // フォールバック: 基本的な音名を生成
-            newNoteName = this.getMidiNoteName(effectivePitch);
-          }
-        } else {
-          // 通常モード：MusicXMLの音名を使用
-          newNoteName = note.noteName;
-        }
-        
-        if (newNoteName) {
-          const newTexture = this.getLabelTexture(newNoteName);
-          if (newTexture) {
-            const newLabel = new PIXI.Sprite(newTexture);
-            newLabel.anchor.set(0.5, 1);
-            newLabel.x = noteSprite.sprite.x;
-            newLabel.y = noteSprite.sprite.y - 8; // 位置は別途positionループで更新される
-            noteSprite.label = newLabel;
-            this.labelsContainer.addChild(newLabel);
-          }
-        }
-      }
-    }
-
-    // ==== 判定ライン通過時のピアノキー点灯 ====
-    if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
-      // マウス操作中でない場合のみ練習モード用ハイライトを実行
-      if (!this.activeKeyPresses.has(effectivePitch)) {
-        this.highlightKey(effectivePitch, true);
-        setTimeout(() => {
-          // タイマー実行時にもマウス操作チェック（競合防止）
-          if (!this.activeKeyPresses.has(effectivePitch)) {
-            this.highlightKey(effectivePitch, false);
-          }
-        }, 150);
-      }
-    }
-
-    // ===== ヒット判定時はノーツを即座に非表示 =====
-    if (isHitState(note.state)) {
-      // ノーツを透明にする
-      noteSprite.sprite.alpha = 0;
-      // ラベルも即非表示
-      if (noteSprite.label) noteSprite.label.alpha = 0;
-
-      // ノーツデータを更新してから削除しない（削除はupdateSpriteStatesで行う）
-      noteSprite.noteData = note;
-      return;
-    } else {
-      // ノーツの状態が変わった時のみテクスチャを更新
-      // （トランスポーズ変更時はupdateSettingsで一括更新されるため、ここでは更新しない）
-      if (noteSprite.noteData.state !== note.state) {
-        noteSprite.sprite.alpha = 1;
-        const isBlackNote = this.isBlackKey(effectivePitch);
-        noteSprite.sprite.texture = isBlackNote
-          ? this.noteTextures.blackVisible
-          : this.noteTextures.whiteVisible;
-      }
-    }
-    
-        // ラベルもαで同期させる（visibleだとGCがズレる）
-    if (noteSprite.label) {
-      noteSprite.label.alpha = (note.state as any) === 'hit' ? 0 : 1;
-    }
-      
-      // ミス時のエフェクトは無し
-      // Hit 時のエフェクトは上で生成済み
-      
-    // ノーツデータを更新
-    noteSprite.noteData = note;
-  }
-  
-  private removeNoteSprite(noteId: string): void {
-    const noteSprite = this.noteSprites.get(noteId);
-    if (!noteSprite) return;
-    
-    // 安全な削除処理
-    try {
-      // ラベルを先に削除（labelsContainer から削除）
-      if (noteSprite.label) {
-        if (this.labelsContainer.children.includes(noteSprite.label)) {
-          this.labelsContainer.removeChild(noteSprite.label);
-        }
-        noteSprite.label.destroy({ children: true, texture: false, baseTexture: false });
-      }
-
-      // メインスプライト削除
-      if (noteSprite.sprite && noteSprite.sprite.parent) {
-        noteSprite.sprite.parent.removeChild(noteSprite.sprite);
-      }
-      if (noteSprite.sprite && !noteSprite.sprite.destroyed) {
-        noteSprite.sprite.destroy({ children: true, texture: false, baseTexture: false });
-      }
-      
-          } catch (error) {
-        log.warn(`⚠️ Note sprite cleanup error for ${noteId}:`, error);
-      }
-    
-    this.noteSprites.delete(noteId);
-  }
-  
-  private getStateColor(state: ActiveNote['state'], pitch?: number): number {
-    switch (state) {
-      case 'visible': 
-        if (pitch !== undefined && this.isBlackKey(pitch + this.settings.transpose)) {
-          return this.settings.colors.visibleBlack;
-        }
-        return this.settings.colors.visible;
-      case 'hit':
-      case 'good':
-      case 'perfect':
-        return this.settings.colors.hit;
-      case 'missed':
-        return this.settings.colors.missed;
-      default: return this.settings.colors.visible;
-    }
-  }
-  
-  private pitchToX(pitch: number): number {
-    // 88鍵ピアノのマッピング (A0=21 to C8=108)
-    const minNote = 21;
-    const maxNote = 108;
-    
-    // 白鍵の総数を計算
-    let totalWhiteKeys = 0;
-    for (let note = minNote; note <= maxNote; note++) {
-      if (!this.isBlackKey(note)) {
-        totalWhiteKeys++;
-      }
-    }
-    
-    const effectivePitch = pitch + this.settings.transpose;
-
-    if (this.isBlackKey(effectivePitch)) {
-      // 黒鍵の場合は正確な位置計算（隣接する白鍵の中央）
-      return this.calculateBlackKeyPosition(effectivePitch, minNote, maxNote, totalWhiteKeys);
-    } else {
-      // 白鍵の場合
-      let whiteKeyIndex = 0;
-      for (let note = minNote; note < effectivePitch; note++) {
-        if (!this.isBlackKey(note)) {
-          whiteKeyIndex++;
-        }
-      }
-      const whiteKeyWidth = this.app.screen.width / totalWhiteKeys;
-      return whiteKeyIndex * whiteKeyWidth + whiteKeyWidth / 2; // 白鍵の中央
-    }
-  }
-  
-  private calculateNoteY(note: ActiveNote): number {
-    // **GameEngineから計算された精密なy座標を優先使用**
-    if (note.y !== undefined) {
-      return note.y;
-    }
-    
-    // フォールバック: 画面外に配置（通常は使用されない）
-    log.warn(`⚠️ ノーツY座標がGameEngineから提供されませんでした: ${note.id}`);
-    return this.settings.hitLineY + 100;
-  }
-  
-  /**
-   * 設定更新
-   */
-  updateSettings(newSettings: Partial<RendererSettings>): void {
-    log.info(`🔧 updateSettings called`);
-    
-    // 破棄後に呼ばれた場合の安全ガード
-    // this.app.renderer は destroy() 後にプロパティが undefined になるためチェック
-    if (!this.app || (this.app as any)._destroyed || !this.app.screen) {
-      log.warn('PIXINotesRendererInstance.updateSettings: renderer already destroyed, skipping');
-      return;
-    }
-
-    const prevPianoHeight = this.settings.pianoHeight;
-    const prevTranspose = this.settings.transpose;
-    const prevNoteNameStyle = this.settings.noteNameStyle;
-    const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
-    const prevTransposingInstrument = this.settings.transposingInstrument;
-    
-          // ★ ピアノ高さの最小値を保証
-      if (newSettings.pianoHeight !== undefined) {
-        newSettings.pianoHeight = Math.max(70, newSettings.pianoHeight); // 最小70px
-      }
-    
-    Object.assign(this.settings, newSettings);
-
-    if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
-      this.hitLineContainer.visible = newSettings.showHitLine;
-    }
-
-    // ピアノ高さが変更された場合、判定ラインと背景を再配置
-    if (newSettings.pianoHeight !== undefined && newSettings.pianoHeight !== prevPianoHeight) {
-      // 新しい判定ラインYを計算
-      // 修正: app.view.height を使用
-      this.settings.hitLineY = this.app.view.height - this.settings.pianoHeight;
-      log.info(`🔧 Updated hitLineY: ${this.settings.hitLineY}`);
-
-      // 既存のヒットラインを削除して再描画
-      if (this.hitLineContainer) {
-        this.hitLineContainer.removeChildren();
-        this.setupHitLine();
-      }
-
-      // ==== 背景／ガイドラインを再生成 ====
-      try {
-        // 背景 (container の先頭)
-        if (this.container && this.container.children && this.container.children.length > 0) {
-          this.container.removeChildAt(0);
-        }
-        
-        // ガイドラインは createNotesAreaBackground() で新しく作成される
-      } catch (err) {
-        log.error('背景再生成時にエラーが発生しました', err);
-      }
-
-      // 新しい背景とガイドラインを再作成
-      this.createNotesAreaBackground();
-    }
-
-    // === noteNameStyle または simpleDisplayMode が変化した場合、鍵盤とノートの音名表示を更新 ===
-    if ((newSettings.noteNameStyle !== undefined && newSettings.noteNameStyle !== prevNoteNameStyle) ||
-        (newSettings.simpleDisplayMode !== undefined && newSettings.simpleDisplayMode !== prevSimpleDisplayMode)) {
-      // 鍵盤の音名表示を更新（鍵盤を再描画）
-      this.pianoContainer.removeChildren();
-      this.pianoSprites.clear();
-      this.setupPiano();
-
-      // 既存ノートのラベルを更新
-      this.noteSprites.forEach((noteSprite) => {
-        const pitch = noteSprite.noteData.pitch;
-        const effectivePitch = pitch + this.settings.transpose;
-        
-        // 音名決定ロジック（MECE構造）
-        let noteName: string | undefined;
-        if (this.settings.simpleDisplayMode) {
-          // 簡易表示モード: 複雑な音名を基本音名に変換
-          if (noteSprite.noteData.noteName) {
-            if (this.settings.noteNameStyle === 'solfege') {
-              // ドレミ簡易表示
-              noteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
-            } else {
-              // 英語簡易表示
-              noteName = this.getEnglishSimplifiedDisplayName(noteSprite.noteData.noteName);
-            }
-          } else {
-            // フォールバック: 基本的な音名を生成
-            noteName = this.getMidiNoteName(effectivePitch);
-          }
-        } else {
-          // 通常モード：MusicXMLの音名を優先
-          noteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
-        }
-
-        // 古いラベルを削除
-        if (noteSprite.label) {
-          if (this.labelsContainer.children.includes(noteSprite.label)) {
-            this.labelsContainer.removeChild(noteSprite.label);
-          }
-          noteSprite.label.destroy();
-          noteSprite.label = undefined;
-        }
-
-        // 新しいラベルを生成（noteNameStyleがoffでなければ）
-        if (noteName) {
-          const labelTexture = this.getLabelTexture(noteName);
-          if (labelTexture) {
-            const label = new PIXI.Sprite(labelTexture);
-            label.anchor.set(0.5, 1);
-            label.x = noteSprite.sprite.x;
-            label.y = 0; // 後で設定
-            this.labelsContainer.addChild(label);
-            noteSprite.label = label;
-          }
-        }
-      });
-    }
-
-    // === transposingInstrument が変化した場合、音名表示を更新 ===
-    if (newSettings.transposingInstrument !== undefined && newSettings.transposingInstrument !== prevTransposingInstrument) {
-      // 鍵盤の音名表示を更新（鍵盤を再描画）
-      if (this.pianoContainer) {
-        this.pianoContainer.removeChildren();
-        this.pianoSprites.clear();
-        this.setupPiano();
-      }
-
-      // 既存ノートのラベルを更新
-      this.noteSprites.forEach((noteSprite) => {
-        const pitch = noteSprite.noteData.pitch;
-        const effectivePitch = pitch + this.settings.transpose;
-        
-        // 音名決定ロジック（MECE構造）
-        let noteName: string | undefined;
-        if (this.settings.simpleDisplayMode) {
-          // 簡易表示モード: 複雑な音名を基本音名に変換
-          if (noteSprite.noteData.noteName) {
-            if (this.settings.noteNameStyle === 'solfege') {
-              // ドレミ簡易表示
-              noteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
-            } else {
-              // 英語簡易表示
-              noteName = this.getEnglishSimplifiedDisplayName(noteSprite.noteData.noteName);
-            }
-          } else {
-            // フォールバック: 基本的な音名を生成
-            noteName = this.getMidiNoteName(effectivePitch);
-          }
-        } else {
-          // 通常モード：MusicXMLの音名を優先
-          noteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
-        }
-
-        // 古いラベルを削除
-        if (noteSprite.label) {
-          if (this.labelsContainer.children.includes(noteSprite.label)) {
-            this.labelsContainer.removeChild(noteSprite.label);
-          }
-          noteSprite.label.destroy();
-          noteSprite.label = undefined;
-        }
-
-        // 新しいラベルを生成（noteNameStyleがoffでなければ）
-        if (noteName && this.settings.noteNameStyle !== 'off') {
-          const labelTexture = this.getLabelTexture(noteName);
-          if (labelTexture) {
-            const label = new PIXI.Sprite(labelTexture);
-            label.anchor.set(0.5, 1);
-            label.x = noteSprite.sprite.x;
-            label.y = 0; // 後で設定
-            this.labelsContainer.addChild(label);
-            noteSprite.label = label;
-          }
-        }
-      });
-    }
-
-    // === transpose が変化した場合、既存ノートのラベル / カラーを更新 ===
-    if (newSettings.transpose !== undefined && newSettings.transpose !== prevTranspose) {
-      // 全てのノートスプライトを即座に更新
-      this.noteSprites.forEach((noteSprite) => {
-        const pitch = noteSprite.noteData.pitch;
-        const effectivePitch = pitch + this.settings.transpose;
-        const noteName = this.getMidiNoteName(effectivePitch);
-
-        // 1) X 座標を再計算してノーツ位置を更新
-        const newX = this.pitchToX(pitch); // transpose を内部で考慮
-          noteSprite.sprite.x = newX;
-          if (noteSprite.label) noteSprite.label.x = newX;
-
-        // 2) ラベル更新（テクスチャアトラス使用）
-        // 音名決定ロジック（MECE構造）
-        let displayNoteName: string | undefined;
-        if (this.settings.simpleDisplayMode) {
-          // 簡易表示モード: 複雑な音名を基本音名に変換
-          if (noteSprite.noteData.noteName) {
-            if (this.settings.noteNameStyle === 'solfege') {
-              // ドレミ簡易表示
-              displayNoteName = this.getSimplifiedDisplayName(noteSprite.noteData.noteName);
-            } else {
-              // 英語簡易表示
-              displayNoteName = this.getEnglishSimplifiedDisplayName(noteSprite.noteData.noteName);
-            }
-          } else {
-            // フォールバック: 基本的な音名を生成
-            displayNoteName = this.getMidiNoteName(effectivePitch);
-          }
-        } else {
-          // 通常モード：MusicXMLの音名を優先
-          displayNoteName = noteSprite.noteData.noteName || this.getMidiNoteName(effectivePitch);
-        }
-        
-        if (noteSprite.label && displayNoteName) {
-          const newTexture = this.getLabelTexture(displayNoteName);
-          if (newTexture) {
-            noteSprite.label.texture = newTexture;
-          }
-        } else if (!noteSprite.label && displayNoteName) {
-          const labelTexture = this.getLabelTexture(displayNoteName);
-          if (labelTexture) {
-            const label = new PIXI.Sprite(labelTexture);
-            label.anchor.set(0.5, 1);
-            label.x = newX;
-            label.y = 0; // 後で設定
-            this.labelsContainer.addChild(label);
-            noteSprite.label = label;
-          }
-        } else if (noteSprite.label && !displayNoteName) {
-          if (this.labelsContainer.children.includes(noteSprite.label)) {
-            this.labelsContainer.removeChild(noteSprite.label);
-          }
-          noteSprite.label.destroy();
-          noteSprite.label = undefined;
-        }
-
-        // 3) カラー・形状更新（Sprite用のテクスチャ交換）- 即座に反映
-        const noteData = noteSprite.noteData;
-        const isBlackNote = this.isBlackKey(noteData.pitch + this.settings.transpose);
-        let newTexture: PIXI.Texture;
-
-        // 状態に関わらず、白鍵・黒鍵の判定を最新のトランスポーズ値で更新
-        switch (noteData.state) {
-          case 'hit':
-          case 'good':
-          case 'perfect':
-            newTexture = this.noteTextures.hit;
-            break;
-          case 'missed':
-          case 'visible':
-          default:
-            newTexture = isBlackNote ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-            break;
-        }
-
-        // テクスチャを即座に更新（PIXIの描画を強制）
-        noteSprite.sprite.texture = newTexture;
-
-        // 黒鍵・白鍵で異なるコンテナに配置されているため、必要に応じてコンテナも変更
-        const currentContainer = noteSprite.sprite.parent;
-        const targetContainer = isBlackNote ? this.blackNotes : this.whiteNotes;
-        
-        if (currentContainer !== targetContainer) {
-          // 現在のコンテナから削除
-          if (currentContainer) {
-            currentContainer.removeChild(noteSprite.sprite);
-          }
-          // 新しいコンテナに追加
-          targetContainer.addChild(noteSprite.sprite);
-        }
-
-        });
-
-      // PIXIレンダラーに即座に描画を強制
-      this.app.renderer.render(this.app.stage);
-    }
-  }
-  
-  /**
-   * リソース解放
-   */
-  destroy(): void {
-    // 破棄状態フラグを設定（レンダリングループを停止）
-    this.isDestroyed = true;
-    
-      try {
-        // アクティブキープレス状態をクリア（音が伸び続けるバグ防止）
-        for (const midiNote of this.activeKeyPresses) {
-          this.handleKeyRelease(midiNote);
-        }
-        this.activeKeyPresses.clear();
-
-        // ノートスプライトを安全に削除
-        const noteIds = Array.from(this.noteSprites.keys());
-        for (const noteId of noteIds) {
-          this.removeNoteSprite(noteId);
-        }
-        this.noteSprites.clear();
-        // ピアノスプライトをクリア
-        this.pianoSprites.clear();
-        this.highlightedKeys.clear();
-        this.guideHighlightedKeys.clear();
-
-      // ★ ガイドラインも破棄
-      if (this.guidelines) {
-        this.guidelines.destroy();
-        this.guidelines = undefined;
-      }
-
-      // ===== ラベルテクスチャの破棄 =====
-      try {
-        if (this.labelTextures) {
-          this.labelTextures.abc?.forEach(texture => {
-            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-              texture.destroy();
-            }
-          });
-          this.labelTextures.solfege?.forEach(texture => {
-            if (texture && texture !== PIXI.Texture.EMPTY && !texture.destroyed) {
-              texture.destroy();
-            }
-          });
-          this.labelTextures.abc.clear();
-          this.labelTextures.solfege.clear();
-        }
-      } catch (error) {
-        log.error('⚠️ Label textures cleanup error:', error);
-      }
-      
-
-      // PIXI.jsアプリケーションを破棄
-      if (this.app && (this.app as any)._destroyed !== true) {
-        this.app.destroy(true, { 
-          children: true, 
-          texture: false,  // テクスチャは共有されている可能性があるのでfalse
-          baseTexture: false 
-        });
-      }
-    } catch (error) {
-      log.error('⚠️ PIXI renderer destroy error:', error);
-    }
-  }
-  
-  /**
-   * ピアノキー入力コールバックの設定
-   */
   setKeyCallbacks(onKeyPress: (note: number) => void, onKeyRelease: (note: number) => void): void {
-    log.info('🎹 setKeyCallbacks called', {
-      hasOnKeyPress: !!onKeyPress,
-      hasOnKeyRelease: !!onKeyRelease
-    });
     this.onKeyPress = onKeyPress;
     this.onKeyRelease = onKeyRelease;
   }
 
-  /**
-   * 内部キープレスハンドラー
-   */
-    private handleKeyPress(midiNote: number): void {
-    // アクティブキープレス状態に追加
-    this.activeKeyPresses.add(midiNote);
-
-    // 直感的なユーザーフィードバックとして即時ハイライト
-    this.highlightKey(midiNote, true);
-
-    // 外部コールバック呼び出し（GameEngine経由で状態更新）
-      if (this.onKeyPress) {
-        this.onKeyPress(midiNote);
-      }
-  }
-  
-  /**
-   * 内部キーリリースハンドラー
-   */
-  private handleKeyRelease(midiNote: number): void {
-    // アクティブキープレス状態から削除
-    this.activeKeyPresses.delete(midiNote);
-
-    // ハイライト解除
-    this.highlightKey(midiNote, false);
-
-    // 外部コールバック呼び出し（GameEngine経由で状態更新）
-    if (this.onKeyRelease) {
-      this.onKeyRelease(midiNote);
-    } else {
-      log.warn(`⚠️ No onKeyRelease callback set! Note: ${midiNote}`);
+  updateSettings(newSettings: Partial<RendererSettings>): void {
+    if (newSettings.pianoHeight !== undefined) {
+      newSettings.pianoHeight = Math.max(MIN_PIANO_HEIGHT, newSettings.pianoHeight);
     }
+
+    const prevPianoHeight = this.settings.pianoHeight;
+    const prevTranspose = this.settings.transpose;
+
+    Object.assign(this.settings, newSettings);
+
+    if (newSettings.pianoHeight && newSettings.pianoHeight !== prevPianoHeight) {
+      this.rebuildKeyRegions();
+    }
+
+    if (newSettings.transpose !== undefined && newSettings.transpose !== prevTranspose) {
+      this.noteStates.forEach((state) => {
+        state.x = this.pitchToX(state.pitch);
+        state.isBlack = this.isBlackKey(state.pitch + this.settings.transpose);
+      });
+    }
+
+    this.needsRedraw = true;
   }
 
-  /**
-   * キャンバス要素の取得
-   */
+  resize(width: number, height: number): void {
+    this.width = width;
+    this.height = height;
+    this.settings.viewportHeight = height;
+    this.applyCanvasSize();
+    this.recalculateNoteWidth();
+    this.rebuildKeyRegions();
+    this.needsRedraw = true;
+  }
+
+  destroy(): void {
+    this.isDestroyed = true;
+    if (this.animationFrame) {
+      cancelAnimationFrame(this.animationFrame);
+      this.animationFrame = null;
+    }
+    this.detachPointerHandlers();
+    this.pointerActiveNotes.clear();
+    this.noteStates.clear();
+    this.highlightedKeys.clear();
+    this.guideHighlightedKeys.clear();
+    this.activeKeyPresses.clear();
+    this.recycledNotes.length = 0;
+  }
+
   get view(): HTMLCanvasElement {
-    return this.app.view as HTMLCanvasElement;
+    return this.canvas;
   }
 
-  // === グリッサンド処理 ===
-  private handleDragStart(e: PIXI.FederatedPointerEvent): void {
-    this.onDragActive = true;
-    this.handleDragMove(e);
-  }
-
-  private handleDragMove(e: PIXI.FederatedPointerEvent): void {
-    if (!this.onDragActive) return;
-    const globalPos = e.data.global;
-    const note = this.getNoteFromPosition(globalPos.x, globalPos.y);
-    if (note !== null && note !== this.currentDragNote) {
-      if (this.currentDragNote !== null) {
-        // release previous
-        this.handleKeyRelease(this.currentDragNote);
-      }
-      this.currentDragNote = note;
-      this.handleKeyPress(note);
-    }
-  }
-
-  private handleDragEnd(): void {
-    if (this.currentDragNote !== null) {
-      this.handleKeyRelease(this.currentDragNote);
-      this.currentDragNote = null;
-    }
-    this.onDragActive = false;
-  }
-
-  /**
-   * 座標から最も近い MIDI ノート番号を取得する（ピアノキー内のみ）
-   */
-  private getNoteFromPosition(x: number, y: number): number | null {
-    // hitLineY 以降が鍵盤エリア
-    if (y < this.settings.hitLineY) return null;
-    for (const [midi, sprite] of this.pianoSprites) {
-      const bounds = sprite.getBounds();
-      if (x >= bounds.x && x <= bounds.x + bounds.width && y >= bounds.y && y <= bounds.y + bounds.height) {
-        return midi;
+  setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
+    const normalized = new Set(pitchClasses.map((pc) => ((pc % 12) + 12) % 12));
+    this.guideHighlightedKeys.clear();
+    for (let midi = 21; midi <= 108; midi++) {
+      if (normalized.has(midi % 12)) {
+        this.guideHighlightedKeys.add(midi);
       }
     }
+    this.needsRedraw = true;
+  }
+
+  setGuideHighlightsByMidiNotes(midiNotes: number[]): void {
+    this.guideHighlightedKeys.clear();
+    for (const midi of midiNotes) {
+      const noteNumber = clamp(Math.round(midi), 21, 108);
+      this.guideHighlightedKeys.add(noteNumber);
+    }
+    this.needsRedraw = true;
+  }
+
+  clearAllHighlights(): void {
+    this.highlightedKeys.clear();
+    this.guideHighlightedKeys.clear();
+    this.needsRedraw = true;
+  }
+
+  clearActiveHighlights(): void {
+    this.highlightedKeys.clear();
+    this.needsRedraw = true;
+  }
+
+  private get hitLineY(): number {
+    return this.height - this.settings.pianoHeight;
+  }
+
+  private obtainNoteState(): NoteRenderState {
+    return this.recycledNotes.pop() ?? {
+      id: '',
+      pitch: 0,
+      x: 0,
+      y: 0,
+      state: 'visible',
+      isBlack: false
+    };
+  }
+
+  private recycleNoteState(state: NoteRenderState): void {
+    this.recycledNotes.push(state);
+  }
+
+  private computeNoteY(note: ActiveNote): number {
+    const distance = this.hitLineY - (note.time - this.currentTime) * this.settings.noteSpeed;
+    return distance;
+  }
+
+  private pitchToX(pitch: number): number {
+    const effectivePitch = pitch + this.settings.transpose;
+    const targetKey = this.keyRegions.find((region) => region.midi === effectivePitch);
+    if (targetKey) {
+      return targetKey.x + targetKey.width / 2;
+    }
+
+    const whiteKeyWidth = this.width / WHITE_KEY_COUNT;
+    let whiteIndex = 0;
+    for (let note = 21; note < effectivePitch; note++) {
+      if (!this.isBlackKey(note)) whiteIndex++;
+    }
+    return whiteIndex * whiteKeyWidth + whiteKeyWidth / 2;
+  }
+
+  private isBlackKey(midiNote: number): boolean {
+    const noteInOctave = (midiNote % 12 + 12) % 12;
+    return [1, 3, 6, 8, 10].includes(noteInOctave);
+  }
+
+  private applyCanvasSize(): void {
+    const dpr = this.devicePixelRatio;
+    this.canvas.width = Math.round(this.width * dpr);
+    this.canvas.height = Math.round(this.height * dpr);
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+    this.ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  }
+
+  private recalculateNoteWidth(): void {
+    const whiteKeyWidth = this.width / WHITE_KEY_COUNT;
+    this.settings.noteWidth = Math.max(whiteKeyWidth - 2, 8);
+  }
+
+  private rebuildKeyRegions(): void {
+    const regions: KeyRegion[] = [];
+    const hitLineY = this.hitLineY;
+    const whiteKeyWidth = this.width / WHITE_KEY_COUNT;
+    let whiteIndex = 0;
+    for (let midi = 21; midi <= 108; midi++) {
+      if (!this.isBlackKey(midi)) {
+        regions.push({
+          midi,
+          x: whiteIndex * whiteKeyWidth,
+          y: hitLineY,
+          width: whiteKeyWidth,
+          height: this.settings.pianoHeight,
+          isBlack: false
+        });
+        whiteIndex++;
+      }
+    }
+
+    for (let midi = 21; midi <= 108; midi++) {
+      if (this.isBlackKey(midi)) {
+        const prevWhite = midi - 1;
+        let prevIndex = 0;
+        for (let note = 21; note < prevWhite; note++) {
+          if (!this.isBlackKey(note)) prevIndex++;
+        }
+        const x = (prevIndex + 1) * whiteKeyWidth - whiteKeyWidth / 2;
+        regions.push({
+          midi,
+          x: x - whiteKeyWidth * 0.35,
+          y: hitLineY,
+          width: whiteKeyWidth * 0.7,
+          height: this.settings.pianoHeight * 0.65,
+          isBlack: true
+        });
+      }
+    }
+
+    this.keyRegions = regions;
+  }
+
+  private attachPointerHandlers(): void {
+    this.canvas.addEventListener('pointerdown', this.handlePointerDown);
+    this.canvas.addEventListener('pointermove', this.handlePointerMove);
+    this.canvas.addEventListener('pointerup', this.handlePointerUp);
+    this.canvas.addEventListener('pointerleave', this.handlePointerUp);
+    window.addEventListener('pointerup', this.handleWindowPointerUp);
+  }
+
+  private detachPointerHandlers(): void {
+    this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
+    this.canvas.removeEventListener('pointermove', this.handlePointerMove);
+    this.canvas.removeEventListener('pointerup', this.handlePointerUp);
+    this.canvas.removeEventListener('pointerleave', this.handlePointerUp);
+    window.removeEventListener('pointerup', this.handleWindowPointerUp);
+  }
+
+  private handlePointerDown = (event: PointerEvent): void => {
+    const midi = this.hitTest(event);
+    if (midi === null) return;
+    this.pointerActiveNotes.set(event.pointerId, midi);
+    this.handleKeyPress(midi);
+    this.canvas.setPointerCapture?.(event.pointerId);
+  };
+
+  private handlePointerMove = (event: PointerEvent): void => {
+    if (!this.pointerActiveNotes.has(event.pointerId)) return;
+    const midi = this.hitTest(event);
+    if (midi === null) return;
+    const current = this.pointerActiveNotes.get(event.pointerId);
+    if (current === midi) return;
+    if (current !== undefined) {
+      this.handleKeyRelease(current);
+    }
+    this.pointerActiveNotes.set(event.pointerId, midi);
+    this.handleKeyPress(midi);
+  };
+
+  private handlePointerUp = (event: PointerEvent): void => {
+    const midi = this.pointerActiveNotes.get(event.pointerId);
+    if (midi === undefined) return;
+    this.pointerActiveNotes.delete(event.pointerId);
+    this.handleKeyRelease(midi);
+  };
+
+  private handleWindowPointerUp = (): void => {
+    for (const midi of this.pointerActiveNotes.values()) {
+      this.handleKeyRelease(midi);
+    }
+    this.pointerActiveNotes.clear();
+  };
+
+  private handleKeyPress(midi: number): void {
+    if (this.activeKeyPresses.has(midi)) return;
+    this.activeKeyPresses.add(midi);
+    this.highlightKey(midi, true);
+    this.onKeyPress?.(midi);
+  }
+
+  private handleKeyRelease(midi: number): void {
+    if (!this.activeKeyPresses.has(midi)) return;
+    this.activeKeyPresses.delete(midi);
+    this.highlightKey(midi, false);
+    this.onKeyRelease?.(midi);
+  }
+
+  private hitTest(event: PointerEvent): number | null {
+    const rect = this.canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+    if (y < this.hitLineY) return null;
+
+    for (const region of this.keyRegions) {
+      if (!region.isBlack) continue;
+      if (
+        x >= region.x &&
+        x <= region.x + region.width &&
+        y >= region.y &&
+        y <= region.y + region.height
+      ) {
+        return region.midi;
+      }
+    }
+
+    for (const region of this.keyRegions) {
+      if (region.isBlack) continue;
+      if (
+        x >= region.x &&
+        x <= region.x + region.width &&
+        y >= region.y &&
+        y <= region.y + region.height
+      ) {
+        return region.midi;
+      }
+    }
+
     return null;
   }
 
-  /**
-   * 汎用フェードアウトヘルパー
-   * 指定秒数かけて alpha を 0 にし、完了したら onComplete を呼ぶ。
-   */
-  private fadeOutLater(display: PIXI.DisplayObject & { alpha: number }, duration: number, onComplete?: () => void): void {
-    const total = Math.max(0.01, duration);
-    let elapsed = 0;
-    const tickerFunc = () => {
-      // deltaMS は毎フレーム呼ばれるので秒単位へ変換
-      const dt = this.app.ticker.deltaMS / 1000;
-      elapsed += dt;
-      const progress = Math.min(1, elapsed / total);
-      display.alpha = 1 - progress;
-      if (progress >= 1) {
-        this.app.ticker.remove(tickerFunc);
-        if (onComplete) onComplete();
-      }
-    };
-    this.app.ticker.add(tickerFunc);
-  }
-
-    // 外部からのガイド設定（ピッチクラス配列 0-11）
-  public setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
-    const normalized = new Set(pitchClasses.map(pc => ((pc % 12) + 12) % 12));
-    const target: Set<number> = new Set();
-    for (let midi = 21; midi <= 108; midi++) {
-      if (normalized.has(midi % 12)) target.add(midi);
-    }
-
-    // なくなるガイドを消す（演奏ハイライトが無ければ可視も解除）
-    for (const midi of Array.from(this.guideHighlightedKeys)) {
-      if (!target.has(midi)) {
-        this.guideHighlightedKeys.delete(midi);
-        if (!this.highlightedKeys.has(midi)) this.applyKeyHighlightVisual(midi, false);
-      }
-    }
-
-    // 新しく必要なガイドを付与
-    for (const midi of target) {
-      if (!this.guideHighlightedKeys.has(midi)) {
-        this.guideHighlightedKeys.add(midi);
-        this.applyKeyHighlightVisual(midi, true);
-      }
-    }
-  }
-
-  // 見た目適用（ガイド/演奏の合算状態を前提）
-  private applyKeyHighlightVisual(midiNote: number, highlighted: boolean): void {
-    const keySprite = this.pianoSprites.get(midiNote);
-    if (!keySprite) return;
-    if (!highlighted) {
-      keySprite.tint = this.isBlackKey(midiNote) ? this.settings.colors.blackKey : this.settings.colors.whiteKey;
+  private flashGuideHighlight(midi: number): void {
+    if (this.activeKeyPresses.has(midi)) {
       return;
     }
-    const isActive = this.highlightedKeys.has(midiNote);
-    keySprite.tint = isActive ? this.settings.colors.activeKey : this.settings.colors.guideKey;
+    this.highlightKey(midi, true);
+    window.setTimeout(() => {
+      if (!this.activeKeyPresses.has(midi)) {
+        this.highlightKey(midi, false);
+      }
+    }, POINTER_RELEASE_DELAY_MS);
   }
 
-  /**
-   * リサイズ対応
-   */
-  resize(width: number, height: number): void {
-    // 指定されたサイズでそのままリサイズ
-    this.app.renderer.resize(width, height);
-    
-    // 修正: リサイズ後の高さを使用
-    this.settings.hitLineY = height - this.settings.pianoHeight;
-    log.info(`🔧 Resize hitLineY: ${this.settings.hitLineY}`);
-    
-    // ピアノとヒットラインの再描画
-    if (this.pianoContainer) {
-      this.pianoContainer.removeChildren();
-      this.pianoSprites.clear();
-      this.setupPiano();
-    }
-    if (this.hitLineContainer) {
-      this.hitLineContainer.removeChildren();
-      this.setupHitLine();
-    }
+  private startLoop(): void {
+    const loop = (timestamp: number) => {
+      if (this.isDestroyed) return;
 
-    // ===== 背景とガイドラインを再生成 =====
-    try {
-      if (this.container && this.container.children && this.container.children.length > 0) {
-        this.container.removeChildAt(0);
+      if (unifiedFrameController.shouldSkipFrame(timestamp, 'render')) {
+        this.animationFrame = requestAnimationFrame(loop);
+        return;
       }
-      // ガイドラインクリーンアップは createNotesAreaBackground() で自動処理
-    } catch (err) {
-      log.error('resize 時の背景クリアに失敗', err);
-    }
 
-    this.createNotesAreaBackground();
-    
-    // ★ 白鍵幅が変わった場合はテクスチャを再生成
-    const newWhiteKeyWidth = this.getWhiteKeyWidth();
-    const newNoteWidth = newWhiteKeyWidth - 2;
-    if (Math.abs(newNoteWidth - this.settings.noteWidth) > 0.1) { // 誤差を考慮
-      this.settings.noteWidth = newNoteWidth;
-      log.info(`🔄 Regenerating note textures with new width: ${newNoteWidth.toFixed(2)}px`);
-      
-      // 新しい幅でテクスチャを作り直し
-      this.generateNoteTextures();
-      
-      // 既存ノートに新テクスチャを反映
-      this.noteSprites.forEach(ns => {
-        const isBlack = this.isBlackKey(ns.noteData.pitch + this.settings.transpose);
-        switch (ns.noteData.state) {
-          case 'hit':
-          case 'good':
-          case 'perfect':
-            ns.sprite.texture = this.noteTextures.hit;
-            break;
-          case 'missed':
-          case 'visible':
-          default:
-            ns.sprite.texture = isBlack ? this.noteTextures.blackVisible : this.noteTextures.whiteVisible;
-            break;
-        }
-      });
-    }
+      if (this.needsRedraw) {
+        this.frameToken = unifiedFrameController.beginFrame('render');
+        this.drawFrame();
+        unifiedFrameController.endFrame(this.frameToken);
+        this.frameToken = null;
+        this.needsRedraw = false;
+      }
+
+      this.animationFrame = requestAnimationFrame(loop);
+    };
+
+    this.animationFrame = requestAnimationFrame(loop);
   }
 
-  // 出題オクターブのみのガイド表示用：MIDI番号で直接指定
-  public setGuideHighlightsByMidiNotes(midiNotes: number[]): void {
-    const clamped = new Set<number>();
-    for (const n of midiNotes) {
-      const midi = Math.round(n);
-      if (midi >= 21 && midi <= 108) clamped.add(midi);
+  private drawFrame(): void {
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.width, this.height);
+    this.drawBackground();
+    this.drawGuidelines();
+    this.drawNotes();
+    if (this.settings.showHitLine) {
+      this.drawHitLine();
     }
+    this.drawKeyboard();
+  }
 
-    // なくなるガイドを消す（演奏ハイライトが無ければ可視も解除）
-    for (const midi of Array.from(this.guideHighlightedKeys)) {
-      if (!clamped.has(midi)) {
-        this.guideHighlightedKeys.delete(midi);
-        if (!this.highlightedKeys.has(midi)) this.applyKeyHighlightVisual(midi, false);
+  private drawBackground(): void {
+    const ctx = this.ctx;
+    const gradient = ctx.createLinearGradient(0, 0, 0, this.hitLineY);
+    gradient.addColorStop(0, this.settings.colors.backgroundTop);
+    gradient.addColorStop(1, this.settings.colors.backgroundBottom);
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, this.width, this.hitLineY);
+  }
+
+  private drawGuidelines(): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = this.settings.colors.grid;
+    ctx.lineWidth = 1;
+    const whiteKeyWidth = this.width / WHITE_KEY_COUNT;
+    for (let i = 0; i <= WHITE_KEY_COUNT; i++) {
+      const x = i * whiteKeyWidth;
+      ctx.beginPath();
+      ctx.moveTo(x + 0.5, 0);
+      ctx.lineTo(x + 0.5, this.hitLineY);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  private drawNotes(): void {
+    const ctx = this.ctx;
+    const noteHeight = Math.max(3, this.settings.noteHeight);
+    const halfWidth = this.settings.noteWidth / 2;
+    for (const note of this.noteStates.values()) {
+      if (note.state === 'hit' || note.state === 'good' || note.state === 'perfect') {
+        continue;
       }
-    }
+      const y = note.y;
+      if (y < -noteHeight || y > this.height + noteHeight) continue;
+      ctx.fillStyle = this.resolveNoteColor(note);
+      ctx.fillRect(note.x - halfWidth, y - noteHeight, this.settings.noteWidth, noteHeight);
 
-    // 新しく必要なガイドを付与
-    for (const midi of clamped) {
-      if (!this.guideHighlightedKeys.has(midi)) {
-        this.guideHighlightedKeys.add(midi);
-        this.applyKeyHighlightVisual(midi, true);
+      if (this.settings.noteNameStyle !== 'off' && note.noteName) {
+        ctx.fillStyle = '#FFFFFF';
+        ctx.font = '12px "Kaisei Opti", sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(note.noteName, note.x, y - noteHeight - 2);
       }
     }
   }
 
-  /**
-   * すべてのハイライト状態（演奏・ガイド）をクリア
-   */
-  public clearAllHighlights(): void {
-    // まず演奏ハイライトを消す（ガイドと重複していないもののみ）
-    for (const midi of Array.from(this.highlightedKeys)) {
-      if (!this.guideHighlightedKeys.has(midi)) {
-        this.applyKeyHighlightVisual(midi, false);
-      }
+  private resolveNoteColor(note: NoteRenderState): string {
+    const { colors } = this.settings;
+    switch (note.state) {
+      case 'missed':
+        return colors.missed;
+      case 'good':
+      case 'perfect':
+      case 'hit':
+        return colors.hit;
+      default:
+        return note.isBlack ? colors.visibleBlack : colors.visible;
     }
-    // 次にガイドハイライトを消す
-    for (const midi of Array.from(this.guideHighlightedKeys)) {
-      this.applyKeyHighlightVisual(midi, false);
-    }
-    this.highlightedKeys.clear();
-    this.guideHighlightedKeys.clear();
   }
 
-  /**
-   * 演奏ハイライトのみをクリア（ガイドは維持）
-   */
-  public clearActiveHighlights(): void {
-    for (const midi of Array.from(this.highlightedKeys)) {
-      if (!this.guideHighlightedKeys.has(midi)) {
-        this.applyKeyHighlightVisual(midi, false);
-      }
+  private drawHitLine(): void {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.strokeStyle = this.settings.colors.hitLine;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(0, this.hitLineY - 1);
+    ctx.lineTo(this.width, this.hitLineY - 1);
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  private drawKeyboard(): void {
+    const ctx = this.ctx;
+    ctx.save();
+
+    for (const region of this.keyRegions) {
+      if (region.isBlack) continue;
+      ctx.fillStyle = this.resolveKeyColor(region.midi, false);
+      ctx.fillRect(region.x, region.y, region.width, region.height);
+      ctx.strokeStyle = '#0f172a';
+      ctx.strokeRect(region.x, region.y, region.width, region.height);
     }
-    this.highlightedKeys.clear();
+
+    for (const region of this.keyRegions) {
+      if (!region.isBlack) continue;
+      ctx.fillStyle = this.resolveKeyColor(region.midi, true);
+      ctx.fillRect(region.x, region.y, region.width, region.height);
+      ctx.strokeStyle = '#111827';
+      ctx.strokeRect(region.x, region.y, region.width, region.height);
+    }
+
+    ctx.restore();
+  }
+
+  private resolveKeyColor(midi: number, isBlack: boolean): string {
+    const { colors } = this.settings;
+    if (this.highlightedKeys.has(midi)) {
+      return colors.activeKey;
+    }
+    if (this.guideHighlightedKeys.has(midi)) {
+      return colors.guideKey;
+    }
+    return isBlack ? colors.blackKey : colors.whiteKey;
   }
 }
 
-// ===== React コンポーネント =====
-
-export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
+export const CanvasNotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   onReady,
@@ -2595,183 +652,51 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
-  
-  // 指定された高さをそのまま使用（制限なし）
-  const actualHeight = height;
-  
-  // ===== PIXI.js レンダラー初期化 (一度だけ) =====
+  const latestOnReady = useRef<PIXINotesRendererProps['onReady']>(onReady);
+  const initialSizeRef = useRef({ width, height });
+
   useEffect(() => {
-    if (!containerRef.current || rendererRef.current) return;
-
-    // 初期ローディング時にフェードイン
-    // 一時的にコメントアウト（デバッグ用）
-    // containerRef.current.style.opacity = '0';
-    // containerRef.current.style.visibility = 'hidden';
-    
-    log.info('🎯 Skipping initial hide for debugging...');
-
-    const renderer = new PIXINotesRendererInstance(width, actualHeight);
-    rendererRef.current = renderer;
-    
-    // ===== 簡略デバッグ（パフォーマンス重視） =====
-    log.info('🔍 Basic check: Canvas size:', renderer.view.width, 'x', renderer.view.height);
-    
-    try {
-      containerRef.current.appendChild(renderer.view);
-      log.info('✅ Canvas added to DOM');
-      
-      // キャンバスにタッチ/スクロール設定を追加
-      const canvas = renderer.view as HTMLCanvasElement;
-      
-      // デフォルトで横スクロールを許可
-      canvas.style.touchAction = 'pan-x';
-      
-      // canvasのスタイルを調整してモバイルスクロールを改善
-      canvas.style.position = 'absolute';
-      canvas.style.top = '0';
-      canvas.style.left = '0';
-      
-      // キャンバス全体で横スクロールを許可
-      canvas.style.touchAction = 'pan-x';
-      
-    } catch (error) {
-      log.error('❌ appendChild failed:', error);
-    }
-
-    log.info('🎯 PIXI Container initially hidden, scheduling fade-in...');
-    
-    requestAnimationFrame(() => {
-      log.info('🎯 Fade-in animation frame executing...');
-      const el = containerRef.current;
-      if (el) {
-        el.style.opacity = '1';
-        el.style.visibility = 'visible';
-        el.style.transition = 'opacity 0.2s ease-in-out';
-        log.info('✅ PIXI Container made visible');
-      } else {
-        // コンポーネントが既にアンマウントされている場合は何もしない
-        log.debug?.('ℹ️ Skipping fade-in: containerRef is null (likely unmounted)');
-      }
-    });
-
-    onReady?.(renderer);
-
-    return () => {
-      if (rendererRef.current) {
-        rendererRef.current.destroy();
-        rendererRef.current = null;
-      }
-      onReady?.(null);
-    };
-  }, []); // 初回のみ
-
-  // onReady が変更された場合にも現在の renderer を通知
-  useEffect(() => {
+    latestOnReady.current = onReady;
     if (rendererRef.current) {
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // リサイズ対応
+
+  useEffect(() => {
+    if (!containerRef.current || rendererRef.current) return;
+    const { width: initialWidth, height: initialHeight } = initialSizeRef.current;
+    const renderer = new PIXINotesRendererInstance(initialWidth, initialHeight);
+    rendererRef.current = renderer;
+    containerRef.current.appendChild(renderer.view);
+    renderer.view.style.touchAction = 'pan-x';
+    renderer.view.style.display = 'block';
+
+    return () => {
+      renderer.destroy();
+      rendererRef.current = null;
+      latestOnReady.current?.(null);
+    };
+  }, []);
+
   useEffect(() => {
     if (rendererRef.current) {
-      rendererRef.current.resize(width, actualHeight);
+      rendererRef.current.resize(width, height);
     }
-  }, [width, actualHeight]);
-  
+  }, [width, height]);
+
   return (
     <div
       ref={containerRef}
-      className={cn(
-        "custom-pixi-scrollbar",
-        className
-      )}
-      style={{ 
-        width, 
-        height: actualHeight,
-        // 初期化時のサイズ変更を防ぐため明示的にサイズを設定
+      className={cn('relative overflow-hidden bg-gray-900', className)}
+      style={{
+        width,
+        height,
         minWidth: width,
-        minHeight: actualHeight,
-        overflow: 'hidden',
-        backgroundColor: '#111827', // ロード中の背景色
-        // タッチイベントの伝播を調整
-        position: 'relative'
+        minHeight: height
       }}
-    >
-      {/* カスタムスクロールバー用のスタイル */}
-      <style>
-        {`
-          .custom-pixi-scrollbar::-webkit-scrollbar {
-            width: 8px;
-            height: 8px;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-track {
-            background-color: #1f2937;
-            border-radius: 4px;
-            border: 1px solid #374151;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-thumb {
-            background-color: #6b7280;
-            border-radius: 4px;
-            border: 1px solid #374151;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-thumb:hover {
-            background-color: #9ca3af;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-corner {
-            background-color: #1f2937;
-          }
-          
-          /* スクロールバーの矢印を完全に削除 */
-          .custom-pixi-scrollbar::-webkit-scrollbar-button {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-button:single-button {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-button:double-button {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-button:horizontal {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          
-          .custom-pixi-scrollbar::-webkit-scrollbar-button:vertical {
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-          }
-          
-          /* Firefox用 */
-          .custom-pixi-scrollbar {
-            scrollbar-width: thin;
-            scrollbar-color: #6b7280 #1f2937;
-          }
-          
-          /* ピアノエリアのcanvas要素にもスクロールバーを適用 */
-          .custom-pixi-scrollbar canvas {
-            max-width: none;
-            max-height: none;
-          }
-        `}
-      </style>
-    </div>
+    />
   );
 };
 
-export default PIXINotesRenderer; 
+export { CanvasNotesRenderer as PIXINotesRenderer };
+export default CanvasNotesRenderer;
