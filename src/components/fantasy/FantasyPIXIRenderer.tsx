@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { TaikoNote, PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 
 // ===== 型定義 =====
 
@@ -91,6 +92,17 @@ interface MagicCircle {
   maxLife: number;
   color: number;
   type: 'success' | 'failure';
+}
+
+interface TaikoTimelineConfig {
+  notes: TaikoNote[];
+  loopDuration: number;
+  lookAheadTime?: number;
+  noteSpeed?: number;
+  previewWindow?: number;
+  currentNoteIndex: number;
+  musicTimeProvider: () => number;
+  overlayMarkers?: Array<{ time: number; text: string }>;
 }
 
 // ===== 魔法タイプ定義 =====
@@ -247,10 +259,20 @@ export class FantasyPIXIInstance {
   private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
-  // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
-  private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
-  private judgeLineX: number = 100; // 判定ラインのX座標
+    // 太鼓の達人風ノーツ関連
+    private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+    private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
+    private judgeLineX: number = 100; // 判定ラインのX座標
+    private taikoTimeline: TaikoNote[] = [];
+    private taikoLoopDuration = 0;
+    private taikoLookAhead = PERFORMANCE_CONFIG.LOOK_AHEAD_TIME;
+    private taikoPreviewWindow = PERFORMANCE_CONFIG.LOOK_AHEAD_TIME / 2;
+    private taikoNoteSpeed = 400;
+    private taikoCurrentIndex = 0;
+    private taikoFrameAccumulator = 0;
+    private getMusicTime: (() => number) | null = null;
+    private isTaikoModeEnabled = false;
+    private taikoOverlayMarkers: Array<{ time: number; text: string }> = [];
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -1678,21 +1700,128 @@ export class FantasyPIXIInstance {
 
 
 
-  // アニメーションループ
-  private startAnimationLoop(): void {
-    const animate = () => {
-      if (this.isDestroyed) return;
+    // アニメーションループ
+    private startAnimationLoop(): void {
+      let lastTime = performance.now();
+      const animate = () => {
+        if (this.isDestroyed) return;
+        
+        const now = performance.now();
+        const delta = now - lastTime;
+        lastTime = now;
+        
+        this.updateMonsterAnimation();
+        this.updateMagicCircles();
+        this.updateDamageNumbers();
+        this.updateScreenShake(); // 画面揺れの更新を追加
+        this.updateTaikoTimelineFrame(delta);
+        
+        this.animationFrameId = requestAnimationFrame(animate);
+      };
       
-      this.updateMonsterAnimation();
-      this.updateMagicCircles();
-      this.updateDamageNumbers();
-      this.updateScreenShake(); // 画面揺れの更新を追加
-      
-      this.animationFrameId = requestAnimationFrame(animate);
-    };
-    
-    animate();
-  }
+      animate();
+    }
+
+    private updateTaikoTimelineFrame(deltaMs: number): void {
+      if (!this.isTaikoModeEnabled || !this.getMusicTime || this.taikoTimeline.length === 0 || this.taikoLoopDuration <= 0) {
+        this.taikoFrameAccumulator = 0;
+        return;
+      }
+
+      this.taikoFrameAccumulator += deltaMs;
+      if (this.taikoFrameAccumulator < PERFORMANCE_CONFIG.NOTE_UPDATE_INTERVAL) {
+        return;
+      }
+      this.taikoFrameAccumulator = 0;
+
+      const currentTime = this.getMusicTime();
+      if (!Number.isFinite(currentTime)) {
+        return;
+      }
+
+      const judgeLinePos = this.getJudgeLinePosition();
+      const notesToDisplay: Array<{ id: string; chord: string; x: number }> = [];
+
+      if (currentTime < 0) {
+        const maxPreCountNotes = 6;
+        for (let i = 0; i < this.taikoTimeline.length; i++) {
+          const note = this.taikoTimeline[i];
+          const timeUntilHit = note.hitTime - currentTime;
+          if (timeUntilHit > this.taikoLookAhead) break;
+          if (timeUntilHit >= -0.5) {
+            const x = judgeLinePos.x + timeUntilHit * this.taikoNoteSpeed;
+            notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
+            if (notesToDisplay.length >= maxPreCountNotes) break;
+          }
+        }
+        this.updateTaikoNotes(notesToDisplay);
+        this.updateOverlayText(null);
+        return;
+      }
+
+      const normalizedTime = ((currentTime % this.taikoLoopDuration) + this.taikoLoopDuration) % this.taikoLoopDuration;
+
+      this.taikoTimeline.forEach((note, index) => {
+        if (note.isHit) return;
+        if (index < this.taikoCurrentIndex) return;
+        const timeUntilHit = note.hitTime - normalizedTime;
+        if (timeUntilHit >= -0.35 && timeUntilHit <= this.taikoLookAhead) {
+          const x = judgeLinePos.x + timeUntilHit * this.taikoNoteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chord.displayName,
+            x
+          });
+        }
+      });
+
+      const displayedBaseIds = new Set(notesToDisplay.map((n) => n.id));
+      const lastCompletedIndex = this.taikoTimeline.length > 0
+        ? (this.taikoCurrentIndex - 1 + this.taikoTimeline.length) % this.taikoTimeline.length
+        : -1;
+      const timeToLoop = this.taikoLoopDuration - normalizedTime;
+
+      if (timeToLoop < this.taikoPreviewWindow && this.taikoTimeline.length > 0) {
+        for (let i = 0; i < this.taikoTimeline.length; i++) {
+          if (i === lastCompletedIndex || i === this.taikoCurrentIndex) continue;
+          const note = this.taikoTimeline[i];
+          if (displayedBaseIds.has(note.id)) continue;
+
+          const virtualHitTime = note.hitTime + this.taikoLoopDuration;
+          const timeUntilHit = virtualHitTime - normalizedTime;
+          if (timeUntilHit <= 0) continue;
+          if (timeUntilHit > this.taikoPreviewWindow) break;
+
+          const x = judgeLinePos.x + timeUntilHit * this.taikoNoteSpeed;
+          notesToDisplay.push({
+            id: `${note.id}_loop`,
+            chord: note.chord.displayName,
+            x
+          });
+        }
+      }
+
+      this.updateTaikoNotes(notesToDisplay);
+
+      if (this.taikoOverlayMarkers.length > 0) {
+        const markers = this.taikoOverlayMarkers;
+        let label = markers[markers.length - 1].text;
+        for (let i = 0; i < markers.length; i++) {
+          const currentMarker = markers[i];
+          const nextMarker = markers[i + 1];
+          if (normalizedTime >= currentMarker.time && (!nextMarker || normalizedTime < nextMarker.time)) {
+            label = currentMarker.text;
+            break;
+          }
+          if (normalizedTime < markers[0].time) {
+            label = markers[markers.length - 1].text;
+          }
+        }
+        this.updateOverlayText(label || null);
+      } else {
+        this.updateOverlayText(null);
+      }
+    }
 
   // モンスターアニメーション更新
   private updateMonsterAnimation(): void {
@@ -2057,6 +2186,39 @@ export class FantasyPIXIInstance {
     this.judgeLineGraphics = graphics;
     this.judgeLineContainer.addChild(graphics);
   }
+
+  setTaikoTimeline(config: TaikoTimelineConfig | null): void {
+    if (!config || config.notes.length === 0 || config.loopDuration <= 0) {
+      this.taikoTimeline = [];
+      this.taikoLoopDuration = 0;
+      this.getMusicTime = null;
+      this.taikoOverlayMarkers = [];
+      this.clearActiveTaikoNotes();
+      this.updateOverlayText(null);
+      return;
+    }
+
+    this.taikoTimeline = config.notes;
+    this.taikoLoopDuration = config.loopDuration;
+    this.taikoLookAhead = config.lookAheadTime ?? PERFORMANCE_CONFIG.LOOK_AHEAD_TIME;
+    this.taikoNoteSpeed = config.noteSpeed ?? 400;
+    this.taikoPreviewWindow = config.previewWindow ?? (this.taikoLookAhead / 2);
+    this.taikoCurrentIndex = config.currentNoteIndex;
+    this.getMusicTime = config.musicTimeProvider;
+    this.taikoOverlayMarkers = config.overlayMarkers ?? [];
+    this.taikoFrameAccumulator = 0;
+  }
+
+  private clearActiveTaikoNotes(): void {
+    this.activeNotes.forEach((note) => {
+      try {
+        if (note && typeof note.destroy === 'function' && !(note as any).destroyed) {
+          note.destroy({ children: true });
+        }
+      } catch {}
+    });
+    this.activeNotes.clear();
+  }
   
   // 太鼓の達人風ノーツを作成
   createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
@@ -2129,6 +2291,9 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
+    if (!this.isTaikoModeEnabled) {
+      return;
+    }
     // 既存のノーツをクリア
     this.activeNotes.forEach((note, id) => {
       if (!notes.find(n => n.id === id)) {
@@ -2164,6 +2329,7 @@ export class FantasyPIXIInstance {
 
   // 太鼓モードの切り替え
   updateTaikoMode(isTaikoMode: boolean): void {
+    this.isTaikoModeEnabled = isTaikoMode;
     if (isTaikoMode) {
       // 太鼓モードの場合、判定ラインを表示
       if (!this.judgeLineGraphics) {
@@ -2174,8 +2340,8 @@ export class FantasyPIXIInstance {
       // シングルモードの場合、判定ラインを非表示
       this.judgeLineContainer.visible = false;
       // ノーツもクリア
-      this.activeNotes.forEach(note => note.destroy());
-      this.activeNotes.clear();
+      this.clearActiveTaikoNotes();
+      this.updateOverlayText(null);
     }
   }
   

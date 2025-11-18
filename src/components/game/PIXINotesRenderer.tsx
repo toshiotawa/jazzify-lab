@@ -181,6 +181,7 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+  enableEffects: boolean;
   colors: {
     visible: number;
     visibleBlack: number;
@@ -301,13 +302,14 @@ export class PIXINotesRendererInstance {
   private isDestroyed: boolean = false;
   
   
-  // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
-    public readonly settings: RendererSettings = {
-    noteWidth: 28,
-    noteHeight: 4,
-    hitLineY: 0,
-      pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
-    noteSpeed: 400,
+    // settingsを読み取り専用で公開（readonlyで変更を防ぐ）
+      public readonly settings: RendererSettings = {
+      noteWidth: 28,
+      noteHeight: 4,
+      hitLineY: 0,
+        pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
+      noteSpeed: 400,
+      enableEffects: true,
     colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
