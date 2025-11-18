@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
-import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1401,98 +1401,20 @@ const SettingsPanel: React.FC = () => {
           <div className="space-y-4">
 
 
-            {/* 入力モード選択 */}
-            <div className="space-y-4">
-              <div>
-                <label className="block text-sm font-medium text-gray-300 mb-3">
-                  入力モード
-                </label>
-                
-                {/* ラジオボタン選択 */}
-                <div className="flex flex-wrap gap-4">
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="input-mode"
-                      value="midi"
-                      checked={settings.inputMode === 'midi'}
-                      onChange={() => gameActions.updateSettings({ inputMode: 'midi' })}
-                      className="radio radio-primary"
-                    />
-                    <span className="text-sm text-white font-medium">🎹 MIDI入力</span>
-                  </label>
-                  
-                  <label className="flex items-center space-x-2 cursor-pointer">
-                    <input
-                      type="radio"
-                      name="input-mode"
-                      value="audio"
-                      checked={settings.inputMode === 'audio'}
-                      onChange={() => gameActions.updateSettings({ inputMode: 'audio' })}
-                      className="radio radio-primary"
-                    />
-                    <span className="text-sm text-white font-medium">🎤 音声入力</span>
-                  </label>
-                </div>
-              </div>
-
-              {/* MIDI デバイス設定 */}
-              {settings.inputMode === 'midi' && (
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
-                  />
-                </div>
-              )}
-
-              {/* 音声入力設定 */}
-              {settings.inputMode === 'audio' && (
-                <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30">
-                  <div className="flex items-center justify-between mb-3">
-                    <h4 className="text-sm font-medium text-green-200">🎤 音声入力設定</h4>
-                    <div className="text-xs text-green-300 bg-green-800 bg-opacity-50 px-2 py-1 rounded">
-                      精度調整中
-                    </div>
-                  </div>
-                  
-                  <div className="space-y-3">
-                    {/* AudioDeviceSelector コンポーネント */}
-                    <AudioDeviceSelector
-                      value={settings.selectedAudioDevice}
-                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioDevice: deviceId })}
-                    />
-                    
-                    {/* PYIN感度調整スライダー */}
-                    <div>
-                      <label className="block text-xs text-green-200 mb-1">
-                        ピッチ検出感度: {Math.round((settings.pyinThreshold || 0.1) * 100)}%
-                      </label>
-                      <div className="text-xs text-green-300 mb-2">
-                        低い値ほど敏感に検出（誤検出増加）、高い値ほど厳密に検出
-                      </div>
-                      <input
-                        type="range"
-                        min="0.05"
-                        max="0.5"
-                        step="0.05"
-                        value={settings.pyinThreshold || 0.1}
-                        onChange={(e) => 
-                          gameActions.updateSettings({ pyinThreshold: parseFloat(e.target.value) })
-                        }
-                        className="slider w-full accent-green-400"
-                      />
-                      <div className="flex justify-between text-xs text-green-400 mt-1">
-                        <span>敏感 (5%)</span>
-                        <span>標準 (10%)</span>
-                        <span>厳密 (50%)</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
+          {/* 入力デバイス設定 */}
+          <div className="space-y-3 bg-blue-900/10 p-4 rounded-lg border border-blue-700/40">
+            <div className="flex items-center justify-between">
+              <h4 className="text-sm font-medium text-blue-100">🎹 MIDI デバイス設定</h4>
+              <span className="text-xs text-blue-300">マイク入力は廃止しました</span>
             </div>
+            <MidiDeviceSelector
+              value={settings.selectedMidiDevice}
+              onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+            />
+            <p className="text-xs text-blue-200/80">
+              レジェンドモードではMIDI入力に完全統一し、レイテンシとCPU負荷を最小化しています。
+            </p>
+          </div>
 
             {/* 音量設定 */}
             <div className="space-y-3">
