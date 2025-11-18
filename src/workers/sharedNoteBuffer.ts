@@ -17,10 +17,11 @@ export enum SharedNoteState {
 }
 
 export interface SharedNoteViews {
-  buffer: SharedArrayBuffer;
+  buffer: SharedArrayBuffer | ArrayBuffer;
   header: Int32Array;
   data: Float32Array;
   maxNotes: number;
+  isShared: boolean;
 }
 
 export interface SharedNoteSnapshot {
@@ -36,23 +37,29 @@ export interface SharedNoteSnapshot {
   noteName?: string;
 }
 
-const createViews = (buffer: SharedArrayBuffer, maxNotes: number): SharedNoteViews => {
+const createViews = (buffer: SharedArrayBuffer | ArrayBuffer, maxNotes: number, isShared: boolean): SharedNoteViews => {
   const headerBytes = HEADER_ENTRIES * Int32Array.BYTES_PER_ELEMENT;
   const header = new Int32Array(buffer, 0, HEADER_ENTRIES);
   const data = new Float32Array(buffer, headerBytes, maxNotes * NOTE_STRIDE);
-  return { buffer, header, data, maxNotes };
+  return { buffer, header, data, maxNotes, isShared };
 };
 
 export const createSharedNoteBuffer = (config?: SharedNoteBufferConfig): SharedNoteViews => {
   const maxNotes = Math.max(128, config?.maxNotes ?? 512);
   const headerBytes = HEADER_ENTRIES * Int32Array.BYTES_PER_ELEMENT;
   const dataBytes = maxNotes * NOTE_STRIDE * Float32Array.BYTES_PER_ELEMENT;
-  const sab = new SharedArrayBuffer(headerBytes + dataBytes);
-  return createViews(sab, maxNotes);
+  const totalBytes = headerBytes + dataBytes;
+  const canUseShared = typeof SharedArrayBuffer !== 'undefined';
+  const buffer = canUseShared ? new SharedArrayBuffer(totalBytes) : new ArrayBuffer(totalBytes);
+  return createViews(buffer, maxNotes, canUseShared);
 };
 
-export const attachSharedNoteBuffer = (buffer: SharedArrayBuffer, maxNotes: number): SharedNoteViews => {
-  return createViews(buffer, maxNotes);
+export const attachSharedNoteBuffer = (
+  buffer: SharedArrayBuffer | ArrayBuffer,
+  maxNotes: number,
+  isShared: boolean
+): SharedNoteViews => {
+  return createViews(buffer, maxNotes, isShared && typeof SharedArrayBuffer !== 'undefined');
 };
 
 const getStrideOffset = (index: number): number => index * NOTE_STRIDE;
@@ -83,12 +90,17 @@ export const writeSharedNotes = (
     data[base + 6] = note.state;
     data[base + 7] = 0;
   }
-    if (count < maxNotes) {
-      const start = getStrideOffset(count);
-      data.fill(0, start, maxNotes * NOTE_STRIDE);
-    }
-  Atomics.store(header, ACTIVE_COUNT_INDEX, count);
-  Atomics.store(header, 0, Atomics.load(header, 0) + 1);
+  if (count < maxNotes) {
+    const start = getStrideOffset(count);
+    data.fill(0, start, maxNotes * NOTE_STRIDE);
+  }
+  if (views.isShared && typeof Atomics !== 'undefined') {
+    Atomics.store(header, ACTIVE_COUNT_INDEX, count);
+    Atomics.store(header, 0, Atomics.load(header, 0) + 1);
+  } else {
+    header[ACTIVE_COUNT_INDEX] = count;
+    header[0] = header[0] + 1;
+  }
 };
 
 export class SharedNoteBufferReader {
@@ -101,8 +113,10 @@ export class SharedNoteBufferReader {
   }
 
   forEach(callback: (snapshot: SharedNoteSnapshot) => void): void {
-    const { header, data } = this.views;
-    const count = Atomics.load(header, ACTIVE_COUNT_INDEX);
+    const { header, data, isShared } = this.views;
+    const count = isShared && typeof Atomics !== 'undefined'
+      ? Atomics.load(header, ACTIVE_COUNT_INDEX)
+      : header[ACTIVE_COUNT_INDEX];
     for (let i = 0; i < count; i += 1) {
       const base = getStrideOffset(i);
       const noteIndex = data[base];

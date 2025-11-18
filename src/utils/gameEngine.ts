@@ -75,7 +75,8 @@ export class GameEngine {
       settings: this.settings,
       notes: [],
       sharedBuffer: this.sharedViews.buffer,
-      maxNotes: this.maxNotes
+      maxNotes: this.maxNotes,
+      sharedBufferType: this.sharedViews.isShared ? 'shared' : 'array'
     });
   }
 

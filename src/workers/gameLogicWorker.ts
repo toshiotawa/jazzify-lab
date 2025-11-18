@@ -100,8 +100,12 @@ const updateNoteIndexMap = (notes: NoteData[]): void => {
 self.onmessage = (event: MessageEvent<GameLogicWorkerCommand>) => {
   const message = event.data;
   switch (message.type) {
-    case 'INIT': {
-      sharedViews = attachSharedNoteBuffer(message.sharedBuffer, message.maxNotes ?? 512);
+  case 'INIT': {
+    sharedViews = attachSharedNoteBuffer(
+      message.sharedBuffer,
+      message.maxNotes ?? 512,
+      message.sharedBufferType === 'shared'
+    );
       const inst = ensureEngine(message.settings);
       updateNoteIndexMap(message.notes);
       inst.loadSong(message.notes);

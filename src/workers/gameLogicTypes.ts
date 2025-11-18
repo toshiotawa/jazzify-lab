@@ -14,6 +14,7 @@ export interface WorkerInitMessage {
   notes: NoteData[];
   sharedBuffer: SharedNoteViews['buffer'];
   maxNotes?: number;
+  sharedBufferType: 'shared' | 'array';
 }
 
 export interface WorkerLoadSongMessage {
