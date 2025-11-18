@@ -110,8 +110,7 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  inputMode: 'midi',
-  pianoSoundQuality: 'light',
+    inputMode: 'midi',
   
   // 判定設定
   allowOctaveError: false,
@@ -320,11 +319,6 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
     normalized.midiVolume = Math.max(0, Math.min(1, normalized.midiVolume));
   }
     
-    if (normalized.pianoSoundQuality !== 'light' && normalized.pianoSoundQuality !== 'piano') {
-      errors.push('ピアノ音源品質は「軽量」または「高音質」から選択してください');
-      normalized.pianoSoundQuality = 'light';
-    }
-  
   if (normalized.bgmVolume < 0 || normalized.bgmVolume > 1) {
     errors.push('BGM音量は0-1の範囲で設定してください');
     normalized.bgmVolume = Math.max(0, Math.min(1, normalized.bgmVolume));

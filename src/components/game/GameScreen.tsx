@@ -847,7 +847,7 @@ const GamePlayScreen: React.FC = () => {
                 onClick={async () => {
                   try {
                     const { initializeAudioSystem } = await import('@/utils/MidiController');
-                    await initializeAudioSystem({ light: true });
+                    await initializeAudioSystem();
                   } catch (error) {
                     console.error('❌ Manual audio system initialization failed:', error);
                     alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
@@ -1539,39 +1539,6 @@ const SettingsPanel: React.FC = () => {
                   className="slider w-full accent-amber-400"
                 />
               </div>
-                
-                <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-2">
-                    ピアノ音源の品質
-                  </label>
-                  <div className="flex flex-wrap gap-4">
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="piano-sound-quality"
-                        value="light"
-                        checked={settings.pianoSoundQuality !== 'piano'}
-                        onChange={() => gameActions.updateSettings({ pianoSoundQuality: 'light' })}
-                        className="radio radio-xs"
-                      />
-                      <span className="text-sm text-gray-300">軽量モード（低負荷）</span>
-                    </label>
-                    <label className="flex items-center space-x-2 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="piano-sound-quality"
-                        value="piano"
-                        checked={settings.pianoSoundQuality === 'piano'}
-                        onChange={() => gameActions.updateSettings({ pianoSoundQuality: 'piano' })}
-                        className="radio radio-xs"
-                      />
-                      <span className="text-sm text-gray-300">高音質ピアノ</span>
-                    </label>
-                  </div>
-                  <p className="text-xs text-gray-400 mt-1">
-                    軽量モードは起動が速く端末負荷が小さい設定です。高音質ピアノは@tonejs/piano音源を利用し、より自然なサウンドになります。
-                  </p>
-                </div>
             </div>
 
             {/* ノーツスピード */}

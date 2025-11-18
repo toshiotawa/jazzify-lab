@@ -147,28 +147,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
-    // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
-    useEffect(() => {
-      if (!isReady) {
-        bgmManager.play(
-          stage.bgmUrl ?? '/demo-1.mp3',
-          stage.bpm || 120,
-          stage.timeSignature || 4,
-          stage.measureCount ?? 8,
-          stage.countInMeasures ?? 0,
-          settings.bgmVolume ?? 0.7
-        );
-        if (settings.pianoSoundQuality === 'piano') {
-          (async () => {
-            try {
-              const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-              await upgradeAudioSystemToFull();
-            } catch {}
-          })();
-        }
-      }
-      return () => bgmManager.stop();
-    }, [isReady, stage, settings.bgmVolume, settings.pianoSoundQuality]);
+  // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
+  useEffect(() => {
+    if (!isReady) {
+      bgmManager.play(
+        stage.bgmUrl ?? '/demo-1.mp3',
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0,
+        settings.bgmVolume ?? 0.7
+      );
+    }
+    return () => bgmManager.stop();
+  }, [isReady, stage, settings.bgmVolume]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -300,18 +292,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => { cancelled = true; };
   }, [stage?.playRootOnCorrect]);
 
-    useEffect(() => {
-      let cancelled = false;
-      (async () => {
-        try {
-          const { setAudioQualityMode } = await import('@/utils/MidiController');
-          if (cancelled) return;
-          await setAudioQualityMode(settings.pianoSoundQuality === 'piano' ? 'piano' : 'light');
-        } catch {}
-      })();
-      return () => { cancelled = true; };
-    }, [settings.pianoSoundQuality]);
-  
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
@@ -385,11 +365,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [centerPianoC4]);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const isTaikoModeRef = useRef(false);
-    const taikoTimeRef = useRef<{ smoothedTime: number; lastAudioTime: number; lastTimestamp: number }>({
-      smoothedTime: 0,
-      lastAudioTime: 0,
-      lastTimestamp: 0,
-    });
+  const taikoTimeRef = useRef<{
+    smoothedTime: number;
+    lastAudioTime: number;
+    lastTimestamp: number;
+    initialized: boolean;
+  }>({
+    smoothedTime: 0,
+    lastAudioTime: 0,
+    lastTimestamp: 0,
+    initialized: false,
+  });
+  type TaikoRenderNote = {
+    id: string;
+    chord: string;
+    x: number;
+    alpha?: number;
+  };
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -735,10 +727,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       let animationId: number;
       let lastUpdateTime = 0;
       const updateInterval = 1000 / 60; // 60fps
+      const currentMusicTime = bgmManager.getCurrentMusicTime();
       taikoTimeRef.current = {
-        smoothedTime: bgmManager.getCurrentMusicTime(),
-        lastAudioTime: bgmManager.getCurrentMusicTime(),
+        smoothedTime: currentMusicTime,
+        lastAudioTime: currentMusicTime,
         lastTimestamp: 0,
+        initialized: false,
       };
     
     // ループ情報を事前計算
@@ -761,19 +755,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const getSmoothedMusicTime = (timestamp: number): number => {
         const state = taikoTimeRef.current;
         const audioTime = bgmManager.getCurrentMusicTime();
-        if (!state.lastTimestamp) {
+        const MAX_DELTA = 0.2;
+        if (!state.initialized) {
+          state.initialized = true;
           state.lastTimestamp = timestamp;
           state.lastAudioTime = audioTime;
           state.smoothedTime = audioTime;
           return audioTime;
         }
-        const deltaSec = Math.max(0, Math.min(0.12, (timestamp - state.lastTimestamp) / 1000));
+        const deltaSec = Math.max(0, Math.min(MAX_DELTA, (timestamp - state.lastTimestamp) / 1000));
+        const audioDelta = Math.max(0, Math.min(MAX_DELTA, audioTime - state.lastAudioTime));
         state.lastTimestamp = timestamp;
-        const predicted = state.smoothedTime + deltaSec;
-        const error = audioTime - predicted;
-        const correctionFactor = 0.35;
-        state.smoothedTime = predicted + error * correctionFactor;
         state.lastAudioTime = audioTime;
+        const blendedAdvance = deltaSec * 0.85 + audioDelta * 0.15;
+        state.smoothedTime += blendedAdvance;
+        state.smoothedTime += (audioTime - state.smoothedTime) * 0.08;
         return state.smoothedTime;
       };
       
@@ -791,9 +787,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
-      // カウントイン中は複数ノーツを先行表示
+        const notesToDisplay: TaikoRenderNote[] = [];
+        // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
-        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
@@ -801,7 +797,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
+              notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x, alpha: 0.7 });
             if (notesToDisplay.length >= maxPreCountNotes) break;
           }
         }
@@ -809,9 +805,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
-      
-      // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
       
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
@@ -834,18 +827,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const lowerBound = -0.35;
 
         // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: note.id,
-            chord: note.chord.displayName,
-            x
-          });
-        }
+          if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+            notesToDisplay.push({
+              id: note.id,
+              chord: note.chord.displayName,
+              x,
+              alpha: 1
+            });
+          }
       });
       
-      // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
-      const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+        // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
+        const displayedBaseIds = new Set(notesToDisplay.map(n => n.id.replace(/_loop$/, '')));
       
       // 直前に消化したノーツのインデックス（復活させない）
       const lastCompletedIndex = gameState.taikoNotes.length > 0
@@ -876,8 +870,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
             id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x
+              chord: note.chord.displayName,
+              x,
+              alpha: 0.35
           });
         }
       }
