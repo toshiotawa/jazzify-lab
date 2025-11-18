@@ -1,7 +1,7 @@
 /// <reference lib="webworker" />
 
-import type { ActiveNote, GameSettings, JudgmentResult, NoteData } from '@/types';
-import { GameEngineCore } from '@/utils/gameEngineCore';
+import type { ActiveNote, GameSettings, JudgmentResult, NoteData } from '../types';
+import { GameEngineCore } from '../utils/gameEngineCore';
 
 interface InitMessage {
   type: 'INIT';
