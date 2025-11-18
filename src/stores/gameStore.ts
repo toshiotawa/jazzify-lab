@@ -454,7 +454,6 @@ const validateStateTransition = (currentState: GameState, action: string, params
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
   gameEngine: any | null; // GameEngine型は動的インポートで使用
-  engineActiveNotes: ActiveNote[];
   
   // 練習モードガイド: キーハイライト情報
   lastKeyHighlight?: {
@@ -639,12 +638,11 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
 export const useGameStore = createWithEqualityFn<GameStoreState>()(
   devtools(
     subscribeWithSelector(
-      immer((set, get) => ({
-        ...defaultState,
-        
-        // Phase 2: ゲームエンジン
-        gameEngine: null,
-        engineActiveNotes: [],
+        immer((set, get) => ({
+          ...defaultState,
+          
+          // Phase 2: ゲームエンジン
+          gameEngine: null,
         lastKeyHighlight: undefined,
         
         // 練習モード専用設定
@@ -657,20 +655,14 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const engine = new GameEngine({ ...state.settings });
           
           // エンジンの更新コールバック設定
-          engine.setUpdateCallback((data: any) => {
-            set((state) => {
-              // currentTime は AudioContext 同期ループで更新する
-              state.engineActiveNotes = data.activeNotes;
+            engine.setUpdateCallback((data: any) => {
+              const storeSnapshot = useGameStore.getState();
+              const { abRepeat } = storeSnapshot;
               
-              // キーハイライト処理はPIXIRenderer側で直接実行されるため、ストア経由の処理は不要
-              
-              // ===== ABリピート自動ループ =====
-              const { abRepeat } = state;
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
-                if (state.currentTime >= abRepeat.endTime) {
-                  console.log(`🔄 ABリピート(Store): ${state.currentTime.toFixed(2)}s → ${abRepeat.startTime.toFixed(2)}s`);
-                  // 🔧 修正: get()の代わりにuseGameStore.getState()を使用
+                if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
+                  console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
                   setTimeout(() => {
                     const store = useGameStore.getState();
                     store.seek(seekTime);
@@ -678,12 +670,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              // デバッグ情報更新（オプション）
-              if (state.settings.showFPS) {
-                state.debug.renderTime = performance.now() % 1000;
+              if (storeSnapshot.settings.showFPS) {
+                set((state) => {
+                  state.debug.renderTime = performance.now() % 1000;
+                });
               }
             });
-          });
           
           // 判定イベントコールバック登録
           engine.setJudgmentCallback((judgment) => {
@@ -725,7 +717,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (state.gameEngine) {
             state.gameEngine.destroy();
             state.gameEngine = null;
-            state.engineActiveNotes = [];
           }
         }),
         
@@ -899,7 +890,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = false;
             state.currentTime = 0;
             state.activeNotes.clear();
-            state.engineActiveNotes = [];
             
             // GameEngineも停止
             if (state.gameEngine) {
@@ -920,11 +910,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           if (state.gameEngine) {
             state.gameEngine.seek(newTime);
             console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
-            
-            const engineSnapshot = state.gameEngine.getState();
-            set((draft) => {
-              draft.engineActiveNotes = engineSnapshot.activeNotes;
-            });
           }
           
           // 🔧 追加: 再生中の音声を即座にシーク
@@ -1166,25 +1151,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               state.settings.practiceGuide = 'off';
             }
           });
-
-          // set の外側で最新の設定値を取得し、GameEngine へ反映
-          const { gameEngine, settings, currentSong, rawNotes } = get();
-          if (gameEngine) {
-            // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
-            gameEngine.updateSettings({ ...settings });
             
-                          // 🔧 停止中の移調変更対応: 移調設定が変更された場合、停止中でも強制的にengineActiveNotesを更新
-              if ('transpose' in newSettings && !get().isPlaying) {
-              const engineState = gameEngine.getState();
-              // 別のsetコールで更新
-              setTimeout(() => {
-                set((state) => {
-                  state.engineActiveNotes = engineState.activeNotes;
-                });
-                console.log(`🔄 停止中の移調設定変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
-              }, 0);
+            // set の外側で最新の設定値を取得し、GameEngine へ反映
+            const { gameEngine, settings, currentSong, rawNotes } = get();
+            if (gameEngine) {
+              // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
+              gameEngine.updateSettings({ ...settings });
             }
-          }
           
           // 移調楽器の設定が変更された場合、楽譜を再処理
           if (isTransposingInstrumentChanged && currentSong && rawNotes.length > 0) {
@@ -1565,13 +1538,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
               console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
-              
-              // 🔧 停止中の移調変更対応: 停止中でも強制的にengineActiveNotesを更新
-              if (!state.isPlaying) {
-                const engineState = state.gameEngine.getState();
-                state.engineActiveNotes = engineState.activeNotes;
-                console.log(`🔄 停止中の移調変更: engineActiveNotes更新 (${engineState.activeNotes.length}ノーツ)`);
-              }
             }
           });
           

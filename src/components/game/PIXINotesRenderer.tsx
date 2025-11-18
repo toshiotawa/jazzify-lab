@@ -159,10 +159,8 @@ const isHitState = (state: ActiveNote['state']) =>
 // ===== 型定義 =====
 
 interface PIXINotesRendererProps {
-  activeNotes: ActiveNote[];
   width: number;
   height: number;
-  currentTime: number; // 現在時刻を追加（アニメーション同期用）
   /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
@@ -266,9 +264,6 @@ export class PIXINotesRendererInstance {
   // ガイド用ハイライト（演奏と独立して保持）
   private guideHighlightedKeys: Set<number> = new Set();
   
-  // ★ パフォーマンス最適化: nextNoteIndex ポインタシステム
-  private allNotes: ActiveNote[] = []; // 全ノートのソート済みリスト
-  private nextNoteIndex: number = 0;   // 次に表示するノートのインデックス
   private lastUpdateTime: number = 0;  // 前回の更新時刻（巻き戻し検出用）
   
   // ===== テクスチャキャッシュ =====
@@ -506,47 +501,31 @@ export class PIXINotesRendererInstance {
    */
   // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
   private startUnifiedRendering(): void {
-    if (!window.unifiedFrameController) {
-      log.warn('⚠️ unifiedFrameController not available, using default PIXI ticker');
-      this.app.start();
-      return;
-    }
-    
-    // 統合フレーム制御を使用してPIXIアプリケーションを制御
-    const renderFrame = () => {
+    const ticker = this.app.ticker;
+    const renderStep = () => {
       const currentTime = performance.now();
-      
-      // 統合フレーム制御でフレームスキップ判定
-      if (window.unifiedFrameController.shouldSkipFrame(currentTime, 'render')) {
-        // フレームをスキップ
-        requestAnimationFrame(renderFrame);
+      const controller = (window as any).unifiedFrameController;
+      if (controller && controller.shouldSkipFrame(currentTime, 'render')) {
         return;
       }
-      
-      // PIXIアプリケーションを手動でレンダリング（安全ガード付き）
+
       if (this.isDestroyed) {
-        // 破棄済みの場合はレンダリングループを停止
         return;
       }
-      
+
       try {
-        if (this.app && this.app.renderer) {
-          this.app.render();
-        }
+        this.app.render();
       } catch (error) {
         log.warn('⚠️ PIXI render error (likely destroyed):', error);
-        // レンダリングループを停止
-        return;
       }
-      
-      // 次のフレームをスケジュール
-      requestAnimationFrame(renderFrame);
     };
-    
-    // レンダリングループを開始
-    renderFrame();
-    
-    log.info('🎯 PIXI.js unified frame control started');
+
+    ticker.add(renderStep);
+    this.disposeManager.add(() => {
+      ticker.remove(renderStep);
+    });
+
+    log.info('🎯 PIXI.js unified frame control started (shared ticker)');
   }
   
   /**
@@ -1792,7 +1771,7 @@ export class PIXINotesRendererInstance {
    * ノーツ表示の更新 - ループ分離最適化版
    * 位置更新と状態更新を分離してCPU使用量を30-50%削減
    */
-  updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
+    updateNotes(activeNotes: ActiveNote[], currentTime?: number): void {
     if (typeof currentTime !== 'number') return; // 絶対時刻が必要
     
     // ===== 巻き戻し検出とノートリスト更新 =====
@@ -1814,39 +1793,21 @@ export class PIXINotesRendererInstance {
       this.noteSprites.clear();
     }
     
-    // ノートリストが変更された場合、または巻き戻しが発生した場合
-    if (seekDetected) {
-      this.allNotes = [...activeNotes].sort((a, b) => a.time - b.time);
-      this.nextNoteIndex = 0;
-    } else {
-      this.allNotes = activeNotes;
-      this.nextNoteIndex = Math.min(this.nextNoteIndex, this.allNotes.length);
-    }
-    
-    this.lastUpdateTime = currentTime;
-    this.refreshActiveNoteLookup(activeNotes);
-    
-    // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
-    const visualSpeedMultiplier = this.settings.noteSpeed;
-    const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
-    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
-    
-    // ===== 📈 CPU最適化: 新規表示ノートのみ処理 =====
-    // まだ表示していないノートで、表示時刻になったもののみ処理
-    const appearanceTime = currentTime + baseFallDuration; // 画面上端に現れる時刻
-    
-    while (this.nextNoteIndex < this.allNotes.length &&
-           this.allNotes[this.nextNoteIndex].time <= appearanceTime) {
-      const note = this.allNotes[this.nextNoteIndex];
+      this.lastUpdateTime = currentTime;
+      this.refreshActiveNoteLookup(activeNotes);
       
-      // 新規ノーツスプライト作成（初回のみ）
-      if (!this.noteSprites.has(note.id)) {
-        this.createNoteSprite(note);
+      // GameEngine提供のアクティブノート一覧に合わせてスプライトを補充
+      for (const note of activeNotes) {
+        if (!this.noteSprites.has(note.id)) {
+          this.createNoteSprite(note);
+        }
       }
       
-      this.nextNoteIndex++;
-    }
+      // GameEngineと同じ計算式を使用（統一化）
+      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+      const visualSpeedMultiplier = this.settings.noteSpeed;
+      const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
+      const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
     
     // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
@@ -2031,32 +1992,6 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    /**
-     * 二分探索で指定時刻に対応するノートインデックスを取得
-     */
-    private findNoteIndexByTime(targetTime: number): number {
-      if (this.allNotes.length === 0) return 0;
-      
-      const baseFallDuration = 15.0;
-      const appearanceTime = targetTime + baseFallDuration;
-      
-      let left = 0;
-      let right = this.allNotes.length - 1;
-      
-      while (left <= right) {
-        const mid = Math.floor((left + right) / 2);
-        const noteTime = this.allNotes[mid].time;
-        
-        if (noteTime <= appearanceTime) {
-          left = mid + 1;
-        } else {
-          right = mid - 1;
-        }
-      }
-      
-      return left; // 最初の「まだ表示していない」ノートのインデックス
-    }
-  
   private createNoteSprite(note: ActiveNote): NoteSprite {
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
@@ -3191,10 +3126,8 @@ export class PIXINotesRendererInstance {
 // ===== React コンポーネント =====
 
 export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
-  activeNotes,
   width,
   height,
-  currentTime,
   onReady,
   className
 }) => {
@@ -3276,14 +3209,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
-  
-  // ノーツ更新
-  useEffect(() => {
-    if (rendererRef.current) {
-      rendererRef.current.updateNotes(activeNotes, currentTime);
-    }
-  }, [activeNotes, currentTime]);
-  
   
   // リサイズ対応
   useEffect(() => {
