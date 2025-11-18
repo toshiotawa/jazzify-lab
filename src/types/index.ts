@@ -7,6 +7,7 @@
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
 export type InputMode = 'midi' | 'audio' | 'both';
+export type PianoSoundQuality = 'light' | 'piano';
 
 // 移調楽器タイプ
 export type TransposingInstrument = 
@@ -143,6 +144,7 @@ export interface GameSettings {
   playbackSpeed: number;       // 0.25-2.0
   instrumentMode: InstrumentMode;
   inputMode: InputMode;
+  pianoSoundQuality: PianoSoundQuality;
   
   // 判定設定
   allowOctaveError: boolean;   // オクターブ違いを正解にする

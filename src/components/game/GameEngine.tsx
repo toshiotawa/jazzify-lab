@@ -597,6 +597,20 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     useEffect(() => {
       let isMounted = true;
+      ensureMidiModule()
+        .then(async (module) => {
+          if (!isMounted) return;
+          const mode = settings.pianoSoundQuality === 'piano' ? 'piano' : 'light';
+          await module.setAudioQualityMode?.(mode);
+        })
+        .catch(() => {});
+      return () => {
+        isMounted = false;
+      };
+    }, [settings.pianoSoundQuality, ensureMidiModule]);
+
+    useEffect(() => {
+      let isMounted = true;
       void ensureMidiModule()
         .then(async (module) => {
           if (!isMounted) return;

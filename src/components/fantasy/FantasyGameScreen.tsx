@@ -147,27 +147,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, []);
   
-  // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
-  useEffect(() => {
-    if (!isReady) {
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7
-      );
-      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
-      (async () => {
-        try {
-          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-          await upgradeAudioSystemToFull();
-        } catch {}
-      })();
-    }
-    return () => bgmManager.stop();
-  }, [isReady, stage, settings.bgmVolume]);
+    // Ready 終了時に BGM 再生（ゲームSEはFSMが担当、鍵盤はマウス時のみローカル再生）
+    useEffect(() => {
+      if (!isReady) {
+        bgmManager.play(
+          stage.bgmUrl ?? '/demo-1.mp3',
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          stage.measureCount ?? 8,
+          stage.countInMeasures ?? 0,
+          settings.bgmVolume ?? 0.7
+        );
+        if (settings.pianoSoundQuality === 'piano') {
+          (async () => {
+            try {
+              const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
+              await upgradeAudioSystemToFull();
+            } catch {}
+          })();
+        }
+      }
+      return () => bgmManager.stop();
+    }, [isReady, stage, settings.bgmVolume, settings.pianoSoundQuality]);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -298,6 +299,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     apply();
     return () => { cancelled = true; };
   }, [stage?.playRootOnCorrect]);
+
+    useEffect(() => {
+      let cancelled = false;
+      (async () => {
+        try {
+          const { setAudioQualityMode } = await import('@/utils/MidiController');
+          if (cancelled) return;
+          await setAudioQualityMode(settings.pianoSoundQuality === 'piano' ? 'piano' : 'light');
+        } catch {}
+      })();
+      return () => { cancelled = true; };
+    }, [settings.pianoSoundQuality]);
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
@@ -372,6 +385,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [centerPianoC4]);
   const [fantasyPixiInstance, setFantasyPixiInstance] = useState<FantasyPIXIInstance | null>(null);
   const isTaikoModeRef = useRef(false);
+    const taikoTimeRef = useRef<{ smoothedTime: number; lastAudioTime: number; lastTimestamp: number }>({
+      smoothedTime: 0,
+      lastAudioTime: 0,
+      lastTimestamp: 0,
+    });
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
@@ -711,12 +729,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
   // 太鼓の達人モードのノーツ表示更新（最適化版）
-  useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
-    
-    let animationId: number;
-    let lastUpdateTime = 0;
-    const updateInterval = 1000 / 60; // 60fps
+    useEffect(() => {
+      if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
+      
+      let animationId: number;
+      let lastUpdateTime = 0;
+      const updateInterval = 1000 / 60; // 60fps
+      taikoTimeRef.current = {
+        smoothedTime: bgmManager.getCurrentMusicTime(),
+        lastAudioTime: bgmManager.getCurrentMusicTime(),
+        lastTimestamp: 0,
+      };
     
     // ループ情報を事前計算
     const stage = gameState.currentStage!;
@@ -735,7 +758,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           .sort((a, b) => a.time - b.time)
       : [];
     
-    const updateTaikoNotes = (timestamp: number) => {
+      const getSmoothedMusicTime = (timestamp: number): number => {
+        const state = taikoTimeRef.current;
+        const audioTime = bgmManager.getCurrentMusicTime();
+        if (!state.lastTimestamp) {
+          state.lastTimestamp = timestamp;
+          state.lastAudioTime = audioTime;
+          state.smoothedTime = audioTime;
+          return audioTime;
+        }
+        const deltaSec = Math.max(0, Math.min(0.12, (timestamp - state.lastTimestamp) / 1000));
+        state.lastTimestamp = timestamp;
+        const predicted = state.smoothedTime + deltaSec;
+        const error = audioTime - predicted;
+        const correctionFactor = 0.35;
+        state.smoothedTime = predicted + error * correctionFactor;
+        state.lastAudioTime = audioTime;
+        return state.smoothedTime;
+      };
+      
+      const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
       if (timestamp - lastUpdateTime < updateInterval) {
         animationId = requestAnimationFrame(updateTaikoNotes);
@@ -743,7 +785,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastUpdateTime = timestamp;
       
-      const currentTime = bgmManager.getCurrentMusicTime();
+        const currentTime = getSmoothedMusicTime(timestamp);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
