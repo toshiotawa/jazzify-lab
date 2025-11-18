@@ -8,6 +8,7 @@ import * as PIXI from 'pixi.js';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
+import { PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
 
@@ -68,6 +69,11 @@ interface DamageNumberData {
   velocity: number;
   life: number;
   maxLife: number;
+}
+
+interface TaikoNoteSprite {
+  container: PIXI.Container;
+  targetX: number;
 }
 
 interface MagicType {
@@ -248,7 +254,7 @@ export class FantasyPIXIInstance {
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
   // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+  private activeNotes: Map<string, TaikoNoteSprite> = new Map(); // 表示中のノーツ
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
@@ -2129,37 +2135,54 @@ export class FantasyPIXIInstance {
   
   // ノーツを更新（太鼓の達人風）
   updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
+    if (!this.notesContainer || this.notesContainer.destroyed) {
+      return;
+    }
+
+    const limitedNotes = notes.slice(0, PERFORMANCE_CONFIG.MAX_VISIBLE_NOTES);
+    const visibleIds = new Set(limitedNotes.map(note => note.id));
+
+    // 不要になったノーツを破棄
+    this.activeNotes.forEach((spriteData, id) => {
+      if (!visibleIds.has(id)) {
         try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
+          if (spriteData.container && !(spriteData.container as any).destroyed) {
+            spriteData.container.destroy({ children: true });
+          }
         } catch {}
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
-    notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+    limitedNotes.forEach(noteData => {
+      let spriteData = this.activeNotes.get(noteData.id);
       
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
+      if (!spriteData || this.isSpriteInvalid(spriteData.container)) {
+        const container = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
+        this.notesContainer.addChild(container);
+        spriteData = { container, targetX: noteData.x };
+        this.activeNotes.set(noteData.id, spriteData);
       } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+        spriteData.targetX = noteData.x;
       }
+
+      this.smoothTaikoNotePosition(spriteData);
     });
+  }
+  
+  private smoothTaikoNotePosition(note: TaikoNoteSprite): void {
+    const { container, targetX } = note;
+    if (this.isSpriteInvalid(container)) {
+      return;
+    }
+
+    const delta = targetX - container.x;
+    if (Math.abs(delta) <= 0.5) {
+      container.x = targetX;
+      return;
+    }
+
+    container.x += PERFORMANCE_CONFIG.LERP_FACTOR * delta;
   }
 
   // 太鼓モードの切り替え
@@ -2174,7 +2197,13 @@ export class FantasyPIXIInstance {
       // シングルモードの場合、判定ラインを非表示
       this.judgeLineContainer.visible = false;
       // ノーツもクリア
-      this.activeNotes.forEach(note => note.destroy());
+      this.activeNotes.forEach(note => {
+        try {
+          if (note.container && !(note.container as any).destroyed) {
+            note.container.destroy({ children: true });
+          }
+        } catch {}
+      });
       this.activeNotes.clear();
     }
   }
