@@ -37,17 +37,16 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     rollupOptions: {
-      output: {
-        manualChunks: {
-          'react-vendor': ['react', 'react-dom'],
-          'pixi': ['pixi.js'],
-          'audio': ['tone'],
-          'icons': ['react-icons'],
-          'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
-          'supabase': ['@supabase/supabase-js'],
-          'stripe': ['@stripe/stripe-js'],
-          'music': ['opensheetmusicdisplay', 'tonal']
-        },
+        output: {
+          manualChunks: {
+            'react-vendor': ['react', 'react-dom'],
+            'audio': ['tone'],
+            'icons': ['react-icons'],
+            'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
+            'supabase': ['@supabase/supabase-js'],
+            'stripe': ['@stripe/stripe-js'],
+            'music': ['opensheetmusicdisplay', 'tonal']
+          },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]'
@@ -80,7 +79,6 @@ export default defineConfig({
       '@stripe/stripe-js',
       'opensheetmusicdisplay',
       'tonal',
-      'pixi.js',
       'tone'
     ],
     exclude: ['@/wasm'],
