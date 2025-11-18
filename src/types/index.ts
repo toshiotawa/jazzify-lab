@@ -514,18 +514,32 @@ export interface ToneSampler {
   toDestination(): ToneSampler;
   triggerAttack(note: string | number, time?: number, velocity?: number): void;
   triggerRelease(note: string | number, time?: number): void;
-  connect(destination: any): void;
+  connect(destination: unknown): void;
   dispose(): void;
+  envelope?: {
+    attack?: number;
+  };
+  volume?: {
+    value: number;
+  };
 }
 
 export interface ToneFrequency {
   toFrequency(): number;
+  toNote(): string;
 }
 
 export interface ToneStatic {
-  Sampler: new (options: any) => ToneSampler;
-  Frequency: new (note: string | number) => ToneFrequency;
-  context: any;
+  Context: new (options?: { latencyHint?: string; lookAhead?: number }) => unknown;
+  setContext: (context: unknown) => void;
+  start: () => Promise<void>;
+  loaded: () => Promise<void>;
+  Sampler: new (options: { urls: Record<string, string>; baseUrl: string }) => ToneSampler;
+  Frequency: new (note: string | number, units?: string) => ToneFrequency;
+  context?: {
+    state?: string;
+    resume?: () => Promise<void>;
+  };
 }
 
 export interface MidiControllerOptions {
