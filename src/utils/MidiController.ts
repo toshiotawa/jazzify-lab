@@ -68,6 +68,21 @@ const activeNotes = new Set<string>();
 let sustainOn = false;
 const sustainedNotes = new Set<string>();
 
+const waitForToneLoaded = async (): Promise<void> => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  const toneGlobal = (window as any).Tone;
+  if (!toneGlobal?.loaded) {
+    return;
+  }
+  try {
+    await toneGlobal.loaded();
+  } catch (error) {
+    console.warn('⚠️ Tone.js sample loading failed:', error);
+  }
+};
+
 /**
  * ユーザーインタラクションの検出
  */
@@ -227,31 +242,29 @@ export const initializeAudioSystem = async (opts?: { light?: boolean }): Promise
       }
     }
 
-    // 軽量モード or ピアノ失敗時は Salamander サンプラー
-    if (!usedPiano) {
-      const samplerUrls = lightMode ? LIGHT_SAMPLER_URLS : FULL_SAMPLER_URLS;
+      // 軽量モード or ピアノ失敗時は Salamander サンプラー
+      if (!usedPiano) {
+        const samplerUrls = lightMode ? LIGHT_SAMPLER_URLS : FULL_SAMPLER_URLS;
 
-      globalSampler = new (window.Tone as any).Sampler({
-        urls: samplerUrls,
-        baseUrl: SALAMANDER_BASE_URL
-      }).toDestination();
-      samplerQuality = lightMode ? 'light' : 'full';
+        globalSampler = new (window.Tone as any).Sampler({
+          urls: samplerUrls,
+          baseUrl: SALAMANDER_BASE_URL
+        }).toDestination();
+        samplerQuality = lightMode ? 'light' : 'full';
 
-      if (globalSampler && (globalSampler as any).envelope) {
-        (globalSampler as any).envelope.attack = 0.001;
+        if (globalSampler && (globalSampler as any).envelope) {
+          (globalSampler as any).envelope.attack = 0.001;
+        }
+
+        await waitForToneLoaded();
+
+        if (lightMode) {
+          console.log('✅ Light sampler prepared (all assets decoded)');
+          scheduleFullSamplerUpgrade();
+        } else {
+          console.log('✅ Sampler audio samples preloaded and decoded');
+        }
       }
-
-      if (lightMode) {
-        // 軽量モード: バックグラウンドでロード。初期化をブロックしない
-        (window.Tone as any).loaded().then(() => {
-          console.log('✅ Sampler audio samples loaded (background, light mode)');
-        }).catch(() => {});
-        scheduleFullSamplerUpgrade();
-      } else {
-        await (window.Tone as any).loaded();
-        console.log('✅ Sampler audio samples preloaded and decoded');
-      }
-    }
 
     audioSystemInitialized = true;
     console.log('✅ Optimized audio system initialized successfully');
