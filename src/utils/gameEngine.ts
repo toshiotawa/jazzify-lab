@@ -9,7 +9,12 @@ import type {
   GameLogicWorkerCommand,
   GameLogicWorkerEvent
 } from '@/workers/gameLogicTypes';
-import type { GameEngineUpdate, GameEngineState } from '@/workers/gameEngineCore';
+import {
+  GameEngine as GameEngineCore,
+  type EngineClockConfig,
+  type GameEngineUpdate,
+  type GameEngineState
+} from '@/workers/gameEngineCore';
 
 const defaultScore: GameScore = {
   totalNotes: 0,
@@ -38,10 +43,14 @@ const defaultState: GameEngineState = {
 
 type UpdateListener = (update: GameEngineUpdate) => void;
 
+const supportsSharedArrayBuffer = typeof SharedArrayBuffer !== 'undefined';
+const supportsWorker = typeof Worker !== 'undefined';
+const canUseWorker = supportsSharedArrayBuffer && supportsWorker;
+
 export class GameEngine {
-  private worker: Worker;
-  private readonly sharedViews: SharedNoteViews;
-  private readonly reader: SharedNoteBufferReader;
+  private worker: Worker | null = null;
+  private readonly sharedViews: SharedNoteViews | null;
+  private readonly reader: SharedNoteBufferReader | null;
   private readonly maxNotes: number;
   private settings: GameSettings;
   private notes: NoteData[] = [];
@@ -59,25 +68,45 @@ export class GameEngine {
   private ready = false;
   private readonly queue: GameLogicWorkerCommand[] = [];
 
+  private inlineEngine: GameEngineCore | null = null;
+  private readonly mode: 'worker' | 'inline';
+
   constructor(settings: GameSettings, options?: { maxNotes?: number }) {
     this.settings = { ...settings };
     this.maxNotes = options?.maxNotes ?? 512;
-    this.sharedViews = createSharedNoteBuffer({ maxNotes: this.maxNotes });
-    this.reader = new SharedNoteBufferReader(this.sharedViews);
-    this.worker = new Worker(new URL('../workers/gameLogicWorker.ts', import.meta.url), {
-      type: 'module'
-    });
-    this.worker.onmessage = (event: MessageEvent<GameLogicWorkerEvent>) => {
-      this.handleWorkerEvent(event.data);
-    };
-    this.postMessage({
-      type: 'INIT',
-      settings: this.settings,
-      notes: [],
-      sharedBuffer: this.sharedViews.buffer,
-      maxNotes: this.maxNotes,
-      sharedBufferType: this.sharedViews.isShared ? 'shared' : 'array'
-    });
+    if (canUseWorker) {
+      this.mode = 'worker';
+      this.sharedViews = createSharedNoteBuffer({ maxNotes: this.maxNotes });
+      this.reader = new SharedNoteBufferReader(this.sharedViews);
+      this.worker = new Worker(new URL('../workers/gameLogicWorker.ts', import.meta.url), {
+        type: 'module'
+      });
+      this.worker.onmessage = (event: MessageEvent<GameLogicWorkerEvent>) => {
+        this.handleWorkerEvent(event.data);
+      };
+      this.postMessage({
+        type: 'INIT',
+        settings: this.settings,
+        notes: [],
+        sharedBuffer: this.sharedViews.buffer,
+        maxNotes: this.maxNotes,
+        sharedBufferType: this.sharedViews.isShared ? 'shared' : 'array'
+      });
+    } else {
+      this.mode = 'inline';
+      this.sharedViews = null;
+      this.reader = null;
+      this.inlineEngine = new GameEngineCore({ ...settings });
+      this.inlineEngine.setUpdateCallback((update) => {
+        this.handleInlineUpdate(update);
+      });
+      this.inlineEngine.setJudgmentCallback((judgment) => {
+        this.forwardJudgment(judgment);
+      });
+      this.inlineEngine.setKeyHighlightCallback((pitch, timestamp) => {
+        this.keyHighlightCallback?.(pitch, timestamp);
+      });
+    }
   }
 
   private handleWorkerEvent(event: GameLogicWorkerEvent): void {
@@ -89,7 +118,7 @@ export class GameEngine {
       case 'UPDATE': {
         const frame: GameEngineUpdate = {
           currentTime: event.currentTime,
-          activeNotes: [],
+          activeNotes: this.sharedViews?.isShared ? [] : event.activeNotes,
           timing: event.timing,
           score: event.score,
           abRepeatState: { start: null, end: null, enabled: false }
@@ -124,6 +153,9 @@ export class GameEngine {
   }
 
   private postMessage(message: GameLogicWorkerCommand): void {
+    if (this.mode !== 'worker' || !this.worker) {
+      return;
+    }
     if (!this.ready && message.type !== 'INIT') {
       this.queue.push(message);
       return;
@@ -142,6 +174,11 @@ export class GameEngine {
 
   setJudgmentCallback(callback: (judgment: JudgmentResult) => void): void {
     this.judgmentCallback = callback;
+    if (this.mode === 'inline' && this.inlineEngine) {
+      this.inlineEngine.setJudgmentCallback((judgment) => {
+        this.forwardJudgment(judgment);
+      });
+    }
   }
   
   addJudgmentListener(listener: (judgment: JudgmentResult) => void): () => void {
@@ -153,60 +190,119 @@ export class GameEngine {
 
   setKeyHighlightCallback(callback: (pitch: number, timestamp: number) => void): void {
     this.keyHighlightCallback = callback;
+    if (this.mode === 'inline' && this.inlineEngine) {
+      this.inlineEngine.setKeyHighlightCallback(callback);
+    }
   }
 
   loadSong(notes: NoteData[]): void {
     this.notes = notes;
-    this.reader.setMetadata(notes);
-    this.postMessage({ type: 'LOAD_SONG', notes });
+    if (this.mode === 'worker') {
+      this.reader?.setMetadata(notes);
+      this.postMessage({ type: 'LOAD_SONG', notes });
+    } else if (this.inlineEngine) {
+      this.inlineEngine.loadSong(notes);
+      this.handleInlineUpdate(this.inlineEngine.getState());
+    }
   }
 
   start(clock: ClockSyncPayload): void {
-    this.postMessage({ type: 'START', clock });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'START', clock });
+    } else {
+      this.inlineEngine?.start(clock as EngineClockConfig);
+    }
   }
 
   resume(clock: ClockSyncPayload): void {
-    this.postMessage({ type: 'RESUME', clock });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'RESUME', clock });
+    } else {
+      this.inlineEngine?.resume(clock as EngineClockConfig);
+    }
   }
 
   pause(): void {
-    this.postMessage({ type: 'PAUSE' });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'PAUSE' });
+    } else {
+      this.inlineEngine?.pause();
+    }
   }
 
   stop(): void {
-    this.postMessage({ type: 'STOP' });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'STOP' });
+    } else {
+      this.inlineEngine?.stop();
+    }
   }
 
   seek(time: number, clock: ClockSyncPayload): void {
-    this.postMessage({ type: 'SEEK', time, clock });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'SEEK', time, clock });
+    } else {
+      this.inlineEngine?.seek(time, clock as EngineClockConfig);
+      this.handleInlineUpdate(this.inlineEngine!.getState());
+    }
   }
 
   handleInput(note: number): void {
-    this.postMessage({ type: 'HANDLE_INPUT', note });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'HANDLE_INPUT', note });
+    } else {
+      const hit = this.inlineEngine?.handleInput(note);
+      if (hit && this.inlineEngine) {
+        const judgment = this.inlineEngine.processHit(hit);
+        this.forwardJudgment(judgment);
+      }
+    }
   }
 
   updateSettings(settings: GameSettings): void {
     this.settings = { ...settings };
-    this.postMessage({ type: 'UPDATE_SETTINGS', settings: this.settings });
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'UPDATE_SETTINGS', settings: this.settings });
+    } else {
+      this.inlineEngine?.updateSettings({ ...settings });
+    }
   }
 
   getState(): GameEngineState {
-    return {
-      ...defaultState,
-      currentTime: this.lastUpdate.currentTime,
-      activeNotes: [],
-      score: { ...this.lastUpdate.score },
-      timing: { ...this.lastUpdate.timing },
-      abRepeat: { start: null, end: null, enabled: false }
-    };
+    if (this.mode === 'worker') {
+      return {
+        ...defaultState,
+        currentTime: this.lastUpdate.currentTime,
+        activeNotes: this.sharedViews?.isShared ? [] : this.lastUpdate.activeNotes,
+        score: { ...this.lastUpdate.score },
+        timing: { ...this.lastUpdate.timing },
+        abRepeat: { start: null, end: null, enabled: false }
+      };
+    }
+    return this.inlineEngine ? this.inlineEngine.getState() : { ...defaultState };
   }
 
-  getSharedNoteReader(): SharedNoteBufferReader {
+  getSharedNoteReader(): SharedNoteBufferReader | null {
     return this.reader;
   }
 
   destroy(): void {
-    this.postMessage({ type: 'DESTROY' });
-    this.worker.terminate();
+    if (this.mode === 'worker') {
+      this.postMessage({ type: 'DESTROY' });
+      this.worker?.terminate();
+    } else {
+      this.inlineEngine?.destroy();
+    }
+  }
+  
+  private handleInlineUpdate(update: GameEngineUpdate): void {
+    this.lastUpdate = update;
+    this.updateCallback?.(update);
+    this.listeners.forEach(listener => listener(update));
+  }
+
+  private forwardJudgment(judgment: JudgmentResult): void {
+    this.judgmentCallback?.(judgment);
+    this.judgmentListeners.forEach((listener) => listener(judgment));
   }
 }

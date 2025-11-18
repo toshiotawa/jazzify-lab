@@ -2,12 +2,15 @@ import type { ActiveNote } from '@/types';
 import type { GameEngine } from '@/utils/gameEngine';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
 import type { SharedNoteBufferReader } from '@/workers/sharedNoteBuffer';
+import type { ActiveNote } from '@/types';
 
 export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private reader: SharedNoteBufferReader | null = null;
+  private lastActiveNotes: ActiveNote[] = [];
+  private lastCurrentTime = 0;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -22,8 +25,14 @@ export class LegendRenderBridge {
       return;
     }
 
-    this.reader = engine.getSharedNoteReader();
-    this.unsubscribe = engine.addUpdateListener(() => {
+    try {
+      this.reader = engine.getSharedNoteReader();
+    } catch {
+      this.reader = null;
+    }
+    this.unsubscribe = engine.addUpdateListener((update) => {
+      this.lastActiveNotes = update.activeNotes ?? [];
+      this.lastCurrentTime = update.currentTime;
       this.flush();
     });
     this.flush();
@@ -59,10 +68,14 @@ export class LegendRenderBridge {
   }
 
   private flush(): void {
-    if (!this.renderer || !this.reader) {
+    if (!this.renderer) {
       return;
     }
-    this.renderer.updateFromSharedBuffer(this.reader);
+    if (this.reader) {
+      this.renderer.updateFromSharedBuffer(this.reader);
+      return;
+    }
+    this.renderer.updateNotes(this.lastActiveNotes, this.lastCurrentTime);
   }
 
 }
