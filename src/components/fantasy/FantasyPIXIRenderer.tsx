@@ -93,6 +93,16 @@ interface MagicCircle {
   type: 'success' | 'failure';
 }
 
+interface TaikoNoteInstance {
+  container: PIXI.Container;
+  label: PIXI.Text;
+  metadata: {
+    remainingTime: number;
+    lastSyncTimestamp: number;
+    noteSpeed: number;
+  };
+}
+
 // ===== 魔法タイプ定義 =====
 const MAGIC_TYPES: Record<string, MagicType> = {
   fire: { // フレア -> インフェルノ
@@ -232,25 +242,24 @@ export class FantasyPIXIInstance {
   private magicCircleData: Map<string, MagicCircle> = new Map();
   private damageNumbers: Map<string, PIXI.Text> = new Map();
   private damageData: Map<string, DamageNumberData> = new Map();
-  private chordNameText: PIXI.Text | null = null;
-  // オーバーレイ（コードネーム等）表示用
-  private overlayLabels: Map<string, PIXI.Text> = new Map();
-  private currentOverlayText: string | null = null;
+    private chordNameText: PIXI.Text | null = null;
+    // オーバーレイ（コードネーム等）表示用
+    private overlayLabels: Map<string, PIXI.Text> = new Map();
+    private currentOverlayText: string | null = null;
 
-  
-  private currentMagicType: string = 'fire';
-  // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
-  /*
-  private emojiTextures: Map<string, PIXI.Texture> = new Map();
-  */
-  private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
-  private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
-  private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
-  
-  // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
-  private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
-  private judgeLineX: number = 100; // 判定ラインのX座標
+    private currentMagicType: string = 'fire';
+    // ★★★ MONSTER_EMOJI と loadEmojiTextures を削除、またはコメントアウト ★★★
+    /*
+    private emojiTextures: Map<string, PIXI.Texture> = new Map();
+    */
+    private imageTextures: Map<string, PIXI.Texture> = new Map(); // ★ imageTextures は残す
+    private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
+    private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
+    
+    // 太鼓の達人風ノーツ関連
+    private activeNotes: Map<string, TaikoNoteInstance> = new Map(); // 表示中のノーツ
+    private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
+    private judgeLineX: number = 100; // 判定ラインのX座標
   
   private isDestroyed: boolean = false;
   private animationFrameId: number | null = null;
@@ -1683,10 +1692,11 @@ export class FantasyPIXIInstance {
     const animate = () => {
       if (this.isDestroyed) return;
       
-      this.updateMonsterAnimation();
-      this.updateMagicCircles();
-      this.updateDamageNumbers();
-      this.updateScreenShake(); // 画面揺れの更新を追加
+        this.updateMonsterAnimation();
+        this.updateMagicCircles();
+        this.updateDamageNumbers();
+        this.updateScreenShake(); // 画面揺れの更新を追加
+        this.updateActiveTaikoNotes();
       
       this.animationFrameId = requestAnimationFrame(animate);
     };
@@ -2029,7 +2039,11 @@ export class FantasyPIXIInstance {
         // ▲▲▲ ここまで ▲▲▲
         this.updateMonsterSpriteData(monsterData);
       }
-      devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
+        const now = performance.now();
+        this.activeNotes.forEach(note => {
+          this.applyTaikoNotePosition(note, now);
+        });
+        devLog.debug('✅ ファンタジーPIXIリサイズ完了:', { width, height });
     } catch (error) {
       devLog.debug('⚠️ リサイズエラー:', error);
     }
@@ -2059,7 +2073,7 @@ export class FantasyPIXIInstance {
   }
   
   // 太鼓の達人風ノーツを作成
-  createTaikoNote(noteId: string, chordName: string, x: number): PIXI.Container {
+  private createTaikoNote(noteId: string, chordName: string, remainingTime: number, noteSpeed: number): TaikoNoteInstance {
     const noteContainer = new PIXI.Container();
     
     // ノーツの円を作成
@@ -2121,45 +2135,85 @@ export class FantasyPIXIInstance {
     noteContainer.addChild(badge);
     noteContainer.addChild(chordText);
 
-    noteContainer.x = x;
-    noteContainer.y = this.app.screen.height / 2;
+    const instance: TaikoNoteInstance = {
+      container: noteContainer,
+      label: chordText,
+      metadata: {
+        remainingTime,
+        lastSyncTimestamp: performance.now(),
+        noteSpeed
+      }
+    };
+    this.applyTaikoNotePosition(instance, instance.metadata.lastSyncTimestamp);
 
-    return noteContainer;
+    return instance;
   }
   
   // ノーツを更新（太鼓の達人風）
-  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
+  updateTaikoNotes(notes: Array<{ id: string; chord: string; remainingTime: number; noteSpeed: number }>): void {
+    const now = performance.now();
+    const incomingIds = new Set(notes.map(n => n.id));
+
     this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
-        } catch {}
+      if (!incomingIds.has(id)) {
+        this.destroyTaikoNoteInstance(note);
         this.activeNotes.delete(id);
       }
     });
     
-    // 新しいノーツを追加・更新
     notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+      let instance = this.activeNotes.get(noteData.id);
       
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
-          note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-          this.notesContainer.addChild(note);
-          this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+      if (!instance || this.isSpriteInvalid(instance.container)) {
+        instance = this.createTaikoNote(noteData.id, noteData.chord, noteData.remainingTime, noteData.noteSpeed);
+        this.notesContainer.addChild(instance.container);
+        this.activeNotes.set(noteData.id, instance);
       }
+
+      instance.metadata.remainingTime = noteData.remainingTime;
+      instance.metadata.noteSpeed = noteData.noteSpeed;
+      instance.metadata.lastSyncTimestamp = now;
+      this.applyTaikoNotePosition(instance, now);
     });
+  }
+
+  private applyTaikoNotePosition(note: TaikoNoteInstance, timestamp: number): number | null {
+    if (!note || this.isSpriteInvalid(note.container)) return null;
+    const elapsed = (timestamp - note.metadata.lastSyncTimestamp) / 1000;
+    const remainingTime = note.metadata.remainingTime - elapsed;
+    note.container.x = this.judgeLineX + remainingTime * note.metadata.noteSpeed;
+    note.container.y = this.app.screen.height / 2;
+    return remainingTime;
+  }
+
+  private destroyTaikoNoteInstance(note: TaikoNoteInstance | undefined): void {
+    if (!note) return;
+    try {
+      const container = note.container;
+      if (container && !(container as any).destroyed) {
+        if (container.parent) {
+          container.parent.removeChild(container);
+        }
+        container.destroy({ children: true });
+      }
+    } catch {}
+  }
+
+  private clearActiveTaikoNotes(): void {
+    this.activeNotes.forEach(note => this.destroyTaikoNoteInstance(note));
+    this.activeNotes.clear();
+  }
+
+  private updateActiveTaikoNotes(): void {
+    if (this.activeNotes.size === 0) return;
+    const now = performance.now();
+    for (const [id, note] of this.activeNotes) {
+      const remaining = this.applyTaikoNotePosition(note, now);
+      if (remaining !== null && remaining < -1.2) {
+        this.destroyTaikoNoteInstance(note);
+        this.activeNotes.delete(id);
+      }
+    }
   }
 
   // 太鼓モードの切り替え
@@ -2174,8 +2228,7 @@ export class FantasyPIXIInstance {
       // シングルモードの場合、判定ラインを非表示
       this.judgeLineContainer.visible = false;
       // ノーツもクリア
-      this.activeNotes.forEach(note => note.destroy());
-      this.activeNotes.clear();
+        this.clearActiveTaikoNotes();
     }
   }
   
@@ -2256,6 +2309,9 @@ export class FantasyPIXIInstance {
     });
     this.monsterSprites.clear();
     
+    // ノーツのクリーンアップ
+    this.clearActiveTaikoNotes();
+
     // エフェクトの安全な削除
     try {
       this.magicCircles.forEach((circle, id) => {

@@ -111,16 +111,15 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
 
   useEffect(() => {
     // MIDI入力でのハイライト + 音を鳴らす
-    const controller = new MIDIController({
-      onNoteOn: (note: number) => {
-        setNoteActive(note, true);
-      },
-      onNoteOff: (note: number) => {
-        setNoteActive(note, false);
-      },
-      playMidiSound: true,
-      ...( { lightAudio: true } as any )
-    });
+      const controller = new MIDIController({
+        onNoteOn: (note: number) => {
+          setNoteActive(note, true);
+        },
+        onNoteOff: (note: number) => {
+          setNoteActive(note, false);
+        },
+        playMidiSound: true
+      });
 
     midiControllerRef.current = controller;
 
