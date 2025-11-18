@@ -926,12 +926,42 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // ================= ピアノキー演奏ハンドラー =================
   const handlePianoKeyPress = useCallback((note: number) => {
     handleNoteInput(note);
-    void ensureMidiModule()
-      .then(({ playNote }) => playNote(note, 64))
-      .catch((error) => {
+    
+    const triggerPlayback = (module: MidiModule) => {
+      try {
+        module.playNote(note, 64);
+      } catch (error) {
         log.error('❌ Piano key play error:', error);
+      }
+    };
+    
+    const cachedModule = midiModuleRef.current;
+    if (cachedModule) {
+      triggerPlayback(cachedModule);
+    } else {
+      void ensureMidiModule()
+        .then((module) => {
+          triggerPlayback(module);
+        })
+        .catch((error) => {
+          log.error('❌ Piano key play error:', error);
+        });
+    }
+    
+    const audioCtx = audioContextRef.current;
+    if (audioCtx) {
+      const playbackSpeed = settings.playbackSpeed ?? 1;
+      const engineTime = currentTimeRef.current;
+      const audioTime = (audioCtx.currentTime - baseOffsetRef.current) * playbackSpeed;
+      const latencyMs = Math.abs(audioTime - engineTime) * 1000;
+      devLog.debug('🖱️ Mouse input latency', {
+        note,
+        audioTime,
+        engineTime,
+        latencyMs: Number.isFinite(latencyMs) ? latencyMs : null
       });
-  }, [handleNoteInput, ensureMidiModule]);
+    }
+  }, [handleNoteInput, ensureMidiModule, settings.playbackSpeed]);
 
   // ================= ピアノキーリリースハンドラー =================
   const handlePianoKeyRelease = useCallback((note: number) => {

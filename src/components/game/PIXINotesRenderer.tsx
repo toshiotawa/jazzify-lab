@@ -499,16 +499,9 @@ export class PIXINotesRendererInstance {
   /**
    * 🎯 統合フレーム制御でPIXIアプリケーションを開始
    */
-  // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
   private startUnifiedRendering(): void {
     const ticker = this.app.ticker;
     const renderStep = () => {
-      const currentTime = performance.now();
-      const controller = (window as any).unifiedFrameController;
-      if (controller && controller.shouldSkipFrame(currentTime, 'render')) {
-        return;
-      }
-
       if (this.isDestroyed) {
         return;
       }
@@ -525,7 +518,7 @@ export class PIXINotesRendererInstance {
       ticker.remove(renderStep);
     });
 
-    log.info('🎯 PIXI.js unified frame control started (shared ticker)');
+    log.info('🎯 PIXI.js render loop started (shared ticker)');
   }
   
   /**
@@ -1797,11 +1790,14 @@ export class PIXINotesRendererInstance {
       this.refreshActiveNoteLookup(activeNotes);
       
       // GameEngine提供のアクティブノート一覧に合わせてスプライトを補充
-      for (const note of activeNotes) {
-        if (!this.noteSprites.has(note.id)) {
-          this.createNoteSprite(note);
-        }
+    for (const note of activeNotes) {
+      if (note.state === 'completed' || isHitState(note.state)) {
+        continue;
       }
+      if (!this.noteSprites.has(note.id)) {
+        this.createNoteSprite(note);
+      }
+    }
       
       // GameEngineと同じ計算式を使用（統一化）
       const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
