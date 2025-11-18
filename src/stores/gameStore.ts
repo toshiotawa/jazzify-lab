@@ -20,6 +20,7 @@ import type {
   ChordInfo,
   ClearConditions
 } from '@/types';
+import type { ClockSyncPayload } from '@/workers/gameLogicTypes';
 // GameEngine は実行時にのみ必要なため、型のみインポート
 // import { GameEngine } from '@/utils/gameEngine';
 // import type { GameEngineUpdate } from '@/utils/gameEngine';
@@ -633,6 +634,13 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
   return goodCount * 1000;
 };
 
+const buildClockPayload = (logicalTime: number, settings: GameSettings): ClockSyncPayload => ({
+  logicalTime,
+  performanceNow: performance.now(),
+  latencyOffset: (settings.latencyAdjustment ?? 0) / 1000,
+  playbackSpeed: settings.playbackSpeed ?? 1
+});
+
 // ===== ストア作成 =====
 
 export const useGameStore = createWithEqualityFn<GameStoreState>()(
@@ -723,12 +731,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         handleNoteInput: (inputNote: number) => {
           const state = get();
           if (!state.gameEngine || !state.isPlaying) return;
-          
-          const hit = state.gameEngine.handleInput(inputNote);
-          if (hit) {
-            // エンジンに判定を任せ、コールバックで結果を受け取る
-            state.gameEngine.processHit(hit);
-          }
+          state.gameEngine.handleInput(inputNote);
         },
         
         updateEngineSettings: () => {
@@ -907,30 +910,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           });
           
           // GameEngineにもシーク処理を伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(newTime);
-            console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
-          }
-          
-          // 🔧 追加: 再生中の音声を即座にシーク
-          // グローバルにアクセス可能な音声要素とbaseOffsetRefを更新
-          if (state.isPlaying && (window as any).__gameAudioRef) {
-            const audioRef = (window as any).__gameAudioRef;
-            const audioContextRef = (window as any).__gameAudioContextRef;
-            const baseOffsetRef = (window as any).__gameBaseOffsetRef;
-            const settings = state.settings;
-            
-            if (audioRef.current && audioContextRef.current && baseOffsetRef) {
-              // 音声を即座にシーク
-              audioRef.current.currentTime = newTime;
-              
-              // baseOffsetRefを再計算（再生速度を考慮）
-              const realTimeElapsed = newTime / settings.playbackSpeed;
-              baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-              
-              console.log(`🎵 Audio seek to ${newTime.toFixed(2)}s (再生中)`);
-            }
-          }
+        if (state.gameEngine) {
+          state.gameEngine.seek(newTime, buildClockPayload(newTime, state.settings));
+          console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
+        }
         },
         
         updateTime: (time) => set((state) => {
@@ -1396,9 +1379,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.currentTime = 0;
             state.activeNotes.clear();
             
-            // GameEngine 側にもシークを伝達
             if (state.gameEngine) {
-              state.gameEngine.seek(0);
+              state.gameEngine.seek(0, buildClockPayload(0, state.settings));
             }
             
             // スコアリセット
