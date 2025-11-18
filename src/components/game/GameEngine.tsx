@@ -66,6 +66,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   } = useGameActions();
   
   const showSeekbar = settings.showSeekbar;
+  const isUltraLegend = mode === 'performance' && settings.performanceMode === 'ultra_light';
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const renderBridgeRef = useRef<LegendRenderBridge | null>(null);
   if (!renderBridgeRef.current) {
@@ -540,7 +541,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
+        if (isUltraLegend) {
+          if (audioControllerRef.current) {
+            await audioControllerRef.current.disconnect();
+            audioControllerRef.current = null;
+            log.info('🔇 Ultra low legend mode: AudioController disconnected');
+          }
+        } else if (!audioControllerRef.current && settings.inputMode === 'audio') {
           const { AudioController } = await import('../../../AudioController');
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
@@ -593,7 +600,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+    }, [handleNoteInput, settings.inputMode, ensureMidiModule, isUltraLegend]);
 
     useEffect(() => {
       let isMounted = true;
@@ -745,23 +752,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     if (gameEngine) {
       updateEngineSettings();
     }
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
-        noteNameStyle: settings.noteNameStyle,
-        simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose,
-        transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
-      });
-    }
+      if (pixiRenderer) {
+        pixiRenderer.updateSettings({
+          noteNameStyle: settings.noteNameStyle,
+          simpleDisplayMode: settings.simpleDisplayMode,
+          pianoHeight: settings.pianoHeight,
+          transpose: settings.transpose,
+          transposingInstrument: settings.transposingInstrument,
+          practiceGuide: settings.practiceGuide ?? 'key',
+          performanceMode: settings.performanceMode,
+          enableEffects: settings.enableEffects
+        });
+      }
     // AudioControllerに音声入力設定を反映
     if (audioControllerRef.current) {
       audioControllerRef.current.updateConfig({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold, settings.performanceMode, settings.enableEffects]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -897,14 +906,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     renderBridgeRef.current?.attachRenderer(renderer);
     
     // 初期設定を反映
-    renderer.updateSettings({
-      noteNameStyle: settings.noteNameStyle,
-      simpleDisplayMode: settings.simpleDisplayMode,
-      pianoHeight: settings.pianoHeight,
-      transpose: settings.transpose,
-      transposingInstrument: settings.transposingInstrument,
-      practiceGuide: settings.practiceGuide ?? 'key'
-    });
+      renderer.updateSettings({
+        noteNameStyle: settings.noteNameStyle,
+        simpleDisplayMode: settings.simpleDisplayMode,
+        pianoHeight: settings.pianoHeight,
+        transpose: settings.transpose,
+        transposingInstrument: settings.transposingInstrument,
+        practiceGuide: settings.practiceGuide ?? 'key',
+        performanceMode: settings.performanceMode,
+        enableEffects: settings.enableEffects
+      });
     
     // ピアノキーボードのクリックイベントを接続
     renderer.setKeyCallbacks(
@@ -942,7 +953,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, settings.performanceMode, settings.enableEffects]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {

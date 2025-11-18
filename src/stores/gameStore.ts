@@ -1240,13 +1240,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.currentTab = 'practice';
             // 練習モードでは保存された設定を復元
             if (state.practiceModeSettings.practiceGuide) {
-              state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
+            state.settings.practiceGuide = state.practiceModeSettings.practiceGuide;
+            state.settings.performanceMode = 'standard';
             }
             // 練習モードに戻った際、楽譜表示を「ノート+コード」に設定
             state.settings.showSheetMusic = true;
             state.settings.sheetMusicChordsOnly = false;
           } else {
             state.currentTab = 'performance';
+          state.settings.performanceMode = 'ultra_light';
             // 本番モードに切り替える前に練習モード設定を保存
             if (previousMode === 'practice') {
               state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
@@ -1371,8 +1373,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.mode = 'practice';
             // 練習モードに戻った時は保存した設定を復元
             state.settings.practiceGuide = state.practiceModeSettings.practiceGuide ?? 'key';
+            state.settings.performanceMode = 'standard';
           } else if (tab === 'performance') {
             state.mode = 'performance';
+            state.settings.performanceMode = 'ultra_light';
             // 本番モードに切り替える前に練習モード設定を保存
             if (previousTab === 'practice') {
               state.practiceModeSettings.practiceGuide = state.settings.practiceGuide ?? 'key';
