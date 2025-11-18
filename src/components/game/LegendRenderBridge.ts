@@ -12,6 +12,8 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  private minUpdateIntervalMs = 0;
+  private lastFlushAt = 0;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -64,6 +66,10 @@ export class LegendRenderBridge {
     this.lastFrame = null;
   }
 
+  setMinUpdateInterval(intervalMs: number): void {
+    this.minUpdateIntervalMs = Math.max(0, intervalMs);
+  }
+
   private handleEngineUpdate(update: GameEngineUpdate): void {
     this.lastFrame = {
       activeNotes: update.activeNotes,
@@ -78,13 +84,18 @@ export class LegendRenderBridge {
       activeNotes: snapshot.activeNotes,
       currentTime: snapshot.currentTime
     };
-    this.flush();
+    this.flush(true);
   }
 
-  private flush(): void {
+  private flush(force = false): void {
     if (!this.renderer || !this.lastFrame) {
       return;
     }
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (!force && this.minUpdateIntervalMs > 0 && now - this.lastFlushAt < this.minUpdateIntervalMs) {
+      return;
+    }
+    this.lastFlushAt = now;
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
   }
 

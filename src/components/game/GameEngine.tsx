@@ -52,6 +52,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     isSettingsOpen: state.isSettingsOpen
   }));
 
+  const isUltraLowMode = settings.performanceMode === 'ultra_light';
+
   const {
     initializeGameEngine,
     destroyGameEngine,
@@ -539,8 +541,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           setIsMidiReady(true);
         }
 
+        const audioInputAllowed = settings.inputMode === 'audio' && !isUltraLowMode;
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
+        if (!audioControllerRef.current && audioInputAllowed) {
           const { AudioController } = await import('../../../AudioController');
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
@@ -569,11 +572,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               });
               log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
             }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
-          // MIDI専用モードの場合、AudioControllerを停止
+        } else if (audioControllerRef.current && !audioInputAllowed) {
+          // MIDI専用モードまたは低負荷モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
           audioControllerRef.current = null;
-          log.info('🔌 AudioController無効化（MIDI専用モード）');
+          log.info('🔌 AudioController無効化（低負荷またはMIDI専用モード）');
         }
       } catch (audioError) {
         log.warn('⚠️ 音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行):', audioError);
@@ -593,7 +596,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+    }, [handleNoteInput, settings.inputMode, ensureMidiModule, isUltraLowMode]);
+
+  useEffect(() => {
+    renderBridgeRef.current?.setMinUpdateInterval(isUltraLowMode ? 32 : 0);
+    if (pixiRenderer) {
+      pixiRenderer.setLowPowerMode(isUltraLowMode);
+    }
+  }, [isUltraLowMode, pixiRenderer]);
 
     useEffect(() => {
       let isMounted = true;
