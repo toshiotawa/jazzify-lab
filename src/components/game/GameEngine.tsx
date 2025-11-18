@@ -596,6 +596,31 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
 
     useEffect(() => {
+      if (mode !== 'performance') {
+        return;
+      }
+      let cancelled = false;
+      const prepareHighQualityPiano = async () => {
+        try {
+          const midiModule = await ensureMidiModule();
+          await midiModule.initializeAudioSystem({ light: true });
+          await midiModule.upgradeAudioSystemToFull();
+          if (!cancelled) {
+            log.info('🎹 Legendモード向けに高音質ピアノ音源を準備しました');
+          }
+        } catch (error) {
+          if (!cancelled) {
+            log.warn('⚠️ 高音質ピアノ音源の準備に失敗:', error);
+          }
+        }
+      };
+      void prepareHighQualityPiano();
+      return () => {
+        cancelled = true;
+      };
+    }, [mode, ensureMidiModule]);
+
+    useEffect(() => {
       let isMounted = true;
       void ensureMidiModule()
         .then(async (module) => {
