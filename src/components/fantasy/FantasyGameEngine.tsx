@@ -9,7 +9,6 @@ import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
-import * as PIXI from 'pixi.js';
 import { 
   TaikoNote, 
   ChordProgressionDataItem,
@@ -25,6 +24,42 @@ import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
+
+const MONSTER_IMAGE_EXTENSIONS = ['webp', 'png'];
+
+const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+
+const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
+  const basePath = `${import.meta.env.BASE_URL}monster_icons/${icon}`;
+  for (const ext of MONSTER_IMAGE_EXTENSIONS) {
+    try {
+      const image = await loadImageAsset(`${basePath}.${ext}`);
+      return image;
+    } catch {
+      // try next extension
+    }
+  }
+  throw new Error(`Failed to load monster image for ${icon}`);
+};
+
+const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
+  await Promise.all(
+    monsterIds.map(async (id) => {
+      if (cache.has(id)) {
+        return;
+      }
+      const image = await loadMonsterImage(id);
+      cache.set(id, image);
+    })
+  );
+};
 
 type StageMode = 
   | 'single'
@@ -472,7 +507,7 @@ export const useFantasyGameEngine = ({
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
-  const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
+  const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   // 怒り状態の自動解除タイマーをモンスターIDごとに管理
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
@@ -764,35 +799,9 @@ export const useFantasyGameEngine = ({
 
     // モンスター画像をプリロード
     try {
-      // バンドルが既に存在する場合は削除
-      // PIXI v7では unloadBundle が失敗しても問題ないため、try-catchで保護
-      try {
-        await PIXI.Assets.unloadBundle('stageMonsters');
-      } catch {
-        // バンドルが存在しない場合は無視
-      }
-
-      // バンドル用のアセットマッピングを作成
-      const bundle: Record<string, string> = {};
-      monsterIds.forEach(id => {
-        // 一時的にPNG形式を使用（WebP変換ツールが利用できないため）
-        bundle[id] = `${import.meta.env.BASE_URL}monster_icons/${id}.png`;
-      });
-
-      // バンドルを追加してロード
-      PIXI.Assets.addBundle('stageMonsters', bundle);
-      await PIXI.Assets.loadBundle('stageMonsters');
-
-      // テクスチャをキャッシュに保管
       const textureMap = imageTexturesRef.current;
       textureMap.clear();
-      monsterIds.forEach(id => {
-        const texture = PIXI.Assets.get(id) as PIXI.Texture;
-        if (texture) {
-          textureMap.set(id, texture);
-        }
-      });
-
+      await preloadMonsterImages(monsterIds, textureMap);
       devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
     } catch (error) {
       devLog.error('❌ モンスター画像プリロード失敗:', error);
