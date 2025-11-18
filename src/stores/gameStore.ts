@@ -110,7 +110,6 @@ const defaultSettings: GameSettings = {
   notesSpeed: 1.0,
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
-  inputMode: 'midi',
   
   // 判定設定
   allowOctaveError: false,
@@ -136,10 +135,6 @@ const defaultSettings: GameSettings = {
   
   // 入力デバイス
   selectedMidiDevice: null,
-  selectedAudioDevice: null,
-  
-  // 音声入力設定
-  pyinThreshold: 0.1,          // デフォルト10%
   
   // キー設定
   transpose: 0,

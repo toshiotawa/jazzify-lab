@@ -363,11 +363,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
         }
 
-        // 音声入力開始（再生中のみ）
-        if (audioControllerRef.current && settings.inputMode === 'audio') {
-          audioControllerRef.current.startListening();
-          log.info('🎤 音声ピッチ検出開始');
-        }
       } else {
         // 一時停止処理
         if (audioRef.current) {
@@ -378,12 +373,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         gameEngine.pause();
         log.info('🎮 GameEngine paused');
 
-        // 音声入力停止
-        if (audioControllerRef.current) {
-          audioControllerRef.current.stopListening();
-          log.info('🎤 音声ピッチ検出停止');
-        }
-        
         // AudioContext の suspend は行わない（頻繁なsuspend/resumeを防ぐ）
         // if (audioContextRef.current) {
         //   audioContextRef.current.suspend();
@@ -465,11 +454,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // GameEngineも同時にシーク
           gameEngine.seek(safeTime);
           
-          // AudioControllerの音声ピッチ検出を一時停止（シーク時の誤検出防止）
-          if (audioControllerRef.current) {
-            audioControllerRef.current.pauseProcessingForSeek();
-          }
-          
           // ✅ ストアのcurrentTimeを即時更新して二重シークを防止
           updateTime(safeTime);
           
@@ -488,11 +472,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           // GameEngineシーク
           gameEngine.seek(safeTime);
           
-          // AudioControllerの音声ピッチ検出を一時停止（シーク時の誤検出防止）
-          if (audioControllerRef.current) {
-            audioControllerRef.current.pauseProcessingForSeek();
-          }
-          
           // ✅ currentTime を即時更新して二重シークを防止
           updateTime(safeTime);
           
@@ -504,14 +483,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
-  // AudioController管理用のRef（音声入力）
-  const audioControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
 
-  // 共通音声システム + MIDIController + AudioController初期化
+  // 共通音声システム + MIDIController 初期化
   useEffect(() => {
-    const initAudio = async () => {
+    const initMidi = async () => {
       try {
         const midiModule = await ensureMidiModule();
         const { initializeAudioSystem, default: MIDIController } = midiModule;
@@ -539,48 +516,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           setIsMidiReady(true);
         }
 
-        // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
-          const { AudioController } = await import('../../../AudioController');
-          audioControllerRef.current = new AudioController({
-            onNoteOn: (note: number, velocity?: number) => {
-              handleNoteInput(note);
-              log.info(`🎤 Audio detected note: ${note}`);
-            },
-            onNoteOff: (note: number) => {
-              // ノートオフの処理（必要に応じて）
-            },
-            onConnectionChange: (connected: boolean) => {
-              log.info(`🎤 Audio接続状態変更: ${connected ? '接続' : '切断'}`);
-            }
-          });
-          
-          log.info('✅ AudioController初期化完了');
-
-          // 初期設定を反映
-          audioControllerRef.current.updateConfig({
-            pyinThreshold: settings.pyinThreshold
-          });
-
-          // PIXIレンダラーが既に準備完了している場合はコールバックを設定
-            if (pixiRenderer) {
-              audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-                pixiRenderer.highlightKey(note, active);
-              });
-              log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
-            }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
-          // MIDI専用モードの場合、AudioControllerを停止
-          await audioControllerRef.current.disconnect();
-          audioControllerRef.current = null;
-          log.info('🔌 AudioController無効化（MIDI専用モード）');
-        }
       } catch (audioError) {
         log.warn('⚠️ 音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行):', audioError);
       }
     };
     
-    initAudio();
+    initMidi();
     
     // クリーンアップ
     return () => {
@@ -588,12 +529,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         midiControllerRef.current.destroy();
         midiControllerRef.current = null;
       }
-      if (audioControllerRef.current) {
-        audioControllerRef.current.disconnect();
-        audioControllerRef.current = null;
-      }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+  }, [handleNoteInput, ensureMidiModule]);
 
     useEffect(() => {
       let isMounted = true;
@@ -659,32 +596,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     return () => clearTimeout(timer);
   }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
 
-  // 音声デバイス選択変更監視
-  useEffect(() => {
-    const connectAudioDevice = async () => {
-      if (audioControllerRef.current && settings.selectedAudioDevice) {
-        log.info(`🎤 音声デバイス接続試行: ${settings.selectedAudioDevice}`);
-        
-        // PIXIレンダラーが準備完了していない場合は接続を延期
-        if (!pixiRenderer) {
-          return;
-        }
-        
-        const success = await audioControllerRef.current.connectDevice(settings.selectedAudioDevice);
-        if (success) {
-          log.info('✅ 音声デバイス接続成功');
-        } else {
-          log.warn('⚠️ 音声デバイス接続失敗');
-        }
-      } else if (audioControllerRef.current && !settings.selectedAudioDevice) {
-        // デバイス選択が解除された場合は切断
-        await audioControllerRef.current.disconnect();
-        log.info('🔌 音声デバイス切断');
-      }
-    };
-    
-    connectAudioDevice();
-  }, [settings.selectedAudioDevice, pixiRenderer]);
 
   // ゲームエンジン初期化
   useEffect(() => {
@@ -755,13 +666,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         practiceGuide: settings.practiceGuide ?? 'key'
       });
     }
-    // AudioControllerに音声入力設定を反映
-    if (audioControllerRef.current) {
-      audioControllerRef.current.updateConfig({
-        pyinThreshold: settings.pyinThreshold
-      });
-    }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -925,22 +830,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
     }
 
-    // AudioControllerにキーハイライト機能を設定
-    if (audioControllerRef.current) {
-      audioControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-        renderer.highlightKey(note, active);
-      });
-      
-      // 既に接続済みのデバイスがある場合、接続状態を確認して再設定
-      if (audioControllerRef.current.isConnected() && settings.selectedAudioDevice) {
-        audioControllerRef.current.connectDevice(settings.selectedAudioDevice).catch((error: unknown) => {
-          log.warn('⚠️ 音声デバイス再接続エラー:', error);
-        });
-      }
-      
-      log.info('✅ AudioController ↔ PIXIレンダラー連携完了');
-    }
-    
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
   }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
   

@@ -6,8 +6,6 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
-export type InputMode = 'midi' | 'audio' | 'both';
-
 // 移調楽器タイプ
 export type TransposingInstrument = 
   | 'concert_pitch'      // コンサートピッチ（移調なし）
@@ -142,7 +140,6 @@ export interface GameSettings {
   notesSpeed: number;          // 0.5-3.0
   playbackSpeed: number;       // 0.25-2.0
   instrumentMode: InstrumentMode;
-  inputMode: InputMode;
   
   // 判定設定
   allowOctaveError: boolean;   // オクターブ違いを正解にする
@@ -176,10 +173,6 @@ export interface GameSettings {
   
   // 入力デバイス
   selectedMidiDevice: string | null;
-  selectedAudioDevice: string | null;
-  
-  // 音声入力設定
-  pyinThreshold: number;       // 0.05-0.5 (PYIN ピッチ検出の閾値)
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)
@@ -312,7 +305,7 @@ export interface InputEvent {
   note: number;
   velocity?: number;
   timestamp: number;
-  source: InputMode;
+  source: 'midi';
 }
 
 export interface MidiDevice {
@@ -320,12 +313,6 @@ export interface MidiDevice {
   name: string;
   manufacturer?: string;
   connected: boolean;
-}
-
-export interface AudioDevice {
-  deviceId: string;
-  label: string;
-  kind: string;
 }
 
 // ===== 描画システム =====
@@ -606,7 +593,6 @@ export interface AudioProcessingSettings {
   lowFrequencyThreshold: number;
   lowFrequencyAmplitudeThreshold: number;
   veryLowFreqThreshold: number;
-  pyinThreshold: number;
   silenceThreshold: number;
   adaptiveBuffering: boolean;
 }
