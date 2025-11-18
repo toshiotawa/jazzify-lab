@@ -1,17 +1,14 @@
-import type { ActiveNote } from '@/types';
-import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
+import type { ActiveNote, GameScore } from '@/types';
+import type { GameEngine, GameEngineDiff } from '@/utils/gameEngine';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
-
-interface BridgeFrame {
-  activeNotes: ActiveNote[];
-  currentTime: number;
-}
 
 export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
-  private lastFrame: BridgeFrame | null = null;
+  private currentNotes: Map<string, ActiveNote> = new Map();
+  private lastTime = 0;
+  private lastScore: GameScore | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -22,12 +19,12 @@ export class LegendRenderBridge {
     this.engine = engine;
 
     if (!engine) {
-      this.lastFrame = null;
+      this.currentNotes.clear();
       return;
     }
 
-    this.unsubscribe = engine.addUpdateListener((update: GameEngineUpdate) => {
-      this.handleEngineUpdate(update);
+    this.unsubscribe = engine.addDiffListener((diff: GameEngineDiff) => {
+      this.handleEngineDiff(diff);
     });
 
     this.primeFromEngine(engine);
@@ -40,18 +37,12 @@ export class LegendRenderBridge {
       return;
     }
 
-    if (!this.lastFrame && this.engine) {
-      this.primeFromEngine(this.engine);
-      return;
-    }
-
     this.flush();
   }
 
   syncFromEngine(): void {
-    if (this.engine) {
-      this.primeFromEngine(this.engine);
-    }
+    if (!this.engine) return;
+    this.primeFromEngine(this.engine);
   }
 
   dispose(): void {
@@ -61,31 +52,70 @@ export class LegendRenderBridge {
     }
     this.renderer = null;
     this.engine = null;
-    this.lastFrame = null;
+    this.currentNotes.clear();
+    this.lastScore = null;
   }
 
-  private handleEngineUpdate(update: GameEngineUpdate): void {
-    this.lastFrame = {
-      activeNotes: update.activeNotes,
-      currentTime: update.currentTime
-    };
-    this.flush();
+  private handleEngineDiff(diff: GameEngineDiff): void {
+    this.lastTime = diff.currentTime;
+    this.lastScore = diff.score;
+
+    for (const note of diff.additions) {
+      this.currentNotes.set(note.id, note);
+    }
+
+    for (const update of diff.updates) {
+      const existing = this.currentNotes.get(update.id);
+      if (!existing) continue;
+      this.currentNotes.set(update.id, {
+        ...existing,
+        ...update
+      });
+    }
+
+    for (const noteId of diff.removals) {
+      this.currentNotes.delete(noteId);
+    }
+
+    if (this.renderer) {
+      this.renderer.applyNoteDiff(diff);
+    }
   }
 
   private primeFromEngine(engine: GameEngine): void {
-    const snapshot = engine.getState();
-    this.lastFrame = {
-      activeNotes: snapshot.activeNotes,
-      currentTime: snapshot.currentTime
-    };
+    const snapshot = engine.getActiveNotesSnapshot();
+    this.currentNotes.clear();
+    snapshot.forEach((note) => {
+      this.currentNotes.set(note.id, note);
+    });
+    if (snapshot.length > 0) {
+      this.lastTime = snapshot[snapshot.length - 1].time;
+    }
     this.flush();
   }
 
   private flush(): void {
-    if (!this.renderer || !this.lastFrame) {
+    if (!this.renderer) {
       return;
     }
-    this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
+    const additions = Array.from(this.currentNotes.values());
+    this.renderer.applyNoteDiff({
+      currentTime: this.lastTime,
+      additions,
+      updates: [],
+      removals: [],
+      judgments: [],
+      highlights: [],
+      score: this.lastScore || {
+        totalNotes: 0,
+        goodCount: 0,
+        missCount: 0,
+        combo: 0,
+        maxCombo: 0,
+        accuracy: 0,
+        score: 0,
+        rank: 'D'
+      }
+    });
   }
-
 }
