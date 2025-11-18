@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -40,6 +41,7 @@ interface GameResult {
 }
 
 const FantasyMain: React.FC = () => {
+  useHighQualityPianoPreload('fantasy-mode');
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const { settings } = useGameStore();

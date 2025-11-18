@@ -18,12 +18,14 @@ import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 /**
  * レッスン学習画面
  * Hash: #lessons で表示
  */
 const LessonPage: React.FC = () => {
+  useHighQualityPianoPreload('lesson-mode');
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);

@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 
 // ===== 型定義 =====
 
@@ -2128,7 +2129,7 @@ export class FantasyPIXIInstance {
   }
   
   // ノーツを更新（太鼓の達人風）
-  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
+    updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
     // 既存のノーツをクリア
     this.activeNotes.forEach((note, id) => {
       if (!notes.find(n => n.id === id)) {
@@ -2143,7 +2144,7 @@ export class FantasyPIXIInstance {
     notes.forEach(noteData => {
       let note = this.activeNotes.get(noteData.id);
       
-      if (!note) {
+        if (!note) {
         // 新しいノーツを作成
         note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
         this.notesContainer.addChild(note);
@@ -2154,10 +2155,16 @@ export class FantasyPIXIInstance {
           note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
           this.notesContainer.addChild(note);
           this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
-        }
+          } else {
+            // 既存のノーツの位置を更新（LERPでなめらかに移動）
+            const currentX = Number.isFinite(note.x) ? note.x : noteData.x;
+            const delta = noteData.x - currentX;
+            if (Math.abs(delta) <= 0.5) {
+              note.x = noteData.x;
+            } else {
+              note.x = currentX + delta * PERFORMANCE_CONFIG.LERP_FACTOR;
+            }
+          }
       }
     });
   }

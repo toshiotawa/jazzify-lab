@@ -37,12 +37,14 @@ import {
   clearNavigationCacheForCourse,
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 /**
  * レッスン詳細画面
  * Hash: #lesson-detail?id=LESSON_ID で表示
  */
 const LessonDetailPage: React.FC = () => {
+  useHighQualityPianoPreload('lesson-detail');
   const [open, setOpen] = useState(false);
   const [lessonId, setLessonId] = useState<string | null>(null);
   const [lesson, setLesson] = useState<Lesson | null>(null);
