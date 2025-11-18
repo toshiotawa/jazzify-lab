@@ -1,10 +1,12 @@
 import type { ActiveNote } from '@/types';
 import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
+import { legendPerf } from '@/utils/legendPerf';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
 
 interface BridgeFrame {
   activeNotes: ActiveNote[];
   currentTime: number;
+  frameId: number;
 }
 
 export class LegendRenderBridge {
@@ -12,6 +14,7 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  private lastRenderedFrameId: number | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -37,6 +40,7 @@ export class LegendRenderBridge {
     this.renderer = renderer;
 
     if (!renderer) {
+      this.lastRenderedFrameId = null;
       return;
     }
 
@@ -62,12 +66,14 @@ export class LegendRenderBridge {
     this.renderer = null;
     this.engine = null;
     this.lastFrame = null;
+    this.lastRenderedFrameId = null;
   }
 
   private handleEngineUpdate(update: GameEngineUpdate): void {
     this.lastFrame = {
       activeNotes: update.activeNotes,
-      currentTime: update.currentTime
+      currentTime: update.currentTime,
+      frameId: update.frameId
     };
     this.flush();
   }
@@ -76,7 +82,8 @@ export class LegendRenderBridge {
     const snapshot = engine.getState();
     this.lastFrame = {
       activeNotes: snapshot.activeNotes,
-      currentTime: snapshot.currentTime
+      currentTime: snapshot.currentTime,
+      frameId: snapshot.frameId
     };
     this.flush();
   }
@@ -85,7 +92,15 @@ export class LegendRenderBridge {
     if (!this.renderer || !this.lastFrame) {
       return;
     }
-    this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
+    const { activeNotes, currentTime, frameId } = this.lastFrame;
+    if (this.lastRenderedFrameId === frameId) {
+      return;
+    }
+    const renderer = this.renderer;
+    legendPerf.measure('legend:rendererUpdate', () => {
+      renderer.updateNotes(activeNotes, currentTime);
+    });
+    this.lastRenderedFrameId = frameId;
   }
 
 }

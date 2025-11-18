@@ -16,6 +16,7 @@ import type {
 import { unifiedFrameController } from './performanceOptimizer';
 import { log, devLog } from './logger';
 import * as PIXI from 'pixi.js';
+import { legendPerf } from './legendPerf';
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
 
@@ -40,6 +41,7 @@ const NOTE_SPRITE_HEIGHT = 5;
 // ===== 型定義 =====
 
 export interface GameEngineUpdate {
+  frameId: number;
   currentTime: number;
   activeNotes: ActiveNote[];
   timing: MusicalTiming;
@@ -48,6 +50,7 @@ export interface GameEngineUpdate {
 }
 
 export interface GameEngineState {
+  frameId: number;
   currentTime: number;
   activeNotes: ActiveNote[];
   score: GameScore;
@@ -85,6 +88,7 @@ export class GameEngine {
   private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
+  private frameIdCounter = 0;
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   
@@ -401,8 +405,10 @@ export class GameEngine {
     const activeNotes = this.isGameLoopRunning ? 
       Array.from(this.activeNotes.values()) : 
       this.generateStaticActiveNotes(this.getCurrentTime());
+    const frameId = this.nextFrameId();
     
     return {
+      frameId,
       currentTime: this.getCurrentTime(),
       activeNotes,
       score: { ...this.score },
@@ -458,6 +464,14 @@ export class GameEngine {
     }
     
     return staticNotes;
+  }
+  
+  private nextFrameId(): number {
+    this.frameIdCounter = (this.frameIdCounter + 1) % Number.MAX_SAFE_INTEGER;
+    if (this.frameIdCounter === 0) {
+      this.frameIdCounter = 1;
+    }
+    return this.frameIdCounter;
   }
   
   // ===== プライベートメソッド =====
@@ -582,7 +596,7 @@ export class GameEngine {
       unifiedFrameController.markNoteUpdate(frameStartTime);
     }
     
-    return this.buildVisibleBuffer();
+    return legendPerf.measure('legend:buildVisibleBuffer', () => this.buildVisibleBuffer());
   }
 
   private spawnUpcomingNotes(currentTime: number): void {
@@ -608,13 +622,10 @@ export class GameEngine {
     let writeIndex = 0;
     this.activeNotes.forEach((note) => {
       if (note.state !== 'completed') {
-        const snapshot: ActiveNote = {
-          ...note
-        };
         if (writeIndex < this.visibleNotesBuffer.length) {
-          this.visibleNotesBuffer[writeIndex] = snapshot;
+          this.visibleNotesBuffer[writeIndex] = note;
         } else {
-          this.visibleNotesBuffer.push(snapshot);
+          this.visibleNotesBuffer.push(note);
         }
         writeIndex += 1;
       }
@@ -917,7 +928,9 @@ export class GameEngine {
       };
       
         // UI更新（毎フレーム必要）
+        const frameId = this.nextFrameId();
         const frameUpdate: GameEngineUpdate = {
+          frameId,
         currentTime,
         activeNotes,
         timing,
