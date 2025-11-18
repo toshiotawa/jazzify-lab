@@ -12,6 +12,7 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  private rafId: number | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -22,6 +23,7 @@ export class LegendRenderBridge {
     this.engine = engine;
 
     if (!engine) {
+      this.cancelScheduledFlush();
       this.lastFrame = null;
       return;
     }
@@ -37,6 +39,7 @@ export class LegendRenderBridge {
     this.renderer = renderer;
 
     if (!renderer) {
+      this.cancelScheduledFlush();
       return;
     }
 
@@ -59,6 +62,7 @@ export class LegendRenderBridge {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    this.cancelScheduledFlush();
     this.renderer = null;
     this.engine = null;
     this.lastFrame = null;
@@ -69,7 +73,7 @@ export class LegendRenderBridge {
       activeNotes: update.activeNotes,
       currentTime: update.currentTime
     };
-    this.flush();
+    this.scheduleFlush();
   }
 
   private primeFromEngine(engine: GameEngine): void {
@@ -79,6 +83,23 @@ export class LegendRenderBridge {
       currentTime: snapshot.currentTime
     };
     this.flush();
+  }
+
+  private scheduleFlush(): void {
+    if (this.rafId !== null) {
+      return;
+    }
+    this.rafId = requestAnimationFrame(() => {
+      this.rafId = null;
+      this.flush();
+    });
+  }
+
+  private cancelScheduledFlush(): void {
+    if (this.rafId !== null) {
+      cancelAnimationFrame(this.rafId);
+      this.rafId = null;
+    }
   }
 
   private flush(): void {
