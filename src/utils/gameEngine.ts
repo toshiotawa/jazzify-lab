@@ -13,7 +13,7 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
-import { unifiedFrameController } from './performanceOptimizer';
+import { unifiedFrameController, STANDARD_CONFIG, PRODUCTION_CONFIG, LIGHTWEIGHT_CONFIG, type PerformanceConfig } from './performanceOptimizer';
 import { log, devLog } from './logger';
 import * as PIXI from 'pixi.js';
 
@@ -32,6 +32,12 @@ export const CLEANUP_TIME = 3.0;        // 3秒後にクリーンアップ（よ
 export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
 const HIT_DISPLAY_DURATION = 0.016; // 1フレーム相当
 const MISS_DELAY_AFTER_LINE = 0.12; // 判定ライン通過後の猶予
+
+const PERFORMANCE_MODE_CONFIGS: Record<GameSettings['performanceMode'], PerformanceConfig> = {
+  standard: STANDARD_CONFIG,
+  lightweight: PRODUCTION_CONFIG,
+  ultra_light: LIGHTWEIGHT_CONFIG
+};
 
 // ===== 描画関連定数 =====
 /** PIXI.js ノートスプライトの高さ(px) と合わせる */
@@ -64,6 +70,7 @@ export class GameEngine {
   private readonly noteInstancePool: ActiveNote[] = [];
   private readonly visibleNotesBuffer: ActiveNote[] = [];
   private settings: GameSettings;
+  private currentPerformanceMode: GameSettings['performanceMode'];
   private score: GameScore = {
     totalNotes: 0,
     goodCount: 0,
@@ -90,6 +97,8 @@ export class GameEngine {
   
   constructor(settings: GameSettings) {
     this.settings = { ...settings };
+    this.currentPerformanceMode = this.settings.performanceMode ?? 'standard';
+    this.applyPerformanceModeConfig(this.currentPerformanceMode);
   }
   
   setUpdateCallback(callback: (data: GameEngineUpdate) => void): void {
@@ -110,6 +119,12 @@ export class GameEngine {
   
   setKeyHighlightCallback(callback: (pitch: number, timestamp: number) => void): void {
     this.onKeyHighlight = callback;
+  }
+  
+  private applyPerformanceModeConfig(mode: GameSettings['performanceMode'] = 'standard'): void {
+    const config = PERFORMANCE_MODE_CONFIGS[mode] ?? STANDARD_CONFIG;
+    unifiedFrameController.updateConfig(config);
+    this.currentPerformanceMode = mode;
   }
   
   // ★ 追加: 設定値を秒へ変換して返すヘルパー
@@ -360,7 +375,12 @@ export class GameEngine {
     const currentLogicalTime = this.getCurrentTime();
 
     // 設定更新
+    const previousMode = this.currentPerformanceMode;
     this.settings = settings;
+    const nextMode = this.settings.performanceMode ?? 'standard';
+    if (nextMode !== previousMode) {
+      this.applyPerformanceModeConfig(nextMode);
+    }
 
     // 本番モードでは練習モードガイドを無効化
     if (this.settings.practiceGuide !== 'off') {
@@ -965,19 +985,30 @@ export class GameEngine {
     const clamped = Math.max(0.1, Math.min(4, speed));
     return 1 / clamped;
   }
+  
+  private getPerformanceScale(): number {
+    const mode = this.settings.performanceMode;
+    if (mode === 'ultra_light') {
+      return 0.55;
+    }
+    if (mode === 'lightweight') {
+      return 0.8;
+    }
+    return 1;
+  }
 
   /** 現在の設定に基づくノーツ出現(先読み)時間 */
   private getLookaheadTime(): number {
-    return LOOKAHEAD_TIME * this.getSpeedScale();
+    return LOOKAHEAD_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 
   /** 現在の設定に基づくクリーンアップ時間 */
   private getCleanupTime(): number {
-    return CLEANUP_TIME * this.getSpeedScale();
+    return CLEANUP_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 
   /** Miss 判定後の残存時間 */
   private getMissedCleanupTime(): number {
-    return MISSED_CLEANUP_TIME * this.getSpeedScale();
+    return MISSED_CLEANUP_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 }

@@ -539,8 +539,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           setIsMidiReady(true);
         }
 
+        const audioInputAllowed = settings.inputMode === 'audio' && settings.performanceMode !== 'ultra_light';
+
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
+        if (!audioControllerRef.current && audioInputAllowed) {
           const { AudioController } = await import('../../../AudioController');
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
@@ -569,7 +571,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               });
               log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
             }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
+        } else if (audioControllerRef.current && !audioInputAllowed) {
           // MIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
           audioControllerRef.current = null;
@@ -593,7 +595,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+    }, [handleNoteInput, settings.inputMode, settings.performanceMode, ensureMidiModule]);
 
     useEffect(() => {
       let isMounted = true;
@@ -761,7 +763,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         pyinThreshold: settings.pyinThreshold
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold, settings.performanceMode]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   

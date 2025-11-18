@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
@@ -7,7 +7,7 @@ import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
 import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
-import type { TransposingInstrument } from '@/types';
+import type { TransposingInstrument, GameSettings } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
@@ -28,6 +28,22 @@ const GameScreen: React.FC = () => {
   }));
 
   const gameActions = useGameActions();
+  
+  const handlePerformanceModeChange = useCallback((mode: GameSettings['performanceMode']) => {
+    const updates: Partial<GameSettings> = { performanceMode: mode };
+    if (mode === 'ultra_light') {
+      updates.inputMode = 'midi';
+      updates.selectedAudioDevice = null;
+      updates.enableEffects = false;
+      if (settings.keyPressEffect) {
+        updates.keyPressEffect = { ...settings.keyPressEffect, enabled: false };
+      }
+      if (settings.hitEffect) {
+        updates.hitEffect = { ...settings.hitEffect, enabled: false };
+      }
+    }
+    void gameActions.updateSettings(updates);
+  }, [gameActions, settings.hitEffect, settings.keyPressEffect]);
   
   // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
@@ -1428,10 +1444,18 @@ const SettingsPanel: React.FC = () => {
                       name="input-mode"
                       value="audio"
                       checked={settings.inputMode === 'audio'}
-                      onChange={() => gameActions.updateSettings({ inputMode: 'audio' })}
+                        disabled={settings.performanceMode === 'ultra_light'}
+                        onChange={() => gameActions.updateSettings({ inputMode: 'audio' })}
                       className="radio radio-primary"
                     />
-                    <span className="text-sm text-white font-medium">🎤 音声入力</span>
+                      <span className={`text-sm font-medium ${settings.performanceMode === 'ultra_light' ? 'text-gray-500' : 'text-white'}`}>
+                        🎤 音声入力
+                        {settings.performanceMode === 'ultra_light' && (
+                          <span className="ml-2 text-xs text-amber-400">
+                            （超低負荷モードでは利用不可）
+                          </span>
+                        )}
+                      </span>
                   </label>
                 </div>
               </div>
@@ -1493,6 +1517,27 @@ const SettingsPanel: React.FC = () => {
                 </div>
               )}
             </div>
+              
+              {/* パフォーマンスモード */}
+              <div className="space-y-2">
+                <label className="block text-sm font-medium text-gray-300">
+                  パフォーマンスモード
+                </label>
+                <select
+                  value={settings.performanceMode}
+                  onChange={(e) => handlePerformanceModeChange(e.target.value as GameSettings['performanceMode'])}
+                  className="select select-bordered w-full bg-gray-800 text-white"
+                >
+                  <option value="standard">標準（描画強化）</option>
+                  <option value="lightweight">軽量化（描画制限）</option>
+                  <option value="ultra_light">超低負荷（Legend向け）</option>
+                </select>
+                <p className="text-xs text-gray-400">
+                  {settings.performanceMode === 'ultra_light'
+                    ? '超低負荷モードではマイク入力とエフェクトを停止し、ノーツ描画と判定を最小限に抑えます。'
+                    : '軽量化モードでは描画更新を抑制して安定したパフォーマンスを維持します。'}
+                </p>
+              </div>
 
             {/* 音量設定 */}
             <div className="space-y-3">
