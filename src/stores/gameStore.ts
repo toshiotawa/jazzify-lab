@@ -1144,6 +1144,18 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             if (state.mode === 'performance' && state.settings.practiceGuide !== 'off') {
               state.settings.practiceGuide = 'off';
             }
+              
+              if (state.settings.performanceMode === 'ultra_light') {
+                state.settings.inputMode = 'midi';
+                state.settings.selectedAudioDevice = null;
+                state.settings.enableEffects = false;
+                if (state.settings.keyPressEffect) {
+                  state.settings.keyPressEffect.enabled = false;
+                }
+                if (state.settings.hitEffect) {
+                  state.settings.hitEffect.enabled = false;
+                }
+              }
           });
             
             // set の外側で最新の設定値を取得し、GameEngine へ反映
