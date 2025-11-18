@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
-import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
