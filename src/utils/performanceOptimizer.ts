@@ -91,6 +91,7 @@ export class UnifiedFrameController {
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+  private phaseSequence = 0;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -143,6 +144,51 @@ export class UnifiedFrameController {
   
   getConfig(): PerformanceConfig {
     return { ...this.config };
+  }
+
+  measurePhase<T>(channel: FrameChannel, label: string, fn: () => T): T {
+    const hasPerformanceApi = typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.measure === 'function';
+    const fallbackStart = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const startMark = hasPerformanceApi ? this.buildMarkName(channel, label, 'start') : null;
+
+    if (startMark) {
+      performance.mark(startMark);
+    }
+
+    try {
+      return fn();
+    } finally {
+      const duration = this.finishMeasurement(channel, label, startMark, fallbackStart, hasPerformanceApi);
+      performanceMonitor.record({
+        channel,
+        label,
+        duration,
+        timestamp: typeof performance !== 'undefined' ? performance.now() : Date.now()
+      });
+    }
+  }
+
+  private finishMeasurement(channel: FrameChannel, label: string, startMark: string | null, fallbackStart: number, hasPerformanceApi: boolean): number {
+    if (!hasPerformanceApi || !startMark) {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      return now - fallbackStart;
+    }
+
+    const endMark = this.buildMarkName(channel, label, 'end');
+    performance.mark(endMark);
+    const measureName = this.buildMarkName(channel, label, 'measure');
+    performance.measure(measureName, startMark, endMark);
+    const entries = performance.getEntriesByName(measureName);
+    const duration = entries[entries.length - 1]?.duration ?? (performance.now() - fallbackStart);
+    performance.clearMarks(startMark);
+    performance.clearMarks(endMark);
+    performance.clearMeasures(measureName);
+    return duration;
+  }
+
+  private buildMarkName(channel: FrameChannel, label: string, phase: 'start' | 'end' | 'measure'): string {
+    this.phaseSequence += 1;
+    return `ufc:${channel}:${label}:${phase}:${this.phaseSequence}`;
   }
 }
 
@@ -253,6 +299,71 @@ export class RenderOptimizer {
   }
 }
 
+interface FrameMetric {
+  channel: FrameChannel;
+  label: string;
+  duration: number;
+  timestamp: number;
+}
+
+export class FramePerformanceMonitor {
+  private readonly samples: FrameMetric[] = [];
+  private readonly maxSamples = 360;
+
+  record(metric: FrameMetric): void {
+    this.samples.push(metric);
+    if (this.samples.length > this.maxSamples) {
+      this.samples.splice(0, this.samples.length - this.maxSamples);
+    }
+  }
+
+  getRecentSamples(channel?: FrameChannel): FrameMetric[] {
+    if (!channel) {
+      return [...this.samples];
+    }
+    return this.samples.filter((sample) => sample.channel === channel);
+  }
+
+  getSummary(channel?: FrameChannel): Array<{ channel: FrameChannel; label: string; average: number; max: number; latest: number }> {
+    const buckets = new Map<string, FrameMetric[]>();
+    const pushSample = (key: string, metric: FrameMetric) => {
+      if (!buckets.has(key)) {
+        buckets.set(key, []);
+      }
+      buckets.get(key)!.push(metric);
+    };
+
+    for (const sample of this.samples) {
+      if (channel && sample.channel !== channel) {
+        continue;
+      }
+      const bucketKey = `${sample.channel}:${sample.label}`;
+      pushSample(bucketKey, sample);
+    }
+
+    const summaries: Array<{ channel: FrameChannel; label: string; average: number; max: number; latest: number }> = [];
+    buckets.forEach((metrics, key) => {
+      if (metrics.length === 0) {
+        return;
+      }
+      const total = metrics.reduce((sum, metric) => sum + metric.duration, 0);
+      const average = total / metrics.length;
+      const max = Math.max(...metrics.map((metric) => metric.duration));
+      const latest = metrics[metrics.length - 1]?.duration ?? 0;
+      const [bucketChannel, label] = key.split(':') as [FrameChannel, string];
+      summaries.push({
+        channel: bucketChannel,
+        label,
+        average,
+        max,
+        latest
+      });
+    });
+
+    return summaries.sort((a, b) => a.channel.localeCompare(b.channel) || a.label.localeCompare(b.label));
+  }
+}
+
 /**
  * 軽量化のためのユーティリティ関数
  */
@@ -318,6 +429,7 @@ declare global {
   interface Window {
     unifiedFrameController: UnifiedFrameController;
     renderOptimizer: RenderOptimizer;
+    performanceMonitor: FramePerformanceMonitor;
   }
 }
 
@@ -325,9 +437,11 @@ declare global {
 export const unifiedFrameController = new UnifiedFrameController(PRODUCTION_CONFIG);
 export const frameController = new FrameRateController(LIGHTWEIGHT_CONFIG);
 export const renderOptimizer = new RenderOptimizer();
+export const performanceMonitor = new FramePerformanceMonitor();
 
 // グローバルアクセス用（デバッグ・検証）
 if (typeof window !== 'undefined') {
   window.unifiedFrameController = unifiedFrameController;
   window.renderOptimizer = renderOptimizer;
+  window.performanceMonitor = performanceMonitor;
 } 

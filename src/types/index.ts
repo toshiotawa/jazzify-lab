@@ -50,7 +50,7 @@ export interface ActiveNote extends NoteData {
   state: NoteState;
   hitTime?: number;
   timingError?: number;
-  y?: number; // 描画用Y座標（PIXI.js用）
+  y?: number; // 描画用Y座標（レンダラー共有）
   previousY?: number; // 前フレームのY座標（判定ライン通過検出用）
   judged?: boolean; // Miss判定の重複を防ぐフラグ
   crossingLogged?: boolean; // 判定ライン通過ログの重複を防ぐフラグ
@@ -296,15 +296,6 @@ export interface RenderData {
   viewportHeight: number;
   notesSpeed: number;
   instrumentMode: InstrumentMode;
-}
-
-export interface PIXIRendererConfig {
-  width: number;
-  height: number;
-  backgroundColor: number;
-  transparent: boolean;
-  antialias: boolean;
-  powerPreference: 'default' | 'high-performance' | 'low-power';
 }
 
 // ===== エフェクトシステム =====
