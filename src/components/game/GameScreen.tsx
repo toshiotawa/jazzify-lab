@@ -1717,10 +1717,10 @@ const SettingsPanel: React.FC = () => {
                   <span className="text-sm text-gray-300">OFF</span>
                 </label>
               </div>
-              <div className="text-xs text-gray-400 mt-1">
-                ONにすると、複雑な音名（異名同音、ダブルシャープ等）が基本的な音名に変換されて表示されます。<br />
-                <strong>PIXIノーツ、鍵盤、OSMD楽譜</strong>のすべてに適用されます。
-              </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  ONにすると、複雑な音名（異名同音、ダブルシャープ等）が基本的な音名に変換されて表示されます。<br />
+                  <strong>PIXIノーツ、鍵盤、VexFlow楽譜</strong>のすべてに適用されます。
+                </div>
             </div>
 
             {/* 音名表示設定 */}
