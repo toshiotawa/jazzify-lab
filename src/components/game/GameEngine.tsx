@@ -512,10 +512,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // 共通音声システム + MIDIController + AudioController初期化
   useEffect(() => {
     const initAudio = async () => {
-      try {
-        const midiModule = await ensureMidiModule();
-        const { initializeAudioSystem, default: MIDIController } = midiModule;
-        await initializeAudioSystem({ light: true });
+        try {
+          const midiModule = await ensureMidiModule();
+          const { initializeAudioSystem, upgradeAudioSystemToFull, default: MIDIController } = midiModule;
+          await initializeAudioSystem({ light: true });
+          if (settings.performanceMode !== 'ultra_light') {
+            void upgradeAudioSystemToFull?.();
+          }
         log.info('✅ 共通音声システム初期化完了');
         
         // MIDIController インスタンスを作成
@@ -593,7 +596,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+    }, [handleNoteInput, settings.inputMode, settings.performanceMode, ensureMidiModule]);
 
     useEffect(() => {
       let isMounted = true;

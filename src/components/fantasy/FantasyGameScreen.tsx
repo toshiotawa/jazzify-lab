@@ -177,6 +177,41 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
+  const taikoTimelineRef = useRef<{
+    anchorMusicTime: number;
+    anchorPerfTime: number;
+    lastRawMusicTime: number;
+  }>({
+    anchorMusicTime: 0,
+    anchorPerfTime: typeof performance !== 'undefined' ? performance.now() : 0,
+    lastRawMusicTime: Number.NaN,
+  });
+
+  const resetTaikoTimeline = useCallback(() => {
+    taikoTimelineRef.current = {
+      anchorMusicTime: 0,
+      anchorPerfTime: typeof performance !== 'undefined' ? performance.now() : 0,
+      lastRawMusicTime: Number.NaN,
+    };
+  }, []);
+
+  const getSmoothedTaikoTime = useCallback((rawTime: number, timestamp: number): number => {
+    const state = taikoTimelineRef.current;
+    if (!Number.isFinite(rawTime)) {
+      return 0;
+    }
+    const rawChanged = !Number.isFinite(state.lastRawMusicTime) || Math.abs(rawTime - state.lastRawMusicTime) > 0.0005;
+    if (rawChanged) {
+      state.anchorMusicTime = rawTime;
+      state.anchorPerfTime = timestamp;
+      state.lastRawMusicTime = rawTime;
+      return rawTime;
+    }
+    const delta = Math.max(0, Math.min((timestamp - state.anchorPerfTime) / 1000, 0.25));
+    state.anchorMusicTime += delta;
+    state.anchorPerfTime = timestamp;
+    return state.anchorMusicTime;
+  }, []);
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -709,6 +744,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       isTaikoModeRef.current = gameState.isTaikoMode;
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
+    
+    useEffect(() => {
+      resetTaikoTimeline();
+    }, [resetTaikoTimeline, gameState.isTaikoMode, gameState.currentStage?.id]);
   
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   useEffect(() => {
@@ -743,19 +782,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastUpdateTime = timestamp;
       
-      const currentTime = bgmManager.getCurrentMusicTime();
+        const rawMusicTime = bgmManager.getCurrentMusicTime();
+        const smoothedMusicTime = getSmoothedTaikoTime(rawMusicTime, timestamp);
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
       // カウントイン中は複数ノーツを先行表示
-      if (currentTime < 0) {
+        if (rawMusicTime < 0) {
         const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
-          const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
+            const timeUntilHit = note.hitTime - rawMusicTime; // rawMusicTime は負値
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
@@ -771,14 +811,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 表示するノーツを収集
       const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
       
-      // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+        // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
+        const normalizedTime = ((smoothedMusicTime % loopDuration) + loopDuration) % loopDuration;
       
       // 通常のノーツ（現在ループのみ表示）
       gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
-
         // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
         if (note.isHit) return;
 
@@ -811,7 +848,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         : -1;
       
       // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
-      const timeToLoop = loopDuration - normalizedTime;
+        const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
@@ -876,7 +913,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+    }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage, getSmoothedTaikoTime]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
