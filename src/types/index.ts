@@ -78,6 +78,8 @@ export interface MusicalTiming {
   latencyOffset: number;
   beatTime?: number;
   measureTime?: number;
+  fps?: number;
+  frameTime?: number;
 }
 
 export interface NotesCollection {
