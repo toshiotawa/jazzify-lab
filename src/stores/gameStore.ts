@@ -170,7 +170,7 @@ const defaultSettings: GameSettings = {
     opacity: 1.0
   },
   
-  performanceMode: 'standard'
+  performanceMode: 'ultra_light'
 };
 
 // ===== 新機能: デフォルトプリセット =====
