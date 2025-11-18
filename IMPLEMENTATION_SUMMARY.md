@@ -57,6 +57,27 @@
 - `user_challenge_progress` テーブルに `reward_claimed` 列を追加
 - `lesson_songs` テーブルに `order_index` 列とRLSポリシーを追加
 
+### 5. Windows向け低遅延フレーム同期の導入 ✅
+
+**問題**: iOS Safari では滑らかに動作する一方で、Windows版 Chrome/Edge ではメインスレッドとWeb Audioの競合によりラグが発生していた。
+
+**解決策**:
+- **共通低遅延オーディオマネージャー**  
+  - `src/platform/audio.ts` を新設し、Windows Chromium 環境では `latencyHint: 'interactive'`・`lookAhead ≒ 12ms` の `AudioContext` を共有化。
+  - Tone.js の `setContext` / `lookAhead` を同マネージャー経由で強制的に同期し、`Tone.PitchShift` 利用時のスケジューリング精度を統一。
+- **GameEngine 音声同期の刷新**  
+  - `src/components/game/GameEngine.tsx` で `getSharedAudioContext` / `ensureSharedAudioContextRunning` を使用し、HTMLAudio・GameEngine・Tone.js を同一クロックで駆動。
+  - PitchShift 有効時に `syncToneWithSharedAudioContext` を待機し、Windows Chrome/Edge でも MediaElement ↔ Tone ノード間の遅延を最小化。
+- **PIXI レンダリングループの一本化**  
+  - `src/components/game/PIXINotesRenderer.tsx` が `unifiedFrameController` を直接参照し、ノート更新は `FrameChannel: 'global'`、描画は `FrameChannel: 'render'`、エフェクトは `shouldUpdateEffects()` で間引く設計に変更。
+  - これにより、GameEngine 側のロジックループとPIXI Tickerの競合が解消され、Windowsでもフレームスキップが制御可能になった。
+
+**検証手順**:
+1. `npm run dev` でアプリを起動し、Windows版 Chrome/Edge でアクセス。
+2. DevTools Performance タブで録画し、`Main` スレッドに 16ms 超の Long Task が連続しないことを確認。
+3. Media タブで `Audio Worklet Callback Buffer Underrun` が出ないこと、`AudioContext` の `latencyHint` が `interactive` になっていることを確認。
+4. Tone.js オフ時と PitchShift 有効時の双方でレイテンシ計測を行い、±15ms以内に収まることを確認。
+
 ## 新しいデータベーステーブル
 
 ### song_play_conditions

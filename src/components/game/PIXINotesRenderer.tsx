@@ -10,6 +10,7 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import { unifiedFrameController } from '@/utils/performanceOptimizer';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -292,7 +293,6 @@ export class PIXINotesRendererInstance {
   private _currentTime: number = 0;
   private _animationSpeed: number = 1.0;
   private lastFrameTime: number = performance.now();
-  private effectsElapsed: number = 0; // エフェクト更新用の経過時間カウンター
   
   // パフォーマンス監視フラグ
   private performanceEnabled: boolean = true;
@@ -439,28 +439,36 @@ export class PIXINotesRendererInstance {
    */
   private setupTickerSystem(): void {
     // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // 全ノートUpdaterを更新
-      for (const [noteId, updater] of this.noteUpdaters) {
-        if (!updater.active) {
-          this.noteUpdaters.delete(noteId);
-          continue;
+      this.mainUpdateFunction = (delta: number) => {
+        if (this.isDestroyed || this.disposeManager.disposed) return;
+
+        const frameTime = performance.now();
+        if (unifiedFrameController.shouldSkipFrame(frameTime, 'global')) {
+          return;
         }
-        updater.update(delta);
-      }
-    };
+        
+        // 全ノートUpdaterを更新
+        for (const [noteId, updater] of this.noteUpdaters) {
+          if (!updater.active) {
+            this.noteUpdaters.delete(noteId);
+            continue;
+          }
+          updater.update(delta);
+        }
+      };
 
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
+      // エフェクト更新関数（低頻度実行）
+      this.effectUpdateFunction = () => {
+        if (this.isDestroyed || this.disposeManager.disposed) return;
 
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
+        const frameTime = performance.now();
+        if (!unifiedFrameController.shouldUpdateEffects(frameTime)) {
+          return;
+        }
+        unifiedFrameController.markEffectUpdate(frameTime);
 
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
+        const deltaMs = PIXI.Ticker.shared.deltaMS;
+        const normalizedDelta = deltaMs / 16;
 
         for (const updater of this.effectUpdaters) {
           if (!updater.active) {
@@ -470,10 +478,8 @@ export class PIXINotesRendererInstance {
           updater.update(normalizedDelta);
         }
 
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
+        this.updateHitEffects(deltaMs);
+      };
 
     // Tickerに登録
     PIXI.Ticker.shared.add(this.mainUpdateFunction);
@@ -503,9 +509,8 @@ export class PIXINotesRendererInstance {
   private startUnifiedRendering(): void {
     const ticker = this.app.ticker;
     const renderStep = () => {
-      const currentTime = performance.now();
-      const controller = (window as any).unifiedFrameController;
-      if (controller && controller.shouldSkipFrame(currentTime, 'render')) {
+        const currentTime = performance.now();
+        if (unifiedFrameController.shouldSkipFrame(currentTime, 'render')) {
         return;
       }
 
