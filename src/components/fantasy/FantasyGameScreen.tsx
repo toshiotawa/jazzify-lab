@@ -158,13 +158,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7
       );
-      // ★ デモプレイ開始時にフル音源へアップグレード（軽量→@tonejs/piano）
-      (async () => {
-        try {
-          const { upgradeAudioSystemToFull } = await import('@/utils/MidiController');
-          await upgradeAudioSystemToFull();
-        } catch {}
-      })();
     }
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
@@ -567,24 +560,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const whiteKeyWidth = screenWidth / totalWhiteKeys;
       const dynamicNoteWidth = Math.max(whiteKeyWidth - 2, 16); // 最小16px
       
-      renderer.updateSettings({
-        noteNameStyle: 'abc',
-        simpleDisplayMode: true, // シンプル表示モードを有効
-        pianoHeight: 120, // ファンタジーモード用に大幅に縮小
-        noteHeight: 16, // 音符の高さも縮小
-        noteWidth: dynamicNoteWidth,
-        transpose: 0,
-        transposingInstrument: 'concert_pitch',
-        practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
-        showHitLine: false, // ヒットラインを非表示
-        viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
-        timingAdjustment: 0,
-        effects: {
-          glow: true,
-          particles: false,
-          trails: false
-        }
-      });
+        renderer.updateSettings({
+          noteNameStyle: 'abc',
+          simpleDisplayMode: true, // シンプル表示モードを有効
+          pianoHeight: 120, // ファンタジーモード用に大幅に縮小
+          noteHeight: 16, // 音符の高さも縮小
+          noteWidth: dynamicNoteWidth,
+          transpose: 0,
+          transposingInstrument: 'concert_pitch',
+          practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+          showHitLine: false, // ヒットラインを非表示
+          viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
+          timingAdjustment: 0
+        });
 
       // レイアウト反映後にC4を中央へ
       requestAnimationFrame(() => {

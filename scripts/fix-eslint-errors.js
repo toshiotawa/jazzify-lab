@@ -13,7 +13,7 @@ const execAsync = util.promisify(exec);
 
 // 修正対象のディレクトリ
 const TARGET_DIRS = ['src', 'netlify/functions'];
-const ROOT_FILES = ['AudioController.ts', 'MidiController.ts', 'Piano.ts'];
+const ROOT_FILES = ['MidiController.ts', 'Piano.ts'];
 
 // ログヘルパー
 const log = {
