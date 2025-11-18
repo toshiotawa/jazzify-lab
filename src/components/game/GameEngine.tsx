@@ -209,12 +209,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [currentSong?.audioFile, settings.musicVolume]);
   
-  // 再生状態同期
-  useEffect(() => {
-    if (!gameEngine) return;
+    // 再生状態同期
+    useEffect(() => {
+      if (!gameEngine) return;
+      let cancelled = false;
 
-    const run = async () => {
-      if (isPlaying) {
+      const run = async () => {
+        if (isPlaying) {
         // 音声ファイルありの場合とnしの場合で分岐
         const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
         
@@ -242,12 +243,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const shouldUsePitchShift = settings.transpose !== 0;
 
         if (shouldUsePitchShift) {
-          if (!pitchShiftRef.current) {
+            if (!pitchShiftRef.current) {
             try {
               await Tone.start();
             } catch (err) {
               log.warn('Tone.start() failed or was already started', err);
             }
+              if (cancelled) return;
 
             try {
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
@@ -323,24 +325,37 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const realTimeElapsed = syncTime / settings.playbackSpeed;
         baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
 
-        // 7) GameEngine を AudioContext に紐付けて開始
-        gameEngine.start(audioContext);
-        gameEngine.seek(syncTime);
+          // 7) GameEngine を AudioContext に紐付けて開始
+          if (cancelled) return;
+          gameEngine.start(audioContext);
+          gameEngine.seek(syncTime);
+          if (cancelled) {
+            gameEngine.pause();
+            return;
+          }
 
         // 8) HTMLAudio 再生 (AudioContext と同軸)
-        // resumeが完了してから再生開始
-        resumePromise.then(() => {
-          // iOS向けの追加待機時間（バッファリング）
-          if (isIOS()) {
-            return new Promise(resolve => setTimeout(resolve, 100));
-          }
-          return Promise.resolve();
-        }).then(() => {
-          audio.play().catch(e => log.error('音声再生エラー:', e));
-        }).catch(e => log.error('AudioContext resume エラー:', e));
-        } else {
+          // resumeが完了してから再生開始
+          resumePromise.then(() => {
+            if (cancelled) return;
+            // iOS向けの追加待機時間（バッファリング）
+            if (isIOS()) {
+              return new Promise(resolve => setTimeout(resolve, 100));
+            }
+            return Promise.resolve();
+          }).then(() => {
+            if (cancelled) {
+              if (audioRef.current) {
+                audioRef.current.pause();
+              }
+              return;
+            }
+            audio.play().catch(e => log.error('音声再生エラー:', e));
+          }).catch(e => log.error('AudioContext resume エラー:', e));
+          } else {
           // === 音声なしモード ===
-          log.info('🎵 音声なしモードでゲームエンジンを開始');
+            if (cancelled) return;
+            log.info('🎵 音声なしモードでゲームエンジンを開始');
           
           // AudioContextを簡易作成
           if (!audioContextRef.current) {
@@ -355,8 +370,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           const syncTime = Math.max(0, currentTime);
           
           // ゲームエンジンを開始（音声同期なし）
-          gameEngine.start(audioContext);
-          gameEngine.seek(syncTime);
+            if (cancelled) return;
+            gameEngine.start(audioContext);
+            gameEngine.seek(syncTime);
+            if (cancelled) {
+              gameEngine.pause();
+              return;
+            }
           
           // 音声なしモードでも baseOffset を適切に設定
           const realTimeElapsed = syncTime / settings.playbackSpeed;
@@ -390,11 +410,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // }
 
       }
-    };
+      };
 
-      run();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPlaying, audioLoaded, gameEngine, settings.transpose]);
+        run();
+        return () => {
+          cancelled = true;
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [isPlaying, audioLoaded, gameEngine, settings.transpose]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {

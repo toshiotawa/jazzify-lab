@@ -4,7 +4,7 @@ import { useGameSelector } from '@/stores/helpers';
 import platform from '@/platform';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
-import { parseMusicXmlForVexflow, type ParsedScore, type ParsedNoteKey } from '@/utils/vexflowScoreParser';
+import { parseMusicXmlForVexflow, type ParsedScore, type ParsedNoteKey, type ParsedMeasure } from '@/utils/vexflowScoreParser';
 import { log } from '@/utils/logger';
 
 interface SheetMusicDisplayProps {
@@ -15,6 +15,31 @@ interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
 }
+
+const SCORE_LEFT_PADDING = 40;
+const SCORE_RIGHT_PADDING = 80;
+const MEASURE_SPACING = 24;
+const STAFF_VERTICAL_PADDING = 20;
+const MIN_MEASURE_WIDTH = 150;
+const MAX_MEASURE_WIDTH = 420;
+const BASE_MEASURE_WIDTH = 110;
+const BEAT_UNIT_WIDTH = 20;
+const COMPLEXITY_UNIT_WIDTH = 16;
+
+const DURATION_BEAT_MAP: Record<string, number> = {
+  w: 4,
+  h: 2,
+  q: 1,
+  '8': 0.5,
+  '16': 0.25,
+  '32': 0.125,
+  '64': 0.0625,
+  '128': 0.03125,
+  '256': 0.015625,
+  '512': 0.0078125,
+  '1024': 0.00390625,
+  '1': 8
+};
 
 const VF = Vex.Flow;
 
@@ -113,14 +138,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       return [];
     }
 
-    const measureCount = score.measures.length;
-    const measureWidth = 240;
-    const width = Math.max(measureCount * measureWidth + 80, 1200);
+    const measureWidths = score.measures.map((measure) => calculateMeasureWidth(measure));
+    const contentWidth = measureWidths.reduce((sum, width) => sum + width, 0);
+    const spacingWidth = Math.max(0, score.measures.length - 1) * MEASURE_SPACING;
+    const totalWidth = Math.max(contentWidth + spacingWidth + SCORE_LEFT_PADDING + SCORE_RIGHT_PADDING, 1200);
     const height = 220;
 
     const renderer = new VF.Renderer(containerRef.current, VF.Renderer.Backends.SVG);
     rendererRef.current = renderer;
-    renderer.resize(width, height);
+    renderer.resize(totalWidth, height);
     const context = renderer.getContext();
     context.setBackgroundFillStyle('#ffffff');
     context.setFillStyle('#000000');
@@ -130,9 +156,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     const ties: Vex.Flow.StaveTie[] = [];
     const pendingTies = new Map<string, { note: Vex.Flow.StaveNote; index: number }>();
 
+    let currentX = SCORE_LEFT_PADDING;
+
     score.measures.forEach((measure, index) => {
-      const x = 20 + index * measureWidth;
-      const stave = new VF.Stave(x, 20, measureWidth - 30);
+      const staveWidth = measureWidths[index];
+      const stave = new VF.Stave(currentX, STAFF_VERTICAL_PADDING, staveWidth);
 
       if (index === 0) {
         stave.addClef(measure.clef);
@@ -147,6 +175,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         beat_value: measure.timeSignature.beatType,
         resolution: VF.RESOLUTION,
       });
+      voice.setStrict(false);
       voice.setMode(VF.Voice.Mode.SOFT);
 
       const vexNotes = measure.notes.map((note) => {
@@ -201,12 +230,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       });
 
       voice.addTickables(vexNotes);
-      new VF.Formatter().joinVoices([voice]).format([voice], measureWidth - 60);
+      new VF.Formatter().joinVoices([voice]).format([voice], Math.max(10, staveWidth - 24));
       voice.draw(context, stave);
+
+      const beams = VF.Beam.generateBeams(vexNotes);
+      beams.forEach((beam) => beam.setContext(context).draw());
+
+      currentX += staveWidth + MEASURE_SPACING;
     });
 
     ties.forEach((tie) => tie.setContext(renderer.getContext()).draw());
-    setRenderWidth(width);
+    setRenderWidth(totalWidth);
 
     return noteMetaList
       .filter((meta) => meta.isPlayable)
@@ -555,6 +589,21 @@ function formatKeys(keys: ParsedNoteKey[]): string[] {
 function createTieKey(key: ParsedNoteKey, voice: string): string {
   const accidental = ACCIDENTAL_MAP[key.alter] ?? '';
   return `${key.step}${accidental}${key.octave}_${voice}`;
+}
+
+function getBeatsFromDuration(duration: string): number {
+  return DURATION_BEAT_MAP[duration] ?? 1;
+}
+
+function calculateMeasureWidth(measure: ParsedMeasure): number {
+  const beatsInSignature = measure.timeSignature.beats || 4;
+  const noteComplexity = measure.notes.reduce((sum, note) => sum + getBeatsFromDuration(note.duration), 0);
+  const densityBonus = Math.max(0, measure.notes.length - beatsInSignature) * 0.2;
+  const rawWidth =
+    BASE_MEASURE_WIDTH +
+    beatsInSignature * BEAT_UNIT_WIDTH +
+    (noteComplexity + densityBonus) * COMPLEXITY_UNIT_WIDTH;
+  return Math.max(MIN_MEASURE_WIDTH, Math.min(MAX_MEASURE_WIDTH, rawWidth));
 }
 
 export default SheetMusicDisplay;
