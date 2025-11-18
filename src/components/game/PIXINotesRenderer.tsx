@@ -10,6 +10,9 @@ import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
+import type { SharedNoteBufferReader, SharedNoteSnapshot } from '@/workers/sharedNoteBuffer';
+import { SharedNoteState } from '@/workers/sharedNoteBuffer';
+import type { EffectManager, EffectEvent } from './managers/EffectManager';
 
 const PIXI_LOOKAHEAD_SECONDS = 15;
 
@@ -161,9 +164,9 @@ const isHitState = (state: ActiveNote['state']) =>
 interface PIXINotesRendererProps {
   width: number;
   height: number;
-  /** レンダラー準備完了・破棄通知。null で破棄を示す */
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
+  effectManager?: EffectManager;
 }
 
 interface NoteSprite {
@@ -251,9 +254,11 @@ export class PIXINotesRendererInstance {
   private pianoContainer!: PIXI.Container;
   private particles!: PIXI.Container; // パーティクル用コンテナ
   
-  private noteSprites: Map<string, NoteSprite> = new Map();
-  private hitEffectPool: HitEffectInstance[] = [];
-  private activeNoteLookup: Map<string, ActiveNote> = new Map();
+    private noteSprites: Map<string, NoteSprite> = new Map();
+    private hitEffectPool: HitEffectInstance[] = [];
+    private activeNoteLookup: Map<string, ActiveNote> = new Map();
+    private sharedSeenNotes: Set<string> = new Set();
+    private effectManager: EffectManager | null = null;
 
   private pianoSprites: Map<number, PIXI.Graphics> = new Map();
   private highlightedKeys: Set<number> = new Set(); // ハイライト状態のキーを追跡
@@ -459,8 +464,14 @@ export class PIXINotesRendererInstance {
       const deltaMs = PIXI.Ticker.shared.deltaMS;
       this.effectsElapsed += deltaMs;
 
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
+        if (this.effectsElapsed >= 16) {
         const normalizedDelta = this.effectsElapsed / 16;
+
+          if (this.effectManager) {
+            this.effectManager.drain((event) => {
+              this.applyEffectEvent(event);
+            });
+          }
 
         for (const updater of this.effectUpdaters) {
           if (!updater.active) {
@@ -1823,6 +1834,19 @@ export class PIXINotesRendererInstance {
     
   }
 
+  updateFromSharedBuffer(reader: SharedNoteBufferReader): void {
+    this.sharedSeenNotes.clear();
+    reader.forEach((snapshot) => {
+      this.upsertSharedSnapshot(snapshot);
+      this.sharedSeenNotes.add(snapshot.id);
+    });
+    this.pruneSharedNotes(this.sharedSeenNotes);
+  }
+
+  attachEffectManager(manager: EffectManager | null): void {
+    this.effectManager = manager;
+  }
+
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標・X座標更新のみの軽量処理
@@ -2098,6 +2122,70 @@ export class PIXINotesRendererInstance {
     
     return noteSprite;
   }
+    private sharedStateToActiveState(state: SharedNoteState): ActiveNote['state'] {
+      switch (state) {
+        case SharedNoteState.Hit:
+          return 'hit';
+        case SharedNoteState.Missed:
+          return 'missed';
+        case SharedNoteState.Completed:
+          return 'completed';
+        case SharedNoteState.Visible:
+        default:
+          return 'visible';
+      }
+    }
+
+    private upsertSharedSnapshot(snapshot: SharedNoteSnapshot): void {
+      const state = this.sharedStateToActiveState(snapshot.state);
+      const activeNote: ActiveNote = {
+        ...snapshot.base,
+        id: snapshot.id,
+        state,
+        pitch: snapshot.pitch,
+        time: snapshot.time,
+        y: snapshot.y,
+        previousY: snapshot.previousY
+      };
+      this.activeNoteLookup.set(snapshot.id, activeNote);
+      if (!this.noteSprites.has(snapshot.id)) {
+        this.createNoteSprite(activeNote);
+        return;
+      }
+      const sprite = this.noteSprites.get(snapshot.id);
+      if (!sprite) {
+        return;
+      }
+      sprite.noteData = activeNote;
+      const newY = activeNote.y ?? sprite.sprite.y;
+      sprite.sprite.y = newY;
+      if (sprite.label) {
+        sprite.label.y = newY - 8;
+      }
+      if (sprite.glowSprite) {
+        sprite.glowSprite.y = newY;
+      }
+      if (state === 'hit' || state === 'completed') {
+        this.removeNoteSprite(snapshot.id);
+      }
+    }
+
+    private pruneSharedNotes(seen: Set<string>): void {
+      for (const noteId of Array.from(this.noteSprites.keys())) {
+        if (!seen.has(noteId)) {
+          this.removeNoteSprite(noteId);
+        }
+      }
+    }
+    
+    private applyEffectEvent(event: EffectEvent): void {
+      if (event.type === 'hit') {
+        const sprite = this.noteSprites.get(event.noteId);
+        if (sprite) {
+          this.createHitEffect(sprite.sprite.x, sprite.sprite.y);
+        }
+      }
+    }
   
   /**
    * ノーツ状態変更処理（頻度が低い処理のみ）
@@ -3129,7 +3217,8 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   onReady,
-  className
+  className,
+  effectManager
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -3148,8 +3237,9 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     
     log.info('🎯 Skipping initial hide for debugging...');
 
-    const renderer = new PIXINotesRendererInstance(width, actualHeight);
-    rendererRef.current = renderer;
+      const renderer = new PIXINotesRendererInstance(width, actualHeight);
+      renderer.attachEffectManager(effectManager ?? null);
+      rendererRef.current = renderer;
     
     // ===== 簡略デバッグ（パフォーマンス重視） =====
     log.info('🔍 Basic check: Canvas size:', renderer.view.width, 'x', renderer.view.height);
@@ -3209,6 +3299,12 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       onReady?.(rendererRef.current);
     }
   }, [onReady]);
+  
+  useEffect(() => {
+    if (rendererRef.current) {
+      rendererRef.current.attachEffectManager(effectManager ?? null);
+    }
+  }, [effectManager]);
   
   // リサイズ対応
   useEffect(() => {

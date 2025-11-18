@@ -1,17 +1,16 @@
 import type { ActiveNote } from '@/types';
-import type { GameEngine, GameEngineUpdate } from '@/utils/gameEngine';
+import type { GameEngine } from '@/utils/gameEngine';
 import type { PIXINotesRendererInstance } from './PIXINotesRenderer';
-
-interface BridgeFrame {
-  activeNotes: ActiveNote[];
-  currentTime: number;
-}
+import type { SharedNoteBufferReader } from '@/workers/sharedNoteBuffer';
+import type { ActiveNote } from '@/types';
 
 export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
-  private lastFrame: BridgeFrame | null = null;
+  private reader: SharedNoteBufferReader | null = null;
+  private lastActiveNotes: ActiveNote[] = [];
+  private lastCurrentTime = 0;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -22,15 +21,21 @@ export class LegendRenderBridge {
     this.engine = engine;
 
     if (!engine) {
-      this.lastFrame = null;
+      this.reader = null;
       return;
     }
 
-    this.unsubscribe = engine.addUpdateListener((update: GameEngineUpdate) => {
-      this.handleEngineUpdate(update);
+    try {
+      this.reader = engine.getSharedNoteReader();
+    } catch {
+      this.reader = null;
+    }
+    this.unsubscribe = engine.addUpdateListener((update) => {
+      this.lastActiveNotes = update.activeNotes ?? [];
+      this.lastCurrentTime = update.currentTime;
+      this.flush();
     });
-
-    this.primeFromEngine(engine);
+    this.flush();
   }
 
   attachRenderer(renderer: PIXINotesRendererInstance | null): void {
@@ -40,18 +45,16 @@ export class LegendRenderBridge {
       return;
     }
 
-    if (!this.lastFrame && this.engine) {
-      this.primeFromEngine(this.engine);
-      return;
-    }
-
     this.flush();
   }
 
+  setNoteReader(reader: SharedNoteBufferReader | null): void {
+    this.reader = reader;
+    this.flush();
+  }
+  
   syncFromEngine(): void {
-    if (this.engine) {
-      this.primeFromEngine(this.engine);
-    }
+    this.flush();
   }
 
   dispose(): void {
@@ -61,31 +64,18 @@ export class LegendRenderBridge {
     }
     this.renderer = null;
     this.engine = null;
-    this.lastFrame = null;
-  }
-
-  private handleEngineUpdate(update: GameEngineUpdate): void {
-    this.lastFrame = {
-      activeNotes: update.activeNotes,
-      currentTime: update.currentTime
-    };
-    this.flush();
-  }
-
-  private primeFromEngine(engine: GameEngine): void {
-    const snapshot = engine.getState();
-    this.lastFrame = {
-      activeNotes: snapshot.activeNotes,
-      currentTime: snapshot.currentTime
-    };
-    this.flush();
+    this.reader = null;
   }
 
   private flush(): void {
-    if (!this.renderer || !this.lastFrame) {
+    if (!this.renderer) {
       return;
     }
-    this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
+    if (this.reader) {
+      this.renderer.updateFromSharedBuffer(this.reader);
+      return;
+    }
+    this.renderer.updateNotes(this.lastActiveNotes, this.lastCurrentTime);
   }
 
 }
