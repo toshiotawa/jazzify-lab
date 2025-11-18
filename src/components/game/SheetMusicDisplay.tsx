@@ -147,6 +147,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         beat_value: measure.timeSignature.beatType,
         resolution: VF.RESOLUTION,
       });
+      voice.setMode(VF.Voice.Mode.SOFT);
 
       const vexNotes = measure.notes.map((note) => {
         const duration = note.isRest ? `${note.duration}r` : note.duration;
