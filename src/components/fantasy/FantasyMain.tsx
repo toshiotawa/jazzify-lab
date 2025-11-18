@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { preloadHighQualityPiano } from '@/utils/highQualityPianoPreloader';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -73,6 +74,10 @@ const FantasyMain: React.FC = () => {
   // 再挑戦時の自動開始フラグ
   const [pendingAutoStart, setPendingAutoStart] = useState(false);
   // ▲▲▲ ここまで ▲▲▲
+
+  useEffect(() => {
+    void preloadHighQualityPiano().catch(() => {});
+  }, []);
   
   // 経験値情報を保存するための state を追加
   const [xpInfo, setXpInfo] = useState<{
