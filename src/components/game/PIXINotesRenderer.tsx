@@ -181,6 +181,8 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+    enableEffects: boolean;
+    performanceMode: 'standard' | 'lightweight' | 'ultra_light';
   colors: {
     visible: number;
     visibleBlack: number;
@@ -308,6 +310,8 @@ export class PIXINotesRendererInstance {
     hitLineY: 0,
       pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
     noteSpeed: 400,
+      enableEffects: true,
+      performanceMode: 'standard',
     colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
@@ -1992,7 +1996,8 @@ export class PIXINotesRendererInstance {
       }
     }
     
-  private createNoteSprite(note: ActiveNote): NoteSprite {
+    private createNoteSprite(note: ActiveNote): NoteSprite {
+      const isUltraMode = this.settings.performanceMode === 'ultra_light';
     const effectivePitch = note.pitch + this.settings.transpose;
     const x = this.pitchToX(note.pitch);
     
@@ -2039,7 +2044,7 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    if (noteNameForLabel && this.settings.noteNameStyle !== 'off') {
+      if (!isUltraMode && noteNameForLabel && this.settings.noteNameStyle !== 'off') {
       try {
         const labelTexture = this.getLabelTexture(noteNameForLabel);
         if (labelTexture) {
@@ -2063,9 +2068,9 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // グロー効果スプライト（デフォルトOFF、必要時のみ）
-    let glowSprite: PIXI.Graphics | undefined;
-    if (this.settings.effects.glow) {
+      // グロー効果スプライト（デフォルトOFF、必要時のみ）
+      let glowSprite: PIXI.Graphics | undefined;
+      if (!isUltraMode && this.settings.effects.glow) {
       glowSprite = new PIXI.Graphics();
       glowSprite.x = x;
       glowSprite.y = 0; // 後で設定
@@ -2102,9 +2107,23 @@ export class PIXINotesRendererInstance {
   /**
    * ノーツ状態変更処理（頻度が低い処理のみ）
    */
-  private updateNoteState(noteSprite: NoteSprite, note: ActiveNote): void {
+    private updateNoteState(noteSprite: NoteSprite, note: ActiveNote): void {
     const effectivePitch = note.pitch + this.settings.transpose;
     const oldNoteName = noteSprite.noteData.noteName;
+      const isUltraMode = this.settings.performanceMode === 'ultra_light';
+
+      if (isUltraMode) {
+        if (isHitState(note.state)) {
+          noteSprite.sprite.alpha = 0;
+        } else if (noteSprite.noteData.state !== note.state || noteSprite.noteData.pitch !== note.pitch) {
+          const isBlackNote = this.isBlackKey(effectivePitch);
+          noteSprite.sprite.texture = isBlackNote
+            ? this.noteTextures.blackVisible
+            : this.noteTextures.whiteVisible;
+        }
+        noteSprite.noteData = note;
+        return;
+      }
 
     // ==== ラベル更新ロジック ====
     // 音名が変更された場合、ラベルを再生成する
@@ -2156,8 +2175,34 @@ export class PIXINotesRendererInstance {
       }
     }
 
+      if (!noteSprite.label && this.settings.noteNameStyle !== 'off') {
+        let fallbackName: string | undefined;
+        if (this.settings.simpleDisplayMode) {
+          if (note.noteName) {
+            fallbackName = this.settings.noteNameStyle === 'solfege'
+              ? this.getSimplifiedDisplayName(note.noteName)
+              : this.getEnglishSimplifiedDisplayName(note.noteName);
+          } else {
+            fallbackName = this.getMidiNoteName(effectivePitch);
+          }
+        } else {
+          fallbackName = note.noteName || this.getMidiNoteName(effectivePitch);
+        }
+        if (fallbackName) {
+          const texture = this.getLabelTexture(fallbackName);
+          if (texture) {
+            const newLabel = new PIXI.Sprite(texture);
+            newLabel.anchor.set(0.5, 1);
+            newLabel.x = noteSprite.sprite.x;
+            newLabel.y = noteSprite.sprite.y - 8;
+            this.labelsContainer.addChild(newLabel);
+            noteSprite.label = newLabel;
+          }
+        }
+      }
+
     // ==== 判定ライン通過時のピアノキー点灯 ====
-    if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
+      if (note.crossingLogged && !noteSprite.noteData.crossingLogged && this.settings.practiceGuide !== 'off') {
       // マウス操作中でない場合のみ練習モード用ハイライトを実行
       if (!this.activeKeyPresses.has(effectivePitch)) {
         this.highlightKey(effectivePitch, true);
@@ -2253,7 +2298,10 @@ export class PIXINotesRendererInstance {
     this.noteSprites.delete(noteId);
   }
   
-  private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
+    private drawGlowShape(graphics: PIXI.Graphics, state: ActiveNote['state'], pitch?: number): void {
+      if (this.settings.performanceMode === 'ultra_light') {
+        return;
+      }
     graphics.clear();
     
     // GOOD 判定後のノーツは透明のためグローを描画しない
@@ -2382,8 +2430,8 @@ export class PIXINotesRendererInstance {
     target.endFill();
   }
   
-  private createHitEffect(x: number, y: number): void {
-    if (!this.settings.enableEffects) {
+    private createHitEffect(x: number, y: number): void {
+      if (!this.settings.enableEffects || this.settings.performanceMode === 'ultra_light') {
       return;
     }
     const effect = this.acquireHitEffect();
@@ -2481,18 +2529,67 @@ export class PIXINotesRendererInstance {
       return;
     }
 
-    const prevPianoHeight = this.settings.pianoHeight;
+      const prevPianoHeight = this.settings.pianoHeight;
     const prevTranspose = this.settings.transpose;
     const prevNoteNameStyle = this.settings.noteNameStyle;
     const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
     const prevTransposingInstrument = this.settings.transposingInstrument;
+      const prevPerformanceMode = this.settings.performanceMode;
     
           // ★ ピアノ高さの最小値を保証
       if (newSettings.pianoHeight !== undefined) {
         newSettings.pianoHeight = Math.max(70, newSettings.pianoHeight); // 最小70px
       }
     
-    Object.assign(this.settings, newSettings);
+      Object.assign(this.settings, newSettings);
+
+      if (
+        newSettings.performanceMode !== undefined &&
+        newSettings.performanceMode !== prevPerformanceMode &&
+        newSettings.performanceMode === 'ultra_light'
+      ) {
+        this.noteSprites.forEach((sprite) => {
+          if (sprite.label) {
+            if (this.labelsContainer.children.includes(sprite.label)) {
+              this.labelsContainer.removeChild(sprite.label);
+            }
+            sprite.label.destroy();
+            sprite.label = undefined;
+          }
+          if (sprite.glowSprite) {
+            if (sprite.glowSprite.parent) {
+              sprite.glowSprite.parent.removeChild(sprite.glowSprite);
+            }
+            if (!sprite.glowSprite.destroyed) {
+              sprite.glowSprite.destroy();
+            }
+            sprite.glowSprite = undefined;
+          }
+        });
+      } else if (
+        newSettings.performanceMode !== undefined &&
+        prevPerformanceMode === 'ultra_light' &&
+        newSettings.performanceMode !== 'ultra_light'
+      ) {
+        this.noteSprites.forEach((sprite) => {
+          if (!sprite.label && this.settings.noteNameStyle !== 'off') {
+            const note = sprite.noteData;
+            const effectivePitch = note.pitch + this.settings.transpose;
+            const noteName = note.noteName || this.getMidiNoteName(effectivePitch);
+            if (noteName) {
+              const texture = this.getLabelTexture(noteName);
+              if (texture) {
+                const label = new PIXI.Sprite(texture);
+                label.anchor.set(0.5, 1);
+                label.x = sprite.sprite.x;
+                label.y = sprite.sprite.y - 8;
+                this.labelsContainer.addChild(label);
+                sprite.label = label;
+              }
+            }
+          }
+        });
+      }
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;
