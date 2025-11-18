@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -66,6 +67,8 @@ const FantasyMain: React.FC = () => {
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
   const [isMissionMode, setIsMissionMode] = useState(false);
+
+  useHighQualityPianoPreload({ context: 'fantasy-main' });
   
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
