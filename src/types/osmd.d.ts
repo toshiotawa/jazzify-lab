@@ -1,22 +1,71 @@
 declare module 'opensheetmusicdisplay' {
   export interface IOSMDOptions {
-    autoResize?: boolean;
-    backend?: 'svg' | 'canvas';
-    drawTitle?: boolean;
-    drawComposer?: boolean;
-    drawLyricist?: boolean;
-    drawPartNames?: boolean;
-    drawingParameters?: string;
-    renderSingleHorizontalStaffline?: boolean;
-    stretchLastSystemLine?: boolean;
-    pageFormat?: string;
-    pageBackgroundColor?: string;
-    defaultColorNotehead?: string;
-    defaultColorStem?: string;
-    defaultColorRest?: string;
-    defaultColorLabel?: string;
-    defaultColorTitle?: string;
-  }
+      autoResize?: boolean;
+      backend?: 'svg' | 'canvas';
+      drawingParameters?: string;
+      disableCursor?: boolean;
+      followCursor?: boolean;
+      autoBeam?: boolean;
+      drawCredits?: boolean;
+      drawTitle?: boolean;
+      drawSubtitle?: boolean;
+      drawComposer?: boolean;
+      drawLyricist?: boolean;
+      drawMetronomeMarks?: boolean;
+      drawPartNames?: boolean;
+      drawPartAbbreviations?: boolean;
+      drawMeasureNumbers?: boolean;
+      drawMeasureNumbersOnlyAtSystemStart?: boolean;
+      drawTimeSignatures?: boolean;
+      drawFingerings?: boolean;
+      drawLyrics?: boolean;
+      drawSlurs?: boolean;
+      drawUpToMeasureNumber?: number;
+      drawUpToSystemNumber?: number;
+      drawUpToPageNumber?: number;
+      drawFromMeasureNumber?: number;
+      renderSingleHorizontalStaffline?: boolean;
+      stretchLastSystemLine?: boolean;
+      pageFormat?: string;
+      pageBackgroundColor?: string;
+      defaultColorNotehead?: string;
+      defaultColorStem?: string;
+      defaultColorRest?: string;
+      defaultColorLabel?: string;
+      defaultColorTitle?: string;
+      fillEmptyMeasuresWithWholeRest?: number;
+      tupletsRatioed?: boolean;
+      tupletsBracketed?: boolean;
+      tripletsBracketed?: boolean;
+      autoGenerateMultipleRestMeasuresFromRestMeasures?: boolean;
+      preferredSkyBottomLineBatchCalculatorBackend?: number;
+      skyBottomLineBatchMinMeasures?: number;
+    }
+
+    export interface IOSMDEngravingRules {
+      AutoBeamNotes?: boolean;
+      AutoBeamTabs?: boolean;
+      RenderLyrics?: boolean;
+      RenderChordSymbols?: boolean;
+      RenderFingerings?: boolean;
+      RenderMeasureNumbers?: boolean;
+      RenderMeasureNumbersOnlyAtSystemStart?: boolean;
+      RenderRehearsalMarks?: boolean;
+      RenderMultipleRestMeasures?: boolean;
+      AutoGenerateMultipleRestMeasuresFromRestMeasures?: boolean;
+      RenderArpeggios?: boolean;
+      RenderGlissandi?: boolean;
+      RenderSlurs?: boolean;
+      RenderPedals?: boolean;
+      RenderStringNumbersClassical?: boolean;
+      TupletsBracketed?: boolean;
+      TripletsBracketed?: boolean;
+      TupletsRatioed?: boolean;
+      RenderSingleHorizontalStaffline?: boolean;
+      RenderXMeasuresPerLineAkaSystem?: number;
+      PreferredSkyBottomLineBatchCalculatorBackend?: number;
+      SkyBottomLineBatchMinMeasures?: number;
+    }
 
   export interface GraphicalNote {
     sourceNote: {
@@ -76,7 +125,7 @@ declare module 'opensheetmusicdisplay' {
     constructor();
   }
 
-  export class OpenSheetMusicDisplay {
+    export class OpenSheetMusicDisplay {
     constructor(container: HTMLElement, options?: IOSMDOptions);
     load(url: string): Promise<void>;
     render(): void;
@@ -85,5 +134,6 @@ declare module 'opensheetmusicdisplay' {
     GraphicSheet: GraphicSheet;
     Sheet: MusicSheet;
     TransposeCalculator?: TransposeCalculator;
+      EngravingRules: IOSMDEngravingRules;
   }
 }
