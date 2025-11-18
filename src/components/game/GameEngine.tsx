@@ -614,6 +614,27 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       };
     }, [ensureMidiModule]);
 
+    useEffect(() => {
+      if (mode !== 'performance') {
+        return;
+      }
+      let isMounted = true;
+      const upgrade = async () => {
+        try {
+          const module = await ensureMidiModule();
+          if (!isMounted) return;
+          await module.initializeAudioSystem({ light: false });
+          await module.upgradeAudioSystemToFull();
+        } catch (error) {
+          log.warn('⚠️ Failed to upgrade audio system for performance mode:', error);
+        }
+      };
+      upgrade();
+      return () => {
+        isMounted = false;
+      };
+    }, [mode, ensureMidiModule]);
+
   // MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
     const linkMidiAndPixi = async () => {
