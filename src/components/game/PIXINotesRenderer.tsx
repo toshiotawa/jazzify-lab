@@ -8,6 +8,7 @@
 import React, { useEffect, useRef } from 'react';
 import * as PIXI from 'pixi.js';
 import type { ActiveNote } from '@/types';
+import type { GameEngineDiff } from '@/utils/gameEngineCore';
 import { log } from '@/utils/logger';
 import { cn } from '@/utils/cn';
 
@@ -1821,6 +1822,44 @@ export class PIXINotesRendererInstance {
     
     
     
+  }
+
+  applyNoteDiff(diff: GameEngineDiff): void {
+    const { currentTime, additions, updates, removals } = diff;
+
+    additions.forEach((note) => {
+      this.activeNoteLookup.set(note.id, note);
+      if (!this.noteSprites.has(note.id)) {
+        this.createNoteSprite(note);
+      }
+    });
+
+    updates.forEach((update) => {
+      const existing = this.activeNoteLookup.get(update.id);
+      if (!existing) return;
+      const merged: ActiveNote = {
+        ...existing,
+        ...update
+      };
+      this.activeNoteLookup.set(update.id, merged);
+      const sprite = this.noteSprites.get(update.id);
+      if (sprite) {
+        sprite.noteData = merged;
+      }
+    });
+
+    removals.forEach((noteId) => {
+      this.activeNoteLookup.delete(noteId);
+      this.removeNoteSprite(noteId);
+    });
+
+    const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+    const visualSpeedMultiplier = this.settings.noteSpeed;
+    const totalDistance = this.settings.hitLineY - (-5);
+    const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
+
+    this.updateSpritePositions(this.activeNoteLookup, currentTime, speedPxPerSec);
+    this.updateSpriteStates(this.activeNoteLookup);
   }
 
   /**

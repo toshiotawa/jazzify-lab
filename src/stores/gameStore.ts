@@ -654,8 +654,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const { GameEngine } = await import('@/utils/gameEngine');
           const engine = new GameEngine({ ...state.settings });
           
-          // エンジンの更新コールバック設定
+            // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
+              set((state) => {
+                state.currentTime = data.currentTime;
+              });
               const storeSnapshot = useGameStore.getState();
               const { abRepeat } = storeSnapshot;
               
@@ -674,6 +677,14 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 set((state) => {
                   state.debug.renderTime = performance.now() % 1000;
                 });
+              }
+
+              const songDuration = storeSnapshot.currentSong?.duration || 0;
+              if (songDuration > 0 && data.currentTime >= songDuration && storeSnapshot.isPlaying) {
+                useGameStore.getState().stop();
+                if (storeSnapshot.mode === 'performance') {
+                  useGameStore.getState().openResultModal();
+                }
               }
             });
           
@@ -723,12 +734,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         handleNoteInput: (inputNote: number) => {
           const state = get();
           if (!state.gameEngine || !state.isPlaying) return;
-          
-          const hit = state.gameEngine.handleInput(inputNote);
-          if (hit) {
-            // エンジンに判定を任せ、コールバックで結果を受け取る
-            state.gameEngine.processHit(hit);
-          }
+          state.gameEngine.handleInput(inputNote);
         },
         
         updateEngineSettings: () => {
