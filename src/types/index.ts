@@ -514,6 +514,7 @@ export interface ToneSampler {
   toDestination(): ToneSampler;
   triggerAttack(note: string | number, time?: number, velocity?: number): void;
   triggerRelease(note: string | number, time?: number): void;
+  triggerAttackRelease?(note: string | number, duration?: string | number, time?: number, velocity?: number): void;
   connect(destination: any): void;
   dispose(): void;
 }

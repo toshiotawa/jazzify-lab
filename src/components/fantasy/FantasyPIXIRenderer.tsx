@@ -10,6 +10,7 @@ import { devLog } from '@/utils/logger';
 import { MonsterState as GameMonsterState } from './FantasyGameEngine';
 import { useEnemyStore } from '@/stores/enemyStore';
 import FantasySoundManager from '@/utils/FantasySoundManager';
+import { PERFORMANCE_CONFIG } from './TaikoNoteSystem';
 
 // ===== 型定義 =====
 
@@ -247,8 +248,10 @@ export class FantasyPIXIInstance {
   private fukidashiTexture: PIXI.Texture | null = null;  // 吹き出しテクスチャを追加
   private activeFukidashi: Map<string, PIXI.Sprite> = new Map();  // アクティブな吹き出しを管理
   
-  // 太鼓の達人風ノーツ関連
-  private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+    // 太鼓の達人風ノーツ関連
+    private activeNotes: Map<string, PIXI.Container> = new Map(); // 表示中のノーツ
+    private taikoNoteStates: Map<string, { x: number }> = new Map();
+    private lastTaikoUpdateTime = 0;
   private judgeLineGraphics: PIXI.Graphics | null = null; // 判定ライン
   private judgeLineX: number = 100; // 判定ラインのX座標
   
@@ -2127,40 +2130,65 @@ export class FantasyPIXIInstance {
     return noteContainer;
   }
   
-  // ノーツを更新（太鼓の達人風）
-  updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
-    // 既存のノーツをクリア
-    this.activeNotes.forEach((note, id) => {
-      if (!notes.find(n => n.id === id)) {
-        try {
-          if (note && !(note as any).destroyed) note.destroy({ children: true });
-        } catch {}
-        this.activeNotes.delete(id);
-      }
-    });
-    
-    // 新しいノーツを追加・更新
-    notes.forEach(noteData => {
-      let note = this.activeNotes.get(noteData.id);
+    // ノーツを更新（太鼓の達人風）
+    updateTaikoNotes(notes: Array<{id: string, chord: string, x: number}>): void {
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      const deltaMs = this.lastTaikoUpdateTime === 0 ? 16 : now - this.lastTaikoUpdateTime;
+      this.lastTaikoUpdateTime = now;
+      const smoothingAlpha = this.computeTaikoSmoothingAlpha(deltaMs);
+
+      const incomingIds = new Set(notes.map(note => note.id));
+
+      // 既存のノーツをクリーンアップ
+      this.activeNotes.forEach((note, id) => {
+        if (!incomingIds.has(id)) {
+          try {
+            if (note && !(note as any).destroyed) {
+              note.destroy({ children: true });
+            }
+          } catch {}
+          this.activeNotes.delete(id);
+          this.taikoNoteStates.delete(id);
+        }
+      });
       
-      if (!note) {
-        // 新しいノーツを作成
-        note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
-        this.notesContainer.addChild(note);
-        this.activeNotes.set(noteData.id, note);
-      } else {
-        // 破棄済みなら作り直す
-        if ((note as any).destroyed || !(note as any).transform) {
+      // 新しいノーツを追加・更新
+      notes.forEach(noteData => {
+        let note = this.activeNotes.get(noteData.id);
+        
+        if (!note || (note as any).destroyed || !(note as any).transform) {
           note = this.createTaikoNote(noteData.id, noteData.chord, noteData.x);
           this.notesContainer.addChild(note);
           this.activeNotes.set(noteData.id, note);
-        } else {
-          // 既存のノーツの位置を更新
-          note.x = noteData.x;
+          this.taikoNoteStates.set(noteData.id, { x: noteData.x });
         }
+
+        const smoothedX = this.smoothTaikoPosition(noteData.id, noteData.x, smoothingAlpha);
+        if (note) {
+          note.x = smoothedX;
+        }
+      });
+    }
+
+    private computeTaikoSmoothingAlpha(deltaMs: number): number {
+      const base = PERFORMANCE_CONFIG.LERP_FACTOR;
+      if (deltaMs <= 0) {
+        return base;
       }
-    });
-  }
+      const referenceFrameMs = 1000 / 60;
+      const frameRatio = Math.max(deltaMs / referenceFrameMs, 0.1);
+      return 1 - Math.pow(1 - base, frameRatio);
+    }
+
+    private smoothTaikoPosition(id: string, targetX: number, alpha: number): number {
+      const state = this.taikoNoteStates.get(id);
+      if (!state) {
+        this.taikoNoteStates.set(id, { x: targetX });
+        return targetX;
+      }
+      state.x += (targetX - state.x) * alpha;
+      return state.x;
+    }
 
   // 太鼓モードの切り替え
   updateTaikoMode(isTaikoMode: boolean): void {
