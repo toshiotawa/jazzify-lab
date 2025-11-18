@@ -13,12 +13,14 @@ import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSong
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 /**
  * メインゲーム画面コンポーネント
  * ゲームのメインUI要素を統合
  */
 const GameScreen: React.FC = () => {
+  useHighQualityPianoPreload('legend-mode');
   const { currentTab, currentSong, score, isSettingsOpen, settings } = useGameSelector((s) => ({
     currentTab: s.currentTab,
     currentSong: s.currentSong,
