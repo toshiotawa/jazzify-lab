@@ -329,16 +329,12 @@ export class GameEngine {
     // ストア側へイベント通知
     this.onJudgment?.(judgment);
     
-    // ノーツの状態更新 - 新しいオブジェクトを作成して置き換え
+    // ノーツの状態更新 - 既存インスタンスを再利用
     const note = this.activeNotes.get(hit.noteId);
     if (note) {
-      const updatedNote: ActiveNote = {
-        ...note,
-        state: 'hit',
-        hitTime: hit.timestamp,
-        timingError: hit.timingError
-      };
-      this.activeNotes.set(hit.noteId, updatedNote);
+      note.state = 'hit';
+      note.hitTime = hit.timestamp;
+      note.timingError = hit.timingError;
     }
     
     return judgment;
@@ -608,13 +604,11 @@ export class GameEngine {
     let writeIndex = 0;
     this.activeNotes.forEach((note) => {
       if (note.state !== 'completed') {
-        const snapshot: ActiveNote = {
-          ...note
-        };
-        if (writeIndex < this.visibleNotesBuffer.length) {
-          this.visibleNotesBuffer[writeIndex] = snapshot;
+        const existing = this.visibleNotesBuffer[writeIndex];
+        if (existing) {
+          Object.assign(existing, note);
         } else {
-          this.visibleNotesBuffer.push(snapshot);
+          this.visibleNotesBuffer[writeIndex] = { ...note };
         }
         writeIndex += 1;
       }
@@ -750,12 +744,8 @@ export class GameEngine {
       const timeError = (currentTime - displayTime) * 1000;   // ms
 
       // 重複ログ防止フラグを即座に設定
-      const updatedNote: ActiveNote = {
-        ...note,
-        crossingLogged: true
-      };
-      this.activeNotes.set(note.id, updatedNote);
-
+        note.crossingLogged = true;
+ 
       // 練習モードガイド処理
       const practiceGuide = this.settings.practiceGuide ?? 'key';
       if (practiceGuide !== 'off') {
@@ -772,7 +762,7 @@ export class GameEngine {
           // devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
           
           // 自動判定を実行
-          const autoHit: NoteHit = {
+            const autoHit: NoteHit = {
             noteId: note.id,
             inputNote: effectivePitch,
             timingError: Math.abs(timeError),
@@ -881,8 +871,8 @@ export class GameEngine {
         unifiedFrameController.markNoteUpdate(frameStartTime);
         
         // Miss判定処理（重複処理を防ぐ）
-        for (const note of activeNotes) {
-          if (note.state === 'missed' && !note.judged) {
+          for (const note of activeNotes) {
+            if (note.state === 'missed' && !note.judged) {
             const missJudgment: JudgmentResult = {
               type: 'miss',
               timingError: 0,
@@ -891,21 +881,17 @@ export class GameEngine {
             };
             this.updateScore(missJudgment);
             
-            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
-            const updatedNote: ActiveNote = {
-              ...note,
-              judged: true
-            };
-            this.activeNotes.set(note.id, updatedNote);
+              // 重複判定を防ぐフラグ
+              note.judged = true;
 
             // イベント通知
             this.onJudgment?.(missJudgment);
           }
         }
-      } else {
-        // 前回の activeNotes を再利用
-        activeNotes = Array.from(this.activeNotes.values());
-      }
+        } else {
+          // 前回の visible buffer を再利用
+          activeNotes = this.visibleNotesBuffer;
+        }
       
       // ABリピートチェック（軽量化）
       this.checkABRepeatLoop(currentTime);
