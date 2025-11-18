@@ -32,6 +32,11 @@ export const CLEANUP_TIME = 3.0;        // 3秒後にクリーンアップ（よ
 export const MISSED_CLEANUP_TIME = 2.0; // Miss 判定後 2秒間は残す
 const HIT_DISPLAY_DURATION = 0.016; // 1フレーム相当
 const MISS_DELAY_AFTER_LINE = 0.12; // 判定ライン通過後の猶予
+const PERFORMANCE_SCALE: Record<GameSettings['performanceMode'], number> = {
+  standard: 1,
+  lightweight: 0.85,
+  ultra_light: 0.5
+};
 
 // ===== 描画関連定数 =====
 /** PIXI.js ノートスプライトの高さ(px) と合わせる */
@@ -832,7 +837,7 @@ export class GameEngine {
     // GameEngine では "ノート中心" が y に入る → 判定ラインに中心が到達するのが演奏タイミング
     // 基本の降下時間は LOOKAHEAD_TIME だが、視覚速度が変わると実際の降下時間も変わるため
     // appearTime と整合させるため動的な lookahead を使用
-    const baseFallDuration = LOOKAHEAD_TIME; // 3秒を基準にしたまま速度倍率で伸縮
+      const baseFallDuration = LOOKAHEAD_TIME * this.getPerformanceScale(); // 3秒を基準にしたまま速度倍率で伸縮
     const visualSpeedMultiplier = this.settings.notesSpeed; // ビジュアル速度乗数
 
     // 実際の物理降下距離とタイミング
@@ -966,18 +971,23 @@ export class GameEngine {
     return 1 / clamped;
   }
 
+  private getPerformanceScale(): number {
+    const mode = this.settings.performanceMode ?? 'standard';
+    return PERFORMANCE_SCALE[mode] ?? 1;
+  }
+
   /** 現在の設定に基づくノーツ出現(先読み)時間 */
   private getLookaheadTime(): number {
-    return LOOKAHEAD_TIME * this.getSpeedScale();
+    return LOOKAHEAD_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 
   /** 現在の設定に基づくクリーンアップ時間 */
   private getCleanupTime(): number {
-    return CLEANUP_TIME * this.getSpeedScale();
+    return CLEANUP_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 
   /** Miss 判定後の残存時間 */
   private getMissedCleanupTime(): number {
-    return MISSED_CLEANUP_TIME * this.getSpeedScale();
+    return MISSED_CLEANUP_TIME * this.getSpeedScale() * this.getPerformanceScale();
   }
 }

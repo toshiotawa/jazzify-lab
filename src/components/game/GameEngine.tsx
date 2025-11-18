@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useMemo } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
@@ -26,6 +26,9 @@ type MidiModule = typeof import('@/utils/MidiController');
 interface GameEngineComponentProps {
   className?: string;
 }
+
+const DEFAULT_LEGEND_LOOKAHEAD_SECONDS = 15;
+const ULTRA_LIGHT_LEGEND_LOOKAHEAD_SECONDS = 6;
 
 export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
   className 
@@ -51,6 +54,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     lastKeyHighlight: state.lastKeyHighlight,
     isSettingsOpen: state.isSettingsOpen
   }));
+    const isUltraLightMode = settings.performanceMode === 'ultra_light';
+    const shouldUseAudioInput = settings.inputMode === 'audio' && !isUltraLightMode;
+    const rendererLookaheadSeconds = useMemo(
+      () => (isUltraLightMode ? ULTRA_LIGHT_LEGEND_LOOKAHEAD_SECONDS : DEFAULT_LEGEND_LOOKAHEAD_SECONDS),
+      [isUltraLightMode]
+    );
 
   const {
     initializeGameEngine,
@@ -105,6 +114,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       bridge.attachEngine(null);
     };
   }, [gameEngine]);
+
+  useEffect(() => {
+    renderBridgeRef.current?.setFrameRateLimit(isUltraLightMode ? 30 : null);
+  }, [isUltraLightMode]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -364,7 +377,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         // 音声入力開始（再生中のみ）
-        if (audioControllerRef.current && settings.inputMode === 'audio') {
+        if (audioControllerRef.current && shouldUseAudioInput) {
           audioControllerRef.current.startListening();
           log.info('🎤 音声ピッチ検出開始');
         }
@@ -394,7 +407,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
       run();
       // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPlaying, audioLoaded, gameEngine, settings.transpose]);
+      }, [isPlaying, audioLoaded, gameEngine, settings.transpose, shouldUseAudioInput]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -540,7 +553,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
 
         // AudioController インスタンスを作成（音声入力が有効な場合）
-        if (!audioControllerRef.current && settings.inputMode === 'audio') {
+        if (!audioControllerRef.current && shouldUseAudioInput) {
           const { AudioController } = await import('../../../AudioController');
           audioControllerRef.current = new AudioController({
             onNoteOn: (note: number, velocity?: number) => {
@@ -569,11 +582,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               });
               log.info('✅ AudioController ↔ PIXIレンダラー コールバック再設定');
             }
-        } else if (audioControllerRef.current && settings.inputMode === 'midi') {
-          // MIDI専用モードの場合、AudioControllerを停止
+        } else if (audioControllerRef.current && !shouldUseAudioInput) {
+          // 低負荷モードやMIDI専用モードの場合、AudioControllerを停止
           await audioControllerRef.current.disconnect();
           audioControllerRef.current = null;
-          log.info('🔌 AudioController無効化（MIDI専用モード）');
+          log.info('🔌 AudioController無効化（低負荷モードまたはMIDIモード）');
         }
       } catch (audioError) {
         log.warn('⚠️ 音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行):', audioError);
@@ -593,7 +606,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audioControllerRef.current = null;
       }
     };
-  }, [handleNoteInput, settings.inputMode, ensureMidiModule]);
+  }, [handleNoteInput, shouldUseAudioInput, ensureMidiModule]);
 
     useEffect(() => {
       let isMounted = true;
@@ -661,6 +674,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
   // 音声デバイス選択変更監視
   useEffect(() => {
+    if (!shouldUseAudioInput) {
+      return;
+    }
     const connectAudioDevice = async () => {
       if (audioControllerRef.current && settings.selectedAudioDevice) {
         log.info(`🎤 音声デバイス接続試行: ${settings.selectedAudioDevice}`);
@@ -684,7 +700,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
     
     connectAudioDevice();
-  }, [settings.selectedAudioDevice, pixiRenderer]);
+  }, [settings.selectedAudioDevice, pixiRenderer, shouldUseAudioInput]);
 
   // ゲームエンジン初期化
   useEffect(() => {
@@ -741,27 +757,51 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
   
   // 設定変更時の更新（transpose を含む）
-  useEffect(() => {
-    if (gameEngine) {
-      updateEngineSettings();
-    }
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
-        noteNameStyle: settings.noteNameStyle,
-        simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose,
-        transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
-      });
-    }
-    // AudioControllerに音声入力設定を反映
-    if (audioControllerRef.current) {
-      audioControllerRef.current.updateConfig({
-        pyinThreshold: settings.pyinThreshold
-      });
-    }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.pyinThreshold]);
+    useEffect(() => {
+      if (gameEngine) {
+        updateEngineSettings();
+      }
+      if (pixiRenderer) {
+        const nextNoteNameStyle = isUltraLightMode ? 'off' : settings.noteNameStyle;
+        const nextSimpleDisplay = isUltraLightMode ? true : settings.simpleDisplayMode;
+        const nextPracticeGuide = isUltraLightMode ? 'off' : (settings.practiceGuide ?? 'key');
+        const effectsConfig = isUltraLightMode
+          ? { glow: false, particles: false, trails: false }
+          : { glow: true, particles: false, trails: false };
+        pixiRenderer.updateSettings({
+          noteNameStyle: nextNoteNameStyle,
+          simpleDisplayMode: nextSimpleDisplay,
+          pianoHeight: settings.pianoHeight,
+          transpose: settings.transpose,
+          transposingInstrument: settings.transposingInstrument,
+          practiceGuide: nextPracticeGuide,
+          enableEffects: !isUltraLightMode && settings.enableEffects,
+          effects: effectsConfig,
+          showHitLine: !isUltraLightMode,
+          lookaheadSeconds: rendererLookaheadSeconds
+        });
+      }
+      // AudioControllerに音声入力設定を反映
+      if (audioControllerRef.current) {
+        audioControllerRef.current.updateConfig({
+          pyinThreshold: settings.pyinThreshold
+        });
+      }
+    }, [
+      gameEngine,
+      updateEngineSettings,
+      pixiRenderer,
+      settings.noteNameStyle,
+      settings.simpleDisplayMode,
+      settings.pianoHeight,
+      settings.transpose,
+      settings.transposingInstrument,
+      settings.practiceGuide,
+      settings.pyinThreshold,
+      settings.enableEffects,
+      isUltraLightMode,
+      rendererLookaheadSeconds
+    ]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   

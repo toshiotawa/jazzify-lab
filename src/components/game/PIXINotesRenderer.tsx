@@ -181,6 +181,7 @@ interface RendererSettings {
   hitLineY: number;
   pianoHeight: number;
   noteSpeed: number;
+  enableEffects: boolean;
   colors: {
     visible: number;
     visibleBlack: number;
@@ -198,6 +199,7 @@ interface RendererSettings {
     particles: boolean;
     trails: boolean;
   };
+  lookaheadSeconds: number;
   /** 統一された音名表示モード（鍵盤・ノーツ共通）*/
   noteNameStyle: 'off' | 'abc' | 'solfege';
   /** 簡易表示モード: 複雑な音名を基本音名に変換 */
@@ -308,6 +310,7 @@ export class PIXINotesRendererInstance {
     hitLineY: 0,
       pianoHeight: 80, // デフォルトのピアノ高さをストアに合わせる
     noteSpeed: 400,
+      enableEffects: true,
     colors: {
       visible: 0x4A90E2,
       visibleBlack: 0x2C5282,
@@ -325,6 +328,7 @@ export class PIXINotesRendererInstance {
           particles: false,
           trails: false
         },
+      lookaheadSeconds: PIXI_LOOKAHEAD_SECONDS,
     noteNameStyle: 'off',
     simpleDisplayMode: false,
     transpose: 0,
@@ -1775,9 +1779,10 @@ export class PIXINotesRendererInstance {
     if (typeof currentTime !== 'number') return; // 絶対時刻が必要
     
     // ===== 巻き戻し検出とノートリスト更新 =====
-    const timeMovedBackward = currentTime < this.lastUpdateTime;
-    const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
-    const jumpThreshold = PIXI_LOOKAHEAD_SECONDS > 0 ? PIXI_LOOKAHEAD_SECONDS * 0.5 : 1;
+      const timeMovedBackward = currentTime < this.lastUpdateTime;
+      const timeDelta = Math.abs(currentTime - this.lastUpdateTime);
+      const lookaheadWindow = this.settings.lookaheadSeconds ?? PIXI_LOOKAHEAD_SECONDS;
+      const jumpThreshold = lookaheadWindow > 0 ? lookaheadWindow * 0.5 : 1;
     
     // ===== シーク検出: 時間が逆行または大きく飛んだ場合のみ =====
     const jumpedFar = timeDelta > jumpThreshold;
@@ -1804,7 +1809,7 @@ export class PIXINotesRendererInstance {
       }
       
       // GameEngineと同じ計算式を使用（統一化）
-      const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
+        const baseFallDuration = lookaheadWindow;
       const visualSpeedMultiplier = this.settings.noteSpeed;
       const totalDistance = this.settings.hitLineY - (-5); // 画面上端から判定ラインまで
       const speedPxPerSec = (totalDistance / baseFallDuration) * visualSpeedMultiplier;
@@ -2324,6 +2329,42 @@ export class PIXINotesRendererInstance {
     this.hitEffectPool.push(effect);
   }
 
+  private clearActiveHitEffects(): void {
+    if (this.activeHitEffects.size === 0) {
+      return;
+    }
+    this.activeHitEffects.forEach(({ instance }) => {
+      this.releaseHitEffect(instance);
+    });
+    this.activeHitEffects.clear();
+  }
+
+  private refreshGlowSprites(): void {
+    if (!this.effectsContainer) {
+      return;
+    }
+    this.noteSprites.forEach((noteSprite) => {
+      if (!this.settings.effects.glow) {
+        if (noteSprite.glowSprite) {
+          if (noteSprite.glowSprite.parent) {
+            noteSprite.glowSprite.parent.removeChild(noteSprite.glowSprite);
+          }
+          noteSprite.glowSprite.destroy({ children: true, texture: false, baseTexture: false });
+          noteSprite.glowSprite = undefined;
+        }
+        return;
+      }
+      if (!noteSprite.glowSprite || noteSprite.glowSprite.destroyed) {
+        const glowSprite = new PIXI.Graphics();
+        glowSprite.x = noteSprite.sprite.x;
+        glowSprite.y = noteSprite.sprite.y;
+        this.effectsContainer.addChild(glowSprite);
+        noteSprite.glowSprite = glowSprite;
+      }
+      this.drawGlowShape(noteSprite.glowSprite, noteSprite.noteData.state, noteSprite.noteData.pitch);
+    });
+  }
+
   private updateHitEffects(deltaMs: number): void {
     if (this.activeHitEffects.size === 0) {
       return;
@@ -2471,7 +2512,7 @@ export class PIXINotesRendererInstance {
   /**
    * 設定更新
    */
-  updateSettings(newSettings: Partial<RendererSettings>): void {
+    updateSettings(newSettings: Partial<RendererSettings>): void {
     log.info(`🔧 updateSettings called`);
     
     // 破棄後に呼ばれた場合の安全ガード
@@ -2486,13 +2527,30 @@ export class PIXINotesRendererInstance {
     const prevNoteNameStyle = this.settings.noteNameStyle;
     const prevSimpleDisplayMode = this.settings.simpleDisplayMode;
     const prevTransposingInstrument = this.settings.transposingInstrument;
+      const { effects: effectsPatch, enableEffects, ...otherSettings } = newSettings;
+      const sanitizedSettings = { ...otherSettings };
     
           // ★ ピアノ高さの最小値を保証
-      if (newSettings.pianoHeight !== undefined) {
-        newSettings.pianoHeight = Math.max(70, newSettings.pianoHeight); // 最小70px
+        if (sanitizedSettings.pianoHeight !== undefined) {
+          sanitizedSettings.pianoHeight = Math.max(70, sanitizedSettings.pianoHeight); // 最小70px
       }
     
-    Object.assign(this.settings, newSettings);
+      Object.assign(this.settings, sanitizedSettings);
+
+      if (effectsPatch) {
+        this.settings.effects = {
+          ...this.settings.effects,
+          ...effectsPatch
+        };
+        this.refreshGlowSprites();
+      }
+
+      if (enableEffects !== undefined) {
+        this.settings.enableEffects = enableEffects;
+        if (!enableEffects) {
+          this.clearActiveHitEffects();
+        }
+      }
 
     if (newSettings.showHitLine !== undefined && this.hitLineContainer) {
       this.hitLineContainer.visible = newSettings.showHitLine;

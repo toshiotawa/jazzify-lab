@@ -7,12 +7,18 @@ import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
 import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
-import type { TransposingInstrument } from '@/types';
+import type { TransposingInstrument, GameSettings } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+
+const PERFORMANCE_MODE_DESCRIPTIONS: Record<GameSettings['performanceMode'], string> = {
+  standard: '標準: すべてのエフェクトと機能を有効にしたフル品質モード',
+  lightweight: '軽量: 一部エフェクトと描画負荷を抑えて安定性を優先',
+  ultra_light: '超低負荷: エフェクト・マイク入力を無効化しノーツ表示も最小限に抑制'
+};
 
 /**
  * メインゲーム画面コンポーネント
@@ -1558,6 +1564,27 @@ const SettingsPanel: React.FC = () => {
                 className="slider"
               />
             </div>
+
+              {/* パフォーマンスモード */}
+              <div>
+                <label className="block text-sm font-medium text-gray-300 mb-2">
+                  パフォーマンスモード
+                </label>
+                <select
+                  value={settings.performanceMode}
+                  onChange={(e) =>
+                    gameActions.updateSettings({ performanceMode: e.target.value as GameSettings['performanceMode'] })
+                  }
+                  className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
+                >
+                  <option value="standard">標準（エフェクト有効）</option>
+                  <option value="lightweight">軽量（描画負荷を軽減）</option>
+                  <option value="ultra_light">超低負荷（マイク/エフェクト無効）</option>
+                </select>
+                <div className="text-xs text-gray-400">
+                  {PERFORMANCE_MODE_DESCRIPTIONS[settings.performanceMode]}
+                </div>
+              </div>
 
             {/* 再生スピード */}
             <div>
