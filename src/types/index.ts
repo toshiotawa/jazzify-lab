@@ -6,8 +6,6 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
-export type InputMode = 'midi' | 'audio' | 'both';
-
 // 移調楽器タイプ
 export type TransposingInstrument = 
   | 'concert_pitch'      // コンサートピッチ（移調なし）
@@ -142,7 +140,6 @@ export interface GameSettings {
   notesSpeed: number;          // 0.5-3.0
   playbackSpeed: number;       // 0.25-2.0
   instrumentMode: InstrumentMode;
-  inputMode: InputMode;
   
   // 判定設定
   allowOctaveError: boolean;   // オクターブ違いを正解にする
@@ -176,10 +173,6 @@ export interface GameSettings {
   
   // 入力デバイス
   selectedMidiDevice: string | null;
-  selectedAudioDevice: string | null;
-  
-  // 音声入力設定
-  pyinThreshold: number;       // 0.05-0.5 (PYIN ピッチ検出の閾値)
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)
@@ -192,34 +185,6 @@ export interface GameSettings {
   
   /** 練習モードのガイド設定: off | key | key_auto */
   practiceGuide?: 'off' | 'key' | 'key_auto';
-  
-  // ===== エフェクト設定 =====
-  /** エフェクト全般の有効/無効 */
-  enableEffects: boolean;
-  
-  /** キー押下時の即時エフェクト設定 */
-  keyPressEffect: {
-    /** エフェクト有効/無効 */
-    enabled: boolean;
-    /** 判定ライン近接の閾値係数（ノート高さに対する倍率） */
-    proximityThreshold: number; // デフォルト: 1.5
-    /** エフェクトサイズ倍率 */
-    sizeMultiplier: number; // デフォルト: 1.0
-    /** エフェクト持続時間（秒） */
-    duration: number; // デフォルト: 0.3
-  };
-  
-  /** ヒット判定エフェクト設定 */
-  hitEffect: {
-    /** エフェクト有効/無効 */
-    enabled: boolean;
-    /** エフェクトサイズ倍率 */
-    sizeMultiplier: number; // デフォルト: 1.0
-    /** エフェクト持続時間（秒） */
-    duration: number; // デフォルト: 0.3
-    /** エフェクトの透明度 */
-    opacity: number; // デフォルト: 1.0
-  };
   
   /** パフォーマンスモード（軽量化） */
   performanceMode: 'standard' | 'lightweight' | 'ultra_light';
@@ -312,7 +277,7 @@ export interface InputEvent {
   note: number;
   velocity?: number;
   timestamp: number;
-  source: InputMode;
+  source: 'midi';
 }
 
 export interface MidiDevice {
@@ -320,12 +285,6 @@ export interface MidiDevice {
   name: string;
   manufacturer?: string;
   connected: boolean;
-}
-
-export interface AudioDevice {
-  deviceId: string;
-  label: string;
-  kind: string;
 }
 
 // ===== 描画システム =====
@@ -534,84 +493,6 @@ export interface MidiControllerOptions {
   onConnectionChange?: (connected: boolean) => void;
   playMidiSound?: boolean; // 音声再生の有効/無効（デフォルト: true）
 }
-
-// ===== 音声入力・ピッチ検出関連 =====
-
-export interface AudioControllerOptions {
-  onNoteOn: (note: number, velocity?: number) => void;
-  onNoteOff: (note: number) => void;
-  onConnectionChange?: (connected: boolean) => void;
-}
-
-export interface SpectralPeak {
-  frequency: number;
-  magnitude: number;
-  index: number;
-}
-
-export interface SpectralAnalysis {
-  peaks: SpectralPeak[];
-  centroid: number;
-  spread: number;
-  clarity: number;
-}
-
-export interface PitchResult {
-  frequency: number;
-  confidence: number;
-  candidates?: PitchCandidate[];
-  observationProbs?: Float32Array;
-}
-
-export interface PitchCandidate {
-  frequency: number;
-  confidence: number;
-  midiNote: number;
-}
-
-export interface HMMState {
-  noteProbs: Float32Array;
-  prevStateProbs: Float32Array;
-  transitionMatrix: Float32Array;
-}
-
-// WASM関数の型定義
-export interface WASMModule {
-  alloc: (size: number) => number;
-  free: (ptr: number, size: number) => void;
-  get_memory: () => WebAssembly.Memory;
-  init_pitch_detector: (sample_rate: number) => void;
-  get_ring_buffer_ptr: () => number;
-  get_ring_buffer_size: () => number;
-  analyze_pitch: (ptr: number, length: number, sample_rate: number, yin_threshold: number) => number;
-  process_audio_block: (new_write_index: number) => number;
-}
-
-export interface PitchHistory {
-  note: number;
-  confidence: number;
-  timestamp: number;
-}
-
-export interface AudioProcessingSettings {
-  bufferSize: number;
-  lowFreqBufferSize: number;
-  minFrequency: number;
-  maxFrequency: number;
-  amplitudeThreshold: number;
-  consecutiveFramesThreshold: number;
-  noteOnThreshold: number;
-  noteOffThreshold: number;
-  maxAllowedPitchChange: number;
-  lowFrequencyThreshold: number;
-  lowFrequencyAmplitudeThreshold: number;
-  veryLowFreqThreshold: number;
-  pyinThreshold: number;
-  silenceThreshold: number;
-  adaptiveBuffering: boolean;
-}
-
-// ===== 既存のAudioDevice型の拡張 =====
 
 export interface ClearConditions {
   key?: number;
