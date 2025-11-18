@@ -57,100 +57,6 @@ class DisposeManager {
  * Tickerに登録/解除することで破棄されたオブジェクトを触らない仕組みを作る
  */
 
-/**
- * ノートスプライト用アップデータ
- */
-class NoteUpdater {
-  private isActive: boolean = true;
-
-  constructor(
-    private noteSprite: NoteSprite,
-    private settings: RendererSettings,
-    private disposeManager: DisposeManager
-  ) {
-    // 破棄処理を自動登録
-    disposeManager.add(() => this.dispose());
-  }
-
-  update = (delta: number): void => {
-    // ★ホットスポット: ここだけで破棄チェック
-    if (!this.isActive || this.noteSprite.sprite.destroyed) {
-      return;
-    }
-
-    try {
-      // 安全にスプライト更新
-      const sprite = this.noteSprite.sprite;
-      const noteData = this.noteSprite.noteData;
-      
-      // 位置更新（例）
-      if (sprite.parent && !sprite.destroyed) {
-      }
-    } catch (error) {
-      log.warn('⚠️ NoteUpdater error, disposing:', error);
-      this.dispose();
-    }
-  };
-
-  dispose(): void {
-    this.isActive = false;
-  }
-
-  get active(): boolean {
-    return this.isActive;
-  }
-}
-
-/**
- * エフェクト用アップデータ
- */
-class EffectUpdater {
-  private isActive: boolean = true;
-  private elapsed: number = 0;
-
-  constructor(
-    private effectContainer: PIXI.Container,
-    private duration: number,
-    private disposeManager: DisposeManager
-  ) {
-    disposeManager.add(() => this.dispose());
-  }
-
-  update = (delta: number): void => {
-    if (!this.isActive || this.effectContainer.destroyed) {
-      return;
-    }
-
-    try {
-      this.elapsed += delta * 16; // deltaTimeをミリ秒に変換
-      
-      if (this.elapsed >= this.duration) {
-        this.dispose();
-        return;
-      }
-
-      // エフェクト更新処理
-      const progress = this.elapsed / this.duration;
-      this.effectContainer.alpha = 1 - progress;
-      
-    } catch (error) {
-      log.warn('⚠️ EffectUpdater error, disposing:', error);
-      this.dispose();
-    }
-  };
-
-  dispose(): void {
-    this.isActive = false;
-    if (this.effectContainer && !this.effectContainer.destroyed) {
-      this.effectContainer.visible = false; // 即座に非表示
-    }
-  }
-
-  get active(): boolean {
-    return this.isActive;
-  }
-}
-
 // ===== ノート状態判定ヘルパー =====
 // Renderer 側では "good" / "perfect" / "hit" をすべて "当たり" とみなす
 const isHitState = (state: ActiveNote['state']) =>
@@ -276,16 +182,12 @@ export class PIXINotesRendererInstance {
   
   
   // ===== 新しい設計: 破棄管理＆アップデータシステム =====
-  private disposeManager: DisposeManager = new DisposeManager();
-    private noteUpdaters: Map<string, NoteUpdater> = new Map();
-    private effectUpdaters: Set<EffectUpdater> = new Set();
+    private disposeManager: DisposeManager = new DisposeManager();
     private activeHitEffects: Set<ActiveHitEffect> = new Set();
     private readonly hitEffectDurationMs = 120;
 
   
   // Ticker関数への参照（削除用）
-  private mainUpdateFunction?: (delta: number) => void;
-  private effectUpdateFunction?: (delta: number) => void;
   
   // リアルタイムアニメーション用
   // リアルタイムアニメーション用（将来の拡張用）
@@ -412,9 +314,6 @@ export class PIXINotesRendererInstance {
       log.error('❌ PIXI setup failed:', error);
     }
     
-    // ===== 新設計: Ticker管理を一元化 =====
-    this.setupTickerSystem();
-    
     // グローバルpointerupイベントで保険を掛ける（音が伸び続けるバグの最終防止）
     this.app.stage.on('globalpointerup', () => {
       // アクティブなキープレスを全て解除
@@ -433,70 +332,6 @@ export class PIXINotesRendererInstance {
 
   
   /**
-   * ===== 新設計: Tickerシステムのセットアップ =====
-   * 1. 更新ループとオブジェクトの結び付きを外せる構造
-   * 2. 破棄時に適切にTicker関数を削除
-   */
-  private setupTickerSystem(): void {
-    // メイン更新関数（ノートUpdater管理）
-    this.mainUpdateFunction = (delta: number) => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-      
-      // 全ノートUpdaterを更新
-      for (const [noteId, updater] of this.noteUpdaters) {
-        if (!updater.active) {
-          this.noteUpdaters.delete(noteId);
-          continue;
-        }
-        updater.update(delta);
-      }
-    };
-
-    // エフェクト更新関数（低頻度実行）
-    this.effectUpdateFunction = () => {
-      if (this.isDestroyed || this.disposeManager.disposed) return;
-
-      const deltaMs = PIXI.Ticker.shared.deltaMS;
-      this.effectsElapsed += deltaMs;
-
-      if (this.effectsElapsed >= 16) { // 更新頻度を約60fps→30fpsに制限
-        const normalizedDelta = this.effectsElapsed / 16;
-
-        for (const updater of this.effectUpdaters) {
-          if (!updater.active) {
-            this.effectUpdaters.delete(updater);
-            continue;
-          }
-          updater.update(normalizedDelta);
-        }
-
-        this.updateHitEffects(this.effectsElapsed);
-        this.effectsElapsed = 0;
-      }
-    };
-
-    // Tickerに登録
-    PIXI.Ticker.shared.add(this.mainUpdateFunction);
-    PIXI.Ticker.shared.add(this.effectUpdateFunction);
-
-    // 破棄時にTicker関数を削除するよう登録
-    this.disposeManager.add(() => {
-      if (this.mainUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.mainUpdateFunction);
-        this.mainUpdateFunction = undefined;
-      }
-      if (this.effectUpdateFunction) {
-        PIXI.Ticker.shared.remove(this.effectUpdateFunction);
-        this.effectUpdateFunction = undefined;
-      }
-    });
-
-
-
-    log.debug('✅ Ticker system setup completed');
-  }
-
-  /**
    * 🎯 統合フレーム制御でPIXIアプリケーションを開始
    */
   // GameEngineと同じunifiedFrameControllerを利用して描画ループを統合
@@ -513,6 +348,13 @@ export class PIXINotesRendererInstance {
         return;
       }
 
+        const deltaMs = this.app.ticker?.deltaMS ?? 16;
+        this.effectsElapsed += deltaMs;
+        if (this.effectsElapsed >= 16) {
+          this.updateHitEffects(this.effectsElapsed);
+          this.effectsElapsed = 0;
+        }
+        
       try {
         this.app.render();
       } catch (error) {
@@ -1797,11 +1639,14 @@ export class PIXINotesRendererInstance {
       this.refreshActiveNoteLookup(activeNotes);
       
       // GameEngine提供のアクティブノート一覧に合わせてスプライトを補充
-      for (const note of activeNotes) {
-        if (!this.noteSprites.has(note.id)) {
-          this.createNoteSprite(note);
+        for (const note of activeNotes) {
+          if (note.state !== 'visible') {
+            continue;
+          }
+          if (!this.noteSprites.has(note.id)) {
+            this.createNoteSprite(note);
+          }
         }
-      }
       
       // GameEngineと同じ計算式を使用（統一化）
       const baseFallDuration = PIXI_LOOKAHEAD_SECONDS;
@@ -2472,7 +2317,6 @@ export class PIXINotesRendererInstance {
    * 設定更新
    */
   updateSettings(newSettings: Partial<RendererSettings>): void {
-    log.info(`🔧 updateSettings called`);
     
     // 破棄後に呼ばれた場合の安全ガード
     // this.app.renderer は destroy() 後にプロパティが undefined になるためチェック
