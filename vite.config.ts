@@ -49,7 +49,7 @@ export default defineConfig(({ mode }) => {
       // 並列処理の最適化
       rollupOptions: {
         output: {
-          manualChunks: {
+            manualChunks: {
             'react-vendor': ['react', 'react-dom'],
             'pixi': ['pixi.js'],
             'audio': ['tone'],
@@ -57,7 +57,7 @@ export default defineConfig(({ mode }) => {
             'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
             'supabase': ['@supabase/supabase-js'],
             'stripe': ['@stripe/stripe-js'],
-            'music': ['opensheetmusicdisplay', 'tonal']
+              'music': ['vexflow', 'tonal']
           },
           chunkFileNames: 'assets/[name]-[hash].js',
           entryFileNames: 'assets/[name]-[hash].js',
@@ -84,7 +84,7 @@ export default defineConfig(({ mode }) => {
       }
     },
     optimizeDeps: {
-      include: [
+        include: [
         'react', 
         'react-dom', 
         'react-icons',
@@ -94,7 +94,7 @@ export default defineConfig(({ mode }) => {
         'immer',
         '@supabase/supabase-js',
         '@stripe/stripe-js',
-        'opensheetmusicdisplay',
+          'vexflow',
         'tonal',
         'pixi.js',
         'tone'

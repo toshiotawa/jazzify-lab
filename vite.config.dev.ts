@@ -37,7 +37,7 @@ export default defineConfig({
     outDir: 'dist',
     assetsDir: 'assets',
     rollupOptions: {
-      output: {
+        output: {
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'pixi': ['pixi.js'],
@@ -46,7 +46,7 @@ export default defineConfig({
           'utils': ['clsx', 'tailwind-merge', 'zustand', 'immer'],
           'supabase': ['@supabase/supabase-js'],
           'stripe': ['@stripe/stripe-js'],
-          'music': ['opensheetmusicdisplay', 'tonal']
+            'music': ['vexflow', 'tonal']
         },
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
@@ -68,7 +68,7 @@ export default defineConfig({
     }
   },
   optimizeDeps: {
-    include: [
+      include: [
       'react', 
       'react-dom', 
       'react-icons',
@@ -78,7 +78,7 @@ export default defineConfig({
       'immer',
       '@supabase/supabase-js',
       '@stripe/stripe-js',
-      'opensheetmusicdisplay',
+        'vexflow',
       'tonal',
       'pixi.js',
       'tone'
