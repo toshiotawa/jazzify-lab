@@ -29,7 +29,6 @@
     "@fortawesome/react-fontawesome": "^0.2.2",
     "@stripe/stripe-js": "^2.4.0",
     "@supabase/supabase-js": "^2.39.5",
-    "@tonejs/piano": "^0.2.1",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
@@ -44,12 +43,12 @@
     "react-hook-form": "^7.49.2",
     "react-icons": "^5.5.0",
     "react-router-dom": "^7.6.3",
+    "stripe": "^14.25.0",
     "tailwind-merge": "^2.6.0",
     "tailwindcss-animate": "^1.0.7",
     "tonal": "^6.4.2",
     "tone": "^14.7.77",
-    "zustand": "^4.4.7",
-    "stripe": "^14.25.0"
+    "zustand": "^4.4.7"
   },
   "devDependencies": {
     "@types/react": "^18.2.43",
