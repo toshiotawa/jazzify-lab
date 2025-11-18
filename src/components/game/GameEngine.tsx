@@ -1,16 +1,15 @@
 /**
- * Phase 3: ゲームエンジン + PIXI.js統合 UI コンポーネント
- * ゲームエンジンとPIXI.jsレンダリングの接続
+ * Phase 3: ゲームエンジン + Canvas 2D 統合 UI コンポーネント
+ * ゲームエンジンと描画レイヤーの接続
  */
 
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useEffect, useCallback, useState, useRef } from 'react';
-import { useGameStore } from '@/stores/gameStore';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
-import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
+import { CanvasNotesRenderer, CanvasNotesRendererInstance } from './CanvasNotesRenderer';
 import { LegendRenderBridge } from './LegendRenderBridge';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
@@ -66,7 +65,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   } = useGameActions();
   
   const showSeekbar = settings.showSeekbar;
-  const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+  const [legendRenderer, setLegendRenderer] = useState<CanvasNotesRendererInstance | null>(null);
   const renderBridgeRef = useRef<LegendRenderBridge | null>(null);
   if (!renderBridgeRef.current) {
     renderBridgeRef.current = new LegendRenderBridge();
@@ -548,18 +547,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       };
     }, [ensureMidiModule]);
 
-  // MIDIとPIXIの連携を管理する専用のuseEffect
-  useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
-        if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
+  // MIDIとレンダラーの連携を管理する専用のuseEffect
+    useEffect(() => {
+      const linkMidiAndRenderer = async () => {
+        // MIDIコントローラー、Canvasレンダラー、選択デバイスIDの3つが揃ったら実行
+          if (midiControllerRef.current && legendRenderer && settings.selectedMidiDevice) {
           // 1. 鍵盤ハイライト用のコールバックを設定
           midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-            pixiRenderer.highlightKey(note, active);
+              legendRenderer.highlightKey(note, active);
           });
           
-          // 2. デバイスに再接続して、設定したコールバックを有効化
-          log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to PIXI renderer.`);
+            // 2. デバイスに再接続して、設定したコールバックを有効化
+            log.info(`🔧 Linking MIDI device (${settings.selectedMidiDevice}) to Canvas renderer.`);
           const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
           if (success) {
             log.info('✅ MIDI device successfully linked to renderer.');
@@ -573,14 +572,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
     };
 
-    linkMidiAndPixi();
-    
-  }, [pixiRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
+      linkMidiAndRenderer();
+      
+    }, [legendRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {
-    const restoreMidiConnection = async () => {
-      if (midiControllerRef.current && settings.selectedMidiDevice && pixiRenderer) {
+      const restoreMidiConnection = async () => {
+        if (midiControllerRef.current && settings.selectedMidiDevice && legendRenderer) {
         const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
         if (isRestored) {
           log.info('✅ 楽曲変更後のMIDI接続を復元しました');
@@ -591,7 +590,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     // 少し遅延を入れて確実に復元
     const timer = setTimeout(restoreMidiConnection, 200);
     return () => clearTimeout(timer);
-  }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
+    }, [currentSong, settings.selectedMidiDevice, legendRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
 
   // ゲームエンジン初期化
   useEffect(() => {
@@ -626,8 +625,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [gameEngine, setLastKeyHighlight]);
   
   // 練習モードガイド: キーハイライト処理
-  useEffect(() => {
-    if (lastKeyHighlight && pixiRenderer && settings.practiceGuide !== 'off' && isPlaying) {
+    useEffect(() => {
+      if (lastKeyHighlight && legendRenderer && settings.practiceGuide !== 'off' && isPlaying) {
       const { pitch, timestamp } = lastKeyHighlight;
       const currentTimestamp = performance.now() / 1000;
       
@@ -635,25 +634,25 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
         
         // キーをハイライト
-        pixiRenderer.highlightKey(pitch, true);
+          legendRenderer.highlightKey(pitch, true);
         
         // 一定時間後にハイライトを解除
         setTimeout(() => {
-          if (pixiRenderer) {
-            pixiRenderer.highlightKey(pitch, false);
+            if (legendRenderer) {
+              legendRenderer.highlightKey(pitch, false);
           }
         }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
       }
     }
-  }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
+    }, [lastKeyHighlight, legendRenderer, settings.practiceGuide, isPlaying]);
   
   // 設定変更時の更新（transpose を含む）
-  useEffect(() => {
-    if (gameEngine) {
-      updateEngineSettings();
-    }
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
+    useEffect(() => {
+      if (gameEngine) {
+        updateEngineSettings();
+      }
+      if (legendRenderer) {
+        legendRenderer.updateSettings({
         noteNameStyle: settings.noteNameStyle,
         simpleDisplayMode: settings.simpleDisplayMode,
         pianoHeight: settings.pianoHeight,
@@ -662,9 +661,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         practiceGuide: settings.practiceGuide ?? 'key'
       });
     }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide]);
+    }, [gameEngine, updateEngineSettings, legendRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide]);
   
-  // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
+    // 練習モードガイド: キーハイライト処理はCanvasレンダラー側で直接実行
   
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
   useEffect(() => {
@@ -784,17 +783,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         });
     }, [ensureMidiModule]);
 
-  // ================= PIXI.js レンダラー準備完了ハンドラー =================
-  const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+  // ================= Canvasレンダラー準備完了ハンドラー =================
+  const handleRendererReady = useCallback((renderer: CanvasNotesRendererInstance | null) => {
     if (!renderer) {
       // 破棄通知
       renderBridgeRef.current?.attachRenderer(null);
-      setPixiRenderer(null);
+      setLegendRenderer(null);
       return;
     }
     
-      log.info('🎮 PIXI.js renderer ready, setting up callbacks...');
-    setPixiRenderer(renderer);
+      log.info('🎮 Canvas renderer ready, setting up callbacks...');
+    setLegendRenderer(renderer);
     renderBridgeRef.current?.attachRenderer(renderer);
     
     // 初期設定を反映
@@ -823,11 +822,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         renderer.highlightKey(note, active);
       });
       
-      log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
+        log.info('✅ MIDIController ↔ Canvasレンダラー連携完了');
     }
 
-    log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+      log.info('🎮 Canvasノーツレンダラー準備完了');
+    }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
@@ -906,7 +905,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
   return (
     <div className={cn("h-full w-full flex flex-col", className)}>
-      {/* Phase 3: PIXI.js ノーツ表示エリア - フル高さ */}
+        {/* Phase 3: Canvas 2D ノーツ表示エリア - フル高さ */}
       <div 
         ref={gameAreaRef}
         className="relative flex-1 bg-gray-900 rounded-lg overflow-hidden"
@@ -919,7 +918,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           <span className="text-red-400">× {score.missCount}</span>
         </div>
         )}
-        {/* PIXI.js ノーツレンダラー（統合済み） */}
+          {/* Canvas 2D ノーツレンダラー */}
         {(() => {
           const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
           const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
@@ -961,12 +960,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 WebkitTouchCallout: 'none',
                 position: 'relative'
               }}>
-                {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
-                
-                  <PIXINotesRenderer
+                  <CanvasNotesRenderer
                     width={idealWidth}
                     height={gameAreaSize.height}
-                    onReady={handlePixiReady}
+                      onReady={handleRendererReady}
                     className="w-full h-full"
                   />
                 <ChordOverlay />
@@ -992,7 +989,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 };
 
 // ===== サブコンポーネント =====
-// 注：Phase 3でPIXI.jsレンダリングに移行済み
-// HTMLベースのピアノキーボードは削除し、PIXI.js側で統一
+// 注：Phase 3でCanvas 2Dレンダリングに移行済み
+// HTMLベースのピアノキーボードは削除し、Canvas側で統一
 
 export default GameEngineComponent; 
