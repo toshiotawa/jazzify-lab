@@ -501,21 +501,67 @@ export class PIXINotesRendererInstance {
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    ctx.fillStyle = this.colors.whiteKey;
-    ctx.strokeStyle = 'rgba(15,23,42,0.4)';
-    ctx.lineWidth = 1;
+    const whiteTop = this.settings.hitLineY;
+    const whiteHeight = this.settings.pianoHeight;
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      ctx.fillRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
-      ctx.strokeRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
+      const keyX = key.x + 0.4;
+      const keyWidth = Math.max(1, key.width - 0.8);
+      const keyY = whiteTop + 0.4;
+      const keyHeight = Math.max(whiteHeight - 0.8, 1);
+      const radius = Math.min(8, keyWidth * 0.25);
+      const bodyGradient = ctx.createLinearGradient(keyX, keyY, keyX, keyY + keyHeight);
+      bodyGradient.addColorStop(0, '#fefefe');
+      bodyGradient.addColorStop(0.65, '#e2e8f0');
+      bodyGradient.addColorStop(1, '#cbd5f5');
+      ctx.fillStyle = bodyGradient;
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.fill();
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.save();
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.clip();
+      const glossGradient = ctx.createLinearGradient(keyX, keyY, keyX, keyY + keyHeight * 0.55);
+      glossGradient.addColorStop(0, 'rgba(255,255,255,0.55)');
+      glossGradient.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+      glossGradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glossGradient;
+      ctx.fillRect(keyX, keyY, keyWidth, keyHeight * 0.6);
+      ctx.restore();
     }
-    ctx.fillStyle = this.colors.blackKey;
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
       const top = this.settings.hitLineY;
-      ctx.fillRect(key.x, top, key.width, key.height);
+      const keyX = key.x + 0.3;
+      const keyWidth = Math.max(1, key.width - 0.6);
+      const keyHeight = key.height;
+      const radius = Math.min(4, keyWidth * 0.3);
+      const bodyGradient = ctx.createLinearGradient(keyX, top, keyX, top + keyHeight);
+      bodyGradient.addColorStop(0, '#111827');
+      bodyGradient.addColorStop(0.5, '#0f172a');
+      bodyGradient.addColorStop(1, '#1f2937');
+      ctx.fillStyle = bodyGradient;
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.fill();
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      ctx.save();
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.clip();
+      const glossGradient = ctx.createLinearGradient(keyX, top, keyX, top + keyHeight * 0.5);
+      glossGradient.addColorStop(0, 'rgba(255,255,255,0.3)');
+      glossGradient.addColorStop(0.4, 'rgba(255,255,255,0.08)');
+      glossGradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glossGradient;
+      ctx.fillRect(keyX, top, keyWidth, keyHeight * 0.5);
+      ctx.restore();
     }
     ctx.restore();
   }
@@ -526,7 +572,7 @@ export class PIXINotesRendererInstance {
       return;
     }
     ctx.save();
-    const alternatingFill = 'rgba(148,163,184,0.04)';
+    const alternatingFill = 'rgba(148,163,184,0.07)';
     const accentFill = 'rgba(59,130,246,0.08)';
     const baseStroke = 'rgba(148,163,184,0.12)';
     const accentStroke = 'rgba(59,130,246,0.35)';
@@ -567,6 +613,25 @@ export class PIXINotesRendererInstance {
       prevMidi = midi;
     }
     ctx.restore();
+  }
+
+  private drawTopRoundedRectPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ): void {
+    const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.lineTo(x + width - safeRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    ctx.lineTo(x + width, y + height);
+    ctx.closePath();
   }
 
   private drawHitLine(ctx: CanvasRenderingContext2D): void {
