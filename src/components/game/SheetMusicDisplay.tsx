@@ -266,52 +266,64 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [notes]);
 
   // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-  useEffect(() => {
-    if (isPlaying && scrollContainerRef.current) {
-      // 再生開始時に即座にスクロール位置を0にリセット
-      scrollContainerRef.current.scrollLeft = 0;
-      log.info('🎵 楽譜スクロールを開始位置にリセット');
-    }
-  }, [isPlaying]);
+    useEffect(() => {
+      if (isPlaying && scrollContainerRef.current) {
+        // 再生開始時に即座にスクロール位置を0にリセット
+        scrollContainerRef.current.scrollLeft = 0;
+        lastScrollXRef.current = 0;
+        lastRenderedIndexRef.current = -1;
+        log.info('🎵 楽譜スクロールを開始位置にリセット');
+      }
+    }, [isPlaying]);
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      const scrollContainer = scrollContainerRef.current;
+      const wrapper = scoreWrapperRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !scrollContainer) {
         return;
       }
 
       const currentTimeMs = currentTime * 1000;
-
-      const findNextIndex = () => {
+      const findActiveIndex = () => {
+        if (mapping.length === 0) {
+          return 0;
+        }
         let low = 0;
         let high = mapping.length - 1;
+        let result = 0;
         while (low <= high) {
           const mid = Math.floor((low + high) / 2);
           if (mapping[mid].timeMs <= currentTimeMs) {
+            result = mid;
             low = mid + 1;
           } else {
             high = mid - 1;
           }
         }
-        return Math.min(low, mapping.length - 1);
+        return result;
       };
 
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+      const activeIndex = findActiveIndex();
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+      const targetEntry = mapping[activeIndex] ?? mapping[0];
       const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const desiredScroll = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const maxScrollable =
+        Math.max(0, (wrapper?.scrollWidth ?? scrollContainer.scrollWidth) - scrollContainer.clientWidth);
+      const clampedScroll = Math.min(desiredScroll, maxScrollable);
 
+      const needsScrollUpdate = Math.abs(clampedScroll - lastScrollXRef.current) > 0.5;
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if (needsScrollUpdate) {
+        scrollContainer.scrollLeft = clampedScroll;
+        lastScrollXRef.current = clampedScroll;
+      }
+      if (needsIndexUpdate) {
         lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
       }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
 
@@ -408,19 +420,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           </div>
         )}
         
-        {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
+          {/* OSMDレンダリング用コンテナ */}
+            <div 
+              ref={scoreWrapperRef}
+              className="h-full"
+              style={{ 
+                minWidth: '3000px' // 十分な幅を確保
+              }}
+            >
           <div 
             ref={containerRef} 
             className="h-full flex items-center"
