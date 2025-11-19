@@ -62,6 +62,8 @@ const ControlBar: React.FC = () => {
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
   const songDuration = currentSong?.duration || 0;
+  const primaryPlaybackIconSize = 28;
+  const secondaryPlaybackIconSize = 22;
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -231,35 +233,35 @@ const ControlBar: React.FC = () => {
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
-              <button
-                onClick={handleSkipBackward}
+                <button
+                  onClick={handleSkipBackward}
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒戻る"
+                  aria-label="5秒戻る"
+                >
+                  <FaBackward aria-hidden="true" size={secondaryPlaybackIconSize} />
+                </button>
 
-                className="control-btn control-btn-xxs control-btn-secondary"
-                title="5秒戻る"
-              >
-                <FaBackward />
-              </button>
+                <button
+                  onClick={() => (isPlaying ? pauseAction() : play())}
+                  className="control-btn control-btn-xxs control-btn-primary"
+                  disabled={!currentSong}
+                  title={isPlaying ? '一時停止' : '再生'}
+                  aria-label={isPlaying ? '一時停止' : '再生'}
+                >
+                  {isPlaying
+                    ? <FaPause aria-hidden="true" size={primaryPlaybackIconSize} />
+                    : <FaPlay aria-hidden="true" size={primaryPlaybackIconSize} />}
+                </button>
 
-              <button
-                onClick={() => isPlaying ? pauseAction() : play()}
-
-                className="control-btn control-btn-xxs control-btn-primary"
-
-                disabled={!currentSong}
-                title={isPlaying ? '一時停止' : '再生'}
-              >
-                {isPlaying ? <FaPause /> : <FaPlay />}
-              </button>
-
-              <button
-                onClick={handleSkipForward}
-
-                className="control-btn control-btn-xxs control-btn-secondary"
-
-                title="5秒進む"
-              >
-                <FaForward />
-              </button>
+                <button
+                  onClick={handleSkipForward}
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒進む"
+                  aria-label="5秒進む"
+                >
+                  <FaForward aria-hidden="true" size={secondaryPlaybackIconSize} />
+                </button>
 
               {/* ループコントロール */}
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
@@ -346,30 +348,27 @@ const ControlBar: React.FC = () => {
           ) : (
             // 本番モード: 再生/最初に戻るボタン（状況に応じて動作変化）
             <>
-              <button
-                onClick={handlePlayOrRestart}
+                <button
+                  onClick={handlePlayOrRestart}
+                  className="control-btn control-btn-xxs control-btn-primary"
+                  disabled={!currentSong}
+                  title={currentTime > 0 ? '最初に戻って再生' : '再生'}
+                  aria-label={currentTime > 0 ? '最初に戻って再生' : '再生'}
+                >
+                  {currentTime > 0
+                    ? <MdReplay aria-hidden="true" size={primaryPlaybackIconSize} />
+                    : <FaPlay aria-hidden="true" size={primaryPlaybackIconSize} />}
+                </button>
 
-                className="control-btn control-btn-xxs control-btn-primary"
-
-                disabled={!currentSong}
-                title={
-                  currentTime > 0
-                    ? '最初に戻って再生'
-                    : '再生'
-                }
-              >
-                {currentTime > 0 ? <MdReplay /> : <FaPlay />}
-              </button>
-
-              <button
-                onClick={() => stop()}
-                className="control-btn control-btn-xxs control-btn-secondary"
-
-                disabled={!currentSong}
-                title="停止"
-              >
-                <FaStop />
-              </button>
+                <button
+                  onClick={() => stop()}
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  disabled={!currentSong}
+                  title="停止"
+                  aria-label="停止"
+                >
+                  <FaStop aria-hidden="true" size={secondaryPlaybackIconSize} />
+                </button>
 
               {/* 移調コントロール（レッスンモード・ミッションモードでは非表示） */}
               {!lessonContext && !missionContext && (

@@ -1525,22 +1525,22 @@ const SettingsPanel: React.FC = () => {
               <div className="text-xs text-gray-400 mb-2">
                 ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）
               </div>
-              <input
-                type="range"
-                min="-200"
-                max="200"
-                step="1"
-                value={settings.timingAdjustment}
-                onChange={(e) => 
-                  gameActions.updateSettings({ timingAdjustment: parseInt(e.target.value) })
-                }
-                className="slider"
-              />
-              <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>-200ms (早く)</span>
-                <span>0ms</span>
-                <span>+200ms (遅く)</span>
-              </div>
+                <input
+                  type="range"
+                  min="-400"
+                  max="400"
+                  step="1"
+                  value={settings.timingAdjustment}
+                  onChange={(e) => 
+                    gameActions.updateSettings({ timingAdjustment: parseInt(e.target.value) })
+                  }
+                  className="slider"
+                />
+                <div className="flex justify-between text-xs text-gray-500 mt-1">
+                  <span>-400ms (早く)</span>
+                  <span>0ms</span>
+                  <span>+400ms (遅く)</span>
+                </div>
             </div>
 
             {/* オクターブ違い許容設定 */}
