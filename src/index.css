@@ -350,6 +350,36 @@
            focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-opacity-40
            active:scale-95 overflow-hidden
            flex items-center justify-center leading-none;
+    min-width: 52px;
+    min-height: 52px;
+  }
+  
+  .control-btn svg {
+    width: 1.35em;
+    height: 1.35em;
+    flex-shrink: 0;
+  }
+  
+  .control-btn-xxs {
+    @apply px-4 py-3 text-base;
+    min-width: 52px;
+    min-height: 52px;
+  }
+  
+  @media (max-width: 480px) {
+    .control-btn-xxs {
+      @apply px-5 py-4 text-lg;
+      min-width: 60px;
+      min-height: 60px;
+    }
+  }
+  
+  @supports (-webkit-touch-callout: none) {
+    .control-btn,
+    .control-btn-xxs {
+      min-width: 60px;
+      min-height: 60px;
+    }
   }
   
   .control-btn:before {
@@ -401,6 +431,17 @@
     box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4);
     @apply focus:ring-emerald-500;
     animation: pulseLoop 2s ease-in-out infinite;
+  }
+  
+  .control-btn-danger {
+    background: linear-gradient(135deg, #f87171 0%, #ef4444 40%, #b91c1c 100%);
+    box-shadow: 0 4px 15px rgba(248, 113, 113, 0.45);
+    @apply focus:ring-red-500 text-white;
+  }
+  
+  .control-btn-danger:hover {
+    background: linear-gradient(135deg, #fca5a5 0%, #f87171 40%, #ef4444 100%);
+    box-shadow: 0 6px 20px rgba(248, 113, 113, 0.6);
   }
   
   .control-btn-loop-active:hover {

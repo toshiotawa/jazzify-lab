@@ -930,7 +930,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
           let idealWidth: number;
           let displayMode: string;
-          if (gameAreaSize.width >= adjustedThreshold) {
+            if (gameAreaSize.width >= adjustedThreshold) {
             // PC 等、画面が十分広い → 88鍵全表示（スクロール不要）
             idealWidth = gameAreaSize.width;
             displayMode = 'PC_FULL_88_KEYS';
@@ -941,6 +941,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             displayMode = 'MOBILE_SCROLL';
           }
           
+            const enableSwipeScroll = displayMode === 'MOBILE_SCROLL';
           
           return (
             <div 
@@ -966,8 +967,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                   <PIXINotesRenderer
                     width={idealWidth}
                     height={gameAreaSize.height}
-                    onReady={handlePixiReady}
+                      onReady={handlePixiReady}
                     className="w-full h-full"
+                      enableSwipeScroll={enableSwipeScroll}
                   />
                 <ChordOverlay />
               </div>
