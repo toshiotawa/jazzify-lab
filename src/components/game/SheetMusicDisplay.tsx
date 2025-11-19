@@ -18,10 +18,10 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scoreWrapperRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
+    const scoreWrapperRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
@@ -266,52 +266,64 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [notes]);
 
   // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-  useEffect(() => {
-    if (isPlaying && scrollContainerRef.current) {
-      // 再生開始時に即座にスクロール位置を0にリセット
-      scrollContainerRef.current.scrollLeft = 0;
-      log.info('🎵 楽譜スクロールを開始位置にリセット');
-    }
-  }, [isPlaying]);
+    useEffect(() => {
+      if (isPlaying && scrollContainerRef.current) {
+        // 再生開始時に即座にスクロール位置を0にリセット
+        scrollContainerRef.current.scrollLeft = 0;
+        lastScrollXRef.current = 0;
+        lastRenderedIndexRef.current = -1;
+        log.info('🎵 楽譜スクロールを開始位置にリセット');
+      }
+    }, [isPlaying]);
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      const scrollContainer = scrollContainerRef.current;
+      const wrapper = scoreWrapperRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !scrollContainer) {
         return;
       }
 
       const currentTimeMs = currentTime * 1000;
-
-      const findNextIndex = () => {
+      const findActiveIndex = () => {
+        if (mapping.length === 0) {
+          return 0;
+        }
         let low = 0;
         let high = mapping.length - 1;
+        let result = 0;
         while (low <= high) {
           const mid = Math.floor((low + high) / 2);
           if (mapping[mid].timeMs <= currentTimeMs) {
+            result = mid;
             low = mid + 1;
           } else {
             high = mid - 1;
           }
         }
-        return Math.min(low, mapping.length - 1);
+        return result;
       };
 
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+      const activeIndex = findActiveIndex();
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+      const targetEntry = mapping[activeIndex] ?? mapping[0];
       const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const desiredScroll = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const maxScrollable =
+        Math.max(0, (wrapper?.scrollWidth ?? scrollContainer.scrollWidth) - scrollContainer.clientWidth);
+      const clampedScroll = Math.min(desiredScroll, maxScrollable);
 
+      const needsScrollUpdate = Math.abs(clampedScroll - lastScrollXRef.current) > 0.5;
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if (needsScrollUpdate) {
+        scrollContainer.scrollLeft = clampedScroll;
+        lastScrollXRef.current = clampedScroll;
+      }
+      if (needsIndexUpdate) {
         lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
       }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
 
@@ -360,36 +372,35 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
-      } as React.CSSProperties}
-    >
+    <div className={cn("relative h-full", className)}>
       {/* プレイヘッド（赤い縦線） */}
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
         style={{ left: '120px' }}
       />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
+      <div 
+        className={cn(
+          "relative bg-white text-black h-full",
+          // 再生中は横スクロール無効、停止中は横スクロール有効
+          isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
+          // カスタムスクロールバースタイルを適用
+          "custom-sheet-scrollbar"
+        )}
+        ref={scrollContainerRef}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          // WebKit系ブラウザ用のカスタムスクロールバー
+          ...(!isPlaying && {
+            '--scrollbar-width': '8px',
+            '--scrollbar-track-color': '#f3f4f6',
+            '--scrollbar-thumb-color': '#9ca3af',
+            '--scrollbar-thumb-hover-color': '#6b7280'
+          })
+        } as React.CSSProperties}
+      >
+        {/* 楽譜コンテナ - 上部に余白を追加 */}
+        <div className="relative h-full pt-8 pb-4">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
             <div className="text-black">楽譜を読み込み中...</div>
@@ -408,27 +419,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           </div>
         )}
         
-        {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
-          <div 
-            ref={containerRef} 
-            className="h-full flex items-center"
-          />
+          {/* OSMDレンダリング用コンテナ */}
+            <div 
+              ref={scoreWrapperRef}
+              className="relative h-full min-w-[3000px]"
+            >
+            <div 
+              ref={containerRef} 
+              className="h-full flex items-center"
+            />
+          </div>
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };
