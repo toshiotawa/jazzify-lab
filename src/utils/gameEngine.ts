@@ -357,13 +357,15 @@ export class GameEngine {
   
   clearABRepeat(): void {}
   
-  updateSettings(settings: GameSettings): void {
-    const prevSpeed = this.settings.playbackSpeed ?? 1;
+    updateSettings(settings: GameSettings): void {
+      const prevSpeed = this.settings.playbackSpeed ?? 1;
+      const prevTimingAdjustment = this.settings.timingAdjustment ?? 0;
     // 現在の論理時間を保持（旧スピードで計算）
     const currentLogicalTime = this.getCurrentTime();
 
     // 設定更新
     this.settings = settings;
+      const timingChanged = (this.settings.timingAdjustment ?? 0) !== prevTimingAdjustment;
 
     // 本番モードでは練習モードガイドを無効化
     if (this.settings.practiceGuide !== 'off') {
@@ -385,14 +387,18 @@ export class GameEngine {
       // devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`);
     }
 
-    // notesSpeed が変化した場合、未処理ノートの appearTime を更新
-    const dynamicLookahead = this.getLookaheadTime();
-    this.notes.forEach((note) => {
-      // まだ appearTime を計算済みでも更新（タイミング調整を含める）
-      note.appearTime = note.time + this.getTimingAdjSec() - dynamicLookahead;
-    });
-    const lookBehind = Math.max(0, this.getCurrentTime() - dynamicLookahead);
-    this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
+      if (timingChanged) {
+        // timingAdjustment変更時は処理済みフラグをリセットして完全に再計算
+        this.resetNoteProcessing(this.getCurrentTime());
+      } else {
+        // notesSpeed 等が変化した場合、未処理ノートの appearTime を更新
+        const dynamicLookahead = this.getLookaheadTime();
+        this.notes.forEach((note) => {
+          note.appearTime = note.time + this.getTimingAdjSec() - dynamicLookahead;
+        });
+        const lookBehind = Math.max(0, this.getCurrentTime() - dynamicLookahead);
+        this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
+      }
   }
   
   destroy(): void {
