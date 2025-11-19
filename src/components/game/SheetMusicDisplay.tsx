@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -12,6 +12,22 @@ interface SheetMusicDisplayProps {
 interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
+}
+
+interface BoundingBoxInfo {
+  width?: number;
+}
+
+interface GraphicNoteShape {
+  AbsolutePosition?: { x: number };
+  BoundingBox?: BoundingBoxInfo;
+}
+
+interface SourceNoteMeta {
+  isRest?: () => boolean;
+  NoteTie?: {
+    StartNote?: unknown;
+  };
 }
 
 /**
@@ -45,8 +61,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     settings: s.settings, // 簡易表示設定を取得
   }));
   const shouldRenderSheet = settings.showSheetMusic;
+  const {
+    noteNameStyle,
+    simpleDisplayMode,
+    sheetMusicChordsOnly
+  } = settings;
   
   // const gameActions = useGameActions(); // 現在未使用
+  
   
   // OSMDの初期化とレンダリング
   const loadAndRenderSheet = useCallback(async () => {
@@ -85,12 +107,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       
       // 🎯 簡易表示設定に基づいてMusicXMLを前処理
         const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
-        simpleDisplayMode: settings.simpleDisplayMode,
-        noteNameStyle: settings.noteNameStyle,
-        chordsOnly: settings.sheetMusicChordsOnly
+        simpleDisplayMode,
+        noteNameStyle,
+        chordsOnly: sheetMusicChordsOnly
       });
       
-      log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
+      log.info(`🎼 OSMD簡易表示: ${simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${noteNameStyle}`);
       
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
@@ -116,7 +138,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
 
-      if (settings.sheetMusicChordsOnly) {
+        if (sheetMusicChordsOnly) {
         const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
         noteEls.forEach(el => {
           (el as HTMLElement).style.display = 'none';
@@ -124,13 +146,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       }
       
       // レンダリング後に正確なスケールファクターを計算
-      const svgElement = containerRef.current.querySelector('svg');
-      const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
+        const svgElement = containerRef.current.querySelector('svg');
+        const graphicSheet = osmdRef.current.GraphicSheet as { BoundingBox?: BoundingBoxInfo } | undefined;
+        const boundingBox = graphicSheet?.BoundingBox;
 
-      if (svgElement && boundingBox && boundingBox.width > 0) {
+        if (svgElement && boundingBox && (boundingBox.width ?? 0) > 0) {
         // レンダリングされたSVGの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
         const svgWidth = svgElement.width.baseVal.value;
-        const osmdWidth = boundingBox.width;
+          const osmdWidth = boundingBox.width ?? 0;
         scaleFactorRef.current = svgWidth / osmdWidth;
         log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
       } else {
@@ -154,11 +177,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }, [
       shouldRenderSheet,
     musicXml,
-    notes,
-    settings.simpleDisplayMode,
-    settings.noteNameStyle,
-    settings.sheetMusicChordsOnly,
-    settings.transpose
+    simpleDisplayMode,
+    noteNameStyle,
+    sheetMusicChordsOnly,
+    createTimeMapping
   ]); // 簡易表示設定とトランスポーズを依存関係に追加
 
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
@@ -202,19 +224,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           for (const measure of staffLine.Measures) {
             for (const staffEntry of measure.staffEntries) {
               for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
-                    continue;
+                  for (const graphicNote of voice.notes) {
+                    const sourceNoteMeta: SourceNoteMeta | undefined = graphicNote.sourceNote as SourceNoteMeta | undefined;
+                    // isRest() が true、または sourceNote がない場合は休符と見なす
+                    if (!graphicNote.sourceNote || sourceNoteMeta?.isRest?.()) {
+                      continue;
+                    }
+                    
+                    // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
+                    if (sourceNoteMeta?.NoteTie && !sourceNoteMeta.NoteTie.StartNote) {
+                      continue;
+                    }
+                    
+                    osmdPlayableNotes.push(graphicNote);
                   }
-                  
-                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
-                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
-                    continue;
-                  }
-                  
-                  osmdPlayableNotes.push(graphicNote);
-                }
               }
             }
           }
@@ -229,23 +252,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                   if (noteIndex < notes.length) {
                     const note = notes[noteIndex];
                     // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+                      const positionAndShape = graphicNote.PositionAndShape as GraphicNoteShape | undefined;
+                      const noteHeadX = positionAndShape?.AbsolutePosition?.x;
 
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
+                      if (noteHeadX !== undefined) {
+                        let centerX = noteHeadX;
+                        // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
+                        if (positionAndShape?.BoundingBox?.width !== undefined) {
+                          const noteHeadWidth = positionAndShape.BoundingBox.width ?? 0;
+                          centerX += noteHeadWidth / 2;
+                        }
+
+                        mapping.push({
+                          timeMs: note.time * 1000, // 秒をミリ秒に変換
+                          // 動的に計算したスケール係数を使用
+                          xPosition: centerX * scaleFactorRef.current
+                        });
                       }
-
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
-                      });
-                    }
                     noteIndex++;
       }
     }
@@ -412,71 +435,68 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }
 
   return (
+    <div className={cn('relative h-full', className)}>
+      <div 
+        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-30"
+        style={{ left: '120px' }}
+      />
       <div 
         className={cn(
-          "relative bg-white text-black overflow-x-auto overflow-y-hidden",
-          "custom-sheet-scrollbar",
-          className
+          "bg-white text-black overflow-x-auto overflow-y-hidden h-full",
+          "custom-sheet-scrollbar"
         )}
         ref={scrollContainerRef}
         onMouseEnter={() => setIsHovered(true)}
         onMouseLeave={() => setIsHovered(false)}
         onPointerDown={() => markManualOverride()}
         onTouchStart={() => markManualOverride()}
-      style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
-      } as React.CSSProperties}
-    >
-      {/* プレイヘッド（赤い縦線） */}
-      <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-        style={{ left: '120px' }}
-      />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-black">楽譜を読み込み中...</div>
-          </div>
-        )}
-        
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-red-600">エラー: {error}</div>
-          </div>
-        )}
-        
-        {(!musicXml && !isLoading) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-gray-600">楽譜データがありません</div>
-          </div>
-        )}
-        
-        {/* OSMDレンダリング用コンテナ */}
+        style={{
+          // WebKit系ブラウザ用のカスタムスクロールバー
+          ...(!isPlaying && {
+            '--scrollbar-width': '8px',
+            '--scrollbar-track-color': '#f3f4f6',
+            '--scrollbar-thumb-color': '#9ca3af',
+            '--scrollbar-thumb-hover-color': '#6b7280'
+          })
+        } as React.CSSProperties}
+      >
+        {/* 楽譜コンテナ - 上部に余白を追加 */}
+        <div className="relative h-full pt-8 pb-4">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-black">楽譜を読み込み中...</div>
+            </div>
+          )}
+          
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-red-600">エラー: {error}</div>
+            </div>
+          )}
+          
+          {(!musicXml && !isLoading) && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-gray-600">楽譜データがありません</div>
+            </div>
+          )}
+          
+          {/* OSMDレンダリング用コンテナ */}
+              <div 
+                className={cn(
+                  "h-full",
+                  !isPlaying ? "transition-transform duration-100 ease-out" : ""
+                )}
+                style={{ 
+                  minWidth: '3000px'
+                }}
+              >
             <div 
-              className={cn(
-                "h-full",
-                !isPlaying ? "transition-transform duration-100 ease-out" : ""
-              )}
-              style={{ 
-                minWidth: '3000px'
-              }}
-            >
-          <div 
-            ref={containerRef} 
-            className="h-full flex items-center"
-          />
+              ref={containerRef} 
+              className="h-full flex items-center"
+            />
+          </div>
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };
