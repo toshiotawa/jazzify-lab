@@ -86,11 +86,29 @@ interface ChannelState {
   skipCount: number;
 }
 
+export interface FrameStats {
+  channel: FrameChannel;
+  sampleCount: number;
+  average: number;
+  min: number;
+  max: number;
+}
+
+export interface FrameToken {
+  channel: FrameChannel;
+  label: string;
+  startMark: string;
+  startTime: number;
+}
+
 export class UnifiedFrameController {
   private channelStates: Record<FrameChannel, ChannelState>;
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+  private frameTimeHistory: Record<FrameChannel, number[]>;
+  private readonly maxFrameSamples = 180;
+  private frameSequence = 0;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -98,6 +116,10 @@ export class UnifiedFrameController {
       acc[channel] = { lastFrameTime: 0, skipCount: 0 };
       return acc;
     }, {} as Record<FrameChannel, ChannelState>);
+    this.frameTimeHistory = FRAME_CHANNELS.reduce<Record<FrameChannel, number[]>>((acc, channel) => {
+      acc[channel] = [];
+      return acc;
+    }, {} as Record<FrameChannel, number[]>);
   }
   
   private getChannelState(channel: FrameChannel): ChannelState {
@@ -143,6 +165,92 @@ export class UnifiedFrameController {
   
   getConfig(): PerformanceConfig {
     return { ...this.config };
+  }
+
+  beginFrame(channel: FrameChannel, label?: string): FrameToken {
+    const normalizedLabel = label ?? channel;
+    const startMark = `ufc-${channel}-${this.frameSequence++}`;
+    const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
+      try {
+        performance.mark(`${startMark}-start`);
+      } catch {
+        // noop
+      }
+    }
+    return {
+      channel,
+      label: normalizedLabel,
+      startMark,
+      startTime
+    };
+  }
+
+  endFrame(token: FrameToken): number {
+    const endMark = `${token.startMark}-end`;
+    let duration = this.now() - token.startTime;
+    if (typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.measure === 'function') {
+      try {
+        performance.mark(endMark);
+        const measureName = `${token.startMark}-measure`;
+        performance.measure(measureName, `${token.startMark}-start`, endMark);
+        const entries = performance.getEntriesByName(measureName);
+        if (entries.length > 0) {
+          duration = entries[entries.length - 1]?.duration ?? duration;
+        }
+        performance.clearMeasures(measureName);
+        performance.clearMarks(`${token.startMark}-start`);
+        performance.clearMarks(endMark);
+      } catch {
+        // ignore measurement failures
+      }
+    }
+    this.recordFrameTime(token.channel, duration);
+    return duration;
+  }
+
+  getFrameStats(channel?: FrameChannel): FrameStats | Record<FrameChannel, FrameStats> {
+    if (channel) {
+      return this.buildStats(channel);
+    }
+    const result = {} as Record<FrameChannel, FrameStats>;
+    FRAME_CHANNELS.forEach((ch) => {
+      result[ch] = this.buildStats(ch);
+    });
+    return result;
+  }
+
+  private recordFrameTime(channel: FrameChannel, duration: number): void {
+    const history = this.frameTimeHistory[channel];
+    history.push(duration);
+    if (history.length > this.maxFrameSamples) {
+      history.shift();
+    }
+  }
+
+  private buildStats(channel: FrameChannel): FrameStats {
+    const history = this.frameTimeHistory[channel];
+    if (history.length === 0) {
+      return {
+        channel,
+        sampleCount: 0,
+        average: 0,
+        min: 0,
+        max: 0
+      };
+    }
+    const total = history.reduce((sum, value) => sum + value, 0);
+    return {
+      channel,
+      sampleCount: history.length,
+      average: total / history.length,
+      min: Math.min(...history),
+      max: Math.max(...history)
+    };
+  }
+
+  private now(): number {
+    return typeof performance !== 'undefined' ? performance.now() : Date.now();
   }
 }
 

@@ -80,7 +80,6 @@ export default defineConfig({
       '@stripe/stripe-js',
       'opensheetmusicdisplay',
       'tonal',
-      'pixi.js',
       'tone'
     ],
     exclude: ['@/wasm'],
