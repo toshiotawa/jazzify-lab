@@ -115,6 +115,11 @@ export class GameEngine {
   private getTimingAdjSec(): number {
     return (this.settings.timingAdjustment ?? 0) / 1000;
   }
+
+  private getAdjustedNoteTime(note: NoteData, timingAdjSec?: number): number {
+    const adjustment = timingAdjSec ?? this.getTimingAdjSec();
+    return note.time + adjustment;
+  }
   
   loadSong(notes: NoteData[]): void {
     log.info(`🎵 GameEngine: ${notes.length}ノーツを読み込み開始`);
@@ -202,12 +207,15 @@ export class GameEngine {
 
   private findNextNoteIndex(targetTime: number): number {
     if (this.notes.length === 0) return 0;
+    const timingAdjSec = this.getTimingAdjSec();
     let low = 0;
     let high = this.notes.length - 1;
     let result = this.notes.length;
     while (low <= high) {
       const mid = (low + high) >> 1;
-      if ((this.notes[mid]?.time ?? 0) >= targetTime) {
+      const midNote = this.notes[mid];
+      const adjustedTime = midNote ? this.getAdjustedNoteTime(midNote, timingAdjSec) : 0;
+      if (adjustedTime >= targetTime) {
         result = mid;
         high = mid - 1;
       } else {
@@ -287,17 +295,17 @@ export class GameEngine {
     const adjustedInput = this.adjustInputNote(inputNote);
     
     // タイミング調整を秒単位に変換
-    const timingAdjustmentSec = (this.settings.timingAdjustment || 0) / 1000;
+    const timingAdjustmentSec = this.getTimingAdjSec();
     
     // 可視ノーツのうち、ピッチが一致し GOOD 判定範囲内のものを探す
     const candidates = Array.from(this.activeNotes.values())
       .filter(note => note.state === 'visible')
       .filter(note => this.isNoteMatch(note.pitch, adjustedInput))
-      .map(note => ({
-        note,
-        // タイミング調整を適用した判定時間と比較
-        timingError: Math.abs(currentTime - (note.time + timingAdjustmentSec)) * 1000
-      }))
+        .map(note => ({
+          note,
+          // タイミング調整を適用した判定時間と比較
+          timingError: Math.abs(currentTime - this.getAdjustedNoteTime(note, timingAdjustmentSec)) * 1000
+        }))
       // GOOD 判定幅以内のみ許可
       .filter(({ timingError }) => timingError <= JUDGMENT_TIMING.goodMs)
       .sort((a, b) => a.timingError - b.timingError);
@@ -420,13 +428,14 @@ export class GameEngine {
   private generateStaticActiveNotes(currentTime: number): ActiveNote[] {
     const staticNotes: ActiveNote[] = [];
     const dynamicLookahead = this.getLookaheadTime();
+    const timingAdjSec = this.getTimingAdjSec();
     
     // 現在時刻の前後の表示範囲を計算
     const lookBehind = 2.0; // 過去2秒
     const lookAhead = dynamicLookahead; // 未来は動的先読み時間
     
     for (const note of this.notes) {
-      const timeFromCurrent = note.time - currentTime;
+      const timeFromCurrent = this.getAdjustedNoteTime(note, timingAdjSec) - currentTime;
       
       // 表示範囲内のノートのみ生成
       if (timeFromCurrent >= -lookBehind && timeFromCurrent <= lookAhead) {
@@ -636,12 +645,14 @@ export class GameEngine {
    */
   private updateNoteLogic(currentTime: number): void {
     const notesToDelete: string[] = [];
+    const timingAdjSec = this.getTimingAdjSec();
     
     for (const [noteId, note] of this.activeNotes) {
-      const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
+      const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
+      const isRecentNote = Math.abs(currentTime - displayTime) < 2.0; // 判定時間の±2秒以内
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
-      this.checkHitLineCrossing(note, currentTime);
+      this.checkHitLineCrossing(note, currentTime, timingAdjSec);
       
         // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
         const latestNote = this.activeNotes.get(noteId) || note;
@@ -650,7 +661,7 @@ export class GameEngine {
           // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
         }
         
-        const updatedNote = this.updateNoteState(latestNote, currentTime);
+        const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
         if (isRecentNote && updatedNote.state !== latestNote.state) {
         }
         
@@ -682,8 +693,9 @@ export class GameEngine {
     
   }
   
-  private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
-    const timePassed = currentTime - note.time;
+  private updateNoteState(note: ActiveNote, currentTime: number, timingAdjSec: number): ActiveNote {
+    const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
+    const timePassed = currentTime - displayTime;
     
     // 🛡️ Hit状態のノートは保護し、エフェクト描画のため最小1フレーム後に削除
     if (note.state === 'hit') {
@@ -703,7 +715,8 @@ export class GameEngine {
     // Miss判定チェック - 判定ライン通過後短い猶予でmiss判定
     if (note.state === 'visible' && timePassed > MISS_DELAY_AFTER_LINE) {
       // シーク直後とノーツ生成直後の猶予期間を設ける
-      const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
+      const adjustedAppearTime = note.appearTime ?? (displayTime - this.getLookaheadTime());
+      const noteAge = currentTime - adjustedAppearTime;
       const gracePeriod = 0.25;
       
       if (noteAge > gracePeriod) {
@@ -730,7 +743,7 @@ export class GameEngine {
     return note;
   }
 
-  private checkHitLineCrossing(note: ActiveNote, currentTime: number): void {
+  private checkHitLineCrossing(note: ActiveNote, currentTime: number, timingAdjSec: number): void {
     // 動的レイアウト対応: 設定値からヒットラインを計算
     const screenHeight = this.settings.viewportHeight ?? 600;
     const pianoHeight = this.settings.pianoHeight ?? 80;
@@ -740,7 +753,7 @@ export class GameEngine {
     const prevNoteCenter = (note.previousY || 0);
     
     // ▼ crossing 判定用の "表示上の" 到達時刻を利用
-    const displayTime = note.time + this.getTimingAdjSec();
+    const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
     
     // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
     if (note.previousY !== undefined && 
@@ -810,9 +823,9 @@ export class GameEngine {
     }
   }
   
-  private calculateNoteY(note: NoteData, currentTime: number): number {
-    // ▼ timeToHit の計算を変更
-    const displayTime = note.time + this.getTimingAdjSec();
+    private calculateNoteY(note: NoteData, currentTime: number): number {
+      // ▼ timeToHit の計算を変更
+      const displayTime = this.getAdjustedNoteTime(note);
     const timeToHit = displayTime - currentTime;
     
     // 動的レイアウト対応

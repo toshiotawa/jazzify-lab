@@ -1527,8 +1527,8 @@ const SettingsPanel: React.FC = () => {
               </div>
               <input
                 type="range"
-                min="-200"
-                max="200"
+                min="-400"
+                max="400"
                 step="1"
                 value={settings.timingAdjustment}
                 onChange={(e) => 
@@ -1537,9 +1537,9 @@ const SettingsPanel: React.FC = () => {
                 className="slider"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>-200ms (早く)</span>
+                <span>-400ms (早く)</span>
                 <span>0ms</span>
-                <span>+200ms (遅く)</span>
+                <span>+400ms (遅く)</span>
               </div>
             </div>
 
