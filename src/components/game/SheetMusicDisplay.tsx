@@ -174,8 +174,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [shouldRenderSheet]);
 
   // 音符の時刻とX座標のマッピングを作成
-  const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current || !notes || notes.length === 0) {
+    const createTimeMapping = useCallback(() => {
+      if (!osmdRef.current || !notes || notes.length === 0) {
       log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
       return;
     }
@@ -228,8 +228,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                   if (noteIndex < notes.length) {
                     const note = notes[noteIndex];
                     // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+        const positionAndShape = graphicNote.PositionAndShape as any;
+                      const noteHeadX = positionAndShape?.AbsolutePosition?.x;
 
                     if (noteHeadX !== undefined) {
                       let centerX = noteHeadX;
@@ -239,8 +239,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                         centerX += noteHeadWidth / 2;
                       }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
+                        const timingAdjustSec = (settings.timingAdjustment ?? 0) / 1000;
+                        mapping.push({
+                          timeMs: (note.time + timingAdjustSec) * 1000,
                         // 動的に計算したスケール係数を使用
                         xPosition: centerX * scaleFactorRef.current
                       });
@@ -263,7 +264,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-  }, [notes]);
+    }, [notes, settings.timingAdjustment]);
 
   // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
   useEffect(() => {
@@ -281,7 +282,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return;
       }
 
-      const currentTimeMs = currentTime * 1000;
+        const timingAdjustSec = (settings.timingAdjustment ?? 0) / 1000;
+        const currentTimeMs = (currentTime + timingAdjustSec) * 1000;
 
       const findNextIndex = () => {
         let low = 0;
@@ -313,7 +315,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+      }, [currentTime, isPlaying, notes, settings.timingAdjustment, shouldRenderSheet]);
 
     // ホイールスクロール制御
   useEffect(() => {
