@@ -234,31 +234,34 @@ const ControlBar: React.FC = () => {
               <button
                 onClick={handleSkipBackward}
 
-                className="control-btn control-btn-xxs control-btn-secondary"
-                title="5秒戻る"
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒戻る"
+                  aria-label="5秒戻る"
               >
-                <FaBackward />
+                  <FaBackward size={22} aria-hidden="true" />
               </button>
 
               <button
                 onClick={() => isPlaying ? pauseAction() : play()}
 
-                className="control-btn control-btn-xxs control-btn-primary"
+                  className="control-btn control-btn-xxs control-btn-primary"
 
-                disabled={!currentSong}
-                title={isPlaying ? '一時停止' : '再生'}
+                  disabled={!currentSong}
+                  title={isPlaying ? '一時停止' : '再生'}
+                  aria-label={isPlaying ? '一時停止' : '再生'}
               >
-                {isPlaying ? <FaPause /> : <FaPlay />}
+                  {isPlaying ? <FaPause size={24} aria-hidden="true" /> : <FaPlay size={24} aria-hidden="true" />}
               </button>
 
               <button
                 onClick={handleSkipForward}
 
-                className="control-btn control-btn-xxs control-btn-secondary"
+                  className="control-btn control-btn-xxs control-btn-secondary"
 
-                title="5秒進む"
+                  title="5秒進む"
+                  aria-label="5秒進む"
               >
-                <FaForward />
+                  <FaForward size={22} aria-hidden="true" />
               </button>
 
               {/* ループコントロール */}

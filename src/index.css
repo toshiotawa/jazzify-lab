@@ -362,6 +362,28 @@
     @apply opacity-100;
   }
   
+  .control-btn-xxs {
+    @apply px-4 py-3 text-lg;
+    min-width: 2.75rem;
+    min-height: 2.75rem;
+  }
+
+  @media (max-width: 768px) {
+    .control-btn-xxs {
+      min-width: 3.25rem;
+      min-height: 3.25rem;
+      font-size: 1.25rem;
+    }
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .control-btn-xxs {
+      min-width: 3.5rem;
+      min-height: 3.5rem;
+      font-size: 1.35rem;
+    }
+  }
+
   /* ブルーグローの強さを低減 */
   .control-btn-primary {
     background: linear-gradient(135deg, #3b82f6 0%, #1e40af 50%, #1e3a8a 100%);

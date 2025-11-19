@@ -454,16 +454,16 @@ const GameScreen: React.FC = () => {
     );
   }
 
-  return (
-    <div 
-      className="game-container h-[100dvh] flex flex-col bg-gradient-game"
-      style={{
-        touchAction: 'none',
-        userSelect: 'none',
-        WebkitUserSelect: 'none',
-        WebkitTouchCallout: 'none',
-        overscrollBehavior: 'none'
-      }}
+    return (
+      <div 
+        className="game-container h-[100dvh] flex flex-col bg-gradient-game"
+        style={{
+          touchAction: 'pan-x',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTouchCallout: 'none',
+          overscrollBehavior: 'none'
+        }}
     >
             {/* ヘッダー */}
       {settings.showHeader && (

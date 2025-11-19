@@ -46,11 +46,19 @@ interface KeyGeometry {
   height: number;
 }
 
+interface PointerMeta {
+  pointerType: string;
+  startX: number;
+  startY: number;
+  isScrollIntent: boolean;
+}
+
 const MIN_MIDI = 21;
 const MAX_MIDI = 108;
 const TOTAL_WHITE_KEYS = 52;
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const TOUCH_SCROLL_THRESHOLD_PX = 12;
 
 const JAPANESE_NOTE_MAP: Record<string, string> = {
   C: 'ド',
@@ -128,6 +136,7 @@ export class PIXINotesRendererInstance {
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
   private pointerMap = new Map<number, number>();
+  private pointerStates = new Map<number, PointerMeta>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -248,6 +257,7 @@ export class PIXINotesRendererInstance {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
     this.pointerMap.clear();
+    this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
 
@@ -339,7 +349,7 @@ export class PIXINotesRendererInstance {
     this.canvas.addEventListener('pointercancel', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
-    this.canvas.style.touchAction = 'none';
+    this.canvas.style.touchAction = 'pan-x';
   }
 
   private detachEvents(): void {
@@ -355,14 +365,34 @@ export class PIXINotesRendererInstance {
     event.preventDefault();
   };
 
+  private releasePointer(pointerId: number): void {
+    const midi = this.pointerMap.get(pointerId);
+    if (midi !== undefined) {
+      this.triggerKeyRelease(midi);
+      this.pointerMap.delete(pointerId);
+    }
+  }
+
   private handlePointerDown = (event: PointerEvent): void => {
     if (this.destroyed) return;
     const midi = this.hitTest(event);
-    if (midi === null) return;
-    try {
-      this.canvas.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore
+    if (midi === null) {
+      this.pointerStates.delete(event.pointerId);
+      return;
+    }
+    const pointerType = event.pointerType || 'mouse';
+    this.pointerStates.set(event.pointerId, {
+      pointerType,
+      startX: event.clientX,
+      startY: event.clientY,
+      isScrollIntent: false
+    });
+    if (pointerType !== 'touch') {
+      try {
+        this.canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
     }
     this.pointerMap.set(event.pointerId, midi);
     this.triggerKeyPress(midi);
@@ -370,7 +400,23 @@ export class PIXINotesRendererInstance {
 
   private handlePointerMove = (event: PointerEvent): void => {
     if (this.destroyed) return;
+    const pointerMeta = this.pointerStates.get(event.pointerId);
+    if (pointerMeta?.pointerType === 'touch') {
+      if (pointerMeta.isScrollIntent) {
+        return;
+      }
+      const deltaX = Math.abs(event.clientX - pointerMeta.startX);
+      const deltaY = Math.abs(event.clientY - pointerMeta.startY);
+      if (deltaX > TOUCH_SCROLL_THRESHOLD_PX && deltaX > deltaY) {
+        this.releasePointer(event.pointerId);
+        pointerMeta.isScrollIntent = true;
+        return;
+      }
+    }
     if (!this.pointerMap.has(event.pointerId)) return;
+    if (pointerMeta?.pointerType === 'touch') {
+      return;
+    }
     const nextMidi = this.hitTest(event);
     const prevMidi = this.pointerMap.get(event.pointerId);
     if (nextMidi === null || nextMidi === prevMidi) {
@@ -384,11 +430,8 @@ export class PIXINotesRendererInstance {
   };
 
   private handlePointerUp = (event: PointerEvent): void => {
-    const midi = this.pointerMap.get(event.pointerId);
-    if (midi !== undefined) {
-      this.triggerKeyRelease(midi);
-      this.pointerMap.delete(event.pointerId);
-    }
+    this.releasePointer(event.pointerId);
+    this.pointerStates.delete(event.pointerId);
   };
 
   private triggerKeyPress(midi: number): void {
