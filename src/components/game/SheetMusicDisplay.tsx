@@ -12,6 +12,9 @@ interface SheetMusicDisplayProps {
 interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
+  yPosition: number;
+  width: number;
+  height: number;
 }
 
 /**
@@ -27,6 +30,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const lastScrollXRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [activeHighlight, setActiveHighlight] = useState<{ x: number; y: number; width: number; height: number } | null>(null);
+  const [isAutoFollowEnabled, setAutoFollowEnabled] = useState(true);
+  const autoFollowRef = useRef(true);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
@@ -45,6 +51,28 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
+  const handleDisableAutoFollow = useCallback(() => {
+    if (!autoFollowRef.current) {
+      return;
+    }
+    autoFollowRef.current = false;
+    setAutoFollowEnabled(false);
+  }, []);
+
+  const handleResumeAutoFollow = useCallback(() => {
+    if (autoFollowRef.current) {
+      return;
+    }
+    autoFollowRef.current = true;
+    setAutoFollowEnabled(true);
+    const mapping = timeMappingRef.current;
+    if (mapping.length > 0 && scrollContainerRef.current) {
+      const entry = mapping[mappingCursorRef.current] ?? mapping[mapping.length - 1];
+      const target = Math.max(0, entry.xPosition - 120);
+      scrollContainerRef.current.scrollTo({ left: target, behavior: 'smooth' });
+    }
+  }, []);
+
   // const gameActions = useGameActions(); // 現在未使用
   
   // OSMDの初期化とレンダリング
@@ -123,7 +151,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       }
       
       // レンダリング後に正確なスケールファクターを計算
-      const svgElement = containerRef.current.querySelector('svg');
+        const svgElement = containerRef.current.querySelector('svg');
       const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
 
       if (svgElement && boundingBox && boundingBox.width > 0) {
@@ -131,6 +159,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         const svgWidth = svgElement.width.baseVal.value;
         const osmdWidth = boundingBox.width;
         scaleFactorRef.current = svgWidth / osmdWidth;
+          if (scoreWrapperRef.current) {
+            scoreWrapperRef.current.style.minWidth = `${svgWidth}px`;
+          }
         log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
       } else {
         log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
@@ -239,11 +270,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                         centerX += noteHeadWidth / 2;
                       }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
-                      });
+        const position = positionAndShape?.AbsolutePosition;
+        const bounding = positionAndShape?.BoundingBox;
+        const absoluteX = position?.x ?? 0;
+        const absoluteY = position?.y ?? 0;
+        const rawWidth = bounding?.width ?? 4;
+        const rawHeight = bounding?.height ?? 12;
+        mapping.push({
+          timeMs: note.time * 1000,
+          xPosition: centerX * scaleFactorRef.current,
+          yPosition: absoluteY * scaleFactorRef.current,
+          width: Math.max(4, rawWidth * scaleFactorRef.current),
+          height: Math.max(12, rawHeight * scaleFactorRef.current)
+        });
                     }
                     noteIndex++;
       }
@@ -265,30 +304,28 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     lastScrollXRef.current = 0;
   }, [notes]);
 
-  // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-  useEffect(() => {
-    if (isPlaying && scrollContainerRef.current) {
-      // 再生開始時に即座にスクロール位置を0にリセット
-      scrollContainerRef.current.scrollLeft = 0;
-      log.info('🎵 楽譜スクロールを開始位置にリセット');
-    }
-  }, [isPlaying]);
-
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
+    // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
+    useEffect(() => {
+      if (isPlaying && scrollContainerRef.current && autoFollowRef.current) {
+        scrollContainerRef.current.scrollLeft = 0;
+        log.info('🎵 楽譜スクロールを開始位置にリセット');
+      }
+    }, [isPlaying]);
+  
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      if (!shouldRenderSheet || mapping.length === 0) {
+        setActiveHighlight(null);
         return;
       }
-
-      const currentTimeMs = currentTime * 1000;
-
+      const timingAdjustmentSec = settings.timingAdjustment / 1000;
+      const effectiveTimeMs = Math.max(0, (currentTime - timingAdjustmentSec) * 1000);
       const findNextIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
         while (low <= high) {
           const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
+          if (mapping[mid].timeMs <= effectiveTimeMs) {
             low = mid + 1;
           } else {
             high = mid - 1;
@@ -296,35 +333,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
         return Math.min(low, mapping.length - 1);
       };
-
       const nextIndex = findNextIndex();
       const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
       mappingCursorRef.current = activeIndex;
-
       const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
-      const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
+      setActiveHighlight({
+        x: targetEntry.xPosition - targetEntry.width / 2,
+        y: targetEntry.yPosition,
+        width: targetEntry.width,
+        height: targetEntry.height
+      });
+      if (autoFollowRef.current && scrollContainerRef.current) {
+        const playheadPosition = 120;
+        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
+          scrollContainerRef.current.scrollTo({
+            left: scrollX,
+            behavior: isPlaying ? 'smooth' : 'auto'
+          });
+          lastScrollXRef.current = scrollX;
+        }
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    }, [currentTime, isPlaying, shouldRenderSheet, settings.timingAdjustment]);
 
     // ホイールスクロール制御
   useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      // 楽譜エリアにマウスがホバーしていない、または再生中の場合はスクロールを無効化
-      if (!isHovered || isPlaying) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    };
+  const handleWheel = (e: WheelEvent) => {
+    if (!isHovered) {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    }
+    handleDisableAutoFollow();
+    return true;
+  };
 
     const scrollContainer = scrollContainerRef.current;
     if (scrollContainer) {
@@ -334,7 +376,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         scrollContainer.removeEventListener('wheel', handleWheel);
       };
     }
-  }, [isHovered, isPlaying]);
+}, [handleDisableAutoFollow, isHovered]);
+
+useEffect(() => {
+  const scrollContainer = scrollContainerRef.current;
+  if (!scrollContainer) {
+    return;
+  }
+  const handleScroll = () => {
+    if (scrollContainer.scrollLeft !== lastScrollXRef.current) {
+      handleDisableAutoFollow();
+    }
+  };
+  scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+  return () => {
+    scrollContainer.removeEventListener('scroll', handleScroll);
+  };
+}, [handleDisableAutoFollow]);
 
   // クリーンアップ
     useEffect(() => {
@@ -362,26 +420,31 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   return (
     <div 
       className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
+        "relative bg-white text-black overflow-x-auto overflow-y-hidden",
         "custom-sheet-scrollbar",
         className
       )}
       ref={scrollContainerRef}
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onMouseDown={handleDisableAutoFollow}
+      onTouchStart={handleDisableAutoFollow}
       style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
+        '--scrollbar-width': '8px',
+        '--scrollbar-track-color': '#f3f4f6',
+        '--scrollbar-thumb-color': '#9ca3af',
+        '--scrollbar-thumb-hover-color': '#6b7280'
       } as React.CSSProperties}
     >
+      {!isAutoFollowEnabled && (
+        <button
+          type="button"
+          className="absolute z-20 top-2 right-2 bg-red-500 text-white text-xs px-3 py-1 rounded shadow hover:bg-red-400 focus:outline-none focus-visible:ring-2 focus-visible:ring-red-300"
+          onClick={handleResumeAutoFollow}
+        >
+          譜面追従を再開
+        </button>
+      )}
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
@@ -411,19 +474,27 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         {/* OSMDレンダリング用コンテナ */}
           <div 
             ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
+            className="h-full relative"
           >
+          {activeHighlight && (
+            <div
+              className="absolute z-10 pointer-events-none transition-transform duration-150 ease-out"
+              style={{
+                transform: `translate(${activeHighlight.x}px, ${activeHighlight.y}px)`
+              }}
+            >
+              <div
+                className="bg-red-500/60 rounded-full shadow-[0_0_12px_rgba(239,68,68,0.45)]"
+                style={{
+                  width: `${activeHighlight.width}px`,
+                  height: `${activeHighlight.height}px`
+                }}
+              />
+            </div>
+          )}
           <div 
             ref={containerRef} 
-            className="h-full flex items-center"
+            className="h-full flex items-center relative"
           />
         </div>
       </div>
