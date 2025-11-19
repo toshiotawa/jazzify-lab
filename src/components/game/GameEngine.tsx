@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useCallback, useState, useRef, useLayoutEffect } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useLayoutEffect, useMemo } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
@@ -41,7 +41,40 @@ const getTouchMidpointX = (touchA: React.Touch, touchB: React.Touch): number => 
 
 // iOS検出関数
 const isIOS = (): boolean => {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
+};
+
+const getPlaybackPitchCompensation = (speed: number): number => {
+  if (!Number.isFinite(speed) || speed <= 0) {
+    return 0;
+  }
+  return -12 * Math.log2(speed);
+};
+
+const getEffectivePitchShift = (transpose: number, speed: number, shouldCompensate: boolean): number => {
+  const compensation = shouldCompensate ? getPlaybackPitchCompensation(speed) : 0;
+  return transpose + compensation;
+};
+
+const applyPitchPreservationFlags = (media: HTMLMediaElement, preserve: boolean): void => {
+  try {
+    media.preservesPitch = preserve;
+  } catch {
+    // ignore
+  }
+  try {
+    (media as typeof media & { mozPreservesPitch?: boolean }).mozPreservesPitch = preserve;
+  } catch {
+    // ignore
+  }
+  try {
+    (media as typeof media & { webkitPreservesPitch?: boolean }).webkitPreservesPitch = preserve;
+  } catch {
+    // ignore
+  }
 };
 
 type MidiModule = typeof import('@/utils/MidiController');
@@ -76,6 +109,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       isSettingsOpen: state.isSettingsOpen,
       resultModalOpen: state.resultModalOpen
     }));
+
+  const iosPitchCompensationEnabled = isIOS();
+  const playbackPitchShift = useMemo(
+    () =>
+      getEffectivePitchShift(
+        settings.transpose,
+        settings.playbackSpeed,
+        iosPitchCompensationEnabled && Math.abs(settings.playbackSpeed - 1) > 0.001
+      ),
+    [settings.transpose, settings.playbackSpeed, iosPitchCompensationEnabled]
+  );
+  const hasSongAudio = Boolean(currentSong?.audioFile && currentSong.audioFile.trim() !== '');
 
   const {
     initializeGameEngine,
@@ -244,14 +289,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [gameEngine]);
 
     useEffect(() => {
-      if (!gameEngine) {
-        return;
-      }
-      updateEngineSettings();
-      if (!isPlaying) {
-        renderBridgeRef.current?.syncFromEngine();
-      }
-    }, [settings.timingAdjustment, gameEngine, updateEngineSettings, isPlaying]);
+        if (!gameEngine) {
+          return;
+        }
+        updateEngineSettings();
+        if (isPlaying) {
+          gameEngine.seek(currentTime);
+        } else {
+          renderBridgeRef.current?.syncFromEngine();
+        }
+      }, [settings.timingAdjustment, gameEngine, updateEngineSettings, isPlaying, currentTime]);
 
   useEffect(() => {
     if (!isPlaying) {
@@ -274,19 +321,42 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }, [currentSong?.id]);
 
     useEffect(() => {
-      if (mode !== 'performance' || !currentSong) {
+      const audioElement = audioRef.current;
+      if (!audioElement || !hasSongAudio) {
         return;
       }
-      if (stageRunStateRef.current !== 'running') {
-        return;
-      }
-      const judgedNotes = score.goodCount + score.missCount;
-      if (score.totalNotes > 0 && judgedNotes >= score.totalNotes && !resultModalOpen) {
-        stageRunStateRef.current = 'completed';
-        pause();
-        openResultModal();
-      }
-    }, [mode, currentSong?.id, score.goodCount, score.missCount, score.totalNotes, pause, openResultModal, resultModalOpen]);
+      const handleAudioEnded = () => {
+        if (mode === 'performance') {
+          if (resultModalOpen || stageRunStateRef.current === 'completed') {
+            return;
+          }
+          stageRunStateRef.current = 'completed';
+          pause();
+          openResultModal();
+          return;
+        }
+        stop();
+      };
+      audioElement.addEventListener('ended', handleAudioEnded);
+      return () => {
+        audioElement.removeEventListener('ended', handleAudioEnded);
+      };
+    }, [mode, pause, openResultModal, resultModalOpen, stop, hasSongAudio]);
+
+    useEffect(() => {
+        if (mode !== 'performance' || !currentSong || hasSongAudio) {
+          return;
+        }
+        if (stageRunStateRef.current !== 'running') {
+          return;
+        }
+        const judgedNotes = score.goodCount + score.missCount;
+        if (score.totalNotes > 0 && judgedNotes >= score.totalNotes && !resultModalOpen) {
+          stageRunStateRef.current = 'completed';
+          pause();
+          openResultModal();
+        }
+      }, [mode, currentSong?.id, score.goodCount, score.missCount, score.totalNotes, pause, openResultModal, resultModalOpen, hasSongAudio]);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -415,64 +485,65 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
         }
 
-        const shouldUsePitchShift = settings.transpose !== 0;
+          const shouldDisableNativePreserve = iosPitchCompensationEnabled && Math.abs(settings.playbackSpeed - 1) > 0.001;
+          const shouldUsePitchShiftNode = Math.abs(playbackPitchShift) > 0.001;
+          applyPitchPreservationFlags(audio, !shouldDisableNativePreserve);
 
-        if (shouldUsePitchShift) {
-          if (!pitchShiftRef.current) {
-            try {
-              await Tone.start();
-            } catch (err) {
-              log.warn('Tone.start() failed or was already started', err);
-            }
+          try {
+            mediaSourceRef.current.disconnect();
+          } catch {
+            // ignore
+          }
 
-            try {
-              // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-              // @ts-ignore
-              if (Tone.setContext) {
+          if (shouldUsePitchShiftNode) {
+            if (!pitchShiftRef.current) {
+              try {
+                await Tone.start();
+              } catch (err) {
+                log.warn('Tone.start() failed or was already started', err);
+              }
+
+              try {
                 // eslint-disable-next-line @typescript-eslint/ban-ts-comment
                 // @ts-ignore
-                Tone.setContext(audioContext);
-              } else {
-                log.warn('Unable to set Tone.js context - using default context');
+                if (Tone.setContext) {
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  Tone.setContext(audioContext);
+                } else {
+                  log.warn('Unable to set Tone.js context - using default context');
+                }
+              } catch (err) {
+                log.warn('Tone context assignment failed', err);
+              }
+
+              pitchShiftRef.current = new Tone.PitchShift({ pitch: playbackPitchShift }).toDestination();
+            } else {
+              pitchShiftRef.current.pitch = playbackPitchShift;
+            }
+
+            try {
+              if (mediaSourceRef.current && pitchShiftRef.current) {
+                Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
               }
             } catch (err) {
-              log.warn('Tone context assignment failed', err);
+              log.error('Tone.connect failed:', err);
             }
-
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
-          }
-
-          try {
-            mediaSourceRef.current.disconnect();
-          } catch (_) {/* already disconnected */}
-
-          try {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
+          } else {
             if (pitchShiftRef.current) {
-              Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
+              try {
+                pitchShiftRef.current.dispose();
+              } catch (err) {
+                log.warn('PitchShift dispose failed', err);
+              }
+              pitchShiftRef.current = null;
             }
-          } catch (err) {
-            log.error('Tone.connect failed:', err);
-          }
-        } else {
-          if (pitchShiftRef.current) {
             try {
-              pitchShiftRef.current.dispose();
+              mediaSourceRef.current.connect(audioContext.destination);
             } catch (err) {
-              log.warn('PitchShift dispose failed', err);
+              log.error('MediaElementAudioSourceNode connect failed:', err);
             }
-            pitchShiftRef.current = null;
           }
-          try {
-            mediaSourceRef.current.disconnect();
-          } catch (_) {/* ignore */}
-          try {
-            mediaSourceRef.current.connect(audioContext.destination);
-          } catch (err) {
-            log.error('MediaElementAudioSourceNode connect failed:', err);
-          }
-        }
 
         // 5) AudioContext を resume し、再生位置を同期
         // 🔧 非同期でresumeしてUIブロックを防ぐ
@@ -559,8 +630,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
 
       run();
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [isPlaying, audioLoaded, gameEngine, settings.transpose]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, [isPlaying, audioLoaded, gameEngine, playbackPitchShift, iosPitchCompensationEnabled]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
@@ -579,19 +650,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
     // 再生スピード変更の同期
     useEffect(() => {
-      if (audioRef.current) {
-        audioRef.current.playbackRate = settings.playbackSpeed;
-
-        // ピッチを保持
-        try {
-          // @ts-ignore
-          audioRef.current.preservesPitch = true;
-          // @ts-ignore
-          audioRef.current.mozPreservesPitch = true;
-          // @ts-ignore
-          audioRef.current.webkitPreservesPitch = true;
-        } catch (_) {/* ignore */}
-      }
+        if (audioRef.current) {
+          const audioElement = audioRef.current;
+          audioElement.defaultPlaybackRate = settings.playbackSpeed;
+          audioElement.playbackRate = settings.playbackSpeed;
+          const shouldDisableNativePreserve = iosPitchCompensationEnabled && Math.abs(settings.playbackSpeed - 1) > 0.001;
+          applyPitchPreservationFlags(audioElement, !shouldDisableNativePreserve);
+        }
 
       // 🔧 追加: 再生中に速度が変更された場合、baseOffsetRefを再計算
       if (audioContextRef.current && isPlaying) {
@@ -606,7 +671,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (gameEngine) {
         updateEngineSettings();
       }
-    }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying]);
+      }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, iosPitchCompensationEnabled]);
   
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
@@ -843,21 +908,29 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
-  useEffect(() => {
-    if (!pitchShiftRef.current) {
-      return;
-    }
-    if (settings.transpose === 0) {
-      try {
-        pitchShiftRef.current.dispose();
-      } catch (err) {
-        log.warn('PitchShift dispose failed', err);
+    useEffect(() => {
+      if (!pitchShiftRef.current) {
+        return;
       }
-      pitchShiftRef.current = null;
-      return;
-    }
-    (pitchShiftRef.current as any).pitch = settings.transpose;
-    }, [settings.transpose]);
+      const shouldUsePitchShift = Math.abs(playbackPitchShift) > 0.001;
+      if (!shouldUsePitchShift) {
+        try {
+          pitchShiftRef.current.dispose();
+        } catch (err) {
+          log.warn('PitchShift dispose failed', err);
+        }
+        pitchShiftRef.current = null;
+        if (mediaSourceRef.current && audioContextRef.current) {
+          try {
+            mediaSourceRef.current.connect(audioContextRef.current.destination);
+          } catch (err) {
+            log.error('MediaElementAudioSourceNode connect failed:', err);
+          }
+        }
+        return;
+      }
+      pitchShiftRef.current.pitch = playbackPitchShift;
+      }, [playbackPitchShift]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
   useEffect(() => {
