@@ -1,5 +1,6 @@
 import React, { useCallback } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { 
   FaPlay, 
   FaPause, 
@@ -59,9 +60,22 @@ const ControlBar: React.FC = () => {
     toggleSettings
   } = useGameActions();
 
-  const isPracticeMode = mode === 'practice';
-  const canInteract = isPracticeMode;
-  const songDuration = currentSong?.duration || 0;
+    const isPracticeMode = mode === 'practice';
+    const canInteract = isPracticeMode;
+    const songDuration = currentSong?.duration || 0;
+    const isEnglishCopy = shouldUseEnglishCopy();
+    const skipBackLabel = isEnglishCopy ? 'Skip back 5 seconds' : '5秒戻る';
+    const skipForwardLabel = isEnglishCopy ? 'Skip forward 5 seconds' : '5秒進む';
+    const playLabel = isEnglishCopy ? 'Play' : '再生';
+    const pauseLabel = isEnglishCopy ? 'Pause' : '一時停止';
+    const stopLabel = isEnglishCopy ? 'Stop' : '停止';
+    const restartLabel = isEnglishCopy ? 'Restart song' : '最初に戻って再生';
+    const miniBackText = isEnglishCopy ? 'Back' : '戻る';
+    const miniForwardText = isEnglishCopy ? 'Forward' : '進む';
+    const miniPlayText = isEnglishCopy ? 'Play' : '再生';
+    const miniPauseText = isEnglishCopy ? 'Pause' : '停止';
+    const miniRestartText = isEnglishCopy ? 'Restart' : '最初から';
+    const miniStopText = stopLabel;
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -230,36 +244,49 @@ const ControlBar: React.FC = () => {
         <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
-            <>
-              <button
-                onClick={handleSkipBackward}
+                <>
+                  <button
+                    onClick={handleSkipBackward}
+                    aria-label={skipBackLabel}
+                    className="control-btn control-btn-xxs control-btn-secondary min-w-[64px] min-h-[64px]"
+                    title={skipBackLabel}
+                  >
+                    <span className="flex flex-col items-center leading-none">
+                      <FaBackward className="text-2xl" aria-hidden="true" focusable="false" />
+                      <span className="mt-1 text-[11px] font-semibold sm:hidden">{miniBackText}</span>
+                    </span>
+                  </button>
 
-                className="control-btn control-btn-xxs control-btn-secondary"
-                title="5秒戻る"
-              >
-                <FaBackward />
-              </button>
+                  <button
+                    onClick={() => isPlaying ? pauseAction() : play()}
+                    aria-label={isPlaying ? pauseLabel : playLabel}
+                    className="control-btn control-btn-xxs control-btn-primary min-w-[64px] min-h-[64px]"
+                    disabled={!currentSong}
+                    title={isPlaying ? pauseLabel : playLabel}
+                  >
+                    <span className="flex flex-col items-center leading-none">
+                      {isPlaying ? (
+                        <FaPause className="text-2xl" aria-hidden="true" focusable="false" />
+                      ) : (
+                        <FaPlay className="text-2xl" aria-hidden="true" focusable="false" />
+                      )}
+                      <span className="mt-1 text-[11px] font-semibold sm:hidden">
+                        {isPlaying ? miniPauseText : miniPlayText}
+                      </span>
+                    </span>
+                  </button>
 
-              <button
-                onClick={() => isPlaying ? pauseAction() : play()}
-
-                className="control-btn control-btn-xxs control-btn-primary"
-
-                disabled={!currentSong}
-                title={isPlaying ? '一時停止' : '再生'}
-              >
-                {isPlaying ? <FaPause /> : <FaPlay />}
-              </button>
-
-              <button
-                onClick={handleSkipForward}
-
-                className="control-btn control-btn-xxs control-btn-secondary"
-
-                title="5秒進む"
-              >
-                <FaForward />
-              </button>
+                  <button
+                    onClick={handleSkipForward}
+                    aria-label={skipForwardLabel}
+                    className="control-btn control-btn-xxs control-btn-secondary min-w-[64px] min-h-[64px]"
+                    title={skipForwardLabel}
+                  >
+                    <span className="flex flex-col items-center leading-none">
+                      <FaForward className="text-2xl" aria-hidden="true" focusable="false" />
+                      <span className="mt-1 text-[11px] font-semibold sm:hidden">{miniForwardText}</span>
+                    </span>
+                  </button>
 
               {/* ループコントロール */}
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
@@ -345,31 +372,42 @@ const ControlBar: React.FC = () => {
             </>
           ) : (
             // 本番モード: 再生/最初に戻るボタン（状況に応じて動作変化）
-            <>
-              <button
-                onClick={handlePlayOrRestart}
+                <>
+                  <button
+                    onClick={handlePlayOrRestart}
+                    aria-label={currentTime > 0 ? restartLabel : playLabel}
+                    className="control-btn control-btn-xxs control-btn-primary min-w-[64px] min-h-[64px]"
+                    disabled={!currentSong}
+                    title={
+                      currentTime > 0
+                        ? restartLabel
+                        : playLabel
+                    }
+                  >
+                    <span className="flex flex-col items-center leading-none">
+                      {currentTime > 0 ? (
+                        <MdReplay className="text-2xl" aria-hidden="true" focusable="false" />
+                      ) : (
+                        <FaPlay className="text-2xl" aria-hidden="true" focusable="false" />
+                      )}
+                      <span className="mt-1 text-[11px] font-semibold sm:hidden">
+                        {currentTime > 0 ? miniRestartText : miniPlayText}
+                      </span>
+                    </span>
+                  </button>
 
-                className="control-btn control-btn-xxs control-btn-primary"
-
-                disabled={!currentSong}
-                title={
-                  currentTime > 0
-                    ? '最初に戻って再生'
-                    : '再生'
-                }
-              >
-                {currentTime > 0 ? <MdReplay /> : <FaPlay />}
-              </button>
-
-              <button
-                onClick={() => stop()}
-                className="control-btn control-btn-xxs control-btn-secondary"
-
-                disabled={!currentSong}
-                title="停止"
-              >
-                <FaStop />
-              </button>
+                  <button
+                    onClick={() => stop()}
+                    aria-label={stopLabel}
+                    className="control-btn control-btn-xxs control-btn-secondary min-w-[64px] min-h-[64px]"
+                    disabled={!currentSong}
+                    title={stopLabel}
+                  >
+                    <span className="flex flex-col items-center leading-none">
+                      <FaStop className="text-2xl" aria-hidden="true" focusable="false" />
+                      <span className="mt-1 text-[11px] font-semibold sm:hidden">{miniStopText}</span>
+                    </span>
+                  </button>
 
               {/* 移調コントロール（レッスンモード・ミッションモードでは非表示） */}
               {!lessonContext && !missionContext && (
