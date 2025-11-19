@@ -86,11 +86,21 @@ interface ChannelState {
   skipCount: number;
 }
 
+export interface FrameMetric {
+  channel: FrameChannel;
+  label: string;
+  duration: number;
+  timestamp: number;
+}
+
 export class UnifiedFrameController {
   private channelStates: Record<FrameChannel, ChannelState>;
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+  private metrics: FrameMetric[] = [];
+  private readonly metricsLimit = 240;
+  private metricListeners = new Set<(metric: FrameMetric) => void>();
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -143,6 +153,77 @@ export class UnifiedFrameController {
   
   getConfig(): PerformanceConfig {
     return { ...this.config };
+  }
+
+  runMeasured<T>(channel: FrameChannel, label: string, fn: () => T): T {
+    if (typeof performance === 'undefined' || typeof performance.mark !== 'function') {
+      return fn();
+    }
+
+    const startMark = `${channel}:${label}:start`;
+    const endMark = `${channel}:${label}:end`;
+    performance.mark(startMark);
+    try {
+      return fn();
+    } finally {
+      performance.mark(endMark);
+      const measureName = `${channel}:${label}`;
+      performance.measure(measureName, startMark, endMark);
+      const entries = performance.getEntriesByName(measureName);
+      const entry = entries[entries.length - 1];
+      if (entry) {
+        this.recordMetric({
+          channel,
+          label,
+          duration: entry.duration,
+          timestamp: entry.startTime
+        });
+      }
+      performance.clearMarks(startMark);
+      performance.clearMarks(endMark);
+      performance.clearMeasures(measureName);
+    }
+  }
+
+  getMetrics(): FrameMetric[] {
+    return [...this.metrics];
+  }
+
+  addMetricListener(listener: (metric: FrameMetric) => void): () => void {
+    this.metricListeners.add(listener);
+    return () => {
+      this.metricListeners.delete(listener);
+    };
+  }
+
+  removeMetricListener(listener: (metric: FrameMetric) => void): void {
+    this.metricListeners.delete(listener);
+  }
+
+  private recordMetric(metric: FrameMetric): void {
+    this.metrics.push(metric);
+    if (this.metrics.length > this.metricsLimit) {
+      this.metrics.shift();
+    }
+    if (typeof window !== 'undefined') {
+      window.frameMetrics = this.metrics;
+      if (typeof window.onFrameMetric === 'function') {
+        try {
+          window.onFrameMetric(metric);
+        } catch {
+          // no-op: observers are best-effort
+        }
+      }
+    }
+    if (this.metricListeners.size > 0) {
+      this.metricListeners.forEach((listener) => {
+        try {
+          listener(metric);
+        } catch {
+          // Listener errors should not break the loop
+        }
+      });
+    }
   }
 }
 
@@ -290,26 +371,35 @@ export const performanceUtils = {
   /**
    * デバウンス処理
    */
-  debounce<T extends (...args: any[]) => any>(func: T, wait: number): T {
-    let timeout: NodeJS.Timeout;
-    return ((...args: any[]) => {
-      clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(null, args), wait);
-    }) as T;
+  debounce<T extends (...args: unknown[]) => void>(func: T, wait: number): T {
+    let timeout: ReturnType<typeof setTimeout> | null = null;
+    const debounced = (...args: Parameters<T>): void => {
+      if (timeout) {
+        clearTimeout(timeout);
+      }
+      timeout = setTimeout(() => {
+        func(...args);
+      }, wait);
+    };
+    return debounced as unknown as T;
   },
   
   /**
    * スロットル処理
    */
-  throttle<T extends (...args: any[]) => any>(func: T, limit: number): T {
-    let inThrottle: boolean;
-    return ((...args: any[]) => {
-      if (!inThrottle) {
-        func.apply(null, args);
-        inThrottle = true;
-        setTimeout(() => inThrottle = false, limit);
+  throttle<T extends (...args: unknown[]) => void>(func: T, limit: number): T {
+    let inThrottle = false;
+    const throttled = (...args: Parameters<T>): void => {
+      if (inThrottle) {
+        return;
       }
-    }) as T;
+      func(...args);
+      inThrottle = true;
+      setTimeout(() => {
+        inThrottle = false;
+      }, limit);
+    };
+    return throttled as unknown as T;
   }
 };
 
@@ -318,6 +408,8 @@ declare global {
   interface Window {
     unifiedFrameController: UnifiedFrameController;
     renderOptimizer: RenderOptimizer;
+    frameMetrics?: FrameMetric[];
+    onFrameMetric?: (metric: FrameMetric) => void;
   }
 }
 
@@ -330,4 +422,5 @@ export const renderOptimizer = new RenderOptimizer();
 if (typeof window !== 'undefined') {
   window.unifiedFrameController = unifiedFrameController;
   window.renderOptimizer = renderOptimizer;
+  window.frameMetrics = unifiedFrameController.getMetrics();
 } 

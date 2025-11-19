@@ -1,21 +1,7 @@
-import React from 'react';
 import { render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import * as PIXI from 'pixi.js';
 import FantasyGameEngine from '../FantasyGameEngine';
 import { getStageMonsterIds } from '@/data/monsters';
-
-// Mock PIXI.js
-vi.mock('pixi.js', () => ({
-  Assets: {
-    unloadBundle: vi.fn(),
-    addBundle: vi.fn(),
-    loadBundle: vi.fn(),
-    get: vi.fn(),
-    resolver: undefined, // Simulate the case where resolver is undefined
-  },
-  Texture: vi.fn(),
-}));
 
 // Mock monster data
 vi.mock('@/data/monsters', () => ({
@@ -33,7 +19,26 @@ vi.mock('@/utils/logger', () => ({
   },
 }));
 
-describe('FantasyGameEngine - Monster Image Preloading', () => {
+  class MockImage {
+    static shouldFail = false;
+    static created = 0;
+    onload: ((ev: Event) => void) | null = null;
+    onerror: ((ev: Event) => void) | null = null;
+    crossOrigin: string | null = null;
+
+    set src(_value: string) {
+      MockImage.created += 1;
+      setTimeout(() => {
+        if (MockImage.shouldFail) {
+          this.onerror?.(new Event('error'));
+        } else {
+          this.onload?.(new Event('load'));
+        }
+      }, 0);
+    }
+  }
+
+  describe('FantasyGameEngine - Monster Image Preloading', () => {
   const mockStage = {
     id: 'test-stage',
     stageNumber: '1-1',
@@ -64,21 +69,24 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
     onKeyRelease: vi.fn(),
   };
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    // Reset PIXI mocks
-    (PIXI.Assets.unloadBundle as any).mockResolvedValue(undefined);
-    (PIXI.Assets.addBundle as any).mockReturnValue(undefined);
-    (PIXI.Assets.loadBundle as any).mockResolvedValue(undefined);
-    (PIXI.Assets.get as any).mockReturnValue({ texture: 'mock-texture' });
+    let originalImage: typeof Image;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      MockImage.shouldFail = false;
+      MockImage.created = 0;
+      originalImage = global.Image;
+      // @ts-expect-error - override global Image for tests
+      global.Image = MockImage as unknown as typeof Image;
   });
 
   afterEach(() => {
     vi.clearAllMocks();
+      global.Image = originalImage;
   });
 
-  it('should handle monster image preloading when PIXI.Assets.resolver is undefined', async () => {
-    const { container } = render(
+    it('should preload monster images successfully', async () => {
+      const { container } = render(
       <FantasyGameEngine
         stage={mockStage}
         currentSongId="test-song"
@@ -93,35 +101,18 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       />
     );
 
-    // Wait for component to initialize
     await waitFor(() => {
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
     });
 
-    // Verify that unloadBundle is called (but doesn't crash even if resolver is undefined)
-    expect(PIXI.Assets.unloadBundle).toHaveBeenCalledWith('stageMonsters');
-
-    // Verify that addBundle and loadBundle are called with correct parameters
-    expect(PIXI.Assets.addBundle).toHaveBeenCalledWith('stageMonsters', {
-      'monster_01': expect.stringContaining('monster_icons/monster_01.png'),
-      'monster_02': expect.stringContaining('monster_icons/monster_02.png'),
-      'monster_03': expect.stringContaining('monster_icons/monster_03.png'),
-    });
-
-    expect(PIXI.Assets.loadBundle).toHaveBeenCalledWith('stageMonsters');
-
-    // Verify that textures are retrieved
-    expect(PIXI.Assets.get).toHaveBeenCalledWith('monster_01');
-    expect(PIXI.Assets.get).toHaveBeenCalledWith('monster_02');
-    expect(PIXI.Assets.get).toHaveBeenCalledWith('monster_03');
-
+      await waitFor(() => {
+        expect(MockImage.created).toBeGreaterThan(0);
+      });
     expect(container).toBeTruthy();
   });
 
-  it('should handle errors gracefully when unloadBundle fails', async () => {
-    // Mock unloadBundle to throw an error
-    (PIXI.Assets.unloadBundle as any).mockRejectedValue(new Error('Bundle not found'));
-
+    it('should handle errors gracefully when image loading fails', async () => {
+      MockImage.shouldFail = true;
     const { container } = render(
       <FantasyGameEngine
         stage={mockStage}
@@ -137,41 +128,9 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       />
     );
 
-    await waitFor(() => {
-      expect(PIXI.Assets.unloadBundle).toHaveBeenCalledWith('stageMonsters');
-    });
-
-    // Verify that the component still continues to load even after unloadBundle fails
-    expect(PIXI.Assets.addBundle).toHaveBeenCalled();
-    expect(PIXI.Assets.loadBundle).toHaveBeenCalled();
-
-    expect(container).toBeTruthy();
-  });
-
-  it('should handle complete failure of monster image loading', async () => {
-    // Mock loadBundle to throw an error
-    (PIXI.Assets.loadBundle as any).mockRejectedValue(new Error('Network error'));
-
-    const { container } = render(
-      <FantasyGameEngine
-        stage={mockStage}
-        currentSongId="test-song"
-        onGameEnd={mockCallbacks.onGameEnd}
-        onChordCorrect={mockCallbacks.onChordCorrect}
-        onChordIncorrect={mockCallbacks.onChordIncorrect}
-        onPlayerDamage={mockCallbacks.onPlayerDamage}
-        onEnemyDeath={mockCallbacks.onEnemyDeath}
-        onEnemyAttack={mockCallbacks.onEnemyAttack}
-        onKeyPress={mockCallbacks.onKeyPress}
-        onKeyRelease={mockCallbacks.onKeyRelease}
-      />
-    );
-
-    await waitFor(() => {
-      expect(PIXI.Assets.loadBundle).toHaveBeenCalledWith('stageMonsters');
-    });
-
-    // Component should still render even if image loading fails
+      await waitFor(() => {
+        expect(getStageMonsterIds).toHaveBeenCalled();
+      });
     expect(container).toBeTruthy();
   });
 });
