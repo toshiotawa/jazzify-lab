@@ -24,9 +24,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
-  const manualScrollOffsetRef = useRef(0);
-  const lastComputedScrollRef = useRef(0);
   const isProgrammaticScrollRef = useRef(false);
+  const [isAutoFollow, setIsAutoFollow] = useState(true);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
@@ -58,8 +57,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       timeMappingRef.current = [];
       mappingCursorRef.current = 0;
         lastRenderedIndexRef.current = -1;
-        manualScrollOffsetRef.current = 0;
-        lastComputedScrollRef.current = 0;
       return;
     }
 
@@ -71,8 +68,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       timeMappingRef.current = [];
       mappingCursorRef.current = 0;
         lastRenderedIndexRef.current = -1;
-        manualScrollOffsetRef.current = 0;
-        lastComputedScrollRef.current = 0;
       setError(musicXml === '' ? '楽譜データがありません' : null);
       return;
     }
@@ -144,8 +139,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         // タイムマッピングを作成
           createTimeMapping();
           lastRenderedIndexRef.current = -1;
-          manualScrollOffsetRef.current = 0;
-          lastComputedScrollRef.current = 0;
       
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
@@ -267,12 +260,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     timeMappingRef.current = mapping; // refを更新
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
-    manualScrollOffsetRef.current = 0;
-    lastComputedScrollRef.current = 0;
   }, [notes]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新
+    // currentTimeが変更されるたびにスクロール位置を更新（自動追従）
     useEffect(() => {
+      if (!isAutoFollow) {
+        return;
+      }
       const mapping = timeMappingRef.current;
       const container = scrollContainerRef.current;
       if (!shouldRenderSheet || mapping.length === 0 || !container) {
@@ -283,9 +277,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const adjustedTimeMs = Math.max(0, (currentTime - adjustmentSec) * 1000);
 
       const findActiveIndex = (): number => {
-        if (mapping.length === 0) {
-          return 0;
-        }
         let low = 0;
         let high = mapping.length - 1;
         while (low <= high) {
@@ -296,12 +287,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             high = mid - 1;
           }
         }
-        if (low <= 0) {
-          return 0;
-        }
-        if (low >= mapping.length) {
-          return mapping.length - 1;
-        }
+        if (low <= 0) return 0;
+        if (low >= mapping.length) return mapping.length - 1;
         return low - 1;
       };
 
@@ -311,19 +298,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
       const playheadPosition = 120;
-      const baseScroll = Math.max(0, targetEntry.xPosition - playheadPosition);
-      lastComputedScrollRef.current = baseScroll;
-
-      const maxScrollLeft = Math.max(0, container.scrollWidth - container.clientWidth);
-      let desiredScroll = baseScroll + manualScrollOffsetRef.current;
-
-      if (desiredScroll < 0) {
-        desiredScroll = 0;
-        manualScrollOffsetRef.current = -baseScroll;
-      } else if (desiredScroll > maxScrollLeft) {
-        desiredScroll = maxScrollLeft;
-        manualScrollOffsetRef.current = maxScrollLeft - baseScroll;
-      }
+      const desiredScroll = Math.max(0, targetEntry.xPosition - playheadPosition);
 
       if (Math.abs(container.scrollLeft - desiredScroll) > 0.5) {
         isProgrammaticScrollRef.current = true;
@@ -332,7 +307,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           isProgrammaticScrollRef.current = false;
         });
       }
-    }, [currentTime, shouldRenderSheet, settings.timingAdjustment]);
+    }, [currentTime, shouldRenderSheet, settings.timingAdjustment, isAutoFollow]);
 
     useEffect(() => {
       const container = scrollContainerRef.current;
@@ -343,13 +318,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         if (isProgrammaticScrollRef.current) {
           return;
         }
-        manualScrollOffsetRef.current = container.scrollLeft - lastComputedScrollRef.current;
+        setIsAutoFollow((prev) => (prev ? false : prev));
       };
       container.addEventListener('scroll', handleScroll);
       return () => {
         container.removeEventListener('scroll', handleScroll);
       };
     }, []);
+
+    useEffect(() => {
+      if (!isPlaying) {
+        setIsAutoFollow(true);
+      }
+    }, [isPlaying]);
+
+    useEffect(() => {
+      setIsAutoFollow(true);
+    }, [musicXml]);
 
     // ホイールスクロール制御
     useEffect(() => {
@@ -411,6 +396,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         '--scrollbar-thumb-hover-color': '#6b7280'
       } as React.CSSProperties}
     >
+      {!isAutoFollow && (
+        <button
+          type="button"
+          className="absolute right-4 top-3 z-20 rounded-md bg-slate-900/80 px-3 py-1 text-xs font-semibold text-white shadow-md transition hover:bg-slate-900"
+          onClick={() => setIsAutoFollow(true)}
+        >
+          プレイヘッド追従を再開
+        </button>
+      )}
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"

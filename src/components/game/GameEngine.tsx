@@ -39,6 +39,13 @@ const getTouchDistance = (touchA: React.Touch, touchB: React.Touch): number => {
 
 const getTouchMidpointX = (touchA: React.Touch, touchB: React.Touch): number => (touchA.clientX + touchB.clientX) / 2;
 
+const getPlaybackPitchCompensation = (speed: number): number => {
+  if (!speed || speed === 1) {
+    return 0;
+  }
+  return -12 * Math.log2(speed);
+};
+
 // iOS検出関数
 const isIOS = (): boolean => {
   if (typeof navigator === 'undefined') {
@@ -530,6 +537,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const toneReady = shouldUseBufferedAudio && tonePlayerRef.current && audioLoaded;
       const mediaReady = !shouldUseBufferedAudio && audioRef.current && audioLoaded;
       const hasAudio = hasAudioFile && (toneReady || mediaReady);
+      const playbackPitchComp = shouldUseBufferedAudio ? getPlaybackPitchCompensation(settings.playbackSpeed || 1) : 0;
+      const totalPitchShift = (settings.transpose || 0) + playbackPitchComp;
+      const needsPitchShift = totalPitchShift !== 0;
 
       if (hasAudio && shouldUseBufferedAudio) {
         const player = tonePlayerRef.current;
@@ -551,16 +561,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         bufferedOffsetRef.current = syncTime;
         gainNode.gain.value = settings.musicVolume;
 
-        if (settings.transpose !== 0) {
+        if (needsPitchShift) {
           if (!pitchShiftRef.current) {
             try {
               await Tone.start();
             } catch (err) {
               log.warn('Tone.start() failed or was already started', err);
             }
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose });
+            pitchShiftRef.current = new Tone.PitchShift({ pitch: totalPitchShift });
           } else {
-            (pitchShiftRef.current as unknown as { pitch: number }).pitch = settings.transpose;
+            (pitchShiftRef.current as unknown as { pitch: number }).pitch = totalPitchShift;
           }
           player.disconnect();
           pitchShiftRef.current.disconnect();
@@ -579,6 +589,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           player.disconnect();
           player.connect(gainNode);
         }
+
+        player.playbackRate = settings.playbackSpeed;
 
         toneManualStopRef.current = true;
         try {
@@ -617,7 +629,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
         }
 
-        const shouldApplyPitchShift = settings.transpose !== 0;
+        const shouldApplyPitchShift = needsPitchShift;
 
         if (shouldApplyPitchShift) {
           if (!pitchShiftRef.current) {
@@ -637,9 +649,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               log.warn('Tone context assignment failed', err);
             }
 
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
+            pitchShiftRef.current = new Tone.PitchShift({ pitch: totalPitchShift }).toDestination();
           } else {
-            (pitchShiftRef.current as unknown as { pitch: number }).pitch = settings.transpose;
+            (pitchShiftRef.current as unknown as { pitch: number }).pitch = totalPitchShift;
           }
 
           try {
@@ -750,6 +762,40 @@ useEffect(() => {
         if (tonePlayerRef.current) {
           tonePlayerRef.current.playbackRate = settings.playbackSpeed;
         }
+        const player = tonePlayerRef.current;
+        const gainNode = toneGainRef.current;
+        if (player && gainNode) {
+          const compensation = getPlaybackPitchCompensation(settings.playbackSpeed || 1);
+          const totalShift = (settings.transpose || 0) + compensation;
+          if (totalShift !== 0) {
+            if (!pitchShiftRef.current) {
+              void (async () => {
+                try {
+                  await Tone.start();
+                } catch (err) {
+                  log.warn('Tone.start() failed or was already started', err);
+                }
+                pitchShiftRef.current = new Tone.PitchShift({ pitch: totalShift });
+                player.disconnect();
+                pitchShiftRef.current.disconnect();
+                player.connect(pitchShiftRef.current);
+                pitchShiftRef.current.connect(gainNode);
+              })();
+            } else {
+              (pitchShiftRef.current as unknown as { pitch: number }).pitch = totalShift;
+            }
+          } else if (pitchShiftRef.current) {
+            try {
+              pitchShiftRef.current.disconnect();
+              pitchShiftRef.current.dispose();
+            } catch (err) {
+              log.warn('PitchShift dispose failed', err);
+            }
+            pitchShiftRef.current = null;
+            player.disconnect();
+            player.connect(gainNode);
+          }
+        }
       } else if (audioRef.current) {
         audioRef.current.playbackRate = settings.playbackSpeed;
 
@@ -768,16 +814,13 @@ useEffect(() => {
       if (audioContextRef.current && isPlaying) {
         const newElapsedReal = currentTimeRef.current / settings.playbackSpeed;
         baseOffsetRef.current = audioContextRef.current.currentTime - newElapsedReal;
-        
-        // ログ削除: FPS最適化のため
-        // devLog.debug(`🔧 再生速度変更: ${settings.playbackSpeed}x - baseOffset再計算完了`);
       }
 
       // GameEngine にも設定を反映
       if (gameEngine) {
         updateEngineSettings();
       }
-    }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, shouldUseBufferedAudio]);
+    }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, shouldUseBufferedAudio, settings.transpose]);
   
 // シーク機能（音声ありと音声なし両方対応）
 useEffect(() => {
