@@ -351,6 +351,20 @@
            active:scale-95 overflow-hidden
            flex items-center justify-center leading-none;
   }
+
+  .control-btn-xxs {
+    @apply px-3 py-2 text-base;
+    min-width: 44px;
+    min-height: 44px;
+  }
+
+  @media (max-width: 640px) {
+    .control-btn-xxs {
+      @apply px-4 py-3 text-xl;
+      min-width: 52px;
+      min-height: 52px;
+    }
+  }
   
   .control-btn:before {
     content: '';
@@ -383,6 +397,17 @@
   .control-btn-secondary:hover {
     background: linear-gradient(135deg, #9ca3af 0%, #6b7280 50%, #4b5563 100%);
     box-shadow: 0 6px 20px rgba(107, 114, 128, 0.6);
+  }
+
+  .control-btn-danger {
+    background: linear-gradient(135deg, #dc2626 0%, #b91c1c 50%, #7f1d1d 100%);
+    box-shadow: 0 4px 15px rgba(220, 38, 38, 0.45);
+    @apply focus:ring-red-500;
+  }
+
+  .control-btn-danger:hover {
+    background: linear-gradient(135deg, #f87171 0%, #dc2626 50%, #991b1b 100%);
+    box-shadow: 0 6px 20px rgba(248, 113, 113, 0.6);
   }
   
   .control-btn-loop {
