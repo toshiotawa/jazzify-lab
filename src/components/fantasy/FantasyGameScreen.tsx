@@ -101,8 +101,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
+  const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+  const resultNotifiedRef = useRef(false);
+  const overlayTimeoutRef = useRef<number | null>(null);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -454,18 +457,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [stage.mode]);
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
+    if (resultNotifiedRef.current) {
+      return;
+    }
+    resultNotifiedRef.current = true;
+    stopGame();
+    bgmManager.stop();
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
-    setOverlay({ text });                 // ★★★ add
-    setTimeout(() => {
-      setOverlay(null);                   // オーバーレイを消す
+    setOverlay({ text });
+    if (overlayTimeoutRef.current) {
+      clearTimeout(overlayTimeoutRef.current);
+      overlayTimeoutRef.current = null;
+    }
+    overlayTimeoutRef.current = window.setTimeout(() => {
+      setOverlay(null);
       onGameComplete(
         result,
         finalState.score,
         finalState.correctAnswers,
         finalState.totalQuestions
       );
-    }, 2000);                             // 2 秒待ってから結果画面へ
-  }, [onGameComplete]);
+      overlayTimeoutRef.current = null;
+    }, 900);
+    }, [onGameComplete, stopGame]);
+
+  useEffect(() => {
+    return () => {
+      if (overlayTimeoutRef.current) {
+        clearTimeout(overlayTimeoutRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (gameState.isGameActive) {
+      resultNotifiedRef.current = false;
+    }
+  }, [gameState.isGameActive]);
+
+  useEffect(() => {
+    if (!gameState.isGameActive && gameState.gameResult && !resultNotifiedRef.current) {
+      handleGameCompleteCallback(gameState.gameResult, gameState);
+    }
+  }, [gameState, handleGameCompleteCallback]);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
@@ -731,7 +765,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastUpdateTime = timestamp;
       
-      const currentTime = bgmManager.getCurrentMusicTime();
+        const currentTime = bgmManager.getCurrentMusicTime() - timingAdjustmentSec;
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
@@ -864,7 +898,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+    }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage, timingAdjustmentSec]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {

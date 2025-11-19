@@ -8,6 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { useGameStore } from '@/stores/gameStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import { 
   TaikoNote, 
@@ -550,6 +551,8 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const timingAdjustmentMs = useGameStore(state => state.settings.timingAdjustment ?? 0);
+  const timingAdjustmentSec = timingAdjustmentMs / 1000;
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
@@ -563,7 +566,7 @@ export const useFantasyGameEngine = ({
     const currentNote = prevState.taikoNotes[currentIndex];
     if (!currentNote) return prevState;
 
-    const currentTime = bgmManager.getCurrentMusicTime();
+    const currentTime = bgmManager.getCurrentMusicTime() - timingAdjustmentSec;
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
@@ -778,7 +781,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters
       };
     }
-  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
+  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds, timingAdjustmentSec]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -1232,8 +1235,8 @@ export const useFantasyGameEngine = ({
       }
       
       // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
-      if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        const currentTime = bgmManager.getCurrentMusicTime();
+        if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
+          const currentTime = bgmManager.getCurrentMusicTime() - timingAdjustmentSec;
         const stage = prevState.currentStage;
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
@@ -1428,7 +1431,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode]);
+  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, timingAdjustmentSec]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {

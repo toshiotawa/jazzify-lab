@@ -21,6 +21,9 @@ const isIOS = (): boolean => {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
 };
 
+const MIN_PINCH_ZOOM = 0.75;
+const MAX_PINCH_ZOOM = 1.65;
+
 type MidiModule = typeof import('@/utils/MidiController');
 
 interface GameEngineComponentProps {
@@ -85,11 +88,118 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
+  const [pinchZoom, setPinchZoom] = useState(1);
+  const pinchZoomRef = useRef(1);
+  const pinchScrollStateRef = useRef({ prevZoom: 1 });
   const handlePianoScroll = useCallback(() => {
     if (!isProgrammaticScrollRef.current) {
       hasUserScrolledRef.current = true;
     }
   }, []);
+
+  useEffect(() => {
+    pinchZoomRef.current = pinchZoom;
+  }, [pinchZoom]);
+
+  useEffect(() => {
+    if (!isIOS()) {
+      return;
+    }
+    const container = pianoScrollRef.current;
+    if (!container) return;
+
+    const pointers = new Map<number, { x: number; y: number }>();
+    let initialDistance = 0;
+    let baseZoom = pinchZoomRef.current;
+    let rafId: number | null = null;
+    let pendingZoom = pinchZoomRef.current;
+
+    const clampZoom = (value: number) => Math.min(MAX_PINCH_ZOOM, Math.max(MIN_PINCH_ZOOM, value));
+
+    const scheduleZoomUpdate = (nextValue: number) => {
+      pendingZoom = clampZoom(nextValue);
+      if (rafId !== null) {
+        return;
+      }
+      rafId = requestAnimationFrame(() => {
+        setPinchZoom(pendingZoom);
+        rafId = null;
+      });
+    };
+
+    const updatePointer = (event: PointerEvent) => {
+      pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
+    };
+
+    const distanceBetweenPointers = () => {
+      if (pointers.size < 2) return 0;
+      const [first, second] = Array.from(pointers.values());
+      return Math.hypot(first.x - second.x, first.y - second.y);
+    };
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      updatePointer(event);
+      if (pointers.size === 2) {
+        initialDistance = distanceBetweenPointers();
+        baseZoom = pinchZoomRef.current;
+      }
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      if (event.pointerType !== 'touch') return;
+      if (!pointers.has(event.pointerId)) return;
+      updatePointer(event);
+      if (pointers.size === 2 && initialDistance > 0) {
+        event.preventDefault();
+        const currentDistance = distanceBetweenPointers();
+        if (currentDistance > 0) {
+          const scale = currentDistance / initialDistance;
+          scheduleZoomUpdate(baseZoom * scale);
+        }
+      }
+    };
+
+    const handlePointerUp = (event: PointerEvent) => {
+      pointers.delete(event.pointerId);
+      if (pointers.size < 2) {
+        initialDistance = 0;
+      }
+    };
+
+    container.addEventListener('pointerdown', handlePointerDown, { passive: true });
+    container.addEventListener('pointermove', handlePointerMove, { passive: false });
+    container.addEventListener('pointerup', handlePointerUp);
+    container.addEventListener('pointercancel', handlePointerUp);
+    container.addEventListener('pointerleave', handlePointerUp);
+
+    return () => {
+      container.removeEventListener('pointerdown', handlePointerDown);
+      container.removeEventListener('pointermove', handlePointerMove);
+      container.removeEventListener('pointerup', handlePointerUp);
+      container.removeEventListener('pointercancel', handlePointerUp);
+      container.removeEventListener('pointerleave', handlePointerUp);
+      if (rafId !== null) {
+        cancelAnimationFrame(rafId);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const container = pianoScrollRef.current;
+    if (!container) return;
+    const previousZoom = pinchScrollStateRef.current.prevZoom;
+    if (Math.abs(previousZoom - pinchZoom) < 0.0001) return;
+    pinchScrollStateRef.current.prevZoom = pinchZoom;
+    const scale = pinchZoom / previousZoom;
+    const currentCenter = container.scrollLeft + container.clientWidth / 2;
+    const nextCenter = currentCenter * scale;
+    requestAnimationFrame(() => {
+      const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+      const nextScroll = Math.min(Math.max(0, nextCenter - container.clientWidth / 2), maxScroll);
+      container.scrollLeft = nextScroll;
+    });
+  }, [pinchZoom]);
 
   useEffect(() => {
     return () => {
@@ -937,7 +1047,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           } else {
             // モバイル等、画面が狭い → 横スクロール表示
             const whiteKeyWidth = gameAreaSize.width / VISIBLE_WHITE_KEYS;
-            idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
+            const effectiveZoom = gameAreaSize.width >= adjustedThreshold ? 1 : pinchZoom;
+            idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth * effectiveZoom);
             displayMode = 'MOBILE_SCROLL';
           }
           
@@ -945,10 +1056,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           return (
             <div 
               className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
-              style={{ 
+                style={{ 
                 WebkitOverflowScrolling: 'touch',
                 scrollSnapType: 'none',
-                scrollBehavior: 'auto'
+                  scrollBehavior: 'auto',
+                  touchAction: 'pan-x pinch-zoom'
               }}
               onScroll={handlePianoScroll}
               ref={pianoScrollRef}
