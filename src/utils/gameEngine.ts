@@ -636,9 +636,11 @@ export class GameEngine {
    */
   private updateNoteLogic(currentTime: number): void {
     const notesToDelete: string[] = [];
+    const timingAdjSec = this.getTimingAdjSec();
     
     for (const [noteId, note] of this.activeNotes) {
-      const isRecentNote = Math.abs(currentTime - note.time) < 2.0; // 判定時間の±2秒以内
+      const displayTime = note.time + timingAdjSec;
+      const isRecentNote = Math.abs(currentTime - displayTime) < 2.0; // 判定時間の±2秒以内
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
       this.checkHitLineCrossing(note, currentTime);
@@ -650,7 +652,7 @@ export class GameEngine {
           // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
         }
         
-        const updatedNote = this.updateNoteState(latestNote, currentTime);
+        const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
         if (isRecentNote && updatedNote.state !== latestNote.state) {
         }
         
@@ -682,8 +684,9 @@ export class GameEngine {
     
   }
   
-  private updateNoteState(note: ActiveNote, currentTime: number): ActiveNote {
-    const timePassed = currentTime - note.time;
+  private updateNoteState(note: ActiveNote, currentTime: number, timingAdjSec: number): ActiveNote {
+    const displayTime = note.time + timingAdjSec;
+    const timePassed = currentTime - displayTime;
     
     // 🛡️ Hit状態のノートは保護し、エフェクト描画のため最小1フレーム後に削除
     if (note.state === 'hit') {
@@ -703,7 +706,7 @@ export class GameEngine {
     // Miss判定チェック - 判定ライン通過後短い猶予でmiss判定
     if (note.state === 'visible' && timePassed > MISS_DELAY_AFTER_LINE) {
       // シーク直後とノーツ生成直後の猶予期間を設ける
-      const noteAge = currentTime - (note.appearTime || note.time - this.getLookaheadTime());
+      const noteAge = currentTime - (note.appearTime ?? (displayTime - this.getLookaheadTime()));
       const gracePeriod = 0.25;
       
       if (noteAge > gracePeriod) {
