@@ -91,6 +91,7 @@ export class UnifiedFrameController {
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
+    private frameHistory: Record<FrameChannel, number[]>;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -98,6 +99,10 @@ export class UnifiedFrameController {
       acc[channel] = { lastFrameTime: 0, skipCount: 0 };
       return acc;
     }, {} as Record<FrameChannel, ChannelState>);
+      this.frameHistory = FRAME_CHANNELS.reduce<Record<FrameChannel, number[]>>((acc, channel) => {
+        acc[channel] = [];
+        return acc;
+      }, {} as Record<FrameChannel, number[]>);
   }
   
   private getChannelState(channel: FrameChannel): ChannelState {
@@ -144,6 +149,29 @@ export class UnifiedFrameController {
   getConfig(): PerformanceConfig {
     return { ...this.config };
   }
+
+    recordFrame(channel: FrameChannel, frameStart: number): void {
+      const history = this.frameHistory[channel] ?? [];
+      const duration = performance.now() - frameStart;
+      history.push(duration);
+      if (history.length > 240) {
+        history.shift();
+      }
+      this.frameHistory[channel] = history;
+    }
+
+    getFrameStats(channel: FrameChannel): { average: number; max: number; min: number } {
+      const history = this.frameHistory[channel] ?? [];
+      if (history.length === 0) {
+        return { average: 0, max: 0, min: 0 };
+      }
+      const sum = history.reduce((acc, value) => acc + value, 0);
+      return {
+        average: sum / history.length,
+        max: Math.max(...history),
+        min: Math.min(...history)
+      };
+    }
 }
 
 /**

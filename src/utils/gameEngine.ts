@@ -14,8 +14,7 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
-import * as PIXI from 'pixi.js';
+import { log } from './logger';
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
 
@@ -75,12 +74,13 @@ export class GameEngine {
     rank: 'D'
   };
   
-  // 音楽同期
-  private audioContext: AudioContext | null = null;
-  private startTime: number = 0;
-  private pausedTime: number = 0;
-  private latencyOffset: number = 0;
-  private tickerListener: ((delta: number) => void) | null = null;
+    // 音楽同期
+    private audioContext: AudioContext | null = null;
+    private startTime: number = 0;
+    private pausedTime: number = 0;
+    private latencyOffset: number = 0;
+    private frameHandle: number | null = null;
+    private frameLoop: (() => void) | null = null;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
@@ -330,16 +330,12 @@ export class GameEngine {
     this.onJudgment?.(judgment);
     
     // ノーツの状態更新 - 新しいオブジェクトを作成して置き換え
-    const note = this.activeNotes.get(hit.noteId);
-    if (note) {
-      const updatedNote: ActiveNote = {
-        ...note,
-        state: 'hit',
-        hitTime: hit.timestamp,
-        timingError: hit.timingError
-      };
-      this.activeNotes.set(hit.noteId, updatedNote);
-    }
+      const note = this.activeNotes.get(hit.noteId);
+      if (note) {
+        note.state = 'hit';
+        note.hitTime = hit.timestamp;
+        note.timingError = hit.timingError;
+      }
     
     return judgment;
   }
@@ -604,24 +600,17 @@ export class GameEngine {
     }
   }
 
-  private buildVisibleBuffer(): ActiveNote[] {
-    let writeIndex = 0;
-    this.activeNotes.forEach((note) => {
-      if (note.state !== 'completed') {
-        const snapshot: ActiveNote = {
-          ...note
-        };
-        if (writeIndex < this.visibleNotesBuffer.length) {
-          this.visibleNotesBuffer[writeIndex] = snapshot;
-        } else {
-          this.visibleNotesBuffer.push(snapshot);
+    private buildVisibleBuffer(): ActiveNote[] {
+      let writeIndex = 0;
+      this.activeNotes.forEach((note) => {
+        if (note.state !== 'completed') {
+          this.visibleNotesBuffer[writeIndex] = note;
+          writeIndex += 1;
         }
-        writeIndex += 1;
-      }
-    });
-    this.visibleNotesBuffer.length = writeIndex;
-    return this.visibleNotesBuffer;
-  }
+      });
+      this.visibleNotesBuffer.length = writeIndex;
+      return this.visibleNotesBuffer;
+    }
 
   /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
@@ -750,11 +739,7 @@ export class GameEngine {
       const timeError = (currentTime - displayTime) * 1000;   // ms
 
       // 重複ログ防止フラグを即座に設定
-      const updatedNote: ActiveNote = {
-        ...note,
-        crossingLogged: true
-      };
-      this.activeNotes.set(note.id, updatedNote);
+        note.crossingLogged = true;
 
       // 練習モードガイド処理
       const practiceGuide = this.settings.practiceGuide ?? 'key';
@@ -859,74 +844,59 @@ export class GameEngine {
     // Managed in store now
   }
   
-  private startGameLoop(): void {
-    this.isGameLoopRunning = true;
-    // PIXI.Ticker.shared を使用し、unifiedFrameController と同期
-    const ticker = PIXI.Ticker.shared;
-
-      const gameLoop = () => {
-        const frameStartTime = performance.now();
-        
-        // フレームスキップ制御
-        if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
-          return; // スキップ時はロジック・描画を行わず、次のTicker呼び出しを待つ
-        }
-      
-      const currentTime = this.getCurrentTime();
-      
-      // ノーツ更新の頻度制御
-      let activeNotes: ActiveNote[] = [];
-      if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-        activeNotes = this.updateNotes(currentTime);
-        unifiedFrameController.markNoteUpdate(frameStartTime);
-        
-        // Miss判定処理（重複処理を防ぐ）
-        for (const note of activeNotes) {
-          if (note.state === 'missed' && !note.judged) {
-            const missJudgment: JudgmentResult = {
-              type: 'miss',
-              timingError: 0,
-              noteId: note.id,
-              timestamp: currentTime
-            };
-            this.updateScore(missJudgment);
-            
-            // 重複判定を防ぐフラグ - 新しいオブジェクトを作成して置き換え
-            const updatedNote: ActiveNote = {
-              ...note,
-              judged: true
-            };
-            this.activeNotes.set(note.id, updatedNote);
-
-            // イベント通知
-            this.onJudgment?.(missJudgment);
-          }
-        }
-      } else {
-        // 前回の activeNotes を再利用
-        activeNotes = Array.from(this.activeNotes.values());
+    private startGameLoop(): void {
+      if (this.isGameLoopRunning) {
+        return;
       }
-      
-      // ABリピートチェック（軽量化）
-      this.checkABRepeatLoop(currentTime);
-      
-      const timing: MusicalTiming = {
-        currentTime,
-        audioTime: this.audioContext?.currentTime || 0,
-        latencyOffset: this.latencyOffset
-      };
-      
-        // UI更新（毎フレーム必要）
-        const frameUpdate: GameEngineUpdate = {
-        currentTime,
-        activeNotes,
-        timing,
-        score: { ...this.score },
-        abRepeatState: {
-          start: null,
-          end: null,
-          enabled: false
+      this.isGameLoopRunning = true;
+      const loop = () => {
+        if (!this.isGameLoopRunning) {
+          return;
         }
+        const frameStartTime = performance.now();
+        if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
+          this.frameHandle = requestAnimationFrame(loop);
+          return;
+        }
+
+        const currentTime = this.getCurrentTime();
+        let activeNotes: ActiveNote[] = [];
+        if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
+          activeNotes = this.updateNotes(currentTime);
+          unifiedFrameController.markNoteUpdate(frameStartTime);
+          for (const note of activeNotes) {
+            if (note.state === 'missed' && !note.judged) {
+              const missJudgment: JudgmentResult = {
+                type: 'miss',
+                timingError: 0,
+                noteId: note.id,
+                timestamp: currentTime
+              };
+              this.updateScore(missJudgment);
+              note.judged = true;
+              this.onJudgment?.(missJudgment);
+            }
+          }
+        } else {
+          activeNotes = Array.from(this.activeNotes.values());
+        }
+
+        this.checkABRepeatLoop(currentTime);
+        const timing: MusicalTiming = {
+          currentTime,
+          audioTime: this.audioContext?.currentTime || 0,
+          latencyOffset: this.latencyOffset
+        };
+        const frameUpdate: GameEngineUpdate = {
+          currentTime,
+          activeNotes,
+          timing,
+          score: { ...this.score },
+          abRepeatState: {
+            start: null,
+            end: null,
+            enabled: false
+          }
         };
         this.onUpdate?.(frameUpdate);
         if (this.updateListeners.size > 0) {
@@ -938,21 +908,22 @@ export class GameEngine {
             }
           });
         }
-      
-    };
-    
-    this.tickerListener = gameLoop;
-    ticker.add(gameLoop);
-  }
-  
-  private stopGameLoop(): void {
-    this.isGameLoopRunning = false;
-    const ticker = PIXI.Ticker.shared;
-    if (this.tickerListener) {
-      ticker.remove(this.tickerListener);
-      this.tickerListener = null;
+        unifiedFrameController.recordFrame('logic', frameStartTime);
+        this.frameHandle = requestAnimationFrame(loop);
+      };
+
+      this.frameLoop = loop;
+      this.frameHandle = requestAnimationFrame(loop);
     }
-  }
+    
+    private stopGameLoop(): void {
+      this.isGameLoopRunning = false;
+      if (this.frameHandle !== null) {
+        cancelAnimationFrame(this.frameHandle);
+        this.frameHandle = null;
+      }
+      this.frameLoop = null;
+    }
 
   // ===== 動的タイムスケール計算ヘルパー =====
   /**

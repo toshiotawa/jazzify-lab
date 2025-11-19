@@ -9,7 +9,6 @@ import { resolveChord } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
-import * as PIXI from 'pixi.js';
 import { 
   TaikoNote, 
   ChordProgressionDataItem,
@@ -25,6 +24,30 @@ import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
+
+const buildMonsterPaths = (icon: string): string[] => [
+  `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`,
+  `${import.meta.env.BASE_URL}monster_icons/${icon}.png`
+];
+
+const loadMonsterImage = async (icon: string): Promise<HTMLImageElement | null> => {
+  for (const path of buildMonsterPaths(icon)) {
+    try {
+      // eslint-disable-next-line no-await-in-loop
+      const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        img.onload = () => resolve(img);
+        img.onerror = () => reject(new Error(`Failed to load ${path}`));
+        img.src = path;
+      });
+      return image;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+};
 
 type StageMode = 
   | 'single'
@@ -472,7 +495,7 @@ export const useFantasyGameEngine = ({
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
   // プリロードしたテクスチャを保持
-  const imageTexturesRef = useRef<Map<string, PIXI.Texture>>(new Map());
+    const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   // 怒り状態の自動解除タイマーをモンスターIDごとに管理
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   
@@ -763,40 +786,17 @@ export const useFantasyGameEngine = ({
     setStageMonsterIds(monsterIds);
 
     // モンスター画像をプリロード
-    try {
-      // バンドルが既に存在する場合は削除
-      // PIXI v7では unloadBundle が失敗しても問題ないため、try-catchで保護
-      try {
-        await PIXI.Assets.unloadBundle('stageMonsters');
-      } catch {
-        // バンドルが存在しない場合は無視
+    const textureMap = imageTexturesRef.current;
+    textureMap.clear();
+    await Promise.all(monsterIds.map(async (id) => {
+      const image = await loadMonsterImage(id);
+      if (image) {
+        textureMap.set(id, image);
       }
-
-      // バンドル用のアセットマッピングを作成
-      const bundle: Record<string, string> = {};
-      monsterIds.forEach(id => {
-        // 一時的にPNG形式を使用（WebP変換ツールが利用できないため）
-        bundle[id] = `${import.meta.env.BASE_URL}monster_icons/${id}.png`;
-      });
-
-      // バンドルを追加してロード
-      PIXI.Assets.addBundle('stageMonsters', bundle);
-      await PIXI.Assets.loadBundle('stageMonsters');
-
-      // テクスチャをキャッシュに保管
-      const textureMap = imageTexturesRef.current;
-      textureMap.clear();
-      monsterIds.forEach(id => {
-        const texture = PIXI.Assets.get(id) as PIXI.Texture;
-        if (texture) {
-          textureMap.set(id, texture);
-        }
-      });
-
-      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
-    } catch (error) {
+    })).catch((error) => {
       devLog.error('❌ モンスター画像プリロード失敗:', error);
-    }
+    });
+    devLog.debug('✅ モンスター画像プリロード完了:', { count: textureMap.size });
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
