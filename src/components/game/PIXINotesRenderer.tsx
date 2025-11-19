@@ -514,7 +514,7 @@ export class PIXINotesRendererInstance {
       });
 
       const accentSourceNotes = new Set(['B', 'E']);
-      const boundaryColor = 'rgba(248,250,252,0.06)';
+        const boundaryColor = 'rgba(248,250,252,0.12)';
       for (let i = 0; i < this.whiteKeyOrder.length - 1; i += 1) {
         const currentMidi = this.whiteKeyOrder[i];
         const key = this.keyGeometries.get(currentMidi);
@@ -522,7 +522,7 @@ export class PIXINotesRendererInstance {
         const boundaryX = key.x + key.width;
         const nextKey = this.keyGeometries.get(this.whiteKeyOrder[i + 1]);
         const referenceWidth = nextKey ? Math.min(key.width, nextKey.width) : key.width;
-        const baseWidth = Math.max(1, referenceWidth * 0.04);
+        const baseWidth = Math.max(1.5, referenceWidth * 0.055);
         ctx.fillStyle = boundaryColor;
         ctx.fillRect(boundaryX - baseWidth / 2, 0, baseWidth, laneHeight);
 
