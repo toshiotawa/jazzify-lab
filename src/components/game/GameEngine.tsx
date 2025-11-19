@@ -1006,7 +1006,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
     }, [updateSettings, updateEngineSettings, showSeekbar]);
   
-  // ================= ピアノキー演奏ハンドラー =================
+    // ================= ピアノキー演奏ハンドラー =================
+      const pianoKeyPressHandlerRef = useRef<(note: number) => void>(() => undefined);
+      const pianoKeyReleaseHandlerRef = useRef<(note: number) => void>(() => undefined);
+  
     const handlePianoKeyPress = useCallback((note: number) => {
       handleNoteInput(note);
       const module = midiModuleRef.current;
@@ -1039,6 +1042,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         });
     }, [ensureMidiModule]);
 
+      pianoKeyPressHandlerRef.current = handlePianoKeyPress;
+      pianoKeyReleaseHandlerRef.current = handlePianoKeyRelease;
+
   // ================= PIXI.js レンダラー準備完了ハンドラー =================
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     if (!renderer) {
@@ -1063,14 +1069,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     });
     
     // ピアノキーボードのクリックイベントを接続
-    renderer.setKeyCallbacks(
-      (note: number) => {
-        handlePianoKeyPress(note);
-      }, // キー押下
-      (note: number) => {
-        handlePianoKeyRelease(note);
-      } // キー解放
-    );
+      renderer.setKeyCallbacks(
+        (note: number) => {
+          pianoKeyPressHandlerRef.current(note);
+        }, // キー押下
+        (note: number) => {
+          pianoKeyReleaseHandlerRef.current(note);
+        } // キー解放
+      );
     
     // MIDIControllerにキーハイライト機能を設定
     if (midiControllerRef.current) {
@@ -1082,7 +1088,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
 
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
-  }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice]);
+    }, [settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument]);
   
   // キーボード入力処理（テスト用）
   const handleKeyPress = useCallback((event: KeyboardEvent) => {
