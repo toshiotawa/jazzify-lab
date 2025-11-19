@@ -20,7 +20,6 @@ interface TimeMappingEntry {
  */
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
@@ -33,9 +32,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const mappingCursorRef = useRef<number>(0);
   
-  // ホイールスクロール制御用
-  const [isHovered, setIsHovered] = useState(false);
-  
   const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
@@ -44,6 +40,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     settings: s.settings, // 簡易表示設定を取得
   }));
   const shouldRenderSheet = settings.showSheetMusic;
+  const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
   
   // const gameActions = useGameActions(); // 現在未使用
   
@@ -165,13 +162,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     loadAndRenderSheet();
   }, [loadAndRenderSheet]);
 
-  useEffect(() => {
-    if (!shouldRenderSheet && osmdRef.current) {
-      osmdRef.current.clear();
-      timeMappingRef.current = [];
-      mappingCursorRef.current = 0;
-    }
-  }, [shouldRenderSheet]);
+    useEffect(() => {
+      if (!shouldRenderSheet && osmdRef.current) {
+        osmdRef.current.clear();
+        timeMappingRef.current = [];
+        mappingCursorRef.current = 0;
+      }
+    }, [shouldRenderSheet]);
+
+    useEffect(() => {
+      if (!shouldRenderSheet || !osmdRef.current) {
+        return;
+      }
+      createTimeMapping();
+    }, [createTimeMapping, shouldRenderSheet]);
 
   // 音符の時刻とX座標のマッピングを作成
   const createTimeMapping = useCallback(() => {
@@ -239,11 +243,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                         centerX += noteHeadWidth / 2;
                       }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
-                        // 動的に計算したスケール係数を使用
-                        xPosition: centerX * scaleFactorRef.current
-                      });
+        mapping.push({
+          timeMs: (note.time + timingAdjustmentSec) * 1000,
+          xPosition: centerX * scaleFactorRef.current
+        });
                     }
                     noteIndex++;
       }
@@ -263,78 +266,51 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-  }, [notes]);
+  }, [notes, timingAdjustmentSec]);
 
-  // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
+  // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
   useEffect(() => {
-    if (isPlaying && scrollContainerRef.current) {
-      // 再生開始時に即座にスクロール位置を0にリセット
-      scrollContainerRef.current.scrollLeft = 0;
-      log.info('🎵 楽譜スクロールを開始位置にリセット');
+    const mapping = timeMappingRef.current;
+    const scrollContainer = scrollContainerRef.current;
+    if (!shouldRenderSheet || mapping.length === 0 || !scrollContainer) {
+      return;
     }
-  }, [isPlaying]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
-    useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        return;
-      }
+    const currentTimeMs = currentTime * 1000;
 
-      const currentTimeMs = currentTime * 1000;
-
-      const findNextIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
+    const findNextIndex = () => {
+      let low = 0;
+      let high = mapping.length - 1;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        if (mapping[mid].timeMs <= currentTimeMs) {
+          low = mid + 1;
+        } else {
+          high = mid - 1;
         }
-        return Math.min(low, mapping.length - 1);
-      };
-
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
-      mappingCursorRef.current = activeIndex;
-
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
-      const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
-
-    // ホイールスクロール制御
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      // 楽譜エリアにマウスがホバーしていない、または再生中の場合はスクロールを無効化
-      if (!isHovered || isPlaying) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
+      return Math.min(low, mapping.length - 1);
     };
 
-    const scrollContainer = scrollContainerRef.current;
-    if (scrollContainer) {
-      scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
-      
-      return () => {
-        scrollContainer.removeEventListener('wheel', handleWheel);
-      };
+    const nextIndex = findNextIndex();
+    const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+    mappingCursorRef.current = activeIndex;
+
+    const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+    const playheadPosition = 120;
+    const rawScrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+    const maxScroll = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+    const scrollX = Math.min(rawScrollX, maxScroll);
+
+    const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
+    const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
+
+    if (needsIndexUpdate || needsScrollUpdate) {
+      scrollContainer.scrollLeft = scrollX;
+      lastRenderedIndexRef.current = activeIndex;
+      lastScrollXRef.current = scrollX;
     }
-  }, [isHovered, isPlaying]);
+  }, [currentTime, isPlaying, notes, shouldRenderSheet, timingAdjustmentSec]);
 
   // クリーンアップ
     useEffect(() => {
@@ -359,27 +335,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     );
   }
 
-  return (
+    return (
     <div 
       className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
+        'relative bg-white text-black overflow-x-auto overflow-y-hidden custom-sheet-scrollbar',
         className
       )}
       ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
       style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
+        '--scrollbar-width': '8px',
+        '--scrollbar-track-color': '#f3f4f6',
+        '--scrollbar-thumb-color': '#9ca3af',
+        '--scrollbar-thumb-hover-color': '#6b7280'
       } as React.CSSProperties}
     >
       {/* プレイヘッド（赤い縦線） */}
@@ -409,18 +376,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         )}
         
         {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
+        <div className="h-full w-max">
           <div 
             ref={containerRef} 
             className="h-full flex items-center"
