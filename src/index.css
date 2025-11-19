@@ -351,6 +351,28 @@
            active:scale-95 overflow-hidden
            flex items-center justify-center leading-none;
   }
+
+  .control-btn-xxs {
+    min-width: 3.75rem;
+    min-height: 3.75rem;
+    font-size: 1.35rem;
+    line-height: 1.2;
+  }
+
+  @media (max-width: 640px) {
+    .control-btn-xxs {
+      min-width: 4rem;
+      min-height: 4rem;
+      font-size: 1.45rem;
+    }
+  }
+
+  @supports (-webkit-touch-callout: none) {
+    .control-btn-xxs {
+      min-width: 4.1rem;
+      min-height: 4.1rem;
+    }
+  }
   
   .control-btn:before {
     content: '';
