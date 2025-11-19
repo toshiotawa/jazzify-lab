@@ -36,6 +36,7 @@ interface PIXINotesRendererProps {
   height: number;
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
+  enableSwipeScroll?: boolean;
 }
 
 interface KeyGeometry {
@@ -44,6 +45,13 @@ interface KeyGeometry {
   x: number;
   width: number;
   height: number;
+}
+
+interface PointerState {
+  midi: number | null;
+  startX: number;
+  startY: number;
+  isDragging: boolean;
 }
 
 const MIN_MIDI = 21;
@@ -127,11 +135,14 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-  private pointerMap = new Map<number, number>();
+  private pointerMap = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private swipeScrollEnabled = false;
+  private readonly swipeTapThreshold = 10;
+  private readonly tapReleaseDelayMs = 120;
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -147,6 +158,7 @@ export class PIXINotesRendererInstance {
     this.configureCanvasSize(width, height);
     this.recalculateKeyLayout();
     this.attachEvents();
+    this.updateTouchAction();
   }
 
   updateNotes(notes: ActiveNote[], _currentTime?: number): void {
@@ -247,13 +259,24 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
-    this.pointerMap.clear();
+      this.pointerMap.clear();
     this.backgroundCanvas = null;
   }
 
   get view(): HTMLCanvasElement {
     return this.canvas;
   }
+
+    setSwipeScrollEnabled(enabled: boolean): void {
+      if (this.swipeScrollEnabled === enabled) {
+        return;
+      }
+      this.swipeScrollEnabled = enabled;
+      this.updateTouchAction();
+      if (enabled) {
+        this.pointerMap.clear();
+      }
+    }
 
   private configureCanvasSize(width: number, height: number): void {
     this.canvas.style.width = `${width}px`;
@@ -339,7 +362,6 @@ export class PIXINotesRendererInstance {
     this.canvas.addEventListener('pointercancel', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
-    this.canvas.style.touchAction = 'none';
   }
 
   private detachEvents(): void {
@@ -351,45 +373,78 @@ export class PIXINotesRendererInstance {
     this.canvas.removeEventListener('contextmenu', this.preventContextMenu);
   }
 
+    private updateTouchAction(): void {
+      this.canvas.style.touchAction = this.swipeScrollEnabled ? 'pan-x' : 'none';
+    }
+
   private preventContextMenu = (event: Event): void => {
     event.preventDefault();
   };
 
-  private handlePointerDown = (event: PointerEvent): void => {
-    if (this.destroyed) return;
-    const midi = this.hitTest(event);
-    if (midi === null) return;
-    try {
-      this.canvas.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-    this.pointerMap.set(event.pointerId, midi);
-    this.triggerKeyPress(midi);
-  };
+    private handlePointerDown = (event: PointerEvent): void => {
+      if (this.destroyed) return;
+      const midi = this.hitTest(event);
+      if (midi === null) return;
+      const pointerState: PointerState = {
+        midi,
+        startX: event.clientX,
+        startY: event.clientY,
+        isDragging: false
+      };
+      this.pointerMap.set(event.pointerId, pointerState);
+      if (this.swipeScrollEnabled) {
+        return;
+      }
+      try {
+        this.canvas.setPointerCapture(event.pointerId);
+      } catch {
+        // ignore
+      }
+      this.triggerKeyPress(midi);
+    };
 
-  private handlePointerMove = (event: PointerEvent): void => {
-    if (this.destroyed) return;
-    if (!this.pointerMap.has(event.pointerId)) return;
-    const nextMidi = this.hitTest(event);
-    const prevMidi = this.pointerMap.get(event.pointerId);
-    if (nextMidi === null || nextMidi === prevMidi) {
-      return;
-    }
-    if (prevMidi !== undefined) {
-      this.triggerKeyRelease(prevMidi);
-    }
-    this.pointerMap.set(event.pointerId, nextMidi);
-    this.triggerKeyPress(nextMidi);
-  };
+    private handlePointerMove = (event: PointerEvent): void => {
+      if (this.destroyed) return;
+      const state = this.pointerMap.get(event.pointerId);
+      if (!state) return;
+      if (this.swipeScrollEnabled) {
+        if (!state.isDragging) {
+          const deltaX = Math.abs(event.clientX - state.startX);
+          const deltaY = Math.abs(event.clientY - state.startY);
+          if (Math.hypot(deltaX, deltaY) > this.swipeTapThreshold) {
+            state.isDragging = true;
+          }
+        }
+        return;
+      }
+      const nextMidi = this.hitTest(event);
+      const prevMidi = state.midi;
+      if (nextMidi === null || nextMidi === prevMidi) {
+        return;
+      }
+      if (prevMidi !== null) {
+        this.triggerKeyRelease(prevMidi);
+      }
+      state.midi = nextMidi;
+      this.triggerKeyPress(nextMidi);
+    };
 
-  private handlePointerUp = (event: PointerEvent): void => {
-    const midi = this.pointerMap.get(event.pointerId);
-    if (midi !== undefined) {
-      this.triggerKeyRelease(midi);
+    private handlePointerUp = (event: PointerEvent): void => {
+      const state = this.pointerMap.get(event.pointerId);
+      if (!state) {
+        return;
+      }
       this.pointerMap.delete(event.pointerId);
-    }
-  };
+      if (this.swipeScrollEnabled) {
+        if (!state.isDragging && state.midi !== null) {
+          this.triggerTap(state.midi);
+        }
+        return;
+      }
+      if (state.midi !== null) {
+        this.triggerKeyRelease(state.midi);
+      }
+    };
 
   private triggerKeyPress(midi: number): void {
     this.highlightKey(midi, true);
@@ -400,6 +455,13 @@ export class PIXINotesRendererInstance {
     this.highlightKey(midi, false);
     this.onKeyRelease?.(midi);
   }
+
+    private triggerTap(midi: number): void {
+      this.triggerKeyPress(midi);
+      window.setTimeout(() => {
+        this.triggerKeyRelease(midi);
+      }, this.tapReleaseDelayMs);
+    }
 
   private hitTest(event: PointerEvent): number | null {
     const rect = this.canvas.getBoundingClientRect();
@@ -777,7 +839,8 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   onReady,
-  className
+  className,
+  enableSwipeScroll = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -800,6 +863,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   useEffect(() => {
     rendererRef.current?.resize(width, height);
   }, [width, height]);
+
+  useEffect(() => {
+    rendererRef.current?.setSwipeScrollEnabled(enableSwipeScroll);
+  }, [enableSwipeScroll]);
 
   return (
     <canvas

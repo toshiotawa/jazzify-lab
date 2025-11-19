@@ -1362,7 +1362,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 width={pixiWidth}
                 height={120} // ★★★ 高さを120に固定 ★★★
                 onReady={handlePixiReady}
-                className="w-full h-full"
+                  className="w-full h-full"
+                  enableSwipeScroll={needsScroll}
               />
               </div>
             );
@@ -1374,7 +1375,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 width={pixiWidth}
                 height={120} // ★★★ 高さを120に固定 ★★★
                 onReady={handlePixiReady}
-                className="w-full h-full"
+                  className="w-full h-full"
+                  enableSwipeScroll={needsScroll}
               />
               </div>
             );
