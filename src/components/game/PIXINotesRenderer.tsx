@@ -320,6 +320,11 @@ export class PIXINotesRendererInstance {
     this.backgroundNeedsUpdate = true;
   }
 
+  private getBlackKeyTop(): number {
+    const inset = Math.min(8, Math.max(0, this.settings.pianoHeight * 0.04));
+    return this.settings.hitLineY + inset;
+  }
+
   private findAdjacentWhite(midi: number, direction: 1 | -1): KeyGeometry | null {
     let cursor = midi + direction;
     while (cursor >= MIN_MIDI && cursor <= MAX_MIDI) {
@@ -413,7 +418,7 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) continue;
-      const top = this.settings.hitLineY - geometry.height * 0.2;
+      const top = this.getBlackKeyTop();
       const bottom = top + geometry.height;
       if (x >= geometry.x && x <= geometry.x + geometry.width && y >= top && y <= bottom) {
         return midi;
@@ -492,11 +497,39 @@ export class PIXINotesRendererInstance {
     gradient.addColorStop(1, '#0f172a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height - this.settings.pianoHeight);
+    this.drawGuideLanes(ctx);
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
     this.drawStaticKeys(ctx);
     this.backgroundCanvas = canvas;
   }
+
+    private drawGuideLanes(ctx: CanvasRenderingContext2D): void {
+      const laneHeight = this.settings.hitLineY;
+      if (laneHeight <= 0) {
+        return;
+      }
+      ctx.save();
+      const baseFill = 'rgba(148, 163, 184, 0.04)';
+      const accentFill = 'rgba(148, 163, 184, 0.12)';
+      const baseDivider = 'rgba(15, 23, 42, 0.4)';
+      const accentDivider = 'rgba(248, 250, 252, 0.45)';
+      this.whiteKeyOrder.forEach((midi, index) => {
+        const geometry = this.keyGeometries.get(midi);
+        if (!geometry) return;
+        const nextMidi = this.whiteKeyOrder[index + 1] ?? null;
+        const hasHalfStepGap = nextMidi !== null && nextMidi - midi === 1;
+        ctx.fillStyle = hasHalfStepGap ? accentFill : baseFill;
+        ctx.fillRect(geometry.x, 0, geometry.width, laneHeight);
+        if (nextMidi !== null) {
+          ctx.fillStyle = hasHalfStepGap ? accentDivider : baseDivider;
+          const lineWidth = hasHalfStepGap ? 2 : 1;
+          const boundaryX = geometry.x + geometry.width - lineWidth / 2;
+          ctx.fillRect(boundaryX, 0, lineWidth, laneHeight);
+        }
+      });
+      ctx.restore();
+    }
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
@@ -513,7 +546,7 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      const top = this.settings.hitLineY - key.height * 0.2;
+      const top = this.getBlackKeyTop();
       ctx.fillRect(key.x, top, key.width, key.height);
     }
     ctx.restore();
@@ -561,13 +594,13 @@ export class PIXINotesRendererInstance {
 
   private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    const top = this.settings.hitLineY;
-    const height = this.settings.pianoHeight;
+    const keyboardTop = this.settings.hitLineY;
+    const keyboardHeight = this.settings.pianoHeight;
     const drawHighlight = (midi: number, color: string): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-      const keyTop = geometry.isBlack ? top - geometry.height * 0.2 : top;
-      const keyHeight = geometry.isBlack ? geometry.height : height;
+      const keyTop = geometry.isBlack ? this.getBlackKeyTop() : keyboardTop;
+      const keyHeight = geometry.isBlack ? geometry.height : keyboardHeight;
       ctx.fillStyle = color;
       ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
       ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
