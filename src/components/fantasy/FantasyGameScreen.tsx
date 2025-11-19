@@ -100,9 +100,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
-  const { settings, updateSettings } = useGameStore();
+    const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
+    const timingAdjustmentMs = settings.timingAdjustment ?? 0;
+    const timingAdjustmentSec = timingAdjustmentMs / 1000;
+    const getAdjustedMusicTime = useCallback(() => bgmManager.getCurrentMusicTime() + timingAdjustmentSec, [timingAdjustmentSec]);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
   const [monsterAreaWidth, setMonsterAreaWidth] = useState<number>(window.innerWidth);
@@ -478,15 +481,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     proceedToNextEnemy,
     imageTexturesRef, // 追加: プリロードされたテクスチャへの参照
     ENEMY_LIST
-  } = useFantasyGameEngine({
+    } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
-    displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+      displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
+      isReady,
+      timingAdjustmentSec
   });
   
   // 現在の敵情報を取得
@@ -731,7 +735,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastUpdateTime = timestamp;
       
-      const currentTime = bgmManager.getCurrentMusicTime();
+        const currentTime = getAdjustedMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 400; // ピクセル/秒
@@ -864,7 +868,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+    }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage, getAdjustedMusicTime]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {

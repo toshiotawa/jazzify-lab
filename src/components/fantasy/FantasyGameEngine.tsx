@@ -177,6 +177,7 @@ interface FantasyGameEngineProps {
   onEnemyAttack: (attackingMonsterId?: string) => void;
   // ★ 追加: Ready フェーズ中フラグ
   isReady?: boolean;
+  timingAdjustmentSec?: number;
 }
 
 // ===== コード定義データ =====
@@ -501,7 +502,8 @@ export const useFantasyGameEngine = ({
   onGameComplete,
   onEnemyAttack,
   displayOpts = { lang: 'en', simple: false },
-  isReady = false
+  isReady = false,
+  timingAdjustmentSec = 0
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   // ステージで使用するモンスターIDを保持
@@ -550,6 +552,7 @@ export const useFantasyGameEngine = ({
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  const getAdjustedMusicTime = useCallback(() => bgmManager.getCurrentMusicTime() + timingAdjustmentSec, [timingAdjustmentSec]);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
@@ -563,7 +566,7 @@ export const useFantasyGameEngine = ({
     const currentNote = prevState.taikoNotes[currentIndex];
     if (!currentNote) return prevState;
 
-    const currentTime = bgmManager.getCurrentMusicTime();
+    const currentTime = getAdjustedMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
@@ -778,7 +781,7 @@ export const useFantasyGameEngine = ({
         activeMonsters: updatedMonsters
       };
     }
-  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
+  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds, getAdjustedMusicTime]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage) => {
@@ -1177,43 +1180,6 @@ export const useFantasyGameEngine = ({
     onEnemyAttack(attackingMonsterId);
   }, [onGameStateChange, onGameComplete, onEnemyAttack]);
   
-  // ゲージタイマーの管理
-  useEffect(() => {
-    devLog.debug('🎮 ゲージタイマー状態チェック:', { 
-      isGameActive: gameState.isGameActive, 
-      hasTimer: !!enemyGaugeTimer,
-      currentStage: gameState.currentStage?.stageNumber,
-      isReady
-    });
-    
-    // 既存のタイマーをクリア
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
-    }
-    
-    // ゲームがアクティブな場合のみ新しいタイマーを開始
-    // Ready中（single）では開始しない
-    if (
-      gameState.isGameActive &&
-      gameState.currentStage &&
-      !(isReady && gameState.currentStage.mode === 'single')
-    ) {
-      devLog.debug('⏰ 敵ゲージタイマー開始');
-      const timer = setInterval(() => {
-        updateEnemyGauge();
-      }, 100); // 100ms間隔で更新
-      setEnemyGaugeTimer(timer);
-    }
-    
-    // クリーンアップ
-    return () => {
-      if (enemyGaugeTimer) {
-        clearInterval(enemyGaugeTimer);
-      }
-    };
-  }, [gameState.isGameActive, gameState.currentStage, isReady]); // ゲーム状態とステージ、Readyの変更を監視
-  
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中はゲージ停止 - FantasyGameScreenで管理 → エンジンでもガード */
@@ -1232,8 +1198,8 @@ export const useFantasyGameEngine = ({
       }
       
       // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
-      if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        const currentTime = bgmManager.getCurrentMusicTime();
+        if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
+          const currentTime = getAdjustedMusicTime();
         const stage = prevState.currentStage;
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
@@ -1428,7 +1394,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode]);
+  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, getAdjustedMusicTime]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
