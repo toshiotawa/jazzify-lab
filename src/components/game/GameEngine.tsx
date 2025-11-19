@@ -940,6 +940,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
             displayMode = 'MOBILE_SCROLL';
           }
+            const enableSwipeScroll = displayMode === 'MOBILE_SCROLL';
           
           
           return (
@@ -968,6 +969,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                     height={gameAreaSize.height}
                     onReady={handlePixiReady}
                     className="w-full h-full"
+                    enableSwipeScroll={enableSwipeScroll}
                   />
                 <ChordOverlay />
               </div>
