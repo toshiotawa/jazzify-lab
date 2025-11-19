@@ -413,7 +413,7 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) continue;
-      const top = this.settings.hitLineY - geometry.height * 0.2;
+      const top = this.getKeyTop(geometry);
       const bottom = top + geometry.height;
       if (x >= geometry.x && x <= geometry.x + geometry.width && y >= top && y <= bottom) {
         return midi;
@@ -492,6 +492,7 @@ export class PIXINotesRendererInstance {
     gradient.addColorStop(1, '#0f172a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height - this.settings.pianoHeight);
+    this.drawGuideLanes(ctx);
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
     this.drawStaticKeys(ctx);
@@ -513,9 +514,30 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      const top = this.settings.hitLineY - key.height * 0.2;
+      const top = this.getKeyTop(key);
       ctx.fillRect(key.x, top, key.width, key.height);
     }
+    ctx.restore();
+  }
+
+  private drawGuideLanes(ctx: CanvasRenderingContext2D): void {
+    const laneHeight = this.settings.hitLineY;
+    if (laneHeight <= 0) return;
+    ctx.save();
+    this.whiteKeyOrder.forEach((midi, index) => {
+      const key = this.keyGeometries.get(midi);
+      if (!key) return;
+      const baseNote = NOTE_NAMES[midi % 12];
+      const isSemitoneGap = baseNote === 'C' || baseNote === 'F';
+      const laneColor = isSemitoneGap
+        ? 'rgba(59,130,246,0.15)'
+        : (index % 2 === 0 ? 'rgba(15,23,42,0.06)' : 'rgba(15,23,42,0.03)');
+      ctx.fillStyle = laneColor;
+      ctx.fillRect(key.x, 0, key.width, laneHeight);
+      const dividerColor = isSemitoneGap ? 'rgba(147,197,253,0.5)' : 'rgba(100,116,139,0.18)';
+      ctx.fillStyle = dividerColor;
+      ctx.fillRect(Math.round(key.x), 0, 1, laneHeight);
+    });
     ctx.restore();
   }
 
@@ -561,13 +583,11 @@ export class PIXINotesRendererInstance {
 
   private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    const top = this.settings.hitLineY;
-    const height = this.settings.pianoHeight;
     const drawHighlight = (midi: number, color: string): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-      const keyTop = geometry.isBlack ? top - geometry.height * 0.2 : top;
-      const keyHeight = geometry.isBlack ? geometry.height : height;
+      const keyTop = this.getKeyTop(geometry);
+      const keyHeight = geometry.isBlack ? geometry.height : this.settings.pianoHeight;
       ctx.fillStyle = color;
       ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
       ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
@@ -576,6 +596,15 @@ export class PIXINotesRendererInstance {
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
+  }
+
+  private getKeyTop(geometry: KeyGeometry): number {
+    if (!geometry.isBlack) {
+      return this.settings.hitLineY;
+    }
+    const remainingHeight = Math.max(0, this.settings.pianoHeight - geometry.height);
+    const offset = remainingHeight * 0.25;
+    return this.settings.hitLineY + offset;
   }
 
   private getStateColor(state: ActiveNote['state'], isBlack: boolean): string {
