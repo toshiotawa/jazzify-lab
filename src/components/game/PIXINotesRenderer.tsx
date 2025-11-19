@@ -413,7 +413,7 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) continue;
-      const top = this.settings.hitLineY - geometry.height * 0.2;
+      const top = this.settings.hitLineY;
       const bottom = top + geometry.height;
       if (x >= geometry.x && x <= geometry.x + geometry.width && y >= top && y <= bottom) {
         return midi;
@@ -492,6 +492,7 @@ export class PIXINotesRendererInstance {
     gradient.addColorStop(1, '#0f172a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height - this.settings.pianoHeight);
+    this.drawGuideLanes(ctx);
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
     this.drawStaticKeys(ctx);
@@ -513,8 +514,57 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      const top = this.settings.hitLineY - key.height * 0.2;
+      const top = this.settings.hitLineY;
       ctx.fillRect(key.x, top, key.width, key.height);
+    }
+    ctx.restore();
+  }
+
+  private drawGuideLanes(ctx: CanvasRenderingContext2D): void {
+    const laneHeight = this.settings.hitLineY;
+    if (laneHeight <= 0) {
+      return;
+    }
+    ctx.save();
+    const alternatingFill = 'rgba(148,163,184,0.04)';
+    const accentFill = 'rgba(59,130,246,0.08)';
+    const baseStroke = 'rgba(148,163,184,0.12)';
+    const accentStroke = 'rgba(59,130,246,0.35)';
+    this.whiteKeyOrder.forEach((midi, index) => {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) return;
+      if (index % 2 === 0) {
+        ctx.fillStyle = alternatingFill;
+        ctx.fillRect(geometry.x, 0, geometry.width, laneHeight);
+      }
+    });
+    let prevMidi: number | null = null;
+    for (const midi of this.whiteKeyOrder) {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) {
+        prevMidi = midi;
+        continue;
+      }
+      if (prevMidi !== null) {
+        const boundaryX = geometry.x;
+        const isSpecialGap = this.isNaturalHalfStep(prevMidi, midi);
+        if (isSpecialGap) {
+          const prevGeometry = this.keyGeometries.get(prevMidi);
+          if (prevGeometry) {
+            const gapWidth = Math.min(prevGeometry.width, geometry.width) * 0.6;
+            const accentLeft = boundaryX - gapWidth / 2;
+            ctx.fillStyle = accentFill;
+            ctx.fillRect(accentLeft, 0, gapWidth, laneHeight);
+          }
+        }
+        ctx.strokeStyle = isSpecialGap ? accentStroke : baseStroke;
+        ctx.lineWidth = isSpecialGap ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(boundaryX, 0);
+        ctx.lineTo(boundaryX, laneHeight);
+        ctx.stroke();
+      }
+      prevMidi = midi;
     }
     ctx.restore();
   }
@@ -566,7 +616,7 @@ export class PIXINotesRendererInstance {
     const drawHighlight = (midi: number, color: string): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-      const keyTop = geometry.isBlack ? top - geometry.height * 0.2 : top;
+      const keyTop = top;
       const keyHeight = geometry.isBlack ? geometry.height : height;
       ctx.fillStyle = color;
       ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
@@ -606,6 +656,16 @@ export class PIXINotesRendererInstance {
       return this.simplifyNoteName(englishName);
     }
     return englishName;
+  }
+
+  private isNaturalHalfStep(prevMidi: number, nextMidi: number): boolean {
+    const normalize = (value: number): number => {
+      const mod = value % 12;
+      return mod < 0 ? mod + 12 : mod;
+    };
+    const prev = normalize(prevMidi);
+    const next = normalize(nextMidi);
+    return (prev === 11 && next === 0) || (prev === 4 && next === 5);
   }
 
   private normalizeToEnglish(noteName: string): string {
