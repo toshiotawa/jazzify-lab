@@ -6,7 +6,7 @@
 /* eslint-disable @typescript-eslint/no-use-before-define */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import React, { useEffect, useCallback, useState, useRef } from 'react';
+import React, { useEffect, useCallback, useState, useRef, useLayoutEffect } from 'react';
 import { useGameStore } from '@/stores/gameStore';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
@@ -15,6 +15,29 @@ import { LegendRenderBridge } from './LegendRenderBridge';
 import ChordOverlay from './ChordOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
+
+const TOTAL_WHITE_KEYS = 52;
+const VISIBLE_WHITE_KEYS = 24;
+const MOBILE_SCROLL_BREAKPOINT = 1100;
+const MIN_PIANO_ZOOM = 1;
+const MAX_PIANO_ZOOM = 2.5;
+
+interface PinchState {
+  startDistance: number;
+  startZoom: number;
+  originRatio: number;
+  viewportOffset: number;
+}
+
+const clampZoomValue = (value: number): number => Math.min(MAX_PIANO_ZOOM, Math.max(MIN_PIANO_ZOOM, value));
+
+const getTouchDistance = (touchA: React.Touch, touchB: React.Touch): number => {
+  const dx = touchA.clientX - touchB.clientX;
+  const dy = touchA.clientY - touchB.clientY;
+  return Math.hypot(dx, dy);
+};
+
+const getTouchMidpointX = (touchA: React.Touch, touchB: React.Touch): number => (touchA.clientX + touchB.clientX) / 2;
 
 // iOS検出関数
 const isIOS = (): boolean => {
@@ -30,27 +53,29 @@ interface GameEngineComponentProps {
 export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
   className 
 }) => {
-  const {
-  gameEngine,
-  isPlaying,
-    currentSong,
-    currentTime,
-    settings,
-    score,
-    mode,
-    lastKeyHighlight,
-    isSettingsOpen
-  } = useGameSelector((state) => ({
-    gameEngine: state.gameEngine,
-    isPlaying: state.isPlaying,
-    currentSong: state.currentSong,
-    currentTime: state.currentTime,
-    settings: state.settings,
-    score: state.score,
-    mode: state.mode,
-    lastKeyHighlight: state.lastKeyHighlight,
-    isSettingsOpen: state.isSettingsOpen
-  }));
+    const {
+      gameEngine,
+      isPlaying,
+      currentSong,
+      currentTime,
+      settings,
+      score,
+      mode,
+      lastKeyHighlight,
+      isSettingsOpen,
+      resultModalOpen
+    } = useGameSelector((state) => ({
+      gameEngine: state.gameEngine,
+      isPlaying: state.isPlaying,
+      currentSong: state.currentSong,
+      currentTime: state.currentTime,
+      settings: state.settings,
+      score: state.score,
+      mode: state.mode,
+      lastKeyHighlight: state.lastKeyHighlight,
+      isSettingsOpen: state.isSettingsOpen,
+      resultModalOpen: state.resultModalOpen
+    }));
 
   const {
     initializeGameEngine,
@@ -82,20 +107,132 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, []);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
-  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
-  const hasUserScrolledRef = useRef(false);
-  const isProgrammaticScrollRef = useRef(false);
-  const handlePianoScroll = useCallback(() => {
-    if (!isProgrammaticScrollRef.current) {
+    const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+    const hasUserScrolledRef = useRef(false);
+    const isProgrammaticScrollRef = useRef(false);
+    const [pianoZoom, setPianoZoom] = useState(1);
+    const pianoZoomRef = useRef(1);
+    const baseContentWidthRef = useRef(0);
+    const pinchStateRef = useRef<PinchState | null>(null);
+    const pendingScrollLeftRef = useRef<number | null>(null);
+    const stageRunStateRef = useRef<'idle' | 'running' | 'completed'>('idle');
+    const handlePianoScroll = useCallback(() => {
+      if (!isProgrammaticScrollRef.current) {
+        hasUserScrolledRef.current = true;
+      }
+    }, []);
+    const isMobileKeyboardLayout = gameAreaSize.width < MOBILE_SCROLL_BREAKPOINT;
+    const normalizedViewportWidth = gameAreaSize.width > 0 ? gameAreaSize.width : MOBILE_SCROLL_BREAKPOINT;
+    const baseWhiteKeyWidth = normalizedViewportWidth / VISIBLE_WHITE_KEYS;
+    const baseKeyboardWidth = Math.max(
+      1,
+      isMobileKeyboardLayout ? Math.ceil(TOTAL_WHITE_KEYS * baseWhiteKeyWidth) : normalizedViewportWidth
+    );
+    const appliedKeyboardWidth = isMobileKeyboardLayout
+      ? Math.max(1, Math.round(baseKeyboardWidth * pianoZoom))
+      : baseKeyboardWidth;
+    baseContentWidthRef.current = baseKeyboardWidth;
+
+    const handleTouchStart = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+      if (!isMobileKeyboardLayout || event.touches.length !== 2 || !pianoScrollRef.current) {
+        return;
+      }
+      const [touchA, touchB] = [event.touches[0], event.touches[1]];
+      const distance = getTouchDistance(touchA, touchB);
+      if (distance <= 0) {
+        return;
+      }
+      const container = pianoScrollRef.current;
+      const rect = container.getBoundingClientRect();
+      const midpoint = getTouchMidpointX(touchA, touchB) - rect.left;
+      const totalWidth = baseContentWidthRef.current * pianoZoomRef.current;
+      if (totalWidth <= 0) {
+        return;
+      }
+      const originX = container.scrollLeft + midpoint;
+      const originRatio = Math.min(1, Math.max(0, originX / totalWidth));
+      pinchStateRef.current = {
+        startDistance: distance,
+        startZoom: pianoZoomRef.current,
+        originRatio,
+        viewportOffset: midpoint
+      };
       hasUserScrolledRef.current = true;
-    }
-  }, []);
+    }, [isMobileKeyboardLayout]);
+
+    const handleTouchMove = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+      if (!isMobileKeyboardLayout) {
+        return;
+      }
+      const pinchState = pinchStateRef.current;
+      if (!pinchState || event.touches.length < 2 || !pianoScrollRef.current) {
+        return;
+      }
+      if (event.cancelable) {
+        event.preventDefault();
+      }
+      const [touchA, touchB] = [event.touches[0], event.touches[1]];
+      const distance = getTouchDistance(touchA, touchB);
+      if (distance <= 0 || pinchState.startDistance <= 0) {
+        return;
+      }
+      const scale = distance / pinchState.startDistance;
+      const nextZoom = clampZoomValue(pinchState.startZoom * scale);
+      if (Math.abs(nextZoom - pianoZoomRef.current) > 0.001) {
+        setPianoZoom(nextZoom);
+      }
+      const container = pianoScrollRef.current;
+      const contentWidth = baseContentWidthRef.current * nextZoom;
+      if (contentWidth <= 0) {
+        return;
+      }
+      const targetCenter = pinchState.originRatio * contentWidth;
+      const desiredScrollLeft = Math.min(
+        Math.max(0, targetCenter - pinchState.viewportOffset),
+        Math.max(0, contentWidth - container.clientWidth)
+      );
+      pendingScrollLeftRef.current = desiredScrollLeft;
+    }, [isMobileKeyboardLayout]);
+
+    const handleTouchEnd = useCallback((event: React.TouchEvent<HTMLDivElement>) => {
+      if (event.touches.length < 2) {
+        pinchStateRef.current = null;
+        pendingScrollLeftRef.current = null;
+      }
+    }, []);
 
   useEffect(() => {
     return () => {
       renderBridgeRef.current?.dispose();
     };
   }, []);
+
+    useEffect(() => {
+      pianoZoomRef.current = pianoZoom;
+    }, [pianoZoom]);
+
+    useEffect(() => {
+      if (!isMobileKeyboardLayout && pianoZoom !== 1) {
+        setPianoZoom(1);
+      }
+    }, [isMobileKeyboardLayout, pianoZoom]);
+
+    useLayoutEffect(() => {
+      const container = pianoScrollRef.current;
+      if (!container || !isMobileKeyboardLayout) {
+        pendingScrollLeftRef.current = null;
+        return;
+      }
+      if (pendingScrollLeftRef.current !== null) {
+        container.scrollLeft = pendingScrollLeftRef.current;
+        pendingScrollLeftRef.current = null;
+        return;
+      }
+      const maxScroll = Math.max(0, appliedKeyboardWidth - container.clientWidth);
+      if (container.scrollLeft > maxScroll) {
+        container.scrollLeft = maxScroll;
+      }
+    }, [appliedKeyboardWidth, isMobileKeyboardLayout]);
 
   useEffect(() => {
     const bridge = renderBridgeRef.current;
@@ -106,11 +243,50 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     };
   }, [gameEngine]);
 
+    useEffect(() => {
+      if (!gameEngine) {
+        return;
+      }
+      updateEngineSettings();
+      if (!isPlaying) {
+        renderBridgeRef.current?.syncFromEngine();
+      }
+    }, [settings.timingAdjustment, gameEngine, updateEngineSettings, isPlaying]);
+
   useEffect(() => {
     if (!isPlaying) {
       renderBridgeRef.current?.syncFromEngine();
     }
   }, [currentTime, settings.transpose, settings.notesSpeed, isPlaying]);
+
+    useEffect(() => {
+      if (mode !== 'performance') {
+        stageRunStateRef.current = 'idle';
+        return;
+      }
+      if (isPlaying) {
+        stageRunStateRef.current = 'running';
+      }
+    }, [mode, isPlaying]);
+
+    useEffect(() => {
+      stageRunStateRef.current = 'idle';
+    }, [currentSong?.id]);
+
+    useEffect(() => {
+      if (mode !== 'performance' || !currentSong) {
+        return;
+      }
+      if (stageRunStateRef.current !== 'running') {
+        return;
+      }
+      const judgedNotes = score.goodCount + score.missCount;
+      if (score.totalNotes > 0 && judgedNotes >= score.totalNotes && !resultModalOpen) {
+        stageRunStateRef.current = 'completed';
+        pause();
+        openResultModal();
+      }
+    }, [mode, currentSong?.id, score.goodCount, score.missCount, score.totalNotes, pause, openResultModal, resultModalOpen]);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -920,60 +1096,40 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         </div>
         )}
         {/* PIXI.js ノーツレンダラー（統合済み） */}
-        {(() => {
-          const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
-          const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
-          const MIN_WHITE_KEY_PX = 22;   // PC での最小白鍵幅
-
-          const fullWidthAtMin = TOTAL_WHITE_KEYS * MIN_WHITE_KEY_PX; // 1144px
-          const adjustedThreshold = 1100; // paddingを考慮した実用的な閾値
-
-          let idealWidth: number;
-          let displayMode: string;
-          if (gameAreaSize.width >= adjustedThreshold) {
-            // PC 等、画面が十分広い → 88鍵全表示（スクロール不要）
-            idealWidth = gameAreaSize.width;
-            displayMode = 'PC_FULL_88_KEYS';
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaSize.width / VISIBLE_WHITE_KEYS;
-            idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            displayMode = 'MOBILE_SCROLL';
-          }
-          
-          
-          return (
+          {(() => (
             <div 
               className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x pixi-mobile-scroll custom-game-scrollbar" 
               style={{ 
                 WebkitOverflowScrolling: 'touch',
                 scrollSnapType: 'none',
-                scrollBehavior: 'auto'
+                scrollBehavior: 'auto',
+                touchAction: 'pan-x pinch-zoom'
               }}
               onScroll={handlePianoScroll}
               ref={pianoScrollRef}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              onTouchCancel={handleTouchEnd}
             >
               <div style={{ 
-                width: idealWidth, 
+                width: appliedKeyboardWidth, 
                 height: '100%',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
                 WebkitTouchCallout: 'none',
                 position: 'relative'
               }}>
-                {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
-                
-                  <PIXINotesRenderer
-                    width={idealWidth}
-                    height={gameAreaSize.height}
-                    onReady={handlePixiReady}
-                    className="w-full h-full"
-                  />
+                <PIXINotesRenderer
+                  width={appliedKeyboardWidth}
+                  height={gameAreaSize.height}
+                  onReady={handlePixiReady}
+                  className="w-full h-full"
+                />
                 <ChordOverlay />
               </div>
             </div>
-          );
-        })()}
+          ))()}
         
       </div>
       
