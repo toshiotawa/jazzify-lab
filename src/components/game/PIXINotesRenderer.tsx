@@ -46,6 +46,14 @@ interface KeyGeometry {
   height: number;
 }
 
+interface PointerState {
+  midi: number | null;
+  pointerType: PointerEvent['pointerType'];
+  startX: number;
+  startY: number;
+  isScrolling: boolean;
+}
+
 const MIN_MIDI = 21;
 const MAX_MIDI = 108;
 const TOTAL_WHITE_KEYS = 52;
@@ -127,7 +135,7 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-  private pointerMap = new Map<number, number>();
+    private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -247,7 +255,7 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
-    this.pointerMap.clear();
+      this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
 
@@ -339,7 +347,7 @@ export class PIXINotesRendererInstance {
     this.canvas.addEventListener('pointercancel', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
-    this.canvas.style.touchAction = 'none';
+    this.canvas.style.touchAction = 'pan-x pinch-zoom';
   }
 
   private detachEvents(): void {
@@ -351,45 +359,81 @@ export class PIXINotesRendererInstance {
     this.canvas.removeEventListener('contextmenu', this.preventContextMenu);
   }
 
-  private preventContextMenu = (event: Event): void => {
-    event.preventDefault();
-  };
+    private preventContextMenu = (event: Event): void => {
+      event.preventDefault();
+    };
 
-  private handlePointerDown = (event: PointerEvent): void => {
-    if (this.destroyed) return;
-    const midi = this.hitTest(event);
-    if (midi === null) return;
-    try {
-      this.canvas.setPointerCapture(event.pointerId);
-    } catch {
-      // ignore
-    }
-    this.pointerMap.set(event.pointerId, midi);
-    this.triggerKeyPress(midi);
-  };
+    private handlePointerDown = (event: PointerEvent): void => {
+      if (this.destroyed) return;
+      const midi = this.hitTest(event);
+      const pointerType = event.pointerType || 'mouse';
+      const state: PointerState = {
+        midi,
+        pointerType,
+        startX: event.clientX,
+        startY: event.clientY,
+        isScrolling: false
+      };
+      this.pointerStates.set(event.pointerId, state);
+      if (midi !== null) {
+        if (pointerType !== 'touch') {
+          try {
+            this.canvas.setPointerCapture(event.pointerId);
+          } catch {
+            // ignore
+          }
+        }
+        this.triggerKeyPress(midi);
+      }
+    };
 
-  private handlePointerMove = (event: PointerEvent): void => {
-    if (this.destroyed) return;
-    if (!this.pointerMap.has(event.pointerId)) return;
-    const nextMidi = this.hitTest(event);
-    const prevMidi = this.pointerMap.get(event.pointerId);
-    if (nextMidi === null || nextMidi === prevMidi) {
-      return;
-    }
-    if (prevMidi !== undefined) {
-      this.triggerKeyRelease(prevMidi);
-    }
-    this.pointerMap.set(event.pointerId, nextMidi);
-    this.triggerKeyPress(nextMidi);
-  };
+    private handlePointerMove = (event: PointerEvent): void => {
+      if (this.destroyed) return;
+      const state = this.pointerStates.get(event.pointerId);
+      if (!state || state.isScrolling) {
+        return;
+      }
+      if (state.pointerType === 'touch') {
+        const deltaX = event.clientX - state.startX;
+        const deltaY = event.clientY - state.startY;
+        const horizontalSwipe = Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY);
+        if (horizontalSwipe) {
+          if (state.midi !== null) {
+            this.triggerKeyRelease(state.midi);
+            state.midi = null;
+          }
+          state.isScrolling = true;
+        }
+        return;
+      }
+      const nextMidi = this.hitTest(event);
+      if (nextMidi === null || nextMidi === state.midi) {
+        return;
+      }
+      if (state.midi !== null) {
+        this.triggerKeyRelease(state.midi);
+      }
+      state.midi = nextMidi;
+      this.triggerKeyPress(nextMidi);
+    };
 
-  private handlePointerUp = (event: PointerEvent): void => {
-    const midi = this.pointerMap.get(event.pointerId);
-    if (midi !== undefined) {
-      this.triggerKeyRelease(midi);
-      this.pointerMap.delete(event.pointerId);
-    }
-  };
+    private handlePointerUp = (event: PointerEvent): void => {
+      const state = this.pointerStates.get(event.pointerId);
+      if (!state) {
+        return;
+      }
+      if (state.midi !== null) {
+        this.triggerKeyRelease(state.midi);
+      }
+      if (state.pointerType !== 'touch') {
+        try {
+          this.canvas.releasePointerCapture(event.pointerId);
+        } catch {
+          // ignore
+        }
+      }
+      this.pointerStates.delete(event.pointerId);
+    };
 
   private triggerKeyPress(midi: number): void {
     this.highlightKey(midi, true);

@@ -146,8 +146,8 @@ export interface GameSettings {
   noteOctaveShift: number;     // -2 to +2
   
   // タイミング調整設定
-  /** 楽譜データの時間調整 (ms) - 楽譜のノーツタイミングを±100ms調整 */
-  timingAdjustment: number;    // -100 to +100 (ms)
+  /** 楽譜データの時間調整 (ms) - ノーツタイミングを±400msまで補正 */
+  timingAdjustment: number;    // -400 to +400 (ms)
   
   // 表示設定
   showNoteNames: boolean; // (deprecated) True if legacy for note names
