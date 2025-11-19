@@ -506,31 +506,32 @@ export class PIXINotesRendererInstance {
       }
       const evenLaneColor = 'rgba(15,23,42,0.18)';
       const oddLaneColor = 'rgba(15,23,42,0.12)';
-      const innerLaneColor = 'rgba(248,250,252,0.05)';
       this.whiteKeyOrder.forEach((midi, index) => {
         const key = this.keyGeometries.get(midi);
         if (!key) return;
         ctx.fillStyle = index % 2 === 0 ? evenLaneColor : oddLaneColor;
         ctx.fillRect(key.x, 0, key.width, laneHeight);
-        const subtleWidth = Math.max(1, key.width * 0.05);
-        const leftOffset = key.x + key.width * 0.2 - subtleWidth / 2;
-        const rightOffset = key.x + key.width * 0.8 - subtleWidth / 2;
-        ctx.fillStyle = innerLaneColor;
-        ctx.fillRect(leftOffset, 0, subtleWidth, laneHeight);
-        ctx.fillRect(rightOffset, 0, subtleWidth, laneHeight);
       });
 
       const accentSourceNotes = new Set(['B', 'E']);
+      const boundaryColor = 'rgba(248,250,252,0.06)';
       for (let i = 0; i < this.whiteKeyOrder.length - 1; i += 1) {
         const currentMidi = this.whiteKeyOrder[i];
         const key = this.keyGeometries.get(currentMidi);
         if (!key) continue;
         const boundaryX = key.x + key.width;
+        const nextKey = this.keyGeometries.get(this.whiteKeyOrder[i + 1]);
+        const referenceWidth = nextKey ? Math.min(key.width, nextKey.width) : key.width;
+        const baseWidth = Math.max(1, referenceWidth * 0.04);
+        ctx.fillStyle = boundaryColor;
+        ctx.fillRect(boundaryX - baseWidth / 2, 0, baseWidth, laneHeight);
+
         const noteName = NOTE_NAMES[currentMidi % 12];
-        const isAccentBoundary = accentSourceNotes.has(noteName);
-        ctx.fillStyle = isAccentBoundary ? 'rgba(56,189,248,0.22)' : 'rgba(15,23,42,0.35)';
-        const boundaryWidth = isAccentBoundary ? Math.max(2, key.width * 0.15) : 1;
-        ctx.fillRect(boundaryX - boundaryWidth / 2, 0, boundaryWidth, laneHeight);
+        if (accentSourceNotes.has(noteName)) {
+          const accentWidth = Math.max(baseWidth * 2.5, 2);
+          ctx.fillStyle = 'rgba(56,189,248,0.22)';
+          ctx.fillRect(boundaryX - accentWidth / 2, 0, accentWidth, laneHeight);
+        }
       }
     }
 
