@@ -21,6 +21,10 @@ const isIOS = (): boolean => {
   return /iPad|iPhone|iPod/.test(navigator.userAgent) && !('MSStream' in window);
 };
 
+const MIN_PIANO_ZOOM = 0.75;
+const MAX_PIANO_ZOOM = 1.5;
+const SCROLL_WIDTH_THRESHOLD = 1100;
+
 type MidiModule = typeof import('@/utils/MidiController');
 
 interface GameEngineComponentProps {
@@ -52,21 +56,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     isSettingsOpen: state.isSettingsOpen
   }));
 
-  const {
-    initializeGameEngine,
-    destroyGameEngine,
-    handleNoteInput,
-    updateEngineSettings,
-    updateSettings,
-    updateTime,
-    stop,
-    pause,
-    setLastKeyHighlight,
-    openResultModal
-  } = useGameActions();
+    const {
+      initializeGameEngine,
+      destroyGameEngine,
+      handleNoteInput,
+      updateEngineSettings,
+      updateSettings,
+      updateTime,
+      stop,
+      pause,
+      setLastKeyHighlight,
+      openResultModal,
+      calculateFinalScore
+    } = useGameActions();
   
   const showSeekbar = settings.showSeekbar;
-  const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+    const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const renderBridgeRef = useRef<LegendRenderBridge | null>(null);
   if (!renderBridgeRef.current) {
     renderBridgeRef.current = new LegendRenderBridge();
@@ -82,7 +87,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, []);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
-  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+    const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+    const [scrollContainer, setScrollContainer] = useState<HTMLDivElement | null>(null);
+    const [pianoZoom, setPianoZoom] = useState(1);
+    const pianoZoomRef = useRef(1);
+    const pinchStateRef = useRef<{ startDistance: number; startZoom: number } | null>(null);
+    const performanceCompletionRef = useRef(false);
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
   const handlePianoScroll = useCallback(() => {
@@ -90,12 +100,110 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       hasUserScrolledRef.current = true;
     }
   }, []);
+    const assignPianoScrollRef = useCallback((node: HTMLDivElement | null) => {
+      pianoScrollRef.current = node;
+      setScrollContainer(node);
+    }, []);
+    useEffect(() => {
+      pianoZoomRef.current = pianoZoom;
+    }, [pianoZoom]);
+    useEffect(() => {
+      if (gameAreaSize.width >= SCROLL_WIDTH_THRESHOLD && pianoZoom !== 1) {
+        setPianoZoom(1);
+      }
+    }, [gameAreaSize.width, pianoZoom]);
 
-  useEffect(() => {
+    const finalizePerformance = useCallback((explicitTime?: number) => {
+      if (mode !== 'performance' || !currentSong) {
+        return;
+      }
+      if (performanceCompletionRef.current) {
+        return;
+      }
+      performanceCompletionRef.current = true;
+      const fallbackDuration =
+        typeof explicitTime === 'number' && !Number.isNaN(explicitTime) && explicitTime > 0
+          ? explicitTime
+          : currentSong.duration ?? audioRef.current?.duration ?? currentTimeRef.current;
+      const targetTime = currentSong.duration ? Math.min(fallbackDuration, currentSong.duration) : fallbackDuration;
+      pause();
+      updateTime(targetTime);
+      calculateFinalScore();
+      openResultModal();
+    }, [mode, currentSong, pause, updateTime, calculateFinalScore, openResultModal]);
+    useEffect(() => {
+      if (isPlaying) {
+        performanceCompletionRef.current = false;
+      }
+    }, [isPlaying]);
+    useEffect(() => {
+      performanceCompletionRef.current = false;
+    }, [currentSong?.id, mode]);
+    useEffect(() => {
     return () => {
       renderBridgeRef.current?.dispose();
     };
   }, []);
+    useEffect(() => {
+      if (!scrollContainer || !isIOS()) {
+        return;
+      }
+      const getDistance = (touches: TouchList): number | null => {
+        if (touches.length < 2) {
+          return null;
+        }
+        const first = touches[0];
+        const second = touches[1];
+        const dx = first.clientX - second.clientX;
+        const dy = first.clientY - second.clientY;
+        return Math.hypot(dx, dy);
+      };
+      const handleTouchStart = (event: TouchEvent) => {
+        if (event.touches.length !== 2) {
+          return;
+        }
+        const distance = getDistance(event.touches);
+        if (!distance) {
+          return;
+        }
+        pinchStateRef.current = {
+          startDistance: distance,
+          startZoom: pianoZoomRef.current
+        };
+      };
+      const handleTouchMove = (event: TouchEvent) => {
+        if (!pinchStateRef.current || event.touches.length !== 2) {
+          return;
+        }
+        const distance = getDistance(event.touches);
+        if (!distance) {
+          return;
+        }
+        event.preventDefault();
+        const scale = distance / pinchStateRef.current.startDistance;
+        const nextZoom = Math.min(
+          MAX_PIANO_ZOOM,
+          Math.max(MIN_PIANO_ZOOM, pinchStateRef.current.startZoom * scale)
+        );
+        setPianoZoom(nextZoom);
+        hasUserScrolledRef.current = true;
+      };
+      const handleTouchEnd = (event: TouchEvent) => {
+        if (event.touches.length < 2) {
+          pinchStateRef.current = null;
+        }
+      };
+      scrollContainer.addEventListener('touchstart', handleTouchStart, { passive: false });
+      scrollContainer.addEventListener('touchmove', handleTouchMove, { passive: false });
+      scrollContainer.addEventListener('touchend', handleTouchEnd);
+      scrollContainer.addEventListener('touchcancel', handleTouchEnd);
+      return () => {
+        scrollContainer.removeEventListener('touchstart', handleTouchStart);
+        scrollContainer.removeEventListener('touchmove', handleTouchMove);
+        scrollContainer.removeEventListener('touchend', handleTouchEnd);
+        scrollContainer.removeEventListener('touchcancel', handleTouchEnd);
+      };
+    }, [scrollContainer]);
 
   useEffect(() => {
     const bridge = renderBridgeRef.current;
@@ -105,12 +213,37 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       bridge.attachEngine(null);
     };
   }, [gameEngine]);
+    useEffect(() => {
+      const audio = audioRef.current;
+      if (!audio) {
+        return;
+      }
+      const handleEnded = () => {
+        finalizePerformance(currentSong?.duration ?? audio.duration);
+      };
+      audio.addEventListener('ended', handleEnded);
+      return () => {
+        audio.removeEventListener('ended', handleEnded);
+      };
+    }, [finalizePerformance, currentSong?.duration]);
 
-  useEffect(() => {
-    if (!isPlaying) {
-      renderBridgeRef.current?.syncFromEngine();
-    }
-  }, [currentTime, settings.transpose, settings.notesSpeed, isPlaying]);
+    useEffect(() => {
+      if (!isPlaying) {
+        renderBridgeRef.current?.syncFromEngine();
+      }
+    }, [currentTime, settings.transpose, settings.notesSpeed, settings.timingAdjustment, isPlaying]);
+    useEffect(() => {
+      if (mode !== 'performance' || !isPlaying || performanceCompletionRef.current) {
+        return;
+      }
+      const duration = currentSong?.duration;
+      if (!duration || duration <= 0) {
+        return;
+      }
+      if (currentTime >= duration - 0.02) {
+        finalizePerformance(duration);
+      }
+    }, [mode, isPlaying, currentSong?.duration, currentTime, finalizePerformance]);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
@@ -648,21 +781,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
   
   // 設定変更時の更新（transpose を含む）
-  useEffect(() => {
-    if (gameEngine) {
-      updateEngineSettings();
-    }
-    if (pixiRenderer) {
-      pixiRenderer.updateSettings({
-        noteNameStyle: settings.noteNameStyle,
-        simpleDisplayMode: settings.simpleDisplayMode,
-        pianoHeight: settings.pianoHeight,
-        transpose: settings.transpose,
-        transposingInstrument: settings.transposingInstrument,
-        practiceGuide: settings.practiceGuide ?? 'key'
-      });
-    }
-  }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide]);
+    useEffect(() => {
+      if (gameEngine) {
+        updateEngineSettings();
+      }
+      if (pixiRenderer) {
+        pixiRenderer.updateSettings({
+          noteNameStyle: settings.noteNameStyle,
+          simpleDisplayMode: settings.simpleDisplayMode,
+          pianoHeight: settings.pianoHeight,
+          transpose: settings.transpose,
+          transposingInstrument: settings.transposingInstrument,
+          practiceGuide: settings.practiceGuide ?? 'key',
+          timingAdjustment: settings.timingAdjustment
+        });
+      }
+    }, [gameEngine, updateEngineSettings, pixiRenderer, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.practiceGuide, settings.timingAdjustment]);
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
@@ -921,25 +1055,18 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         )}
         {/* PIXI.js ノーツレンダラー（統合済み） */}
         {(() => {
-          const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
-          const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
-          const MIN_WHITE_KEY_PX = 22;   // PC での最小白鍵幅
+            const TOTAL_WHITE_KEYS = 52; // 88鍵ピアノの白鍵数
+            const VISIBLE_WHITE_KEYS = 24; // モバイルで画面に収めたい白鍵数(約2オクターブ)
+            const MIN_WHITE_KEY_PX = 22;   // PC での最小白鍵幅
 
-          const fullWidthAtMin = TOTAL_WHITE_KEYS * MIN_WHITE_KEY_PX; // 1144px
-          const adjustedThreshold = 1100; // paddingを考慮した実用的な閾値
-
-          let idealWidth: number;
-          let displayMode: string;
-          if (gameAreaSize.width >= adjustedThreshold) {
-            // PC 等、画面が十分広い → 88鍵全表示（スクロール不要）
-            idealWidth = gameAreaSize.width;
-            displayMode = 'PC_FULL_88_KEYS';
-          } else {
-            // モバイル等、画面が狭い → 横スクロール表示
-            const whiteKeyWidth = gameAreaSize.width / VISIBLE_WHITE_KEYS;
-            idealWidth = Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth);
-            displayMode = 'MOBILE_SCROLL';
-          }
+            const isDesktopWidth = gameAreaSize.width >= SCROLL_WIDTH_THRESHOLD;
+            const baseKeyboardWidth = isDesktopWidth
+              ? gameAreaSize.width
+              : Math.ceil(TOTAL_WHITE_KEYS * (gameAreaSize.width / VISIBLE_WHITE_KEYS));
+            const displayMode = isDesktopWidth ? 'PC_FULL_88_KEYS' : 'MOBILE_SCROLL';
+            const contentWidth = displayMode === 'MOBILE_SCROLL'
+              ? Math.max(gameAreaSize.width, Math.round(baseKeyboardWidth * pianoZoom))
+              : baseKeyboardWidth;
           
           
           return (
@@ -948,13 +1075,14 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               style={{ 
                 WebkitOverflowScrolling: 'touch',
                 scrollSnapType: 'none',
-                scrollBehavior: 'auto'
+                  scrollBehavior: 'auto',
+                  touchAction: isIOS() ? 'pan-x' : undefined
               }}
               onScroll={handlePianoScroll}
-              ref={pianoScrollRef}
+                ref={assignPianoScrollRef}
             >
               <div style={{ 
-                width: idealWidth, 
+                  width: contentWidth, 
                 height: '100%',
                 userSelect: 'none',
                 WebkitUserSelect: 'none',
@@ -964,7 +1092,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                 
                   <PIXINotesRenderer
-                    width={idealWidth}
+                      width={contentWidth}
                     height={gameAreaSize.height}
                     onReady={handlePixiReady}
                     className="w-full h-full"
