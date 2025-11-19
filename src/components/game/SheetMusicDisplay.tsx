@@ -20,7 +20,8 @@ interface TimeMappingEntry {
  */
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scoreWrapperRef = useRef<HTMLDivElement>(null);
+    const scoreWrapperRef = useRef<HTMLDivElement>(null);
+    const currentNoteHighlightRef = useRef<HTMLDivElement | null>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
@@ -325,7 +326,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       if (needsIndexUpdate) {
         lastRenderedIndexRef.current = activeIndex;
       }
+
+      const highlightEl = currentNoteHighlightRef.current;
+      if (highlightEl && wrapper) {
+        const highlightWidth = highlightEl.offsetWidth || 2;
+        const highlightX = Math.max(0, targetEntry.xPosition - highlightWidth / 2);
+        highlightEl.style.opacity = '1';
+        highlightEl.style.transform = `translateX(${highlightX}px)`;
+      }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+
+    useEffect(() => {
+      if (!shouldRenderSheet || timeMappingRef.current.length === 0) {
+        if (currentNoteHighlightRef.current) {
+          currentNoteHighlightRef.current.style.opacity = '0';
+        }
+      }
+    }, [shouldRenderSheet, notes]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -372,36 +389,35 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
-      } as React.CSSProperties}
-    >
+    <div className={cn("relative h-full", className)}>
       {/* プレイヘッド（赤い縦線） */}
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
         style={{ left: '120px' }}
       />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
+      <div 
+        className={cn(
+          "relative bg-white text-black h-full",
+          // 再生中は横スクロール無効、停止中は横スクロール有効
+          isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
+          // カスタムスクロールバースタイルを適用
+          "custom-sheet-scrollbar"
+        )}
+        ref={scrollContainerRef}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          // WebKit系ブラウザ用のカスタムスクロールバー
+          ...(!isPlaying && {
+            '--scrollbar-width': '8px',
+            '--scrollbar-track-color': '#f3f4f6',
+            '--scrollbar-thumb-color': '#9ca3af',
+            '--scrollbar-thumb-hover-color': '#6b7280'
+          })
+        } as React.CSSProperties}
+      >
+        {/* 楽譜コンテナ - 上部に余白を追加 */}
+        <div className="relative h-full pt-8 pb-4">
         {isLoading && (
           <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
             <div className="text-black">楽譜を読み込み中...</div>
@@ -423,19 +439,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           {/* OSMDレンダリング用コンテナ */}
             <div 
               ref={scoreWrapperRef}
-              className="h-full"
-              style={{ 
-                minWidth: '3000px' // 十分な幅を確保
-              }}
+              className="relative h-full min-w-[3000px]"
             >
-          <div 
-            ref={containerRef} 
-            className="h-full flex items-center"
-          />
+              <div
+                ref={currentNoteHighlightRef}
+                className="pointer-events-none absolute top-4 bottom-4 w-1 rounded-full bg-red-400/60 opacity-0 transition-transform duration-75 ease-out"
+                aria-hidden="true"
+              />
+            <div 
+              ref={containerRef} 
+              className="h-full flex items-center"
+            />
+          </div>
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };
