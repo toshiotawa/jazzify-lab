@@ -986,8 +986,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // 設定
         updateSettings: async (newSettings) => {
-          // 移調楽器の設定が変更されたかどうかを確認
-          const currentSettings = get().settings;
+            // 移調楽器の設定が変更されたかどうかを確認
+            const currentSettings = get().settings;
+            const previousTimingAdjustment = currentSettings.timingAdjustment;
           const isTransposingInstrumentChanged = 
             'transposingInstrument' in newSettings && 
             newSettings.transposingInstrument !== currentSettings.transposingInstrument;
@@ -1074,8 +1075,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             console.log(`🎯 本番モード課題条件制限: ${restrictedKeys.join(', ')} の変更がブロックされました`);
           }
           
-          // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
-          set((state) => {
+            // まず Immer の set でストアの設定値を更新（フィルタ後の設定を使用）
+            set((state) => {
             Object.assign(state.settings, filteredSettings);
             
             // 練習モードでpracticeGuideが変更された場合は保存
@@ -1090,10 +1091,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           });
             
             // set の外側で最新の設定値を取得し、GameEngine へ反映
-            const { gameEngine, settings, currentSong, rawNotes } = get();
+            const { gameEngine, settings, currentSong, rawNotes, currentTime } = get();
             if (gameEngine) {
               // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
               gameEngine.updateSettings({ ...settings });
+              if (
+                Object.prototype.hasOwnProperty.call(filteredSettings, 'timingAdjustment') &&
+                typeof filteredSettings.timingAdjustment === 'number' &&
+                filteredSettings.timingAdjustment !== previousTimingAdjustment
+              ) {
+                gameEngine.seek(currentTime);
+              }
             }
           
           // 移調楽器の設定が変更された場合、楽譜を再処理
