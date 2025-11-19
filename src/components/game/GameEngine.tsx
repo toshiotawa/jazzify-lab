@@ -961,13 +961,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 WebkitTouchCallout: 'none',
                 position: 'relative'
               }}>
-                {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
-                
+                  {/* ピアノエリアのタッチブロッカー - 削除（PIXIレベルで制御） */}
                   <PIXINotesRenderer
                     width={idealWidth}
                     height={gameAreaSize.height}
                     onReady={handlePixiReady}
                     className="w-full h-full"
+                    allowTouchScroll
                   />
                 <ChordOverlay />
               </div>

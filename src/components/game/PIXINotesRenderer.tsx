@@ -36,6 +36,20 @@ interface PIXINotesRendererProps {
   height: number;
   onReady?: (renderer: PIXINotesRendererInstance | null) => void;
   className?: string;
+  allowTouchScroll?: boolean;
+}
+
+interface RendererInitOptions {
+  allowTouchScroll?: boolean;
+}
+
+interface TouchPointerState {
+  midi: number;
+  startX: number;
+  startY: number;
+  active: boolean;
+  cancelled: boolean;
+  timerId: ReturnType<typeof setTimeout> | null;
 }
 
 interface KeyGeometry {
@@ -132,8 +146,13 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private allowTouchScroll: boolean;
+  private touchStates = new Map<number, TouchPointerState>();
+  private readonly touchActivationDelay = 120;
+  private readonly touchMoveThreshold = 10;
+  private readonly touchTapThreshold = 6;
 
-  constructor(canvas: HTMLCanvasElement, width: number, height: number) {
+  constructor(canvas: HTMLCanvasElement, width: number, height: number, options?: RendererInitOptions) {
     this.canvas = canvas;
     const context = canvas.getContext('2d');
     if (!context) {
@@ -146,6 +165,8 @@ export class PIXINotesRendererInstance {
     this.settings.hitLineY = height - this.settings.pianoHeight;
     this.configureCanvasSize(width, height);
     this.recalculateKeyLayout();
+    this.allowTouchScroll = options?.allowTouchScroll ?? false;
+    this.updateTouchAction();
     this.attachEvents();
   }
 
@@ -185,6 +206,17 @@ export class PIXINotesRendererInstance {
   setKeyCallbacks(onPress: (note: number) => void, onRelease: (note: number) => void): void {
     this.onKeyPress = onPress;
     this.onKeyRelease = onRelease;
+  }
+
+  setAllowTouchScroll(allow: boolean): void {
+    if (this.allowTouchScroll === allow) {
+      return;
+    }
+    this.allowTouchScroll = allow;
+    this.updateTouchAction();
+    if (!allow) {
+      this.flushTouchStates();
+    }
   }
 
   highlightKey(midiNote: number, active: boolean): void {
@@ -236,6 +268,7 @@ export class PIXINotesRendererInstance {
     if (this.destroyed) return;
     this.destroyed = true;
     this.detachEvents();
+    this.flushTouchStates();
     if (this.renderHandle !== null) {
       if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function' && typeof this.renderHandle === 'number') {
         window.cancelAnimationFrame(this.renderHandle);
@@ -262,6 +295,27 @@ export class PIXINotesRendererInstance {
     this.canvas.height = Math.max(1, Math.floor(height * this.pixelRatio));
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
     this.settings.noteWidth = width / TOTAL_WHITE_KEYS - 2;
+  }
+
+  private updateTouchAction(): void {
+    if (this.allowTouchScroll) {
+      this.canvas.style.touchAction = 'pan-x pinch-zoom';
+    } else {
+      this.canvas.style.touchAction = 'none';
+    }
+  }
+
+  private flushTouchStates(): void {
+    this.touchStates.forEach((state, pointerId) => {
+      if (state.timerId !== null) {
+        clearTimeout(state.timerId);
+      }
+      if (state.active) {
+        this.triggerKeyRelease(state.midi);
+        this.pointerMap.delete(pointerId);
+      }
+    });
+    this.touchStates.clear();
   }
 
   private normalizeColors(colors: RendererSettings['colors']): Record<keyof RendererSettings['colors'], string> {
@@ -339,7 +393,6 @@ export class PIXINotesRendererInstance {
     this.canvas.addEventListener('pointercancel', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
-    this.canvas.style.touchAction = 'none';
   }
 
   private detachEvents(): void {
@@ -359,6 +412,10 @@ export class PIXINotesRendererInstance {
     if (this.destroyed) return;
     const midi = this.hitTest(event);
     if (midi === null) return;
+    if (this.shouldHandleTouchScroll(event)) {
+      this.startTouchTracking(event.pointerId, event, midi);
+      return;
+    }
     try {
       this.canvas.setPointerCapture(event.pointerId);
     } catch {
@@ -370,6 +427,10 @@ export class PIXINotesRendererInstance {
 
   private handlePointerMove = (event: PointerEvent): void => {
     if (this.destroyed) return;
+    if (this.shouldHandleTouchScroll(event)) {
+      this.updateTouchTracking(event);
+      return;
+    }
     if (!this.pointerMap.has(event.pointerId)) return;
     const nextMidi = this.hitTest(event);
     const prevMidi = this.pointerMap.get(event.pointerId);
@@ -384,12 +445,102 @@ export class PIXINotesRendererInstance {
   };
 
   private handlePointerUp = (event: PointerEvent): void => {
+    if (this.destroyed) return;
+    if (this.shouldHandleTouchScroll(event)) {
+      this.finishTouchTracking(event);
+      return;
+    }
     const midi = this.pointerMap.get(event.pointerId);
     if (midi !== undefined) {
       this.triggerKeyRelease(midi);
       this.pointerMap.delete(event.pointerId);
     }
   };
+
+  private shouldHandleTouchScroll(event: PointerEvent): boolean {
+    return this.allowTouchScroll && event.pointerType === 'touch';
+  }
+
+  private startTouchTracking(pointerId: number, event: PointerEvent, midi: number): void {
+    const state: TouchPointerState = {
+      midi,
+      startX: event.clientX,
+      startY: event.clientY,
+      active: false,
+      cancelled: false,
+      timerId: null
+    };
+    const activate = (): void => {
+      state.timerId = null;
+      if (state.cancelled || this.destroyed) {
+        return;
+      }
+      state.active = true;
+      this.pointerMap.set(pointerId, midi);
+      this.triggerKeyPress(midi);
+    };
+    const timeoutHandle = (typeof window !== 'undefined' ? window.setTimeout(activate, this.touchActivationDelay) : setTimeout(activate, this.touchActivationDelay));
+    state.timerId = timeoutHandle;
+    this.touchStates.set(pointerId, state);
+  }
+
+  private updateTouchTracking(event: PointerEvent): void {
+    const state = this.touchStates.get(event.pointerId);
+    if (!state || state.cancelled) {
+      return;
+    }
+    if (state.active) {
+      if (this.hasTouchMoved(state, event)) {
+        state.cancelled = true;
+        if (state.timerId !== null) {
+          clearTimeout(state.timerId);
+          state.timerId = null;
+        }
+        this.triggerKeyRelease(state.midi);
+        this.pointerMap.delete(event.pointerId);
+        this.touchStates.delete(event.pointerId);
+      }
+      return;
+    }
+    if (this.hasTouchMoved(state, event)) {
+      if (state.timerId !== null) {
+        clearTimeout(state.timerId);
+        state.timerId = null;
+      }
+      state.cancelled = true;
+      this.touchStates.delete(event.pointerId);
+    }
+  }
+
+  private finishTouchTracking(event: PointerEvent): void {
+    const state = this.touchStates.get(event.pointerId);
+    if (!state) {
+      return;
+    }
+    if (state.timerId !== null) {
+      clearTimeout(state.timerId);
+      state.timerId = null;
+    }
+    this.touchStates.delete(event.pointerId);
+    if (state.cancelled) {
+      return;
+    }
+    if (state.active) {
+      this.triggerKeyRelease(state.midi);
+      this.pointerMap.delete(event.pointerId);
+      return;
+    }
+    if (!this.hasTouchMoved(state, event, this.touchTapThreshold)) {
+      this.triggerKeyPress(state.midi);
+      this.triggerKeyRelease(state.midi);
+    }
+  }
+
+  private hasTouchMoved(state: TouchPointerState, event: PointerEvent, threshold: number = this.touchMoveThreshold): boolean {
+    const dx = Math.abs(event.clientX - state.startX);
+    const dy = Math.abs(event.clientY - state.startY);
+    return dx > threshold || dy > threshold;
+  }
 
   private triggerKeyPress(midi: number): void {
     this.highlightKey(midi, true);
@@ -777,7 +928,8 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   width,
   height,
   onReady,
-  className
+  className,
+  allowTouchScroll = false
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -787,7 +939,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
     if (!canvas) {
       return;
     }
-    const renderer = new PIXINotesRendererInstance(canvas, width, height);
+    const renderer = new PIXINotesRendererInstance(canvas, width, height, { allowTouchScroll });
     rendererRef.current = renderer;
     onReady?.(renderer);
     return () => {
@@ -800,6 +952,10 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   useEffect(() => {
     rendererRef.current?.resize(width, height);
   }, [width, height]);
+
+  useEffect(() => {
+    rendererRef.current?.setAllowTouchScroll(allowTouchScroll);
+  }, [allowTouchScroll]);
 
   return (
     <canvas

@@ -342,16 +342,35 @@
     }
   }
 
-  /* グラデーション付きコントロールボタン */
-  .control-btn {
-    /* 軽量化: スケール拡大でコントロールバーが揺れるのを防止 */
-    @apply relative px-5 py-4 rounded-xl font-semibold text-white text-lg transition-all duration-200
-           shadow-md hover:shadow-lg
-           focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-opacity-40
-           active:scale-95 overflow-hidden
-           flex items-center justify-center leading-none;
-  }
-  
+    /* グラデーション付きコントロールボタン */
+    .control-btn {
+      /* 軽量化: スケール拡大でコントロールバーが揺れるのを防止 */
+      @apply relative px-5 py-4 rounded-xl font-semibold text-white text-lg transition-all duration-200
+             shadow-md hover:shadow-lg
+             focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-opacity-40
+             active:scale-95 overflow-hidden
+             flex items-center justify-center leading-none;
+      min-width: 3.25rem;
+      min-height: 3.25rem;
+    }
+    
+    @media (max-width: 640px) {
+      .control-btn {
+        min-width: 3.5rem;
+        min-height: 3.5rem;
+      }
+    }
+
+    .control-btn-xxs {
+      @apply px-4 py-3 text-base;
+    }
+
+    @media (max-width: 640px) {
+      .control-btn-xxs {
+        @apply px-5 py-4 text-lg;
+      }
+    }
+
   .control-btn:before {
     content: '';
     @apply absolute inset-0 rounded-xl opacity-0 transition-opacity duration-300;
@@ -426,6 +445,11 @@
     0%, 100% { transform: scale(1); box-shadow: 0 4px 15px rgba(16, 185, 129, 0.4); }
     50% { transform: scale(0.98); box-shadow: 0 3px 10px rgba(16, 185, 129, 0.3); }
   }
+
+    .control-btn svg {
+      width: 1.4em;
+      height: 1.4em;
+    }
   
   /* カードスタイル */
   .card {

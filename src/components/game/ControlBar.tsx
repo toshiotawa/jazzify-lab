@@ -231,35 +231,33 @@ const ControlBar: React.FC = () => {
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
-              <button
-                onClick={handleSkipBackward}
+                <button
+                  onClick={handleSkipBackward}
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒戻る"
+                  aria-label="5秒戻る"
+                >
+                  <FaBackward aria-hidden="true" />
+                </button>
 
-                className="control-btn control-btn-xxs control-btn-secondary"
-                title="5秒戻る"
-              >
-                <FaBackward />
-              </button>
+                <button
+                  onClick={() => isPlaying ? pauseAction() : play()}
+                  className="control-btn control-btn-xxs control-btn-primary"
+                  disabled={!currentSong}
+                  title={isPlaying ? '一時停止' : '再生'}
+                  aria-label={isPlaying ? '一時停止' : '再生'}
+                >
+                  {isPlaying ? <FaPause aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
+                </button>
 
-              <button
-                onClick={() => isPlaying ? pauseAction() : play()}
-
-                className="control-btn control-btn-xxs control-btn-primary"
-
-                disabled={!currentSong}
-                title={isPlaying ? '一時停止' : '再生'}
-              >
-                {isPlaying ? <FaPause /> : <FaPlay />}
-              </button>
-
-              <button
-                onClick={handleSkipForward}
-
-                className="control-btn control-btn-xxs control-btn-secondary"
-
-                title="5秒進む"
-              >
-                <FaForward />
-              </button>
+                <button
+                  onClick={handleSkipForward}
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒進む"
+                  aria-label="5秒進む"
+                >
+                  <FaForward aria-hidden="true" />
+                </button>
 
               {/* ループコントロール */}
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
@@ -357,8 +355,9 @@ const ControlBar: React.FC = () => {
                     ? '最初に戻って再生'
                     : '再生'
                 }
+                  aria-label={currentTime > 0 ? '最初に戻って再生' : '再生'}
               >
-                {currentTime > 0 ? <MdReplay /> : <FaPlay />}
+                  {currentTime > 0 ? <MdReplay aria-hidden="true" /> : <FaPlay aria-hidden="true" />}
               </button>
 
               <button
@@ -366,9 +365,10 @@ const ControlBar: React.FC = () => {
                 className="control-btn control-btn-xxs control-btn-secondary"
 
                 disabled={!currentSong}
-                title="停止"
+                  title="停止"
+                  aria-label="停止"
               >
-                <FaStop />
+                  <FaStop aria-hidden="true" />
               </button>
 
               {/* 移調コントロール（レッスンモード・ミッションモードでは非表示） */}
