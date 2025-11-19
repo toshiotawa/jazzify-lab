@@ -413,7 +413,7 @@ export class PIXINotesRendererInstance {
     for (const midi of this.blackKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) continue;
-      const top = this.settings.hitLineY - geometry.height * 0.2;
+      const top = this.settings.hitLineY;
       const bottom = top + geometry.height;
       if (x >= geometry.x && x <= geometry.x + geometry.width && y >= top && y <= bottom) {
         return midi;
@@ -492,6 +492,7 @@ export class PIXINotesRendererInstance {
     gradient.addColorStop(1, '#0f172a');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height - this.settings.pianoHeight);
+    this.drawGuideLanes(ctx);
     ctx.fillStyle = '#000000';
     ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
     this.drawStaticKeys(ctx);
@@ -500,23 +501,137 @@ export class PIXINotesRendererInstance {
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    ctx.fillStyle = this.colors.whiteKey;
-    ctx.strokeStyle = 'rgba(15,23,42,0.4)';
-    ctx.lineWidth = 1;
+    const whiteTop = this.settings.hitLineY;
+    const whiteHeight = this.settings.pianoHeight;
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      ctx.fillRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
-      ctx.strokeRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
+      const keyX = key.x + 0.4;
+      const keyWidth = Math.max(1, key.width - 0.8);
+      const keyY = whiteTop + 0.4;
+      const keyHeight = Math.max(whiteHeight - 0.8, 1);
+      const radius = Math.min(8, keyWidth * 0.25);
+      const bodyGradient = ctx.createLinearGradient(keyX, keyY, keyX, keyY + keyHeight);
+      bodyGradient.addColorStop(0, '#fefefe');
+      bodyGradient.addColorStop(0.65, '#e2e8f0');
+      bodyGradient.addColorStop(1, '#cbd5f5');
+      ctx.fillStyle = bodyGradient;
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.fill();
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+      ctx.save();
+      this.drawTopRoundedRectPath(ctx, keyX, keyY, keyWidth, keyHeight, radius);
+      ctx.clip();
+      const glossGradient = ctx.createLinearGradient(keyX, keyY, keyX, keyY + keyHeight * 0.55);
+      glossGradient.addColorStop(0, 'rgba(255,255,255,0.55)');
+      glossGradient.addColorStop(0.5, 'rgba(255,255,255,0.1)');
+      glossGradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glossGradient;
+      ctx.fillRect(keyX, keyY, keyWidth, keyHeight * 0.6);
+      ctx.restore();
     }
-    ctx.fillStyle = this.colors.blackKey;
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      const top = this.settings.hitLineY - key.height * 0.2;
-      ctx.fillRect(key.x, top, key.width, key.height);
+      const top = this.settings.hitLineY;
+      const keyX = key.x + 0.3;
+      const keyWidth = Math.max(1, key.width - 0.6);
+      const keyHeight = key.height;
+      const radius = Math.min(4, keyWidth * 0.3);
+      const bodyGradient = ctx.createLinearGradient(keyX, top, keyX, top + keyHeight);
+      bodyGradient.addColorStop(0, '#111827');
+      bodyGradient.addColorStop(0.5, '#0f172a');
+      bodyGradient.addColorStop(1, '#1f2937');
+      ctx.fillStyle = bodyGradient;
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.fill();
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.strokeStyle = 'rgba(15,23,42,0.45)';
+      ctx.lineWidth = 0.6;
+      ctx.stroke();
+      ctx.save();
+      this.drawTopRoundedRectPath(ctx, keyX, top, keyWidth, keyHeight, radius);
+      ctx.clip();
+      const glossGradient = ctx.createLinearGradient(keyX, top, keyX, top + keyHeight * 0.5);
+      glossGradient.addColorStop(0, 'rgba(255,255,255,0.3)');
+      glossGradient.addColorStop(0.4, 'rgba(255,255,255,0.08)');
+      glossGradient.addColorStop(1, 'rgba(255,255,255,0)');
+      ctx.fillStyle = glossGradient;
+      ctx.fillRect(keyX, top, keyWidth, keyHeight * 0.5);
+      ctx.restore();
     }
     ctx.restore();
+  }
+
+  private drawGuideLanes(ctx: CanvasRenderingContext2D): void {
+    const laneHeight = this.settings.hitLineY;
+    if (laneHeight <= 0) {
+      return;
+    }
+    ctx.save();
+    const alternatingFill = 'rgba(148,163,184,0.07)';
+    const accentFill = 'rgba(59,130,246,0.08)';
+    const baseStroke = 'rgba(148,163,184,0.12)';
+    const accentStroke = 'rgba(59,130,246,0.35)';
+    this.whiteKeyOrder.forEach((midi, index) => {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) return;
+      if (index % 2 === 0) {
+        ctx.fillStyle = alternatingFill;
+        ctx.fillRect(geometry.x, 0, geometry.width, laneHeight);
+      }
+    });
+    let prevMidi: number | null = null;
+    for (const midi of this.whiteKeyOrder) {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) {
+        prevMidi = midi;
+        continue;
+      }
+      if (prevMidi !== null) {
+        const boundaryX = geometry.x;
+        const isSpecialGap = this.isNaturalHalfStep(prevMidi, midi);
+        if (isSpecialGap) {
+          const prevGeometry = this.keyGeometries.get(prevMidi);
+          if (prevGeometry) {
+            const gapWidth = Math.min(prevGeometry.width, geometry.width) * 0.6;
+            const accentLeft = boundaryX - gapWidth / 2;
+            ctx.fillStyle = accentFill;
+            ctx.fillRect(accentLeft, 0, gapWidth, laneHeight);
+          }
+        }
+        ctx.strokeStyle = isSpecialGap ? accentStroke : baseStroke;
+        ctx.lineWidth = isSpecialGap ? 2 : 1;
+        ctx.beginPath();
+        ctx.moveTo(boundaryX, 0);
+        ctx.lineTo(boundaryX, laneHeight);
+        ctx.stroke();
+      }
+      prevMidi = midi;
+    }
+    ctx.restore();
+  }
+
+  private drawTopRoundedRectPath(
+    ctx: CanvasRenderingContext2D,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+    radius: number
+  ): void {
+    const safeRadius = Math.max(0, Math.min(radius, width / 2, height / 2));
+    ctx.beginPath();
+    ctx.moveTo(x, y + height);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.lineTo(x + width - safeRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    ctx.lineTo(x + width, y + height);
+    ctx.closePath();
   }
 
   private drawHitLine(ctx: CanvasRenderingContext2D): void {
@@ -566,7 +681,7 @@ export class PIXINotesRendererInstance {
     const drawHighlight = (midi: number, color: string): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-      const keyTop = geometry.isBlack ? top - geometry.height * 0.2 : top;
+      const keyTop = top;
       const keyHeight = geometry.isBlack ? geometry.height : height;
       ctx.fillStyle = color;
       ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
@@ -606,6 +721,16 @@ export class PIXINotesRendererInstance {
       return this.simplifyNoteName(englishName);
     }
     return englishName;
+  }
+
+  private isNaturalHalfStep(prevMidi: number, nextMidi: number): boolean {
+    const normalize = (value: number): number => {
+      const mod = value % 12;
+      return mod < 0 ? mod + 12 : mod;
+    };
+    const prev = normalize(prevMidi);
+    const next = normalize(nextMidi);
+    return (prev === 11 && next === 0) || (prev === 4 && next === 5);
   }
 
   private normalizeToEnglish(noteName: string): string {
