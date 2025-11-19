@@ -25,8 +25,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
-  const manualScrollRef = useRef(false);
-  const lastSyncedTimeRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
@@ -275,41 +273,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [shouldRenderSheet]);
 
   // 音符の時刻とX座標のマッピングを作成
-    useEffect(() => {
-      const container = scrollContainerRef.current;
-      if (!container) {
-        return;
-      }
-      const handleScroll = () => {
-        if (!isPlaying) {
-          manualScrollRef.current = true;
-        }
-      };
-      container.addEventListener('scroll', handleScroll, { passive: true });
-      return () => {
-        container.removeEventListener('scroll', handleScroll);
-      };
-    }, [isPlaying]);
-
-    useEffect(() => {
-      if (isPlaying) {
-        manualScrollRef.current = false;
-      }
-    }, [isPlaying]);
-
-    useEffect(() => {
-      if (Math.abs(currentTime - lastSyncedTimeRef.current) > 1.5) {
-        manualScrollRef.current = false;
-      }
-      lastSyncedTimeRef.current = currentTime;
-    }, [currentTime]);
-
-  // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
+    // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
     useEffect(() => {
       if (isPlaying && scrollContainerRef.current) {
         // 再生開始時に即座にスクロール位置を0にリセット
         scrollContainerRef.current.scrollLeft = 0;
-        manualScrollRef.current = false;
         log.info('🎵 楽譜スクロールを開始位置にリセット');
       }
     }, [isPlaying]);
@@ -317,17 +285,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0) {
-        return;
-      }
-      const scrollContainer = scrollContainerRef.current;
-      if (!scrollContainer) {
+      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
         return;
       }
 
       const currentTimeMs = currentTime * 1000;
 
-      const findInsertionPoint = () => {
+      const findNextIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
         while (low <= high) {
@@ -338,26 +302,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             high = mid - 1;
           }
         }
-        return low;
+        return Math.min(low, mapping.length - 1);
       };
 
-      const insertionPoint = findInsertionPoint();
-      const activeIndex = Math.min(Math.max(insertionPoint - 1, 0), mapping.length - 1);
+      const nextIndex = findNextIndex();
+      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[Math.min(Math.max(activeIndex, 0), mapping.length - 1)] ?? mapping[mapping.length - 1];
+      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
       const playheadPosition = 120;
       const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      if (needsIndexUpdate) {
-        lastRenderedIndexRef.current = activeIndex;
-      }
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-      const allowAutoScroll = isPlaying || !manualScrollRef.current;
 
-      if (allowAutoScroll && needsScrollUpdate) {
-        scrollContainer.scrollLeft = scrollX;
+      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
+        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
