@@ -458,7 +458,7 @@ const GameScreen: React.FC = () => {
     <div 
       className="game-container h-[100dvh] flex flex-col bg-gradient-game"
         style={{
-          touchAction: 'pan-x pan-y',
+            touchAction: 'pan-x pan-y pinch-zoom',
         userSelect: 'none',
         WebkitUserSelect: 'none',
         WebkitTouchCallout: 'none',
