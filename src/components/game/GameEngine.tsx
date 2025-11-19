@@ -85,6 +85,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       return isIOS();
     }, []);
     const shouldUseBufferPlayback = isIOSDevice;
+    const getCombinedPitchShift = useCallback((): number => {
+      const transposeSemitones = settings.transpose ?? 0;
+      const playbackRate = settings.playbackSpeed || 1;
+      if (playbackRate <= 0) {
+        return transposeSemitones;
+      }
+      const speedSemitones = playbackRate === 1 ? 0 : -12 * Math.log2(playbackRate);
+      const combined = transposeSemitones + speedSemitones;
+      return Math.abs(combined) < 0.001 ? 0 : combined;
+    }, [settings.transpose, settings.playbackSpeed]);
 
   const {
     initializeGameEngine,
@@ -419,7 +429,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
     const configureSourceRouting = useCallback(
       async (audioContext: AudioContext, sourceNode: AudioNode) => {
-        const shouldUsePitchShift = settings.transpose !== 0;
+        const pitchShiftAmount = getCombinedPitchShift();
+        const shouldUsePitchShift = pitchShiftAmount !== 0;
         if (shouldUsePitchShift) {
           if (!pitchShiftRef.current) {
             try {
@@ -442,9 +453,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               log.warn('Tone context assignment failed', err);
             }
 
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
+              pitchShiftRef.current = new Tone.PitchShift({ pitch: pitchShiftAmount }).toDestination();
           } else {
-            (pitchShiftRef.current as any).pitch = settings.transpose;
+              (pitchShiftRef.current as any).pitch = pitchShiftAmount;
           }
 
           try {
@@ -482,8 +493,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             log.error('Audio node connect failed:', err);
           }
         }
-      },
-      [settings.transpose]
+        },
+        [getCombinedPitchShift]
     );
 
     const handleAudioEnded = useCallback((): void => {
@@ -1071,22 +1082,23 @@ useEffect(() => {
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
-  // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
-  useEffect(() => {
-    if (!pitchShiftRef.current) {
-      return;
-    }
-    if (settings.transpose === 0) {
-      try {
-        pitchShiftRef.current.dispose();
-      } catch (err) {
-        log.warn('PitchShift dispose failed', err);
+    // トランスポーズ + 再生速度補正に合わせてピッチシフトを更新
+    useEffect(() => {
+      if (!pitchShiftRef.current) {
+        return;
       }
-      pitchShiftRef.current = null;
-      return;
-    }
-    (pitchShiftRef.current as any).pitch = settings.transpose;
-    }, [settings.transpose]);
+      const combinedPitch = getCombinedPitchShift();
+      if (combinedPitch === 0) {
+        try {
+          pitchShiftRef.current.dispose();
+        } catch (err) {
+          log.warn('PitchShift dispose failed', err);
+        }
+        pitchShiftRef.current = null;
+        return;
+      }
+      (pitchShiftRef.current as any).pitch = combinedPitch;
+    }, [getCombinedPitchShift]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
   useEffect(() => {

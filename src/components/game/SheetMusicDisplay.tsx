@@ -18,11 +18,10 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  */
-const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
+    const containerRef = useRef<HTMLDivElement>(null);
     const scoreWrapperRef = useRef<HTMLDivElement>(null);
-    const currentNoteHighlightRef = useRef<HTMLDivElement | null>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
+    const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
@@ -326,23 +325,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       if (needsIndexUpdate) {
         lastRenderedIndexRef.current = activeIndex;
       }
-
-      const highlightEl = currentNoteHighlightRef.current;
-      if (highlightEl && wrapper) {
-        const highlightWidth = highlightEl.offsetWidth || 2;
-        const highlightX = Math.max(0, targetEntry.xPosition - highlightWidth / 2);
-        highlightEl.style.opacity = '1';
-        highlightEl.style.transform = `translateX(${highlightX}px)`;
-      }
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
-
-    useEffect(() => {
-      if (!shouldRenderSheet || timeMappingRef.current.length === 0) {
-        if (currentNoteHighlightRef.current) {
-          currentNoteHighlightRef.current.style.opacity = '0';
-        }
-      }
-    }, [shouldRenderSheet, notes]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -441,11 +424,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               ref={scoreWrapperRef}
               className="relative h-full min-w-[3000px]"
             >
-              <div
-                ref={currentNoteHighlightRef}
-                className="pointer-events-none absolute top-4 bottom-4 w-1 rounded-full bg-red-400/60 opacity-0 transition-transform duration-75 ease-out"
-                aria-hidden="true"
-              />
             <div 
               ref={containerRef} 
               className="h-full flex items-center"
