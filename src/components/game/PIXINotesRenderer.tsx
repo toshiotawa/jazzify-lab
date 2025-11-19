@@ -506,11 +506,15 @@ export class PIXINotesRendererInstance {
       }
       const evenLaneColor = 'rgba(15,23,42,0.18)';
       const oddLaneColor = 'rgba(15,23,42,0.12)';
+      const innerLaneColor = 'rgba(248,250,252,0.06)';
       this.whiteKeyOrder.forEach((midi, index) => {
         const key = this.keyGeometries.get(midi);
         if (!key) return;
         ctx.fillStyle = index % 2 === 0 ? evenLaneColor : oddLaneColor;
         ctx.fillRect(key.x, 0, key.width, laneHeight);
+        const innerWidth = Math.max(1, key.width * 0.08);
+        ctx.fillStyle = innerLaneColor;
+        ctx.fillRect(key.x + key.width / 2 - innerWidth / 2, 0, innerWidth, laneHeight);
       });
 
       const accentSourceNotes = new Set(['B', 'E']);
@@ -529,21 +533,48 @@ export class PIXINotesRendererInstance {
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    ctx.fillStyle = this.colors.whiteKey;
-    ctx.strokeStyle = 'rgba(15,23,42,0.4)';
+    ctx.strokeStyle = 'rgba(15,23,42,0.35)';
     ctx.lineWidth = 1;
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      ctx.fillRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
-      ctx.strokeRect(key.x, this.settings.hitLineY, key.width, this.settings.pianoHeight);
+      const keyTop = this.settings.hitLineY;
+      const keyBottom = keyTop + this.settings.pianoHeight;
+      const whiteGradient = ctx.createLinearGradient(key.x, keyTop, key.x, keyBottom);
+      whiteGradient.addColorStop(0, '#fdfdfd');
+      whiteGradient.addColorStop(0.45, '#e2e8f0');
+      whiteGradient.addColorStop(1, '#cbd5f5');
+      ctx.fillStyle = whiteGradient;
+      ctx.fillRect(key.x, keyTop, key.width, this.settings.pianoHeight);
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(key.x + 0.5, keyTop + 1, key.width - 1, 1.5);
+      ctx.fillStyle = 'rgba(15,23,42,0.15)';
+      ctx.fillRect(key.x + key.width - 1.2, keyTop + 4, 1.2, this.settings.pianoHeight - 8);
+      ctx.strokeRect(key.x, keyTop, key.width, this.settings.pianoHeight);
     }
-      ctx.fillStyle = this.colors.blackKey;
-      for (const midi of this.blackKeyOrder) {
-        const key = this.keyGeometries.get(midi);
-        if (!key) continue;
-        ctx.fillRect(key.x, this.settings.hitLineY, key.width, key.height);
-      }
+    for (const midi of this.blackKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+      const keyTop = this.settings.hitLineY;
+      const keyBottom = keyTop + key.height;
+      const blackGradient = ctx.createLinearGradient(key.x, keyTop, key.x + key.width, keyBottom);
+      blackGradient.addColorStop(0, '#0b1220');
+      blackGradient.addColorStop(0.5, '#1f2937');
+      blackGradient.addColorStop(1, '#05060a');
+      ctx.fillStyle = blackGradient;
+      ctx.fillRect(key.x, keyTop, key.width, key.height);
+      const glossHeight = Math.min(6, key.height * 0.35);
+      ctx.fillStyle = 'rgba(255,255,255,0.16)';
+      ctx.fillRect(key.x + 1, keyTop + 1, key.width - 2, glossHeight);
+      const sideHighlightWidth = Math.max(1, key.width * 0.2);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(key.x + 0.5, keyTop + 2, sideHighlightWidth, key.height - 4);
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.fillRect(key.x + 0.5, keyBottom - 3, key.width - 1, 3);
+      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      ctx.strokeRect(key.x + 0.25, keyTop + 0.25, key.width - 0.5, key.height - 0.5);
+      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+    }
     ctx.restore();
   }
 
