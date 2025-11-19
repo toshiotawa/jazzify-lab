@@ -38,6 +38,7 @@ declare module 'opensheetmusicdisplay' {
         y: number;
       };
     };
+    getSVGElement?: () => SVGGraphicsElement | null;
   }
 
   export interface GraphicalVoiceEntry {

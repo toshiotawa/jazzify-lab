@@ -1090,10 +1090,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           });
             
             // set の外側で最新の設定値を取得し、GameEngine へ反映
-            const { gameEngine, settings, currentSong, rawNotes } = get();
+            const { gameEngine, settings, currentSong, rawNotes, currentTime } = get();
             if (gameEngine) {
               // Proxy（Immer Draft）が revoke されるのを防ぐため、プレーンオブジェクトを渡す
               gameEngine.updateSettings({ ...settings });
+              if (Object.prototype.hasOwnProperty.call(filteredSettings, 'timingAdjustment')) {
+                gameEngine.seek(currentTime);
+              }
             }
           
           // 移調楽器の設定が変更された場合、楽譜を再処理

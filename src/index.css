@@ -218,7 +218,20 @@
   
   /* Removed DotGothic16 import and utility; use Tailwind font-sans (Kaisei Opti) */
   
-  /* 楽譜エリア: 再生中はスクロールバーを非表示 */
+    .sheet-note path,
+    .sheet-note ellipse,
+    .sheet-note circle {
+      transition: fill 120ms ease, stroke 120ms ease;
+    }
+
+    .sheet-note.sheet-note-active path,
+    .sheet-note.sheet-note-active ellipse,
+    .sheet-note.sheet-note-active circle {
+      fill: #ef4444 !important;
+      stroke: #ef4444 !important;
+    }
+
+    /* 楽譜エリア: 再生中はスクロールバーを非表示 */
   .overflow-hidden.custom-sheet-scrollbar::-webkit-scrollbar {
     display: none;
   }

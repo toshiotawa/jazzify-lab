@@ -91,6 +91,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   } = useGameActions();
   
   const showSeekbar = settings.showSeekbar;
+  const hasAudioFile = Boolean(currentSong?.audioFile && currentSong.audioFile.trim() !== '');
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
   const renderBridgeRef = useRef<LegendRenderBridge | null>(null);
   if (!renderBridgeRef.current) {
@@ -259,6 +260,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
   }, [currentTime, settings.transpose, settings.notesSpeed, isPlaying]);
 
+    const hasAllNotesJudged = score.totalNotes > 0 && (score.goodCount + score.missCount) >= score.totalNotes;
+
     useEffect(() => {
       if (mode !== 'performance') {
         stageRunStateRef.current = 'idle';
@@ -280,17 +283,22 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (stageRunStateRef.current !== 'running') {
         return;
       }
-      const judgedNotes = score.goodCount + score.missCount;
-      if (score.totalNotes > 0 && judgedNotes >= score.totalNotes && !resultModalOpen) {
-        stageRunStateRef.current = 'completed';
-        pause();
-        openResultModal();
+      if (!hasAllNotesJudged || resultModalOpen) {
+        return;
       }
-    }, [mode, currentSong?.id, score.goodCount, score.missCount, score.totalNotes, pause, openResultModal, resultModalOpen]);
+      const canShowResult = !hasAudioFile || audioCompleted;
+      if (!canShowResult) {
+        return;
+      }
+      stageRunStateRef.current = 'completed';
+      pause();
+      openResultModal();
+    }, [mode, currentSong?.id, hasAllNotesJudged, audioCompleted, hasAudioFile, pause, openResultModal, resultModalOpen]);
   
   // 音声再生用の要素
   const audioRef = useRef<HTMLAudioElement>(null);
   const [audioLoaded, setAudioLoaded] = useState(false);
+  const [audioCompleted, setAudioCompleted] = useState(false);
   // === オーディオタイミング同期用 ===
   const audioContextRef = useRef<AudioContext | null>(null);
   const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
@@ -342,15 +350,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         
         log.info(`🎵 音声ファイル読み込み開始: ${currentSong.audioFile}`);
         // CORS対応: Supabaseストレージからの音声ファイルでWeb Audio APIを使用するため
-        audio.crossOrigin = 'anonymous';
-        audio.src = currentSong.audioFile;
-        audio.volume = settings.musicVolume;
-        audio.preload = 'auto';
-        try {
-          audio.load();
-        } catch (loadError) {
-          devLog.debug('audio.load failed (likely Safari):', loadError);
-        }
+          audio.crossOrigin = 'anonymous';
+          audio.src = currentSong.audioFile;
+          audio.volume = settings.musicVolume;
+          audio.preload = 'auto';
+          setAudioCompleted(false);
+          try {
+            audio.load();
+          } catch (loadError) {
+            devLog.debug('audio.load failed (likely Safari):', loadError);
+          }
       
       return () => {
         // 旧リスナー解除
@@ -358,9 +367,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         audio.removeEventListener('error', handleError);
         audio.removeEventListener('canplay', handleCanPlay);
         
-        // 旧音声の停止と解放
+          // 旧音声の停止と解放
         try { audio.pause(); } catch {}
         try { audio.currentTime = 0; } catch {}
+          audio.muted = false;
         
         // AudioNode/Toneノードの切断と解放
         try {
@@ -379,24 +389,53 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else if (currentSong && (!currentSong.audioFile || currentSong.audioFile.trim() === '')) {
       // 音声ファイルなしの楽曲の場合
       log.info(`🎵 音声なしモードで楽曲を読み込み: ${currentSong.title}`);
-      setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
+        setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
+        setAudioCompleted(false);
     } else {
-      setAudioLoaded(false);
+        setAudioLoaded(false);
+        setAudioCompleted(false);
     }
   }, [currentSong?.audioFile, settings.musicVolume]);
   
-  // 再生状態同期
+    useEffect(() => {
+      const audio = audioRef.current;
+      if (!audio) {
+        return;
+      }
+      const handlePlay = () => {
+        setAudioCompleted(false);
+      };
+      const handleEnded = () => {
+        setAudioCompleted(true);
+      };
+      const handleTimeUpdate = () => {
+        if (audio.duration && audio.currentTime >= audio.duration - 0.05) {
+          setAudioCompleted(true);
+        }
+      };
+      audio.addEventListener('play', handlePlay);
+      audio.addEventListener('ended', handleEnded);
+      audio.addEventListener('timeupdate', handleTimeUpdate);
+      return () => {
+        audio.removeEventListener('play', handlePlay);
+        audio.removeEventListener('ended', handleEnded);
+        audio.removeEventListener('timeupdate', handleTimeUpdate);
+      };
+    }, [currentSong?.audioFile]);
+    
+    // 再生状態同期
   useEffect(() => {
     if (!gameEngine) return;
 
     const run = async () => {
       if (isPlaying) {
         // 音声ファイルありの場合とnしの場合で分岐
-        const hasAudio = currentSong?.audioFile && currentSong.audioFile.trim() !== '' && audioRef.current && audioLoaded;
+          const hasAudio = hasAudioFile && audioRef.current && audioLoaded;
         
         if (hasAudio) {
           // === 音声ありモード ===
             const audio = audioRef.current!;
+              const shouldUsePitchShift = settings.transpose !== 0;
 
         // 1) AudioContext を初期化 (存在しなければ)
         if (!audioContextRef.current) {
@@ -404,82 +443,84 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         }
         const audioContext = audioContextRef.current!;
 
-        // 2) MediaElementSource を生成（初回のみ）
-        if (!mediaSourceRef.current) {
-          try {
-            mediaSourceRef.current = audioContext.createMediaElementSource(audio);
-            log.info('✅ MediaElementAudioSourceNode created successfully');
-          } catch (error) {
-            log.error('🚨 MediaElementAudioSourceNode creation failed:', error);
-            throw error;
-          }
-        }
-
-        const shouldUsePitchShift = settings.transpose !== 0;
-
-        if (shouldUsePitchShift) {
-          if (!pitchShiftRef.current) {
+          // 2) MediaElementSource を必要な場合のみ生成
+          let mediaSource = mediaSourceRef.current;
+          if (shouldUsePitchShift && !mediaSource) {
             try {
-              await Tone.start();
-            } catch (err) {
-              log.warn('Tone.start() failed or was already started', err);
+              mediaSource = audioContext.createMediaElementSource(audio);
+              mediaSourceRef.current = mediaSource;
+              log.info('✅ MediaElementAudioSourceNode created successfully');
+            } catch (error) {
+              log.error('🚨 MediaElementAudioSourceNode creation failed:', error);
+              mediaSource = null;
+            }
+          }
+
+          if (shouldUsePitchShift && mediaSource) {
+            audio.muted = true;
+            try {
+              mediaSource.disconnect();
+            } catch (_) {/* already disconnected */}
+
+            if (!pitchShiftRef.current) {
+              try {
+                await Tone.start();
+              } catch (err) {
+                log.warn('Tone.start() failed or was already started', err);
+              }
+
+              try {
+                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                // @ts-ignore
+                if (Tone.setContext) {
+                  // eslint-disable-next-line @typescript-eslint/ban-ts-comment
+                  // @ts-ignore
+                  Tone.setContext(audioContext);
+                } else {
+                  log.warn('Unable to set Tone.js context - using default context');
+                }
+              } catch (err) {
+                log.warn('Tone context assignment failed', err);
+              }
+
+              pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
             }
 
             try {
               // eslint-disable-next-line @typescript-eslint/ban-ts-comment
               // @ts-ignore
-              if (Tone.setContext) {
-                // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-                // @ts-ignore
-                Tone.setContext(audioContext);
+              if (pitchShiftRef.current) {
+                Tone.connect(mediaSource, pitchShiftRef.current);
               } else {
-                log.warn('Unable to set Tone.js context - using default context');
+                mediaSource.connect(audioContext.destination);
               }
             } catch (err) {
-              log.warn('Tone context assignment failed', err);
+              log.error('Audio graph connection failed:', err);
             }
-
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
-          }
-
-          try {
-            mediaSourceRef.current.disconnect();
-          } catch (_) {/* already disconnected */}
-
-          try {
-            // eslint-disable-next-line @typescript-eslint/ban-ts-comment
-            // @ts-ignore
+          } else {
+            audio.muted = false;
             if (pitchShiftRef.current) {
-              Tone.connect(mediaSourceRef.current, pitchShiftRef.current);
+              try {
+                pitchShiftRef.current.dispose();
+              } catch (err) {
+                log.warn('PitchShift dispose failed', err);
+              }
+              pitchShiftRef.current = null;
             }
-          } catch (err) {
-            log.error('Tone.connect failed:', err);
-          }
-        } else {
-          if (pitchShiftRef.current) {
-            try {
-              pitchShiftRef.current.dispose();
-            } catch (err) {
-              log.warn('PitchShift dispose failed', err);
+            if (mediaSource) {
+              try {
+                mediaSource.disconnect();
+              } catch (_) {/* ignore */}
             }
-            pitchShiftRef.current = null;
           }
-          try {
-            mediaSourceRef.current.disconnect();
-          } catch (_) {/* ignore */}
-          try {
-            mediaSourceRef.current.connect(audioContext.destination);
-          } catch (err) {
-            log.error('MediaElementAudioSourceNode connect failed:', err);
-          }
-        }
 
         // 5) AudioContext を resume し、再生位置を同期
         // 🔧 非同期でresumeしてUIブロックを防ぐ
         const resumePromise = audioContext.resume();
 
         // ==== 再生スピード適用 ====
-        audio.playbackRate = settings.playbackSpeed;
+          audio.playbackRate = settings.playbackSpeed;
+          audio.defaultPlaybackRate = settings.playbackSpeed;
         // ピッチ保持を試みる（ブラウザによって実装が異なる）
         try {
           // @ts-ignore - ベンダープレフィックス対応
@@ -491,7 +532,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         } catch (_) {/* ignore */}
 
         // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
-        const syncTime = Math.max(0, currentTime);
+          const syncTime = Math.max(0, currentTime);
         audio.currentTime = syncTime;
 
         // 6) AudioContext と HTMLAudio のオフセットを記録
@@ -512,9 +553,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           }
           return Promise.resolve();
         }).then(() => {
-          audio.play().catch(e => log.error('音声再生エラー:', e));
+            setAudioCompleted(false);
+            audio.play().catch(e => log.error('音声再生エラー:', e));
         }).catch(e => log.error('AudioContext resume エラー:', e));
-        } else {
+          } else {
+            setAudioCompleted(false);
           // === 音声なしモード ===
           log.info('🎵 音声なしモードでゲームエンジンを開始');
           
@@ -581,6 +624,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     useEffect(() => {
       if (audioRef.current) {
         audioRef.current.playbackRate = settings.playbackSpeed;
+        audioRef.current.defaultPlaybackRate = settings.playbackSpeed;
 
         // ピッチを保持
         try {
