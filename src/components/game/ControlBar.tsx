@@ -231,19 +231,19 @@ const ControlBar: React.FC = () => {
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
-              <button
-                onClick={handleSkipBackward}
+                <button
+                  onClick={handleSkipBackward}
 
-                className="control-btn control-btn-xxs control-btn-secondary"
+                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
                 title="5秒戻る"
               >
                 <FaBackward />
               </button>
 
-              <button
-                onClick={() => isPlaying ? pauseAction() : play()}
+                <button
+                  onClick={() => isPlaying ? pauseAction() : play()}
 
-                className="control-btn control-btn-xxs control-btn-primary"
+                  className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
 
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
@@ -251,10 +251,10 @@ const ControlBar: React.FC = () => {
                 {isPlaying ? <FaPause /> : <FaPlay />}
               </button>
 
-              <button
-                onClick={handleSkipForward}
+                <button
+                  onClick={handleSkipForward}
 
-                className="control-btn control-btn-xxs control-btn-secondary"
+                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
 
                 title="5秒進む"
               >
@@ -346,10 +346,10 @@ const ControlBar: React.FC = () => {
           ) : (
             // 本番モード: 再生/最初に戻るボタン（状況に応じて動作変化）
             <>
-              <button
-                onClick={handlePlayOrRestart}
+                <button
+                  onClick={handlePlayOrRestart}
 
-                className="control-btn control-btn-xxs control-btn-primary"
+                  className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
 
                 disabled={!currentSong}
                 title={
@@ -361,9 +361,9 @@ const ControlBar: React.FC = () => {
                 {currentTime > 0 ? <MdReplay /> : <FaPlay />}
               </button>
 
-              <button
-                onClick={() => stop()}
-                className="control-btn control-btn-xxs control-btn-secondary"
+                <button
+                  onClick={() => stop()}
+                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
 
                 disabled={!currentSong}
                 title="停止"
