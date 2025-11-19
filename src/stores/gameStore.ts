@@ -5,6 +5,7 @@
 import { createWithEqualityFn } from 'zustand/traditional';
 import { devtools, subscribeWithSelector } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { isIOS } from '@/utils/isIOS';
 import type {
   GameState,
   GameMode,
@@ -302,16 +303,20 @@ const validateSettings = (settings: Partial<GameSettings>): { valid: boolean; er
     normalized.bgmVolume = Math.max(0, Math.min(1, normalized.bgmVolume));
   }
   
-  // 速度設定の検証
-  if (normalized.notesSpeed < 0.1 || normalized.notesSpeed > 4.0) {
-    errors.push('ノート速度は0.1-4.0の範囲で設定してください');
-    normalized.notesSpeed = Math.max(0.1, Math.min(4.0, normalized.notesSpeed));
-  }
-  
-  if (normalized.playbackSpeed < 0.1 || normalized.playbackSpeed > 3.0) {
-    errors.push('再生速度は0.1-3.0の範囲で設定してください');
-    normalized.playbackSpeed = Math.max(0.1, Math.min(3.0, normalized.playbackSpeed));
-  }
+    // 速度設定の検証
+    if (normalized.notesSpeed < 0.1 || normalized.notesSpeed > 4.0) {
+      errors.push('ノート速度は0.1-4.0の範囲で設定してください');
+      normalized.notesSpeed = Math.max(0.1, Math.min(4.0, normalized.notesSpeed));
+    }
+    
+    if (normalized.playbackSpeed < 0.1 || normalized.playbackSpeed > 3.0) {
+      errors.push('再生速度は0.1-3.0の範囲で設定してください');
+      normalized.playbackSpeed = Math.max(0.1, Math.min(3.0, normalized.playbackSpeed));
+    }
+    
+    if (isIOS()) {
+      normalized.playbackSpeed = 1;
+    }
   
   // タイミング調整の検証
   if (normalized.timingAdjustment < -1000 || normalized.timingAdjustment > 1000) {

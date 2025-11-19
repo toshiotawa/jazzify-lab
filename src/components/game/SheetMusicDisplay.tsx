@@ -14,6 +14,8 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+const PLAYHEAD_OFFSET = 120;
+
   /**
    * 楽譜表示コンポーネント
    * OSMDを使用して横スクロール形式の楽譜を表示
@@ -299,7 +301,7 @@ interface TimeMappingEntry {
       }
 
       const currentTimeMs = currentTime * 1000;
-      const playheadPosition = 120;
+        const playheadPosition = PLAYHEAD_OFFSET;
       const firstNoteTime = firstNoteTimeRef.current;
 
       const findInsertionPoint = () => {
@@ -358,53 +360,48 @@ interface TimeMappingEntry {
   }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black overflow-x-auto overflow-y-hidden custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      style={{
-        '--scrollbar-width': '8px',
-        '--scrollbar-track-color': '#f3f4f6',
-        '--scrollbar-thumb-color': '#9ca3af',
-        '--scrollbar-thumb-hover-color': '#6b7280'
-      } as React.CSSProperties}
-    >
-      {/* プレイヘッド（赤い縦線） */}
-      <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-        style={{ left: '120px' }}
+    <div className={cn('relative', className)}>
+      <div
+        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
+        style={{ left: `${PLAYHEAD_OFFSET}px` }}
       />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4 min-w-[3000px]">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-black">楽譜を読み込み中...</div>
-          </div>
-        )}
-        
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-red-600">エラー: {error}</div>
-          </div>
-        )}
-        
-        {(!musicXml && !isLoading) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-gray-600">楽譜データがありません</div>
-          </div>
-        )}
-        
-        {/* OSMDレンダリング用コンテナ */}
-        <div 
-          ref={containerRef} 
-          className="h-full flex items-center select-none"
-        />
+      <div 
+        className="bg-white text-black overflow-x-auto overflow-y-hidden custom-sheet-scrollbar"
+        ref={scrollContainerRef}
+        style={{
+          '--scrollbar-width': '8px',
+          '--scrollbar-track-color': '#f3f4f6',
+          '--scrollbar-thumb-color': '#9ca3af',
+          '--scrollbar-thumb-hover-color': '#6b7280'
+        } as React.CSSProperties}
+      >
+        {/* 楽譜コンテナ - 上部に余白を追加 */}
+        <div className="relative h-full pt-8 pb-4 min-w-[3000px]">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-black">楽譜を読み込み中...</div>
+            </div>
+          )}
+          
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-red-600">エラー: {error}</div>
+            </div>
+          )}
+          
+          {(!musicXml && !isLoading) && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-gray-600">楽譜データがありません</div>
+            </div>
+          )}
+          
+          {/* OSMDレンダリング用コンテナ */}
+          <div 
+            ref={containerRef} 
+            className="h-full flex items-center select-none"
+          />
+        </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };

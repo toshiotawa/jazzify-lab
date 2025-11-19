@@ -13,13 +13,16 @@ import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSong
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import { isIOS } from '@/utils/isIOS';
+
+const IOS_DEVICE = isIOS();
 
 /**
  * メインゲーム画面コンポーネント
  * ゲームのメインUI要素を統合
  */
 const GameScreen: React.FC = () => {
-  const { currentTab, currentSong, score, isSettingsOpen, settings } = useGameSelector((s) => ({
+    const { currentTab, currentSong, score, isSettingsOpen, settings } = useGameSelector((s) => ({
     currentTab: s.currentTab,
     currentSong: s.currentSong,
     score: s.score,
@@ -27,10 +30,19 @@ const GameScreen: React.FC = () => {
     settings: s.settings
   }));
 
-  const gameActions = useGameActions();
-  
-  // レッスン曲読み込み中の状態管理を追加
+      const gameActions = useGameActions();
+    
+    // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
+
+      useEffect(() => {
+        if (!IOS_DEVICE) {
+          return;
+        }
+        if (settings.playbackSpeed !== 1) {
+          gameActions.updateSettings({ playbackSpeed: 1 });
+        }
+      }, [settings.playbackSpeed, gameActions]);
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
@@ -1488,12 +1500,17 @@ const SettingsPanel: React.FC = () => {
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
                 再生スピード: {Math.round(settings.playbackSpeed * 100)}%
-                {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
-                 (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
+                  {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
+                   (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
                     最低{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速
                   </span>
                 )}
+                  {IOS_DEVICE && (
+                    <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
+                      iOSでは1x固定
+                    </span>
+                  )}
               </label>
               {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
                (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
@@ -1501,6 +1518,11 @@ const SettingsPanel: React.FC = () => {
                   🎯 課題条件: {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上が必要（本番モードでは{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上で変更可能）
                 </div>
               )}
+                {IOS_DEVICE && (
+                  <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
+                    iOSでは再生スピードを変更できません（常に1xで再生されます）
+                  </div>
+                )}
               <input
                 type="range"
                 min={((isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
@@ -1510,9 +1532,13 @@ const SettingsPanel: React.FC = () => {
                 max="1.5"
                 step="0.05"
                 value={settings.playbackSpeed}
-                onChange={(e) => 
-                  gameActions.updateSettings({ playbackSpeed: parseFloat(e.target.value) })
-                }
+                  onChange={(e) => {
+                    if (IOS_DEVICE) {
+                      return;
+                    }
+                    gameActions.updateSettings({ playbackSpeed: parseFloat(e.target.value) });
+                  }}
+                  disabled={IOS_DEVICE}
                 className="slider"
               />
             </div>
