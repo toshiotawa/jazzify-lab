@@ -239,8 +239,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                         centerX += noteHeadWidth / 2;
                       }
 
-                      mapping.push({
-                        timeMs: note.time * 1000, // 秒をミリ秒に変換
+        const adjustedTimeSec = note.time + (settings.timingAdjustment ?? 0) / 1000;
+        mapping.push({
+          timeMs: adjustedTimeSec * 1000,
                         // 動的に計算したスケール係数を使用
                         xPosition: centerX * scaleFactorRef.current
                       });
@@ -263,7 +264,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-  }, [notes]);
+  }, [notes, settings.timingAdjustment]);
+
+  useEffect(() => {
+    createTimeMapping();
+  }, [createTimeMapping]);
 
   // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
   useEffect(() => {
