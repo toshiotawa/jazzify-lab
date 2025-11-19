@@ -20,11 +20,12 @@ interface TimeMappingEntry {
  */
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
+  const manualScrollOverrideUntilRef = useRef(0);
+  const isProgrammaticScrollRef = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
@@ -265,25 +266,30 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     lastScrollXRef.current = 0;
   }, [notes]);
 
-  // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-  useEffect(() => {
-    if (isPlaying && scrollContainerRef.current) {
-      // 再生開始時に即座にスクロール位置を0にリセット
-      scrollContainerRef.current.scrollLeft = 0;
-      log.info('🎵 楽譜スクロールを開始位置にリセット');
-    }
-  }, [isPlaying]);
+    // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
+    useEffect(() => {
+      if (isPlaying && scrollContainerRef.current) {
+        scrollContainerRef.current.scrollLeft = 0;
+        lastScrollXRef.current = 0;
+        manualScrollOverrideUntilRef.current = 0;
+        log.info('🎵 楽譜スクロールを開始位置にリセット');
+      }
+      if (!isPlaying) {
+        manualScrollOverrideUntilRef.current = 0;
+      }
+    }, [isPlaying]);
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      const scrollContainer = scrollContainerRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !scrollContainer) {
         return;
       }
 
       const currentTimeMs = currentTime * 1000;
 
-      const findNextIndex = () => {
+      const findInsertionIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
         while (low <= high) {
@@ -294,47 +300,93 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             high = mid - 1;
           }
         }
-        return Math.min(low, mapping.length - 1);
+        return low;
       };
 
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+      const insertionIndex = findInsertionIndex();
+      const activeIndex = Math.max(0, Math.min(insertionIndex - 1, mapping.length - 1));
       mappingCursorRef.current = activeIndex;
 
       const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
       const playheadPosition = 120;
       const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
+        const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
+        const needsScrollUpdate = Math.abs(scrollX - scrollContainer.scrollLeft) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
+        if (needsIndexUpdate) {
+          lastRenderedIndexRef.current = activeIndex;
+        }
+
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+        const autoScrollLocked = isPlaying && manualScrollOverrideUntilRef.current > now;
+        if (autoScrollLocked) {
+          return;
+        }
+
+        if (needsScrollUpdate) {
+          lastScrollXRef.current = scrollX;
+          isProgrammaticScrollRef.current = true;
+          scrollContainer.scrollTo({
+            left: scrollX,
+            behavior: isPlaying ? 'auto' : 'smooth'
+          });
+          if (typeof requestAnimationFrame !== 'undefined') {
+            requestAnimationFrame(() => {
+              isProgrammaticScrollRef.current = false;
+            });
+          } else {
+            isProgrammaticScrollRef.current = false;
+          }
+        }
+      }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+
+    const markManualOverride = useCallback(() => {
+      if (!isPlaying) {
+        return;
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+      const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+      manualScrollOverrideUntilRef.current = now + 2500;
+    }, [isPlaying]);
 
     // ホイールスクロール制御
-  useEffect(() => {
-    const handleWheel = (e: WheelEvent) => {
-      // 楽譜エリアにマウスがホバーしていない、または再生中の場合はスクロールを無効化
-      if (!isHovered || isPlaying) {
-        e.preventDefault();
-        e.stopPropagation();
-        return false;
-      }
-    };
-
-    const scrollContainer = scrollContainerRef.current;
-    if (scrollContainer) {
-      scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
-      
-      return () => {
-        scrollContainer.removeEventListener('wheel', handleWheel);
+    useEffect(() => {
+      const handleWheel = (e: WheelEvent) => {
+        if (!isHovered) {
+          e.preventDefault();
+          e.stopPropagation();
+          return false;
+        }
+        markManualOverride();
+        return true;
       };
-    }
-  }, [isHovered, isPlaying]);
+
+      const scrollContainer = scrollContainerRef.current;
+      if (scrollContainer) {
+        scrollContainer.addEventListener('wheel', handleWheel, { passive: false });
+        
+        return () => {
+          scrollContainer.removeEventListener('wheel', handleWheel);
+        };
+      }
+    }, [isHovered, markManualOverride]);
+
+    useEffect(() => {
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) {
+        return;
+      }
+      const handleScroll = () => {
+        if (isProgrammaticScrollRef.current) {
+          return;
+        }
+        markManualOverride();
+      };
+      scrollContainer.addEventListener('scroll', handleScroll, { passive: true });
+      return () => {
+        scrollContainer.removeEventListener('scroll', handleScroll);
+      };
+    }, [markManualOverride]);
 
   // クリーンアップ
     useEffect(() => {
@@ -360,18 +412,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
+      <div 
+        className={cn(
+          "relative bg-white text-black overflow-x-auto overflow-y-hidden",
+          "custom-sheet-scrollbar",
+          className
+        )}
+        ref={scrollContainerRef}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        onPointerDown={() => markManualOverride()}
+        onTouchStart={() => markManualOverride()}
       style={{
         // WebKit系ブラウザ用のカスタムスクロールバー
         ...(!isPlaying && {
@@ -409,18 +460,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         )}
         
         {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
+            <div 
+              className={cn(
+                "h-full",
+                !isPlaying ? "transition-transform duration-100 ease-out" : ""
+              )}
+              style={{ 
+                minWidth: '3000px'
+              }}
+            >
           <div 
             ref={containerRef} 
             className="h-full flex items-center"
