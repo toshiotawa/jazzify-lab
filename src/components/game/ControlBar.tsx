@@ -230,19 +230,21 @@ const ControlBar: React.FC = () => {
         <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
           {isPracticeMode ? (
             // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
-            <>
-              <button
-                onClick={handleSkipBackward}
-
-                className="control-btn control-btn-xxs control-btn-secondary"
-                title="5秒戻る"
-              >
+              <>
+                <button
+                  type="button"
+                  onClick={handleSkipBackward}
+                  aria-label="5秒戻る"
+                  className="control-btn control-btn-xxs control-btn-secondary"
+                  title="5秒戻る"
+                >
                 <FaBackward />
               </button>
 
               <button
+                  type="button"
                 onClick={() => isPlaying ? pauseAction() : play()}
-
+                  aria-label={isPlaying ? '一時停止' : '再生'}
                 className="control-btn control-btn-xxs control-btn-primary"
 
                 disabled={!currentSong}
@@ -252,8 +254,9 @@ const ControlBar: React.FC = () => {
               </button>
 
               <button
+                  type="button"
                 onClick={handleSkipForward}
-
+                  aria-label="5秒進む"
                 className="control-btn control-btn-xxs control-btn-secondary"
 
                 title="5秒進む"
