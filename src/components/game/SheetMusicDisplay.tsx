@@ -33,6 +33,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const mappingCursorRef = useRef<number>(0);
   
+  // 前回時刻の保持用（巻き戻し検出用）
+  const prevTimeRef = useRef(0);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
@@ -69,11 +72,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     
     // 全ての音符を走査して演奏可能なノートのみを抽出
     const osmdPlayableNotes = [];
+    let firstBeatX: number | null = null; // 最初の小節1拍目のX座標
+    
     for (const page of graphicSheet.MusicPages) {
       for (const system of page.MusicSystems) {
         for (const staffLine of system.StaffLines) {
           for (const measure of staffLine.Measures) {
             for (const staffEntry of measure.staffEntries) {
+              // 最初に見つかった StaffEntry のX座標（実質1小節目1拍目）を拾う
+              const sePos = (staffEntry as any)?.PositionAndShape?.AbsolutePosition?.x;
+              if (typeof sePos === 'number') {
+                if (firstBeatX === null || sePos < firstBeatX) {
+                  firstBeatX = sePos;
+                }
+              }
+              
               for (const voice of staffEntry.graphicalVoiceEntries) {
                 for (const graphicNote of voice.notes) {
                   // isRest() が true、または sourceNote がない場合は休符と見なす
@@ -122,6 +135,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                     }
                     noteIndex++;
       }
+    }
+    
+    // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
+    if (firstBeatX !== null) {
+      mapping.unshift({
+        timeMs: 0,
+        xPosition: firstBeatX * scaleFactorRef.current
+      });
+      log.info(`✅ 小節頭アンカー追加: 0ms → X=${firstBeatX * scaleFactorRef.current}px`);
     }
     
     log.info(`📊 OSMD Note Extraction Summary:
@@ -273,19 +295,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [shouldRenderSheet]);
 
   // 音符の時刻とX座標のマッピングを作成
-    // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-    useEffect(() => {
-      if (isPlaying && scrollContainerRef.current) {
-        // 再生開始時に即座にスクロール位置を0にリセット
-        scrollContainerRef.current.scrollLeft = 0;
-        log.info('🎵 楽譜スクロールを開始位置にリセット');
-      }
-    }, [isPlaying]);
+    // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
+    // useEffect(() => {
+    //   if (isPlaying && scrollContainerRef.current) {
+    //     scrollContainerRef.current.scrollLeft = 0;
+    //     log.info('🎵 楽譜スクロールを開始位置にリセット');
+    //   }
+    // }, [isPlaying]);
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
       if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+        prevTimeRef.current = currentTime; // 早期returnでも更新
         return;
       }
 
@@ -316,11 +338,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
+      // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
+      const prev = prevTimeRef.current;
+      const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
+      const forceAtZero = currentTime < 0.02;       // 0秒付近
+
+      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
         scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
+
+      prevTimeRef.current = currentTime;
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
 
     // ホイールスクロール制御
