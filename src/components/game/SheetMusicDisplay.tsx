@@ -4,6 +4,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
+import { MdLoop } from 'react-icons/md';
 
 interface SheetMusicDisplayProps {
   className?: string;
@@ -22,6 +23,7 @@ interface TimeMappingEntry {
  * 1. 停止中の自由なスクロール（過去の譜面確認）
  * 2. ABリピートの可視化とドラッグ操作
  * 3. 譜面タッチによるシーク
+ * 4. 停止中のシーク同期（要件1対応）
  */
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -304,10 +306,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       scrollContainer.scrollLeft = currentTransformX;
       log.info(`⏸️ 停止: ScrollLeftを ${currentTransformX}px に設定し自由スクロールを有効化`);
     } else {
-      // 再生開始時: ScrollLeftを0に戻し、Transform制御を開始
+      // 再生開始時: 
+      // 1. ★重要: まず現在のcurrentTimeに基づいてTransformを即座に適用する
+      // これにより、scrollLeftが0になった瞬間に譜面が先頭に戻って見えるのを防ぐ
+      const currentX = getXFromTime(currentTime);
+      const playheadOffset = 120;
+      const targetX = Math.max(0, currentX - playheadOffset);
+      
+      scoreWrapper.style.transform = `translateX(-${targetX}px)`;
+      lastScrollXRef.current = targetX;
+      
+      // 2. その後、ScrollLeftを0に戻し、Transform制御モードへ移行
       scrollContainer.scrollLeft = 0;
+      log.info(`▶️ 再生: Transformを ${targetX}px に初期設定し、ScrollLeftを0にリセット`);
     }
-  }, [isPlaying]);
+    // currentTimeは依存配列に入れない（再生開始の一瞬だけこのロジックを適用したいため）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, getXFromTime]);
+
+  // 停止中のスクロール同期（シークバー操作用 - 要件3）
+  useEffect(() => {
+    if (isPlaying || !shouldRenderSheet || timeMappingRef.current.length === 0 || !scrollContainerRef.current) {
+      return;
+    }
+
+    const playheadOffset = 120;
+    const targetX = getXFromTime(currentTime);
+    const targetScrollX = Math.max(0, targetX - playheadOffset);
+    
+    // 差分がある程度大きい場合のみスクロール（微小なブレを防ぐ）
+    if (Math.abs(scrollContainerRef.current.scrollLeft - targetScrollX) > 1) {
+      scrollContainerRef.current.scrollLeft = targetScrollX;
+      lastScrollXRef.current = targetScrollX;
+    }
+  }, [currentTime, isPlaying, shouldRenderSheet, getXFromTime]);
 
   // 再生中のスクロール同期 (Animation Loop)
   useEffect(() => {
@@ -317,7 +349,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       return;
     }
 
-    // 停止中は playhead 位置の更新のみを行い、スクロールはさせない
+    // 停止中は上記のuseEffectで制御するためリターン
     if (!isPlaying) {
       prevTimeRef.current = currentTime;
       return;
@@ -426,7 +458,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
       }
     } else if (dragTypeRef.current === 'playhead') {
-      // プレイヘッドのドラッグ
+      // プレイヘッドのドラッグ（要件3: 譜面も連動）
       const scoreX = getScoreXFromEvent(e.clientX);
       const time = getTimeFromX(scoreX);
       gameActions.updateTime(time);
@@ -559,6 +591,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               </div>
             )}
 
+            {/* ABリピート区間のハイライト (要件4: 塗りつぶし、ループON時は濃く) */}
+            {loopAX !== null && loopBX !== null && (
+              <div 
+                className={cn(
+                  "absolute top-0 bottom-0 pointer-events-none transition-colors duration-300",
+                  abRepeat.enabled ? "bg-green-500/20" : "bg-blue-400/10"
+                )}
+                style={{ left: `${loopAX}px`, width: `${Math.max(0, loopBX - loopAX)}px` }}
+              />
+            )}
+
             {/* ABリピート: Aマーカー */}
             {loopAX !== null && (
               <div 
@@ -591,12 +634,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               </div>
             )}
 
-            {/* ABリピート区間のハイライト */}
-            {loopAX !== null && loopBX !== null && (
-              <div 
-                className="absolute top-0 bottom-0 bg-blue-100 opacity-20 pointer-events-none"
-                style={{ left: `${loopAX}px`, width: `${Math.max(0, loopBX - loopAX)}px` }}
-              />
+            {/* ループON/OFFボタン (要件4: B地点の左側に) */}
+            {loopBX !== null && (
+              <button
+                className={cn(
+                  "absolute top-2 z-30 pointer-events-auto p-1 rounded-full shadow-sm transition-all hover:scale-110",
+                  abRepeat.enabled 
+                    ? "bg-green-500 text-white" 
+                    : "bg-gray-200 text-gray-500 hover:bg-gray-300"
+                )}
+                style={{ left: `${loopBX - 28}px` }} // B地点の少し左
+                onClick={(e) => {
+                  e.stopPropagation();
+                  gameActions.toggleABRepeat();
+                }}
+                title={abRepeat.enabled ? "ループOFF" : "ループON"}
+              >
+                <MdLoop size={14} />
+              </button>
             )}
 
           </div>
