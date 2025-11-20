@@ -22,6 +22,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const containerRef = useRef<HTMLDivElement>(null);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const playheadRef = useRef<HTMLDivElement>(null); // プレイヘッドを直接操作するためのRef
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
@@ -272,56 +273,71 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [shouldRenderSheet]);
 
-  // 音符の時刻とX座標のマッピングを作成
-    // 再生開始時に楽譜スクロールを強制的に左側にジャンプ
-    useEffect(() => {
-      if (isPlaying && scrollContainerRef.current) {
-        // 再生開始時に即座にスクロール位置を0にリセット
-        scrollContainerRef.current.scrollLeft = 0;
-        log.info('🎵 楽譜スクロールを開始位置にリセット');
-      }
-    }, [isPlaying]);
+  // スクロール位置とプレイヘッド位置を同時に計算・制御する
+  useEffect(() => {
+    const mapping = timeMappingRef.current;
+    const scrollContainer = scrollContainerRef.current;
+    const playhead = playheadRef.current;
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
-    useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        return;
-      }
+    if (!shouldRenderSheet || mapping.length === 0 || !scrollContainer || !playhead) {
+      return;
+    }
 
-      const currentTimeMs = currentTime * 1000;
+    const currentTimeMs = currentTime * 1000;
+    const FIXED_PLAYHEAD_X = 120; // 基準となるプレイヘッドの位置(px)
 
-      const findNextIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
+    // 1. 現在の再生位置に対応する音符データのインデックスを探す
+    const findNextIndex = () => {
+      let low = 0;
+      let high = mapping.length - 1;
+      while (low <= high) {
+        const mid = Math.floor((low + high) / 2);
+        if (mapping[mid].timeMs <= currentTimeMs) {
+          low = mid + 1;
+        } else {
+          high = mid - 1;
         }
-        return Math.min(low, mapping.length - 1);
-      };
-
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
-      mappingCursorRef.current = activeIndex;
-
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
-      const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
       }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+      return Math.min(low, mapping.length - 1);
+    };
+
+    const nextIndex = findNextIndex();
+    const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+    mappingCursorRef.current = activeIndex;
+
+    const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+    
+    // 音符の絶対座標 (楽譜全体の中でのX座標)
+    const noteWorldX = targetEntry.xPosition;
+
+    // 2. 理想的なスクロール位置を計算 (音符が120pxの位置に来るように)
+    const idealScrollLeft = noteWorldX - FIXED_PLAYHEAD_X;
+
+    // 3. スクロール可能な最大幅を取得
+    const maxScrollLeft = scrollContainer.scrollWidth - scrollContainer.clientWidth;
+
+    // 4. 実際のスクロール位置を決定 (0 〜 最大幅 の間に収める)
+    //    これによって「開始地点」と「終了地点」の挙動が自動的に解決されます
+    const finalScrollLeft = Math.max(0, Math.min(idealScrollLeft, maxScrollLeft));
+
+    // 5. プレイヘッドの画面上の表示位置を計算
+    //    (音符の絶対座標) - (スクロール量) = (画面上の音符の位置)
+    const finalPlayheadLeft = noteWorldX - finalScrollLeft;
+
+    // 再生中、または位置が大きく変わった場合に適用
+    const needsScrollUpdate = Math.abs(finalScrollLeft - lastScrollXRef.current) > 0.5;
+
+    if (isPlaying || needsScrollUpdate) {
+      // スクロールを適用
+      scrollContainer.scrollLeft = finalScrollLeft;
+      
+      // プレイヘッド位置を適用 (直接DOM操作で高速化)
+      playhead.style.left = `${finalPlayheadLeft}px`;
+
+      lastRenderedIndexRef.current = activeIndex;
+      lastScrollXRef.current = finalScrollLeft;
+    }
+  }, [currentTime, isPlaying, notes, shouldRenderSheet]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -368,75 +384,72 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
-      } as React.CSSProperties}
-    >
-      {/* プレイヘッド（赤い縦線） */}
+    // 外枠のコンテナ (プレイヘッドの配置基準)
+    <div className={cn("relative h-full", className)}>
+      
+      {/* プレイヘッド：スクロールコンテナの外に置くことで常に固定位置 */}
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+        ref={playheadRef}
+        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 pointer-events-none transition-all duration-75 ease-linear"
         style={{ left: '120px' }}
       />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-black">楽譜を読み込み中...</div>
-          </div>
+
+      {/* スクロールコンテナ */}
+      <div 
+        className={cn(
+          "relative h-full bg-white text-black",
+          // 再生中はスクロール操作をブロックし、計算ロジックに任せる
+          isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
+          "custom-sheet-scrollbar"
         )}
-        
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-red-600">エラー: {error}</div>
-          </div>
-        )}
-        
-        {(!musicXml && !isLoading) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-gray-600">楽譜データがありません</div>
-          </div>
-        )}
-        
-        {/* OSMDレンダリング用コンテナ */}
+        ref={scrollContainerRef}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          // WebKit系ブラウザ用のカスタムスクロールバー
+          ...(!isPlaying && {
+            '--scrollbar-width': '8px',
+            '--scrollbar-track-color': '#f3f4f6',
+            '--scrollbar-thumb-color': '#9ca3af',
+            '--scrollbar-thumb-hover-color': '#6b7280'
+          })
+        } as React.CSSProperties}
+      >
+        {/* 楽譜コンテナ - 上部に余白を追加 */}
+        <div className="relative h-full pt-8 pb-4">
+          {isLoading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-black">楽譜を読み込み中...</div>
+            </div>
+          )}
+          
+          {error && (
+            <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+              <div className="text-red-600">エラー: {error}</div>
+            </div>
+          )}
+          
+          {(!musicXml && !isLoading) && (
+            <div className="absolute inset-0 flex items-center justify-center">
+              <div className="text-gray-600">楽譜データがありません</div>
+            </div>
+          )}
+          
+          {/* OSMDレンダリング用コンテナ (transformは削除) */}
           <div 
             ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
+            className="h-full"
             style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
               minWidth: '3000px' // 十分な幅を確保
             }}
           >
-          <div 
-            ref={containerRef} 
-            className="h-full flex items-center"
-          />
+            <div 
+              ref={containerRef} 
+              className="h-full flex items-center"
+            />
+          </div>
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };
