@@ -140,6 +140,7 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private currentChord: string = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -238,6 +239,14 @@ export class PIXINotesRendererInstance {
   clearActiveHighlights(): void {
     this.highlightedKeys.clear();
     this.requestRender();
+  }
+
+  updateChord(chord: string): void {
+    if (this.destroyed) return;
+    if (this.currentChord !== chord) {
+      this.currentChord = chord;
+      this.requestRender();
+    }
   }
 
   destroy(): void {
@@ -518,9 +527,49 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+    this.drawChord(ctx);
     if (token) {
       controller.endFrame(token);
     }
+  }
+
+  private drawChord(ctx: CanvasRenderingContext2D): void {
+    if (!this.currentChord) return;
+    
+    ctx.save();
+    
+    // コード表示位置（画面中央やや上）
+    const x = this.width / 2;
+    const y = this.height * 0.4;
+    
+    // フォント設定
+    const fontSize = Math.max(24, Math.min(48, this.width / 20));
+    ctx.font = `bold ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // テキストサイズを測定
+    const metrics = ctx.measureText(this.currentChord);
+    const textWidth = metrics.width;
+    const padding = fontSize * 0.5;
+    
+    // 背景描画
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(
+      x - textWidth / 2 - padding,
+      y - fontSize / 2 - padding / 2,
+      textWidth + padding * 2,
+      fontSize + padding,
+      fontSize * 0.2
+    );
+    ctx.fill();
+    
+    // テキスト描画
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(this.currentChord, x, y);
+    
+    ctx.restore();
   }
 
     private renderStaticLayers(): void {
