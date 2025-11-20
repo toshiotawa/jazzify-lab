@@ -306,10 +306,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       scrollContainer.scrollLeft = currentTransformX;
       log.info(`⏸️ 停止: ScrollLeftを ${currentTransformX}px に設定し自由スクロールを有効化`);
     } else {
-      // 再生開始時: ScrollLeftを0に戻し、Transform制御を開始
+      // 再生開始時: 
+      // 1. ★重要: まず現在のcurrentTimeに基づいてTransformを即座に適用する
+      // これにより、scrollLeftが0になった瞬間に譜面が先頭に戻って見えるのを防ぐ
+      const currentX = getXFromTime(currentTime);
+      const playheadOffset = 120;
+      const targetX = Math.max(0, currentX - playheadOffset);
+      
+      scoreWrapper.style.transform = `translateX(-${targetX}px)`;
+      lastScrollXRef.current = targetX;
+      
+      // 2. その後、ScrollLeftを0に戻し、Transform制御モードへ移行
       scrollContainer.scrollLeft = 0;
+      log.info(`▶️ 再生: Transformを ${targetX}px に初期設定し、ScrollLeftを0にリセット`);
     }
-  }, [isPlaying]);
+    // currentTimeは依存配列に入れない（再生開始の一瞬だけこのロジックを適用したいため）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, getXFromTime]);
 
   // 停止中のスクロール同期（シークバー操作用 - 要件3）
   useEffect(() => {
