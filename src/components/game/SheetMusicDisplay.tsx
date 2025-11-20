@@ -285,12 +285,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      const wrapper = scoreWrapperRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !wrapper) {
         return;
       }
-
+  
       const currentTimeMs = currentTime * 1000;
-
+      const firstEntry = mapping[0];
+      if (!firstEntry || currentTimeMs < firstEntry.timeMs) {
+        if (lastScrollXRef.current !== 0 || lastRenderedIndexRef.current !== -1) {
+          wrapper.style.transform = 'translateX(0px)';
+        }
+        lastScrollXRef.current = 0;
+        lastRenderedIndexRef.current = -1;
+        mappingCursorRef.current = 0;
+        return;
+      }
+  
       const findNextIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
@@ -305,23 +316,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return Math.min(low, mapping.length - 1);
       };
 
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
-      mappingCursorRef.current = activeIndex;
+        const nextIndex = findNextIndex();
+        const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+        mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
-      const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+        const playheadPosition = 120;
+        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
+        const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
+        const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
-        lastScrollXRef.current = scrollX;
-      }
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+        if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && wrapper) {
+          wrapper.style.transform = `translateX(-${scrollX}px)`;
+          lastRenderedIndexRef.current = activeIndex;
+          lastScrollXRef.current = scrollX;
+        }
+      }, [currentTime, isPlaying, notes, shouldRenderSheet]);
 
     // ホイールスクロール制御
   useEffect(() => {
