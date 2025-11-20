@@ -313,9 +313,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const currentTimeMs = currentTime * 1000;
 
-      const findNextIndex = () => {
+      // 修正箇所: インデックス検索ロジックの簡素化と修正
+      const findActiveIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
+        
+        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
         while (low <= high) {
           const mid = Math.floor((low + high) / 2);
           if (mapping[mid].timeMs <= currentTimeMs) {
@@ -324,15 +327,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             high = mid - 1;
           }
         }
-        return Math.min(low, mapping.length - 1);
+        // low は「次に演奏されるべき音符」のインデックスになっているため、
+        // その1つ前が「現在演奏中の音符」となります。
+        return low - 1;
       };
 
-      const nextIndex = findNextIndex();
-      const activeIndex = Math.max(0, Math.min(nextIndex === 0 ? 0 : nextIndex - 1, mapping.length - 1));
+      // 計算されたインデックスを取得（範囲外ならクランプ）
+      const rawIndex = findActiveIndex();
+      const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
+      const targetEntry = mapping[activeIndex];
       const playheadPosition = 120;
+      
+      // targetEntryが存在しない場合のガード処理を追加
+      if (!targetEntry) return;
+
       const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
