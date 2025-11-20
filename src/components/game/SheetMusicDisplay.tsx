@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -39,16 +39,110 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  // タップ状態管理（シーク機能用）
+  const tapStateRef = useRef<{x: number; y: number; t: number} | null>(null);
+  
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
-    settings: s.settings, // 簡易表示設定を取得
+    settings: s.settings,
+    abRepeat: s.abRepeat,
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
-  // const gameActions = useGameActions(); // 現在未使用
+  const gameActions = useGameActions();
+  
+  const PLAYHEAD_X = 120; // プレイヘッドの固定X座標
+  
+  // X座標 → 時間（秒）への変換
+  const xToTime = useCallback((x: number): number => {
+    const mapping = timeMappingRef.current;
+    if (!mapping.length) return 0;
+    
+    // xに対する下限要素を二分探索
+    let low = 0, high = mapping.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (mapping[mid].xPosition <= x) low = mid + 1;
+      else high = mid - 1;
+    }
+    
+    const i2 = Math.min(mapping.length - 1, Math.max(1, low));
+    const i1 = i2 - 1;
+    const m1 = mapping[i1], m2 = mapping[i2];
+    const ratio = m2.xPosition === m1.xPosition ? 0 : (x - m1.xPosition) / (m2.xPosition - m1.xPosition);
+    const t = (m1.timeMs + (m2.timeMs - m1.timeMs) * Math.min(1, Math.max(0, ratio))) / 1000;
+    return Math.max(0, t);
+  }, []);
+  
+  // 時間（秒） → X座標への変換
+  const timeToX = useCallback((tSec: number | null): number | null => {
+    if (tSec == null) return null;
+    const tMs = tSec * 1000;
+    const mapping = timeMappingRef.current;
+    if (!mapping.length) return 0;
+    
+    let low = 0, high = mapping.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (mapping[mid].timeMs <= tMs) low = mid + 1;
+      else high = mid - 1;
+    }
+    
+    const i2 = Math.min(mapping.length - 1, Math.max(1, low));
+    const i1 = i2 - 1;
+    const m1 = mapping[i1], m2 = mapping[i2];
+    const ratio = m2.timeMs === m1.timeMs ? 0 : (tMs - m1.timeMs) / (m2.timeMs - m1.timeMs);
+    return m1.xPosition + (m2.xPosition - m1.xPosition) * Math.min(1, Math.max(0, ratio));
+  }, []);
+  
+  // イベント座標 → 楽譜内X座標への変換
+  const getContentXFromEvent = useCallback((clientX: number): number => {
+    const sc = scrollContainerRef.current;
+    if (!sc) return 0;
+    const rect = sc.getBoundingClientRect();
+    const localX = clientX - rect.left;
+    return Math.max(0, lastScrollXRef.current + localX);
+  }, []);
+  
+  // ABマーカーのドラッグ処理
+  const startDragMarker = useCallback((e: React.PointerEvent, which: 'a' | 'b') => {
+    const target = e.currentTarget as HTMLElement;
+    target.setPointerCapture(e.pointerId);
+    target.style.touchAction = 'none'; // スマホの横スクロールと干渉しない
+    
+    const onMove = (ev: PointerEvent) => {
+      const contentX = getContentXFromEvent(ev.clientX);
+      const t = xToTime(contentX);
+      
+      // A <= B 制約を維持
+      if (which === 'a') {
+        if (abRepeat.endTime != null && t > abRepeat.endTime) {
+          gameActions.setABRepeatEnd(t);
+        }
+        gameActions.setABRepeatStart(t);
+      } else {
+        if (abRepeat.startTime != null && t < abRepeat.startTime) {
+          gameActions.setABRepeatStart(t);
+        }
+        gameActions.setABRepeatEnd(t);
+      }
+    };
+    
+    const onUp = () => {
+      target.releasePointerCapture(e.pointerId);
+      target.style.touchAction = '';
+      window.removeEventListener('pointermove', onMove);
+      window.removeEventListener('pointerup', onUp);
+      window.removeEventListener('pointercancel', onUp);
+    };
+    
+    window.addEventListener('pointermove', onMove, { passive: true });
+    window.addEventListener('pointerup', onUp, { passive: true });
+    window.addEventListener('pointercancel', onUp, { passive: true });
+  }, [xToTime, getContentXFromEvent, abRepeat, gameActions]);
   
   // OSMDの初期化とレンダリング
   const createTimeMapping = useCallback(() => {
@@ -294,74 +388,86 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [shouldRenderSheet]);
 
-  // 音符の時刻とX座標のマッピングを作成
-    // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
-    // useEffect(() => {
-    //   if (isPlaying && scrollContainerRef.current) {
-    //     scrollContainerRef.current.scrollLeft = 0;
-    //     log.info('🎵 楽譜スクロールを開始位置にリセット');
-    //   }
-    // }, [isPlaying]);
+  // 停止/再生の切り替え時に transform ↔ scrollLeft を切替
+  useEffect(() => {
+    if (!shouldRenderSheet || !scoreWrapperRef.current || !scrollContainerRef.current) return;
+    
+    if (!isPlaying) {
+      // 停止に入ったら transform を解除して scrollLeft に引き継ぐ
+      scoreWrapperRef.current.style.transform = '';
+      scrollContainerRef.current.scrollLeft = lastScrollXRef.current;
+    } else {
+      // 再生に入ったら、現在の scrollLeft を transform の起点にする
+      lastScrollXRef.current = scrollContainerRef.current.scrollLeft;
+      scoreWrapperRef.current.style.transform = `translateX(-${lastScrollXRef.current}px)`;
+    }
+  }, [isPlaying, shouldRenderSheet]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
-    useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        prevTimeRef.current = currentTime; // 早期returnでも更新
-        return;
+  // 停止中のホイール/ドラッグでの手動スクロールを lastScrollX に反映
+  useEffect(() => {
+    const sc = scrollContainerRef.current;
+    if (!sc) return;
+    
+    const onScroll = () => {
+      if (!isPlaying) {
+        lastScrollXRef.current = sc.scrollLeft;
       }
+    };
+    
+    sc.addEventListener('scroll', onScroll, { passive: true });
+    return () => sc.removeEventListener('scroll', onScroll);
+  }, [isPlaying]);
 
-      const currentTimeMs = currentTime * 1000;
+  // currentTime → 表示同期
+  useEffect(() => {
+    const mapping = timeMappingRef.current;
+    if (!shouldRenderSheet || mapping.length === 0) {
+      prevTimeRef.current = currentTime;
+      return;
+    }
+    
+    const currentTimeMs = currentTime * 1000;
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
-      const findActiveIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        
-        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
-        }
-        // low は「次に演奏されるべき音符」のインデックスになっているため、
-        // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
-      };
+    const findActiveIndex = () => {
+      let low = 0, high = mapping.length - 1;
+      while (low <= high) {
+        const mid = (low + high) >> 1;
+        if (mapping[mid].timeMs <= currentTimeMs) low = mid + 1;
+        else high = mid - 1;
+      }
+      return low - 1;
+    };
 
-      // 計算されたインデックスを取得（範囲外ならクランプ）
-      const rawIndex = findActiveIndex();
-      const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+    const idx = Math.max(0, Math.min(findActiveIndex(), mapping.length - 1));
+    const target = mapping[idx];
+    const scrollX = Math.max(0, target.xPosition - PLAYHEAD_X);
 
-      mappingCursorRef.current = activeIndex;
+    const seekingBack = currentTime < prevTimeRef.current - 0.1;
+    const forceAtZero = currentTime < 0.02;
 
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
+    if (isPlaying) {
+      // 再生中は transform を更新（従来通り）
+      const needsIndexUpdate = idx !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
-      const prev = prevTimeRef.current;
-      const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
-      const forceAtZero = currentTime < 0.02;       // 0秒付近
-
-      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        lastRenderedIndexRef.current = activeIndex;
+      
+      if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
+        if (scoreWrapperRef.current) {
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        }
+        lastRenderedIndexRef.current = idx;
         lastScrollXRef.current = scrollX;
       }
+    } else {
+      // 停止中はスクロール位置を更新（transform解除中）
+      if (scrollContainerRef.current) {
+        scrollContainerRef.current.scrollLeft = scrollX;
+        lastScrollXRef.current = scrollX;
+        lastRenderedIndexRef.current = idx;
+      }
+    }
 
-      prevTimeRef.current = currentTime;
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    prevTimeRef.current = currentTime;
+  }, [currentTime, isPlaying, shouldRenderSheet]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -433,50 +539,135 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       {/* プレイヘッド（赤い縦線） */}
       <div 
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
-        style={{ left: '120px' }}
+        style={{ left: `${PLAYHEAD_X}px` }}
+      />
+      
+      {/* プレイヘッド用のドラッグハンドル（16px幅、スマホで掴みやすく） */}
+      <div
+        className="absolute top-0 bottom-0 z-20 cursor-ew-resize"
+        style={{ left: `${PLAYHEAD_X - 8}px`, width: '16px', touchAction: 'none' }}
+        onPointerDown={(e) => {
+          const onMove = (ev: PointerEvent) => {
+            const contentX = getContentXFromEvent(ev.clientX);
+            const t = xToTime(contentX);
+            gameActions.updateTime(t);
+          };
+          const onUp = () => {
+            window.removeEventListener('pointermove', onMove);
+            window.removeEventListener('pointerup', onUp);
+            window.removeEventListener('pointercancel', onUp);
+          };
+          window.addEventListener('pointermove', onMove, { passive: true });
+          window.addEventListener('pointerup', onUp, { passive: true });
+          window.addEventListener('pointercancel', onUp, { passive: true });
+        }}
       />
       
       {/* 楽譜コンテナ - 上部に余白を追加 */}
       <div className="relative h-full pt-8 pb-4">
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-30">
             <div className="text-black">楽譜を読み込み中...</div>
           </div>
         )}
         
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-30">
             <div className="text-red-600">エラー: {error}</div>
           </div>
         )}
         
         {(!musicXml && !isLoading) && (
-          <div className="absolute inset-0 flex items-center justify-center">
+          <div className="absolute inset-0 flex items-center justify-center z-30">
             <div className="text-gray-600">楽譜データがありません</div>
           </div>
         )}
         
         {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
+        <div 
+          ref={scoreWrapperRef}
+          className={cn(
+            "h-full relative",
+            // 停止中は手動スクロール時の移動を滑らかにする
+            !isPlaying ? "transition-transform duration-100 ease-out" : ""
+          )}
+          style={{ 
+            willChange: isPlaying ? 'transform' : 'auto',
+            minWidth: '3000px' // 十分な幅を確保
+          }}
+        >
+          {/* ABリピートの可視化 */}
+          {abRepeat.enabled && (() => {
+            const ax = timeToX(abRepeat.startTime);
+            const bx = timeToX(abRepeat.endTime);
+            const left = ax != null && bx != null ? Math.min(ax, bx) : null;
+            const right = ax != null && bx != null ? Math.max(ax, bx) : null;
+            
+            return (
+              <>
+                {/* A-B区間の半透明帯 */}
+                {left != null && right != null && (
+                  <div
+                    className="absolute top-0 bottom-0 bg-blue-300/20 pointer-events-none z-5"
+                    style={{ left, width: right - left }}
+                  />
+                )}
+                
+                {/* A マーカー（緑） */}
+                {ax != null && (
+                  <div
+                    className="absolute top-0 bottom-0 w-1 bg-emerald-500 z-20 cursor-ew-resize"
+                    style={{ left: ax }}
+                    onPointerDown={(e) => startDragMarker(e, 'a')}
+                  >
+                    <div className="absolute -top-6 -left-2 text-xs bg-emerald-600 text-white px-1 rounded select-none">
+                      A
+                    </div>
+                  </div>
+                )}
+                
+                {/* B マーカー（青） */}
+                {bx != null && (
+                  <div
+                    className="absolute top-0 bottom-0 w-1 bg-sky-500 z-20 cursor-ew-resize"
+                    style={{ left: bx }}
+                    onPointerDown={(e) => startDragMarker(e, 'b')}
+                  >
+                    <div className="absolute -top-6 -left-2 text-xs bg-sky-600 text-white px-1 rounded select-none">
+                      B
+                    </div>
+                  </div>
+                )}
+              </>
+            );
+          })()}
+          
           <div 
             ref={containerRef} 
             className="h-full flex items-center"
+            onPointerDown={(e) => {
+              const now = performance.now();
+              tapStateRef.current = { x: e.clientX, y: e.clientY, t: now };
+            }}
+            onPointerUp={(e) => {
+              const s = tapStateRef.current;
+              tapStateRef.current = null;
+              if (!s) return;
+              
+              const dx = Math.abs(e.clientX - s.x);
+              const dy = Math.abs(e.clientY - s.y);
+              const dt = performance.now() - s.t;
+              
+              // タップ判定（移動8px未満、時間300ms未満）
+              if (dx < 8 && dy < 8 && dt < 300) {
+                const contentX = getContentXFromEvent(e.clientX);
+                const t = xToTime(contentX);
+                gameActions.updateTime(t);
+              }
+            }}
           />
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
     </div>
   );
 };
