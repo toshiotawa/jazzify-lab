@@ -14,7 +14,7 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
+import { log } from './logger';
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
 
@@ -358,7 +358,10 @@ export class GameEngine {
   clearABRepeat(): void {}
   
   updateSettings(settings: GameSettings): void {
-    const prevSpeed = this.settings.playbackSpeed ?? 1;
+    const previousSettings = this.settings;
+    const prevSpeed = previousSettings.playbackSpeed ?? 1;
+    const prevNotesSpeed = previousSettings.notesSpeed ?? 1;
+    const prevTimingAdjustment = previousSettings.timingAdjustment ?? 0;
     // 現在の論理時間を保持（旧スピードで計算）
     const currentLogicalTime = this.getCurrentTime();
 
@@ -373,6 +376,8 @@ export class GameEngine {
     }
 
     const newSpeed = this.settings.playbackSpeed ?? 1;
+    const notesSpeedChanged = (this.settings.notesSpeed ?? 1) !== prevNotesSpeed;
+    const timingChanged = (this.settings.timingAdjustment ?? 0) !== prevTimingAdjustment;
 
     // スピードが変化した場合、startTime を調整してタイムラインを連続に保つ
     if (this.audioContext && prevSpeed !== newSpeed) {
@@ -385,14 +390,9 @@ export class GameEngine {
       // devLog.debug(`🔧 GameEngine.updateSettings: 速度変更 ${prevSpeed}x → ${newSpeed}x`);
     }
 
-    // notesSpeed が変化した場合、未処理ノートの appearTime を更新
-    const dynamicLookahead = this.getLookaheadTime();
-    this.notes.forEach((note) => {
-      // まだ appearTime を計算済みでも更新（タイミング調整を含める）
-      note.appearTime = note.time + this.getTimingAdjSec() - dynamicLookahead;
-    });
-    const lookBehind = Math.max(0, this.getCurrentTime() - dynamicLookahead);
-    this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
+    if (notesSpeedChanged || timingChanged) {
+      this.recalculateNoteWindows();
+    }
   }
   
   destroy(): void {
@@ -479,7 +479,7 @@ export class GameEngine {
     const outputLatency = this.audioContext.outputLatency || 0;
 
     // 任意の追加補正値（ユーザー設定で微調整可能）
-    const manualCompensation = (this.settings as any).latencyAdjustment ?? 0; // 秒
+    const manualCompensation = this.settings.latencyAdjustment ?? 0; // 秒
 
     // 合計レイテンシ
     this.latencyOffset = baseLatency + outputLatency + manualCompensation;
@@ -568,6 +568,22 @@ export class GameEngine {
       note.appearTime = note.time + timingAdj - lookahead;
     }
     const lookBehind = Math.max(0, startTime - lookahead);
+    this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
+  }
+
+  private recalculateNoteWindows(): void {
+    const timingAdj = this.getTimingAdjSec();
+    const lookahead = this.getLookaheadTime();
+
+    this.notes.forEach((note) => {
+      note.appearTime = note.time + timingAdj - lookahead;
+    });
+
+    this.activeNotes.forEach((activeNote) => {
+      activeNote.appearTime = activeNote.time + timingAdj - lookahead;
+    });
+
+    const lookBehind = Math.max(0, this.getCurrentTime() - lookahead);
     this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
   }
   
@@ -662,9 +678,6 @@ export class GameEngine {
         }
         
         const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
-        if (isRecentNote && updatedNote.state !== latestNote.state) {
-        }
-        
         if (updatedNote.state === 'missed' && !updatedNote.judged) {
           const missJudgment: JudgmentResult = {
             type: 'miss',
@@ -680,9 +693,6 @@ export class GameEngine {
         if (updatedNote.state === 'completed') {
           // 削除対象としてマーク（ループ中の削除を避ける）
           notesToDelete.push(noteId);
-          
-          if (isRecentNote) {
-          }
         }
     }
     
@@ -791,10 +801,10 @@ export class GameEngine {
             timestamp: currentTime
           };
           
-          // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
-          const judgment = this.processHit(autoHit);
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+            // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
+            this.processHit(autoHit);
+            // ログ削除: FPS最適化のため
+            // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
           
           // 強制的にノーツ状態を確認
           const updatedNoteAfterHit = this.activeNotes.get(note.id);
