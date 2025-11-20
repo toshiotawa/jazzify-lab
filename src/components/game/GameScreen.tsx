@@ -921,10 +921,20 @@ const GamePlayScreen: React.FC = () => {
  * リハ/ステージ モード切り替えボタン
  */
 const ModeToggleButton: React.FC = () => {
-  const { mode } = useGameSelector((s) => ({
-    mode: s.mode
+  const { mode, abRepeat } = useGameSelector((s) => ({
+    mode: s.mode,
+    abRepeat: s.abRepeat
   }));
   const gameActions = useGameActions();
+
+  const handleStageModeClick = () => {
+    gameActions.setMode('performance');
+    
+    // 要件5: 本番モード(ステージ)に変更時、ABループをOFFにする
+    if (abRepeat.enabled) {
+      gameActions.toggleABRepeat();
+    }
+  };
 
   return (
     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
@@ -949,7 +959,7 @@ const ModeToggleButton: React.FC = () => {
         
         {/* ステージボタン */}
         <button
-          onClick={() => gameActions.setMode('performance')}
+          onClick={handleStageModeClick}
           className={`
             px-2 py-1 rounded-lg font-bold text-xs
             transition-all duration-200 hover:scale-105
