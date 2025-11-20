@@ -19,11 +19,11 @@ interface TimeMappingEntry {
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
  * 
- * 機能追加:
- * 1. 停止中の自由なスクロール（過去の譜面確認）
+ * 機能追加・修正:
+ * 1. 停止中の自由なスクロール
  * 2. ABリピートの可視化とドラッグ操作
- * 3. 譜面タッチによるシーク
- * 4. 停止中のシーク同期（要件1対応）
+ * 3. 譜面タッチによるシーク（補間によるスムーズな操作）
+ * 4. ヘッドのテキストを「PLAY」に変更
  */
 const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -63,45 +63,60 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   
   const gameActions = useGameActions(); 
 
-  // X座標から時刻を取得するヘルパー関数
+  // X座標から時刻を取得するヘルパー関数（線形補間あり）
+  // 要件3: 離散的ではなく滑らかに取得
   const getTimeFromX = useCallback((targetX: number): number => {
     const mapping = timeMappingRef.current;
     if (!mapping || mapping.length === 0) return 0;
 
-    // 二分探索で近い位置を探す
+    // 範囲外の処理
+    if (targetX <= mapping[0].xPosition) return mapping[0].timeMs / 1000;
+    if (targetX >= mapping[mapping.length - 1].xPosition) return mapping[mapping.length - 1].timeMs / 1000;
+
+    // 二分探索で左側のインデックスを探す
     let low = 0;
     let high = mapping.length - 1;
-    let closest = mapping[0];
-    let minDiff = Math.abs(mapping[0].xPosition - targetX);
-
+    
     while (low <= high) {
       const mid = Math.floor((low + high) / 2);
-      const entry = mapping[mid];
-      const diff = Math.abs(entry.xPosition - targetX);
-
-      if (diff < minDiff) {
-        minDiff = diff;
-        closest = entry;
-      }
-
-      if (entry.xPosition < targetX) {
+      if (mapping[mid].xPosition <= targetX) {
         low = mid + 1;
       } else {
         high = mid - 1;
       }
     }
+    
+    const leftIndex = Math.max(0, low - 1);
+    const rightIndex = Math.min(mapping.length - 1, leftIndex + 1);
+    
+    const left = mapping[leftIndex];
+    const right = mapping[rightIndex];
 
-    return closest.timeMs / 1000;
+    // 完全一致または端の場合
+    if (leftIndex === rightIndex || left.xPosition === right.xPosition) {
+      return left.timeMs / 1000;
+    }
+
+    // 線形補間計算
+    const ratio = (targetX - left.xPosition) / (right.xPosition - left.xPosition);
+    const interpolatedTimeMs = left.timeMs + ratio * (right.timeMs - left.timeMs);
+
+    return interpolatedTimeMs / 1000;
   }, []);
 
-  // 時刻からX座標を取得するヘルパー関数
+  // 時刻からX座標を取得するヘルパー関数（線形補間あり）
+  // 要件3: 離散的ではなく滑らかに取得
   const getXFromTime = useCallback((targetTimeSec: number): number => {
     const mapping = timeMappingRef.current;
     if (!mapping || mapping.length === 0) return 0;
     
     const targetMs = targetTimeSec * 1000;
-    // 簡易的な線形探索（または二分探索）
-    // マッピングはtimeMsでソートされている前提
+
+    // 範囲外の処理
+    if (targetMs <= mapping[0].timeMs) return mapping[0].xPosition;
+    if (targetMs >= mapping[mapping.length - 1].timeMs) return mapping[mapping.length - 1].xPosition;
+
+    // 二分探索で左側のインデックスを探す
     let low = 0;
     let high = mapping.length - 1;
     
@@ -113,8 +128,22 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         high = mid - 1;
       }
     }
-    const index = Math.max(0, low - 1);
-    return mapping[index]?.xPosition || 0;
+    const leftIndex = Math.max(0, low - 1);
+    const rightIndex = Math.min(mapping.length - 1, leftIndex + 1);
+
+    const left = mapping[leftIndex];
+    const right = mapping[rightIndex];
+
+    // 完全一致または端の場合
+    if (leftIndex === rightIndex || left.timeMs === right.timeMs) {
+      return left.xPosition;
+    }
+
+    // 線形補間計算
+    const ratio = (targetMs - left.timeMs) / (right.timeMs - left.timeMs);
+    const interpolatedX = left.xPosition + ratio * (right.xPosition - left.xPosition);
+
+    return interpolatedX;
   }, []);
 
   // OSMDの初期化とレンダリング (既存ロジック維持)
@@ -334,8 +363,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     const targetX = getXFromTime(currentTime);
     const targetScrollX = Math.max(0, targetX - playheadOffset);
     
-    // 差分がある程度大きい場合のみスクロール（微小なブレを防ぐ）
-    if (Math.abs(scrollContainerRef.current.scrollLeft - targetScrollX) > 1) {
+    // 微小なズレは無視してDOM更新を減らす（パフォーマンス対策）
+    if (Math.abs(scrollContainerRef.current.scrollLeft - targetScrollX) > 0.5) {
       scrollContainerRef.current.scrollLeft = targetScrollX;
       lastScrollXRef.current = targetScrollX;
     }
@@ -585,8 +614,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 }}
                 title="再生位置 (ドラッグで移動)"
               >
-                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs px-1 rounded">
-                  Head
+                {/* 要件2: Head -> PLAY に変更 */}
+                <div className="absolute -top-6 left-1/2 transform -translate-x-1/2 bg-red-500 text-white text-xs px-1 rounded font-bold">
+                  PLAY
                 </div>
               </div>
             )}

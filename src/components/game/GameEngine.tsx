@@ -429,6 +429,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
     }, [isPlaying]);
 
+    // 再生終了判定ロジックの修正 (要件1対応)
     useEffect(() => {
       if (hasAudioTrack) {
         return;
@@ -436,10 +437,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (!currentSongDuration) {
         return;
       }
+      // 再生終了フラグを立てる条件
       if (!isPlaying && currentTime >= currentSongDuration) {
         setHasPlaybackFinished(true);
       }
-    }, [hasAudioTrack, currentSongDuration, currentTime, isPlaying]);
+      // 修正: 現在時刻が曲の長さ未満になったら（シークなどで）、終了フラグを解除する
+      if (currentTime < currentSongDuration && hasPlaybackFinished) {
+         setHasPlaybackFinished(false);
+      }
+    }, [hasAudioTrack, currentSongDuration, currentTime, isPlaying, hasPlaybackFinished]);
   
   // 再生状態同期
   useEffect(() => {
@@ -564,10 +570,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
         let syncTime = Math.max(0, currentTime);
 
+        // 🔧 要件1の補強: もし再生終了後にシークして再生ボタンを押した場合、
+        // HTML AudioのcurrentTimeが最後に達したままになっている可能性があるため、
+        // ここで明示的にsyncTimeを適用する。
+        if (syncTime < audio.duration) {
+           setHasPlaybackFinished(false);
+        }
+
         // 🔧 要件2: ABリピートON中、A地点より手前から再生されたときは即座にA地点から始まるように
         if (abRepeat.enabled && abRepeat.startTime !== null && syncTime < abRepeat.startTime) {
           syncTime = abRepeat.startTime;
-          // ストアの時刻も更新してUIと同期
           updateTime(syncTime);
           devLog.debug(`🔄 ABリピート: 開始地点(${syncTime}s)にジャンプ`);
         }
@@ -607,13 +619,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           // 🔧 非同期でresumeしてUIブロックを防ぐ
           audioContext.resume().catch(e => log.warn('AudioContext resume エラー:', e));
 
-          // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
           let syncTime = Math.max(0, currentTime);
+          
+          // 要件1対応: 音声なしモードでも終了フラグをリセット
+          if (currentSongDuration && syncTime < currentSongDuration) {
+             setHasPlaybackFinished(false);
+          }
 
-          // 🔧 要件2: ABリピートON中、A地点より手前から再生されたときは即座にA地点から始まるように
           if (abRepeat.enabled && abRepeat.startTime !== null && syncTime < abRepeat.startTime) {
             syncTime = abRepeat.startTime;
-            // ストアの時刻も更新してUIと同期
             updateTime(syncTime);
             devLog.debug(`🔄 ABリピート(音声なし): 開始地点(${syncTime}s)にジャンプ`);
           }
