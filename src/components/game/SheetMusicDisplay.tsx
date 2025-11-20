@@ -208,7 +208,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
         autoResize: true,
-        backend: 'svg',
+        backend: 'canvas',
         drawTitle: false,
         drawComposer: false,
         drawLyricist: false,
@@ -229,23 +229,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
 
-      if (settings.sheetMusicChordsOnly) {
-        const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
-        noteEls.forEach(el => {
-          (el as HTMLElement).style.display = 'none';
-        });
-      }
+      // Canvas バックエンドでは DOM 要素の非表示は不要（描画されない）
+      // ただし、将来的にコードのみ表示モードを実装する場合は、OSMD の描画オプションで制御する
       
       // レンダリング後に正確なスケールファクターを計算
-      const svgElement = containerRef.current.querySelector('svg');
+      const canvasElement = containerRef.current.querySelector('canvas');
       const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
 
-      if (svgElement && boundingBox && boundingBox.width > 0) {
-        // レンダリングされたSVGの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
-        const svgWidth = svgElement.width.baseVal.value;
+      if (canvasElement && boundingBox && boundingBox.width > 0) {
+        // レンダリングされたCanvasの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
+        const canvasWidth = canvasElement.width;
         const osmdWidth = boundingBox.width;
-        scaleFactorRef.current = svgWidth / osmdWidth;
-        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
+        scaleFactorRef.current = canvasWidth / osmdWidth;
+        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (Canvas: ${canvasWidth}px, BBox: ${osmdWidth})`);
       } else {
         log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
         scaleFactorRef.current = 10;
@@ -306,7 +302,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      if (!shouldRenderSheet || mapping.length === 0) {
         prevTimeRef.current = currentTime; // 早期returnでも更新
         return;
       }
@@ -354,8 +350,25 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
+        if (isPlaying) {
+          // 再生中: transform を使用（パフォーマンス優先）
+          if (scoreWrapperRef.current) {
+            scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+            scoreWrapperRef.current.style.transition = 'none';
+          }
+        } else {
+          // 停止中: scrollLeft を使用（スクロール可能にする）
+          if (scrollContainerRef.current) {
+            // transform を解除
+            if (scoreWrapperRef.current) {
+              scoreWrapperRef.current.style.transform = 'none';
+              scoreWrapperRef.current.style.transition = 'none';
+            }
+            // scrollLeft で位置を設定
+            scrollContainerRef.current.scrollLeft = scrollX;
+          }
+        }
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
@@ -459,11 +472,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         {/* OSMDレンダリング用コンテナ */}
           <div 
             ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
-            )}
+            className="h-full"
             style={{ 
               willChange: isPlaying ? 'transform' : 'auto',
               minWidth: '3000px' // 十分な幅を確保
