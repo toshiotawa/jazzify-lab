@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { ActiveNote } from '@/types';
+import type { ActiveNote, ChordInfo } from '@/types';
 import { cn } from '@/utils/cn';
 
 type NoteNameStyle = 'off' | 'abc' | 'solfege';
@@ -140,6 +140,9 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private currentChord: string = '';
+  private chords: ChordInfo[] = [];
+  private currentTime: number = 0;
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -157,13 +160,32 @@ export class PIXINotesRendererInstance {
     this.attachEvents();
   }
 
-  updateNotes(notes: ActiveNote[], _currentTime?: number): void {
+  updateNotes(notes: ActiveNote[], currentTime?: number): void {
     if (this.destroyed) return;
     this.noteBuffer.length = notes.length;
     for (let i = 0; i < notes.length; i += 1) {
       this.noteBuffer[i] = notes[i];
     }
+    if (currentTime !== undefined) {
+      this.currentTime = currentTime;
+      this.updateCurrentChord();
+    }
     this.requestRender();
+  }
+
+  updateChords(chords: ChordInfo[], currentTime: number): void {
+    if (this.destroyed) return;
+    this.chords = chords;
+    this.currentTime = currentTime;
+    this.updateCurrentChord();
+    this.requestRender();
+  }
+
+  private updateCurrentChord(): void {
+    const chord = this.chords.find(
+      (c) => this.currentTime >= c.startTime && (c.endTime === undefined || this.currentTime < c.endTime)
+    );
+    this.currentChord = chord ? chord.symbol.displayText : '';
   }
 
   updateSettings(newSettings: Partial<RendererSettings>): void {
@@ -518,6 +540,7 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+    this.drawChordOverlay(ctx);
     if (token) {
       controller.endFrame(token);
     }
@@ -814,6 +837,49 @@ export class PIXINotesRendererInstance {
   private applyGuideHighlights(target: Set<number>): void {
     this.guideHighlightedKeys = target;
     this.requestRender();
+  }
+
+  private drawChordOverlay(ctx: CanvasRenderingContext2D): void {
+    if (!this.currentChord) return;
+    
+    const centerX = this.width / 2;
+    const topY = this.height * 0.4; // 画面の40%の位置
+    
+    // 背景（半透明の黒）
+    ctx.save();
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.font = `${Math.min(48, this.width / 20)}px 'Inter', 'Noto Sans JP', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    // テキストのサイズを測定
+    const metrics = ctx.measureText(this.currentChord);
+    const textWidth = metrics.width;
+    const textHeight = parseInt(ctx.font, 10) || 48;
+    const padding = 16;
+    
+    // 背景を描画
+    ctx.fillRect(
+      centerX - textWidth / 2 - padding,
+      topY - textHeight / 2 - padding,
+      textWidth + padding * 2,
+      textHeight + padding * 2
+    );
+    
+    // 角丸を適用（簡易版）
+    ctx.globalCompositeOperation = 'destination-over';
+    ctx.fillRect(
+      centerX - textWidth / 2 - padding,
+      topY - textHeight / 2 - padding,
+      textWidth + padding * 2,
+      textHeight + padding * 2
+    );
+    ctx.globalCompositeOperation = 'source-over';
+    
+    // テキストを描画
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(this.currentChord, centerX, topY);
+    ctx.restore();
   }
 }
 
