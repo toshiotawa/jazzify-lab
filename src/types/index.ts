@@ -232,8 +232,8 @@ export interface GameState {
   // ABリピート（練習モード）
   abRepeat: {
     enabled: boolean;
-    startTime: number | null;
-    endTime: number | null;
+    a: number | null;  // A地点（秒）
+    b: number | null;  // B地点（秒）
   };
   
   // スコア情報

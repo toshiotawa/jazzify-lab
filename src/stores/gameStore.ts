@@ -239,8 +239,8 @@ const defaultState: GameState = {
   // ABリピート
   abRepeat: {
     enabled: false,
-    startTime: null,
-    endTime: null
+    a: null,  // 秒
+    b: null   // 秒
   },
   
   // スコア情報
@@ -369,13 +369,13 @@ const validateStateTransition = (currentState: GameState, action: string, params
       break;
       
     case 'setABRepeatStart':
-      if (currentState.abRepeat.endTime !== null && params.time >= currentState.abRepeat.endTime) {
+      if (currentState.abRepeat.b !== null && params.time >= currentState.abRepeat.b) {
         return { valid: false, error: 'ABリピート開始位置は終了位置より前に設定してください' };
       }
       break;
       
     case 'setABRepeatEnd':
-      if (currentState.abRepeat.startTime !== null && params.time <= currentState.abRepeat.startTime) {
+      if (currentState.abRepeat.a !== null && params.time <= currentState.abRepeat.a) {
         return { valid: false, error: 'ABリピート終了位置は開始位置より後に設定してください' };
       }
       break;
@@ -459,6 +459,9 @@ interface GameStoreState extends GameState {
   clearABRepeatStart: () => void;
   clearABRepeatEnd: () => void;
   toggleABRepeat: () => void;
+  setABEnabled: (enabled: boolean) => void;
+  setABPoint: (which: 'a' | 'b', t: number | null) => void;
+  setABPoints: (a: number | null, b: number | null) => void;
   
   // 新規追加: 移調制御
   transpose: (semitones: number) => void;
@@ -606,9 +609,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const storeSnapshot = useGameStore.getState();
               const { abRepeat } = storeSnapshot;
               
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
-                if (data.currentTime >= abRepeat.endTime) {
-                  const seekTime = abRepeat.startTime;
+              if (abRepeat.enabled && abRepeat.a !== null && abRepeat.b !== null) {
+                if (data.currentTime >= abRepeat.b) {
+                  const seekTime = abRepeat.a;
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
                   setTimeout(() => {
                     const store = useGameStore.getState();
@@ -800,8 +803,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // ABリピートクリア
             state.abRepeat = {
               enabled: false,
-              startTime: null,
-              endTime: null
+              a: null,
+              b: null
             };
             
             // GameEngineに楽曲ロード
@@ -826,8 +829,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.activeNotes.clear();
           state.abRepeat = {
             enabled: false,
-            startTime: null,
-            endTime: null
+            a: null,
+            b: null
           };
         }),
         
@@ -877,11 +880,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         // ABリピート制御
         setABRepeatStart: (time) => set((state) => {
           const currentTime = time ?? state.currentTime;
-          state.abRepeat.startTime = currentTime;
+          state.abRepeat.a = currentTime;
           
           // 終了時間が開始時間より前の場合はクリア
-          if (state.abRepeat.endTime !== null && state.abRepeat.endTime <= currentTime) {
-            state.abRepeat.endTime = null;
+          if (state.abRepeat.b !== null && state.abRepeat.b <= currentTime) {
+            state.abRepeat.b = null;
           }
         }),
         
@@ -889,37 +892,50 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const currentTime = time ?? state.currentTime;
           
           // 開始時間が設定されていない、または開始時間より後の場合のみ設定
-          if (state.abRepeat.startTime !== null && currentTime > state.abRepeat.startTime) {
-            state.abRepeat.endTime = currentTime;
+          if (state.abRepeat.a !== null && currentTime > state.abRepeat.a) {
+            state.abRepeat.b = currentTime;
           }
         }),
         
         clearABRepeat: () => set((state) => {
           state.abRepeat = {
             enabled: false,
-            startTime: null,
-            endTime: null
+            a: null,
+            b: null
           };
         }),
 
         // A地点のみクリア
         clearABRepeatStart: () => set((state) => {
-          state.abRepeat.startTime = null;
+          state.abRepeat.a = null;
           // A地点がクリアされたらループも無効化
           state.abRepeat.enabled = false;
         }),
 
         // B地点のみクリア
         clearABRepeatEnd: () => set((state) => {
-          state.abRepeat.endTime = null;
+          state.abRepeat.b = null;
           // B地点がクリアされたらループも無効化
           state.abRepeat.enabled = false;
         }),
         
         toggleABRepeat: () => set((state) => {
-          if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
+          if (state.abRepeat.a !== null && state.abRepeat.b !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
+        }),
+        
+        setABEnabled: (enabled: boolean) => set((state) => {
+          state.abRepeat.enabled = enabled;
+        }),
+        
+        setABPoint: (which: 'a' | 'b', t: number | null) => set((state) => {
+          state.abRepeat[which] = t;
+        }),
+        
+        setABPoints: (a: number | null, b: number | null) => set((state) => {
+          state.abRepeat.a = a;
+          state.abRepeat.b = b;
         }),
         
         // ノーツ管理
@@ -1857,18 +1873,18 @@ export const useCanPlay = () =>
 export const useABRepeatActive = () =>
   useGameStore((state: GameStoreState) =>
     state.abRepeat.enabled &&
-    state.abRepeat.startTime !== null &&
-    state.abRepeat.endTime !== null
+    state.abRepeat.a !== null &&
+    state.abRepeat.b !== null
   );
 
 // 現在の時間がABリピート範囲内かどうか
 export const useIsInABRange = () =>
   useGameStore((state: GameStoreState) => {
   const { currentTime, abRepeat } = state;
-  if (!abRepeat.enabled || abRepeat.startTime === null || abRepeat.endTime === null) {
+  if (!abRepeat.enabled || abRepeat.a === null || abRepeat.b === null) {
     return false;
   }
-  return currentTime >= abRepeat.startTime && currentTime <= abRepeat.endTime;
+  return currentTime >= abRepeat.a && currentTime <= abRepeat.b;
 });
 
 // ===== 新機能: 拡張セレクタ =====

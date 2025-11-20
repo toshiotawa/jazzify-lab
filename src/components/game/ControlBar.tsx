@@ -97,7 +97,7 @@ const ControlBar: React.FC = () => {
 
   // ループON/OFF切り替え（改善版）
   const handleToggleLoop = useCallback(() => {
-    if (abRepeat.startTime !== null && abRepeat.endTime !== null) {
+    if (abRepeat.a !== null && abRepeat.b !== null) {
       // A/B地点が設定済みの場合、ON/OFFを切り替え
       toggleABRepeat();
     } else {
@@ -178,39 +178,39 @@ const ControlBar: React.FC = () => {
               />
               
               {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+              {(abRepeat.a !== null || abRepeat.b !== null) && songDuration > 0 && (
                 <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
                   {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
+                  {abRepeat.a !== null && (
                     <div
                       className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
                       style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        left: `${(abRepeat.a / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      title={`A地点: ${formatTime(abRepeat.a)}`}
                     />
                   )}
                   
                   {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
+                  {abRepeat.b !== null && (
                     <div
                       className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
                       style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
+                        left: `${(abRepeat.b / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                      title={`B地点: ${formatTime(abRepeat.b)}`}
                     />
                   )}
                   
                   {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                  {abRepeat.a !== null && abRepeat.b !== null && (
                     <div
                       className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
                       style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                        left: `${(abRepeat.a / songDuration) * 100}%`,
+                        width: `${((abRepeat.b - abRepeat.a) / songDuration) * 100}%`
                       }}
                     />
                   )}
@@ -276,15 +276,15 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
-                  className={`control-btn control-btn-xxs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
+                  className={`control-btn control-btn-xxs ${abRepeat.a !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="A地点設定"
                 >
                   A
                 </button>
                 <span className="text-gray-400 w-8 text-center">
-                  {abRepeat.startTime !== null ? Math.floor(abRepeat.startTime / 60) + ':' + String(Math.floor(abRepeat.startTime % 60)).padStart(2, '0') : '--'}
+                  {abRepeat.a !== null ? Math.floor(abRepeat.a / 60) + ':' + String(Math.floor(abRepeat.a % 60)).padStart(2, '0') : '--'}
                 </span>
-                {abRepeat.startTime !== null && (
+                {abRepeat.a !== null && (
                   <button
                     onClick={handleClearA}
                     className="control-btn control-btn-xxs control-btn-danger"
@@ -298,15 +298,15 @@ const ControlBar: React.FC = () => {
                 
                 <button
                   onClick={handleSetBEnd}
-                  className={`control-btn control-btn-xxs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
+                  className={`control-btn control-btn-xxs ${abRepeat.b !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
                   title="B地点設定"
                 >
                   B
                 </button>
                 <span className="text-gray-400 w-8 text-center">
-                  {abRepeat.endTime !== null ? Math.floor(abRepeat.endTime / 60) + ':' + String(Math.floor(abRepeat.endTime % 60)).padStart(2, '0') : '--'}
+                  {abRepeat.b !== null ? Math.floor(abRepeat.b / 60) + ':' + String(Math.floor(abRepeat.b % 60)).padStart(2, '0') : '--'}
                 </span>
-                {abRepeat.endTime !== null && (
+                {abRepeat.b !== null && (
                   <button
                     onClick={handleClearB}
                     className="control-btn control-btn-xxs control-btn-danger"
