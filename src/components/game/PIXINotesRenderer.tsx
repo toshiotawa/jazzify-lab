@@ -140,6 +140,7 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private currentChord = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -257,6 +258,7 @@ export class PIXINotesRendererInstance {
     this.guideHighlightedKeys.clear();
       this.pointerStates.clear();
     this.backgroundCanvas = null;
+    this.currentChord = '';
   }
 
   get view(): HTMLCanvasElement {
@@ -518,6 +520,7 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+    this.drawChord(ctx);
     if (token) {
       controller.endFrame(token);
     }
@@ -720,6 +723,45 @@ export class PIXINotesRendererInstance {
     };
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
+    ctx.restore();
+  }
+
+  updateChord(chord: string): void {
+    if (this.destroyed) return;
+    if (this.currentChord !== chord) {
+      this.currentChord = chord;
+      this.requestRender();
+    }
+  }
+
+  private drawChord(ctx: CanvasRenderingContext2D): void {
+    if (!this.currentChord) return;
+    
+    ctx.save();
+    const centerX = this.width / 2;
+    const topY = this.height * 0.4; // 画面の40%の位置（元のChordOverlayと同じ）
+    
+    // 背景（半透明の黒）
+    const fontSize = Math.max(32, this.width * 0.04);
+    ctx.font = `bold ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const textMetrics = ctx.measureText(this.currentChord);
+    const padding = 16;
+    const bgWidth = textMetrics.width + padding * 2;
+    const bgHeight = fontSize + padding * 2;
+    const bgX = centerX - bgWidth / 2;
+    const bgY = topY - bgHeight / 2;
+    
+    // 背景を描画
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.fillRect(bgX, bgY, bgWidth, bgHeight);
+    
+    // テキストを描画
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(this.currentChord, centerX, topY);
+    
     ctx.restore();
   }
 
