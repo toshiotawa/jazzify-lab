@@ -14,6 +14,9 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+const PLAYHEAD_OFFSET_PX = 120;
+const PRE_START_MARGIN_MS = 10;
+
 /**
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
@@ -289,7 +292,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return;
       }
 
-      const currentTimeMs = currentTime * 1000;
+        const currentTimeMs = currentTime * 1000;
+        const firstEntry = mapping[0];
+        if (firstEntry) {
+          const beforeFirstPlayableNote = currentTimeMs + PRE_START_MARGIN_MS < firstEntry.timeMs;
+          if (beforeFirstPlayableNote) {
+            if (scoreWrapperRef.current) {
+              scoreWrapperRef.current.style.transform = 'translateX(0px)';
+            }
+            mappingCursorRef.current = -1;
+            lastRenderedIndexRef.current = -1;
+            lastScrollXRef.current = 0;
+            return;
+          }
+        }
 
       const findNextIndex = () => {
         let low = 0;
@@ -310,8 +326,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       mappingCursorRef.current = activeIndex;
 
       const targetEntry = mapping[activeIndex] ?? mapping[mapping.length - 1];
-      const playheadPosition = 120;
-      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const scrollX = Math.max(0, targetEntry.xPosition - PLAYHEAD_OFFSET_PX);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
