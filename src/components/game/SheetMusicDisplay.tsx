@@ -285,11 +285,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      const wrapper = scoreWrapperRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !wrapper) {
         return;
       }
 
       const currentTimeMs = currentTime * 1000;
+      const firstPlayableTimeMs = mapping[0]?.timeMs ?? 0;
+
+      // 最初の音符が始まるまでは冒頭小節に固定
+      if (currentTimeMs < firstPlayableTimeMs) {
+        if (lastScrollXRef.current !== 0 || lastRenderedIndexRef.current !== -1) {
+          wrapper.style.transform = 'translateX(0px)';
+          lastScrollXRef.current = 0;
+          lastRenderedIndexRef.current = -1;
+        }
+        mappingCursorRef.current = -1;
+        return;
+      }
 
       const findNextIndex = () => {
         let low = 0;
@@ -316,8 +329,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      if ((needsIndexUpdate || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if (needsIndexUpdate || (!isPlaying && needsScrollUpdate)) {
+        wrapper.style.transform = `translateX(-${scrollX}px)`;
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
