@@ -140,6 +140,7 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private currentChord: string = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -238,6 +239,13 @@ export class PIXINotesRendererInstance {
   clearActiveHighlights(): void {
     this.highlightedKeys.clear();
     this.requestRender();
+  }
+
+  updateChord(chordText: string): void {
+    if (this.currentChord !== chordText) {
+      this.currentChord = chordText;
+      this.requestRender();
+    }
   }
 
   destroy(): void {
@@ -518,9 +526,38 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+    this.drawChord(ctx);
     if (token) {
       controller.endFrame(token);
     }
+  }
+
+  private drawChord(ctx: CanvasRenderingContext2D): void {
+    if (!this.currentChord) return;
+    
+    ctx.save();
+    ctx.font = 'bold 32px Inter, "Noto Sans JP", sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    
+    const x = this.width / 2;
+    const y = this.height * 0.4;
+    
+    // 背景
+    const metrics = ctx.measureText(this.currentChord);
+    const padding = 16;
+    const bgWidth = metrics.width + padding * 2;
+    const bgHeight = 48;
+    
+    ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+    ctx.beginPath();
+    ctx.roundRect(x - bgWidth / 2, y - bgHeight / 2, bgWidth, bgHeight, 8);
+    ctx.fill();
+    
+    // テキスト
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(this.currentChord, x, y);
+    ctx.restore();
   }
 
     private renderStaticLayers(): void {
