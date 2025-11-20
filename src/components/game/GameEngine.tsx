@@ -354,6 +354,10 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         };
         const handleEnded = () => {
           setHasPlaybackFinished(true);
+          const declaredDuration = currentSongDuration ?? audio.duration ?? currentTimeRef.current;
+          const safeDuration = Number.isFinite(declaredDuration) ? declaredDuration : currentTimeRef.current;
+          updateTime(safeDuration);
+          pause();
         };
         const handlePlayEvent = () => {
           setHasPlaybackFinished(false);
@@ -415,7 +419,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else {
       setAudioLoaded(false);
     }
-      }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey]);
+        }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey, currentSongDuration, pause, updateTime]);
 
     useEffect(() => {
       setHasPlaybackFinished(false);
@@ -676,7 +680,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       if (gameEngine) {
         updateEngineSettings();
       }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, audioElementKey]);
+  }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, audioElementKey, settings.transpose]);
   
   // シーク機能（音声ありと音声なし両方対応）
   useEffect(() => {
