@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import type { ActiveNote } from '@/types';
+import type { ActiveNote, ChordInfo } from '@/types';
 import { cn } from '@/utils/cn';
 
 type NoteNameStyle = 'off' | 'abc' | 'solfege';
@@ -128,13 +128,17 @@ export class PIXINotesRendererInstance {
   private noteBuffer: ActiveNote[] = [];
   private renderHandle: number | ReturnType<typeof setTimeout> | null = null;
   private renderPending = false;
-  private settings: RendererSettings = createDefaultSettings();
-  private colors = this.normalizeColors(this.settings.colors);
-  private keyGeometries = new Map<number, KeyGeometry>();
-  private whiteKeyOrder: number[] = [];
-  private blackKeyOrder: number[] = [];
-  private highlightedKeys = new Set<number>();
-  private guideHighlightedKeys = new Set<number>();
+    private settings: RendererSettings = createDefaultSettings();
+    private colors = this.normalizeColors(this.settings.colors);
+    private keyGeometries = new Map<number, KeyGeometry>();
+    private whiteKeyOrder: number[] = [];
+    private blackKeyOrder: number[] = [];
+    private highlightedKeys = new Set<number>();
+    private guideHighlightedKeys = new Set<number>();
+    private chordSchedule: ChordInfo[] = [];
+    private chordCursor = 0;
+    private currentChordText = '';
+    private lastChordLookupTime = 0;
     private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
@@ -157,14 +161,35 @@ export class PIXINotesRendererInstance {
     this.attachEvents();
   }
 
-  updateNotes(notes: ActiveNote[], _currentTime?: number): void {
+    updateNotes(notes: ActiveNote[], currentTime?: number): void {
     if (this.destroyed) return;
     this.noteBuffer.length = notes.length;
     for (let i = 0; i < notes.length; i += 1) {
       this.noteBuffer[i] = notes[i];
     }
+      if (typeof currentTime === 'number') {
+        this.setChordCurrentTime(currentTime);
+      }
     this.requestRender();
   }
+
+    updateChords(chords: ChordInfo[]): void {
+      if (this.destroyed) return;
+      this.chordSchedule = [...chords].sort((a, b) => a.startTime - b.startTime);
+      this.chordCursor = 0;
+      this.lastChordLookupTime = Math.max(0, this.lastChordLookupTime);
+      if (this.chordSchedule.length === 0) {
+        this.updateChordText('');
+        return;
+      }
+      this.resolveChordForTime(this.lastChordLookupTime, true);
+    }
+
+    setChordCurrentTime(currentTime: number): void {
+      if (this.destroyed) return;
+      this.lastChordLookupTime = currentTime;
+      this.resolveChordForTime(currentTime);
+    }
 
   updateSettings(newSettings: Partial<RendererSettings>): void {
     if (this.destroyed) return;
@@ -501,23 +526,24 @@ export class PIXINotesRendererInstance {
     }
     const controller = (window as typeof window & { unifiedFrameController?: any })?.unifiedFrameController;
     const token = controller?.beginFrame?.('render', 'canvas-notes');
-    const ctx = this.ctx;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.restore();
-    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
-    if (this.backgroundCanvas) {
-      ctx.drawImage(this.backgroundCanvas, 0, 0, this.width, this.height);
-    } else {
-      ctx.fillStyle = this.colors.background;
-      ctx.fillRect(0, 0, this.width, this.height);
-    }
-    if (this.settings.showHitLine) {
-      this.drawHitLine(ctx);
-    }
-    this.drawNotes(ctx);
-    this.drawKeyHighlights(ctx);
+      const ctx = this.ctx;
+      ctx.save();
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+      ctx.restore();
+      ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+      if (this.backgroundCanvas) {
+        ctx.drawImage(this.backgroundCanvas, 0, 0, this.width, this.height);
+      } else {
+        ctx.fillStyle = this.colors.background;
+        ctx.fillRect(0, 0, this.width, this.height);
+      }
+      if (this.settings.showHitLine) {
+        this.drawHitLine(ctx);
+      }
+      this.drawNotes(ctx);
+      this.drawKeyHighlights(ctx);
+      this.drawChordOverlay(ctx);
     if (token) {
       controller.endFrame(token);
     }
@@ -722,6 +748,87 @@ export class PIXINotesRendererInstance {
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }
+
+    private resolveChordForTime(time: number, forceFullSearch = false): void {
+      if (this.chordSchedule.length === 0) {
+        this.updateChordText('');
+        return;
+      }
+
+      let cursor = this.chordCursor;
+      const currentChord = this.chordSchedule[cursor];
+      const withinCurrent =
+        !forceFullSearch &&
+        currentChord !== undefined &&
+        time >= currentChord.startTime &&
+        (currentChord.endTime === undefined || time < currentChord.endTime);
+
+      if (!withinCurrent) {
+        cursor = this.findChordIndex(time);
+      }
+
+      if (cursor === -1) {
+        this.chordCursor = 0;
+        this.updateChordText('');
+        return;
+      }
+
+      this.chordCursor = cursor;
+      const chord = this.chordSchedule[cursor];
+      this.updateChordText(chord?.symbol.displayText ?? '');
+    }
+
+    private findChordIndex(time: number): number {
+      for (let i = 0; i < this.chordSchedule.length; i += 1) {
+        const chord = this.chordSchedule[i];
+        if (!chord) {
+          continue;
+        }
+        const endTime = chord.endTime ?? Number.POSITIVE_INFINITY;
+        if (time >= chord.startTime && time < endTime) {
+          return i;
+        }
+        if (time < chord.startTime) {
+          break;
+        }
+      }
+      return -1;
+    }
+
+    private updateChordText(nextText: string): void {
+      if (this.currentChordText === nextText) {
+        return;
+      }
+      this.currentChordText = nextText;
+      this.requestRender();
+    }
+
+    private drawChordOverlay(ctx: CanvasRenderingContext2D): void {
+      if (!this.currentChordText) {
+        return;
+      }
+      ctx.save();
+      const fontSize = Math.min(72, Math.max(28, this.width * 0.05));
+      const overlayY = Math.max(32, this.settings.hitLineY * 0.35);
+      ctx.font = `600 ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const metrics = ctx.measureText(this.currentChordText);
+      const paddingX = fontSize * 0.6;
+      const paddingY = fontSize * 0.4;
+      const boxWidth = metrics.width + paddingX * 2;
+      const boxHeight = fontSize + paddingY;
+      const boxX = this.width / 2 - boxWidth / 2;
+      const boxY = overlayY - boxHeight / 2;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath();
+      this.drawRoundedRectPath(ctx, boxX, boxY, boxWidth, boxHeight, Math.min(16, fontSize * 0.4));
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(this.currentChordText, this.width / 2, overlayY);
+      ctx.restore();
+    }
 
   private getStateColor(state: ActiveNote['state'], isBlack: boolean): string {
     if (state === 'hit' || state === 'good' || state === 'perfect') {
