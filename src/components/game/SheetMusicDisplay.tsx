@@ -25,6 +25,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const lastRenderedIndexRef = useRef<number>(-1);
   const lastScrollXRef = useRef(0);
+  const playbackStateRef = useRef(false);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
@@ -206,9 +207,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
       
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
-      const options: IOSMDOptions = {
+        const options: IOSMDOptions = {
         autoResize: true,
-        backend: 'svg',
+          backend: 'canvas',
         drawTitle: false,
         drawComposer: false,
         drawLyricist: false,
@@ -237,19 +238,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       }
       
       // レンダリング後に正確なスケールファクターを計算
-      const svgElement = containerRef.current.querySelector('svg');
-      const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
+        const renderedSvg = containerRef.current.querySelector<SVGSVGElement>('svg');
+        const renderedCanvas = containerRef.current.querySelector<HTMLCanvasElement>('canvas');
+        const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
 
-      if (svgElement && boundingBox && boundingBox.width > 0) {
-        // レンダリングされたSVGの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
-        const svgWidth = svgElement.width.baseVal.value;
-        const osmdWidth = boundingBox.width;
-        scaleFactorRef.current = svgWidth / osmdWidth;
-        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
-      } else {
-        log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
-        scaleFactorRef.current = 10;
-      }
+        if (boundingBox && boundingBox.width > 0) {
+          let elementWidth = 0;
+
+          if (renderedCanvas) {
+            elementWidth = renderedCanvas.clientWidth || renderedCanvas.getBoundingClientRect().width;
+          } else if (renderedSvg) {
+            elementWidth =
+              renderedSvg.getBoundingClientRect().width ||
+              renderedSvg.width.baseVal?.value ||
+              renderedSvg.viewBox.baseVal.width;
+          }
+
+          if (elementWidth > 0) {
+            scaleFactorRef.current = elementWidth / boundingBox.width;
+            log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (Canvas/SVG: ${elementWidth}px, BBox: ${boundingBox.width})`);
+          } else {
+            log.warn('⚠️ Could not measure rendered element width, falling back to default 10.');
+            scaleFactorRef.current = 10;
+          }
+
+          if (scoreWrapperRef.current) {
+            scoreWrapperRef.current.style.minWidth = `${Math.ceil(boundingBox.width * scaleFactorRef.current)}px`;
+          }
+        } else {
+          log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
+          scaleFactorRef.current = 10;
+            if (scoreWrapperRef.current) {
+              scoreWrapperRef.current.style.minWidth = 'auto';
+            }
+        }
       
           // タイムマッピングを作成
             createTimeMapping();
@@ -304,12 +326,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // }, [isPlaying]);
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
-    useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        prevTimeRef.current = currentTime; // 早期returnでも更新
-        return;
-      }
+      useEffect(() => {
+        const mapping = timeMappingRef.current;
+        const scoreWrapper = scoreWrapperRef.current;
+        const scrollContainer = scrollContainerRef.current;
+        if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapper || !scrollContainer) {
+          prevTimeRef.current = currentTime; // 早期returnでも更新
+          return;
+        }
 
       const currentTimeMs = currentTime * 1000;
 
@@ -354,14 +378,41 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        const previousIsPlaying = playbackStateRef.current;
+        playbackStateRef.current = isPlaying;
+        const pausedThisFrame = previousIsPlaying && !isPlaying;
+        const resumedThisFrame = !previousIsPlaying && isPlaying;
+
+        if (!isPlaying) {
+          scoreWrapper.style.transform = 'translateX(0px)';
+        }
+
+        const shouldUpdateTransform =
+          isPlaying && (needsIndexUpdate || needsScrollUpdate || seekingBack || forceAtZero || resumedThisFrame);
+        const shouldUpdateScroll =
+          !isPlaying && (needsScrollUpdate || seekingBack || forceAtZero || pausedThisFrame);
+
+        if (!shouldUpdateTransform && !shouldUpdateScroll) {
+          prevTimeRef.current = currentTime;
+          return;
+        }
+
+        if (shouldUpdateTransform) {
+          scoreWrapper.style.transform = `translateX(-${scrollX}px)`;
+          if (scrollContainer.scrollLeft !== 0) {
+            scrollContainer.scrollLeft = 0;
+          }
+        }
+
+        if (shouldUpdateScroll) {
+          scrollContainer.scrollLeft = scrollX;
+        }
+
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
-      }
 
       prevTimeRef.current = currentTime;
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+      }, [currentTime, isPlaying, shouldRenderSheet]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -464,10 +515,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               // 停止中は手動スクロール時の移動を滑らかにする
               !isPlaying ? "transition-transform duration-100 ease-out" : ""
             )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
+              style={{ 
+                willChange: isPlaying ? 'transform' : 'auto'
+              }}
           >
           <div 
             ref={containerRef} 

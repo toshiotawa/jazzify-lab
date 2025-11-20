@@ -140,6 +140,7 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private chordLabel = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -239,6 +240,16 @@ export class PIXINotesRendererInstance {
     this.highlightedKeys.clear();
     this.requestRender();
   }
+
+    updateChordSymbol(label: string): void {
+      if (this.destroyed) return;
+      const normalized = label.trim();
+      if (this.chordLabel === normalized) {
+        return;
+      }
+      this.chordLabel = normalized;
+      this.requestRender();
+    }
 
   destroy(): void {
     if (this.destroyed) return;
@@ -518,6 +529,7 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+      this.drawChordLabel(ctx);
     if (token) {
       controller.endFrame(token);
     }
@@ -722,6 +734,35 @@ export class PIXINotesRendererInstance {
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }
+
+    private drawChordLabel(ctx: CanvasRenderingContext2D): void {
+      if (!this.chordLabel) {
+        return;
+      }
+      ctx.save();
+      const fontSize = Math.min(Math.max(this.width * 0.045, 22), 48);
+      ctx.font = `${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const metrics = ctx.measureText(this.chordLabel);
+      const textWidth = metrics.width;
+      const paddingX = 18;
+      const paddingY = 10;
+      const boxWidth = textWidth + paddingX * 2;
+      const boxHeight = fontSize + paddingY * 2;
+      const boxX = (this.width - boxWidth) / 2;
+      const boxY = Math.max(this.height * 0.35 - boxHeight / 2, 16);
+      ctx.globalAlpha = 0.9;
+      ctx.fillStyle = 'rgba(0,0,0,0.45)';
+      ctx.beginPath();
+      this.drawRoundedRectPath(ctx, boxX, boxY, boxWidth, boxHeight, 14);
+      ctx.closePath();
+      ctx.fill();
+      ctx.globalAlpha = 1;
+      ctx.fillStyle = '#f8fafc';
+      ctx.fillText(this.chordLabel, this.width / 2, boxY + boxHeight / 2 + 1);
+      ctx.restore();
+    }
 
   private getStateColor(state: ActiveNote['state'], isBlack: boolean): string {
     if (state === 'hit' || state === 'good' || state === 'perfect') {
