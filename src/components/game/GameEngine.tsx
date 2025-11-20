@@ -66,7 +66,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       mode,
       lastKeyHighlight,
       isSettingsOpen,
-      resultModalOpen
+      resultModalOpen,
+      abRepeat // ABリピート状態を取得
     } = useGameSelector((state) => ({
       gameEngine: state.gameEngine,
       isPlaying: state.isPlaying,
@@ -77,7 +78,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       mode: state.mode,
       lastKeyHighlight: state.lastKeyHighlight,
       isSettingsOpen: state.isSettingsOpen,
-      resultModalOpen: state.resultModalOpen
+      resultModalOpen: state.resultModalOpen,
+      abRepeat: state.abRepeat
     }));
     const currentSongId = currentSong?.id ?? null;
     const currentSongAudioFile = currentSong?.audioFile ?? '';
@@ -560,7 +562,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         } catch (_) {/* ignore */}
 
         // 🔧 修正: シークバー位置を維持 - ストアのcurrentTimeを優先使用
-        const syncTime = Math.max(0, currentTime);
+        let syncTime = Math.max(0, currentTime);
+
+        // 🔧 要件2: ABリピートON中、A地点より手前から再生されたときは即座にA地点から始まるように
+        if (abRepeat.enabled && abRepeat.startTime !== null && syncTime < abRepeat.startTime) {
+          syncTime = abRepeat.startTime;
+          // ストアの時刻も更新してUIと同期
+          updateTime(syncTime);
+          devLog.debug(`🔄 ABリピート: 開始地点(${syncTime}s)にジャンプ`);
+        }
+
         audio.currentTime = syncTime;
 
         // 6) AudioContext と HTMLAudio のオフセットを記録
@@ -597,7 +608,15 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           audioContext.resume().catch(e => log.warn('AudioContext resume エラー:', e));
 
           // 🔧 修正: 音声なしモードでもシークバー位置を維持 - ストアのcurrentTimeを優先使用
-          const syncTime = Math.max(0, currentTime);
+          let syncTime = Math.max(0, currentTime);
+
+          // 🔧 要件2: ABリピートON中、A地点より手前から再生されたときは即座にA地点から始まるように
+          if (abRepeat.enabled && abRepeat.startTime !== null && syncTime < abRepeat.startTime) {
+            syncTime = abRepeat.startTime;
+            // ストアの時刻も更新してUIと同期
+            updateTime(syncTime);
+            devLog.debug(`🔄 ABリピート(音声なし): 開始地点(${syncTime}s)にジャンプ`);
+          }
           
           // ゲームエンジンを開始（音声同期なし）
           gameEngine.start(audioContext);
@@ -629,7 +648,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
         run();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-        }, [isPlaying, audioLoaded, gameEngine, settings.transpose, currentSongAudioFile, audioElementKey, resetAudioElement, isIosDevice, hasAudioTrack]);
+        }, [isPlaying, audioLoaded, gameEngine, settings.transpose, currentSongAudioFile, audioElementKey, resetAudioElement, isIosDevice, hasAudioTrack, abRepeat]);
   
   // 設定モーダルが開いた時に音楽を一時停止
   useEffect(() => {
