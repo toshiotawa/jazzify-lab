@@ -140,6 +140,7 @@ export class PIXINotesRendererInstance {
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
+  private chordText = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -176,6 +177,17 @@ export class PIXINotesRendererInstance {
     this.colors = this.normalizeColors(nextSettings.colors);
     this.recalculateKeyLayout();
     this.backgroundNeedsUpdate = true;
+    this.requestRender();
+  }
+
+  setChordDisplay(text: string): void {
+    if (this.destroyed) {
+      return;
+    }
+    if (this.chordText === text) {
+      return;
+    }
+    this.chordText = text;
     this.requestRender();
   }
 
@@ -518,6 +530,7 @@ export class PIXINotesRendererInstance {
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
+    this.drawChordOverlay(ctx);
     if (token) {
       controller.endFrame(token);
     }
@@ -720,6 +733,32 @@ export class PIXINotesRendererInstance {
     };
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
+    ctx.restore();
+  }
+
+  private drawChordOverlay(ctx: CanvasRenderingContext2D): void {
+    if (!this.chordText) {
+      return;
+    }
+    ctx.save();
+    const fontSize = Math.max(24, this.width * 0.03);
+    const paddingX = fontSize * 0.6;
+    const paddingY = fontSize * 0.4;
+    ctx.font = `600 ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    const textWidth = ctx.measureText(this.chordText).width;
+    const boxWidth = textWidth + paddingX * 2;
+    const boxHeight = fontSize + paddingY * 2;
+    const boxX = Math.max(16, (this.width - boxWidth) / 2);
+    const boxY = Math.max(24, this.height * 0.12);
+    ctx.fillStyle = 'rgba(2,6,23,0.7)';
+    ctx.beginPath();
+    this.drawRoundedRectPath(ctx, boxX, boxY, boxWidth, boxHeight, Math.min(18, boxHeight / 2));
+    ctx.closePath();
+    ctx.fill();
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(this.chordText, this.width / 2, boxY + boxHeight / 2);
     ctx.restore();
   }
 
