@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
+import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -14,6 +15,8 @@ interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
 }
+
+const PLAYHEAD_OFFSET = 120;
 
 /**
  * 楽譜表示コンポーネント
@@ -51,8 +54,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const [isHovered, setIsHovered] = useState(false);
 
   // ストアから状態を取得
-  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat } = useGameSelector((s) => ({
-    currentTime: s.currentTime,
+  const { isPlaying, notes, musicXml, settings, abRepeat } = useGameSelector((s) => ({
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
@@ -61,7 +63,26 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
-  const gameActions = useGameActions(); 
+    const gameActions = useGameActions(); 
+    const initialCurrentTime = useMemo(() => useGameStore.getState().currentTime ?? 0, []);
+    const [pausedPlayheadTime, setPausedPlayheadTime] = useState(initialCurrentTime);
+    const currentTimeRef = useRef(initialCurrentTime);
+    const isPlayingRef = useRef(isPlaying);
+    const frameHandleRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
+    const pendingTimeRef = useRef<number | null>(null);
+
+    useEffect(() => {
+      isPlayingRef.current = isPlaying;
+      if (!isPlaying) {
+        setPausedPlayheadTime(currentTimeRef.current);
+      }
+    }, [isPlaying]);
+
+    useEffect(() => {
+      if (!isPlaying) {
+        prevTimeRef.current = pausedPlayheadTime;
+      }
+    }, [pausedPlayheadTime, isPlaying]);
 
   // X座標から時刻を取得するヘルパー関数
   const getTimeFromX = useCallback((targetX: number): number => {
@@ -292,6 +313,102 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // スクロール制御ロジックの刷新
   // ----------------------------------------------------------------
 
+  const applyPlaybackScroll = useCallback(
+    (time: number): void => {
+      const mapping = timeMappingRef.current;
+      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+        prevTimeRef.current = time;
+        return;
+      }
+      if (!isPlayingRef.current) {
+        prevTimeRef.current = time;
+        return;
+      }
+
+      const currentTimeMs = time * 1000;
+      const findActiveIndex = (): number => {
+        let low = 0;
+        let high = mapping.length - 1;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (mapping[mid].timeMs <= currentTimeMs) {
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+        return low - 1;
+      };
+
+      const activeIndex = Math.max(0, Math.min(findActiveIndex(), mapping.length - 1));
+      mappingCursorRef.current = activeIndex;
+      const targetEntry = mapping[activeIndex];
+      if (!targetEntry) {
+        prevTimeRef.current = time;
+        return;
+      }
+
+      const targetScrollX = Math.max(0, targetEntry.xPosition - PLAYHEAD_OFFSET);
+      const needsScrollUpdate = Math.abs(targetScrollX - lastScrollXRef.current) > 0.5;
+      const prev = prevTimeRef.current;
+      const seekingBack = time < prev - 0.1;
+      const forceAtZero = time < 0.02;
+
+      if (needsScrollUpdate || seekingBack || forceAtZero) {
+        scoreWrapperRef.current.style.transform = `translateX(-${targetScrollX}px)`;
+        lastScrollXRef.current = targetScrollX;
+      }
+
+      prevTimeRef.current = time;
+    },
+    [shouldRenderSheet]
+  );
+
+  const cancelScheduledScroll = useCallback((): void => {
+    if (frameHandleRef.current === null) {
+      return;
+    }
+    if (
+      typeof window !== 'undefined' &&
+      typeof window.cancelAnimationFrame === 'function' &&
+      typeof frameHandleRef.current === 'number'
+    ) {
+      window.cancelAnimationFrame(frameHandleRef.current);
+    } else {
+      clearTimeout(frameHandleRef.current as ReturnType<typeof setTimeout>);
+    }
+    frameHandleRef.current = null;
+    pendingTimeRef.current = null;
+  }, []);
+
+  const flushScheduledScroll = useCallback((): void => {
+    const pending = pendingTimeRef.current;
+    pendingTimeRef.current = null;
+    frameHandleRef.current = null;
+    if (typeof pending === 'number') {
+      applyPlaybackScroll(pending);
+    }
+  }, [applyPlaybackScroll]);
+
+  const schedulePlaybackScroll = useCallback(
+    (time: number): void => {
+      pendingTimeRef.current = time;
+      if (frameHandleRef.current !== null) {
+        return;
+      }
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        frameHandleRef.current = window.requestAnimationFrame(() => {
+          flushScheduledScroll();
+        });
+        return;
+      }
+      frameHandleRef.current = setTimeout(() => {
+        flushScheduledScroll();
+      }, 16);
+    },
+    [flushScheduledScroll]
+  );
+
   // 再生状態が切り替わった時の処理
   useEffect(() => {
     const scrollContainer = scrollContainerRef.current;
@@ -309,9 +426,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 再生開始時: 
       // 1. ★重要: まず現在のcurrentTimeに基づいてTransformを即座に適用する
       // これにより、scrollLeftが0になった瞬間に譜面が先頭に戻って見えるのを防ぐ
-      const currentX = getXFromTime(currentTime);
-      const playheadOffset = 120;
-      const targetX = Math.max(0, currentX - playheadOffset);
+      const currentX = getXFromTime(currentTimeRef.current);
+      const targetX = Math.max(0, currentX - PLAYHEAD_OFFSET);
       
       scoreWrapper.style.transform = `translateX(-${targetX}px)`;
       lastScrollXRef.current = targetX;
@@ -320,8 +436,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       scrollContainer.scrollLeft = 0;
       log.info(`▶️ 再生: Transformを ${targetX}px に初期設定し、ScrollLeftを0にリセット`);
     }
-    // currentTimeは依存配列に入れない（再生開始の一瞬だけこのロジックを適用したいため）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPlaying, getXFromTime]);
 
   // 停止中のスクロール同期（シークバー操作用 - 要件3）
@@ -330,72 +444,44 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       return;
     }
 
-    const playheadOffset = 120;
-    const targetX = getXFromTime(currentTime);
-    const targetScrollX = Math.max(0, targetX - playheadOffset);
+    const targetX = getXFromTime(pausedPlayheadTime);
+    const targetScrollX = Math.max(0, targetX - PLAYHEAD_OFFSET);
     
     // 差分がある程度大きい場合のみスクロール（微小なブレを防ぐ）
     if (Math.abs(scrollContainerRef.current.scrollLeft - targetScrollX) > 1) {
       scrollContainerRef.current.scrollLeft = targetScrollX;
       lastScrollXRef.current = targetScrollX;
     }
-  }, [currentTime, isPlaying, shouldRenderSheet, getXFromTime]);
+  }, [pausedPlayheadTime, isPlaying, shouldRenderSheet, getXFromTime]);
 
   // 再生中のスクロール同期 (Animation Loop)
   useEffect(() => {
-    const mapping = timeMappingRef.current;
-    if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-      prevTimeRef.current = currentTime;
+    if (!shouldRenderSheet) {
       return;
     }
-
-    // 停止中は上記のuseEffectで制御するためリターン
-    if (!isPlaying) {
-      prevTimeRef.current = currentTime;
-      return;
-    }
-
-    const currentTimeMs = currentTime * 1000;
-    const playheadOffset = 120; // 画面左端からのオフセット
-
-    // インデックス検索
-    const findActiveIndex = () => {
-      let low = 0;
-      let high = mapping.length - 1;
-      while (low <= high) {
-        const mid = Math.floor((low + high) / 2);
-        if (mapping[mid].timeMs <= currentTimeMs) {
-          low = mid + 1;
+    const unsubscribe = useGameStore.subscribe(
+      (state) => state.currentTime,
+      (time) => {
+        currentTimeRef.current = time;
+        if (isPlayingRef.current) {
+          schedulePlaybackScroll(time);
         } else {
-          high = mid - 1;
+          setPausedPlayheadTime(time);
         }
-      }
-      return low - 1;
+      },
+      { fireImmediately: true }
+    );
+    return () => {
+      unsubscribe();
+      cancelScheduledScroll();
     };
+  }, [shouldRenderSheet, schedulePlaybackScroll, cancelScheduledScroll]);
 
-    const activeIndex = Math.max(0, Math.min(findActiveIndex(), mapping.length - 1));
-    mappingCursorRef.current = activeIndex;
-
-    const targetEntry = mapping[activeIndex];
-    if (!targetEntry) return;
-
-    // 目標のスクロール位置
-    const targetScrollX = Math.max(0, targetEntry.xPosition - playheadOffset);
-    
-    // 差分更新
-    const needsScrollUpdate = Math.abs(targetScrollX - lastScrollXRef.current) > 0.5;
-    const prev = prevTimeRef.current;
-    const seekingBack = currentTime < prev - 0.1;
-    const forceAtZero = currentTime < 0.02;
-
-    if (scoreWrapperRef.current && (needsScrollUpdate || seekingBack || forceAtZero)) {
-      // 再生中は transform で動かす (GPU加速)
-      scoreWrapperRef.current.style.transform = `translateX(-${targetScrollX}px)`;
-      lastScrollXRef.current = targetScrollX;
+  useEffect(() => {
+    if (!isPlaying) {
+      cancelScheduledScroll();
     }
-
-    prevTimeRef.current = currentTime;
-  }, [currentTime, isPlaying, shouldRenderSheet]);
+  }, [isPlaying, cancelScheduledScroll]);
 
   // ----------------------------------------------------------------
   // インタラクション制御 (ドラッグ、シーク、ABリピート)
@@ -509,7 +595,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const loopBX = useMemo(() => abRepeat.endTime !== null ? getXFromTime(abRepeat.endTime) : null, [abRepeat.endTime, getXFromTime]);
   
   // プレイヘッドの現在位置X座標（停止中の表示用）
-  const currentPlayheadX = useMemo(() => getXFromTime(currentTime), [currentTime, getXFromTime]);
+  const currentPlayheadX = useMemo(() => getXFromTime(pausedPlayheadTime), [pausedPlayheadTime, getXFromTime]);
 
   if (!shouldRenderSheet) {
     return (
