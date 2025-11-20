@@ -208,7 +208,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
       const options: IOSMDOptions = {
         autoResize: true,
-        backend: 'svg',
+        backend: 'canvas', // SVG から Canvas に変更（パフォーマンス向上）
         drawTitle: false,
         drawComposer: false,
         drawLyricist: false,
@@ -229,23 +229,20 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       await osmdRef.current.load(processedMusicXml);
       osmdRef.current.render();
 
-      if (settings.sheetMusicChordsOnly) {
-        const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
-        noteEls.forEach(el => {
-          (el as HTMLElement).style.display = 'none';
-        });
-      }
+      // Canvas バックエンドでは DOM 要素が存在しないため、この処理は不要
+      // sheetMusicChordsOnly の制御は simplifyMusicXmlForDisplay で既に処理されている
       
       // レンダリング後に正確なスケールファクターを計算
-      const svgElement = containerRef.current.querySelector('svg');
+      // Canvas バックエンドの場合、canvas 要素を探す
+      const canvasElement = containerRef.current.querySelector('canvas');
       const boundingBox = (osmdRef.current.GraphicSheet as any).BoundingBox;
 
-      if (svgElement && boundingBox && boundingBox.width > 0) {
-        // レンダリングされたSVGの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
-        const svgWidth = svgElement.width.baseVal.value;
+      if (canvasElement && boundingBox && boundingBox.width > 0) {
+        // レンダリングされたCanvasの実際のピクセル幅とOSMDの内部的な幅からスケールを算出
+        const canvasWidth = canvasElement.width;
         const osmdWidth = boundingBox.width;
-        scaleFactorRef.current = svgWidth / osmdWidth;
-        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (SVG: ${svgWidth}px, BBox: ${osmdWidth})`);
+        scaleFactorRef.current = canvasWidth / osmdWidth;
+        log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (Canvas: ${canvasWidth}px, BBox: ${osmdWidth})`);
       } else {
         log.warn('⚠️ Could not calculate OSMD scale factor, falling back to default 10.');
         scaleFactorRef.current = 10;
@@ -354,8 +351,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current && scrollContainerRef.current) {
+        if (isPlaying) {
+          // 再生中: transform を使用（パフォーマンス優先）
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        } else {
+          // 停止中: transform を解除し、scrollLeft を使用（スクロール可能にする）
+          scoreWrapperRef.current.style.transform = '';
+          scrollContainerRef.current.scrollLeft = scrollX;
+        }
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
@@ -461,8 +465,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             ref={scoreWrapperRef}
             className={cn(
               "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
+              // 停止中は手動スクロール時の移動を滑らかにする（transform使用時のみ）
+              !isPlaying && isPlaying ? "transition-transform duration-100 ease-out" : ""
             )}
             style={{ 
               willChange: isPlaying ? 'transform' : 'auto',
