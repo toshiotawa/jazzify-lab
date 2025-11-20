@@ -306,7 +306,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current || !scrollContainerRef.current) {
         prevTimeRef.current = currentTime; // 早期returnでも更新
         return;
       }
@@ -354,8 +354,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-      if ((needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) && scoreWrapperRef.current) {
-        scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (isPlaying) {
+          // 再生中: transformを使用して高速スクロール
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+        } else {
+          // 停止中: transformをリセットし、scrollLeftを使用
+          scoreWrapperRef.current.style.transform = 'translateX(0px)';
+          scrollContainerRef.current.scrollLeft = scrollX;
+        }
         lastRenderedIndexRef.current = activeIndex;
         lastScrollXRef.current = scrollX;
       }
