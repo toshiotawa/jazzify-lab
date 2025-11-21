@@ -244,7 +244,7 @@ function extractChordPositions(doc: Document): MusicXmlChordPosition[] {
 /**
  * 小節の時間情報
  */
-interface MeasureTimeInfo {
+export interface MeasureTimeInfo {
   measureNumber: number;
   startTime: number;
   duration: number;
@@ -340,6 +340,27 @@ function estimateMeasureTimeInfo(notePositions: MusicXmlNotePosition[], jsonNote
   }
   
   return measures;
+}
+
+/**
+ * MusicXMLとJSONノーツから小節時間情報を組み立てる
+ */
+export function buildMeasureTimeMap(doc: Document, jsonNotes: NoteData[]): MeasureTimeInfo[] {
+  if (!doc || jsonNotes.length === 0) {
+    return [];
+  }
+
+  const notePositions = extractNotePositions(doc);
+  if (notePositions.length === 0) {
+    console.warn('⚠️ MusicXMLからノート位置を取得できませんでした。');
+    return [];
+  }
+
+  if (notePositions.length !== jsonNotes.length) {
+    console.warn(`⚠️ ノート数不一致のまま小節時間を計算: MusicXML=${notePositions.length}, JSON=${jsonNotes.length}`);
+  }
+
+  return estimateMeasureTimeInfo(notePositions, jsonNotes);
 }
 
 /**
@@ -1009,4 +1030,4 @@ function getAccidentalText(alter: number): string | null {
 }
 
 // 小節時間情報推定関数を公開（他でも使用可能に）
-export { estimateMeasureTimeInfo }; 
+export { estimateMeasureTimeInfo };
