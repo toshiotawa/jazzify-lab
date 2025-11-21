@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -62,6 +62,9 @@ const ControlBar: React.FC = () => {
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
   const songDuration = currentSong?.duration || 0;
+  const seekBarRef = useRef<HTMLDivElement>(null);
+  const [isDraggingA, setIsDraggingA] = useState(false);
+  const [isDraggingB, setIsDraggingB] = useState(false);
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -153,13 +156,77 @@ const ControlBar: React.FC = () => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
 
+  // A/Bマーカーのドラッグ処理
+  useEffect(() => {
+    const handlePointerMove = (e: PointerEvent) => {
+      if (!isDraggingA && !isDraggingB) {
+        return;
+      }
+      if (!seekBarRef.current || songDuration <= 0) {
+        return;
+      }
+
+      const rect = seekBarRef.current.getBoundingClientRect();
+      if (rect.width === 0) {
+        return;
+      }
+      const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+      const time = ratio * songDuration;
+
+      if (isDraggingA) {
+        if (abRepeat.endTime !== null && time >= abRepeat.endTime) {
+          setABRepeatStart(Math.max(0, abRepeat.endTime - 0.1));
+        } else {
+          setABRepeatStart(time);
+        }
+      } else if (isDraggingB) {
+        if (abRepeat.startTime !== null && time <= abRepeat.startTime) {
+          setABRepeatEnd(Math.min(songDuration, abRepeat.startTime + 0.1));
+        } else {
+          setABRepeatEnd(time);
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingA(false);
+      setIsDraggingB(false);
+    };
+
+    if (isDraggingA || isDraggingB) {
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+    }
+
+    return () => {
+      window.removeEventListener('pointermove', handlePointerMove);
+      window.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [isDraggingA, isDraggingB, songDuration, abRepeat, setABRepeatStart, setABRepeatEnd]);
+
   return (
     <div className="w-full">
-      {/* シークバー - showSeekbarフラグで制御 */}
+      {/* シークバー */}
       {settings.showSeekbar && (
-        <div className="px-2 py-1 bg-gray-900">
+        <div className="px-2 py-1 bg-gray-900" ref={seekBarRef}>
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1 h-6 flex items-center">
+              {/* 背景のバー */}
+              <div className="absolute w-full h-1 bg-gray-700 rounded-lg overflow-hidden">
+                {/* ループ範囲の背景 */}
+                {abRepeat.startTime !== null && abRepeat.endTime !== null && songDuration > 0 && (
+                  <div
+                    className={`absolute top-0 h-full transition-colors duration-200 ${
+                      abRepeat.enabled ? 'bg-green-500 opacity-50 animate-pulse-slow' : 'bg-gray-400 opacity-30'
+                    }`}
+                    style={{
+                      left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                      width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                    }}
+                  />
+                )}
+              </div>
+
               <input
                 type="range"
                 min="0"
@@ -168,56 +235,59 @@ const ControlBar: React.FC = () => {
                 step="0.1"
                 onChange={handleSeek}
                 disabled={!canInteract}
-                className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                  ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
+                className={`absolute w-full h-1 bg-transparent appearance-none cursor-pointer z-10
+                  ${canInteract ? '' : 'cursor-not-allowed'}
                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
-                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:-mt-1.5
+                  [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent
                   [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
                   [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
               />
-              
-              {/* ループマーカー */}
+
               {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-20">
                   {abRepeat.startTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-green-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
+                        transform: 'translate(-50%, -50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        if (canInteract) {
+                          setIsDraggingA(true);
+                        }
+                      }}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                    >
+                      <span className="text-[8px] font-bold text-black">A</span>
+                    </div>
                   )}
-                  
-                  {/* B地点マーカー */}
+
                   {abRepeat.endTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-red-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
                       style={{
                         left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
+                        transform: 'translate(-50%, -50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      onPointerDown={(e) => {
+                        e.preventDefault();
+                        if (canInteract) {
+                          setIsDraggingB(true);
+                        }
                       }}
-                    />
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                    >
+                      <span className="text-[8px] font-bold text-black">B</span>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-            
+
             <div className="text-sm text-gray-300 min-w-[80px] text-right">
               {formatTime(currentTime)} / {formatTime(songDuration)}
             </div>
@@ -225,43 +295,36 @@ const ControlBar: React.FC = () => {
         </div>
       )}
 
-      {/* コントロールボタン - 1行レイアウト */}
+      {/* コントロールボタン */}
       <div className="px-3 py-1 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
         <div className="flex justify-center items-center space-x-3 overflow-x-auto whitespace-nowrap">
           {isPracticeMode ? (
-            // 練習モード: 5秒戻る、再生/一時停止、5秒進む、ループ、移調
             <>
-                <button
-                  onClick={handleSkipBackward}
-
-                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
+              <button
+                onClick={handleSkipBackward}
+                className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
                 title="5秒戻る"
               >
                 <FaBackward />
               </button>
 
-                <button
-                  onClick={() => isPlaying ? pauseAction() : play()}
-
-                  className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
-
+              <button
+                onClick={() => (isPlaying ? pauseAction() : play())}
+                className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
                 disabled={!currentSong}
                 title={isPlaying ? '一時停止' : '再生'}
               >
                 {isPlaying ? <FaPause /> : <FaPlay />}
               </button>
 
-                <button
-                  onClick={handleSkipForward}
-
-                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
-
+              <button
+                onClick={handleSkipForward}
+                className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
                 title="5秒進む"
               >
                 <FaForward />
               </button>
 
-              {/* ループコントロール */}
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
@@ -272,7 +335,6 @@ const ControlBar: React.FC = () => {
                 </button>
               </div>
 
-              {/* A/B地点設定（コンパクト） */}
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
@@ -282,7 +344,9 @@ const ControlBar: React.FC = () => {
                   A
                 </button>
                 <span className="text-gray-400 w-8 text-center">
-                  {abRepeat.startTime !== null ? Math.floor(abRepeat.startTime / 60) + ':' + String(Math.floor(abRepeat.startTime % 60)).padStart(2, '0') : '--'}
+                  {abRepeat.startTime !== null
+                    ? `${Math.floor(abRepeat.startTime / 60)}:${String(Math.floor(abRepeat.startTime % 60)).padStart(2, '0')}`
+                    : '--'}
                 </span>
                 {abRepeat.startTime !== null && (
                   <button
@@ -293,9 +357,9 @@ const ControlBar: React.FC = () => {
                     <FaTimes size={10} />
                   </button>
                 )}
-                
+
                 <span className="text-gray-500">~</span>
-                
+
                 <button
                   onClick={handleSetBEnd}
                   className={`control-btn control-btn-xxs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
@@ -304,7 +368,9 @@ const ControlBar: React.FC = () => {
                   B
                 </button>
                 <span className="text-gray-400 w-8 text-center">
-                  {abRepeat.endTime !== null ? Math.floor(abRepeat.endTime / 60) + ':' + String(Math.floor(abRepeat.endTime % 60)).padStart(2, '0') : '--'}
+                  {abRepeat.endTime !== null
+                    ? `${Math.floor(abRepeat.endTime / 60)}:${String(Math.floor(abRepeat.endTime % 60)).padStart(2, '0')}`
+                    : '--'}
                 </span>
                 {abRepeat.endTime !== null && (
                   <button
@@ -317,10 +383,8 @@ const ControlBar: React.FC = () => {
                 )}
               </div>
 
-              {/* 移調コントロール - レッスンモード・ミッションモードでは非表示 */}
               {!lessonContext && !missionContext && (
                 <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
-                  {/* 練習モードでは常に移調ボタンを表示 */}
                   <button
                     onClick={handleTransposeDown}
                     className="control-btn control-btn-xxs control-btn-secondary"
@@ -344,34 +408,25 @@ const ControlBar: React.FC = () => {
               )}
             </>
           ) : (
-            // 本番モード: 再生/最初に戻るボタン（状況に応じて動作変化）
             <>
-                <button
-                  onClick={handlePlayOrRestart}
-
-                  className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
-
+              <button
+                onClick={handlePlayOrRestart}
+                className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
                 disabled={!currentSong}
-                title={
-                  currentTime > 0
-                    ? '最初に戻って再生'
-                    : '再生'
-                }
+                title={currentTime > 0 ? '最初に戻って再生' : '再生'}
               >
                 {currentTime > 0 ? <MdReplay /> : <FaPlay />}
               </button>
 
-                <button
-                  onClick={() => stop({ resetPosition: false })}
-                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
-
+              <button
+                onClick={() => stop({ resetPosition: false })}
+                className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
                 disabled={!currentSong}
                 title="停止"
               >
                 <FaStop />
               </button>
 
-              {/* 移調コントロール（レッスンモード・ミッションモードでは非表示） */}
               {!lessonContext && !missionContext && (
                 <div className="flex items-center space-x-1 ml-4 flex-shrink-0">
                   <button
@@ -398,12 +453,8 @@ const ControlBar: React.FC = () => {
             </>
           )}
         </div>
-        
-        {/* 右側: FPSモニター、設定、楽譜表示、シークバー切り替えボタン */}
-        <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
 
-          
-          {/* 設定ボタン */}
+        <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
           <button
             onClick={toggleSettings}
             className="control-btn control-btn-xxs control-btn-secondary"
@@ -411,8 +462,7 @@ const ControlBar: React.FC = () => {
           >
             ⚙️
           </button>
-          
-          {/* 楽譜表示切り替えボタン */}
+
           <button
             onClick={toggleSheetMusic}
             className={`control-btn control-btn-xxs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
@@ -420,15 +470,13 @@ const ControlBar: React.FC = () => {
           >
             <FaMusic />
           </button>
-          
-          {/* ヘッダー表示/非表示ボタン */}
+
           <button
             onClick={toggleHeader}
             className="control-btn control-btn-xxs control-btn-secondary"
             title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
           >
             {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
-
           </button>
         </div>
       </div>
