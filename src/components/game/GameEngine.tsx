@@ -720,21 +720,24 @@ const playFromOffset = useCallback(
     }, [hasAudioTrack, currentSongDuration, isPlaying]);
   
 // 再生状態同期
-useEffect(() => {
-  if (!gameEngine) {
-    return;
-  }
+  useEffect(() => {
+    if (!gameEngine) {
+      return;
+    }
 
-  if (isPlaying) {
-    void playFromOffset(currentTimeRef.current);
-  } else {
+    if (isPlaying) {
+      void playFromOffset(currentTimeRef.current);
+      return;
+    }
+
     stopCurrentBufferSource();
+    const engineSnapshot = gameEngine.getState();
     gameEngine.pause();
     log.info('🎮 GameEngine paused');
-    const timelineTime = getTimelineTime();
-    updateTime(timelineTime);
-  }
-}, [gameEngine, getTimelineTime, isPlaying, playFromOffset, stopCurrentBufferSource, updateTime]);
+    const pauseTime = engineSnapshot?.currentTime ?? getTimelineTime();
+    currentTimeRef.current = pauseTime;
+    updateTime(pauseTime);
+  }, [gameEngine, getTimelineTime, isPlaying, playFromOffset, stopCurrentBufferSource, updateTime]);
 
 useEffect(() => {
   return () => {
