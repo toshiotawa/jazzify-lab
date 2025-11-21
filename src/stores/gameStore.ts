@@ -394,6 +394,10 @@ const validateStateTransition = (currentState: GameState, action: string, params
 
 // ===== ストア定義 =====
 
+interface StopOptions {
+  preservePosition?: boolean;
+}
+
 interface GameStoreState extends GameState {
   // Phase 2: ゲームエンジン統合
   gameEngine: any | null; // GameEngine型は動的インポートで使用
@@ -444,7 +448,7 @@ interface GameStoreState extends GameState {
   // 再生制御
   play: () => void;
   pause: () => void;
-  stop: () => void;
+    stop: (options?: StopOptions) => void;
   seek: (time: number) => void;
   updateTime: (time: number) => void;
   
@@ -842,17 +846,31 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = true;
           }),
           
-          stop: () => set((state) => {
-            state.isPlaying = false;
-            state.isPaused = false;
-            state.currentTime = 0;
-            state.activeNotes.clear();
-            
-            // GameEngineも停止
-            if (state.gameEngine) {
-              state.gameEngine.stop();
-            }
-          }),
+           stop: (options) => set((state) => {
+              const preservePosition = options?.preservePosition ?? false;
+              const lastTime = Math.max(
+                0,
+                Math.min(
+                  state.currentTime,
+                  state.currentSong?.duration ?? state.currentTime
+                )
+              );
+              state.isPlaying = false;
+              state.isPaused = false;
+              if (preservePosition) {
+                state.currentTime = lastTime;
+              } else {
+                state.currentTime = 0;
+              }
+              state.activeNotes.clear();
+              
+              if (state.gameEngine) {
+                state.gameEngine.stop();
+                if (preservePosition) {
+                  state.gameEngine.seek(lastTime);
+                }
+              }
+            }),
         
         seek: (time) => {
           const state = get();
