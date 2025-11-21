@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -39,16 +39,66 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat, mode } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    abRepeat: s.abRepeat,
+    mode: s.mode,
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
-  // const gameActions = useGameActions(); // 現在未使用
+  const { setABRepeatStart, setABRepeatEnd } = useGameActions();
+  
+  // ABループ地点のX座標を計算する関数
+  const calculateABPosition = useCallback((time: number | null): number | null => {
+    if (time === null || timeMappingRef.current.length === 0) {
+      return null;
+    }
+    
+    const timeMs = time * 1000;
+    const mapping = timeMappingRef.current;
+    
+    // 範囲外の場合は端のエントリを使用
+    if (timeMs <= mapping[0].timeMs) {
+      return mapping[0].xPosition;
+    }
+    if (timeMs >= mapping[mapping.length - 1].timeMs) {
+      return mapping[mapping.length - 1].xPosition;
+    }
+    
+    // 二分探索で現在時刻を含む範囲を見つける
+    let lowerIndex = 0;
+    let upperIndex = mapping.length - 1;
+    
+    while (upperIndex - lowerIndex > 1) {
+      const mid = Math.floor((lowerIndex + upperIndex) / 2);
+      if (mapping[mid].timeMs <= timeMs) {
+        lowerIndex = mid;
+      } else {
+        upperIndex = mid;
+      }
+    }
+    
+    // 線形補間で正確な位置を計算
+    const lower = mapping[lowerIndex];
+    const upper = mapping[upperIndex];
+    const timeRange = upper.timeMs - lower.timeMs;
+    const timeOffset = timeMs - lower.timeMs;
+    
+    if (timeRange === 0) {
+      return lower.xPosition;
+    }
+    
+    const ratio = timeOffset / timeRange;
+    return lower.xPosition + (upper.xPosition - lower.xPosition) * ratio;
+  }, []);
+  
+  // ABループ地点のX座標を計算
+  const abStartX = useMemo(() => calculateABPosition(abRepeat.startTime), [abRepeat.startTime, calculateABPosition]);
+  const abEndX = useMemo(() => calculateABPosition(abRepeat.endTime), [abRepeat.endTime, calculateABPosition]);
   
   // OSMDの初期化とレンダリング
   const createTimeMapping = useCallback(() => {
@@ -344,7 +394,51 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const currentTimeMs = currentTime * 1000;
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
+      // より正確な位置計算: 線形補間を使用して、現在時刻に最も近い位置を計算
+      const calculateScrollPosition = (): number => {
+        const playheadPosition = 120;
+        
+        // 範囲外の場合は端のエントリを使用
+        if (mapping.length === 0) {
+          return 0;
+        }
+        if (currentTimeMs <= mapping[0].timeMs) {
+          return Math.max(0, mapping[0].xPosition - playheadPosition);
+        }
+        if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+          return Math.max(0, mapping[mapping.length - 1].xPosition - playheadPosition);
+        }
+        
+        // 二分探索で現在時刻を含む範囲を見つける
+        let lowerIndex = 0;
+        let upperIndex = mapping.length - 1;
+        
+        while (upperIndex - lowerIndex > 1) {
+          const mid = Math.floor((lowerIndex + upperIndex) / 2);
+          if (mapping[mid].timeMs <= currentTimeMs) {
+            lowerIndex = mid;
+          } else {
+            upperIndex = mid;
+          }
+        }
+        
+        // 線形補間で正確な位置を計算
+        const lower = mapping[lowerIndex];
+        const upper = mapping[upperIndex];
+        const timeRange = upper.timeMs - lower.timeMs;
+        const timeOffset = currentTimeMs - lower.timeMs;
+        
+        if (timeRange === 0) {
+          return Math.max(0, lower.xPosition - playheadPosition);
+        }
+        
+        const ratio = timeOffset / timeRange;
+        const interpolatedX = lower.xPosition + (upper.xPosition - lower.xPosition) * ratio;
+        
+        return Math.max(0, interpolatedX - playheadPosition);
+      };
+
+      // インデックス検索ロジック（表示用）
       const findActiveIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
@@ -369,13 +463,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      // 線形補間を使用した正確なスクロール位置を計算
+      const scrollX = calculateScrollPosition();
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -396,12 +485,16 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               scrollContainer.scrollLeft = 0;
             }
           } else if (scrollContainer) {
+            // 一時停止時: transformをリセットしてからscrollLeftを設定
             if (wrapper) {
               wrapper.style.transform = 'translateX(0px)';
             }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
+            // requestAnimationFrameを使用して、transformのリセット後にscrollLeftを設定
+            requestAnimationFrame(() => {
+              if (scrollContainer && Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+                scrollContainer.scrollLeft = scrollX;
+              }
+            });
           }
           lastRenderedIndexRef.current = activeIndex;
           lastScrollXRef.current = scrollX;
@@ -507,7 +600,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             <div 
               ref={scoreWrapperRef}
               className={cn(
-                "h-full",
+                "h-full relative",
                 // 停止中は手動スクロール時の移動を滑らかにする
                 !isPlaying ? "transition-transform duration-100 ease-out" : ""
               )}
@@ -516,6 +609,143 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 minWidth: '3000px' // 十分な幅を確保
               }}
             >
+              {/* ABループ範囲の背景 */}
+              {abRepeat.startTime !== null && abRepeat.endTime !== null && abStartX !== null && abEndX !== null && mode !== 'performance' && (
+                <div
+                  className={`absolute top-0 bottom-0 pointer-events-none ${
+                    abRepeat.enabled 
+                      ? 'bg-green-400 opacity-20' 
+                      : 'bg-gray-400 opacity-10'
+                  }`}
+                  style={{
+                    left: `${Math.min(abStartX, abEndX)}px`,
+                    width: `${Math.abs(abEndX - abStartX)}px`
+                  }}
+                />
+              )}
+              
+              {/* A地点の縦線 - ドラッグ可能 */}
+              {abRepeat.startTime !== null && abStartX !== null && mode !== 'performance' && (
+                <div
+                  className={`absolute top-0 bottom-0 w-0.5 cursor-col-resize z-20 ${
+                    abRepeat.enabled ? 'bg-green-500 shadow-lg' : 'bg-green-400 shadow-md'
+                  }`}
+                  style={{
+                    left: `${abStartX}px`,
+                    transform: 'translateX(-50%)'
+                  }}
+                  title={`A地点: ${abRepeat.startTime.toFixed(2)}s (ドラッグで移動)`}
+                  onMouseDown={(e) => {
+                    if (isPlaying || mode === 'performance') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const startX = e.clientX;
+                    const startScrollX = scrollContainerRef.current?.scrollLeft || 0;
+                    const startAbX = abStartX || 0;
+                    const mapping = timeMappingRef.current;
+                    
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      if (!scrollContainerRef.current || mapping.length === 0) return;
+                      
+                      const deltaX = moveEvent.clientX - startX;
+                      const currentScrollX = scrollContainerRef.current.scrollLeft;
+                      const newAbX = startAbX + (currentScrollX - startScrollX) + deltaX;
+                      
+                      // X座標を時間に変換
+                      let newTime: number | null = null;
+                      if (newAbX <= mapping[0].xPosition) {
+                        newTime = mapping[0].timeMs / 1000;
+                      } else if (newAbX >= mapping[mapping.length - 1].xPosition) {
+                        newTime = mapping[mapping.length - 1].timeMs / 1000;
+                      } else {
+                        // 二分探索で時間を計算
+                        for (let i = 0; i < mapping.length - 1; i++) {
+                          if (mapping[i].xPosition <= newAbX && mapping[i + 1].xPosition >= newAbX) {
+                            const ratio = (newAbX - mapping[i].xPosition) / (mapping[i + 1].xPosition - mapping[i].xPosition);
+                            newTime = (mapping[i].timeMs + (mapping[i + 1].timeMs - mapping[i].timeMs) * ratio) / 1000;
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (newTime !== null && (abRepeat.endTime === null || newTime < abRepeat.endTime)) {
+                        setABRepeatStart(newTime);
+                      }
+                    };
+                    
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              )}
+              
+              {/* B地点の縦線 - ドラッグ可能 */}
+              {abRepeat.endTime !== null && abEndX !== null && mode !== 'performance' && (
+                <div
+                  className={`absolute top-0 bottom-0 w-0.5 cursor-col-resize z-20 ${
+                    abRepeat.enabled ? 'bg-red-500 shadow-lg' : 'bg-red-400 shadow-md'
+                  }`}
+                  style={{
+                    left: `${abEndX}px`,
+                    transform: 'translateX(-50%)'
+                  }}
+                  title={`B地点: ${abRepeat.endTime.toFixed(2)}s (ドラッグで移動)`}
+                  onMouseDown={(e) => {
+                    if (isPlaying || mode === 'performance') return;
+                    e.preventDefault();
+                    e.stopPropagation();
+                    
+                    const startX = e.clientX;
+                    const startScrollX = scrollContainerRef.current?.scrollLeft || 0;
+                    const startAbX = abEndX || 0;
+                    const mapping = timeMappingRef.current;
+                    
+                    const handleMouseMove = (moveEvent: MouseEvent) => {
+                      if (!scrollContainerRef.current || mapping.length === 0) return;
+                      
+                      const deltaX = moveEvent.clientX - startX;
+                      const currentScrollX = scrollContainerRef.current.scrollLeft;
+                      const newAbX = startAbX + (currentScrollX - startScrollX) + deltaX;
+                      
+                      // X座標を時間に変換
+                      let newTime: number | null = null;
+                      if (newAbX <= mapping[0].xPosition) {
+                        newTime = mapping[0].timeMs / 1000;
+                      } else if (newAbX >= mapping[mapping.length - 1].xPosition) {
+                        newTime = mapping[mapping.length - 1].timeMs / 1000;
+                      } else {
+                        // 二分探索で時間を計算
+                        for (let i = 0; i < mapping.length - 1; i++) {
+                          if (mapping[i].xPosition <= newAbX && mapping[i + 1].xPosition >= newAbX) {
+                            const ratio = (newAbX - mapping[i].xPosition) / (mapping[i + 1].xPosition - mapping[i].xPosition);
+                            newTime = (mapping[i].timeMs + (mapping[i + 1].timeMs - mapping[i].timeMs) * ratio) / 1000;
+                            break;
+                          }
+                        }
+                      }
+                      
+                      if (newTime !== null && (abRepeat.startTime === null || newTime > abRepeat.startTime)) {
+                        setABRepeatEnd(newTime);
+                      }
+                    };
+                    
+                    const handleMouseUp = () => {
+                      document.removeEventListener('mousemove', handleMouseMove);
+                      document.removeEventListener('mouseup', handleMouseUp);
+                    };
+                    
+                    document.addEventListener('mousemove', handleMouseMove);
+                    document.addEventListener('mouseup', handleMouseUp);
+                  }}
+                />
+              )}
+              
               <div 
                 ref={containerRef} 
                 className="h-full flex items-center"
