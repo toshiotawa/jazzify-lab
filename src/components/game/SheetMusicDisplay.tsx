@@ -440,91 +440,90 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       };
     }, []);
 
-  if (!shouldRenderSheet) {
-    return (
-      <div
-        className={cn(
-          'flex items-center justify-center bg-slate-900 text-gray-400',
-          className
-        )}
-        aria-label="楽譜表示オフ"
-      >
-        楽譜表示はオフになっています
-      </div>
-    );
-  }
+    if (!shouldRenderSheet) {
+      return (
+        <div
+          className={cn(
+            'flex items-center justify-center bg-slate-900 text-gray-400',
+            className
+          )}
+          aria-label="楽譜表示オフ"
+        >
+          楽譜表示はオフになっています
+        </div>
+      );
+    }
 
   return (
-    <div 
-      className={cn(
-        "relative bg-white text-black",
-        // 再生中は横スクロール無効、停止中は横スクロール有効
-        isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
-        // カスタムスクロールバースタイルを適用
-        "custom-sheet-scrollbar",
-        className
-      )}
-      ref={scrollContainerRef}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      style={{
-        // WebKit系ブラウザ用のカスタムスクロールバー
-        ...(!isPlaying && {
-          '--scrollbar-width': '8px',
-          '--scrollbar-track-color': '#f3f4f6',
-          '--scrollbar-thumb-color': '#9ca3af',
-          '--scrollbar-thumb-hover-color': '#6b7280'
-        })
-      } as React.CSSProperties}
-    >
-      {/* プレイヘッド（赤い縦線） */}
+    <div className={cn('relative', className)}>
+      {/* プレイヘッド（赤い縦線） - スクロール位置に影響されないよう外側へ配置 */}
       <div 
-        className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-10 pointer-events-none"
+        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
         style={{ left: '120px' }}
+        aria-hidden="true"
       />
-      
-      {/* 楽譜コンテナ - 上部に余白を追加 */}
-      <div className="relative h-full pt-8 pb-4">
-        {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-black">楽譜を読み込み中...</div>
-          </div>
+      <div 
+        className={cn(
+          "h-full bg-white text-black",
+          // 再生中は横スクロール無効、停止中は横スクロール有効
+          isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
+          // カスタムスクロールバースタイルを適用
+          "custom-sheet-scrollbar"
         )}
-        
-        {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-            <div className="text-red-600">エラー: {error}</div>
-          </div>
-        )}
-        
-        {(!musicXml && !isLoading) && (
-          <div className="absolute inset-0 flex items-center justify-center">
-            <div className="text-gray-600">楽譜データがありません</div>
-          </div>
-        )}
-        
-        {/* OSMDレンダリング用コンテナ */}
-          <div 
-            ref={scoreWrapperRef}
-            className={cn(
-              "h-full",
-              // 停止中は手動スクロール時の移動を滑らかにする
-              !isPlaying ? "transition-transform duration-100 ease-out" : ""
+        ref={scrollContainerRef}
+        onMouseEnter={() => setIsHovered(true)}
+        onMouseLeave={() => setIsHovered(false)}
+        style={{
+          // WebKit系ブラウザ用のカスタムスクロールバー
+          ...(!isPlaying && {
+            '--scrollbar-width': '8px',
+            '--scrollbar-track-color': '#f3f4f6',
+            '--scrollbar-thumb-color': '#9ca3af',
+            '--scrollbar-thumb-hover-color': '#6b7280'
+          })
+        } as React.CSSProperties}
+        >
+          {/* 楽譜コンテナ - 上部に余白を追加 */}
+          <div className="relative h-full pt-8 pb-4">
+            {isLoading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+                <div className="text-black">楽譜を読み込み中...</div>
+              </div>
             )}
-            style={{ 
-              willChange: isPlaying ? 'transform' : 'auto',
-              minWidth: '3000px' // 十分な幅を確保
-            }}
-          >
-          <div 
-            ref={containerRef} 
-            className="h-full flex items-center"
-          />
+            
+            {error && (
+              <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
+                <div className="text-red-600">エラー: {error}</div>
+              </div>
+            )}
+            
+            {(!musicXml && !isLoading) && (
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="text-gray-600">楽譜データがありません</div>
+              </div>
+            )}
+            
+            {/* OSMDレンダリング用コンテナ */}
+            <div 
+              ref={scoreWrapperRef}
+              className={cn(
+                "h-full",
+                // 停止中は手動スクロール時の移動を滑らかにする
+                !isPlaying ? "transition-transform duration-100 ease-out" : ""
+              )}
+              style={{ 
+                willChange: isPlaying ? 'transform' : 'auto',
+                minWidth: '3000px' // 十分な幅を確保
+              }}
+            >
+              <div 
+                ref={containerRef} 
+                className="h-full flex items-center"
+              />
+            </div>
+          </div>
         </div>
       </div>
-      
-      {/* カスタムスクロールバー用のスタイル - CSS外部化により削除 */}
-    </div>
   );
 };
 
