@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -61,7 +61,10 @@ const ControlBar: React.FC = () => {
 
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
-  const songDuration = currentSong?.duration || 0;
+    const songDuration = currentSong?.duration || 0;
+    const rangeRef = useRef<HTMLInputElement>(null);
+    const [activeDragTarget, setActiveDragTarget] = useState<'A' | 'B' | null>(null);
+    const epsilon = 0.05;
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -70,12 +73,88 @@ const ControlBar: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // シークバーハンドラー
-  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!canInteract) return;
-    const newTime = parseFloat(e.target.value);
-    seek(newTime);
-  }, [canInteract, seek]);
+    // シークバーハンドラー
+    const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+      if (!canInteract) return;
+      const newTime = parseFloat(e.target.value);
+      seek(newTime);
+    }, [canInteract, seek]);
+
+    const pxToTime = useCallback((clientX: number): number => {
+      if (songDuration <= 0) {
+        return 0;
+      }
+      const rect = rangeRef.current?.getBoundingClientRect();
+      if (!rect) {
+        return 0;
+      }
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      return ratio * songDuration;
+    }, [songDuration]);
+
+    const startDragHandle = useCallback(
+      (target: 'A' | 'B') =>
+        (event: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
+          if (!canInteract || songDuration <= 0) {
+            return;
+          }
+          event.preventDefault();
+          setActiveDragTarget(target);
+
+          const moveHandle = (clientX: number) => {
+            const time = pxToTime(clientX);
+            if (target === 'A') {
+              const end = abRepeat.endTime ?? songDuration;
+              const newStart = Math.min(Math.max(0, time), end - epsilon);
+              setABRepeatStart(newStart);
+            } else {
+              const start = abRepeat.startTime ?? 0;
+              const newEnd = Math.max(Math.min(songDuration, time), start + epsilon);
+              setABRepeatEnd(newEnd);
+            }
+          };
+
+          const handleMouseMove = (e: MouseEvent) => {
+            e.preventDefault();
+            moveHandle(e.clientX);
+          };
+          const handleTouchMove = (e: TouchEvent) => {
+            if (!e.touches[0]) {
+              return;
+            }
+            e.preventDefault();
+            moveHandle(e.touches[0].clientX);
+          };
+          function handleMouseUp() {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleTouchEnd);
+            setActiveDragTarget(null);
+          }
+          function handleTouchEnd() {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', handleMouseUp);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', handleTouchEnd);
+            setActiveDragTarget(null);
+          }
+
+          window.addEventListener('mousemove', handleMouseMove);
+          window.addEventListener('mouseup', handleMouseUp);
+          window.addEventListener('touchmove', handleTouchMove, { passive: false });
+          window.addEventListener('touchend', handleTouchEnd);
+        },
+      [
+        abRepeat.endTime,
+        abRepeat.startTime,
+        canInteract,
+        pxToTime,
+        setABRepeatEnd,
+        setABRepeatStart,
+        songDuration
+      ]
+    );
 
   // 5秒スキップハンドラー
   const handleSkipBackward = useCallback(() => {
@@ -160,7 +239,8 @@ const ControlBar: React.FC = () => {
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
             <div className="relative flex-1">
-              <input
+                <input
+                  ref={rangeRef}
                 type="range"
                 min="0"
                 max={songDuration}
@@ -178,44 +258,43 @@ const ControlBar: React.FC = () => {
               />
               
               {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
-                  )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
-                      }}
-                    />
-                  )}
-                </div>
-              )}
+                {isPracticeMode && (abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+                  <div className="absolute top-0 left-0 w-full h-3">
+                    {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                      <div
+                        className={`pointer-events-none absolute top-[2px] h-2 rounded ${abRepeat.enabled ? 'bg-green-500/50 ring-2 ring-green-400 ring-offset-1 ring-offset-gray-900 animate-pulse' : 'bg-gray-400/30'}`}
+                        style={{
+                          left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                          width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                        }}
+                      />
+                    )}
+
+                    {abRepeat.startTime !== null && (
+                      <button
+                        type="button"
+                        onMouseDown={startDragHandle('A')}
+                        onTouchStart={startDragHandle('A')}
+                        className={`absolute top-0 -translate-x-1/2 -mt-1 w-3 h-3 rounded-full border border-white shadow-lg bg-green-400 transition-transform ${activeDragTarget === 'A' ? 'scale-110 ring-2 ring-white' : ''}`}
+                        style={{ left: `${(abRepeat.startTime / songDuration) * 100}%` }}
+                        title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                        aria-label="A地点をドラッグで移動"
+                      />
+                    )}
+
+                    {abRepeat.endTime !== null && (
+                      <button
+                        type="button"
+                        onMouseDown={startDragHandle('B')}
+                        onTouchStart={startDragHandle('B')}
+                        className={`absolute top-0 -translate-x-1/2 -mt-1 w-3 h-3 rounded-full border border-white shadow-lg bg-red-400 transition-transform ${activeDragTarget === 'B' ? 'scale-110 ring-2 ring-white' : ''}`}
+                        style={{ left: `${(abRepeat.endTime / songDuration) * 100}%` }}
+                        title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                        aria-label="B地点をドラッグで移動"
+                      />
+                    )}
+                  </div>
+                )}
             </div>
             
             <div className="text-sm text-gray-300 min-w-[80px] text-right">

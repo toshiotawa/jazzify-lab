@@ -604,9 +604,14 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
               const storeSnapshot = useGameStore.getState();
-              const { abRepeat } = storeSnapshot;
+              const { abRepeat, mode } = storeSnapshot;
               
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
+              if (
+                mode !== 'performance' &&
+                abRepeat.enabled &&
+                abRepeat.startTime !== null &&
+                abRepeat.endTime !== null
+              ) {
                 if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
@@ -922,6 +927,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         toggleABRepeat: () => set((state) => {
+          if (state.mode === 'performance') {
+            state.abRepeat.enabled = false;
+            return;
+          }
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
@@ -1209,6 +1218,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+              state.abRepeat.enabled = false;
             
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {
