@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { useHighQualityPianoPreload } from '@/hooks/useHighQualityPianoPreload';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -87,10 +88,12 @@ const FantasyMain: React.FC = () => {
     multipliers: { membership: number; guild: number };
   } | null>(null);
   
-  // フリープラン・ゲストユーザーかどうかの確認
-  const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
-  
-  // URLパラメータからレッスン/ミッションコンテキストを取得
+    // フリープラン・ゲストユーザーかどうかの確認
+    const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
+    
+    useHighQualityPianoPreload();
+
+    // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');
     const lessonId = params.get('lessonId');
