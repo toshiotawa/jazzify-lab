@@ -40,6 +40,15 @@ const getTouchDistance = (touchA: React.Touch, touchB: React.Touch): number => {
 
 const getTouchMidpointX = (touchA: React.Touch, touchB: React.Touch): number => (touchA.clientX + touchB.clientX) / 2;
 
+const estimatePitchLatency = (semitones: number): number => {
+  if (semitones === 0) {
+    return 0;
+  }
+  const baseLatency = 0.08; // 80ms 基本レイテンシ
+  const perSemitone = 0.01; // 半音ごとの追加レイテンシ
+  return Math.min(0.25, baseLatency + Math.abs(semitones) * perSemitone);
+};
+
 // iOS検出関数
 const isIOS = (): boolean => {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') {
@@ -356,9 +365,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   const [audioLoaded, setAudioLoaded] = useState(false);
   const [hasPlaybackFinished, setHasPlaybackFinished] = useState(false);
   // === オーディオタイミング同期用 ===
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
-  const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
+    const audioContextRef = useRef<AudioContext | null>(null);
+    const mediaSourceRef = useRef<MediaElementAudioSourceNode | null>(null);
+    const pitchShiftRef = useRef<Tone.PitchShift | null>(null);
+    const pitchLatencyRef = useRef(0);
+    const lastForcedSyncRef = useRef(0);
     // GameEngine と updateTime に渡すための AudioContext ベースのタイムスタンプ
       const baseOffsetRef = useRef<number>(0); // currentTime = audioCtx.time - baseOffset
       const currentTimeRef = useRef(useGameStore.getState().currentTime);
@@ -437,9 +448,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         const handleCanPlay = () => {
           devLog.debug('🎵 音声再生可能状態に到達');
         };
-        const handleEnded = () => {
-          setHasPlaybackFinished(true);
-        };
+          const handleEnded = () => {
+            const finalTime =
+              currentSongDuration ??
+              audio.duration ??
+              audio.currentTime ??
+              0;
+            setHasPlaybackFinished(true);
+            updateTime(finalTime);
+            pause();
+          };
         const handlePlayEvent = () => {
           setHasPlaybackFinished(false);
         };
@@ -490,21 +508,53 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
             pitchShiftRef.current.disconnect();
           }
         } catch {}
+          pitchLatencyRef.current = 0;
         
         // 再生同期ループ停止
       };
-      } else if (currentSongId && !hasAudioTrack) {
+        } else if (currentSongId && !hasAudioTrack) {
       // 音声ファイルなしの楽曲の場合
         log.info(`🎵 音声なしモードで楽曲を読み込み: ${currentSongTitle}`);
-      setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
+        setAudioLoaded(true); // 音声なしでも "読み込み完了" として扱う
+        pitchLatencyRef.current = 0;
     } else {
       setAudioLoaded(false);
     }
-      }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey]);
+        }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey, pause, updateTime, currentSongDuration]);
 
     useEffect(() => {
       setHasPlaybackFinished(false);
     }, [currentSongId]);
+
+    useEffect(() => {
+      if (!currentSongDuration) {
+        return;
+      }
+      const unsubscribe = useGameStore.subscribe(
+        (state) => ({ playing: state.isPlaying, time: state.currentTime }),
+        ({ playing, time }) => {
+          if (!playing) {
+            return;
+          }
+          if (time >= currentSongDuration) {
+            pause();
+            updateTime(currentSongDuration);
+            setHasPlaybackFinished(true);
+            if (audioRef.current) {
+              audioRef.current.pause();
+              audioRef.current.currentTime = currentSongDuration;
+            }
+            if (gameEngine) {
+              gameEngine.seek(currentSongDuration);
+            }
+          }
+        },
+        {
+          equalityFn: (a, b) => a.playing === b.playing && a.time === b.time
+        }
+      );
+      return () => unsubscribe();
+    }, [currentSongDuration, pause, updateTime, gameEngine]);
 
     useEffect(() => {
       if (isPlaying) {
@@ -596,8 +646,9 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
               log.warn('Tone context assignment failed', err);
             }
 
-            pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
-          }
+              pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose }).toDestination();
+            }
+              pitchLatencyRef.current = estimatePitchLatency(settings.transpose);
 
             if (mediaSourceNode) {
               try {
@@ -620,6 +671,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
                 log.warn('PitchShift dispose failed', err);
               }
               pitchShiftRef.current = null;
+                pitchLatencyRef.current = 0;
             }
             if (shouldAttachMediaElement && mediaSourceNode) {
               try {
@@ -677,6 +729,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         } else {
           // === 音声なしモード ===
           log.info('🎵 音声なしモードでゲームエンジンを開始');
+            pitchLatencyRef.current = 0;
           
           // AudioContextを簡易作成
           if (!audioContextRef.current) {
@@ -769,46 +822,58 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, audioElementKey]);
   
-    // シーク機能（音声ありと音声なし両方対応）
+    // シーク機能（音声あり/なし両方）
     useEffect(() => {
-      if (!audioContextRef.current || !gameEngine) {
+      if (!gameEngine) {
         return;
       }
-      const hasAudio = hasAudioTrack && audioRef.current && audioLoaded;
+
+      const clampToSong = (time: number): number => {
+        if (currentSongDuration === null || currentSongDuration === undefined) {
+          return Math.max(0, time);
+        }
+        return Math.min(Math.max(time, 0), currentSongDuration);
+      };
 
       const handleTimeDrift = (targetTime: number) => {
-        if (!audioContextRef.current) {
+        currentTimeRef.current = targetTime;
+        const audioContext = audioContextRef.current;
+        if (!audioContext) {
           return;
         }
+
+        const safeTime = clampToSong(targetTime);
+        const playbackSpeed = settings.playbackSpeed;
+        const hasAudio = Boolean(hasAudioTrack && audioRef.current && audioLoaded);
+        const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+
         if (hasAudio) {
-          const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-          const timeDiff = Math.abs(audioTime - targetTime);
-          if (timeDiff > 0.3) {
-            const safeTime = Math.max(0, Math.min(targetTime, currentSongDuration ?? targetTime));
+          const effectiveAudioTime =
+            ((audioContext.currentTime - baseOffsetRef.current) * playbackSpeed) - pitchLatencyRef.current;
+          const tolerance = pitchLatencyRef.current > 0 ? 0.45 : 0.3;
+          if (Math.abs(effectiveAudioTime - safeTime) > tolerance && now - lastForcedSyncRef.current > 200) {
             if (audioRef.current) {
               audioRef.current.currentTime = safeTime;
             }
-            const realTimeElapsed = safeTime / settings.playbackSpeed;
-            baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
+            const realTimeElapsed = safeTime / playbackSpeed;
+            baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
             gameEngine.seek(safeTime);
             updateTime(safeTime);
-            devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
+            lastForcedSyncRef.current = now;
           }
-        } else {
-          const engineTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-          const timeDiff = Math.abs(engineTime - targetTime);
-          if (timeDiff > 0.3) {
-            const safeTime = Math.max(0, Math.min(targetTime, currentSongDuration ?? targetTime));
-            const realTimeElapsed = safeTime / settings.playbackSpeed;
-            baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-            gameEngine.seek(safeTime);
-            updateTime(safeTime);
-            devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
-          }
+          return;
+        }
+
+        const engineTime = (audioContext.currentTime - baseOffsetRef.current) * playbackSpeed;
+        if (Math.abs(engineTime - safeTime) > 0.3) {
+          const realTimeElapsed = safeTime / playbackSpeed;
+          baseOffsetRef.current = audioContext.currentTime - realTimeElapsed;
+          gameEngine.seek(safeTime);
+          updateTime(safeTime);
         }
       };
 
-      handleTimeDrift(currentTimeRef.current);
+      handleTimeDrift(useGameStore.getState().currentTime);
       const unsubscribe = useGameStore.subscribe(
         (state) => state.currentTime,
         (time) => handleTimeDrift(time)
@@ -1004,6 +1069,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
   useEffect(() => {
     if (!pitchShiftRef.current) {
+      pitchLatencyRef.current = estimatePitchLatency(settings.transpose);
       return;
     }
     if (settings.transpose === 0) {
@@ -1013,9 +1079,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         log.warn('PitchShift dispose failed', err);
       }
       pitchShiftRef.current = null;
+      pitchLatencyRef.current = 0;
       return;
     }
     (pitchShiftRef.current as any).pitch = settings.transpose;
+    pitchLatencyRef.current = estimatePitchLatency(settings.transpose);
     }, [settings.transpose]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）

@@ -361,8 +361,8 @@ const ControlBar: React.FC = () => {
                 {currentTime > 0 ? <MdReplay /> : <FaPlay />}
               </button>
 
-                <button
-                  onClick={() => stop()}
+                  <button
+                    onClick={() => stop({ resetToStart: false })}
                   className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
 
                 disabled={!currentSong}
