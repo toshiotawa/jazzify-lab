@@ -79,6 +79,14 @@ export class GameEngine {
   private startTime: number = 0;
   private pausedTime: number = 0;
   private latencyOffset: number = 0;
+  
+  // ABリピート管理
+  private abRepeat: { start: number | null; end: number | null; enabled: boolean } = {
+    start: null,
+    end: null,
+    enabled: false
+  };
+
   private onUpdate?: (data: GameEngineUpdate) => void;
   private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
@@ -276,7 +284,10 @@ export class GameEngine {
     // 論理時間を実時間に変換してからオフセットを計算する
     const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
     this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
-    this.pausedTime = 0;
+    
+    // 重要修正: シークした場合、pausedTimeを0ではなくシーク先の時間に更新する
+    // これにより、一時停止中にシーク→再開した際に曲頭に戻るのを防ぐ
+    this.pausedTime = safeTime;
     
     // **完全なアクティブノーツリセット**
     this.recycleAllActiveNotes();
@@ -347,15 +358,26 @@ export class GameEngine {
     return judgment;
   }
   
-  setABRepeatStart(_time?: number): void {}
+  // ABリピート制御メソッドの実装
+  setABRepeatStart(time?: number | null): void {
+    this.abRepeat.start = time ?? null;
+  }
   
-  setABRepeatEnd(_time?: number): void {}
+  setABRepeatEnd(time?: number | null): void {
+    this.abRepeat.end = time ?? null;
+  }
   
-  enableABRepeat(): void {}
+  enableABRepeat(): void {
+    this.abRepeat.enabled = true;
+  }
   
-  disableABRepeat(): void {}
+  disableABRepeat(): void {
+    this.abRepeat.enabled = false;
+  }
   
-  clearABRepeat(): void {}
+  clearABRepeat(): void {
+    this.abRepeat = { start: null, end: null, enabled: false };
+  }
   
   updateSettings(settings: GameSettings): void {
     const prevSpeed = this.settings.playbackSpeed ?? 1;
@@ -414,11 +436,7 @@ export class GameEngine {
         audioTime: this.audioContext?.currentTime || 0,
         latencyOffset: this.latencyOffset
       },
-      abRepeat: {
-        start: null,
-        end: null,
-        enabled: false
-      }
+      abRepeat: { ...this.abRepeat }
     };
   }
 
@@ -467,6 +485,11 @@ export class GameEngine {
   // ===== プライベートメソッド =====
   
   private getCurrentTime(): number {
+    // 一時停止中はpausedTimeを返す（これによりシーク位置がUIに反映される）
+    if (!this.isGameLoopRunning && this.pausedTime > 0) {
+      return this.pausedTime;
+    }
+    
     if (!this.audioContext) return 0;
     return (this.audioContext.currentTime - this.startTime - this.latencyOffset)
       * (this.settings.playbackSpeed ?? 1);
@@ -656,14 +679,8 @@ export class GameEngine {
       
         // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
         const latestNote = this.activeNotes.get(noteId) || note;
-        if (isRecentNote && latestNote.state !== note.state) {
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
-        }
         
         const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
-        if (isRecentNote && updatedNote.state !== latestNote.state) {
-        }
         
         if (updatedNote.state === 'missed' && !updatedNote.judged) {
           const missJudgment: JudgmentResult = {
@@ -680,9 +697,6 @@ export class GameEngine {
         if (updatedNote.state === 'completed') {
           // 削除対象としてマーク（ループ中の削除を避ける）
           notesToDelete.push(noteId);
-          
-          if (isRecentNote) {
-          }
         }
     }
     
@@ -778,10 +792,6 @@ export class GameEngine {
         }
         
         if (practiceGuide === 'key_auto') {
-          // オートプレイ: 自動的にノーツをヒット判定
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
-          
           // 自動判定を実行
           const autoHit: NoteHit = {
             noteId: note.id,
@@ -792,30 +802,16 @@ export class GameEngine {
           };
           
           // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
-          const judgment = this.processHit(autoHit);
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+          this.processHit(autoHit);
           
           // 強制的にノーツ状態を確認
           const updatedNoteAfterHit = this.activeNotes.get(note.id);
           if (updatedNoteAfterHit) {
-            // ログ削除: FPS最適化のため
-            // devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
-            
-            // 念のため再度状態をセット（確実にhit状態にする）
             if (updatedNoteAfterHit.state !== 'hit') {
-              log.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
               updatedNoteAfterHit.state = 'hit';
               updatedNoteAfterHit.hitTime = currentTime;
               updatedNoteAfterHit.timingError = Math.abs(timeError);
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
-            } else {
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
             }
-          } else {
-            log.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
           }
         }
         
@@ -862,8 +858,13 @@ export class GameEngine {
     return Math.round(finalY * 10) / 10; // 小数点第1位まで精度を保つ
   }
   
-  private checkABRepeatLoop(_currentTime: number): void {
-    // Managed in store now
+  private checkABRepeatLoop(currentTime: number): void {
+    if (this.abRepeat.enabled && this.abRepeat.start !== null && this.abRepeat.end !== null) {
+      if (currentTime >= this.abRepeat.end) {
+        // ループ終端に達したら開始位置へシーク
+        this.seek(this.abRepeat.start);
+      }
+    }
   }
   
   private startGameLoop(): void {
@@ -928,11 +929,7 @@ export class GameEngine {
       activeNotes,
       timing,
       score: { ...this.score },
-      abRepeatState: {
-        start: null,
-        end: null,
-        enabled: false
-      }
+      abRepeatState: { ...this.abRepeat }
     };
     this.onUpdate?.(frameUpdate);
     if (this.updateListeners.size > 0) {

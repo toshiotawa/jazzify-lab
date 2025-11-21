@@ -65,7 +65,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       mode,
       lastKeyHighlight,
       isSettingsOpen,
-      resultModalOpen
+      resultModalOpen,
+      abRepeat // ストアからABリピート情報を取得
     } = useGameSelector((state) => ({
       gameEngine: state.gameEngine,
       isPlaying: state.isPlaying,
@@ -74,7 +75,8 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       mode: state.mode,
       lastKeyHighlight: state.lastKeyHighlight,
       isSettingsOpen: state.isSettingsOpen,
-      resultModalOpen: state.resultModalOpen
+      resultModalOpen: state.resultModalOpen,
+      abRepeat: state.abRepeat // 追加
     }));
     const currentSongId = currentSong?.id ?? null;
     const currentSongAudioFile = currentSong?.audioFile ?? '';
@@ -211,6 +213,19 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       renderBridgeRef.current?.dispose();
     };
   }, []);
+
+  // ABリピートの設定をGameEngineに同期
+  useEffect(() => {
+    if (gameEngine) {
+      if (abRepeat.enabled) {
+        gameEngine.enableABRepeat();
+      } else {
+        gameEngine.disableABRepeat();
+      }
+      gameEngine.setABRepeatStart(abRepeat.start);
+      gameEngine.setABRepeatEnd(abRepeat.end);
+    }
+  }, [gameEngine, abRepeat]);
 
     useEffect(() => {
       pianoZoomRef.current = pianoZoom;
