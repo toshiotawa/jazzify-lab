@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
-import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
+import { simplifyMusicXmlForDisplay, buildMeasureTimeMap, type MeasureTimeInfo } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
 
 interface SheetMusicDisplayProps {
@@ -12,6 +12,12 @@ interface SheetMusicDisplayProps {
 interface TimeMappingEntry {
   timeMs: number;
   xPosition: number;
+}
+
+interface MeasureLayoutEntry {
+  measureNumber: number;
+  startX: number;
+  width: number;
 }
 
 /**
@@ -31,6 +37,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
+  const measureTimingRef = useRef<MeasureTimeInfo[]>([]);
+  const measureLayoutRef = useRef<Map<number, MeasureLayoutEntry>>(new Map());
   const mappingCursorRef = useRef<number>(0);
   
   // 前回時刻の保持用（巻き戻し検出用）
@@ -49,57 +57,95 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const shouldRenderSheet = settings.showSheetMusic;
   
   // const gameActions = useGameActions(); // 現在未使用
-  
-  // OSMDの初期化とレンダリング
-  const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current || !notes || notes.length === 0) {
-      log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
-      return;
+
+  const collectMeasureLayouts = useCallback((graphicSheet: any): Map<number, MeasureLayoutEntry> => {
+    const layoutMap = new Map<number, MeasureLayoutEntry>();
+    if (!graphicSheet) {
+      return layoutMap;
     }
 
-    const mapping: TimeMappingEntry[] = [];
-    const graphicSheet = osmdRef.current.GraphicSheet;
-    
-    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
-      log.warn('楽譜のグラフィック情報が取得できません');
-      return;
+    const recordLayout = (measure: any) => {
+      if (!measure) {
+        return;
+      }
+      const measureNumber =
+        measure?.MeasureNumber ??
+        measure?.parentSourceMeasure?.MeasureNumber ??
+        measure?.ParentSourceMeasure?.MeasureNumber;
+      if (typeof measureNumber !== 'number' || layoutMap.has(measureNumber)) {
+        return;
+      }
+      const absoluteX =
+        measure?.PositionAndShape?.AbsolutePosition?.x ??
+        measure?.BoundingBox?.AbsolutePosition?.x;
+      const width =
+        measure?.PositionAndShape?.Size?.width ??
+        measure?.BoundingBox?.Size?.width;
+      if (typeof absoluteX !== 'number' || typeof width !== 'number') {
+        return;
+      }
+      layoutMap.set(measureNumber, {
+        measureNumber,
+        startX: absoluteX * scaleFactorRef.current,
+        width: width * scaleFactorRef.current
+      });
+    };
+
+    const primaryStaffMeasures = Array.isArray(graphicSheet?.MeasureList?.[0])
+      ? graphicSheet.MeasureList[0]
+      : null;
+
+    if (Array.isArray(primaryStaffMeasures) && primaryStaffMeasures.length > 0) {
+      primaryStaffMeasures.forEach(recordLayout);
+      return layoutMap;
     }
 
+    const pages = graphicSheet?.MusicPages ?? [];
+    for (const page of pages) {
+      for (const system of page?.MusicSystems ?? []) {
+        for (const staffLine of system?.StaffLines ?? []) {
+          for (const measure of staffLine?.Measures ?? []) {
+            recordLayout(measure);
+          }
+        }
+      }
+    }
+
+    return layoutMap;
+  }, []);
+
+  const buildLegacyTimeMapping = useCallback((graphicSheet: any): TimeMappingEntry[] => {
+    if (!graphicSheet || !notes || notes.length === 0) {
+      log.warn('タイムマップ構築スキップ: OSMDグラフィックまたはノートが不足しています');
+      return [];
+    }
+
+    const playableNotes: any[] = [];
+    let firstBeatX: number | null = null;
     let noteIndex = 0;
-    let osmdPlayableNoteCount = 0;
-    
-    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
-    
-    // 全ての音符を走査して演奏可能なノートのみを抽出
-    const osmdPlayableNotes = [];
-    let firstBeatX: number | null = null; // 最初の小節1拍目のX座標
-    
-    for (const page of graphicSheet.MusicPages) {
-      for (const system of page.MusicSystems) {
-        for (const staffLine of system.StaffLines) {
-          for (const measure of staffLine.Measures) {
-            for (const staffEntry of measure.staffEntries) {
-              // 最初に見つかった StaffEntry のX座標（実質1小節目1拍目）を拾う
+
+    const pages = graphicSheet?.MusicPages ?? [];
+    for (const page of pages) {
+      for (const system of page?.MusicSystems ?? []) {
+        for (const staffLine of system?.StaffLines ?? []) {
+          for (const measure of staffLine?.Measures ?? []) {
+            for (const staffEntry of measure?.staffEntries ?? []) {
               const sePos = (staffEntry as any)?.PositionAndShape?.AbsolutePosition?.x;
               if (typeof sePos === 'number') {
                 if (firstBeatX === null || sePos < firstBeatX) {
                   firstBeatX = sePos;
                 }
               }
-              
-              for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
+
+              for (const voice of staffEntry?.graphicalVoiceEntries ?? []) {
+                for (const graphicNote of voice?.notes ?? []) {
+                  if (!graphicNote?.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
                     continue;
                   }
-                  
-                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
                   if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
                     continue;
                   }
-                  
-                  osmdPlayableNotes.push(graphicNote);
+                  playableNotes.push(graphicNote);
                 }
               }
             }
@@ -107,85 +153,120 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
       }
     }
-    
-    osmdPlayableNoteCount = osmdPlayableNotes.length;
 
-    // マッピングを作成
-      const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
-      for (const graphicNote of osmdPlayableNotes) {
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+    const mapping: TimeMappingEntry[] = [];
+    const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
 
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
-                      }
-
-                        mapping.push({
-                          timeMs: (note.time + timingAdjustmentSec) * 1000,
-                          // 動的に計算したスケール係数を使用
-                          xPosition: centerX * scaleFactorRef.current
-                        });
-                    }
-                    noteIndex++;
+    for (const graphicNote of playableNotes) {
+      if (noteIndex >= notes.length) {
+        break;
       }
+      const note = notes[noteIndex];
+      const positionAndShape = graphicNote.PositionAndShape as any;
+      const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+      if (typeof noteHeadX !== 'number') {
+        noteIndex++;
+        continue;
+      }
+      let centerX = noteHeadX;
+      if (positionAndShape?.BoundingBox?.width !== undefined) {
+        centerX += positionAndShape.BoundingBox.width / 2;
+      }
+      mapping.push({
+        timeMs: (note.time + timingAdjustmentSec) * 1000,
+        xPosition: centerX * scaleFactorRef.current
+      });
+      noteIndex++;
     }
-    
-    // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
+
     if (firstBeatX !== null) {
       mapping.unshift({
         timeMs: 0,
         xPosition: firstBeatX * scaleFactorRef.current
       });
-      log.info(`✅ 小節頭アンカー追加: 0ms → X=${firstBeatX * scaleFactorRef.current}px`);
     }
-    
-    log.info(`📊 OSMD Note Extraction Summary:
-    OSMD playable notes: ${osmdPlayableNoteCount}
-    JSON notes count: ${notes.length}
-    Mapped notes: ${mapping.length}
-    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
-    
-    if (osmdPlayableNoteCount !== notes.length) {
-      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
+
+    if (playableNotes.length !== notes.length) {
+      log.warn(`ノート数の不一致: OSMD(${playableNotes.length}) vs JSON(${notes.length})。フォールバックマッピングを使用します。`);
     }
-    
-    timeMappingRef.current = mapping; // refを更新
+
+    log.info(`📊 Legacy OSMDマッピング生成: OSMD=${playableNotes.length}, JSON=${notes.length}, Mapping=${mapping.length}`);
+    return mapping;
+  }, [notes, settings.timingAdjustment]);
+  
+  // OSMDの初期化とレンダリング
+  const createTimeMapping = useCallback(() => {
+    if (!osmdRef.current || !notes || notes.length === 0) {
+      log.warn('タイムマッピング作成スキップ: OSMD未初期化またはノートデータなし');
+      timeMappingRef.current = [];
+      measureTimingRef.current = [];
+      measureLayoutRef.current = new Map();
+      mappingCursorRef.current = 0;
+      lastRenderedIndexRef.current = -1;
+      lastScrollXRef.current = 0;
+      return;
+    }
+
+    const graphicSheet = osmdRef.current.GraphicSheet;
+    measureLayoutRef.current = collectMeasureLayouts(graphicSheet);
+
+    if (musicXml) {
+      try {
+        const parsedDoc = new DOMParser().parseFromString(musicXml, 'application/xml');
+        const parseError = parsedDoc.querySelector('parsererror');
+        if (parseError) {
+          log.warn(`MusicXML解析エラー: ${parseError.textContent}`);
+          measureTimingRef.current = [];
+        } else {
+          const measureTimings = buildMeasureTimeMap(parsedDoc, notes);
+          measureTimingRef.current = measureTimings;
+          log.info(`📐 小節タイムマップ生成: ${measureTimings.length}件`);
+        }
+      } catch (error) {
+        log.error('MusicXML解析に失敗しました:', error);
+        measureTimingRef.current = [];
+      }
+    } else {
+      measureTimingRef.current = [];
+    }
+
+    const fallbackMapping = buildLegacyTimeMapping(graphicSheet);
+    timeMappingRef.current = fallbackMapping;
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-    }, [notes, settings.timingAdjustment]);
+
+    log.info(`🧭 タイムマップ更新: measures=${measureTimingRef.current.length}, layouts=${measureLayoutRef.current.size}, fallbackNotes=${fallbackMapping.length}`);
+  }, [buildLegacyTimeMapping, collectMeasureLayouts, musicXml, notes]);
 
   const loadAndRenderSheet = useCallback(async () => {
-    if (!shouldRenderSheet) {
-      if (osmdRef.current) {
-        osmdRef.current.clear();
-      }
-      timeMappingRef.current = [];
-      mappingCursorRef.current = 0;
+      if (!shouldRenderSheet) {
+        if (osmdRef.current) {
+          osmdRef.current.clear();
+        }
+        timeMappingRef.current = [];
+        measureTimingRef.current = [];
+        measureLayoutRef.current = new Map();
+        mappingCursorRef.current = 0;
         lastRenderedIndexRef.current = -1;
         lastScrollXRef.current = 0;
-      return;
-    }
+        return;
+      }
 
-    if (!containerRef.current || !musicXml) {
-      // musicXmlがない場合はクリア
-      if (osmdRef.current) {
-        osmdRef.current.clear();
-      }
-      timeMappingRef.current = [];
-      mappingCursorRef.current = 0;
+      if (!containerRef.current || !musicXml) {
+        // musicXmlがない場合はクリア
+        if (osmdRef.current) {
+          osmdRef.current.clear();
+        }
+        timeMappingRef.current = [];
+        measureTimingRef.current = [];
+        measureLayoutRef.current = new Map();
+        mappingCursorRef.current = 0;
         lastRenderedIndexRef.current = -1;
         lastScrollXRef.current = 0;
-      setError(musicXml === '' ? '楽譜データがありません' : null);
-      return;
-    }
+        setError(musicXml === '' ? '楽譜データがありません' : null);
+        return;
+      }
 
     setIsLoading(true);
     setError(null);
@@ -302,7 +383,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!shouldRenderSheet && osmdRef.current) {
       osmdRef.current.clear();
       timeMappingRef.current = [];
+        measureTimingRef.current = [];
+        measureLayoutRef.current = new Map();
       mappingCursorRef.current = 0;
+        lastRenderedIndexRef.current = -1;
+        lastScrollXRef.current = 0;
     }
   }, [shouldRenderSheet]);
 
@@ -334,81 +419,127 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     //   }
     // }, [isPlaying]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
+    // currentTimeが変更されるたびにスクロール位置を更新
     useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        prevTimeRef.current = currentTime; // 早期returnでも更新
+      if (!shouldRenderSheet || !scoreWrapperRef.current) {
+        prevTimeRef.current = currentTime;
         return;
       }
 
-      const currentTimeMs = currentTime * 1000;
+      const playheadPosition = 120;
+      const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
+      const adjustedTime = currentTime - timingAdjustmentSec;
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
-      const findActiveIndex = () => {
+      const measureEntries = measureTimingRef.current;
+      const layoutMap = measureLayoutRef.current;
+
+      const locateMeasureIndex = (timeSec: number, entries: MeasureTimeInfo[]): number => {
+        if (entries.length === 0) {
+          return -1;
+        }
         let low = 0;
-        let high = mapping.length - 1;
-        
-        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
+        let high = entries.length - 1;
         while (low <= high) {
           const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
+          const entry = entries[mid];
+          const start = entry.startTime;
+          const end = entry.startTime + entry.duration;
+          if (timeSec < start) {
+            high = mid - 1;
+          } else if (timeSec >= end) {
             low = mid + 1;
           } else {
-            high = mid - 1;
+            return mid;
           }
         }
-        // low は「次に演奏されるべき音符」のインデックスになっているため、
-        // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
+        return Math.min(Math.max(high, 0), entries.length - 1);
       };
 
-      // 計算されたインデックスを取得（範囲外ならクランプ）
-      const rawIndex = findActiveIndex();
-      const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+      let activeIndex = -1;
+      let scrollX: number | null = null;
+
+      if (measureEntries.length > 0 && layoutMap.size > 0) {
+        const measureIndex = locateMeasureIndex(adjustedTime, measureEntries);
+        const measureInfo = measureIndex >= 0 ? measureEntries[measureIndex] : null;
+        const layout = measureInfo ? layoutMap.get(measureInfo.measureNumber) : undefined;
+        if (measureInfo && layout) {
+          const relativeRaw = measureInfo.duration > 0 ? (adjustedTime - measureInfo.startTime) / measureInfo.duration : 0;
+          const relative = Math.max(0, Math.min(1, Number.isFinite(relativeRaw) ? relativeRaw : 0));
+          const absoluteX = layout.startX + layout.width * relative;
+          scrollX = Math.max(0, absoluteX - playheadPosition);
+          activeIndex = measureIndex;
+        }
+      }
+
+      if (scrollX === null) {
+        const mapping = timeMappingRef.current;
+        if (mapping.length === 0) {
+          prevTimeRef.current = currentTime;
+          return;
+        }
+        const currentTimeMs = currentTime * 1000;
+        const findActiveIndex = () => {
+          let low = 0;
+          let high = mapping.length - 1;
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (mapping[mid].timeMs <= currentTimeMs) {
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          return low - 1;
+        };
+        const rawIndex = findActiveIndex();
+        activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+        const targetEntry = mapping[activeIndex];
+        if (!targetEntry) {
+          prevTimeRef.current = currentTime;
+          return;
+        }
+        scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      }
+
+      if (scrollX === null) {
+        prevTimeRef.current = currentTime;
+        return;
+      }
 
       mappingCursorRef.current = activeIndex;
-
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
 
-      // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
       const prev = prevTimeRef.current;
-      const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
-      const forceAtZero = currentTime < 0.02;       // 0秒付近
+      const seekingBack = currentTime < prev - 0.1;
+      const forceAtZero = currentTime < 0.02;
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
-          const wrapper = scoreWrapperRef.current;
-          const scrollContainer = scrollContainerRef.current;
-          if (isPlaying) {
-            if (wrapper) {
-              wrapper.style.transform = `translateX(-${scrollX}px)`;
-            }
-            if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
-              scrollContainer.scrollLeft = 0;
-            }
-          } else if (scrollContainer) {
-            if (wrapper) {
-              wrapper.style.transform = 'translateX(0px)';
-            }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
+      const wrapper = scoreWrapperRef.current;
+      const scrollContainer = scrollContainerRef.current;
+
+      if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (isPlaying) {
+          if (wrapper) {
+            wrapper.style.transform = `translateX(-${scrollX}px)`;
           }
-          lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
+          if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
+            scrollContainer.scrollLeft = 0;
+          }
+        } else if (scrollContainer) {
+          if (wrapper) {
+            wrapper.style.transform = 'translateX(0px)';
+          }
+          if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+            scrollContainer.scrollLeft = scrollX;
+          }
         }
+        lastRenderedIndexRef.current = activeIndex;
+        lastScrollXRef.current = scrollX;
+      }
 
       prevTimeRef.current = currentTime;
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    }, [currentTime, isPlaying, notes, shouldRenderSheet, settings.timingAdjustment]);
 
     // ホイールスクロール制御
   useEffect(() => {
