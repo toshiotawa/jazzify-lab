@@ -142,16 +142,20 @@ const ControlBar: React.FC = () => {
     transpose(1);
   }, [transpose]);
 
-  // ヘッダー表示/非表示の切り替え
-  const toggleHeader = useCallback(() => {
-    updateSettings({ showHeader: !settings.showHeader });
-  }, [updateSettings, settings.showHeader]);
+    // ヘッダー表示/非表示の切り替え
+    const toggleHeader = useCallback(() => {
+      updateSettings({ showHeader: !settings.showHeader });
+    }, [updateSettings, settings.showHeader]);
+
+    const handleStop = useCallback(() => {
+      stop({ preservePosition: true });
+    }, [stop]);
 
 
-  // 楽譜表示の切り替え
-  const toggleSheetMusic = useCallback(() => {
-    updateSettings({ showSheetMusic: !settings.showSheetMusic });
-  }, [updateSettings, settings.showSheetMusic]);
+    // 楽譜表示の切り替え
+    const toggleSheetMusic = useCallback(() => {
+      updateSettings({ showSheetMusic: !settings.showSheetMusic });
+    }, [updateSettings, settings.showSheetMusic]);
 
   return (
     <div className="w-full">
@@ -345,31 +349,28 @@ const ControlBar: React.FC = () => {
             </>
           ) : (
             // 本番モード: 再生/最初に戻るボタン（状況に応じて動作変化）
-            <>
-                <button
-                  onClick={handlePlayOrRestart}
-
-                  className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
-
-                disabled={!currentSong}
-                title={
-                  currentTime > 0
-                    ? '最初に戻って再生'
-                    : '再生'
-                }
-              >
-                {currentTime > 0 ? <MdReplay /> : <FaPlay />}
-              </button>
-
-                <button
-                  onClick={() => stop()}
-                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
-
-                disabled={!currentSong}
-                title="停止"
-              >
-                <FaStop />
-              </button>
+              <>
+                  <button
+                    onClick={handlePlayOrRestart}
+                    className="control-btn control-btn-xxs control-btn-primary control-btn-transport"
+                    disabled={!currentSong}
+                    title={
+                      currentTime > 0
+                        ? '最初に戻って再生'
+                        : '再生'
+                    }
+                  >
+                    {currentTime > 0 ? <MdReplay /> : <FaPlay />}
+                  </button>
+  
+                  <button
+                    onClick={handleStop}
+                    className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
+                    disabled={!currentSong}
+                    title="停止"
+                  >
+                    <FaStop />
+                  </button>
 
               {/* 移調コントロール（レッスンモード・ミッションモードでは非表示） */}
               {!lessonContext && !missionContext && (
