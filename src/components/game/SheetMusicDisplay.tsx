@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -39,16 +39,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat, currentSong } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    abRepeat: s.abRepeat,
+    currentSong: s.currentSong,
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
-  // const gameActions = useGameActions(); // 現在未使用
+  const { setABRepeatStart, setABRepeatEnd } = useGameActions();
   
   // OSMDの初期化とレンダリング
   const createTimeMapping = useCallback(() => {
@@ -369,13 +371,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex];
       const playheadPosition = 120;
       
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
+      // 線形補間を使用してより正確な位置を計算
+      let targetX: number;
+      if (activeIndex < 0 || activeIndex >= mapping.length) {
+        // 範囲外の場合は最初または最後の位置を使用
+        if (activeIndex < 0) {
+          targetX = mapping[0]?.xPosition ?? 0;
+        } else {
+          targetX = mapping[mapping.length - 1]?.xPosition ?? 0;
+        }
+      } else {
+        const currentEntry = mapping[activeIndex];
+        const nextEntry = mapping[activeIndex + 1];
+        
+        if (nextEntry && currentEntry.timeMs < currentTimeMs) {
+          // 次のエントリとの間で線形補間
+          const timeDiff = nextEntry.timeMs - currentEntry.timeMs;
+          const timeProgress = currentTimeMs - currentEntry.timeMs;
+          const ratio = timeDiff > 0 ? timeProgress / timeDiff : 0;
+          targetX = currentEntry.xPosition + (nextEntry.xPosition - currentEntry.xPosition) * ratio;
+        } else {
+          // 現在のエントリの位置を使用
+          targetX = currentEntry.xPosition;
+        }
+      }
+      
+      // targetXが存在しない場合のガード処理
+      if (targetX === undefined || isNaN(targetX)) {
+        prevTimeRef.current = currentTime;
+        return;
+      }
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const scrollX = Math.max(0, targetX - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -396,12 +425,17 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               scrollContainer.scrollLeft = 0;
             }
           } else if (scrollContainer) {
+            // 一時停止時: transformをリセットしてからscrollLeftを設定
+            // これにより、正確な位置にスクロールできる
             if (wrapper) {
               wrapper.style.transform = 'translateX(0px)';
             }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
+            // requestAnimationFrameを使用して、transformのリセット後にscrollLeftを設定
+            requestAnimationFrame(() => {
+              if (scrollContainer && Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+                scrollContainer.scrollLeft = scrollX;
+              }
+            });
           }
           lastRenderedIndexRef.current = activeIndex;
           lastScrollXRef.current = scrollX;
@@ -454,6 +488,45 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       );
     }
 
+  // ABループ地点のX座標を計算
+  const getABRepeatXPosition = useCallback((time: number): number | null => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0 || time < 0) return null;
+    
+    const timeMs = time * 1000;
+    
+    // 時間からX座標を線形補間で計算
+    let low = 0;
+    let high = mapping.length - 1;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (mapping[mid].timeMs <= timeMs) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    const index = Math.max(0, Math.min(low - 1, mapping.length - 1));
+    const currentEntry = mapping[index];
+    const nextEntry = mapping[index + 1];
+    
+    if (!currentEntry) return null;
+    
+    if (nextEntry && currentEntry.timeMs < timeMs) {
+      const timeDiff = nextEntry.timeMs - currentEntry.timeMs;
+      const timeProgress = timeMs - currentEntry.timeMs;
+      const ratio = timeDiff > 0 ? timeProgress / timeDiff : 0;
+      return currentEntry.xPosition + (nextEntry.xPosition - currentEntry.xPosition) * ratio;
+    }
+    
+    return currentEntry.xPosition;
+  }, []);
+
+  const abRepeatStartX = abRepeat.startTime !== null ? getABRepeatXPosition(abRepeat.startTime) : null;
+  const abRepeatEndX = abRepeat.endTime !== null ? getABRepeatXPosition(abRepeat.endTime) : null;
+
   return (
     <div className={cn('relative', className)}>
       {/* プレイヘッド（赤い縦線） - スクロール位置に影響されないよう外側へ配置 */}
@@ -462,6 +535,173 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         style={{ left: '120px' }}
         aria-hidden="true"
       />
+      
+      {/* ABループ地点の縦線 - OSMD譜面上に表示（ドラッグ可能） */}
+      {abRepeatStartX !== null && (
+        <div
+          className={`absolute top-0 bottom-0 w-1 z-10 transition-all cursor-ew-resize ${
+            abRepeat.enabled 
+              ? 'bg-green-500 shadow-lg shadow-green-500/50 border-2 border-green-300' 
+              : 'bg-green-400 opacity-60 border border-green-300'
+          }`}
+          style={{ 
+            left: `${abRepeatStartX}px`,
+            transform: 'translateX(-50%)'
+          }}
+          aria-hidden="true"
+          title={`A地点: ${abRepeat.startTime !== null ? Math.floor(abRepeat.startTime / 60) + ':' + String(Math.floor(abRepeat.startTime % 60)).padStart(2, '0') : ''} (ドラッグで移動)`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!scoreWrapperRef.current) return;
+            
+            const startX = e.clientX;
+            const startTime = abRepeat.startTime ?? 0;
+            const mapping = timeMappingRef.current;
+            if (mapping.length === 0) return;
+            
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = moveEvent.clientX - startX;
+              const scrollContainer = scrollContainerRef.current;
+              if (!scrollContainer || !scoreWrapperRef.current) return;
+              
+              // スクロール位置を考慮したX座標を計算
+              const scrollLeft = scrollContainer.scrollLeft;
+              const newX = abRepeatStartX! + deltaX + scrollLeft;
+              
+              // X座標から時間を逆算
+              let closestTime = startTime;
+              if (mapping.length > 0) {
+                // 最も近いマッピングエントリを探す
+                let minDist = Infinity;
+                let closestIndex = 0;
+                
+                for (let i = 0; i < mapping.length; i++) {
+                  const dist = Math.abs(mapping[i].xPosition - newX);
+                  if (dist < minDist) {
+                    minDist = dist;
+                    closestIndex = i;
+                  }
+                }
+                
+                const entry = mapping[closestIndex];
+                const nextEntry = mapping[closestIndex + 1];
+                
+                if (entry) {
+                  if (nextEntry && entry.xPosition < newX && newX < nextEntry.xPosition) {
+                    // 線形補間
+                    const ratio = (newX - entry.xPosition) / (nextEntry.xPosition - entry.xPosition);
+                    closestTime = (entry.timeMs + (nextEntry.timeMs - entry.timeMs) * ratio) / 1000;
+                  } else {
+                    closestTime = entry.timeMs / 1000;
+                  }
+                }
+              }
+              
+              setABRepeatStart(Math.max(0, closestTime));
+            };
+            
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+        />
+      )}
+      
+      {abRepeatEndX !== null && (
+        <div
+          className={`absolute top-0 bottom-0 w-1 z-10 transition-all cursor-ew-resize ${
+            abRepeat.enabled 
+              ? 'bg-red-500 shadow-lg shadow-red-500/50 border-2 border-red-300' 
+              : 'bg-red-400 opacity-60 border border-red-300'
+          }`}
+          style={{ 
+            left: `${abRepeatEndX}px`,
+            transform: 'translateX(-50%)'
+          }}
+          aria-hidden="true"
+          title={`B地点: ${abRepeat.endTime !== null ? Math.floor(abRepeat.endTime / 60) + ':' + String(Math.floor(abRepeat.endTime % 60)).padStart(2, '0') : ''} (ドラッグで移動)`}
+          onMouseDown={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            if (!scoreWrapperRef.current) return;
+            
+            const startX = e.clientX;
+            const startTime = abRepeat.endTime ?? 0;
+            const mapping = timeMappingRef.current;
+            if (mapping.length === 0) return;
+            
+            const handleMouseMove = (moveEvent: MouseEvent) => {
+              const deltaX = moveEvent.clientX - startX;
+              const scrollContainer = scrollContainerRef.current;
+              if (!scrollContainer || !scoreWrapperRef.current) return;
+              
+              // スクロール位置を考慮したX座標を計算
+              const scrollLeft = scrollContainer.scrollLeft;
+              const newX = abRepeatEndX! + deltaX + scrollLeft;
+              
+              // X座標から時間を逆算
+              let closestTime = startTime;
+              if (mapping.length > 0) {
+                // 最も近いマッピングエントリを探す
+                let minDist = Infinity;
+                let closestIndex = 0;
+                
+                for (let i = 0; i < mapping.length; i++) {
+                  const dist = Math.abs(mapping[i].xPosition - newX);
+                  if (dist < minDist) {
+                    minDist = dist;
+                    closestIndex = i;
+                  }
+                }
+                
+                const entry = mapping[closestIndex];
+                const nextEntry = mapping[closestIndex + 1];
+                
+                if (entry) {
+                  if (nextEntry && entry.xPosition < newX && newX < nextEntry.xPosition) {
+                    // 線形補間
+                    const ratio = (newX - entry.xPosition) / (nextEntry.xPosition - entry.xPosition);
+                    closestTime = (entry.timeMs + (nextEntry.timeMs - entry.timeMs) * ratio) / 1000;
+                  } else {
+                    closestTime = entry.timeMs / 1000;
+                  }
+                }
+              }
+              
+              setABRepeatEnd(Math.max(0, closestTime));
+            };
+            
+            const handleMouseUp = () => {
+              document.removeEventListener('mousemove', handleMouseMove);
+              document.removeEventListener('mouseup', handleMouseUp);
+            };
+            
+            document.addEventListener('mousemove', handleMouseMove);
+            document.addEventListener('mouseup', handleMouseUp);
+          }}
+        />
+      )}
+      
+      {/* ABループ範囲の背景塗りつぶし */}
+      {abRepeatStartX !== null && abRepeatEndX !== null && (
+        <div
+          className={`pointer-events-none absolute top-0 bottom-0 z-5 transition-opacity ${
+            abRepeat.enabled 
+              ? 'bg-green-400 opacity-20' 
+              : 'bg-gray-400 opacity-10'
+          }`}
+          style={{
+            left: `${Math.min(abRepeatStartX, abRepeatEndX)}px`,
+            width: `${Math.abs(abRepeatEndX - abRepeatStartX)}px`
+          }}
+          aria-hidden="true"
+        />
+      )}
       <div 
         className={cn(
           "h-full bg-white text-black",
