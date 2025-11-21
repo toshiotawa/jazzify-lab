@@ -14,6 +14,52 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+const clampNumber = (value: number, min: number, max: number): number => {
+  if (value < min) {
+    return min;
+  }
+  if (value > max) {
+    return max;
+  }
+  return value;
+};
+
+const interpolateXPosition = (
+  entries: TimeMappingEntry[],
+  pivotIndex: number,
+  targetTimeMs: number
+): number => {
+  if (entries.length === 0) {
+    return 0;
+  }
+
+  const clampedIndex = clampNumber(pivotIndex, 0, entries.length - 1);
+  const currentEntry = entries[clampedIndex];
+
+  if (!currentEntry) {
+    return 0;
+  }
+
+  const nextIndex = Math.min(clampedIndex + 1, entries.length - 1);
+  const nextEntry = entries[nextIndex];
+
+  if (!nextEntry || nextIndex === clampedIndex) {
+    return currentEntry.xPosition;
+  }
+
+  const startTime = currentEntry.timeMs;
+  const endTime = nextEntry.timeMs;
+
+  if (endTime <= startTime) {
+    return currentEntry.xPosition;
+  }
+
+  const clampedTime = clampNumber(targetTimeMs, startTime, endTime);
+  const progress = (clampedTime - startTime) / (endTime - startTime);
+
+  return currentEntry.xPosition + (nextEntry.xPosition - currentEntry.xPosition) * progress;
+};
+
 /**
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
@@ -375,7 +421,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // targetEntryが存在しない場合のガード処理を追加
       if (!targetEntry) return;
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        // currentTimeに最も近い譜面位置へ滑らかにスナップさせるため線形補間を使用
+        const interpolatedX = interpolateXPosition(mapping, activeIndex, currentTimeMs);
+        const scrollX = Math.max(0, interpolatedX - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
