@@ -39,12 +39,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+    const { currentTime, isPlaying, notes, musicXml, settings, currentSong } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+      currentSong: s.currentSong
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
@@ -156,11 +157,32 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
     }
     
-    timeMappingRef.current = mapping; // refを更新
+      const mappingRef = mapping;
+      const durationMs = (currentSong?.duration ?? 0) * 1000;
+      const lastNoteTimeMs =
+        notes.length > 0
+          ? (notes[notes.length - 1].time + (settings.timingAdjustment ?? 0) / 1000) * 1000
+          : 0;
+      let endX = 0;
+      try {
+        const bboxWidth = (graphicSheet as any)?.BoundingBox?.width ?? 0;
+        if (bboxWidth > 0) {
+          endX = bboxWidth * scaleFactorRef.current;
+        } else {
+          const maxXFromNotes = mappingRef.reduce((maxValue, entry) => Math.max(maxValue, entry.xPosition), 0);
+          endX = maxXFromNotes + 200;
+        }
+      } catch {
+        const fallbackMaxX = mappingRef.reduce((maxValue, entry) => Math.max(maxValue, entry.xPosition), 0);
+        endX = fallbackMaxX + 200;
+      }
+      const endTimeMs = durationMs > 0 ? Math.max(lastNoteTimeMs, durationMs - 1) : lastNoteTimeMs + 500;
+      mappingRef.push({ timeMs: endTimeMs, xPosition: endX });
+
+      timeMappingRef.current = mappingRef; // refを更新
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
-    lastScrollXRef.current = 0;
-    }, [notes, settings.timingAdjustment]);
+      }, [notes, settings.timingAdjustment, currentSong?.duration]);
 
   const loadAndRenderSheet = useCallback(async () => {
     if (!shouldRenderSheet) {
@@ -316,13 +338,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
-    if (isPlaying) {
-      scrollContainer.scrollLeft = 0;
-      wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
-    } else {
-      wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
-    }
+      if (isPlaying) {
+        wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
+        requestAnimationFrame(() => {
+          scrollContainer.scrollLeft = 0;
+        });
+      } else {
+        const currentScroll = lastScrollXRef.current;
+        scrollContainer.scrollLeft = currentScroll;
+        requestAnimationFrame(() => {
+          wrapper.style.transform = 'translateX(0px)';
+        });
+      }
   }, [isPlaying, shouldRenderSheet]);
 
   // 音符の時刻とX座標のマッピングを作成
@@ -369,13 +396,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const playheadPosition = 120;
+        const i0 = activeIndex;
+        const i1 = Math.min(activeIndex + 1, mapping.length - 1);
+        const entry0 = mapping[i0];
+        const entry1 = mapping[i1];
+        if (!entry0 || !entry1) {
+          prevTimeRef.current = currentTime;
+          return;
+        }
+        const { timeMs: t0, xPosition: x0 } = entry0;
+        const { timeMs: t1, xPosition: x1 } = entry1;
+        const denom = Math.max(1, t1 - t0);
+        const ratio = Math.min(1, Math.max(0, (currentTimeMs - t0) / denom));
+        const interpX = x0 + (x1 - x0) * ratio;
+        const scrollX = Math.max(0, interpX - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -512,8 +547,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 !isPlaying ? "transition-transform duration-100 ease-out" : ""
               )}
               style={{ 
-                willChange: isPlaying ? 'transform' : 'auto',
-                minWidth: '3000px' // 十分な幅を確保
+                  willChange: isPlaying ? 'transform' : 'auto'
               }}
             >
               <div 
