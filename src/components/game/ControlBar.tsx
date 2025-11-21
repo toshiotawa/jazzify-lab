@@ -362,7 +362,7 @@ const ControlBar: React.FC = () => {
               </button>
 
                 <button
-                  onClick={() => stop()}
+                  onClick={() => stop({ resetPosition: false })}
                   className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
 
                 disabled={!currentSong}

@@ -22,6 +22,7 @@ const VISIBLE_WHITE_KEYS = 24;
 const MOBILE_SCROLL_BREAKPOINT = 1100;
 const MIN_PIANO_ZOOM = 1;
 const MAX_PIANO_ZOOM = 2.5;
+const MEDIA_DRIFT_THRESHOLD = 0.05;
 
 interface PinchState {
   startDistance: number;
@@ -315,17 +316,26 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }, [pixiRenderer, chords]);
 
     useEffect(() => {
-      const unsubscribe = useGameStore.subscribe(
-        (state) => state.currentTime,
-        (time) => {
-          currentTimeRef.current = time;
-          if (!isPlayingRef.current) {
-            renderBridgeRef.current?.syncFromEngine();
+        const unsubscribe = useGameStore.subscribe(
+          (state) => state.currentTime,
+          (time) => {
+            currentTimeRef.current = time;
+            if (!isPlayingRef.current) {
+              renderBridgeRef.current?.syncFromEngine();
+            }
+            if (currentSongDuration && time >= currentSongDuration - 0.01) {
+              setHasPlaybackFinished(true);
+              if (isPlayingRef.current) {
+                pause();
+              }
+              if (currentSongDuration && time > currentSongDuration) {
+                updateTime(currentSongDuration);
+              }
+            }
           }
-        }
-      );
-      return unsubscribe;
-    }, []);
+        );
+        return unsubscribe;
+      }, [currentSongDuration, pause, updateTime]);
 
     useEffect(() => {
       if (!isPlaying) {
@@ -409,7 +419,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
 
   // 楽曲読み込み時の音声設定
     useEffect(() => {
-      if (hasAudioTrack && audioRef.current) {
+        if (hasAudioTrack && audioRef.current) {
         const audio = audioRef.current;
       
       const handleLoadedMetadata = () => {
@@ -438,7 +448,13 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           devLog.debug('🎵 音声再生可能状態に到達');
         };
         const handleEnded = () => {
+          const finalTime = Math.min(
+            currentSongDuration ?? audio.duration ?? currentTimeRef.current,
+            audio.duration || Number.POSITIVE_INFINITY
+          );
           setHasPlaybackFinished(true);
+          updateTime(finalTime);
+          pause();
         };
         const handlePlayEvent = () => {
           setHasPlaybackFinished(false);
@@ -500,7 +516,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else {
       setAudioLoaded(false);
     }
-      }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey]);
+      }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey, currentSongDuration, pause, updateTime]);
 
     useEffect(() => {
       setHasPlaybackFinished(false);
@@ -769,42 +785,57 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       }
   }, [settings.playbackSpeed, gameEngine, updateEngineSettings, isPlaying, audioElementKey]);
   
-    // シーク機能（音声ありと音声なし両方対応）
+    // シーク機能（音声あり/なし両対応）
     useEffect(() => {
-      if (!audioContextRef.current || !gameEngine) {
+      if (!gameEngine) {
         return;
       }
-      const hasAudio = hasAudioTrack && audioRef.current && audioLoaded;
+
+      const clampTime = (time: number): { value: number; clamped: boolean } => {
+        if (currentSongDuration === null || currentSongDuration === undefined) {
+          const bounded = Math.max(0, time);
+          return { value: bounded, clamped: bounded !== time };
+        }
+        const bounded = Math.min(Math.max(0, time), currentSongDuration);
+        return { value: bounded, clamped: Math.abs(bounded - time) > 0.0001 };
+      };
+
+      const syncMediaPosition = (targetTime: number) => {
+        const { value: safeTime, clamped } = clampTime(targetTime);
+        if (hasAudioTrack && audioRef.current && audioLoaded) {
+          audioRef.current.currentTime = safeTime;
+        }
+        if (audioContextRef.current) {
+          const realTimeElapsed = safeTime / settings.playbackSpeed;
+          baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
+        }
+        gameEngine.seek(safeTime);
+        if (clamped) {
+          updateTime(safeTime);
+        }
+      };
 
       const handleTimeDrift = (targetTime: number) => {
         if (!audioContextRef.current) {
+          if (!isPlayingRef.current) {
+            syncMediaPosition(targetTime);
+          }
           return;
         }
-        if (hasAudio) {
-          const audioTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-          const timeDiff = Math.abs(audioTime - targetTime);
-          if (timeDiff > 0.3) {
-            const safeTime = Math.max(0, Math.min(targetTime, currentSongDuration ?? targetTime));
-            if (audioRef.current) {
-              audioRef.current.currentTime = safeTime;
-            }
-            const realTimeElapsed = safeTime / settings.playbackSpeed;
-            baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-            gameEngine.seek(safeTime);
-            updateTime(safeTime);
-            devLog.debug(`🔄 Audio & GameEngine synced to ${safeTime.toFixed(2)}s`);
-          }
-        } else {
-          const engineTime = (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
-          const timeDiff = Math.abs(engineTime - targetTime);
-          if (timeDiff > 0.3) {
-            const safeTime = Math.max(0, Math.min(targetTime, currentSongDuration ?? targetTime));
-            const realTimeElapsed = safeTime / settings.playbackSpeed;
-            baseOffsetRef.current = audioContextRef.current.currentTime - realTimeElapsed;
-            gameEngine.seek(safeTime);
-            updateTime(safeTime);
-            devLog.debug(`🔄 GameEngine (音声なし) synced to ${safeTime.toFixed(2)}s`);
-          }
+
+        const { value: safeTime } = clampTime(targetTime);
+
+        if (!isPlayingRef.current) {
+          syncMediaPosition(safeTime);
+          return;
+        }
+
+        const currentTimelineTime =
+          (audioContextRef.current.currentTime - baseOffsetRef.current) * settings.playbackSpeed;
+        const timeDiff = Math.abs(currentTimelineTime - safeTime);
+
+        if (timeDiff > MEDIA_DRIFT_THRESHOLD) {
+          syncMediaPosition(safeTime);
         }
       };
 
