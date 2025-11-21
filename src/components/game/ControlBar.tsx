@@ -1,4 +1,5 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
+import { getWindow } from '@/platform';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -59,9 +60,14 @@ const ControlBar: React.FC = () => {
     toggleSettings
   } = useGameActions();
 
-  const isPracticeMode = mode === 'practice';
-  const canInteract = isPracticeMode;
-  const songDuration = currentSong?.duration || 0;
+    const isPracticeMode = mode === 'practice';
+    const canInteract = isPracticeMode;
+    const songDuration = currentSong?.duration || 0;
+    const seekBarRef = useRef<HTMLDivElement>(null);
+    const [isDraggingA, setIsDraggingA] = useState(false);
+    const [isDraggingB, setIsDraggingB] = useState(false);
+    const loopStart = abRepeat.startTime;
+    const loopEnd = abRepeat.endTime;
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -153,13 +159,94 @@ const ControlBar: React.FC = () => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
 
+  useEffect(() => {
+    if ((!isDraggingA && !isDraggingB) || !canInteract || songDuration <= 0) {
+      return;
+    }
+
+    const MIN_LOOP_GAP = 0.1;
+
+    const handlePointerMove = (event: Event) => {
+      const pointerEvent = event as PointerEvent;
+      if (!seekBarRef.current) {
+        return;
+      }
+      const rect = seekBarRef.current.getBoundingClientRect();
+      if (rect.width <= 0) {
+        return;
+      }
+      const ratio = (pointerEvent.clientX - rect.left) / rect.width;
+      const clampedRatio = Math.max(0, Math.min(1, ratio));
+      const nextTime = clampedRatio * songDuration;
+
+      if (Number.isNaN(nextTime)) {
+        return;
+      }
+
+      if (isDraggingA) {
+        if (loopEnd !== null) {
+          const maxStart = Math.max(0, loopEnd - MIN_LOOP_GAP);
+          const adjustedTime = Math.min(nextTime, maxStart);
+          setABRepeatStart(Math.max(0, adjustedTime));
+        } else {
+          setABRepeatStart(Math.min(songDuration, Math.max(0, nextTime)));
+        }
+      } else if (isDraggingB) {
+        if (loopStart !== null) {
+          const minEnd = Math.min(songDuration, loopStart + MIN_LOOP_GAP);
+          const adjustedTime = Math.max(nextTime, minEnd);
+          setABRepeatEnd(Math.min(songDuration, adjustedTime));
+        } else {
+          setABRepeatEnd(Math.min(songDuration, Math.max(0, nextTime)));
+        }
+      }
+    };
+
+    const handlePointerUp = () => {
+      setIsDraggingA(false);
+      setIsDraggingB(false);
+    };
+
+    const platformWindow = getWindow();
+    platformWindow.addEventListener('pointermove', handlePointerMove);
+    platformWindow.addEventListener('pointerup', handlePointerUp);
+
+    return () => {
+      platformWindow.removeEventListener('pointermove', handlePointerMove);
+      platformWindow.removeEventListener('pointerup', handlePointerUp);
+    };
+  }, [
+    canInteract,
+    isDraggingA,
+    isDraggingB,
+    loopEnd,
+    loopStart,
+    setABRepeatEnd,
+    setABRepeatStart,
+    songDuration
+  ]);
+
   return (
     <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1 h-6 flex items-center" ref={seekBarRef}>
+              <div className="absolute w-full h-1 bg-gray-700 rounded-lg overflow-hidden">
+                {loopStart !== null && loopEnd !== null && songDuration > 0 && (
+                  <div
+                    className={`absolute top-0 h-full transition-all duration-200 ${
+                      abRepeat.enabled ? 'bg-emerald-400/70 animate-pulse' : 'bg-gray-400/30'
+                    }`}
+                    style={{
+                      left: `${(loopStart / songDuration) * 100}%`,
+                      width: `${Math.max(0, ((loopEnd - loopStart) / songDuration) * 100)}%`
+                    }}
+                  />
+                )}
+              </div>
+
               <input
                 type="range"
                 min="0"
@@ -168,56 +255,59 @@ const ControlBar: React.FC = () => {
                 step="0.1"
                 onChange={handleSeek}
                 disabled={!canInteract}
-                className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                  ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
+                className={`absolute w-full h-1 bg-transparent appearance-none cursor-pointer z-10
+                  ${canInteract ? '' : 'cursor-not-allowed opacity-60'}
                   [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
                   [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
-                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
+                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:-mt-1.5
+                  [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent
                   [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
                   [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
               />
-              
-              {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
+
+              {(songDuration > 0 && (loopStart !== null || loopEnd !== null)) && (
+                <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-20">
+                  {loopStart !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-green-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
                       style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
+                        left: `${(loopStart / songDuration) * 100}%`,
+                        transform: 'translate(-50%, -50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        if (canInteract) {
+                          setIsDraggingA(true);
+                        }
+                      }}
+                      title={`A地点: ${formatTime(loopStart)} (ドラッグで移動)`}
+                    >
+                      <span className="text-[8px] font-bold text-black">A</span>
+                    </div>
                   )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
+
+                  {loopEnd !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-red-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
                       style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
+                        left: `${(loopEnd / songDuration) * 100}%`,
+                        transform: 'translate(-50%, -50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      onPointerDown={(event) => {
+                        event.preventDefault();
+                        if (canInteract) {
+                          setIsDraggingB(true);
+                        }
                       }}
-                    />
+                      title={`B地点: ${formatTime(loopEnd)} (ドラッグで移動)`}
+                    >
+                      <span className="text-[8px] font-bold text-black">B</span>
+                    </div>
                   )}
                 </div>
               )}
             </div>
-            
+
             <div className="text-sm text-gray-300 min-w-[80px] text-right">
               {formatTime(currentTime)} / {formatTime(songDuration)}
             </div>
