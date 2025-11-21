@@ -448,6 +448,28 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     return Math.max(0, Math.min(timeline, durationLimit));
   }, [currentSongDuration]);
 
+  const getEffectivePitchShift = useCallback((): number => {
+    const safeSpeed = Math.max(settings.playbackSpeed, 0.0001);
+    const speedSemitoneOffset = Math.log2(safeSpeed) * 12;
+    return settings.transpose - speedSemitoneOffset;
+  }, [settings.playbackSpeed, settings.transpose]);
+
+  const disposePitchShiftNode = useCallback(() => {
+    if (pitchShiftRef.current) {
+      try {
+        pitchShiftRef.current.disconnect();
+      } catch {
+        // ignore
+      }
+      try {
+        pitchShiftRef.current.dispose();
+      } catch (error) {
+        log.warn('PitchShift dispose failed', error);
+      }
+      pitchShiftRef.current = null;
+    }
+  }, []);
+
 const playFromOffset = useCallback(
   async (requestedOffset: number) => {
     if (!gameEngine) {
@@ -475,7 +497,9 @@ const playFromOffset = useCallback(
       source.playbackRate.setValueAtTime(playbackSpeedRef.current, audioContext.currentTime);
 
       const gainNode = ensureMusicGainNode(audioContext);
-      if (settings.transpose !== 0) {
+      const pitchShiftAmount = getEffectivePitchShift();
+      const shouldUsePitchShift = Math.abs(pitchShiftAmount) > 0.001;
+      if (shouldUsePitchShift) {
         try {
           await Tone.start();
         } catch (err) {
@@ -489,7 +513,9 @@ const playFromOffset = useCallback(
           log.warn('Tone context assignment failed', err);
         }
         if (!pitchShiftRef.current) {
-          pitchShiftRef.current = new Tone.PitchShift({ pitch: settings.transpose });
+          pitchShiftRef.current = new Tone.PitchShift({ pitch: pitchShiftAmount });
+        } else {
+          (pitchShiftRef.current as any).pitch = pitchShiftAmount;
         }
         try {
           (pitchShiftRef.current as any).disconnect();
@@ -504,14 +530,7 @@ const playFromOffset = useCallback(
           source.connect(gainNode);
         }
       } else {
-        if (pitchShiftRef.current) {
-          try {
-            pitchShiftRef.current.dispose();
-          } catch (err) {
-            log.warn('PitchShift dispose failed', err);
-          }
-          pitchShiftRef.current = null;
-        }
+        disposePitchShiftNode();
         source.connect(gainNode);
       }
 
@@ -550,18 +569,19 @@ const playFromOffset = useCallback(
       baseOffsetRef.current = audioContext.currentTime - safeOffset / playbackSpeedRef.current;
     }
   },
-  [
-    audioLoaded,
-    currentSongDuration,
-    ensureAudioContext,
-    ensureMusicGainNode,
-    gameEngine,
-    hasAudioTrack,
-    pause,
-    settings.transpose,
-    stopCurrentBufferSource,
-    updateTime
-  ]
+    [
+      audioLoaded,
+      currentSongDuration,
+      disposePitchShiftNode,
+      ensureAudioContext,
+      ensureMusicGainNode,
+      gameEngine,
+      getEffectivePitchShift,
+      hasAudioTrack,
+      pause,
+      stopCurrentBufferSource,
+      updateTime
+    ]
 );
 
     useEffect(() => {
@@ -751,6 +771,18 @@ useEffect(() => {
     }
   }, [isSettingsOpen, isPlaying, pause]);
 
+  const applyPitchCompensationIfNeeded = useCallback(() => {
+    if (!pitchShiftRef.current) {
+      return;
+    }
+    const pitchShiftAmount = getEffectivePitchShift();
+    if (Math.abs(pitchShiftAmount) < 0.001) {
+      disposePitchShiftNode();
+      return;
+    }
+    (pitchShiftRef.current as any).pitch = pitchShiftAmount;
+  }, [disposePitchShiftNode, getEffectivePitchShift]);
+
   // 再生スピード変更の同期
   useEffect(() => {
     const previousSpeed = playbackSpeedRef.current;
@@ -769,10 +801,16 @@ useEffect(() => {
       );
     }
 
+    applyPitchCompensationIfNeeded();
+
     if (gameEngine) {
       updateEngineSettings();
     }
-  }, [settings.playbackSpeed, gameEngine, updateEngineSettings]);
+  }, [settings.playbackSpeed, applyPitchCompensationIfNeeded, gameEngine, updateEngineSettings]);
+
+  useEffect(() => {
+    applyPitchCompensationIfNeeded();
+  }, [applyPitchCompensationIfNeeded]);
   
   // シーク機能（音声あり/なし両対応）
   useEffect(() => {
