@@ -180,37 +180,93 @@ const ControlBar: React.FC = () => {
               {/* ループマーカー */}
               {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
                 <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
-                  )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
                   {/* ループ範囲の背景 */}
                   {abRepeat.startTime !== null && abRepeat.endTime !== null && (
                     <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
+                      className={`absolute top-0 h-2 rounded transition-opacity ${
+                        abRepeat.enabled 
+                          ? 'bg-green-400 opacity-50' 
+                          : 'bg-gray-400 opacity-20'
+                      }`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      }}
+                    />
+                  )}
+                  
+                  {/* A地点マーカー - ドラッグ可能 */}
+                  {abRepeat.startTime !== null && (
+                    <div
+                      className={`absolute top-0 w-2 h-2 shadow-lg cursor-ew-resize pointer-events-auto transition-all ${
+                        abRepeat.enabled 
+                          ? 'bg-green-500 border-2 border-green-300' 
+                          : 'bg-green-400 border border-green-300'
+                      }`}
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)',
+                        zIndex: 10
+                      }}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const slider = e.currentTarget.parentElement?.parentElement?.querySelector('input[type="range"]') as HTMLInputElement;
+                        if (!slider) return;
+                        
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const rect = slider.getBoundingClientRect();
+                          const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
+                          const newTime = percent * songDuration;
+                          setABRepeatStart(newTime);
+                        };
+                        
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+                        
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
+                    />
+                  )}
+                  
+                  {/* B地点マーカー - ドラッグ可能 */}
+                  {abRepeat.endTime !== null && (
+                    <div
+                      className={`absolute top-0 w-2 h-2 shadow-lg cursor-ew-resize pointer-events-auto transition-all ${
+                        abRepeat.enabled 
+                          ? 'bg-red-500 border-2 border-red-300' 
+                          : 'bg-red-400 border border-red-300'
+                      }`}
+                      style={{
+                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)',
+                        zIndex: 10
+                      }}
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const slider = e.currentTarget.parentElement?.parentElement?.querySelector('input[type="range"]') as HTMLInputElement;
+                        if (!slider) return;
+                        
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const rect = slider.getBoundingClientRect();
+                          const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
+                          const newTime = percent * songDuration;
+                          setABRepeatEnd(newTime);
+                        };
+                        
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+                        
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
                       }}
                     />
                   )}
