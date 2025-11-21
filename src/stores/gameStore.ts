@@ -606,7 +606,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
               const storeSnapshot = useGameStore.getState();
               const { abRepeat } = storeSnapshot;
               
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
+              // ステージモードではABループを無効化
+              if (storeSnapshot.mode === 'performance') {
+                // ステージモードではABループを実行しない
+              } else if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
@@ -922,6 +925,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         toggleABRepeat: () => set((state) => {
+          // ステージモードではABループを無効化
+          if (state.mode === 'performance') {
+            state.abRepeat.enabled = false;
+            return;
+          }
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
