@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -62,6 +62,42 @@ const ControlBar: React.FC = () => {
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
   const songDuration = currentSong?.duration || 0;
+  
+  // ABマーカードラッグ用
+  const seekbarContainerRef = useRef<HTMLDivElement | null>(null);
+  const draggingRef = useRef<null | { which: 'A' | 'B' }>(null);
+  
+  const pxToTime = useCallback((clientX: number): number => {
+    const el = seekbarContainerRef.current;
+    if (!el || songDuration <= 0) return 0;
+    const rect = el.getBoundingClientRect();
+    const x = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    return (x / rect.width) * songDuration;
+  }, [songDuration]);
+  
+  useEffect(() => {
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      if (!draggingRef.current) return;
+      const clientX = (e instanceof TouchEvent ? e.touches[0]?.clientX : (e as MouseEvent).clientX) ?? 0;
+      const t = pxToTime(clientX);
+      if (draggingRef.current.which === 'A') {
+        setABRepeatStart(Math.min(t, abRepeat.endTime ?? songDuration));
+      } else {
+        setABRepeatEnd(Math.max(t, abRepeat.startTime ?? 0));
+      }
+    };
+    const onUp = () => { draggingRef.current = null; };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+    window.addEventListener('touchmove', onMove, { passive: false });
+    window.addEventListener('touchend', onUp);
+    return () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+      window.removeEventListener('touchmove', onMove);
+      window.removeEventListener('touchend', onUp);
+    };
+  }, [abRepeat.endTime, abRepeat.startTime, pxToTime, setABRepeatEnd, setABRepeatStart, songDuration]);
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -159,7 +195,7 @@ const ControlBar: React.FC = () => {
       {settings.showSeekbar && (
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={seekbarContainerRef}>
               <input
                 type="range"
                 min="0"
@@ -183,31 +219,35 @@ const ControlBar: React.FC = () => {
                   {/* A地点マーカー */}
                   {abRepeat.startTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg pointer-events-auto cursor-ew-resize"
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
                       title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      onMouseDown={() => draggingRef.current = { which: 'A' }}
+                      onTouchStart={() => draggingRef.current = { which: 'A' }}
                     />
                   )}
                   
                   {/* B地点マーカー */}
                   {abRepeat.endTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg pointer-events-auto cursor-ew-resize"
                       style={{
                         left: `${(abRepeat.endTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
                       title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                      onMouseDown={() => draggingRef.current = { which: 'B' }}
+                      onTouchStart={() => draggingRef.current = { which: 'B' }}
                     />
                   )}
                   
-                  {/* ループ範囲の背景 */}
+                  {/* ループ範囲の背景（ON時は強調） */}
                   {abRepeat.startTime !== null && abRepeat.endTime !== null && (
                     <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
+                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-500/50 border border-green-400/40' : 'bg-gray-400/30'} rounded`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
