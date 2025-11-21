@@ -177,37 +177,79 @@ const ControlBar: React.FC = () => {
                   [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
               />
               
-              {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+              {/* ループマーカー - 練習モードのみ表示、ドラッグ可能 */}
+              {isPracticeMode && (abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
                 <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
+                  {/* A地点マーカー - ドラッグ可能 */}
                   {abRepeat.startTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className="absolute top-0 w-2 h-2 bg-green-400 shadow-lg cursor-ew-resize pointer-events-auto z-10"
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                          if (!rect) return;
+                          const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
+                          const newTime = percent * songDuration;
+                          if (abRepeat.endTime === null || newTime < abRepeat.endTime) {
+                            setABRepeatStart(newTime);
+                          }
+                        };
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
                     />
                   )}
                   
-                  {/* B地点マーカー */}
+                  {/* B地点マーカー - ドラッグ可能 */}
                   {abRepeat.endTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className="absolute top-0 w-2 h-2 bg-red-400 shadow-lg cursor-ew-resize pointer-events-auto z-10"
                       style={{
                         left: `${(abRepeat.endTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const handleMouseMove = (moveEvent: MouseEvent) => {
+                          const rect = e.currentTarget.parentElement?.getBoundingClientRect();
+                          if (!rect) return;
+                          const percent = Math.max(0, Math.min(1, (moveEvent.clientX - rect.left) / rect.width));
+                          const newTime = percent * songDuration;
+                          if (abRepeat.startTime === null || newTime > abRepeat.startTime) {
+                            setABRepeatEnd(newTime);
+                          }
+                        };
+                        const handleMouseUp = () => {
+                          document.removeEventListener('mousemove', handleMouseMove);
+                          document.removeEventListener('mouseup', handleMouseUp);
+                        };
+                        document.addEventListener('mousemove', handleMouseMove);
+                        document.addEventListener('mouseup', handleMouseUp);
+                      }}
                     />
                   )}
                   
-                  {/* ループ範囲の背景 */}
+                  {/* ループ範囲の背景 - ON時は目立たせる */}
                   {abRepeat.startTime !== null && abRepeat.endTime !== null && (
                     <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
+                      className={`absolute top-0 h-2 ${
+                        abRepeat.enabled 
+                          ? 'bg-green-400 opacity-50' 
+                          : 'bg-gray-400 opacity-20'
+                      } rounded transition-opacity`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
@@ -261,7 +303,7 @@ const ControlBar: React.FC = () => {
                 <FaForward />
               </button>
 
-              {/* ループコントロール */}
+              {/* ループコントロール - 練習モードのみ表示 */}
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
@@ -272,7 +314,7 @@ const ControlBar: React.FC = () => {
                 </button>
               </div>
 
-              {/* A/B地点設定（コンパクト） */}
+              {/* A/B地点設定（コンパクト） - 練習モードのみ表示 */}
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
