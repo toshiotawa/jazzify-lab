@@ -444,7 +444,7 @@ interface GameStoreState extends GameState {
   // 再生制御
   play: () => void;
   pause: () => void;
-  stop: () => void;
+  stop: (options?: { resetPosition?: boolean }) => void;
   seek: (time: number) => void;
   updateTime: (time: number) => void;
   
@@ -842,15 +842,22 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = true;
           }),
           
-          stop: () => set((state) => {
+          stop: (options) => set((state) => {
+            const shouldResetPosition = options?.resetPosition ?? true;
             state.isPlaying = false;
-            state.isPaused = false;
-            state.currentTime = 0;
-            state.activeNotes.clear();
+            state.isPaused = shouldResetPosition ? false : true;
             
-            // GameEngineも停止
+            if (shouldResetPosition) {
+              state.currentTime = 0;
+              state.activeNotes.clear();
+            }
+            
             if (state.gameEngine) {
-              state.gameEngine.stop();
+              if (shouldResetPosition) {
+                state.gameEngine.stop();
+              } else {
+                state.gameEngine.pause();
+              }
             }
           }),
         
