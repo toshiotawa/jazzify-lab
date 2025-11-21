@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -29,6 +29,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const [error, setError] = useState<string | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
   
+  // 譜面全体の幅とプレイヘッド位置
+  const sheetWidthRef = useRef<number>(0);
+  const [playheadLeft, setPlayheadLeft] = useState<number>(120);
+  const PLAYHEAD_BASE_X = 120;
+  
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const mappingCursorRef = useRef<number>(0);
@@ -36,17 +41,102 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
+  // time(ms) → x(px)
+  const getXForTime = useCallback((timeMs: number): number => {
+    const mapping = timeMappingRef.current;
+    if (!mapping || mapping.length === 0) return 0;
+    const sheetWidth = sheetWidthRef.current || (scoreWrapperRef.current?.scrollWidth || 0);
+
+    if (timeMs <= mapping[0].timeMs) return mapping[0].xPosition;
+
+    const last = mapping[mapping.length - 1];
+    if (timeMs >= last.timeMs) {
+      const songDurationMs = (currentSong?.duration || 0) * 1000;
+      const tailTime = Math.max(0, songDurationMs - last.timeMs);
+      const tailWidth = Math.max(0, sheetWidth - last.xPosition);
+      if (tailTime <= 0 || tailWidth <= 0) return Math.min(sheetWidth, last.xPosition);
+      const ratio = Math.min(1, (timeMs - last.timeMs) / tailTime);
+      return Math.min(sheetWidth, last.xPosition + ratio * tailWidth);
+    }
+
+    // 二分探索
+    let low = 0;
+    let high = mapping.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (mapping[mid].timeMs <= timeMs) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const i = Math.max(0, Math.min(mapping.length - 2, low - 1));
+    const a = mapping[i];
+    const b = mapping[i + 1];
+    const t = (timeMs - a.timeMs) / Math.max(1, (b.timeMs - a.timeMs));
+    return a.xPosition + t * (b.xPosition - a.xPosition);
+  }, [currentSong]);
+
+  // x(px) → time(s)
+  const getTimeForX = useCallback((xPos: number): number => {
+    const mapping = timeMappingRef.current;
+    if (!mapping || mapping.length === 0) return 0;
+    const sheetWidth = sheetWidthRef.current || (scoreWrapperRef.current?.scrollWidth || 0);
+
+    const x = Math.max(0, Math.min(xPos, sheetWidth));
+
+    if (x <= mapping[0].xPosition) return mapping[0].timeMs / 1000;
+
+    const last = mapping[mapping.length - 1];
+    if (x >= last.xPosition) {
+      const songDurationMs = (currentSong?.duration || 0) * 1000;
+      const tailWidth = Math.max(0, sheetWidth - last.xPosition);
+      if (tailWidth <= 0) return last.timeMs / 1000;
+      const ratio = Math.min(1, (x - last.xPosition) / tailWidth);
+      return (last.timeMs + ratio * Math.max(0, songDurationMs - last.timeMs)) / 1000;
+    }
+
+    // xで二分探索
+    let low = 0;
+    let high = mapping.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (mapping[mid].xPosition <= x) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const i = Math.max(0, Math.min(mapping.length - 2, low - 1));
+    const a = mapping[i];
+    const b = mapping[i + 1];
+    const ratio = (x - a.xPosition) / Math.max(1, (b.xPosition - a.xPosition));
+    const timeMs = a.timeMs + ratio * (b.timeMs - a.timeMs);
+    return timeMs / 1000;
+  }, [currentSong]);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  // 時間フォーマット関数
+  const formatTime = useCallback((seconds: number): string => {
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  }, []);
+  
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat, mode, currentSong } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    abRepeat: s.abRepeat,
+    mode: s.mode,
+    currentSong: s.currentSong
   }));
   const shouldRenderSheet = settings.showSheetMusic;
+  const { setABRepeatStart, setABRepeatEnd } = useGameActions();
   
   // const gameActions = useGameActions(); // 現在未使用
   
@@ -254,6 +344,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             const osmdWidth = boundingBox.width;
             scaleFactorRef.current = renderedWidth / osmdWidth;
             log.info(`✅ OSMD scale factor calculated: ${scaleFactorRef.current} (Rendered: ${renderedWidth}px, BBox: ${osmdWidth})`);
+            
+            // 譜面全体の幅を保存
+            sheetWidthRef.current = boundingBox.width * scaleFactorRef.current;
+            // ラッパの見かけ幅を合わせると座標計算が安定
+            if (scoreWrapperRef.current && sheetWidthRef.current > 0) {
+              (scoreWrapperRef.current as HTMLDivElement).style.width = `${sheetWidthRef.current}px`;
+            }
           } else {
             log.warn('⚠️ Could not determine rendered width, falling back to default 10.');
             scaleFactorRef.current = 10;
@@ -334,81 +431,48 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     //   }
     // }, [isPlaying]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
+    // currentTimeが変更されるたびにスクロール位置を更新（終端対応版）
     useEffect(() => {
       const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        prevTimeRef.current = currentTime; // 早期returnでも更新
+      if (!shouldRenderSheet || !scoreWrapperRef.current || !scrollContainerRef.current) {
+        prevTimeRef.current = currentTime;
         return;
       }
+      const container = scrollContainerRef.current;
+      const wrapper = scoreWrapperRef.current;
 
-      const currentTimeMs = currentTime * 1000;
+      const x = getXForTime(currentTime * 1000);
+      const viewport = container.clientWidth || 0;
+      const sheetWidth = sheetWidthRef.current || wrapper.scrollWidth || 0;
+      const maxScrollX = Math.max(0, sheetWidth - viewport);
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
-      const findActiveIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        
-        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
+      // コンテンツを左に動かすための必要スクロール量
+      const targetScrollX = Math.max(0, x - PLAYHEAD_BASE_X);
+
+      // 余剰=譜面終端に当たって以降はプレイヘッドを右へ動かす
+      const extra = Math.max(0, targetScrollX - maxScrollX);
+      const nextPlayheadLeft = Math.min(viewport - 2, PLAYHEAD_BASE_X + extra);
+
+      const needsUpdate =
+        Math.abs(nextPlayheadLeft - playheadLeft) > 0.5 ||
+        Math.abs(targetScrollX - lastScrollXRef.current) > 0.5;
+
+      if (needsUpdate) {
+        if (isPlaying) {
+          wrapper.style.transform = `translateX(-${Math.min(targetScrollX, maxScrollX)}px)`;
+          if (Math.abs(container.scrollLeft) > 0.5) {
+            container.scrollLeft = 0;
           }
+        } else {
+          wrapper.style.transform = `translateX(0px)`;
+          container.scrollLeft = Math.min(targetScrollX, maxScrollX);
         }
-        // low は「次に演奏されるべき音符」のインデックスになっているため、
-        // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
-      };
-
-      // 計算されたインデックスを取得（範囲外ならクランプ）
-      const rawIndex = findActiveIndex();
-      const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
-
-      mappingCursorRef.current = activeIndex;
-
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
-      const prev = prevTimeRef.current;
-      const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
-      const forceAtZero = currentTime < 0.02;       // 0秒付近
-
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
-          const wrapper = scoreWrapperRef.current;
-          const scrollContainer = scrollContainerRef.current;
-          if (isPlaying) {
-            if (wrapper) {
-              wrapper.style.transform = `translateX(-${scrollX}px)`;
-            }
-            if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
-              scrollContainer.scrollLeft = 0;
-            }
-          } else if (scrollContainer) {
-            if (wrapper) {
-              wrapper.style.transform = 'translateX(0px)';
-            }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
-          }
-          lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
-        }
+        lastScrollXRef.current = Math.min(targetScrollX, maxScrollX);
+        setPlayheadLeft(nextPlayheadLeft);
+      }
 
       prevTimeRef.current = currentTime;
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    }, [currentTime, isPlaying, shouldRenderSheet, getXForTime, playheadLeft]);
 
     // ホイールスクロール制御
   useEffect(() => {
@@ -459,7 +523,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       {/* プレイヘッド（赤い縦線） - スクロール位置に影響されないよう外側へ配置 */}
       <div 
         className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-        style={{ left: '120px' }}
+        style={{ left: `${playheadLeft}px` }}
         aria-hidden="true"
       />
       <div 
@@ -507,7 +571,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             <div 
               ref={scoreWrapperRef}
               className={cn(
-                "h-full",
+                "h-full relative",
                 // 停止中は手動スクロール時の移動を滑らかにする
                 !isPlaying ? "transition-transform duration-100 ease-out" : ""
               )}
@@ -520,6 +584,79 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 ref={containerRef} 
                 className="h-full flex items-center"
               />
+              
+              {/* OSMD上のABマーカー（練習モードのみ） */}
+              {mode === 'practice' && (abRepeat.startTime !== null || abRepeat.endTime !== null) && sheetWidthRef.current > 0 && (
+                <div className="absolute inset-0 z-10 pointer-events-none">
+                  {/* 範囲塗り（ON時強調） */}
+                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (() => {
+                    const xA = getXForTime(abRepeat.startTime * 1000);
+                    const xB = getXForTime(abRepeat.endTime * 1000);
+                    const left = Math.min(xA, xB);
+                    const width = Math.abs(xB - xA);
+                    return (
+                      <div
+                        className={`${abRepeat.enabled ? 'bg-emerald-400/20 border border-emerald-400/40' : 'bg-slate-400/20'} absolute top-0 bottom-0 rounded-sm`}
+                        style={{ left, width }}
+                      />
+                    );
+                  })()}
+
+                  {/* A線 */}
+                  {abRepeat.startTime !== null && (() => {
+                    const xA = getXForTime(abRepeat.startTime * 1000);
+                    return (
+                      <div
+                        className="absolute top-0 bottom-0 w-[2px] bg-emerald-400 shadow pointer-events-auto cursor-ew-resize"
+                        style={{ left: xA - 1 }}
+                        title={`A: ${formatTime(abRepeat.startTime)}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const onMove = (ev: MouseEvent) => {
+                            const rect = scoreWrapperRef.current?.getBoundingClientRect();
+                            const x = ev.clientX - (rect?.left ?? 0);
+                            const t = getTimeForX(x);
+                            setABRepeatStart(Math.min(t, abRepeat.endTime ?? (currentSong?.duration ?? t)));
+                          };
+                          const onUp = () => {
+                            window.removeEventListener('mousemove', onMove);
+                            window.removeEventListener('mouseup', onUp);
+                          };
+                          window.addEventListener('mousemove', onMove);
+                          window.addEventListener('mouseup', onUp);
+                        }}
+                      />
+                    );
+                  })()}
+
+                  {/* B線 */}
+                  {abRepeat.endTime !== null && (() => {
+                    const xB = getXForTime(abRepeat.endTime * 1000);
+                    return (
+                      <div
+                        className="absolute top-0 bottom-0 w-[2px] bg-rose-400 shadow pointer-events-auto cursor-ew-resize"
+                        style={{ left: xB - 1 }}
+                        title={`B: ${formatTime(abRepeat.endTime)}`}
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          const onMove = (ev: MouseEvent) => {
+                            const rect = scoreWrapperRef.current?.getBoundingClientRect();
+                            const x = ev.clientX - (rect?.left ?? 0);
+                            const t = getTimeForX(x);
+                            setABRepeatEnd(Math.max(t, abRepeat.startTime ?? 0));
+                          };
+                          const onUp = () => {
+                            window.removeEventListener('mousemove', onMove);
+                            window.removeEventListener('mouseup', onUp);
+                          };
+                          window.addEventListener('mousemove', onMove);
+                          window.addEventListener('mouseup', onUp);
+                        }}
+                      />
+                    );
+                  })()}
+                </div>
+              )}
             </div>
           </div>
         </div>
