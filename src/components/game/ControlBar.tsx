@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -59,9 +59,11 @@ const ControlBar: React.FC = () => {
     toggleSettings
   } = useGameActions();
 
-  const isPracticeMode = mode === 'practice';
-  const canInteract = isPracticeMode;
-  const songDuration = currentSong?.duration || 0;
+    const isPracticeMode = mode === 'practice';
+    const canInteract = isPracticeMode;
+    const songDuration = currentSong?.duration || 0;
+    const rangeRef = useRef<HTMLInputElement>(null);
+    const epsilon = 0.05;
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -70,8 +72,8 @@ const ControlBar: React.FC = () => {
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   }, []);
 
-  // シークバーハンドラー
-  const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    // シークバーハンドラー
+    const handleSeek = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     if (!canInteract) return;
     const newTime = parseFloat(e.target.value);
     seek(newTime);
@@ -138,7 +140,7 @@ const ControlBar: React.FC = () => {
     transpose(-1);
   }, [transpose]);
 
-  const handleTransposeUp = useCallback(() => {
+    const handleTransposeUp = useCallback(() => {
     transpose(1);
   }, [transpose]);
 
@@ -149,9 +151,76 @@ const ControlBar: React.FC = () => {
 
 
   // 楽譜表示の切り替え
-  const toggleSheetMusic = useCallback(() => {
+    const toggleSheetMusic = useCallback(() => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
+
+    const pxToTime = useCallback((clientX: number) => {
+      const rect = rangeRef.current?.getBoundingClientRect();
+      if (!rect || songDuration <= 0) {
+        return 0;
+      }
+      const ratio = Math.min(1, Math.max(0, (clientX - rect.left) / rect.width));
+      return ratio * songDuration;
+    }, [songDuration]);
+
+    const startDragHandle = useCallback(
+      (target: 'A' | 'B') =>
+        (event: React.MouseEvent<HTMLButtonElement> | React.TouchEvent<HTMLButtonElement>) => {
+          if (!isPracticeMode) {
+            return;
+          }
+          event.preventDefault();
+
+          const moveHandle = (clientX: number) => {
+            const time = pxToTime(clientX);
+            if (target === 'A') {
+              const end = abRepeat.endTime ?? songDuration;
+              const newStart = Math.min(Math.max(0, time), end - epsilon);
+              setABRepeatStart(newStart);
+            } else {
+              const start = abRepeat.startTime ?? 0;
+              const newEnd = Math.max(Math.min(songDuration, time), start + epsilon);
+              setABRepeatEnd(newEnd);
+            }
+          };
+
+          const handleMouseMove = (e: MouseEvent) => {
+            e.preventDefault();
+            moveHandle(e.clientX);
+          };
+
+          const handleTouchMove = (e: TouchEvent) => {
+            if (e.touches[0]) {
+              e.preventDefault();
+              moveHandle(e.touches[0].clientX);
+            }
+          };
+
+          const cleanup = () => {
+            window.removeEventListener('mousemove', handleMouseMove);
+            window.removeEventListener('mouseup', cleanup);
+            window.removeEventListener('touchmove', handleTouchMove);
+            window.removeEventListener('touchend', cleanup);
+            window.removeEventListener('touchcancel', cleanup);
+          };
+
+          window.addEventListener('mousemove', handleMouseMove);
+          window.addEventListener('mouseup', cleanup);
+          window.addEventListener('touchmove', handleTouchMove, { passive: false });
+          window.addEventListener('touchend', cleanup);
+          window.addEventListener('touchcancel', cleanup);
+
+          if ('touches' in event) {
+            if (event.touches[0]) {
+              moveHandle(event.touches[0].clientX);
+            }
+          } else {
+            moveHandle(event.clientX);
+          }
+        },
+      [abRepeat.endTime, abRepeat.startTime, epsilon, isPracticeMode, pxToTime, setABRepeatEnd, setABRepeatStart, songDuration]
+    );
 
   return (
     <div className="w-full">
@@ -160,7 +229,8 @@ const ControlBar: React.FC = () => {
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
             <div className="relative flex-1">
-              <input
+                <input
+                  ref={rangeRef}
                 type="range"
                 min="0"
                 max={songDuration}
@@ -177,45 +247,44 @@ const ControlBar: React.FC = () => {
                   [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
               />
               
-              {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
-                  )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
-                      }}
-                    />
-                  )}
-                </div>
-              )}
+                {/* ループマーカー */}
+                {isPracticeMode && (abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+                  <div className="absolute top-0 left-0 w-full h-3 pointer-events-none">
+                    {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                      <div
+                        className={`absolute top-[2px] h-2 rounded ${abRepeat.enabled ? 'bg-green-500/50 ring-2 ring-green-400 animate-pulse' : 'bg-gray-400/30'}`}
+                        style={{
+                          left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                          width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                        }}
+                      />
+                    )}
+
+                    {abRepeat.startTime !== null && (
+                      <button
+                        type="button"
+                        onMouseDown={startDragHandle('A')}
+                        onTouchStart={startDragHandle('A')}
+                        className="absolute top-0 -translate-x-1/2 -mt-1 w-3 h-3 rounded-full bg-green-400 shadow-lg border border-white pointer-events-auto"
+                        style={{ left: `${(abRepeat.startTime / songDuration) * 100}%` }}
+                        aria-label={`A地点: ${formatTime(abRepeat.startTime)}`}
+                        title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      />
+                    )}
+
+                    {abRepeat.endTime !== null && (
+                      <button
+                        type="button"
+                        onMouseDown={startDragHandle('B')}
+                        onTouchStart={startDragHandle('B')}
+                        className="absolute top-0 -translate-x-1/2 -mt-1 w-3 h-3 rounded-full bg-red-400 shadow-lg border border-white pointer-events-auto"
+                        style={{ left: `${(abRepeat.endTime / songDuration) * 100}%` }}
+                        aria-label={`B地点: ${formatTime(abRepeat.endTime)}`}
+                        title={`B地点: ${formatTime(abRepeat.endTime)}`}
+                      />
+                    )}
+                  </div>
+                )}
             </div>
             
             <div className="text-sm text-gray-300 min-w-[80px] text-right">
