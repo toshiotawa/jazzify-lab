@@ -75,10 +75,11 @@ export class GameEngine {
   };
   
   // 音楽同期
-  private audioContext: AudioContext | null = null;
-  private startTime: number = 0;
-  private pausedTime: number = 0;
-  private latencyOffset: number = 0;
+    private audioContext: AudioContext | null = null;
+    private startTime: number = 0;
+    private pausedTime: number = 0;
+    private timelineCursor: number = 0;
+    private latencyOffset: number = 0;
   private onUpdate?: (data: GameEngineUpdate) => void;
   private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
@@ -240,7 +241,8 @@ export class GameEngine {
   }
   
   pause(): void {
-    this.pausedTime = this.getCurrentTime();
+      this.pausedTime = this.getCurrentTime();
+      this.timelineCursor = this.pausedTime;
     this.stopGameLoop();
   }
   
@@ -258,25 +260,31 @@ export class GameEngine {
   }
   
   stop(): void {
-    this.pausedTime = 0;
+      this.pausedTime = 0;
+      this.timelineCursor = 0;
     this.stopGameLoop();
     this.recycleAllActiveNotes();
     this.resetNoteProcessing(0);
     this.resetScore();
   }
   
-  seek(time: number): void {
-    if (!this.audioContext) {
-      return;
-    }
-    const safeTime = Math.max(0, time);
-    
-    // 🔧 修正: 再生速度を考慮したstartTime計算
-    // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
-    // 論理時間を実時間に変換してからオフセットを計算する
-    const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
-    this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
-    this.pausedTime = 0;
+    seek(time: number): void {
+      const safeTime = Math.max(0, time);
+      this.timelineCursor = safeTime;
+      this.pausedTime = safeTime;
+      
+      if (!this.audioContext) {
+        this.recycleAllActiveNotes();
+        this.resetNoteProcessing(safeTime);
+        return;
+      }
+      
+      // 🔧 修正: 再生速度を考慮したstartTime計算
+      // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
+      // 論理時間を実時間に変換してからオフセットを計算する
+      const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
+      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+      this.pausedTime = 0;
     
     // **完全なアクティブノーツリセット**
     this.recycleAllActiveNotes();
@@ -466,10 +474,19 @@ export class GameEngine {
   
   // ===== プライベートメソッド =====
   
-  private getCurrentTime(): number {
-    if (!this.audioContext) return 0;
-    return (this.audioContext.currentTime - this.startTime - this.latencyOffset)
-      * (this.settings.playbackSpeed ?? 1);
+    private getCurrentTime(): number {
+      if (!this.audioContext) {
+        return this.timelineCursor;
+      }
+      if (!this.isGameLoopRunning) {
+        return this.pausedTime || this.timelineCursor;
+      }
+      const elapsed =
+        (this.audioContext.currentTime - this.startTime - this.latencyOffset) *
+        (this.settings.playbackSpeed ?? 1);
+      const clamped = Math.max(0, elapsed);
+      this.timelineCursor = clamped;
+      return clamped;
   }
   
   private calculateLatency(): void {
