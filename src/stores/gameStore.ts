@@ -604,9 +604,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
               const storeSnapshot = useGameStore.getState();
-              const { abRepeat } = storeSnapshot;
+              const { abRepeat, mode } = storeSnapshot;
               
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
+              // ステージモード（本番モード）ではABループを無効化
+              if (mode === 'performance') {
+                // ステージモード時はABループを実行しない
+              } else if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
@@ -881,6 +884,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // ABリピート制御
         setABRepeatStart: (time) => set((state) => {
+          // ステージモード（本番モード）ではABループ地点を設定できない
+          if (state.mode === 'performance') {
+            return;
+          }
           const currentTime = time ?? state.currentTime;
           state.abRepeat.startTime = currentTime;
           
@@ -891,6 +898,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         setABRepeatEnd: (time) => set((state) => {
+          // ステージモード（本番モード）ではABループ地点を設定できない
+          if (state.mode === 'performance') {
+            return;
+          }
           const currentTime = time ?? state.currentTime;
           
           // 開始時間が設定されていない、または開始時間より後の場合のみ設定
@@ -922,6 +933,10 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         toggleABRepeat: () => set((state) => {
+          // ステージモード（本番モード）ではABループを有効化できない
+          if (state.mode === 'performance') {
+            return;
+          }
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
@@ -1191,6 +1206,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         setMode: (mode) => set((state) => {
           const previousMode = state.mode;
           state.mode = mode;
+          
+          // ステージモード（本番モード）に切り替えた時はABループを無効化
+          if (mode === 'performance') {
+            state.abRepeat.enabled = false;
+          }
           
           if (mode === 'practice') {
             state.currentTab = 'practice';

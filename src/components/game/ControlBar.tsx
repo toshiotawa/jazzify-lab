@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -153,13 +153,58 @@ const ControlBar: React.FC = () => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
 
+  // ABループ地点のドラッグハンドラー
+  const [draggingMarker, setDraggingMarker] = useState<'A' | 'B' | null>(null);
+  const seekbarRef = useRef<HTMLDivElement>(null);
+
+  const handleMarkerMouseDown = useCallback((e: React.MouseEvent, marker: 'A' | 'B') => {
+    if (!canInteract || mode === 'performance') return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingMarker(marker);
+  }, [canInteract, mode]);
+
+  useEffect(() => {
+    if (!draggingMarker || !seekbarRef.current || songDuration === 0) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      if (!seekbarRef.current) return;
+      const rect = seekbarRef.current.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const percentage = Math.max(0, Math.min(1, x / rect.width));
+      const newTime = percentage * songDuration;
+
+      if (draggingMarker === 'A') {
+        if (abRepeat.endTime === null || newTime < abRepeat.endTime) {
+          setABRepeatStart(newTime);
+        }
+      } else if (draggingMarker === 'B') {
+        if (abRepeat.startTime !== null && newTime > abRepeat.startTime) {
+          setABRepeatEnd(newTime);
+        }
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDraggingMarker(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingMarker, songDuration, abRepeat, setABRepeatStart, setABRepeatEnd]);
+
   return (
     <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={seekbarRef}>
               <input
                 type="range"
                 min="0"
@@ -180,38 +225,48 @@ const ControlBar: React.FC = () => {
               {/* ループマーカー */}
               {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
                 <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
+                  {/* ループ範囲の背景 */}
+                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                    <div
+                      className={`absolute top-0 h-2 rounded transition-all ${
+                        abRepeat.enabled 
+                          ? 'bg-green-400 opacity-50' 
+                          : 'bg-gray-400 opacity-20'
+                      }`}
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      }}
+                    />
+                  )}
+                  
                   {/* A地点マーカー */}
                   {abRepeat.startTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className={`absolute top-0 w-2 h-2 bg-green-400 shadow-lg rounded-full pointer-events-auto transition-all ${
+                        draggingMarker === 'A' ? 'scale-150 z-20' : 'cursor-grab hover:scale-125 z-10'
+                      } ${mode === 'performance' ? 'opacity-50 cursor-not-allowed' : ''}`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => handleMarkerMouseDown(e, 'A')}
                     />
                   )}
                   
                   {/* B地点マーカー */}
                   {abRepeat.endTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className={`absolute top-0 w-2 h-2 bg-red-400 shadow-lg rounded-full pointer-events-auto transition-all ${
+                        draggingMarker === 'B' ? 'scale-150 z-20' : 'cursor-grab hover:scale-125 z-10'
+                      } ${mode === 'performance' ? 'opacity-50 cursor-not-allowed' : ''}`}
                       style={{
                         left: `${(abRepeat.endTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
-                      }}
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => handleMarkerMouseDown(e, 'B')}
                     />
                   )}
                 </div>
