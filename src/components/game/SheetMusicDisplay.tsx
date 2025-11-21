@@ -14,6 +14,10 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+const PLAYHEAD_POSITION_PX = 120;
+const WRAPPER_SCROLL_PADDING_PX = 320;
+const DEFAULT_WRAPPER_WIDTH_PX = 3000;
+
 /**
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
@@ -27,6 +31,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const lastScrollXRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [wrapperWidth, setWrapperWidth] = useState<number | null>(null);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
@@ -47,6 +52,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     settings: s.settings, // 簡易表示設定を取得
   }));
   const shouldRenderSheet = settings.showSheetMusic;
+  const updateWrapperWidth = useCallback(() => {
+    if (!shouldRenderSheet) {
+      return;
+    }
+    const containerEl = containerRef.current;
+    const scrollContainerEl = scrollContainerRef.current;
+    if (!containerEl || !scrollContainerEl) {
+      return;
+    }
+    const renderSurface = containerEl.querySelector('svg, canvas');
+    const rectWidth = renderSurface?.getBoundingClientRect().width ?? 0;
+    const intrinsicWidth =
+      renderSurface instanceof SVGSVGElement
+        ? renderSurface.width.baseVal.value
+        : renderSurface instanceof HTMLCanvasElement
+          ? renderSurface.width
+          : 0;
+    const measuredWidthCandidates = [
+      containerEl.scrollWidth,
+      containerEl.getBoundingClientRect().width,
+      rectWidth,
+      intrinsicWidth
+    ].filter((value) => typeof value === 'number' && Number.isFinite(value) && value > 0);
+    if (measuredWidthCandidates.length === 0) {
+      return;
+    }
+    const measuredWidth = Math.max(...measuredWidthCandidates);
+    const viewportWidth = scrollContainerEl.clientWidth || 0;
+    const rightPadding = Math.max(viewportWidth - PLAYHEAD_POSITION_PX, 0) + WRAPPER_SCROLL_PADDING_PX;
+    const desiredWidth = Math.max(measuredWidth + rightPadding, viewportWidth + WRAPPER_SCROLL_PADDING_PX);
+    const nextWidth = Math.ceil(desiredWidth);
+    setWrapperWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+  }, [shouldRenderSheet]);
+  const resolvedWrapperWidthPx = `${wrapperWidth ?? DEFAULT_WRAPPER_WIDTH_PX}px`;
   
   // const gameActions = useGameActions(); // 現在未使用
   
@@ -265,6 +304,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       
           // タイムマッピングを作成
             createTimeMapping();
+            updateWrapperWidth();
           lastRenderedIndexRef.current = -1;
           lastScrollXRef.current = 0;
       
@@ -283,7 +323,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       settings.noteNameStyle,
       settings.sheetMusicChordsOnly,
         settings.transpose,
-        createTimeMapping
+          createTimeMapping,
+          updateWrapperWidth
     ]); // 簡易表示設定とトランスポーズを依存関係に追加
 
     useEffect(() => {
@@ -297,6 +338,27 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   useEffect(() => {
     loadAndRenderSheet();
   }, [loadAndRenderSheet]);
+
+  useEffect(() => {
+    if (!shouldRenderSheet) {
+      setWrapperWidth(null);
+      return;
+    }
+    updateWrapperWidth();
+  }, [shouldRenderSheet, updateWrapperWidth]);
+
+  useEffect(() => {
+    if (!shouldRenderSheet || typeof window === 'undefined') {
+      return;
+    }
+    const handleResize = () => {
+      updateWrapperWidth();
+    };
+    window.addEventListener('resize', handleResize);
+    return () => {
+      window.removeEventListener('resize', handleResize);
+    };
+  }, [shouldRenderSheet, updateWrapperWidth]);
 
   useEffect(() => {
     if (!shouldRenderSheet && osmdRef.current) {
@@ -369,8 +431,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       mappingCursorRef.current = activeIndex;
 
-      const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
+        const targetEntry = mapping[activeIndex];
+        const playheadPosition = PLAYHEAD_POSITION_PX;
       
       // targetEntryが存在しない場合のガード処理を追加
       if (!targetEntry) return;
@@ -459,7 +521,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       {/* プレイヘッド（赤い縦線） - スクロール位置に影響されないよう外側へ配置 */}
       <div 
         className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-        style={{ left: '120px' }}
+          style={{ left: `${PLAYHEAD_POSITION_PX}px` }}
         aria-hidden="true"
       />
       <div 
@@ -512,8 +574,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 !isPlaying ? "transition-transform duration-100 ease-out" : ""
               )}
               style={{ 
-                willChange: isPlaying ? 'transform' : 'auto',
-                minWidth: '3000px' // 十分な幅を確保
+                  willChange: isPlaying ? 'transform' : 'auto',
+                  minWidth: resolvedWrapperWidthPx,
+                  width: resolvedWrapperWidthPx
               }}
             >
               <div 
