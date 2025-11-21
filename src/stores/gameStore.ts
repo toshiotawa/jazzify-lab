@@ -81,6 +81,15 @@ interface PerformanceMetrics {
   };
 }
 
+export type PlaybackCommandSource = 'user' | 'loop' | 'system';
+
+export interface PlaybackCommand {
+  id: number;
+  type: 'seek';
+  time: number;
+  source: PlaybackCommandSource;
+}
+
 // ===== デフォルト値 =====
 
 const defaultScore: GameScore = {
@@ -409,6 +418,10 @@ interface GameStoreState extends GameState {
     practiceGuide: 'off' | 'key' | 'key_auto';
   };
   
+  // 再生コマンド（シーク等）の同期
+  playbackCommand: PlaybackCommand | null;
+  playbackCommandCounter: number;
+  
   // ===== 新機能: 拡張状態管理 =====
   
   // 初期化状態
@@ -445,7 +458,8 @@ interface GameStoreState extends GameState {
   play: () => void;
   pause: () => void;
   stop: () => void;
-  seek: (time: number) => void;
+  seek: (time: number, source?: PlaybackCommandSource) => void;
+  ackPlaybackCommand: (id: number) => void;
   updateTime: (time: number) => void;
   
   // 新規追加: 時間制御とループ機能
@@ -593,6 +607,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // 練習モード専用設定
         practiceModeSettings: defaultPracticeModeSettings,
+        playbackCommand: null,
+        playbackCommandCounter: 0,
         
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
@@ -612,7 +628,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
                   setTimeout(() => {
                     const store = useGameStore.getState();
-                    store.seek(seekTime);
+                      store.seek(seekTime, 'loop');
                   }, 0);
                 }
               }
@@ -842,33 +858,51 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = true;
           }),
           
-          stop: () => set((state) => {
-            state.isPlaying = false;
-            state.isPaused = false;
-            state.currentTime = 0;
-            state.activeNotes.clear();
+          stop: () => {
+            const snapshot = get();
+            const prevTime = snapshot.currentTime;
+            set((state) => {
+              state.isPlaying = false;
+              state.isPaused = false;
+              state.activeNotes.clear();
+            });
             
-            // GameEngineも停止
+            // GameEngineも停止し、現在位置を保持
+            if (snapshot.gameEngine) {
+              snapshot.gameEngine.stop();
+              snapshot.gameEngine.seek(prevTime);
+            }
+          },
+        
+          seek: (time, source = 'user') => {
+            const state = get();
+            const maxDuration = state.currentSong?.duration;
+            const newTime = Math.max(0, Math.min(time, maxDuration ?? time));
+            
+            set((draft) => {
+              draft.currentTime = newTime;
+              draft.activeNotes.clear();
+              draft.playbackCommandCounter += 1;
+              draft.playbackCommand = {
+                id: draft.playbackCommandCounter,
+                type: 'seek',
+                time: newTime,
+                source
+              };
+            });
+            
+            // GameEngineにもシーク処理を伝達
             if (state.gameEngine) {
-              state.gameEngine.stop();
+              state.gameEngine.seek(newTime);
+              console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
+            }
+          },
+          
+          ackPlaybackCommand: (commandId) => set((state) => {
+            if (state.playbackCommand?.id === commandId) {
+              state.playbackCommand = null;
             }
           }),
-        
-        seek: (time) => {
-          const state = get();
-          const newTime = Math.max(0, Math.min(time, state.currentSong?.duration || time));
-          
-          set((draft) => {
-            draft.currentTime = newTime;
-            draft.activeNotes.clear();
-          });
-          
-          // GameEngineにもシーク処理を伝達
-          if (state.gameEngine) {
-            state.gameEngine.seek(newTime);
-            console.log(`🎮 GameEngine seek to ${newTime.toFixed(2)}s`);
-          }
-        },
         
         updateTime: (time) => set((state) => {
           state.currentTime = time;
@@ -1385,7 +1419,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const newTime = Math.min(state.currentTime + seconds, maxTime);
           
           // seekメソッドを再利用（音声シーク処理も含まれる）
-          state.seek(newTime);
+            state.seek(newTime, 'user');
           console.log(`⏩ Skip forward to ${newTime.toFixed(2)}s`);
         },
         
@@ -1394,7 +1428,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const newTime = Math.max(0, state.currentTime - seconds);
           
           // seekメソッドを再利用（音声シーク処理も含まれる）
-          state.seek(newTime);
+            state.seek(newTime, 'user');
           console.log(`⏪ Skip backward to ${newTime.toFixed(2)}s`);
         },
         
