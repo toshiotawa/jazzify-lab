@@ -881,6 +881,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         
         // ABリピート制御
         setABRepeatStart: (time) => set((state) => {
+          if (state.mode === 'performance') return; // 本番モードでは無効化
           const currentTime = time ?? state.currentTime;
           state.abRepeat.startTime = currentTime;
           
@@ -891,6 +892,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         setABRepeatEnd: (time) => set((state) => {
+          if (state.mode === 'performance') return; // 本番モードでは無効化
           const currentTime = time ?? state.currentTime;
           
           // 開始時間が設定されていない、または開始時間より後の場合のみ設定
@@ -922,6 +924,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         toggleABRepeat: () => set((state) => {
+          if (state.mode === 'performance') return; // 本番モードでは無効化
           if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
             state.abRepeat.enabled = !state.abRepeat.enabled;
           }
@@ -1191,6 +1194,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         setMode: (mode) => set((state) => {
           const previousMode = state.mode;
           state.mode = mode;
+          
+          // 本番モードではABループを強制無効化
+          if (mode === 'performance') {
+            state.abRepeat.enabled = false;
+          }
           
           if (mode === 'practice') {
             state.currentTab = 'practice';
