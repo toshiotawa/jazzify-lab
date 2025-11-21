@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -59,9 +59,13 @@ const ControlBar: React.FC = () => {
     toggleSettings
   } = useGameActions();
 
-  const isPracticeMode = mode === 'practice';
-  const canInteract = isPracticeMode;
-  const songDuration = currentSong?.duration || 0;
+    const isPracticeMode = mode === 'practice';
+    const canInteract = isPracticeMode;
+    const songDuration = currentSong?.duration || 0;
+  
+    const seekBarRef = useRef<HTMLDivElement>(null);
+    const [isDraggingA, setIsDraggingA] = useState(false);
+    const [isDraggingB, setIsDraggingB] = useState(false);
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -149,81 +153,150 @@ const ControlBar: React.FC = () => {
 
 
   // 楽譜表示の切り替え
-  const toggleSheetMusic = useCallback(() => {
-    updateSettings({ showSheetMusic: !settings.showSheetMusic });
-  }, [updateSettings, settings.showSheetMusic]);
+    const toggleSheetMusic = useCallback(() => {
+      updateSettings({ showSheetMusic: !settings.showSheetMusic });
+    }, [updateSettings, settings.showSheetMusic]);
 
-  return (
-    <div className="w-full">
-      {/* シークバー - showSeekbarフラグで制御 */}
-      {settings.showSeekbar && (
-        <div className="px-2 py-1 bg-gray-900">
-          <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
-              <input
-                type="range"
-                min="0"
-                max={songDuration}
-                value={currentTime}
-                step="0.1"
-                onChange={handleSeek}
-                disabled={!canInteract}
-                className={`w-full h-1 bg-gray-700 rounded-lg appearance-none cursor-pointer
-                  ${canInteract ? 'hover:bg-gray-600' : 'opacity-50 cursor-not-allowed'}
-                  [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
-                  [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
-                  [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg
-                  [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
-                  [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
-              />
-              
-              {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
+    useEffect(() => {
+      if ((!isDraggingA && !isDraggingB) || !canInteract || songDuration <= 0) {
+        return;
+      }
+      const handlePointerMove = (e: PointerEvent) => {
+        if (!seekBarRef.current || songDuration <= 0) {
+          return;
+        }
+        const rect = seekBarRef.current.getBoundingClientRect();
+        if (rect.width <= 0) {
+          return;
+        }
+        const ratio = Math.max(0, Math.min(1, (e.clientX - rect.left) / rect.width));
+        const clampedTime = Math.max(0, Math.min(songDuration, ratio * songDuration));
+
+        if (isDraggingA) {
+          const maxStart = abRepeat.endTime !== null ? Math.max(0, abRepeat.endTime - 0.1) : songDuration;
+          const nextStart = Math.min(clampedTime, maxStart);
+          setABRepeatStart(nextStart);
+        } else if (isDraggingB) {
+          const minEnd = abRepeat.startTime !== null ? Math.min(songDuration, abRepeat.startTime + 0.1) : 0;
+          const nextEnd = Math.max(clampedTime, minEnd);
+          setABRepeatEnd(nextEnd);
+        }
+      };
+
+      const handlePointerUp = () => {
+        setIsDraggingA(false);
+        setIsDraggingB(false);
+      };
+
+      window.addEventListener('pointermove', handlePointerMove);
+      window.addEventListener('pointerup', handlePointerUp);
+
+      return () => {
+        window.removeEventListener('pointermove', handlePointerMove);
+        window.removeEventListener('pointerup', handlePointerUp);
+      };
+    }, [
+      isDraggingA,
+      isDraggingB,
+      canInteract,
+      songDuration,
+      abRepeat,
+      setABRepeatStart,
+      setABRepeatEnd
+    ]);
+
+    return (
+      <div className="w-full">
+        {/* シークバー - showSeekbarフラグで制御 */}
+        {settings.showSeekbar && (
+          <div className="px-2 py-1 bg-gray-900">
+            <div className="flex items-center space-x-3">
+              <div className="relative flex-1 h-6 flex items-center" ref={seekBarRef}>
+                <div className="absolute w-full h-1 bg-gray-700 rounded-lg overflow-hidden">
+                  {abRepeat.startTime !== null && abRepeat.endTime !== null && songDuration > 0 && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className={`absolute top-0 h-full transition-colors duration-200 ${
+                        abRepeat.enabled ? 'bg-green-500 opacity-50' : 'bg-gray-400 opacity-30'
+                      }`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
-                  )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                        width: `${(Math.max(0, abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
                       }}
                     />
                   )}
                 </div>
-              )}
-            </div>
-            
-            <div className="text-sm text-gray-300 min-w-[80px] text-right">
-              {formatTime(currentTime)} / {formatTime(songDuration)}
+
+                <input
+                  type="range"
+                  min="0"
+                  max={songDuration}
+                  value={currentTime}
+                  step="0.1"
+                  onChange={handleSeek}
+                  disabled={!canInteract}
+                  className={`absolute w-full h-1 bg-transparent appearance-none cursor-pointer z-10
+                    ${canInteract ? '' : 'cursor-not-allowed'}
+                    [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-4 [&::-webkit-slider-thumb]:h-4 
+                    [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:bg-blue-500 
+                    [&::-webkit-slider-thumb]:cursor-pointer [&::-webkit-slider-thumb]:shadow-lg [&::-webkit-slider-thumb]:-mt-1.5
+                    [&::-webkit-slider-runnable-track]:h-1 [&::-webkit-slider-runnable-track]:bg-transparent
+                    [&::-moz-range-thumb]:w-4 [&::-moz-range-thumb]:h-4 [&::-moz-range-thumb]:rounded-full 
+                    [&::-moz-range-thumb]:bg-blue-500 [&::-moz-range-thumb]:cursor-pointer [&::-moz-range-thumb]:border-0`}
+                />
+
+                {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+                  <div className="absolute top-0 left-0 w-full h-full pointer-events-none z-20">
+                    {abRepeat.startTime !== null && (
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-green-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
+                        style={{
+                          left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (canInteract) {
+                            setIsDraggingA(true);
+                          }
+                        }}
+                        title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                        aria-label="A地点マーカー"
+                      >
+                        <span className="text-[8px] font-bold text-black">A</span>
+                      </div>
+                    )}
+
+                    {abRepeat.endTime !== null && (
+                      <div
+                        className="absolute top-1/2 -translate-y-1/2 w-3 h-5 bg-red-500 cursor-ew-resize hover:scale-110 transition-transform shadow-md rounded-sm pointer-events-auto flex items-center justify-center"
+                        style={{
+                          left: `${(abRepeat.endTime / songDuration) * 100}%`,
+                          transform: 'translate(-50%, -50%)'
+                        }}
+                        onPointerDown={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (canInteract) {
+                            setIsDraggingB(true);
+                          }
+                        }}
+                        title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                        aria-label="B地点マーカー"
+                      >
+                        <span className="text-[8px] font-bold text-black">B</span>
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="text-sm text-gray-300 min-w-[80px] text-right">
+                {formatTime(currentTime)} / {formatTime(songDuration)}
+              </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
       {/* コントロールボタン - 1行レイアウト */}
       <div className="px-3 py-1 bg-gray-900 border-t border-gray-700 flex justify-between items-center">
