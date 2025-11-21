@@ -122,7 +122,11 @@ const ControlBar: React.FC = () => {
       play();
     }
   }, [seek, currentTime, play]);
-
+  
+  const handleStageStop = useCallback(() => {
+    stop({ resetPosition: false });
+  }, [stop]);
+  
   // A地点クリア
   const handleClearA = useCallback(() => {
     clearABRepeatStart();
@@ -362,12 +366,11 @@ const ControlBar: React.FC = () => {
               </button>
 
                 <button
-                  onClick={() => stop()}
+                  onClick={handleStageStop}
                   className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
-
-                disabled={!currentSong}
-                title="停止"
-              >
+                  disabled={!currentSong}
+                  title="停止"
+                >
                 <FaStop />
               </button>
 
