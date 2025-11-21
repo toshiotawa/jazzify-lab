@@ -334,7 +334,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     //   }
     // }, [isPlaying]);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
+    // currentTimeが変更されるたびにスクロール位置を更新
     useEffect(() => {
       const mapping = timeMappingRef.current;
       if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
@@ -372,10 +372,24 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const targetEntry = mapping[activeIndex];
       const playheadPosition = 120;
       
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
+      if (!targetEntry) {
+        prevTimeRef.current = currentTime;
+        return;
+      }
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const nextEntry = mapping[Math.min(activeIndex + 1, mapping.length - 1)];
+      const timeDelta = nextEntry.timeMs - targetEntry.timeMs;
+      const progress = timeDelta > 0
+        ? Math.min(
+            1,
+            Math.max(0, (currentTimeMs - targetEntry.timeMs) / timeDelta)
+          )
+        : 0;
+      const interpolatedX =
+        targetEntry.xPosition +
+        (nextEntry.xPosition - targetEntry.xPosition) * progress;
+
+      const scrollX = Math.max(0, interpolatedX - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -385,7 +399,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (needsIndexUpdate || needsScrollUpdate || seekingBack || forceAtZero) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
@@ -403,9 +417,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               scrollContainer.scrollLeft = scrollX;
             }
           }
-          lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
         }
+        lastRenderedIndexRef.current = activeIndex;
+        lastScrollXRef.current = scrollX;
 
       prevTimeRef.current = currentTime;
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
