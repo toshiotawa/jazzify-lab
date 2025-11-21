@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -39,16 +39,23 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  // ABループ地点のドラッグ状態管理
+  const [draggingLoopMarker, setDraggingLoopMarker] = useState<'A' | 'B' | null>(null);
+  const scoreContainerRef = useRef<HTMLDivElement>(null);
+  
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat, mode } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    abRepeat: s.abRepeat,
+    mode: s.mode,
   }));
   const shouldRenderSheet = settings.showSheetMusic;
+  const isPracticeMode = mode === 'practice';
   
-  // const gameActions = useGameActions(); // 現在未使用
+  const { setABRepeatStart, setABRepeatEnd } = useGameActions();
   
   // OSMDの初期化とレンダリング
   const createTimeMapping = useCallback(() => {
@@ -344,7 +351,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const currentTimeMs = currentTime * 1000;
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
+      // 修正箇所: インデックス検索ロジックの改善
+      // 一時停止時は現在時刻に最も近い音符を探す
+      // 再生中は現在演奏中の音符を探す
       const findActiveIndex = () => {
         let low = 0;
         let high = mapping.length - 1;
@@ -358,9 +367,22 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             high = mid - 1;
           }
         }
+        
         // low は「次に演奏されるべき音符」のインデックスになっているため、
         // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
+        const prevIndex = low - 1;
+        
+        // 一時停止時は、前後の音符のうちより近い方を選ぶ
+        if (!isPlaying && prevIndex >= 0 && prevIndex < mapping.length - 1) {
+          const prevTime = mapping[prevIndex].timeMs;
+          const nextTime = mapping[prevIndex + 1].timeMs;
+          const distToPrev = Math.abs(currentTimeMs - prevTime);
+          const distToNext = Math.abs(currentTimeMs - nextTime);
+          // より近い方を選ぶ（同距離の場合は次の音符を優先）
+          return distToNext < distToPrev ? prevIndex + 1 : prevIndex;
+        }
+        
+        return prevIndex;
       };
 
       // 計算されたインデックスを取得（範囲外ならクランプ）
@@ -385,7 +407,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        // 一時停止時は常にスクロール位置を更新（正確な位置に合わせるため）
+        if (needsIndexUpdate || seekingBack || forceAtZero || !isPlaying || (!isPlaying && needsScrollUpdate)) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
@@ -430,6 +453,127 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       };
     }
   }, [isHovered, isPlaying]);
+
+  // 時間からX座標への変換関数
+  const timeToXPosition = useCallback((time: number): number | null => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0) return null;
+    
+    const timeMs = time * 1000;
+    
+    // 二分探索で最も近い位置を探す
+    let low = 0;
+    let high = mapping.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (mapping[mid].timeMs <= timeMs) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    const prevIndex = low - 1;
+    if (prevIndex < 0) {
+      return mapping[0].xPosition;
+    }
+    if (prevIndex >= mapping.length - 1) {
+      return mapping[mapping.length - 1].xPosition;
+    }
+    
+    // 線形補間
+    const prev = mapping[prevIndex];
+    const next = mapping[prevIndex + 1];
+    const ratio = (timeMs - prev.timeMs) / (next.timeMs - prev.timeMs);
+    return prev.xPosition + (next.xPosition - prev.xPosition) * ratio;
+  }, []);
+
+  // X座標から時間への変換関数
+  const xPositionToTime = useCallback((x: number): number => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0) return 0;
+    
+    // 二分探索で最も近い位置を探す
+    let low = 0;
+    let high = mapping.length - 1;
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      if (mapping[mid].xPosition <= x) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    const prevIndex = low - 1;
+    if (prevIndex < 0) {
+      return mapping[0].timeMs / 1000;
+    }
+    if (prevIndex >= mapping.length - 1) {
+      return mapping[mapping.length - 1].timeMs / 1000;
+    }
+    
+    // 線形補間
+    const prev = mapping[prevIndex];
+    const next = mapping[prevIndex + 1];
+    const ratio = (x - prev.xPosition) / (next.xPosition - prev.xPosition);
+    return (prev.timeMs + (next.timeMs - prev.timeMs) * ratio) / 1000;
+  }, []);
+
+  // ループマーカードラッグ開始
+  const handleLoopMarkerMouseDown = useCallback((e: React.MouseEvent, marker: 'A' | 'B') => {
+    if (!isPracticeMode || isPlaying) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingLoopMarker(marker);
+  }, [isPracticeMode, isPlaying]);
+
+  // マウス移動処理（ループマーカー）
+  useEffect(() => {
+    if (!draggingLoopMarker || !scoreContainerRef.current || !scoreWrapperRef.current) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const container = scoreContainerRef.current;
+      const wrapper = scoreWrapperRef.current;
+      if (!container || !wrapper) return;
+      
+      const rect = container.getBoundingClientRect();
+      const scrollContainer = wrapper.parentElement;
+      
+      // スクロール位置を取得（再生中はtransform、停止中はscrollLeft）
+      let scrollOffset = 0;
+      if (scrollContainer) {
+        if (isPlaying) {
+          // 再生中はtransformを使用しているため、scrollLeftは0
+          // 実際のオフセットはlastScrollXRefから取得
+          scrollOffset = lastScrollXRef.current;
+        } else {
+          scrollOffset = scrollContainer.scrollLeft;
+        }
+      }
+      
+      const relativeX = e.clientX - rect.left + scrollOffset;
+      
+      const newTime = xPositionToTime(relativeX);
+      if (draggingLoopMarker === 'A') {
+        setABRepeatStart(newTime);
+      } else {
+        setABRepeatEnd(newTime);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDraggingLoopMarker(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingLoopMarker, xPositionToTime, setABRepeatStart, setABRepeatEnd, isPlaying]);
 
   // クリーンアップ
     useEffect(() => {
@@ -484,7 +628,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         } as React.CSSProperties}
         >
           {/* 楽譜コンテナ - 上部に余白を追加 */}
-          <div className="relative h-full pt-8 pb-4">
+          <div className="relative h-full pt-8 pb-4" ref={scoreContainerRef}>
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
                 <div className="text-black">楽譜を読み込み中...</div>
@@ -521,6 +665,76 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
                 className="h-full flex items-center"
               />
             </div>
+            
+            {/* ABループ地点の表示（練習モードのみ） */}
+            {isPracticeMode && (abRepeat.startTime !== null || abRepeat.endTime !== null) && (
+              <>
+                {/* ループ範囲の背景 */}
+                {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                  (() => {
+                    const startX = timeToXPosition(abRepeat.startTime);
+                    const endX = timeToXPosition(abRepeat.endTime);
+                    if (startX === null || endX === null) return null;
+                    const left = Math.min(startX, endX);
+                    const width = Math.abs(endX - startX);
+                    return (
+                      <div
+                        className={cn(
+                          "absolute top-0 bottom-0 pointer-events-none transition-opacity",
+                          abRepeat.enabled 
+                            ? "bg-green-400 opacity-30" 
+                            : "bg-gray-400 opacity-15"
+                        )}
+                        style={{
+                          left: `${left}px`,
+                          width: `${width}px`
+                        }}
+                      />
+                    );
+                  })()
+                )}
+                
+                {/* A地点の縦線 */}
+                {abRepeat.startTime !== null && (() => {
+                  const xPos = timeToXPosition(abRepeat.startTime);
+                  if (xPos === null) return null;
+                  return (
+                    <div
+                      className={cn(
+                        "absolute top-0 bottom-0 w-0.5 bg-green-500 z-20 cursor-grab active:cursor-grabbing",
+                        draggingLoopMarker === 'A' ? "ring-2 ring-green-300" : ""
+                      )}
+                      style={{
+                        left: `${xPos}px`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`A地点: ${abRepeat.startTime.toFixed(2)}秒 (ドラッグで移動)`}
+                      onMouseDown={(e) => handleLoopMarkerMouseDown(e, 'A')}
+                    />
+                  );
+                })()}
+                
+                {/* B地点の縦線 */}
+                {abRepeat.endTime !== null && (() => {
+                  const xPos = timeToXPosition(abRepeat.endTime);
+                  if (xPos === null) return null;
+                  return (
+                    <div
+                      className={cn(
+                        "absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 cursor-grab active:cursor-grabbing",
+                        draggingLoopMarker === 'B' ? "ring-2 ring-red-300" : ""
+                      )}
+                      style={{
+                        left: `${xPos}px`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`B地点: ${abRepeat.endTime.toFixed(2)}秒 (ドラッグで移動)`}
+                      onMouseDown={(e) => handleLoopMarkerMouseDown(e, 'B')}
+                    />
+                  );
+                })()}
+              </>
+            )}
           </div>
         </div>
       </div>
