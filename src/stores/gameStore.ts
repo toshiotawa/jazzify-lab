@@ -604,7 +604,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
               const storeSnapshot = useGameStore.getState();
-              const { abRepeat } = storeSnapshot;
+              const { abRepeat, mode } = storeSnapshot;
+              
+              // ステージモード（本番モード）ではABループを無効化
+              if (mode === 'performance') {
+                // 本番モードではABループを実行しない
+                return;
+              }
               
               if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
