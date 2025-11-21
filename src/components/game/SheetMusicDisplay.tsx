@@ -344,23 +344,56 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       const currentTimeMs = currentTime * 1000;
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
+      // 一時停止時と再生時で異なるインデックス検索ロジックを使用
       const findActiveIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        
-        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
+        if (isPlaying) {
+          // 再生中: 次に演奏されるべき音符の1つ前を探す（従来のロジック）
+          let low = 0;
+          let high = mapping.length - 1;
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (mapping[mid].timeMs <= currentTimeMs) {
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          return low - 1;
+        } else {
+          // 一時停止時: 現在時刻に最も近い音符を探す（バイナリサーチで効率化）
+          // まず、currentTimeMs以下の最大のインデックスを探す
+          let low = 0;
+          let high = mapping.length - 1;
+          let lowerBound = -1;
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (mapping[mid].timeMs <= currentTimeMs) {
+              lowerBound = mid;
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          
+          // lowerBoundが見つかった場合、現在時刻より前の音符と次の音符を比較
+          if (lowerBound >= 0 && lowerBound < mapping.length - 1) {
+            const prevDiff = currentTimeMs - mapping[lowerBound].timeMs;
+            const nextDiff = mapping[lowerBound + 1].timeMs - currentTimeMs;
+            // 次の音符の方が近い場合は次の音符を選択
+            if (nextDiff < prevDiff) {
+              return lowerBound + 1;
+            }
+            return lowerBound;
+          } else if (lowerBound >= 0) {
+            // 最後の音符より後ろの場合
+            return lowerBound;
           } else {
-            high = mid - 1;
+            // 最初の音符より前の場合
+            return 0;
           }
         }
-        // low は「次に演奏されるべき音符」のインデックスになっているため、
-        // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
       };
 
       // 計算されたインデックスを取得（範囲外ならクランプ）
@@ -384,8 +417,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const prev = prevTimeRef.current;
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
+      
+      // 一時停止時は、インデックスが変更された場合のみスクロール位置を更新
+      // これにより、一時停止時の不要なスクロール移動を防ぐ
+      const shouldUpdateOnPause = !isPlaying && (needsIndexUpdate || seekingBack || forceAtZero);
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (needsIndexUpdate || seekingBack || forceAtZero || (isPlaying && needsScrollUpdate) || shouldUpdateOnPause) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
@@ -399,7 +436,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             if (wrapper) {
               wrapper.style.transform = 'translateX(0px)';
             }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+            // 一時停止時は、インデックスが変更された場合のみスクロール位置を更新
+            if (shouldUpdateOnPause && Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
               scrollContainer.scrollLeft = scrollX;
             }
           }
