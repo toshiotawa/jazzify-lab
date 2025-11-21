@@ -36,6 +36,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
+  // 前回の再生状態の保持用（isPlaying変更検出用）
+  const prevIsPlayingRef = useRef<boolean | undefined>(undefined);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
@@ -307,9 +310,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [shouldRenderSheet]);
 
   // 再生状態に応じてtransform/scrollLeft方式を切り替え
-  // 一時停止時は現在のcurrentTimeに基づいて正確な位置を計算する
+  // 一時停止時は現在のcurrentTimeに基づいて正確な位置を計算する（1回のみ）
   useEffect(() => {
     if (!shouldRenderSheet) {
+      prevIsPlayingRef.current = isPlaying;
       return;
     }
     const wrapper = scoreWrapperRef.current;
@@ -317,55 +321,65 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     const mapping = timeMappingRef.current;
     
     if (!wrapper || !scrollContainer) {
+      prevIsPlayingRef.current = isPlaying;
       return;
     }
     
+    // isPlayingが変更された時のみ処理（currentTimeの変更には反応しない）
+    const wasPlaying = prevIsPlayingRef.current;
+    const isPlayingChanged = wasPlaying !== undefined && wasPlaying !== isPlaying;
+    
     if (isPlaying) {
       // 再生開始時: scrollLeftを0にリセットし、transformでスクロール
-      scrollContainer.scrollLeft = 0;
+      if (isPlayingChanged) {
+        scrollContainer.scrollLeft = 0;
+      }
       // transformは currentTime のuseEffectで更新される
     } else {
       // 一時停止時: transformをリセットし、現在のcurrentTimeに基づいて位置を計算
-      wrapper.style.transform = 'translateX(0px)';
-      
-      // 現在のcurrentTimeに基づいて正確なスクロール位置を計算
-      // 注意: currentTimeのuseEffectでも同じ計算を行うが、
-      // isPlayingがfalseになった瞬間に確実に位置を更新するため、ここでも計算
-      if (mapping.length > 0) {
-        const currentTimeMs = currentTime * 1000;
+      if (isPlayingChanged) {
+        wrapper.style.transform = 'translateX(0px)';
         
-        // 現在時刻に最も近い音符のインデックスを検索
-        let activeIndex = 0;
-        if (currentTimeMs <= mapping[0].timeMs) {
-          activeIndex = 0;
-        } else if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
-          activeIndex = mapping.length - 1;
-        } else {
-          // 二分探索
-          let low = 0;
-          let high = mapping.length - 1;
-          while (low <= high) {
-            const mid = Math.floor((low + high) / 2);
-            if (mapping[mid].timeMs <= currentTimeMs) {
-              low = mid + 1;
-            } else {
-              high = mid - 1;
+        // 現在のcurrentTimeに基づいて正確なスクロール位置を計算（1回のみ）
+        if (mapping.length > 0) {
+          const currentTimeMs = currentTime * 1000;
+          
+          // 現在時刻に最も近い音符のインデックスを検索
+          let activeIndex = 0;
+          if (currentTimeMs <= mapping[0].timeMs) {
+            activeIndex = 0;
+          } else if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+            activeIndex = mapping.length - 1;
+          } else {
+            // 二分探索
+            let low = 0;
+            let high = mapping.length - 1;
+            while (low <= high) {
+              const mid = Math.floor((low + high) / 2);
+              if (mapping[mid].timeMs <= currentTimeMs) {
+                low = mid + 1;
+              } else {
+                high = mid - 1;
+              }
             }
+            activeIndex = Math.max(0, low - 1);
           }
-          activeIndex = Math.max(0, low - 1);
-        }
-        
-        const targetEntry = mapping[activeIndex];
-        if (targetEntry) {
-          const playheadPosition = 120;
-          const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
-          scrollContainer.scrollLeft = scrollX;
-          lastScrollXRef.current = scrollX;
-          lastRenderedIndexRef.current = activeIndex;
+          
+          const targetEntry = mapping[activeIndex];
+          if (targetEntry) {
+            const playheadPosition = 120;
+            const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+            scrollContainer.scrollLeft = scrollX;
+            lastScrollXRef.current = scrollX;
+            lastRenderedIndexRef.current = activeIndex;
+          }
         }
       }
     }
-  }, [isPlaying, currentTime, shouldRenderSheet]); // currentTimeを含める（一時停止時に最新の位置を計算するため）
+    
+    prevIsPlayingRef.current = isPlaying;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPlaying, shouldRenderSheet]); // currentTimeは依存関係に含めない（isPlayingが変更された時のみ処理）
 
   // 音符の時刻とX座標のマッピングを作成
     // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
@@ -457,13 +471,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
       const prev = prevTimeRef.current;
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
+      const seekingForward = currentTime > prev + 0.1; // 100ms以上の早送り
       const forceAtZero = currentTime < 0.02;       // 0秒付近
+      const isSeeking = seekingBack || seekingForward || forceAtZero; // シークバー操作を検出
 
-      // 一時停止時は必ず位置を更新（正確な位置を反映するため）
-      // ただし、isPlayingのuseEffectで既に位置を計算した場合はスキップ（重複を避ける）
+      // 一時停止時は、シークバー操作時のみ位置を更新（プレイヘッドを固定するため）
+      // 再生中は通常通り更新
       const shouldUpdate = isPlaying 
-        ? (needsIndexUpdate || seekingBack || forceAtZero)
-        : (needsIndexUpdate || needsScrollUpdate || seekingBack || forceAtZero);
+        ? (needsIndexUpdate || isSeeking)
+        : isSeeking; // 一時停止中はシークバー操作時のみ更新
 
       if (shouldUpdate) {
         const wrapper = scoreWrapperRef.current;
