@@ -306,25 +306,6 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [shouldRenderSheet]);
 
-  // 再生状態に応じてtransform/scrollLeft方式を切り替え
-  useEffect(() => {
-    if (!shouldRenderSheet) {
-      return;
-    }
-    const wrapper = scoreWrapperRef.current;
-    const scrollContainer = scrollContainerRef.current;
-    if (!wrapper || !scrollContainer) {
-      return;
-    }
-    if (isPlaying) {
-      scrollContainer.scrollLeft = 0;
-      wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
-    } else {
-      wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
-    }
-  }, [isPlaying, shouldRenderSheet]);
-
   // 音符の時刻とX座標のマッピングを作成
     // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
     // useEffect(() => {
@@ -336,8 +317,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
     useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
+        const mapping = timeMappingRef.current;
+        const wrapper = scoreWrapperRef.current;
+        const scrollContainer = scrollContainerRef.current;
+        if (!shouldRenderSheet || mapping.length === 0 || !wrapper || !scrollContainer) {
         prevTimeRef.current = currentTime; // 早期returnでも更新
         return;
       }
@@ -370,12 +353,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       mappingCursorRef.current = activeIndex;
 
       const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
+        const playheadPosition = 120;
       
       // targetEntryが存在しない場合のガード処理を追加
       if (!targetEntry) return;
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const desiredScrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const maxScrollableX = Math.max(0, scrollContainer.scrollWidth - scrollContainer.clientWidth);
+        const scrollX = Math.min(desiredScrollX, maxScrollableX);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -385,24 +370,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
-          const wrapper = scoreWrapperRef.current;
-          const scrollContainer = scrollContainerRef.current;
-          if (isPlaying) {
-            if (wrapper) {
-              wrapper.style.transform = `translateX(-${scrollX}px)`;
-            }
-            if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
-              scrollContainer.scrollLeft = 0;
-            }
-          } else if (scrollContainer) {
-            if (wrapper) {
-              wrapper.style.transform = 'translateX(0px)';
-            }
+          if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
             if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
               scrollContainer.scrollLeft = scrollX;
             }
-          }
           lastRenderedIndexRef.current = activeIndex;
           lastScrollXRef.current = scrollX;
         }
