@@ -316,14 +316,66 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
+      // 再生開始時: transform方式に切り替え
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
     } else {
+      // 一時停止時: currentTimeに基づいて正確なスクロール位置を計算
+      const mapping = timeMappingRef.current;
+      if (mapping.length > 0) {
+        const currentTimeMs = currentTime * 1000;
+        
+        // currentTimeに最も近い音符のインデックスを検索
+        const findActiveIndex = () => {
+          // マッピングが空の場合は0を返す
+          if (mapping.length === 0) {
+            return 0;
+          }
+          
+          // currentTimeMsが最初の要素より小さい場合は0を返す
+          if (currentTimeMs < mapping[0].timeMs) {
+            return 0;
+          }
+          
+          // currentTimeMsが最後の要素より大きい場合は最後のインデックスを返す
+          if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+            return mapping.length - 1;
+          }
+          
+          let low = 0;
+          let high = mapping.length - 1;
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (mapping[mid].timeMs <= currentTimeMs) {
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          return Math.max(0, low - 1);
+        };
+        
+        const rawIndex = findActiveIndex();
+        const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+        const targetEntry = mapping[activeIndex];
+        
+        if (targetEntry) {
+          const playheadPosition = 120;
+          const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+          
+          // 正確な位置を計算してから設定
+          lastScrollXRef.current = scrollX;
+          lastRenderedIndexRef.current = activeIndex;
+        }
+      }
+      
+      // scrollLeft方式に切り替え（正確に計算された位置を使用）
       wrapper.style.transform = 'translateX(0px)';
       scrollContainer.scrollLeft = lastScrollXRef.current;
     }
-  }, [isPlaying, shouldRenderSheet]);
+  }, [isPlaying, shouldRenderSheet, currentTime]);
 
   // 音符の時刻とX座標のマッピングを作成
     // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
@@ -346,6 +398,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
       // 修正箇所: インデックス検索ロジックの簡素化と修正
       const findActiveIndex = () => {
+        // マッピングが空の場合は0を返す
+        if (mapping.length === 0) {
+          return 0;
+        }
+        
+        // currentTimeMsが最初の要素より小さい場合は0を返す
+        if (currentTimeMs < mapping[0].timeMs) {
+          return 0;
+        }
+        
+        // currentTimeMsが最後の要素より大きい場合は最後のインデックスを返す
+        if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+          return mapping.length - 1;
+        }
+        
         let low = 0;
         let high = mapping.length - 1;
         
@@ -360,7 +427,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
         // low は「次に演奏されるべき音符」のインデックスになっているため、
         // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
+        return Math.max(0, low - 1);
       };
 
       // 計算されたインデックスを取得（範囲外ならクランプ）
@@ -373,9 +440,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const playheadPosition = 120;
       
       // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
+      if (!targetEntry) {
+        prevTimeRef.current = currentTime;
+        return;
+      }
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -385,27 +455,31 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
-          const wrapper = scoreWrapperRef.current;
-          const scrollContainer = scrollContainerRef.current;
-          if (isPlaying) {
-            if (wrapper) {
-              wrapper.style.transform = `translateX(-${scrollX}px)`;
-            }
-            if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
-              scrollContainer.scrollLeft = 0;
-            }
-          } else if (scrollContainer) {
-            if (wrapper) {
-              wrapper.style.transform = 'translateX(0px)';
-            }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
-          }
-          lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
+      // 再生中のみスクロール位置を更新（一時停止時の更新はisPlaying変更時のuseEffectで処理）
+      if (isPlaying && (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate)) {
+        const wrapper = scoreWrapperRef.current;
+        const scrollContainer = scrollContainerRef.current;
+        if (wrapper) {
+          wrapper.style.transform = `translateX(-${scrollX}px)`;
         }
+        if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
+          scrollContainer.scrollLeft = 0;
+        }
+        lastRenderedIndexRef.current = activeIndex;
+        lastScrollXRef.current = scrollX;
+      } else if (!isPlaying && (seekingBack || forceAtZero)) {
+        // 一時停止中でも、シーク操作（巻き戻しや0秒付近へのジャンプ）の場合は更新
+        const wrapper = scoreWrapperRef.current;
+        const scrollContainer = scrollContainerRef.current;
+        if (wrapper) {
+          wrapper.style.transform = 'translateX(0px)';
+        }
+        if (scrollContainer && Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+          scrollContainer.scrollLeft = scrollX;
+        }
+        lastRenderedIndexRef.current = activeIndex;
+        lastScrollXRef.current = scrollX;
+      }
 
       prevTimeRef.current = currentTime;
     }, [currentTime, isPlaying, notes, shouldRenderSheet]);
