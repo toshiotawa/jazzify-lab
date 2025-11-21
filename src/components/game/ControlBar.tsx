@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useState, useRef, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -62,6 +62,10 @@ const ControlBar: React.FC = () => {
   const isPracticeMode = mode === 'practice';
   const canInteract = isPracticeMode;
   const songDuration = currentSong?.duration || 0;
+  
+  // ドラッグ状態管理
+  const [draggingMarker, setDraggingMarker] = useState<'A' | 'B' | null>(null);
+  const seekbarRef = useRef<HTMLDivElement>(null);
 
   // 時間フォーマット関数
   const formatTime = useCallback((seconds: number): string => {
@@ -153,13 +157,56 @@ const ControlBar: React.FC = () => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
 
+  // シークバー上の位置から時間を計算
+  const calculateTimeFromPosition = useCallback((clientX: number): number => {
+    if (!seekbarRef.current || songDuration === 0) return 0;
+    const rect = seekbarRef.current.getBoundingClientRect();
+    const relativeX = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, relativeX / rect.width));
+    return percentage * songDuration;
+  }, [songDuration]);
+
+  // マーカードラッグ開始
+  const handleMarkerMouseDown = useCallback((e: React.MouseEvent, marker: 'A' | 'B') => {
+    if (!isPracticeMode) return;
+    e.preventDefault();
+    e.stopPropagation();
+    setDraggingMarker(marker);
+  }, [isPracticeMode]);
+
+  // マウス移動処理
+  useEffect(() => {
+    if (!draggingMarker) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      const newTime = calculateTimeFromPosition(e.clientX);
+      if (draggingMarker === 'A') {
+        setABRepeatStart(newTime);
+      } else {
+        setABRepeatEnd(newTime);
+      }
+    };
+
+    const handleMouseUp = () => {
+      setDraggingMarker(null);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [draggingMarker, calculateTimeFromPosition, setABRepeatStart, setABRepeatEnd]);
+
   return (
     <div className="w-full">
       {/* シークバー - showSeekbarフラグで制御 */}
       {settings.showSeekbar && (
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={seekbarRef}>
               <input
                 type="range"
                 min="0"
@@ -178,40 +225,50 @@ const ControlBar: React.FC = () => {
               />
               
               {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
-                <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
+              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && isPracticeMode && (
+                <div className="absolute top-0 left-0 w-full h-2">
+                  {/* ループ範囲の背景 */}
+                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
+                    <div
+                      className={`absolute top-0 h-2 rounded transition-opacity ${
+                        abRepeat.enabled 
+                          ? 'bg-green-400 opacity-50' 
+                          : 'bg-gray-400 opacity-20'
+                      }`}
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
+                      }}
+                    />
+                  )}
+                  
                   {/* A地点マーカー */}
                   {abRepeat.startTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
+                      className={`absolute top-0 w-2 h-2 bg-green-400 shadow-lg cursor-grab active:cursor-grabbing z-10 ${
+                        draggingMarker === 'A' ? 'ring-2 ring-green-300' : ''
+                      }`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => handleMarkerMouseDown(e, 'A')}
                     />
                   )}
                   
                   {/* B地点マーカー */}
                   {abRepeat.endTime !== null && (
                     <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
+                      className={`absolute top-0 w-2 h-2 bg-red-400 shadow-lg cursor-grab active:cursor-grabbing z-10 ${
+                        draggingMarker === 'B' ? 'ring-2 ring-red-300' : ''
+                      }`}
                       style={{
                         left: `${(abRepeat.endTime / songDuration) * 100}%`,
                         transform: 'translateX(-50%)'
                       }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
-                  {/* ループ範囲の背景 */}
-                  {abRepeat.startTime !== null && abRepeat.endTime !== null && (
-                    <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
-                      }}
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                      onMouseDown={(e) => handleMarkerMouseDown(e, 'B')}
                     />
                   )}
                 </div>
@@ -261,19 +318,21 @@ const ControlBar: React.FC = () => {
                 <FaForward />
               </button>
 
-              {/* ループコントロール */}
-              <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
-                <button
-                  onClick={handleToggleLoop}
-                  className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
-                  title="ABリピートON/OFF"
-                >
-                  <MdLoop />
-                </button>
-              </div>
+              {/* ループコントロール（練習モードのみ） */}
+              {isPracticeMode && (
+                <>
+                  <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
+                    <button
+                      onClick={handleToggleLoop}
+                      className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
+                      title="ABリピートON/OFF"
+                    >
+                      <MdLoop />
+                    </button>
+                  </div>
 
-              {/* A/B地点設定（コンパクト） */}
-              <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
+                  {/* A/B地点設定（コンパクト） */}
+                  <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
                   className={`control-btn control-btn-xxs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
@@ -315,7 +374,9 @@ const ControlBar: React.FC = () => {
                     <FaTimes size={10} />
                   </button>
                 )}
-              </div>
+                  </div>
+                </>
+              )}
 
               {/* 移調コントロール - レッスンモード・ミッションモードでは非表示 */}
               {!lessonContext && !missionContext && (
