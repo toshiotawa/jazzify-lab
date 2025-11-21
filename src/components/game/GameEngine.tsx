@@ -319,13 +319,20 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
         (state) => state.currentTime,
         (time) => {
           currentTimeRef.current = time;
+          const duration = currentSongDuration ?? null;
+          if (duration !== null && isPlayingRef.current && time >= duration - 0.01) {
+            pause();
+            updateTime(duration);
+            setHasPlaybackFinished(true);
+            return;
+          }
           if (!isPlayingRef.current) {
             renderBridgeRef.current?.syncFromEngine();
           }
         }
       );
       return unsubscribe;
-    }, []);
+    }, [currentSongDuration, pause, updateTime]);
 
     useEffect(() => {
       if (!isPlaying) {
@@ -438,7 +445,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
           devLog.debug('🎵 音声再生可能状態に到達');
         };
         const handleEnded = () => {
+          const fallbackDuration = Number.isFinite(audio.duration) ? audio.duration : currentSongDuration ?? currentTimeRef.current;
+          const nextTime = currentSongDuration ?? fallbackDuration ?? 0;
+          updateTime(nextTime);
           setHasPlaybackFinished(true);
+          pause();
         };
         const handlePlayEvent = () => {
           setHasPlaybackFinished(false);
@@ -500,7 +511,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     } else {
       setAudioLoaded(false);
     }
-      }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey]);
+        }, [hasAudioTrack, currentSongAudioFile, currentSongTitle, currentSongId, settings.musicVolume, audioElementKey, pause, updateTime, currentSongDuration]);
 
     useEffect(() => {
       setHasPlaybackFinished(false);
@@ -771,7 +782,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
   
     // シーク機能（音声ありと音声なし両方対応）
     useEffect(() => {
-      if (!audioContextRef.current || !gameEngine) {
+      if (!gameEngine || !audioContextRef.current) {
         return;
       }
       const hasAudio = hasAudioTrack && audioRef.current && audioLoaded;
@@ -815,7 +826,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       );
 
       return unsubscribe;
-    }, [audioLoaded, gameEngine, settings.playbackSpeed, audioElementKey, updateTime, currentSongDuration, hasAudioTrack, currentSongAudioFile]);
+    }, [audioLoaded, gameEngine, settings.playbackSpeed, audioElementKey, updateTime, currentSongDuration, hasAudioTrack, currentSongAudioFile, isPlaying]);
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);

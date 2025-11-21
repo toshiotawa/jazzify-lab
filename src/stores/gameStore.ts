@@ -617,21 +617,22 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              if (storeSnapshot.settings.showFPS) {
-                set((state) => {
-                  state.debug.renderTime = performance.now() % 1000;
-                });
-              }
+                if (storeSnapshot.settings.showFPS) {
+                  set((state) => {
+                    state.debug.renderTime = performance.now() % 1000;
+                  });
+                }
 
-              const shouldDispatchTime =
-                data.currentTime < lastCurrentTimeDispatch ||
-                data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
-              if (shouldDispatchTime) {
-                lastCurrentTimeDispatch = data.currentTime;
-                set((state) => {
-                  state.currentTime = data.currentTime;
-                });
-              }
+                const shouldDispatchTime =
+                  data.currentTime < lastCurrentTimeDispatch ||
+                  data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
+                if (shouldDispatchTime) {
+                  lastCurrentTimeDispatch = data.currentTime;
+                  set((state) => {
+                    const duration = state.currentSong?.duration ?? null;
+                    state.currentTime = duration !== null ? Math.min(data.currentTime, duration) : data.currentTime;
+                  });
+                }
             });
           
           // 判定イベントコールバック登録
@@ -845,12 +846,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           stop: () => set((state) => {
             state.isPlaying = false;
             state.isPaused = false;
-            state.currentTime = 0;
             state.activeNotes.clear();
             
-            // GameEngineも停止
             if (state.gameEngine) {
               state.gameEngine.stop();
+              if (state.currentTime > 0) {
+                state.gameEngine.seek(state.currentTime);
+              }
             }
           }),
         
