@@ -307,6 +307,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   }, [shouldRenderSheet]);
 
   // 再生状態に応じてtransform/scrollLeft方式を切り替え
+  // 一時停止時は現在のcurrentTimeから正確なスクロール位置を計算し直す
   useEffect(() => {
     if (!shouldRenderSheet) {
       return;
@@ -316,14 +317,53 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
+      // 再生開始時: transform方式に切り替え
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
     } else {
+      // 一時停止時: 現在のcurrentTimeから正確なスクロール位置を計算し直す
+      const mapping = timeMappingRef.current;
+      if (mapping.length > 0) {
+        const currentTimeMs = currentTime * 1000;
+        
+        // 現在時刻に対応する音符インデックスを検索
+        const findActiveIndex = () => {
+          let low = 0;
+          let high = mapping.length - 1;
+          
+          while (low <= high) {
+            const mid = Math.floor((low + high) / 2);
+            if (mapping[mid].timeMs <= currentTimeMs) {
+              low = mid + 1;
+            } else {
+              high = mid - 1;
+            }
+          }
+          return low - 1;
+        };
+        
+        const rawIndex = findActiveIndex();
+        const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
+        const targetEntry = mapping[activeIndex];
+        
+        if (targetEntry) {
+          const playheadPosition = 120;
+          const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+          
+          // 正確な位置を計算してから設定
+          lastScrollXRef.current = scrollX;
+          lastRenderedIndexRef.current = activeIndex;
+          mappingCursorRef.current = activeIndex;
+        }
+      }
+      
+      // scrollLeft方式に切り替え
       wrapper.style.transform = 'translateX(0px)';
       scrollContainer.scrollLeft = lastScrollXRef.current;
     }
-  }, [isPlaying, shouldRenderSheet]);
+  }, [isPlaying, shouldRenderSheet, currentTime]);
 
   // 音符の時刻とX座標のマッピングを作成
     // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
