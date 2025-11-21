@@ -316,14 +316,50 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
     } else {
-      wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
+      // 一時停止時は、currentTimeに基づいて正しいスクロール位置を計算
+      const mapping = timeMappingRef.current;
+      if (mapping.length > 0) {
+        const currentTimeMs = currentTime * 1000;
+        
+        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す
+        let low = 0;
+        let high = mapping.length - 1;
+        while (low <= high) {
+          const mid = Math.floor((low + high) / 2);
+          if (mapping[mid].timeMs <= currentTimeMs) {
+            low = mid + 1;
+          } else {
+            high = mid - 1;
+          }
+        }
+        const activeIndex = Math.max(0, Math.min(low - 1, mapping.length - 1));
+        const targetEntry = mapping[activeIndex];
+        
+        if (targetEntry) {
+          const playheadPosition = 120;
+          const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+          
+          wrapper.style.transform = 'translateX(0px)';
+          scrollContainer.scrollLeft = scrollX;
+          lastScrollXRef.current = scrollX;
+          lastRenderedIndexRef.current = activeIndex;
+        } else {
+          // フォールバック: 既存の値を使用
+          wrapper.style.transform = 'translateX(0px)';
+          scrollContainer.scrollLeft = lastScrollXRef.current;
+        }
+      } else {
+        // マッピングがない場合は既存の値を使用
+        wrapper.style.transform = 'translateX(0px)';
+        scrollContainer.scrollLeft = lastScrollXRef.current;
+      }
     }
-  }, [isPlaying, shouldRenderSheet]);
+  }, [isPlaying, shouldRenderSheet, currentTime]);
 
   // 音符の時刻とX座標のマッピングを作成
     // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
