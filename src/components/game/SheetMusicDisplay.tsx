@@ -316,12 +316,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
+      // 再生開始時: scrollLeftを0にリセットし、transform方式に切り替え
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
     } else {
+      // 一時停止時: transformをリセットし、scrollLeft方式に切り替え
+      // 実際のスクロール位置の更新は338-451行目のuseEffectで行う
       wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
     }
   }, [isPlaying, shouldRenderSheet]);
 
@@ -385,7 +388,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+      // 一時停止時は常にスクロール位置を更新（needsScrollUpdateに関係なく）
+      const shouldUpdate = isPlaying 
+        ? (needsIndexUpdate || seekingBack || forceAtZero)
+        : true; // 停止中は常に更新
+
+        if (shouldUpdate || needsScrollUpdate) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
@@ -399,9 +407,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             if (wrapper) {
               wrapper.style.transform = 'translateX(0px)';
             }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
+            // 一時停止時は常にスクロール位置を更新（閾値チェックを削除）
+            // デバッグ: 一時停止時のスクロール位置を確認
+            if (activeIndex !== lastRenderedIndexRef.current || Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
+              log.debug(`⏸️ 一時停止時スクロール更新: currentTime=${currentTime.toFixed(2)}s, activeIndex=${activeIndex}, xPosition=${targetEntry.xPosition}, scrollX=${scrollX}, lastScrollX=${lastScrollXRef.current}`);
             }
+            scrollContainer.scrollLeft = scrollX;
           }
           lastRenderedIndexRef.current = activeIndex;
           lastScrollXRef.current = scrollX;
