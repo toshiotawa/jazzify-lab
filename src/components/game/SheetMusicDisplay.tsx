@@ -1,6 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
-import { useGameSelector } from '@/stores/helpers';
+import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -39,16 +39,22 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  // ABループ地点のドラッグ用
+  const draggingLoopRef = useRef<'A' | 'B' | null>(null);
+  const scoreContainerRef = useRef<HTMLDivElement>(null);
+  
+  const { currentTime, isPlaying, notes, musicXml, settings, abRepeat, mode } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    abRepeat: s.abRepeat,
+    mode: s.mode,
   }));
   const shouldRenderSheet = settings.showSheetMusic;
   
-  // const gameActions = useGameActions(); // 現在未使用
+  const gameActions = useGameActions();
   
   // OSMDの初期化とレンダリング
   const createTimeMapping = useCallback(() => {
@@ -360,7 +366,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
         // low は「次に演奏されるべき音符」のインデックスになっているため、
         // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
+        const prevIndex = low - 1;
+        
+        // 一時停止時は、現在時刻に最も近い音符を選択（前後の音符を比較）
+        if (!isPlaying && prevIndex >= 0 && prevIndex < mapping.length - 1) {
+          const prevTime = mapping[prevIndex].timeMs;
+          const nextTime = mapping[prevIndex + 1].timeMs;
+          const distToPrev = Math.abs(currentTimeMs - prevTime);
+          const distToNext = Math.abs(currentTimeMs - nextTime);
+          // 次の音符の方が近い場合は次の音符を選択
+          if (distToNext < distToPrev) {
+            return prevIndex + 1;
+          }
+        }
+        
+        return prevIndex;
       };
 
       // 計算されたインデックスを取得（範囲外ならクランプ）
@@ -430,6 +450,185 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       };
     }
   }, [isHovered, isPlaying]);
+
+  // ABループ地点のX座標を計算（時間から）
+  const getXPositionFromTime = useCallback((time: number): number | null => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0) return null;
+    
+    const timeMs = time * 1000;
+    
+    // 時間に最も近いマッピングエントリを探す
+    let low = 0;
+    let high = mapping.length - 1;
+    let closestIndex = 0;
+    let minDist = Infinity;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const dist = Math.abs(mapping[mid].timeMs - timeMs);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = mid;
+      }
+      if (mapping[mid].timeMs < timeMs) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    // 前後のエントリも確認して最も近いものを選択
+    if (closestIndex > 0) {
+      const prevDist = Math.abs(mapping[closestIndex - 1].timeMs - timeMs);
+      if (prevDist < minDist) {
+        closestIndex = closestIndex - 1;
+      }
+    }
+    if (closestIndex < mapping.length - 1) {
+      const nextDist = Math.abs(mapping[closestIndex + 1].timeMs - timeMs);
+      if (nextDist < minDist) {
+        closestIndex = closestIndex + 1;
+      }
+    }
+    
+    // 線形補間で正確な位置を計算
+    const entry = mapping[closestIndex];
+    if (closestIndex < mapping.length - 1 && entry.timeMs < timeMs) {
+      const nextEntry = mapping[closestIndex + 1];
+      const ratio = (timeMs - entry.timeMs) / (nextEntry.timeMs - entry.timeMs);
+      return entry.xPosition + (nextEntry.xPosition - entry.xPosition) * ratio;
+    } else if (closestIndex > 0 && entry.timeMs > timeMs) {
+      const prevEntry = mapping[closestIndex - 1];
+      const ratio = (timeMs - prevEntry.timeMs) / (entry.timeMs - prevEntry.timeMs);
+      return prevEntry.xPosition + (entry.xPosition - prevEntry.xPosition) * ratio;
+    }
+    
+    return entry.xPosition;
+  }, []);
+
+  // ABループ地点のX座標を計算
+  const loopAX = useMemo(() => {
+    if (abRepeat.startTime === null || mode === 'performance') return null;
+    return getXPositionFromTime(abRepeat.startTime);
+  }, [abRepeat.startTime, mode, getXPositionFromTime]);
+
+  const loopBX = useMemo(() => {
+    if (abRepeat.endTime === null || mode === 'performance') return null;
+    return getXPositionFromTime(abRepeat.endTime);
+  }, [abRepeat.endTime, mode, getXPositionFromTime]);
+
+  // X座標から時間を計算（ドラッグ用）
+  const getTimeFromXPosition = useCallback((x: number): number => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0) return 0;
+    
+    // X座標に最も近いマッピングエントリを探す
+    let low = 0;
+    let high = mapping.length - 1;
+    let closestIndex = 0;
+    let minDist = Infinity;
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const dist = Math.abs(mapping[mid].xPosition - x);
+      if (dist < minDist) {
+        minDist = dist;
+        closestIndex = mid;
+      }
+      if (mapping[mid].xPosition < x) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    // 前後のエントリも確認して最も近いものを選択
+    if (closestIndex > 0) {
+      const prevDist = Math.abs(mapping[closestIndex - 1].xPosition - x);
+      if (prevDist < minDist) {
+        closestIndex = closestIndex - 1;
+      }
+    }
+    if (closestIndex < mapping.length - 1) {
+      const nextDist = Math.abs(mapping[closestIndex + 1].xPosition - x);
+      if (nextDist < minDist) {
+        closestIndex = closestIndex + 1;
+      }
+    }
+    
+    // 線形補間で正確な時間を計算
+    const entry = mapping[closestIndex];
+    if (closestIndex < mapping.length - 1 && entry.xPosition < x) {
+      const nextEntry = mapping[closestIndex + 1];
+      const ratio = (x - entry.xPosition) / (nextEntry.xPosition - entry.xPosition);
+      return (entry.timeMs + (nextEntry.timeMs - entry.timeMs) * ratio) / 1000;
+    } else if (closestIndex > 0 && entry.xPosition > x) {
+      const prevEntry = mapping[closestIndex - 1];
+      const ratio = (x - prevEntry.xPosition) / (entry.xPosition - prevEntry.xPosition);
+      return (prevEntry.timeMs + (entry.timeMs - prevEntry.timeMs) * ratio) / 1000;
+    }
+    
+    return entry.timeMs / 1000;
+  }, []);
+
+  // A地点のドラッグ開始
+  const handleALoopDragStart = useCallback((e: React.MouseEvent) => {
+    if (mode === 'performance' || isPlaying || abRepeat.startTime === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    draggingLoopRef.current = 'A';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (draggingLoopRef.current === 'A' && scoreContainerRef.current && scoreWrapperRef.current) {
+        const rect = scoreContainerRef.current.getBoundingClientRect();
+        const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+        const x = moveEvent.clientX - rect.left + scrollLeft;
+        const newTime = getTimeFromXPosition(x);
+        if (abRepeat.endTime === null || newTime < abRepeat.endTime) {
+          gameActions.setABRepeatStart(newTime);
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      draggingLoopRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [mode, isPlaying, abRepeat.startTime, abRepeat.endTime, gameActions, getTimeFromXPosition]);
+
+  // B地点のドラッグ開始
+  const handleBLoopDragStart = useCallback((e: React.MouseEvent) => {
+    if (mode === 'performance' || isPlaying || abRepeat.endTime === null) return;
+    e.preventDefault();
+    e.stopPropagation();
+    draggingLoopRef.current = 'B';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (draggingLoopRef.current === 'B' && scoreContainerRef.current && scoreWrapperRef.current) {
+        const rect = scoreContainerRef.current.getBoundingClientRect();
+        const scrollLeft = scrollContainerRef.current?.scrollLeft || 0;
+        const x = moveEvent.clientX - rect.left + scrollLeft;
+        const newTime = getTimeFromXPosition(x);
+        if (abRepeat.startTime === null || newTime > abRepeat.startTime) {
+          gameActions.setABRepeatEnd(newTime);
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      draggingLoopRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [mode, isPlaying, abRepeat.startTime, abRepeat.endTime, gameActions, getTimeFromXPosition]);
 
   // クリーンアップ
     useEffect(() => {
@@ -505,21 +704,67 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             
             {/* OSMDレンダリング用コンテナ */}
             <div 
-              ref={scoreWrapperRef}
-              className={cn(
-                "h-full",
-                // 停止中は手動スクロール時の移動を滑らかにする
-                !isPlaying ? "transition-transform duration-100 ease-out" : ""
-              )}
-              style={{ 
-                willChange: isPlaying ? 'transform' : 'auto',
-                minWidth: '3000px' // 十分な幅を確保
-              }}
+              ref={scoreContainerRef}
+              className="relative h-full"
             >
               <div 
-                ref={containerRef} 
-                className="h-full flex items-center"
-              />
+                ref={scoreWrapperRef}
+                className={cn(
+                  "h-full",
+                  // 停止中は手動スクロール時の移動を滑らかにする
+                  !isPlaying ? "transition-transform duration-100 ease-out" : ""
+                )}
+                style={{ 
+                  willChange: isPlaying ? 'transform' : 'auto',
+                  minWidth: '3000px' // 十分な幅を確保
+                }}
+              >
+                <div 
+                  ref={containerRef} 
+                  className="h-full flex items-center"
+                />
+              </div>
+              
+              {/* ABループ範囲の背景 */}
+              {mode !== 'performance' && abRepeat.startTime !== null && abRepeat.endTime !== null && loopAX !== null && loopBX !== null && (
+                <div
+                  className={`absolute top-0 bottom-0 pointer-events-none ${
+                    abRepeat.enabled 
+                      ? 'bg-green-400 opacity-20' 
+                      : 'bg-gray-400 opacity-10'
+                  }`}
+                  style={{
+                    left: `${Math.min(loopAX, loopBX)}px`,
+                    width: `${Math.abs(loopBX - loopAX)}px`
+                  }}
+                />
+              )}
+              
+              {/* A地点の縦線 - ドラッグ可能 */}
+              {mode !== 'performance' && abRepeat.startTime !== null && loopAX !== null && (
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-green-500 z-20 cursor-grab active:cursor-grabbing pointer-events-auto hover:bg-green-400 transition-colors shadow-lg"
+                  style={{
+                    left: `${loopAX}px`,
+                    transform: 'translateX(-50%)'
+                  }}
+                  title={`A地点: ${Math.floor(abRepeat.startTime / 60)}:${String(Math.floor(abRepeat.startTime % 60)).padStart(2, '0')} (ドラッグで移動)`}
+                  onMouseDown={handleALoopDragStart}
+                />
+              )}
+              
+              {/* B地点の縦線 - ドラッグ可能 */}
+              {mode !== 'performance' && abRepeat.endTime !== null && loopBX !== null && (
+                <div
+                  className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20 cursor-grab active:cursor-grabbing pointer-events-auto hover:bg-red-400 transition-colors shadow-lg"
+                  style={{
+                    left: `${loopBX}px`,
+                    transform: 'translateX(-50%)'
+                  }}
+                  title={`B地点: ${Math.floor(abRepeat.endTime / 60)}:${String(Math.floor(abRepeat.endTime % 60)).padStart(2, '0')} (ドラッグで移動)`}
+                  onMouseDown={handleBLoopDragStart}
+                />
+              )}
             </div>
           </div>
         </div>
