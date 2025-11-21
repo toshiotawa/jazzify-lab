@@ -36,6 +36,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
+  // 前回の再生状態を保持（一時停止検出用）
+  const wasPlayingRef = useRef(false);
+  
+  // 一時停止時の位置を保持
+  const pausedScrollXRef = useRef<number | null>(null);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
@@ -319,9 +325,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (isPlaying) {
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
+      // 再生中は一時停止位置をクリア
+      pausedScrollXRef.current = null;
     } else {
       wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
+      // 一時停止位置が保持されている場合はそれを使用、そうでなければ最後の位置を使用
+      const targetScrollX = pausedScrollXRef.current !== null 
+        ? pausedScrollXRef.current 
+        : lastScrollXRef.current;
+      scrollContainer.scrollLeft = targetScrollX;
     }
   }, [isPlaying, shouldRenderSheet]);
 
@@ -342,6 +354,39 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return;
       }
 
+      // 一時停止が検出された場合（isPlayingがfalseになった瞬間）
+      const justPaused = wasPlayingRef.current && !isPlaying;
+      
+      // 再生状態を更新
+      wasPlayingRef.current = isPlaying;
+
+      // 一時停止直後は、現在の位置を保持してスクロール位置を更新しない
+      if (justPaused) {
+        // 一時停止時の位置を保持
+        pausedScrollXRef.current = lastScrollXRef.current;
+        log.info(`⏸️ 一時停止検出: 位置を保持 (scrollX=${pausedScrollXRef.current})`);
+        prevTimeRef.current = currentTime;
+        return;
+      }
+
+      // 一時停止中で、巻き戻しやシークが発生していない場合は、位置を保持
+      if (!isPlaying && pausedScrollXRef.current !== null) {
+        const prev = prevTimeRef.current;
+        const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
+        const forceAtZero = currentTime < 0.02;       // 0秒付近
+        const timeJumped = Math.abs(currentTime - prev) > 0.5; // 0.5秒以上のジャンプ
+        
+        // 巻き戻しやシークが発生していない場合は、位置を保持
+        if (!seekingBack && !forceAtZero && !timeJumped) {
+          prevTimeRef.current = currentTime;
+          return;
+        }
+        
+        // シークが発生した場合は、一時停止位置をクリアして再計算
+        pausedScrollXRef.current = null;
+      }
+
+      // 再生中またはシーク時は位置を再計算
       const currentTimeMs = currentTime * 1000;
 
       // 修正箇所: インデックス検索ロジックの簡素化と修正
@@ -373,7 +418,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const playheadPosition = 120;
       
       // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
+      if (!targetEntry) {
+        prevTimeRef.current = currentTime;
+        return;
+      }
 
         const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
 
@@ -385,7 +433,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (needsIndexUpdate || seekingBack || forceAtZero || (isPlaying && needsScrollUpdate)) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
@@ -395,6 +443,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
               scrollContainer.scrollLeft = 0;
             }
+            // 再生中は一時停止位置をクリア
+            pausedScrollXRef.current = null;
           } else if (scrollContainer) {
             if (wrapper) {
               wrapper.style.transform = 'translateX(0px)';
