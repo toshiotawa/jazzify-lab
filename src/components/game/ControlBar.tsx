@@ -1,4 +1,4 @@
-import React, { useCallback } from 'react';
+import React, { useCallback, useRef } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { 
   FaPlay, 
@@ -88,15 +88,27 @@ const ControlBar: React.FC = () => {
 
   // ABリピートハンドラー
   const handleSetAStart = useCallback(() => {
+    // ステージモード（本番モード）ではABループを無効化
+    if (mode === 'performance') {
+      return;
+    }
     setABRepeatStart(currentTime);
-  }, [setABRepeatStart, currentTime]);
+  }, [mode, setABRepeatStart, currentTime]);
 
   const handleSetBEnd = useCallback(() => {
+    // ステージモード（本番モード）ではABループを無効化
+    if (mode === 'performance') {
+      return;
+    }
     setABRepeatEnd(currentTime);
-  }, [setABRepeatEnd, currentTime]);
+  }, [mode, setABRepeatEnd, currentTime]);
 
   // ループON/OFF切り替え（改善版）
   const handleToggleLoop = useCallback(() => {
+    // ステージモード（本番モード）ではABループを無効化
+    if (mode === 'performance') {
+      return;
+    }
     if (abRepeat.startTime !== null && abRepeat.endTime !== null) {
       // A/B地点が設定済みの場合、ON/OFFを切り替え
       toggleABRepeat();
@@ -109,7 +121,7 @@ const ControlBar: React.FC = () => {
       // 自動でループを有効化
       setTimeout(() => toggleABRepeat(), 50);
     }
-  }, [toggleABRepeat, setABRepeatStart, setABRepeatEnd, abRepeat, currentTime, songDuration]);
+  }, [mode, toggleABRepeat, setABRepeatStart, setABRepeatEnd, abRepeat, currentTime, songDuration]);
 
   // 本番モード用の再生/最初に戻るボタン（一時停止なし）
   const handlePlayOrRestart = useCallback(() => {
@@ -132,6 +144,71 @@ const ControlBar: React.FC = () => {
   const handleClearB = useCallback(() => {
     clearABRepeatEnd();
   }, [clearABRepeatEnd]);
+
+  // シークバー上のドラッグ処理用のref
+  const seekbarRef = useRef<HTMLDivElement>(null);
+  const draggingRef = useRef<'A' | 'B' | null>(null);
+
+  // シークバー上のクリック位置から時間を計算
+  const getTimeFromSeekbarClick = useCallback((clientX: number): number => {
+    if (!seekbarRef.current || !songDuration) return 0;
+    const rect = seekbarRef.current.getBoundingClientRect();
+    const x = clientX - rect.left;
+    const percentage = Math.max(0, Math.min(1, x / rect.width));
+    return percentage * songDuration;
+  }, [songDuration]);
+
+  // A地点のドラッグ開始
+  const handleADragStart = useCallback((e: React.MouseEvent) => {
+    if (mode === 'performance' || !canInteract) return;
+    e.preventDefault();
+    e.stopPropagation();
+    draggingRef.current = 'A';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (draggingRef.current === 'A') {
+        const newTime = getTimeFromSeekbarClick(moveEvent.clientX);
+        if (abRepeat.endTime === null || newTime < abRepeat.endTime) {
+          setABRepeatStart(newTime);
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      draggingRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [mode, canInteract, abRepeat.endTime, setABRepeatStart, getTimeFromSeekbarClick]);
+
+  // B地点のドラッグ開始
+  const handleBDragStart = useCallback((e: React.MouseEvent) => {
+    if (mode === 'performance' || !canInteract) return;
+    e.preventDefault();
+    e.stopPropagation();
+    draggingRef.current = 'B';
+    
+    const handleMouseMove = (moveEvent: MouseEvent) => {
+      if (draggingRef.current === 'B') {
+        const newTime = getTimeFromSeekbarClick(moveEvent.clientX);
+        if (abRepeat.startTime === null || newTime > abRepeat.startTime) {
+          setABRepeatEnd(newTime);
+        }
+      }
+    };
+    
+    const handleMouseUp = () => {
+      draggingRef.current = null;
+      document.removeEventListener('mousemove', handleMouseMove);
+      document.removeEventListener('mouseup', handleMouseUp);
+    };
+    
+    document.addEventListener('mousemove', handleMouseMove);
+    document.addEventListener('mouseup', handleMouseUp);
+  }, [mode, canInteract, abRepeat.startTime, setABRepeatEnd, getTimeFromSeekbarClick]);
 
   // 移調ハンドラー
   const handleTransposeDown = useCallback(() => {
@@ -159,7 +236,7 @@ const ControlBar: React.FC = () => {
       {settings.showSeekbar && (
         <div className="px-2 py-1 bg-gray-900">
           <div className="flex items-center space-x-3">
-            <div className="relative flex-1">
+            <div className="relative flex-1" ref={seekbarRef}>
               <input
                 type="range"
                 min="0"
@@ -178,40 +255,46 @@ const ControlBar: React.FC = () => {
               />
               
               {/* ループマーカー */}
-              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && (
+              {(abRepeat.startTime !== null || abRepeat.endTime !== null) && songDuration > 0 && mode !== 'performance' && (
                 <div className="absolute top-0 left-0 w-full h-2 pointer-events-none">
-                  {/* A地点マーカー */}
-                  {abRepeat.startTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-green-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`A地点: ${formatTime(abRepeat.startTime)}`}
-                    />
-                  )}
-                  
-                  {/* B地点マーカー */}
-                  {abRepeat.endTime !== null && (
-                    <div
-                      className="absolute top-0 w-1 h-2 bg-red-400 shadow-lg"
-                      style={{
-                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
-                        transform: 'translateX(-50%)'
-                      }}
-                      title={`B地点: ${formatTime(abRepeat.endTime)}`}
-                    />
-                  )}
-                  
                   {/* ループ範囲の背景 */}
                   {abRepeat.startTime !== null && abRepeat.endTime !== null && (
                     <div
-                      className={`absolute top-0 h-2 ${abRepeat.enabled ? 'bg-green-400' : 'bg-gray-400'} opacity-30 rounded`}
+                      className={`absolute top-0 h-2 rounded ${
+                        abRepeat.enabled 
+                          ? 'bg-green-400 opacity-50' 
+                          : 'bg-gray-400 opacity-20'
+                      }`}
                       style={{
                         left: `${(abRepeat.startTime / songDuration) * 100}%`,
                         width: `${((abRepeat.endTime - abRepeat.startTime) / songDuration) * 100}%`
                       }}
+                    />
+                  )}
+                  
+                  {/* A地点マーカー - ドラッグ可能 */}
+                  {abRepeat.startTime !== null && (
+                    <div
+                      className="absolute top-0 w-2 h-2 bg-green-400 shadow-lg cursor-grab active:cursor-grabbing pointer-events-auto hover:bg-green-300 transition-colors"
+                      style={{
+                        left: `${(abRepeat.startTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`A地点: ${formatTime(abRepeat.startTime)} (ドラッグで移動)`}
+                      onMouseDown={handleADragStart}
+                    />
+                  )}
+                  
+                  {/* B地点マーカー - ドラッグ可能 */}
+                  {abRepeat.endTime !== null && (
+                    <div
+                      className="absolute top-0 w-2 h-2 bg-red-400 shadow-lg cursor-grab active:cursor-grabbing pointer-events-auto hover:bg-red-300 transition-colors"
+                      style={{
+                        left: `${(abRepeat.endTime / songDuration) * 100}%`,
+                        transform: 'translateX(-50%)'
+                      }}
+                      title={`B地点: ${formatTime(abRepeat.endTime)} (ドラッグで移動)`}
+                      onMouseDown={handleBDragStart}
                     />
                   )}
                 </div>
@@ -265,8 +348,9 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-2 ml-4 flex-shrink-0">
                 <button
                   onClick={handleToggleLoop}
-                  className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'}`}
-                  title="ABリピートON/OFF"
+                  className={`control-btn control-btn-xxs ${abRepeat.enabled ? 'control-btn-loop-active' : 'control-btn-loop'} ${mode === 'performance' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={mode === 'performance' ? 'ステージモードではABループは使用できません' : 'ABリピートON/OFF'}
+                  disabled={mode === 'performance'}
                 >
                   <MdLoop />
                 </button>
@@ -276,8 +360,9 @@ const ControlBar: React.FC = () => {
               <div className="flex items-center space-x-1 ml-2 text-xs flex-shrink-0">
                 <button
                   onClick={handleSetAStart}
-                  className={`control-btn control-btn-xxs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
-                  title="A地点設定"
+                  className={`control-btn control-btn-xxs ${abRepeat.startTime !== null ? 'control-btn-primary' : 'control-btn-secondary'} ${mode === 'performance' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={mode === 'performance' ? 'ステージモードではABループは使用できません' : 'A地点設定'}
+                  disabled={mode === 'performance'}
                 >
                   A
                 </button>
@@ -289,6 +374,7 @@ const ControlBar: React.FC = () => {
                     onClick={handleClearA}
                     className="control-btn control-btn-xxs control-btn-danger"
                     title="A地点クリア"
+                    disabled={mode === 'performance'}
                   >
                     <FaTimes size={10} />
                   </button>
@@ -298,8 +384,9 @@ const ControlBar: React.FC = () => {
                 
                 <button
                   onClick={handleSetBEnd}
-                  className={`control-btn control-btn-xxs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'}`}
-                  title="B地点設定"
+                  className={`control-btn control-btn-xxs ${abRepeat.endTime !== null ? 'control-btn-primary' : 'control-btn-secondary'} ${mode === 'performance' ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  title={mode === 'performance' ? 'ステージモードではABループは使用できません' : 'B地点設定'}
+                  disabled={mode === 'performance'}
                 >
                   B
                 </button>
@@ -311,6 +398,7 @@ const ControlBar: React.FC = () => {
                     onClick={handleClearB}
                     className="control-btn control-btn-xxs control-btn-danger"
                     title="B地点クリア"
+                    disabled={mode === 'performance'}
                   >
                     <FaTimes size={10} />
                   </button>
