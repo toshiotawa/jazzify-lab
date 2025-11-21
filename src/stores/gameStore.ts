@@ -604,9 +604,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // エンジンの更新コールバック設定
             engine.setUpdateCallback((data: any) => {
               const storeSnapshot = useGameStore.getState();
-              const { abRepeat } = storeSnapshot;
+              const { abRepeat, mode } = storeSnapshot;
               
-              if (abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
+              if (mode !== 'performance' && abRepeat.enabled && abRepeat.startTime !== null && abRepeat.endTime !== null) {
                 if (data.currentTime >= abRepeat.endTime) {
                   const seekTime = abRepeat.startTime;
                   console.log(`🔄 ABリピート(Store): ${data.currentTime.toFixed(2)}s → ${seekTime.toFixed(2)}s`);
@@ -921,11 +921,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           state.abRepeat.enabled = false;
         }),
         
-        toggleABRepeat: () => set((state) => {
-          if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
-            state.abRepeat.enabled = !state.abRepeat.enabled;
-          }
-        }),
+          toggleABRepeat: () => set((state) => {
+            if (state.mode === 'performance') {
+              state.abRepeat.enabled = false;
+              return;
+            }
+            if (state.abRepeat.startTime !== null && state.abRepeat.endTime !== null) {
+              state.abRepeat.enabled = !state.abRepeat.enabled;
+            }
+          }),
         
         // ノーツ管理
         addActiveNote: (noteId) => set((state) => {
@@ -1188,7 +1192,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         // モード制御
-        setMode: (mode) => set((state) => {
+          setMode: (mode) => set((state) => {
           const previousMode = state.mode;
           state.mode = mode;
           
@@ -1209,6 +1213,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+              state.abRepeat.enabled = false;
             
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {
@@ -1318,7 +1323,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         }),
         
         // UI制御
-        setCurrentTab: (tab) => set((state) => {
+          setCurrentTab: (tab) => set((state) => {
           const previousTab = state.currentTab;
           state.currentTab = tab;
           
@@ -1335,6 +1340,7 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+              state.abRepeat.enabled = false;
           }
           
           // 練習・本番モード間の切り替え時は再生停止するが、時刻はリセットしない
