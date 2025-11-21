@@ -542,10 +542,20 @@ const playFromOffset = useCallback(
         if (!isPlayingRef.current) {
           return;
         }
-        const finalTime = Math.min(effectiveDuration, bufferDuration);
-        setHasPlaybackFinished(true);
-        pause();
-        updateTime(finalTime);
+        
+        // バッファの最後まで再生しきった場合のみ終了とみなす
+        // ユーザーが手動で止めた場合やシークした場合はここは通らないはずだが念のため
+        const currentElapsed = audioContext.currentTime - baseOffsetRef.current;
+        const currentTimeline = currentElapsed * playbackSpeedRef.current;
+        const timeDiff = Math.abs(effectiveDuration - currentTimeline);
+        
+        // 0.5秒以内の誤差なら終了とみなす
+        if (timeDiff < 0.5) {
+          const finalTime = Math.min(effectiveDuration, bufferDuration);
+          setHasPlaybackFinished(true);
+          pause();
+          updateTime(finalTime);
+        }
       };
 
       bufferSourceRef.current = source;
@@ -705,13 +715,16 @@ const playFromOffset = useCallback(
       if (hasAudioTrack || !currentSongDuration) {
         return;
       }
-      if (!isPlaying && currentTimeRef.current >= currentSongDuration) {
+      // 再生中でない場合は終了判定をしない（シーク操作時の誤判定を防ぐ）
+      if (isPlaying && currentTimeRef.current >= currentSongDuration) {
         setHasPlaybackFinished(true);
       }
+      
       const unsubscribe = useGameStore.subscribe(
         (state) => state.currentTime,
         (time) => {
-          if (!isPlayingRef.current && time >= currentSongDuration) {
+          // 再生中かつ、曲の長さを超えた場合のみ終了フラグを立てる
+          if (isPlayingRef.current && time >= currentSongDuration) {
             setHasPlaybackFinished(true);
           }
         }
