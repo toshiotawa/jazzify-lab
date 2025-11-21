@@ -14,6 +14,10 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+const PLAYHEAD_POSITION_PX = 120;
+const MIN_TRAILING_SPACER_PX = 1200;
+const TRAILING_SPACER_BUFFER_PX = 120;
+
 /**
  * 楽譜表示コンポーネント
  * OSMDを使用して横スクロール形式の楽譜を表示
@@ -27,6 +31,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   const lastScrollXRef = useRef(0);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [trailingSpacerWidth, setTrailingSpacerWidth] = useState<number>(MIN_TRAILING_SPACER_PX);
   const scaleFactorRef = useRef<number>(10); // デフォルトは以前のマジックナンバー
   
   // timeMappingはアニメーションループで使うため、useRefで状態の即時反映を保証
@@ -293,6 +298,42 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       createTimeMapping();
     }, [createTimeMapping, shouldRenderSheet]);
 
+    useEffect(() => {
+      if (!shouldRenderSheet) {
+        return;
+      }
+      const scrollContainer = scrollContainerRef.current;
+      if (!scrollContainer) {
+        return;
+      }
+
+      const computeSpacerWidth = () => {
+        const containerWidth = scrollContainer.clientWidth || 0;
+        const requiredWidth = containerWidth - PLAYHEAD_POSITION_PX + TRAILING_SPACER_BUFFER_PX;
+        return Math.max(requiredWidth, MIN_TRAILING_SPACER_PX);
+      };
+
+      const updateSpacerWidth = () => {
+        const nextWidth = computeSpacerWidth();
+        setTrailingSpacerWidth((prev) => (prev === nextWidth ? prev : nextWidth));
+      };
+
+      updateSpacerWidth();
+
+      if (typeof ResizeObserver !== 'function') {
+        return;
+      }
+
+      const resizeObserver = new ResizeObserver(() => {
+        updateSpacerWidth();
+      });
+      resizeObserver.observe(scrollContainer);
+
+      return () => {
+        resizeObserver.disconnect();
+      };
+    }, [shouldRenderSheet]);
+
   // musicXmlが変更されたら楽譜を再読み込み・再レンダリング
   useEffect(() => {
     loadAndRenderSheet();
@@ -370,12 +411,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       mappingCursorRef.current = activeIndex;
 
       const targetEntry = mapping[activeIndex];
-      const playheadPosition = 120;
       
       // targetEntryが存在しない場合のガード処理を追加
       if (!targetEntry) return;
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+        const scrollX = Math.max(0, targetEntry.xPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -457,11 +497,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   return (
     <div className={cn('relative', className)}>
       {/* プレイヘッド（赤い縦線） - スクロール位置に影響されないよう外側へ配置 */}
-      <div 
-        className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
-        style={{ left: '120px' }}
-        aria-hidden="true"
-      />
+        <div 
+          className="pointer-events-none absolute top-0 bottom-0 w-0.5 bg-red-500 z-10"
+          style={{ left: `${PLAYHEAD_POSITION_PX}px` }}
+          aria-hidden="true"
+        />
       <div 
         className={cn(
           "h-full bg-white text-black",
@@ -503,24 +543,33 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
               </div>
             )}
             
-            {/* OSMDレンダリング用コンテナ */}
-            <div 
-              ref={scoreWrapperRef}
-              className={cn(
-                "h-full",
-                // 停止中は手動スクロール時の移動を滑らかにする
-                !isPlaying ? "transition-transform duration-100 ease-out" : ""
-              )}
-              style={{ 
-                willChange: isPlaying ? 'transform' : 'auto',
-                minWidth: '3000px' // 十分な幅を確保
-              }}
-            >
+              {/* OSMDレンダリング用コンテナ */}
               <div 
-                ref={containerRef} 
-                className="h-full flex items-center"
-              />
-            </div>
+                ref={scoreWrapperRef}
+                className={cn(
+                  "h-full inline-flex flex-none items-stretch",
+                  // 停止中は手動スクロール時の移動を滑らかにする
+                  !isPlaying ? "transition-transform duration-100 ease-out" : ""
+                )}
+                style={{ 
+                  willChange: isPlaying ? 'transform' : 'auto'
+                }}
+              >
+                <div
+                  aria-hidden="true"
+                  className="flex-none"
+                  style={{ width: `${PLAYHEAD_POSITION_PX}px` }}
+                />
+                <div 
+                  ref={containerRef} 
+                  className="h-full flex items-center flex-none"
+                />
+                <div
+                  aria-hidden="true"
+                  className="flex-none"
+                  style={{ width: `${trailingSpacerWidth}px` }}
+                />
+              </div>
           </div>
         </div>
       </div>
