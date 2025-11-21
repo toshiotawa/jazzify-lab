@@ -147,11 +147,14 @@ const ControlBar: React.FC = () => {
     updateSettings({ showHeader: !settings.showHeader });
   }, [updateSettings, settings.showHeader]);
 
-
   // 楽譜表示の切り替え
   const toggleSheetMusic = useCallback(() => {
     updateSettings({ showSheetMusic: !settings.showSheetMusic });
   }, [updateSettings, settings.showSheetMusic]);
+
+  const handleStop = useCallback(() => {
+    stop(false);
+  }, [stop]);
 
   return (
     <div className="w-full">
@@ -361,9 +364,9 @@ const ControlBar: React.FC = () => {
                 {currentTime > 0 ? <MdReplay /> : <FaPlay />}
               </button>
 
-                <button
-                  onClick={() => stop()}
-                  className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
+                  <button
+                    onClick={handleStop}
+                    className="control-btn control-btn-xxs control-btn-secondary control-btn-transport"
 
                 disabled={!currentSong}
                 title="停止"
