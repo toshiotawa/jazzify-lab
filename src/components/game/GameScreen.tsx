@@ -161,7 +161,7 @@ const GameScreen: React.FC = () => {
           
           // レッスン設定を先に適用（loadSongの前に実行）
           // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
-          gameActions.stop();
+        gameActions.stop({ resetToStart: true });
           gameActions.clearSong();
           
           await gameActions.updateSettings({
@@ -352,7 +352,7 @@ const GameScreen: React.FC = () => {
           
           // ミッション曲の条件を先に設定に適用（loadSongの前に実行）
           // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
-          gameActions.stop();
+            gameActions.stop({ resetToStart: true });
           gameActions.clearSong();
           
           await gameActions.updateSettings({
@@ -665,7 +665,7 @@ const SongSelectionScreen: React.FC = () => {
                   gameActions.clearMissionContext();
                   
                   // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
-                  gameActions.stop();
+                    gameActions.stop({ resetToStart: true });
                   gameActions.clearSong();
                   
                   try {
