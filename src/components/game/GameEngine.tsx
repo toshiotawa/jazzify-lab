@@ -58,6 +58,8 @@ interface GameEngineComponentProps {
 export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({ 
   className 
 }) => {
+    // ★ 最適化: currentTimeをSelectorから除外して再レンダリングを抑制
+    // currentTimeはcurrentTimeRef（line 364）で管理され、subscribeパターンで監視される
     const {
       gameEngine,
       isPlaying,
@@ -76,6 +78,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       lastKeyHighlight: state.lastKeyHighlight,
       isSettingsOpen: state.isSettingsOpen,
       resultModalOpen: state.resultModalOpen
+      // currentTimeは除外（Ref + subscribeで管理）
     }));
     const currentSongId = currentSong?.id ?? null;
     const currentSongAudioFile = currentSong?.audioFile ?? '';

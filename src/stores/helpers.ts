@@ -1,5 +1,8 @@
 import { useGameStore } from './gameStore';
 
+// useGameStoreを再エクスポート（subscribeパターンで使用）
+export { useGameStore };
+
 // ゲームストアの内部型を隠蔽するため、ローカルエイリアスを定義
 type StoreState = ReturnType<typeof useGameStore.getState>;
 
