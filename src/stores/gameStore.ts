@@ -444,7 +444,7 @@ interface GameStoreState extends GameState {
   // 再生制御
   play: () => void;
   pause: () => void;
-  stop: () => void;
+    stop: (options?: { resetToStart?: boolean }) => void;
   seek: (time: number) => void;
   updateTime: (time: number) => void;
   
@@ -623,15 +623,13 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 });
               }
 
-              const shouldDispatchTime =
-                data.currentTime < lastCurrentTimeDispatch ||
-                data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
-              if (shouldDispatchTime) {
-                lastCurrentTimeDispatch = data.currentTime;
-                set((state) => {
-                  state.currentTime = data.currentTime;
-                });
-              }
+                const shouldDispatchTime =
+                  data.currentTime < lastCurrentTimeDispatch ||
+                  data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
+                if (shouldDispatchTime) {
+                  lastCurrentTimeDispatch = data.currentTime;
+                  set({ currentTime: data.currentTime });
+                }
             });
           
           // 判定イベントコールバック登録
@@ -842,16 +840,29 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             state.isPaused = true;
           }),
           
-          stop: () => set((state) => {
+          stop: (options) => set((state) => {
+            const shouldReset = options?.resetToStart ?? state.mode === 'performance';
+            const targetTime = shouldReset ? 0 : state.currentTime;
             state.isPlaying = false;
             state.isPaused = false;
-            state.currentTime = 0;
+            if (shouldReset) {
+              state.currentTime = 0;
+            }
             state.activeNotes.clear();
             
-            // GameEngineも停止
-            if (state.gameEngine) {
-              state.gameEngine.stop();
+            const engine = state.gameEngine;
+            if (!engine) {
+              return;
             }
+            
+            if (shouldReset) {
+              engine.stop();
+              engine.seek(0);
+              return;
+            }
+            
+            engine.pause();
+            engine.seek(targetTime);
           }),
         
         seek: (time) => {
