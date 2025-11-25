@@ -353,6 +353,12 @@ export class PIXINotesRendererInstance {
   }
 
   private attachEvents(): void {
+    // タッチイベントの追加（iOSでの反応速度向上）
+    this.canvas.addEventListener('touchstart', this.handleTouchStart, { passive: false });
+    this.canvas.addEventListener('touchmove', this.handleTouchMove, { passive: false });
+    this.canvas.addEventListener('touchend', this.handleTouchEnd);
+    this.canvas.addEventListener('touchcancel', this.handleTouchEnd);
+
     this.canvas.addEventListener('pointerdown', this.handlePointerDown);
     this.canvas.addEventListener('pointermove', this.handlePointerMove);
     this.canvas.addEventListener('pointerup', this.handlePointerUp);
@@ -363,6 +369,11 @@ export class PIXINotesRendererInstance {
   }
 
   private detachEvents(): void {
+    this.canvas.removeEventListener('touchstart', this.handleTouchStart);
+    this.canvas.removeEventListener('touchmove', this.handleTouchMove);
+    this.canvas.removeEventListener('touchend', this.handleTouchEnd);
+    this.canvas.removeEventListener('touchcancel', this.handleTouchEnd);
+
     this.canvas.removeEventListener('pointerdown', this.handlePointerDown);
     this.canvas.removeEventListener('pointermove', this.handlePointerMove);
     this.canvas.removeEventListener('pointerup', this.handlePointerUp);
@@ -375,8 +386,106 @@ export class PIXINotesRendererInstance {
       event.preventDefault();
     };
 
+    private handleTouchStart = (event: TouchEvent): void => {
+      if (this.destroyed) return;
+      // スクロール判定は touchmove で行うため、ここでは preventDefault しない
+      // ただし、PointerEvent との重複を防ぐため、PointerEvent 側で touch を無視する
+      
+      const rect = this.canvas.getBoundingClientRect();
+      const pointerType = 'touch';
+
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        const touch = event.changedTouches[i];
+        const x = ((touch.clientX - rect.left) / rect.width) * this.width;
+        const y = ((touch.clientY - rect.top) / rect.height) * this.height;
+        const midi = this.getKeyAtPosition(x, y);
+        
+        const state: PointerState = {
+          midi,
+          pointerType,
+          startX: touch.clientX,
+          startY: touch.clientY,
+          isScrolling: false
+        };
+        
+        // Touch.identifier をキーとして使用
+        this.pointerStates.set(touch.identifier, state);
+        
+        if (midi !== null) {
+          this.triggerKeyPress(midi);
+        }
+      }
+    };
+
+    private handleTouchMove = (event: TouchEvent): void => {
+      if (this.destroyed) return;
+      const rect = this.canvas.getBoundingClientRect();
+
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        const touch = event.changedTouches[i];
+        const state = this.pointerStates.get(touch.identifier);
+        
+        if (!state) continue;
+        
+        // スクロール判定
+        if (state.isScrolling) continue;
+        
+        const deltaX = touch.clientX - state.startX;
+        const deltaY = touch.clientY - state.startY;
+        
+        // 横方向への動きが大きい場合はスクロールとみなす
+        if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
+           if (state.midi !== null) {
+             this.triggerKeyRelease(state.midi);
+             state.midi = null;
+           }
+           state.isScrolling = true;
+           continue;
+        }
+        
+        // 縦方向の動きなど、スクロールでない場合は preventDefault してブラウザ動作を抑制（リフレッシュなど）
+        // ただし pan-x なので横スクロールはブラウザが処理するはず
+        // ここで preventDefault すると横スクロールも止まる可能性があるので注意
+        // event.preventDefault(); // ここではしない
+
+        const x = ((touch.clientX - rect.left) / rect.width) * this.width;
+        const y = ((touch.clientY - rect.top) / rect.height) * this.height;
+        const nextMidi = this.getKeyAtPosition(x, y);
+        
+        if (nextMidi === null || nextMidi === state.midi) {
+          continue;
+        }
+        
+        if (state.midi !== null) {
+          this.triggerKeyRelease(state.midi);
+        }
+        
+        state.midi = nextMidi;
+        this.triggerKeyPress(nextMidi);
+      }
+    };
+
+    private handleTouchEnd = (event: TouchEvent): void => {
+      if (this.destroyed) return;
+      
+      for (let i = 0; i < event.changedTouches.length; i++) {
+        const touch = event.changedTouches[i];
+        const state = this.pointerStates.get(touch.identifier);
+        
+        if (state) {
+          if (state.midi !== null) {
+            this.triggerKeyRelease(state.midi);
+          }
+          this.pointerStates.delete(touch.identifier);
+        }
+      }
+    };
+
     private handlePointerDown = (event: PointerEvent): void => {
       if (this.destroyed) return;
+      // タッチイベントは handleTouchStart で処理済みのため無視
+      if (event.pointerType === 'touch') return;
+
       const midi = this.hitTest(event);
       const pointerType = event.pointerType || 'mouse';
       const state: PointerState = {
