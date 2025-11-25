@@ -76,20 +76,21 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
   };
 
   const handlePointerDown = (note: number) => (e: React.PointerEvent) => {
+    // 音を最優先で鳴らす (Reactの状態更新による遅延を回避)
+    playNote(note, 64);
+
     try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
     isPointerDownRef.current = true;
     pointerIdToNoteRef.current.set(e.pointerId, note);
     setNoteActive(note, true);
-    // velocityは固定（やや強め）
-    playNote(note, 64);
   };
 
   const handlePointerUpOrCancel = (e: React.PointerEvent) => {
     const map = pointerIdToNoteRef.current;
     const note = map.get(e.pointerId);
     if (note != null) {
+      stopNote(note); // 停止を先に
       setNoteActive(note, false);
-      stopNote(note);
       map.delete(e.pointerId);
     }
     if (map.size === 0) isPointerDownRef.current = false;
@@ -101,12 +102,13 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
     const prev = map.get(e.pointerId);
     if (prev === note) return;
     if (prev != null) {
+      stopNote(prev); // 停止を先に
       setNoteActive(prev, false);
-      stopNote(prev);
     }
     map.set(e.pointerId, note);
+    
+    playNote(note, 64); // 再生を先に
     setNoteActive(note, true);
-    playNote(note, 64);
   };
 
   useEffect(() => {
