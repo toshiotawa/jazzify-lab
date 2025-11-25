@@ -161,19 +161,24 @@ export const initializeAudioSystem = async (): Promise<void> => {
 /**
  * 共通音声再生: ノートオン
  */
-export const playNote = async (note: number, velocity: number = 127): Promise<void> => {
+export const playNote = (note: number, velocity: number = 127): Promise<void> => {
+  // 同期的な実行を優先するため、async/await パターンから変更
+  // これにより iOS でのタッチイベント応答性が向上する可能性がある
+
   try {
-    // 音声システム初期化チェック
+    // 1. 音声システム初期化チェック
     if (!audioSystemInitialized || !globalSampler) {
-      await initializeAudioSystem();
+      return initializeAudioSystem().then(() => playNote(note, velocity));
     }
 
-    // ユーザージェスチャーで AudioContext を resume
-    if ((window as any).Tone.context.state !== "running") {
-      await (window as any).Tone.start();
+    const tone = (window as any).Tone;
+
+    // 2. ユーザージェスチャーで AudioContext を resume
+    if (tone.context.state !== "running") {
+      return tone.start().then(() => playNote(note, velocity));
     }
     
-    const noteName = (window as any).Tone.Frequency(note, "midi").toNote();
+    const noteName = tone.Frequency(note, "midi").toNote();
     const normalizedVelocity = velocity / 127; // 0〜1 に正規化
 
     // 既に持続中のノートは解放キューから除外（再打鍵扱い）
@@ -190,11 +195,15 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
 
     // 再生開始（音源に応じて分岐）
     if (globalSampler) {
+      // time=undefined で即時再生
       globalSampler.triggerAttack(noteName, undefined, normalizedVelocity);
     }
     activeNotes.add(noteName);
+    
+    return Promise.resolve();
   } catch (error) {
     console.error('❌ Failed to play note:', error);
+    return Promise.resolve();
   }
 };
 
