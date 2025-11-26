@@ -9,6 +9,8 @@ import type {
   GameState,
   GameMode,
   InstrumentMode,
+  InputMode,
+  VoiceInputSettings,
   SongMetadata,
   NoteData,
   GameScore,
@@ -135,6 +137,15 @@ const defaultSettings: GameSettings = {
   
   // 入力デバイス
   selectedMidiDevice: null,
+  
+  // 入力モード設定
+  inputMode: 'midi' as InputMode,
+  voiceInputSettings: {
+    selectedDeviceId: null,
+    enabled: false,
+    noiseGateThreshold: 0.05,
+    stabilityFrames: 2
+  } as VoiceInputSettings,
   
   // キー設定
   transpose: 0,
