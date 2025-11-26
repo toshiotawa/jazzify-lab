@@ -136,6 +136,11 @@ const defaultSettings: GameSettings = {
   // 入力デバイス
   selectedMidiDevice: null,
   
+  // 入力ソース設定
+  inputSource: 'midi',
+  microphoneClarityThreshold: 0.9,
+  microphoneSensitivity: 1.0,
+  
   // キー設定
   transpose: 0,
   
