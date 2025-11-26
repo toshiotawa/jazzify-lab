@@ -874,6 +874,10 @@ useEffect(() => {
   const midiControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  
+  // ピッチ検出サービス管理用のRef
+  const pitchDetectorRef = useRef<any>(null);
+  const [_isPitchDetectorReady, setIsPitchDetectorReady] = useState(false);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -916,6 +920,95 @@ useEffect(() => {
       }
     };
   }, [handleNoteInput, ensureMidiModule]);
+  
+  // ピッチ検出用のref（最新の値を保持するため）
+  const pixiRendererRef = useRef(pixiRenderer);
+  const handleNoteInputRef = useRef(handleNoteInput);
+  
+  // refを最新の値に更新
+  useEffect(() => {
+    pixiRendererRef.current = pixiRenderer;
+  }, [pixiRenderer]);
+  
+  useEffect(() => {
+    handleNoteInputRef.current = handleNoteInput;
+  }, [handleNoteInput]);
+  
+  // ピッチ検出サービスのコールバック登録（グローバルシングルトンを使用）
+  // 注意: マイクの開始/停止はMicrophoneStatusコンポーネントで手動で行う（iOS対応のため）
+  useEffect(() => {
+    const inputSource = settings.inputSource;
+    
+    // マイク入力モードの場合のみコールバックを登録
+    if (inputSource !== 'microphone') {
+      setIsPitchDetectorReady(false);
+      return;
+    }
+    
+    let isMounted = true;
+    let cleanupFn: (() => void) | undefined;
+    
+    const setupCallbacks = async () => {
+      try {
+        // グローバルシングルトンを取得
+        const { getGlobalPitchDetector } = await import('@/utils/PitchDetectorService');
+        const service = getGlobalPitchDetector();
+        
+        if (!isMounted) return;
+        
+        // コールバックを設定（refを使って最新の値を参照）
+        const onNoteOn = (note: number, velocity: number) => {
+          if (!isMounted) return;
+          
+          // ゲームエンジンにノート入力を通知
+          handleNoteInputRef.current(note);
+          
+          // PIXIキーボードハイライト
+          const renderer = pixiRendererRef.current;
+          if (renderer) {
+            renderer.highlightKey(note, true);
+          }
+          
+          log.info(`🎤 GameEngine: Note ON - MIDI ${note}, velocity ${velocity}`);
+        };
+        
+        const onNoteOff = (note: number) => {
+          if (!isMounted) return;
+          
+          // PIXIキーボードハイライト解除
+          const renderer = pixiRendererRef.current;
+          if (renderer) {
+            renderer.highlightKey(note, false);
+          }
+        };
+        
+        service.addCallbacks({ onNoteOn, onNoteOff });
+        
+        // サービスが既に動作中かチェック
+        const isActive = service.isActive();
+        setIsPitchDetectorReady(isActive);
+        
+        log.info(`✅ ピッチ検出コールバック登録完了 (サービス動作中: ${isActive})`);
+        
+        // クリーンアップ関数を保存
+        cleanupFn = () => {
+          log.info('🧹 ピッチ検出コールバック解除');
+          service.removeCallbacks({ onNoteOn, onNoteOff });
+        };
+        
+      } catch (error) {
+        log.error('❌ ピッチ検出コールバックの登録に失敗:', error);
+        setIsPitchDetectorReady(false);
+      }
+    };
+    
+    setupCallbacks();
+    
+    return () => {
+      isMounted = false;
+      cleanupFn?.();
+    };
+  }, [settings.inputSource]); // 依存配列からpixiRendererとhandleNoteInputを削除（refで参照するため）
 
     useEffect(() => {
       let isMounted = true;
