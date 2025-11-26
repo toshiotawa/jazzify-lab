@@ -4,6 +4,8 @@
  * AudioWorklet + WASM (YIN/PYIN) によるリアルタイムピッチ検出
  * iOS Safari対応: ScriptProcessorNodeフォールバック付き
  * 低レイテンシ（~15-25ms）での単音ピッチ検出を実現
+ * 
+ * シングルトンパターンでグローバル管理
  */
 
 import { log } from './logger';
@@ -29,6 +31,18 @@ export interface PitchResult {
 export type PitchCallback = (result: PitchResult) => void;
 export type NoteOnCallback = (note: number, velocity: number) => void;
 export type NoteOffCallback = (note: number) => void;
+export type StatusCallback = (status: PitchDetectorStatus) => void;
+
+// ステータス情報
+export interface PitchDetectorStatus {
+  isInitialized: boolean;
+  isRunning: boolean;
+  isLegacyMode: boolean;
+  error: string | null;
+  detectionCount: number;
+  currentNote: number | null;
+  lastPitch: PitchResult | null;
+}
 
 // サービス設定
 export interface PitchDetectorConfig {
@@ -48,9 +62,9 @@ const DEFAULT_CONFIG: Required<PitchDetectorConfig> = {
   bufferSize: 2048,
   hopSize: 512,
   yinThreshold: 0.15,
-  minConfidence: 0.7,  // iOSではノイズが多いため緩めに
+  minConfidence: 0.6,  // iOSではノイズが多いため緩めに
   noteOnThreshold: 2,
-  noteOffThreshold: 3,
+  noteOffThreshold: 4,
   minFrequency: 60,
   maxFrequency: 2000
 };
@@ -101,11 +115,15 @@ export class PitchDetectorService {
   private noteConfirmCount = 0;
   private noNoteCount = 0;
   private lastProcessTime = 0;
+  private detectionCount = 0;
+  private lastPitch: PitchResult | null = null;
+  private errorMessage: string | null = null;
   
-  // コールバック
-  private onPitch: PitchCallback | null = null;
-  private onNoteOn: NoteOnCallback | null = null;
-  private onNoteOff: NoteOffCallback | null = null;
+  // コールバック（複数リスナー対応）
+  private pitchCallbacks: Set<PitchCallback> = new Set();
+  private noteOnCallbacks: Set<NoteOnCallback> = new Set();
+  private noteOffCallbacks: Set<NoteOffCallback> = new Set();
+  private statusCallbacks: Set<StatusCallback> = new Set();
   
   constructor(config: PitchDetectorConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
@@ -115,6 +133,29 @@ export class PitchDetectorService {
       this.useScriptProcessor = true;
       log.info('🎤 iOS/レガシーモード: ScriptProcessorNodeを使用');
     }
+  }
+  
+  /**
+   * 現在のステータスを取得
+   */
+  getStatus(): PitchDetectorStatus {
+    return {
+      isInitialized: this.isInitialized,
+      isRunning: this.isRunning,
+      isLegacyMode: this.useScriptProcessor,
+      error: this.errorMessage,
+      detectionCount: this.detectionCount,
+      currentNote: this.currentNote,
+      lastPitch: this.lastPitch
+    };
+  }
+  
+  /**
+   * ステータス変更を通知
+   */
+  private notifyStatusChange(): void {
+    const status = this.getStatus();
+    this.statusCallbacks.forEach(cb => cb(status));
   }
   
   /**
@@ -130,6 +171,8 @@ export class PitchDetectorService {
       log.info('🎤 Initializing PitchDetectorService...');
       log.info(`   iOS: ${isIOS()}, AudioWorklet: ${supportsAudioWorklet()}, ScriptProcessor: ${this.useScriptProcessor}`);
       
+      this.errorMessage = null;
+      
       // WASMモジュールをロード
       await this.loadWasmModule();
       
@@ -138,9 +181,12 @@ export class PitchDetectorService {
       
       this.isInitialized = true;
       log.info('✅ PitchDetectorService initialized successfully');
+      this.notifyStatusChange();
       
     } catch (error) {
+      this.errorMessage = error instanceof Error ? error.message : '初期化に失敗しました';
       log.error('❌ Failed to initialize PitchDetectorService:', error);
+      this.notifyStatusChange();
       throw error;
     }
   }
@@ -267,6 +313,7 @@ export class PitchDetectorService {
     
     try {
       log.info('🎤 Starting pitch detection...');
+      this.errorMessage = null;
       
       // AudioContextを再開（iOSでは必須）
       if (this.audioContext) {
@@ -312,11 +359,15 @@ export class PitchDetectorService {
       this.noNoteCount = 0;
       this.bufferWriteIndex = 0;
       this.lastProcessTime = performance.now();
+      this.detectionCount = 0;
       
       log.info('✅ Pitch detection started');
+      this.notifyStatusChange();
       
     } catch (error) {
+      this.errorMessage = error instanceof Error ? error.message : 'マイクの開始に失敗しました';
       log.error('❌ Failed to start pitch detection:', error);
+      this.notifyStatusChange();
       throw error;
     }
   }
@@ -366,8 +417,8 @@ export class PitchDetectorService {
       const inputData = event.inputBuffer.getChannelData(0);
       
       processCount++;
-      if (processCount % 50 === 1) {
-        // デバッグログ（50フレームに1回）
+      if (processCount % 100 === 1) {
+        // デバッグログ（100フレームに1回）
         const maxAmp = Math.max(...Array.from(inputData).map(Math.abs));
         log.info(`🎤 Audio input: maxAmp=${maxAmp.toFixed(4)}, samples=${inputData.length}`);
       }
@@ -430,14 +481,16 @@ export class PitchDetectorService {
     }
     
     // 最後のノートをオフに
-    if (this.currentNote !== null && this.onNoteOff) {
-      this.onNoteOff(this.currentNote);
+    if (this.currentNote !== null) {
+      this.noteOffCallbacks.forEach(cb => cb(this.currentNote!));
     }
     
     this.isRunning = false;
     this.currentNote = null;
+    this.lastPitch = null;
     
     log.info('✅ Pitch detection stopped');
+    this.notifyStatusChange();
   }
   
   /**
@@ -445,7 +498,6 @@ export class PitchDetectorService {
    */
   private processSamples(samples: Float32Array, timestamp: number): void {
     if (!this.wasmModule || !this.sampleBuffer || !this.wasmMemory) {
-      log.warn('⚠️ WASM not ready');
       return;
     }
     
@@ -470,10 +522,12 @@ export class PitchDetectorService {
       this.config.yinThreshold
     );
     
+    this.detectionCount++;
+    
     // 処理時間をログ（低頻度）
     const now = performance.now();
-    if (now - this.lastProcessTime > 1000) {
-      log.info(`🎤 Pitch: ${frequency > 0 ? frequency.toFixed(1) + 'Hz' : 'none'}`);
+    if (now - this.lastProcessTime > 2000) {
+      log.info(`🎤 Pitch: ${frequency > 0 ? frequency.toFixed(1) + 'Hz' : 'none'}, count: ${this.detectionCount}`);
       this.lastProcessTime = now;
     }
     
@@ -511,9 +565,8 @@ export class PitchDetectorService {
       timestamp
     };
     
-    if (this.onPitch) {
-      this.onPitch(result);
-    }
+    this.lastPitch = result;
+    this.pitchCallbacks.forEach(cb => cb(result));
     
     // ノートオン/オフ処理
     this.handleNoteDetection(midiNote, confidence);
@@ -535,11 +588,10 @@ export class PitchDetectorService {
         
         log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
         
-        if (this.onNoteOn) {
-          // 信頼度をベロシティに変換 (64-127)
-          const velocity = Math.round(64 + confidence * 63);
-          this.onNoteOn(midiNote, velocity);
-        }
+        // 信頼度をベロシティに変換 (64-127)
+        const velocity = Math.round(64 + confidence * 63);
+        this.noteOnCallbacks.forEach(cb => cb(midiNote, velocity));
+        this.notifyStatusChange();
       }
     } else if (this.currentNote !== midiNote) {
       // ノートが変わった場合
@@ -548,19 +600,16 @@ export class PitchDetectorService {
       if (this.noteConfirmCount >= this.config.noteOnThreshold) {
         // 前のノートをオフ
         log.info(`🎵 Note OFF: MIDI ${this.currentNote}`);
-        if (this.onNoteOff) {
-          this.onNoteOff(this.currentNote);
-        }
+        this.noteOffCallbacks.forEach(cb => cb(this.currentNote!));
         
         // 新しいノートをオン
         this.currentNote = midiNote;
         this.noteConfirmCount = 0;
         
         log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
-        if (this.onNoteOn) {
-          const velocity = Math.round(64 + confidence * 63);
-          this.onNoteOn(midiNote, velocity);
-        }
+        const velocity = Math.round(64 + confidence * 63);
+        this.noteOnCallbacks.forEach(cb => cb(midiNote, velocity));
+        this.notifyStatusChange();
       }
     } else {
       // 同じノートが継続
@@ -578,11 +627,10 @@ export class PitchDetectorService {
     if (this.currentNote !== null && 
         this.noNoteCount >= this.config.noteOffThreshold) {
       log.info(`🎵 Note OFF: MIDI ${this.currentNote} (timeout)`);
-      if (this.onNoteOff) {
-        this.onNoteOff(this.currentNote);
-      }
+      this.noteOffCallbacks.forEach(cb => cb(this.currentNote!));
       this.currentNote = null;
       this.noNoteCount = 0;
+      this.notifyStatusChange();
     }
   }
   
@@ -612,16 +660,33 @@ export class PitchDetectorService {
   }
   
   /**
-   * コールバックを設定
+   * コールバックを追加
    */
-  setCallbacks(callbacks: {
+  addCallbacks(callbacks: {
     onPitch?: PitchCallback;
     onNoteOn?: NoteOnCallback;
     onNoteOff?: NoteOffCallback;
+    onStatus?: StatusCallback;
   }): void {
-    if (callbacks.onPitch) this.onPitch = callbacks.onPitch;
-    if (callbacks.onNoteOn) this.onNoteOn = callbacks.onNoteOn;
-    if (callbacks.onNoteOff) this.onNoteOff = callbacks.onNoteOff;
+    if (callbacks.onPitch) this.pitchCallbacks.add(callbacks.onPitch);
+    if (callbacks.onNoteOn) this.noteOnCallbacks.add(callbacks.onNoteOn);
+    if (callbacks.onNoteOff) this.noteOffCallbacks.add(callbacks.onNoteOff);
+    if (callbacks.onStatus) this.statusCallbacks.add(callbacks.onStatus);
+  }
+  
+  /**
+   * コールバックを削除
+   */
+  removeCallbacks(callbacks: {
+    onPitch?: PitchCallback;
+    onNoteOn?: NoteOnCallback;
+    onNoteOff?: NoteOffCallback;
+    onStatus?: StatusCallback;
+  }): void {
+    if (callbacks.onPitch) this.pitchCallbacks.delete(callbacks.onPitch);
+    if (callbacks.onNoteOn) this.noteOnCallbacks.delete(callbacks.onNoteOn);
+    if (callbacks.onNoteOff) this.noteOffCallbacks.delete(callbacks.onNoteOff);
+    if (callbacks.onStatus) this.statusCallbacks.delete(callbacks.onStatus);
   }
   
   /**
@@ -667,6 +732,12 @@ export class PitchDetectorService {
     this.processingBuffer = null;
     this.isInitialized = false;
     
+    // コールバックをクリア
+    this.pitchCallbacks.clear();
+    this.noteOnCallbacks.clear();
+    this.noteOffCallbacks.clear();
+    this.statusCallbacks.clear();
+    
     log.info('🎤 PitchDetectorService destroyed');
   }
   
@@ -699,19 +770,30 @@ export class PitchDetectorService {
   }
 }
 
-// シングルトンインスタンス（オプション）
-let pitchDetectorInstance: PitchDetectorService | null = null;
+// ===== グローバルシングルトン管理 =====
 
-export const getPitchDetectorService = (): PitchDetectorService => {
-  if (!pitchDetectorInstance) {
-    pitchDetectorInstance = new PitchDetectorService();
+let globalPitchDetectorInstance: PitchDetectorService | null = null;
+
+/**
+ * グローバルなピッチ検出サービスを取得（シングルトン）
+ */
+export const getGlobalPitchDetector = (): PitchDetectorService => {
+  if (!globalPitchDetectorInstance) {
+    globalPitchDetectorInstance = new PitchDetectorService();
   }
-  return pitchDetectorInstance;
+  return globalPitchDetectorInstance;
 };
 
-export const destroyPitchDetectorService = async (): Promise<void> => {
-  if (pitchDetectorInstance) {
-    await pitchDetectorInstance.destroy();
-    pitchDetectorInstance = null;
+/**
+ * グローバルなピッチ検出サービスを破棄
+ */
+export const destroyGlobalPitchDetector = async (): Promise<void> => {
+  if (globalPitchDetectorInstance) {
+    await globalPitchDetectorInstance.destroy();
+    globalPitchDetectorInstance = null;
   }
 };
+
+// 旧API互換性のため（非推奨）
+export const getPitchDetectorService = getGlobalPitchDetector;
+export const destroyPitchDetectorService = destroyGlobalPitchDetector;

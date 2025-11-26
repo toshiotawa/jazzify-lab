@@ -921,94 +921,75 @@ useEffect(() => {
     };
   }, [handleNoteInput, ensureMidiModule]);
   
-  // ピッチ検出サービスの初期化・開始・停止（入力ソースに応じて）
+  // ピッチ検出サービスのコールバック登録（グローバルシングルトンを使用）
+  // 注意: マイクの開始/停止はMicrophoneStatusコンポーネントで手動で行う（iOS対応のため）
   useEffect(() => {
     const inputSource = settings.inputSource;
     
-    // マイク入力モードの場合
-    if (inputSource === 'microphone') {
-      const initPitchDetector = async () => {
-        try {
-          // 既存のサービスがあれば停止
-          if (pitchDetectorRef.current) {
-            pitchDetectorRef.current.stop();
-          }
-          
-          // ピッチ検出サービスをインポート・初期化
-          const { PitchDetectorService } = await import('@/utils/PitchDetectorService');
-          
-          if (!pitchDetectorRef.current) {
-            pitchDetectorRef.current = new PitchDetectorService({
-              sampleRate: 48000,
-              bufferSize: 2048,
-              hopSize: 512,
-              yinThreshold: 0.15,
-              minConfidence: 0.75,
-              noteOnThreshold: 2,
-              noteOffThreshold: 3
-            });
-          }
-          
-          // コールバックを設定
-          pitchDetectorRef.current.setCallbacks({
-            onNoteOn: (note: number, velocity: number) => {
-              handleNoteInput(note);
-              // PIXIキーボードハイライト
-              if (pixiRenderer) {
-                pixiRenderer.highlightKey(note, true);
-              }
-              log.info(`🎤 Pitch detected: MIDI ${note}, velocity ${velocity}`);
-            },
-            onNoteOff: (note: number) => {
-              // PIXIキーボードハイライト解除
-              if (pixiRenderer) {
-                pixiRenderer.highlightKey(note, false);
-              }
-            }
-          });
-          
-          // サービスを初期化
-          await pitchDetectorRef.current.initialize();
-          
-          // マイクデバイスを指定して開始
-          await pitchDetectorRef.current.start(settings.selectedAudioInputDevice || undefined);
-          
-          setIsPitchDetectorReady(true);
-          log.info('✅ ピッチ検出サービス開始');
-          
-        } catch (error) {
-          log.error('❌ ピッチ検出サービスの初期化に失敗:', error);
-          setIsPitchDetectorReady(false);
-        }
-      };
-      
-      initPitchDetector();
-    } else {
-      // MIDI入力モードに切り替わった場合はピッチ検出を停止
-      if (pitchDetectorRef.current && pitchDetectorRef.current.isActive()) {
-        pitchDetectorRef.current.stop();
-        setIsPitchDetectorReady(false);
-        log.info('🎤 ピッチ検出サービス停止（MIDI入力に切り替え）');
-      }
+    // マイク入力モードの場合のみコールバックを登録
+    if (inputSource !== 'microphone') {
+      setIsPitchDetectorReady(false);
+      return;
     }
     
-    return () => {
-      // クリーンアップ時はピッチ検出を停止
-      if (pitchDetectorRef.current) {
-        pitchDetectorRef.current.stop();
+    let isMounted = true;
+    
+    const setupCallbacks = async () => {
+      try {
+        // グローバルシングルトンを取得
+        const { getGlobalPitchDetector } = await import('@/utils/PitchDetectorService');
+        const service = getGlobalPitchDetector();
+        
+        if (!isMounted) return;
+        
+        // コールバックを設定
+        const onNoteOn = (note: number, velocity: number) => {
+          if (!isMounted) return;
+          handleNoteInput(note);
+          // PIXIキーボードハイライト
+          if (pixiRenderer) {
+            pixiRenderer.highlightKey(note, true);
+          }
+          log.info(`🎤 Pitch detected: MIDI ${note}, velocity ${velocity}`);
+        };
+        
+        const onNoteOff = (note: number) => {
+          if (!isMounted) return;
+          // PIXIキーボードハイライト解除
+          if (pixiRenderer) {
+            pixiRenderer.highlightKey(note, false);
+          }
+        };
+        
+        service.addCallbacks({ onNoteOn, onNoteOff });
+        
+        // サービスが既に動作中かチェック
+        setIsPitchDetectorReady(service.isActive());
+        
+        log.info('✅ ピッチ検出コールバック登録完了');
+        
+        // クリーンアップ関数を返す
+        return () => {
+          service.removeCallbacks({ onNoteOn, onNoteOff });
+        };
+        
+      } catch (error) {
+        log.error('❌ ピッチ検出コールバックの登録に失敗:', error);
+        setIsPitchDetectorReady(false);
       }
     };
-  }, [settings.inputSource, settings.selectedAudioInputDevice, handleNoteInput, pixiRenderer]);
-  
-  // コンポーネントアンマウント時のクリーンアップ
-  useEffect(() => {
+    
+    let cleanupFn: (() => void) | undefined;
+    
+    setupCallbacks().then(cleanup => {
+      cleanupFn = cleanup;
+    });
+    
     return () => {
-      if (pitchDetectorRef.current) {
-        pitchDetectorRef.current.destroy();
-        pitchDetectorRef.current = null;
-      }
+      isMounted = false;
+      cleanupFn?.();
     };
-  }, []);
+  }, [settings.inputSource, handleNoteInput, pixiRenderer]);
 
     useEffect(() => {
       let isMounted = true;
