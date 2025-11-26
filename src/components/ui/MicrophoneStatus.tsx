@@ -7,16 +7,13 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { 
   getGlobalPitchDetector, 
   PitchDetectorStatus,
-  NoteOnCallback,
-  NoteOffCallback,
   StatusCallback
 } from '@/utils/PitchDetectorService';
+import { useGameStore } from '@/stores/gameStore';
 import { log } from '@/utils/logger';
 
 interface MicrophoneStatusProps {
   deviceId?: string | null;
-  onNoteDetected?: (note: number, velocity: number) => void;
-  onNoteOff?: (note: number) => void;
   className?: string;
 }
 
@@ -30,8 +27,6 @@ const midiToNoteName = (midi: number): string => {
 
 export const MicrophoneStatus: React.FC<MicrophoneStatusProps> = ({
   deviceId,
-  onNoteDetected,
-  onNoteOff,
   className = ''
 }) => {
   const [status, setStatus] = useState<PitchDetectorStatus>({
@@ -44,6 +39,7 @@ export const MicrophoneStatus: React.FC<MicrophoneStatusProps> = ({
     lastPitch: null
   });
   const [isInitializing, setIsInitializing] = useState(false);
+  const [callbacksRegistered, setCallbacksRegistered] = useState(false);
 
   // グローバルサービスからの初期ステータスを取得
   useEffect(() => {
@@ -66,32 +62,35 @@ export const MicrophoneStatus: React.FC<MicrophoneStatusProps> = ({
     };
   }, []);
 
-  // ノート検出コールバックを登録
+  // ノート検出時にゲームストアに直接通知するコールバックを登録
+  // このコールバックはMicrophoneStatusがアンマウントされても削除されない（意図的）
   useEffect(() => {
-    if (!onNoteDetected && !onNoteOff) return;
+    if (callbacksRegistered) return;
     
     const service = getGlobalPitchDetector();
     
-    const noteOnCallback: NoteOnCallback = (note, velocity) => {
-      onNoteDetected?.(note, velocity);
+    // ゲームストアに直接アクセスするコールバック
+    const onNoteOn = (note: number, velocity: number) => {
+      const state = useGameStore.getState();
+      
+      // handleNoteInputを呼び出し（ゲーム中のヒット判定）
+      state.handleNoteInput(note);
+      
+      log.info(`🎤 MicrophoneStatus: Note ON - MIDI ${note} (${midiToNoteName(note)}), velocity ${velocity}, isPlaying: ${state.isPlaying}`);
     };
     
-    const noteOffCallback: NoteOffCallback = (note) => {
-      onNoteOff?.(note);
+    const onNoteOff = (note: number) => {
+      log.info(`🎤 MicrophoneStatus: Note OFF - MIDI ${note}`);
     };
     
-    service.addCallbacks({ 
-      onNoteOn: noteOnCallback,
-      onNoteOff: noteOffCallback
-    });
+    service.addCallbacks({ onNoteOn, onNoteOff });
+    setCallbacksRegistered(true);
     
-    return () => {
-      service.removeCallbacks({ 
-        onNoteOn: noteOnCallback,
-        onNoteOff: noteOffCallback
-      });
-    };
-  }, [onNoteDetected, onNoteOff]);
+    log.info('✅ MicrophoneStatus: ゲームストア連携コールバック登録完了');
+    
+    // 注意: このコールバックは意図的に削除しない（モーダルを閉じても機能させるため）
+    // アプリ全体のライフサイクルで1回だけ登録される
+  }, [callbacksRegistered]);
 
   // マイク開始
   const startMicrophone = useCallback(async () => {
@@ -242,6 +241,8 @@ export const MicrophoneStatus: React.FC<MicrophoneStatusProps> = ({
       {isActive && (
         <div className="text-xs text-green-500 mt-3 bg-green-900/20 p-2 rounded">
           ✅ マイク動作中。このモーダルを閉じても検出は継続します。
+          <br />
+          <span className="text-gray-400">ゲームを再生して演奏してください。</span>
         </div>
       )}
     </div>

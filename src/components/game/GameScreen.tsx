@@ -1464,10 +1464,6 @@ const SettingsPanel: React.FC = () => {
                     {/* マイク入力状態（iPhoneでの手動開始対応） */}
                     <MicrophoneStatus 
                       deviceId={settings.selectedAudioInputDevice}
-                      onNoteDetected={(note: number) => {
-                        // ゲームエンジンにノート入力を通知
-                        gameActions.handleNoteInput(note);
-                      }}
                       className="mt-4"
                     />
                     
