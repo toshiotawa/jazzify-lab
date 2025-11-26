@@ -3,6 +3,8 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { AudioDeviceSelector, InputTypeSelector } from '@/components/ui/AudioDeviceManager';
+import type { InputType } from '@/types';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1406,17 +1408,39 @@ const SettingsPanel: React.FC = () => {
                     入力デバイス
                   </label>
                   <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                    MIDI入力で超低遅延プレイ、または音声入力（マイク）で楽器やボーカルを認識
                   </p>
                 </div>
 
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                {/* 入力方式選択 */}
+                <div className="bg-gray-800 bg-opacity-50 p-4 rounded-lg border border-gray-600 border-opacity-30 mb-4">
+                  <InputTypeSelector
+                    value={settings.inputType}
+                    onChange={(type: InputType) => gameActions.updateSettings({ inputType: type })}
                   />
                 </div>
+
+                {/* MIDI入力モード */}
+                {settings.inputType === 'midi' && (
+                  <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                  </div>
+                )}
+
+                {/* 音声入力モード */}
+                {settings.inputType === 'audio' && (
+                  <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-green-200 mb-3">🎤 音声入力設定</h4>
+                    <AudioDeviceSelector
+                      value={settings.selectedAudioDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioDevice: deviceId })}
+                    />
+                  </div>
+                )}
               </div>
 
             {/* 音量設定 */}
