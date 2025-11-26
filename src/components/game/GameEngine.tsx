@@ -16,6 +16,7 @@ import { LegendRenderBridge } from './LegendRenderBridge';
 import ScoreOverlay from './ScoreOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
+import type { VoicePitchDetector } from '@/utils/VoicePitchDetector';
 
 const TOTAL_WHITE_KEYS = 52;
 const VISIBLE_WHITE_KEYS = 24;
@@ -111,6 +112,12 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     midiModuleRef.current = module;
     return module;
   }, []);
+  
+  // 音声入力用のVoicePitchDetector
+  const voicePitchDetectorRef = useRef<VoicePitchDetector | null>(null);
+  const [isVoiceInputReady, setIsVoiceInputReady] = useState(false);
+  const [voiceInputError, setVoiceInputError] = useState<string | null>(null);
+  const inputMode = settings.inputMode;
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const [gameAreaSize, setGameAreaSize] = useState({ width: 800, height: 600 });
     const pianoScrollRef = useRef<HTMLDivElement | null>(null);
@@ -936,6 +943,97 @@ useEffect(() => {
       };
     }, [ensureMidiModule]);
 
+  // ===== 音声入力モードの初期化/破棄 =====
+  useEffect(() => {
+    // 音声入力モードでない場合は何もしない
+    if (inputMode !== 'voice') {
+      // 既存のVoicePitchDetectorを破棄
+      if (voicePitchDetectorRef.current) {
+        voicePitchDetectorRef.current.destroy();
+        voicePitchDetectorRef.current = null;
+        setIsVoiceInputReady(false);
+        log.info('🎤 音声入力モード終了: VoicePitchDetector破棄');
+      }
+      return;
+    }
+    
+    // 音声入力モードの初期化
+    const initVoiceInput = async () => {
+      try {
+        setVoiceInputError(null);
+        log.info('🎤 音声入力モード開始: VoicePitchDetector初期化中...');
+        
+        const { VoicePitchDetector } = await import('@/utils/VoicePitchDetector');
+        
+        const detector = new VoicePitchDetector({
+          onNoteDetected: (midiNote: number) => {
+            log.info(`🎤 音声検出: MIDI ${midiNote}`);
+            handleNoteInput(midiNote);
+            // ピアノキーハイライト
+            if (pixiRenderer) {
+              pixiRenderer.highlightKey(midiNote, true);
+              // 短時間後にハイライト解除
+              setTimeout(() => {
+                pixiRenderer.highlightKey(midiNote, false);
+              }, 150);
+            }
+          },
+          onNoteOff: (midiNote: number) => {
+            // ノートオフ時の処理（必要に応じて）
+            if (pixiRenderer) {
+              pixiRenderer.highlightKey(midiNote, false);
+            }
+          },
+          yinThreshold: 0.15,
+          minConfidence: 0.75,
+          bufferSize: 2048,
+          stabilizationFrames: 2
+        });
+        
+        const success = await detector.initialize();
+        
+        if (!success) {
+          setVoiceInputError('マイクの初期化に失敗しました');
+          detector.destroy();
+          return;
+        }
+        
+        voicePitchDetectorRef.current = detector;
+        setIsVoiceInputReady(true);
+        log.info('✅ 音声入力モード準備完了');
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : '音声入力の初期化に失敗しました';
+        setVoiceInputError(errorMessage);
+        log.error('❌ 音声入力初期化エラー:', error);
+      }
+    };
+    
+    void initVoiceInput();
+    
+    return () => {
+      if (voicePitchDetectorRef.current) {
+        voicePitchDetectorRef.current.destroy();
+        voicePitchDetectorRef.current = null;
+        setIsVoiceInputReady(false);
+      }
+    };
+  }, [inputMode, handleNoteInput, pixiRenderer]);
+
+  // ===== 再生状態に応じた音声入力の開始/停止 =====
+  useEffect(() => {
+    if (inputMode !== 'voice' || !voicePitchDetectorRef.current) {
+      return;
+    }
+    
+    if (isPlaying && isVoiceInputReady) {
+      voicePitchDetectorRef.current.start();
+      log.info('▶️ 音声入力開始（再生開始）');
+    } else {
+      voicePitchDetectorRef.current.stop();
+      log.info('⏹️ 音声入力停止（再生停止）');
+    }
+  }, [isPlaying, inputMode, isVoiceInputReady]);
+
   // MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
     const linkMidiAndPixi = async () => {
@@ -1301,6 +1399,33 @@ useEffect(() => {
       >
         {/* GOOD / MISS オーバーレイ */}
         <ScoreOverlay className="absolute top-3 left-3 z-20 pointer-events-none" />
+        
+        {/* 音声入力モードの状態表示 */}
+        {inputMode === 'voice' && (
+          <div className="absolute top-3 right-3 z-20 pointer-events-none">
+            {voiceInputError ? (
+              <div className="bg-red-600/80 text-white px-3 py-1 rounded-full text-sm flex items-center space-x-2">
+                <span>❌</span>
+                <span>{voiceInputError}</span>
+              </div>
+            ) : isVoiceInputReady ? (
+              <div className={`px-3 py-1 rounded-full text-sm flex items-center space-x-2 ${
+                isPlaying 
+                  ? 'bg-green-600/80 text-white animate-pulse' 
+                  : 'bg-blue-600/80 text-white'
+              }`}>
+                <span>🎤</span>
+                <span>{isPlaying ? '音声検出中...' : '音声入力待機中'}</span>
+              </div>
+            ) : (
+              <div className="bg-yellow-600/80 text-white px-3 py-1 rounded-full text-sm flex items-center space-x-2">
+                <span>⏳</span>
+                <span>マイク初期化中...</span>
+              </div>
+            )}
+          </div>
+        )}
+        
         {/* PIXI.js ノーツレンダラー（統合済み） */}
           {(() => (
             <div 
