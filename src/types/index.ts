@@ -6,6 +6,19 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
+export type InputMode = 'midi' | 'voice';
+
+// 音声入力設定
+export interface VoiceInputSettings {
+  /** 選択されたマイクデバイスID */
+  selectedDeviceId: string | null;
+  /** 音声入力有効フラグ */
+  enabled: boolean;
+  /** ノイズゲート閾値（0-1） */
+  noiseGateThreshold: number;
+  /** 安定性フレーム数（検出確定までのフレーム） */
+  stabilityFrames: number;
+}
 // 移調楽器タイプ
 export type TransposingInstrument = 
   | 'concert_pitch'      // コンサートピッチ（移調なし）
@@ -173,6 +186,10 @@ export interface GameSettings {
   
   // 入力デバイス
   selectedMidiDevice: string | null;
+  
+  // 入力モード設定
+  inputMode: InputMode;
+  voiceInputSettings: VoiceInputSettings;
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)

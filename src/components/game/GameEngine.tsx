@@ -13,6 +13,7 @@ import { useChords, useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from './PIXINotesRenderer';
 import { LegendRenderBridge } from './LegendRenderBridge';
+import { VoiceInputController } from '@/utils/VoiceInputController';
 import ScoreOverlay from './ScoreOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
@@ -874,6 +875,10 @@ useEffect(() => {
   const midiControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  
+  // VoiceInputController管理用のRef
+  const voiceInputControllerRef = useRef<VoiceInputController | null>(null);
+  const [isVoiceInputReady, setIsVoiceInputReady] = useState(false);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -980,6 +985,97 @@ useEffect(() => {
     const timer = setTimeout(restoreMidiConnection, 200);
     return () => clearTimeout(timer);
   }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
+
+  // ===== 音声入力コントローラー初期化 =====
+  useEffect(() => {
+    // 音声入力モードが選択されていない場合は初期化しない
+    if (settings.inputMode !== 'voice') {
+      // MIDI モードに切り替わったら音声入力を切断
+      if (voiceInputControllerRef.current) {
+        void voiceInputControllerRef.current.disconnect();
+        log.info('🎤 音声入力モード解除: 切断');
+      }
+      return;
+    }
+
+    const initVoiceInput = async () => {
+      try {
+        // VoiceInputController が未作成の場合は作成
+        if (!voiceInputControllerRef.current) {
+          voiceInputControllerRef.current = new VoiceInputController(
+            {
+              onNoteOn: (note: number) => {
+                handleNoteInput(note);
+                // 鍵盤ハイライト
+                if (pixiRenderer) {
+                  pixiRenderer.highlightKey(note, true);
+                }
+              },
+              onNoteOff: (note: number) => {
+                // 鍵盤ハイライト解除
+                if (pixiRenderer) {
+                  pixiRenderer.highlightKey(note, false);
+                }
+              },
+              onConnectionChange: (connected: boolean) => {
+                log.info(`🎤 音声入力接続状態変更: ${connected ? '接続' : '切断'}`);
+                setIsVoiceInputReady(connected);
+              }
+            },
+            {
+              noiseGateThreshold: settings.voiceInputSettings.noiseGateThreshold,
+              stabilityFrames: settings.voiceInputSettings.stabilityFrames
+            }
+          );
+          
+          // WASM 初期化
+          await voiceInputControllerRef.current.initialize();
+          log.info('✅ VoiceInputController WASM 初期化完了');
+        }
+
+        // デバイスが選択されている場合は接続
+        if (settings.voiceInputSettings.selectedDeviceId) {
+          const success = await voiceInputControllerRef.current.connect(
+            settings.voiceInputSettings.selectedDeviceId
+          );
+          if (success) {
+            log.info('✅ 音声入力デバイス接続完了');
+            setIsVoiceInputReady(true);
+          } else {
+            log.warn('⚠️ 音声入力デバイス接続に失敗');
+          }
+        }
+      } catch (error) {
+        log.error('❌ 音声入力初期化エラー:', error);
+      }
+    };
+
+    void initVoiceInput();
+
+    return () => {
+      // クリーンアップ時に切断（ただしコントローラーは保持）
+      if (voiceInputControllerRef.current?.isConnected()) {
+        void voiceInputControllerRef.current.disconnect();
+      }
+    };
+  }, [
+    settings.inputMode,
+    settings.voiceInputSettings.selectedDeviceId,
+    settings.voiceInputSettings.noiseGateThreshold,
+    settings.voiceInputSettings.stabilityFrames,
+    handleNoteInput,
+    pixiRenderer
+  ]);
+
+  // VoiceInputController のクリーンアップ（コンポーネントアンマウント時）
+  useEffect(() => {
+    return () => {
+      if (voiceInputControllerRef.current) {
+        voiceInputControllerRef.current.destroy();
+        voiceInputControllerRef.current = null;
+      }
+    };
+  }, []);
 
   // ゲームエンジン初期化
   useEffect(() => {

@@ -3,6 +3,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { VoiceInputSelector } from '@/components/ui/VoiceInputManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1406,17 +1407,62 @@ const SettingsPanel: React.FC = () => {
                     入力デバイス
                   </label>
                   <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                    MIDI入力または音声入力を選択できます。音声入力はWASMによる低レイテンシ単音認識に対応しています。
                   </p>
                 </div>
 
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
-                  />
+                {/* 入力モード選択 */}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-2">入力モード</label>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => gameActions.updateSettings({ inputMode: 'midi' })}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        settings.inputMode === 'midi'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🎹 MIDI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => gameActions.updateSettings({ inputMode: 'voice' })}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        settings.inputMode === 'voice'
+                          ? 'bg-green-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🎤 音声
+                    </button>
+                  </div>
                 </div>
+
+                {/* MIDI設定 */}
+                {settings.inputMode === 'midi' && (
+                  <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                  </div>
+                )}
+
+                {/* 音声入力設定 */}
+                {settings.inputMode === 'voice' && (
+                  <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-green-200 mb-3">🎤 音声入力設定</h4>
+                    <VoiceInputSelector
+                      settings={settings.voiceInputSettings}
+                      onChange={(voiceSettings) => gameActions.updateSettings({ 
+                        voiceInputSettings: { ...settings.voiceInputSettings, ...voiceSettings } 
+                      })}
+                    />
+                  </div>
+                )}
               </div>
 
             {/* 音量設定 */}
