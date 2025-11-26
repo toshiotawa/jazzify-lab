@@ -586,11 +586,19 @@ export class PitchDetectorService {
         this.currentNote = midiNote;
         this.noteConfirmCount = 0;
         
-        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
-        
         // 信頼度をベロシティに変換 (64-127)
         const velocity = Math.round(64 + confidence * 63);
-        this.noteOnCallbacks.forEach(cb => cb(midiNote, velocity));
+        
+        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%, callbacks: ${this.noteOnCallbacks.size})`);
+        
+        // すべてのコールバックを呼び出し
+        this.noteOnCallbacks.forEach(cb => {
+          try {
+            cb(midiNote, velocity);
+          } catch (err) {
+            log.error('❌ NoteOn callback error:', err);
+          }
+        });
         this.notifyStatusChange();
       }
     } else if (this.currentNote !== midiNote) {
@@ -599,16 +607,28 @@ export class PitchDetectorService {
       
       if (this.noteConfirmCount >= this.config.noteOnThreshold) {
         // 前のノートをオフ
-        log.info(`🎵 Note OFF: MIDI ${this.currentNote}`);
-        this.noteOffCallbacks.forEach(cb => cb(this.currentNote!));
+        log.info(`🎵 Note OFF: MIDI ${this.currentNote} (callbacks: ${this.noteOffCallbacks.size})`);
+        this.noteOffCallbacks.forEach(cb => {
+          try {
+            cb(this.currentNote!);
+          } catch (err) {
+            log.error('❌ NoteOff callback error:', err);
+          }
+        });
         
         // 新しいノートをオン
         this.currentNote = midiNote;
         this.noteConfirmCount = 0;
         
-        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
         const velocity = Math.round(64 + confidence * 63);
-        this.noteOnCallbacks.forEach(cb => cb(midiNote, velocity));
+        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%, callbacks: ${this.noteOnCallbacks.size})`);
+        this.noteOnCallbacks.forEach(cb => {
+          try {
+            cb(midiNote, velocity);
+          } catch (err) {
+            log.error('❌ NoteOn callback error:', err);
+          }
+        });
         this.notifyStatusChange();
       }
     } else {
@@ -672,6 +692,8 @@ export class PitchDetectorService {
     if (callbacks.onNoteOn) this.noteOnCallbacks.add(callbacks.onNoteOn);
     if (callbacks.onNoteOff) this.noteOffCallbacks.add(callbacks.onNoteOff);
     if (callbacks.onStatus) this.statusCallbacks.add(callbacks.onStatus);
+    
+    log.info(`📝 Callbacks added - noteOn: ${this.noteOnCallbacks.size}, noteOff: ${this.noteOffCallbacks.size}, pitch: ${this.pitchCallbacks.size}`);
   }
   
   /**

@@ -921,6 +921,19 @@ useEffect(() => {
     };
   }, [handleNoteInput, ensureMidiModule]);
   
+  // ピッチ検出用のref（最新の値を保持するため）
+  const pixiRendererRef = useRef(pixiRenderer);
+  const handleNoteInputRef = useRef(handleNoteInput);
+  
+  // refを最新の値に更新
+  useEffect(() => {
+    pixiRendererRef.current = pixiRenderer;
+  }, [pixiRenderer]);
+  
+  useEffect(() => {
+    handleNoteInputRef.current = handleNoteInput;
+  }, [handleNoteInput]);
+  
   // ピッチ検出サービスのコールバック登録（グローバルシングルトンを使用）
   // 注意: マイクの開始/停止はMicrophoneStatusコンポーネントで手動で行う（iOS対応のため）
   useEffect(() => {
@@ -933,6 +946,7 @@ useEffect(() => {
     }
     
     let isMounted = true;
+    let cleanupFn: (() => void) | undefined;
     
     const setupCallbacks = async () => {
       try {
@@ -942,34 +956,43 @@ useEffect(() => {
         
         if (!isMounted) return;
         
-        // コールバックを設定
+        // コールバックを設定（refを使って最新の値を参照）
         const onNoteOn = (note: number, velocity: number) => {
           if (!isMounted) return;
-          handleNoteInput(note);
+          
+          // ゲームエンジンにノート入力を通知
+          handleNoteInputRef.current(note);
+          
           // PIXIキーボードハイライト
-          if (pixiRenderer) {
-            pixiRenderer.highlightKey(note, true);
+          const renderer = pixiRendererRef.current;
+          if (renderer) {
+            renderer.highlightKey(note, true);
           }
-          log.info(`🎤 Pitch detected: MIDI ${note}, velocity ${velocity}`);
+          
+          log.info(`🎤 GameEngine: Note ON - MIDI ${note}, velocity ${velocity}`);
         };
         
         const onNoteOff = (note: number) => {
           if (!isMounted) return;
+          
           // PIXIキーボードハイライト解除
-          if (pixiRenderer) {
-            pixiRenderer.highlightKey(note, false);
+          const renderer = pixiRendererRef.current;
+          if (renderer) {
+            renderer.highlightKey(note, false);
           }
         };
         
         service.addCallbacks({ onNoteOn, onNoteOff });
         
         // サービスが既に動作中かチェック
-        setIsPitchDetectorReady(service.isActive());
+        const isActive = service.isActive();
+        setIsPitchDetectorReady(isActive);
         
-        log.info('✅ ピッチ検出コールバック登録完了');
+        log.info(`✅ ピッチ検出コールバック登録完了 (サービス動作中: ${isActive})`);
         
-        // クリーンアップ関数を返す
-        return () => {
+        // クリーンアップ関数を保存
+        cleanupFn = () => {
+          log.info('🧹 ピッチ検出コールバック解除');
           service.removeCallbacks({ onNoteOn, onNoteOff });
         };
         
@@ -979,17 +1002,13 @@ useEffect(() => {
       }
     };
     
-    let cleanupFn: (() => void) | undefined;
-    
-    setupCallbacks().then(cleanup => {
-      cleanupFn = cleanup;
-    });
+    setupCallbacks();
     
     return () => {
       isMounted = false;
       cleanupFn?.();
     };
-  }, [settings.inputSource, handleNoteInput, pixiRenderer]);
+  }, [settings.inputSource]); // 依存配列からpixiRendererとhandleNoteInputを削除（refで参照するため）
 
     useEffect(() => {
       let isMounted = true;
