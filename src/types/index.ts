@@ -6,6 +6,7 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
+export type InputMode = 'midi' | 'voice';
 // 移調楽器タイプ
 export type TransposingInstrument = 
   | 'concert_pitch'      // コンサートピッチ（移調なし）
@@ -140,6 +141,9 @@ export interface GameSettings {
   notesSpeed: number;          // 0.5-3.0
   playbackSpeed: number;       // 0.25-2.0
   instrumentMode: InstrumentMode;
+  
+  // 入力モード設定
+  inputMode: InputMode;        // 'midi' | 'voice'
   
   // 判定設定
   allowOctaveError: boolean;   // オクターブ違いを正解にする
@@ -277,7 +281,7 @@ export interface InputEvent {
   note: number;
   velocity?: number;
   timestamp: number;
-  source: 'midi';
+  source: 'midi' | 'voice';
 }
 
 export interface MidiDevice {
