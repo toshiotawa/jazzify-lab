@@ -122,6 +122,10 @@ export interface Song {
   usage_type?: 'general' | 'lesson';
 }
 
+// ===== 入力ソース設定 =====
+
+export type InputSource = 'midi' | 'microphone';
+
 // ===== ゲーム設定 =====
 
 export interface GameSettings {
@@ -140,6 +144,10 @@ export interface GameSettings {
   notesSpeed: number;          // 0.5-3.0
   playbackSpeed: number;       // 0.25-2.0
   instrumentMode: InstrumentMode;
+  
+  // 入力ソース設定
+  inputSource: InputSource;           // 'midi' | 'microphone'
+  selectedAudioInputDevice: string | null;  // マイクデバイスID
   
   // 判定設定
   allowOctaveError: boolean;   // オクターブ違いを正解にする

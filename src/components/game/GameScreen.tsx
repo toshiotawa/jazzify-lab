@@ -3,6 +3,7 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { AudioInputDeviceSelector } from '@/components/ui/AudioInputDeviceSelector';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1399,24 +1400,73 @@ const SettingsPanel: React.FC = () => {
           )}
 
             <div className="space-y-4">
-              {/* 入力デバイス */}
+              {/* 入力ソース選択 */}
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-300 mb-1">
-                    入力デバイス
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    入力ソース
                   </label>
-                  <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                  <div className="flex items-center space-x-4">
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="input-source"
+                        value="midi"
+                        checked={settings.inputSource === 'midi'}
+                        onChange={() => gameActions.updateSettings({ inputSource: 'midi' })}
+                        className="radio radio-sm radio-primary"
+                      />
+                      <span className="text-sm text-gray-300">🎹 MIDI入力</span>
+                    </label>
+                    <label className="flex items-center space-x-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="input-source"
+                        value="microphone"
+                        checked={settings.inputSource === 'microphone'}
+                        onChange={() => gameActions.updateSettings({ inputSource: 'microphone' })}
+                        className="radio radio-sm radio-primary"
+                      />
+                      <span className="text-sm text-gray-300">🎤 マイク入力</span>
+                    </label>
+                  </div>
+                  <p className="text-xs text-gray-400 mt-2">
+                    {settings.inputSource === 'midi' 
+                      ? 'MIDI入力: 超低遅延で最も正確な入力方式です。'
+                      : 'マイク入力: 楽器の音を直接検出します（レイテンシ約15-20ms）。'
+                    }
                   </p>
                 </div>
 
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
-                  />
-                </div>
+                {/* MIDI デバイス設定 */}
+                {settings.inputSource === 'midi' && (
+                  <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                  </div>
+                )}
+
+                {/* マイク入力設定 */}
+                {settings.inputSource === 'microphone' && (
+                  <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-green-200 mb-3">🎤 マイク入力設定</h4>
+                    <AudioInputDeviceSelector
+                      value={settings.selectedAudioInputDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioInputDevice: deviceId })}
+                    />
+                    <div className="mt-3 text-xs text-green-300 bg-green-900/30 p-2 rounded">
+                      <p className="font-medium mb-1">💡 マイク入力のヒント:</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>単音楽器（サックス、トランペットなど）に最適化</li>
+                        <li>静かな環境で使用すると精度が向上します</li>
+                        <li>対応音域: E1 (41Hz) 〜 C7 (2093Hz)</li>
+                      </ul>
+                    </div>
+                  </div>
+                )}
               </div>
 
             {/* 音量設定 */}

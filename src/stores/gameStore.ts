@@ -111,6 +111,10 @@ const defaultSettings: GameSettings = {
   playbackSpeed: 1.0,
   instrumentMode: 'piano',
   
+  // 入力ソース設定
+  inputSource: 'midi',
+  selectedAudioInputDevice: null,
+  
   // 判定設定
   allowOctaveError: false,
   noteOctaveShift: 0,
