@@ -872,8 +872,12 @@ useEffect(() => {
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);
+  // AudioPitchDetector管理用のRef
+  const audioPitchDetectorRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  // 音声入力 初期化完了フラグ
+  const [isAudioInputReady, setIsAudioInputReady] = useState(false);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -917,6 +921,48 @@ useEffect(() => {
     };
   }, [handleNoteInput, ensureMidiModule]);
 
+  // 音声入力（AudioPitchDetector）初期化
+  useEffect(() => {
+    const initAudioInput = async () => {
+      try {
+        if (!audioPitchDetectorRef.current) {
+          const { AudioPitchDetector } = await import('@/utils/AudioPitchDetector');
+          
+          audioPitchDetectorRef.current = new AudioPitchDetector({
+            onNoteOn: (note: number, _velocity?: number) => {
+              // MIDIモードの場合は無視
+              if (settings.inputMode === 'midi') {
+                return;
+              }
+              handleNoteInput(note);
+            },
+            onNoteOff: (_note: number) => {
+              // ノートオフの処理（必要に応じて）
+            },
+            onConnectionChange: (connected: boolean) => {
+              log.info(`🎤 音声入力接続状態変更: ${connected ? '接続' : '切断'}`);
+            }
+          });
+          
+          setIsAudioInputReady(true);
+          log.info('✅ AudioPitchDetector初期化完了');
+        }
+      } catch (error) {
+        log.warn('⚠️ 音声入力システム初期化に失敗:', error);
+      }
+    };
+    
+    initAudioInput();
+    
+    return () => {
+      if (audioPitchDetectorRef.current) {
+        audioPitchDetectorRef.current.destroy();
+        audioPitchDetectorRef.current = null;
+      }
+      setIsAudioInputReady(false);
+    };
+  }, [handleNoteInput, settings.inputMode]);
+
     useEffect(() => {
       let isMounted = true;
         void ensureMidiModule()
@@ -936,10 +982,18 @@ useEffect(() => {
       };
     }, [ensureMidiModule]);
 
-  // MIDIとPIXIの連携を管理する専用のuseEffect
+  // 入力モードに応じた入力デバイスの管理
   useEffect(() => {
-    const linkMidiAndPixi = async () => {
-      // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
+    const manageInputDevices = async () => {
+      // MIDIモードの場合
+      if (settings.inputMode === 'midi') {
+        // 音声入力を停止
+        if (audioPitchDetectorRef.current) {
+          audioPitchDetectorRef.current.stop();
+          audioPitchDetectorRef.current.setEnabled(false);
+        }
+        
+        // MIDIコントローラー、PIXIレンダラー、選択デバイスIDの3つが揃ったら実行
         if (midiControllerRef.current && pixiRenderer && settings.selectedMidiDevice) {
           // 1. 鍵盤ハイライト用のコールバックを設定
           midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
@@ -951,6 +1005,7 @@ useEffect(() => {
           const success = await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
           if (success) {
             log.info('✅ MIDI device successfully linked to renderer.');
+            midiControllerRef.current.setEnabled(true);
           } else {
             log.warn('⚠️ Failed to link MIDI device to renderer.');
           }
@@ -959,11 +1014,30 @@ useEffect(() => {
           midiControllerRef.current.disconnect();
           log.info('🔌 MIDIデバイス切断');
         }
+      }
+      // 音声入力モードの場合
+      else if (settings.inputMode === 'audio') {
+        // MIDI入力を無効化
+        if (midiControllerRef.current) {
+          midiControllerRef.current.setEnabled(false);
+        }
+        
+        // 音声入力を開始
+        if (audioPitchDetectorRef.current && isAudioInputReady) {
+          try {
+            await audioPitchDetectorRef.current.start();
+            audioPitchDetectorRef.current.setEnabled(true);
+            log.info('✅ 音声入力を開始しました');
+          } catch (error) {
+            log.error('❌ 音声入力の開始に失敗:', error);
+          }
+        }
+      }
     };
 
-    linkMidiAndPixi();
+    manageInputDevices();
     
-  }, [pixiRenderer, settings.selectedMidiDevice, isMidiReady]); // MIDI初期化完了後にも発火させる
+  }, [pixiRenderer, settings.selectedMidiDevice, settings.inputMode, isMidiReady, isAudioInputReady]);
 
   // 楽曲変更時にMIDI接続を確認・復元
   useEffect(() => {

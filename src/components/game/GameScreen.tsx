@@ -1406,17 +1406,72 @@ const SettingsPanel: React.FC = () => {
                     入力デバイス
                   </label>
                   <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                    レジェンドモードではMIDI入力または音声入力（マイク）を選択できます。
                   </p>
                 </div>
 
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
-                  />
+                {/* 入力モード選択 */}
+                <div className="bg-gray-800 bg-opacity-50 p-3 rounded-lg border border-gray-700">
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    入力モード
+                  </label>
+                  <div className="flex gap-4">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="inputMode"
+                        value="midi"
+                        checked={settings.inputMode === 'midi'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            gameActions.updateSettings({ inputMode: 'midi' });
+                          }
+                        }}
+                        className="radio radio-primary radio-sm"
+                      />
+                      <span className="text-sm text-gray-300">🎹 MIDI</span>
+                    </label>
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="radio"
+                        name="inputMode"
+                        value="audio"
+                        checked={settings.inputMode === 'audio'}
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            gameActions.updateSettings({ inputMode: 'audio' });
+                          }
+                        }}
+                        className="radio radio-primary radio-sm"
+                      />
+                      <span className="text-sm text-gray-300">🎤 音声入力</span>
+                    </label>
+                  </div>
                 </div>
+
+                {/* MIDIデバイス設定 */}
+                {settings.inputMode === 'midi' && (
+                  <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                  </div>
+                )}
+
+                {/* 音声入力設定 */}
+                {settings.inputMode === 'audio' && (
+                  <div className="bg-purple-900 bg-opacity-20 p-4 rounded-lg border border-purple-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 音声入力設定</h4>
+                    <p className="text-xs text-gray-400 mb-2">
+                      マイクの使用許可が必要です。楽器の音を直接入力できます。
+                    </p>
+                    <p className="text-xs text-amber-400">
+                      ⚠️ 音声入力は単音検出に最適化されています。低レイテンシで動作しますが、MIDI入力より精度が低い場合があります。
+                    </p>
+                  </div>
+                )}
               </div>
 
             {/* 音量設定 */}
