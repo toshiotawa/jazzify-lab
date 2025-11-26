@@ -170,7 +170,8 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
 
     // ユーザージェスチャーで AudioContext を resume
     if ((window as any).Tone.context.state !== "running") {
-      await (window as any).Tone.start();
+      // ラグ回避のため await せずに実行
+      (window as any).Tone.start().catch(() => {});
     }
     
     const noteName = (window as any).Tone.Frequency(note, "midi").toNote();

@@ -170,6 +170,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
+
+  // 高速化のため playNote 関数を事前に保持する Ref
+  const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(null);
+
+  // マウント時に playNote をロード
+  useEffect(() => {
+    import('@/utils/MidiController').then(({ playNote }) => {
+      playNoteRef.current = playNote;
+    }).catch(console.error);
+  }, []);
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -493,35 +503,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
   
   // MIDI/音声入力のハンドリング
-  const handleNoteInputBridge = useCallback(async (note: number, source: 'mouse' | 'midi' = 'mouse') => {
-    // iOS/Safari 対策: 最初のユーザー操作でオーディオを解放
-    try { await (window as any).Tone?.start?.(); } catch {}
-    try {
-      const mod = await import('@/utils/FantasySoundManager');
-      const FSM = (mod as any).FantasySoundManager ?? mod.default;
-      await FSM?.unlock?.();
-    } catch {}
+  const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
+    // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
+    // iOS Safari ではユーザー操作コンテキストでの同期的なメソッド呼び出しが必要だが、
+    // Tone.start() は内部で resume() を呼ぶ。Promise を待機するとラグになるため待たない。
+    if ((window as any).Tone?.context?.state !== 'running') {
+       (window as any).Tone?.start?.().catch(() => {});
+    }
 
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
-      devLog.debug('🎵 Note already playing, skipping:', note);
       return;
     }
     
     // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
-    try {
-      if (source === 'mouse') {
-        const { playNote } = await import('@/utils/MidiController');
-        await playNote(note, 64); // velocity 下げる
-        activeNotesRef.current.add(note);
-        devLog.debug('🎵 Played note via click:', note);
+    if (source === 'mouse') {
+      const play = playNoteRef.current;
+      if (play) {
+         // awaitせずに実行（fire-and-forget）
+         play(note, 64).catch(e => console.error('Failed to play note:', e));
+         activeNotesRef.current.add(note);
+      } else {
+         // まだロードされていない場合のフォールバック
+         import('@/utils/MidiController').then(({ playNote }) => {
+            playNoteRef.current = playNote;
+            playNote(note, 64);
+            activeNotesRef.current.add(note);
+         }).catch(console.error);
       }
-    } catch (error) {
-      console.error('Failed to play note:', error);
+      devLog.debug('🎵 Played note via click:', note);
     }
     
     // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
+    
+    // FantasySoundManagerのアンロックは低優先度で実行
+    if (source === 'mouse') {
+        setTimeout(() => {
+             import('@/utils/FantasySoundManager').then(mod => {
+                const FSM = (mod as any).FantasySoundManager ?? mod.default;
+                FSM?.unlock?.();
+             }).catch(() => {});
+        }, 0);
+    }
   }, [engineHandleNoteInput]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
