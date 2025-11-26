@@ -50,6 +50,7 @@ const isIOS = (): boolean => {
 };
 
 type MidiModule = typeof import('@/utils/MidiController');
+type AudioControllerModule = typeof import('@/utils/AudioController');
 
 interface GameEngineComponentProps {
   className?: string;
@@ -109,6 +110,16 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     const module = await import('@/utils/MidiController');
     midiModuleRef.current = module;
+    return module;
+  }, []);
+  
+  const audioModuleRef = useRef<AudioControllerModule | null>(null);
+  const ensureAudioModule = useCallback(async (): Promise<AudioControllerModule> => {
+    if (audioModuleRef.current) {
+      return audioModuleRef.current;
+    }
+    const module = await import('@/utils/AudioController');
+    audioModuleRef.current = module;
     return module;
   }, []);
   const gameAreaRef = useRef<HTMLDivElement>(null);
@@ -874,6 +885,12 @@ useEffect(() => {
   const midiControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  
+  // AudioController管理用のRef（音声入力用）
+  const audioControllerRef = useRef<any>(null);
+  // Audio 初期化完了フラグ（将来の状態表示用）
+  const [_isAudioReady, setIsAudioReady] = useState(false);
+  void _isAudioReady; // 将来の使用のため保持
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -913,6 +930,10 @@ useEffect(() => {
       if (midiControllerRef.current) {
         midiControllerRef.current.destroy();
         midiControllerRef.current = null;
+      }
+      if (audioControllerRef.current) {
+        audioControllerRef.current.dispose();
+        audioControllerRef.current = null;
       }
     };
   }, [handleNoteInput, ensureMidiModule]);
@@ -980,6 +1001,62 @@ useEffect(() => {
     const timer = setTimeout(restoreMidiConnection, 200);
     return () => clearTimeout(timer);
   }, [currentSong, settings.selectedMidiDevice, pixiRenderer, isMidiReady]); // MIDI初期化完了後にも復元を試行
+
+  // AudioController（音声入力）の初期化・接続
+  useEffect(() => {
+    const initAndConnectAudio = async () => {
+      // 音声入力モードの場合のみ
+      if (settings.inputType !== 'audio') {
+        // MIDIモードの場合、AudioControllerを切断
+        if (audioControllerRef.current) {
+          await audioControllerRef.current.disconnect();
+          log.info('🔌 音声入力切断（MIDIモードへ切り替え）');
+        }
+        return;
+      }
+
+      try {
+        const audioModule = await ensureAudioModule();
+        const { AudioController } = audioModule;
+
+        // AudioControllerの初期化
+        if (!audioControllerRef.current) {
+          audioControllerRef.current = new AudioController(
+            (note: number) => {
+              handleNoteInput(note);
+              // 鍵盤ハイライト
+              if (pixiRenderer) {
+                pixiRenderer.highlightKey(note, true);
+                setTimeout(() => pixiRenderer.highlightKey(note, false), 150);
+              }
+            },
+            (_note: number) => {
+              // ノートオフ処理
+            }
+          );
+          log.info('✅ AudioController初期化完了');
+          setIsAudioReady(true);
+        }
+
+        // デバイス接続
+        if (settings.selectedAudioDevice && audioControllerRef.current) {
+          const success = await audioControllerRef.current.connectDevice(settings.selectedAudioDevice);
+          if (success) {
+            log.info(`✅ 音声入力デバイス接続: ${settings.selectedAudioDevice}`);
+          } else {
+            log.warn('⚠️ 音声入力デバイス接続に失敗');
+          }
+        } else if (audioControllerRef.current && !settings.selectedAudioDevice) {
+          await audioControllerRef.current.disconnect();
+          log.info('🔌 音声入力デバイス切断');
+        }
+      } catch (error) {
+        log.warn('⚠️ 音声入力初期化に失敗:', error);
+      }
+    };
+
+    initAndConnectAudio();
+  }, [settings.inputType, settings.selectedAudioDevice, pixiRenderer, handleNoteInput, ensureAudioModule]);
 
   // ゲームエンジン初期化
   useEffect(() => {
