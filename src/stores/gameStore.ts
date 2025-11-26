@@ -9,6 +9,7 @@ import type {
   GameState,
   GameMode,
   InstrumentMode,
+  InputMethod,
   SongMetadata,
   NoteData,
   GameScore,
@@ -134,7 +135,9 @@ const defaultSettings: GameSettings = {
   pianoHeight: 80,  // ピアノの高さをさらに調整（100から80に減少）
   
   // 入力デバイス
+  inputMethod: 'midi',
   selectedMidiDevice: null,
+  selectedAudioDevice: null,
   
   // キー設定
   transpose: 0,

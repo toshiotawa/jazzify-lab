@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
-import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1403,20 +1403,61 @@ const SettingsPanel: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    入力デバイス
+                    入力方式
                   </label>
-                  <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                  <p className="text-xs text-gray-400 mb-3">
+                    MIDI（キーボード）または音声入力（マイク）を選択できます。
                   </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => gameActions.updateSettings({ inputMethod: 'midi' })}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        settings.inputMethod === 'midi'
+                          ? 'bg-blue-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🎹 MIDI
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => gameActions.updateSettings({ inputMethod: 'voice' })}
+                      className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                        settings.inputMethod === 'voice'
+                          ? 'bg-purple-600 text-white'
+                          : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                      }`}
+                    >
+                      🎤 音声
+                    </button>
+                  </div>
                 </div>
 
-                <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                  <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
-                  <MidiDeviceSelector
-                    value={settings.selectedMidiDevice}
-                    onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
-                  />
-                </div>
+                {/* MIDI デバイス設定 */}
+                {settings.inputMethod === 'midi' && (
+                  <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <MidiDeviceSelector
+                      value={settings.selectedMidiDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
+                    />
+                  </div>
+                )}
+
+                {/* 音声入力デバイス設定 */}
+                {settings.inputMethod === 'voice' && (
+                  <div className="bg-purple-900 bg-opacity-20 p-4 rounded-lg border border-purple-700 border-opacity-30">
+                    <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 音声入力設定</h4>
+                    <p className="text-xs text-gray-400 mb-3">
+                      マイクを使用してピッチを検出します。iOS/Android対応。
+                    </p>
+                    <AudioDeviceSelector
+                      value={settings.selectedAudioDevice}
+                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioDevice: deviceId })}
+                    />
+                  </div>
+                )}
               </div>
 
             {/* 音量設定 */}

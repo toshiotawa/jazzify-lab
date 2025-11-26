@@ -6,6 +6,7 @@
 
 export type GameMode = 'practice' | 'performance';
 export type InstrumentMode = 'piano' | 'guitar';
+export type InputMethod = 'midi' | 'voice';
 // 移調楽器タイプ
 export type TransposingInstrument = 
   | 'concert_pitch'      // コンサートピッチ（移調なし）
@@ -172,7 +173,9 @@ export interface GameSettings {
   pianoHeight: number;
   
   // 入力デバイス
+  inputMethod: InputMethod;          // 入力方式（MIDI / 音声）
   selectedMidiDevice: string | null;
+  selectedAudioDevice: string | null; // 音声入力デバイス
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)

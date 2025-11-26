@@ -1,11 +1,14 @@
 /**
  * MIDIデバイス管理コンポーネントとカスタムフック
  * リアルタイムデバイス検出・接続管理機能
+ * 
+ * AudioDeviceSelector: 音声入力デバイス選択コンポーネント
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import type { MidiDevice } from '@/types';
 import { Link } from 'react-router-dom';
+import { VoiceInputController } from '@/utils/VoiceInputController';
 
 // MIDIデバイス管理用カスタムフック
 export const useMidiDevices = () => {
@@ -219,6 +222,179 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
       </div>
 
 
+    </div>
+  );
+};
+
+// ===== Audio Device (Voice Input) =====
+
+interface AudioDevice {
+  deviceId: string;
+  label: string;
+}
+
+// オーディオデバイス管理用カスタムフック
+export const useAudioDevices = () => {
+  const [devices, setDevices] = useState<AudioDevice[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isSupported, setIsSupported] = useState(true);
+
+  // デバイス一覧を取得
+  const refreshDevices = useCallback(async () => {
+    setIsRefreshing(true);
+    setError(null);
+
+    try {
+      // サポート確認
+      if (!VoiceInputController.isSupported()) {
+        setIsSupported(false);
+        throw new Error('音声入力はこのブラウザでサポートされていません');
+      }
+
+      // 一時的なコントローラーでデバイス一覧取得
+      const tempController = new VoiceInputController({
+        onNoteOn: () => {},
+        onNoteOff: () => {}
+      });
+
+      const deviceList = await tempController.getAudioDevices();
+      tempController.destroy();
+
+      setDevices(deviceList);
+      console.log(`🎤 Found ${deviceList.length} audio input devices:`, deviceList);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      console.error('❌ Audio device refresh failed:', err);
+      setDevices([]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  // 初回ロード時にデバイス一覧を取得
+  useEffect(() => {
+    if (VoiceInputController.isSupported()) {
+      refreshDevices();
+    } else {
+      setIsSupported(false);
+      setError('音声入力はこのブラウザでサポートされていません');
+    }
+  }, [refreshDevices]);
+
+  // デバイス変更イベントの監視
+  useEffect(() => {
+    if (!navigator.mediaDevices) return;
+
+    const handleDeviceChange = () => {
+      console.log('🎤 Audio device change detected');
+      refreshDevices();
+    };
+
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+    };
+  }, [refreshDevices]);
+
+  return {
+    devices,
+    isRefreshing,
+    error,
+    isSupported,
+    refreshDevices
+  };
+};
+
+// 音声入力デバイス選択コンポーネント
+interface AudioDeviceSelectorProps {
+  value: string | null;
+  onChange: (deviceId: string | null) => void;
+  className?: string;
+}
+
+export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
+  value,
+  onChange,
+  className = ''
+}) => {
+  const { devices, isRefreshing, error, isSupported, refreshDevices } = useAudioDevices();
+
+  const handleDeviceChange = (newDeviceId: string | null) => {
+    // 同じデバイスを選択した場合は再接続を強制
+    if (newDeviceId && newDeviceId === value) {
+      console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
+      onChange(null);
+      setTimeout(() => {
+        onChange(newDeviceId);
+      }, 100);
+    } else {
+      onChange(newDeviceId);
+    }
+  };
+
+  return (
+    <div className={`space-y-3 ${className}`}>
+      {/* デバイス選択ドロップダウン */}
+      <div>
+        <label htmlFor="audio-device-select" className="block text-xs text-purple-200 mb-1">
+          マイクデバイス
+        </label>
+        <div className="flex gap-2">
+          <select
+            id="audio-device-select"
+            value={value || ''}
+            onChange={(e) => handleDeviceChange(e.target.value || null)}
+            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-purple-600 lp-mobile-select"
+            disabled={isRefreshing || !isSupported}
+          >
+            <option value="">デフォルト</option>
+            {devices.map((device) => (
+              <option key={device.deviceId} value={device.deviceId}>
+                {`🎤 ${device.label}`}
+              </option>
+            ))}
+          </select>
+
+          <button
+            className="btn btn-xs btn-outline btn-purple"
+            onClick={refreshDevices}
+            disabled={isRefreshing || !isSupported}
+          >
+            {isRefreshing ? '🔄' : '🔄'} 再検出
+          </button>
+        </div>
+      </div>
+
+      {/* デバイス情報表示 */}
+      <div className="text-xs text-purple-200 space-y-1">
+        <div className="flex justify-between">
+          <span>検出デバイス数:</span>
+          <span className="font-mono">{devices.length} 個</span>
+        </div>
+
+        <div className="flex justify-between">
+          <span>接続状態:</span>
+          {value ? (
+            <span className="text-green-400">✅ 選択済み</span>
+          ) : (
+            <span className="text-gray-400">デフォルト使用</span>
+          )}
+        </div>
+
+        {VoiceInputController.isIOS() && (
+          <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
+            📱 iOS環境: マイク許可を求められた場合は「許可」を選択してください。
+          </div>
+        )}
+
+        {error && (
+          <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
+            ❌ {error}
+          </div>
+        )}
+      </div>
     </div>
   );
 };
