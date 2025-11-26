@@ -4,6 +4,7 @@ import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { AudioInputDeviceSelector } from '@/components/ui/AudioInputDeviceSelector';
+import MicrophoneStatus from '@/components/ui/MicrophoneStatus';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1451,15 +1452,29 @@ const SettingsPanel: React.FC = () => {
 
                 {/* マイク入力設定 */}
                 {settings.inputSource === 'microphone' && (
-                  <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30">
-                    <h4 className="text-sm font-medium text-green-200 mb-3">🎤 マイク入力設定</h4>
-                    <AudioInputDeviceSelector
-                      value={settings.selectedAudioInputDevice}
-                      onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioInputDevice: deviceId })}
+                  <div className="bg-green-900 bg-opacity-20 p-4 rounded-lg border border-green-700 border-opacity-30 space-y-4">
+                    <div>
+                      <h4 className="text-sm font-medium text-green-200 mb-3">🎤 マイクデバイス選択</h4>
+                      <AudioInputDeviceSelector
+                        value={settings.selectedAudioInputDevice}
+                        onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioInputDevice: deviceId })}
+                      />
+                    </div>
+                    
+                    {/* マイク入力状態（iPhoneでの手動開始対応） */}
+                    <MicrophoneStatus 
+                      deviceId={settings.selectedAudioInputDevice}
+                      onNoteDetected={(note: number) => {
+                        // ゲームエンジンにノート入力を通知
+                        gameActions.handleNoteInput(note);
+                      }}
+                      className="mt-4"
                     />
-                    <div className="mt-3 text-xs text-green-300 bg-green-900/30 p-2 rounded">
+                    
+                    <div className="text-xs text-green-300 bg-green-900/30 p-2 rounded">
                       <p className="font-medium mb-1">💡 マイク入力のヒント:</p>
                       <ul className="list-disc list-inside space-y-1">
+                        <li>iPhoneでは「マイクを開始」ボタンを押してください</li>
                         <li>単音楽器（サックス、トランペットなど）に最適化</li>
                         <li>静かな環境で使用すると精度が向上します</li>
                         <li>対応音域: E1 (41Hz) 〜 C7 (2093Hz)</li>

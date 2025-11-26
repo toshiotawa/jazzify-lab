@@ -2,7 +2,8 @@
  * リアルタイムピッチ検出サービス
  * 
  * AudioWorklet + WASM (YIN/PYIN) によるリアルタイムピッチ検出
- * 低レイテンシ（~15ms）での単音ピッチ検出を実現
+ * iOS Safari対応: ScriptProcessorNodeフォールバック付き
+ * 低レイテンシ（~15-25ms）での単音ピッチ検出を実現
  */
 
 import { log } from './logger';
@@ -35,7 +36,7 @@ export interface PitchDetectorConfig {
   bufferSize?: number;          // バッファサイズ (default: 2048)
   hopSize?: number;             // ホップサイズ (default: 512)
   yinThreshold?: number;        // YIN閾値 (default: 0.15)
-  minConfidence?: number;       // 最小信頼度 (default: 0.8)
+  minConfidence?: number;       // 最小信頼度 (default: 0.7)
   noteOnThreshold?: number;     // ノートオン判定の連続検出回数 (default: 2)
   noteOffThreshold?: number;    // ノートオフ判定の無検出回数 (default: 3)
   minFrequency?: number;        // 最小周波数 (default: 60 Hz, ~B1)
@@ -47,11 +48,31 @@ const DEFAULT_CONFIG: Required<PitchDetectorConfig> = {
   bufferSize: 2048,
   hopSize: 512,
   yinThreshold: 0.15,
-  minConfidence: 0.8,
+  minConfidence: 0.7,  // iOSではノイズが多いため緩めに
   noteOnThreshold: 2,
   noteOffThreshold: 3,
   minFrequency: 60,
   maxFrequency: 2000
+};
+
+// iOS検出
+const isIOS = (): boolean => {
+  if (typeof navigator === 'undefined' || typeof window === 'undefined') {
+    return false;
+  }
+  return /iPad|iPhone|iPod/.test(navigator.userAgent) || 
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
+// AudioWorkletサポート検出
+const supportsAudioWorklet = (): boolean => {
+  try {
+    return typeof AudioWorkletNode !== 'undefined' && 
+           typeof window !== 'undefined' &&
+           'audioWorklet' in AudioContext.prototype;
+  } catch {
+    return false;
+  }
 };
 
 export class PitchDetectorService {
@@ -60,6 +81,7 @@ export class PitchDetectorService {
   private mediaStream: MediaStream | null = null;
   private sourceNode: MediaStreamAudioSourceNode | null = null;
   private workletNode: AudioWorkletNode | null = null;
+  private scriptProcessorNode: ScriptProcessorNode | null = null;
   
   // WASM関連
   private wasmModule: PitchDetectorWasm | null = null;
@@ -67,12 +89,18 @@ export class PitchDetectorService {
   private sampleBuffer: Float32Array | null = null;
   private sampleBufferPtr: number = 0;
   
+  // 処理用バッファ（ScriptProcessorNode用）
+  private processingBuffer: Float32Array | null = null;
+  private bufferWriteIndex = 0;
+  
   // 状態管理
   private isInitialized = false;
   private isRunning = false;
+  private useScriptProcessor = false;
   private currentNote: number | null = null;
   private noteConfirmCount = 0;
   private noNoteCount = 0;
+  private lastProcessTime = 0;
   
   // コールバック
   private onPitch: PitchCallback | null = null;
@@ -81,6 +109,12 @@ export class PitchDetectorService {
   
   constructor(config: PitchDetectorConfig = {}) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    
+    // iOSの場合はScriptProcessorNodeを使用
+    if (isIOS() || !supportsAudioWorklet()) {
+      this.useScriptProcessor = true;
+      log.info('🎤 iOS/レガシーモード: ScriptProcessorNodeを使用');
+    }
   }
   
   /**
@@ -94,6 +128,7 @@ export class PitchDetectorService {
     
     try {
       log.info('🎤 Initializing PitchDetectorService...');
+      log.info(`   iOS: ${isIOS()}, AudioWorklet: ${supportsAudioWorklet()}, ScriptProcessor: ${this.useScriptProcessor}`);
       
       // WASMモジュールをロード
       await this.loadWasmModule();
@@ -141,6 +176,9 @@ export class PitchDetectorService {
         this.config.bufferSize
       );
       
+      // 処理用バッファを確保
+      this.processingBuffer = new Float32Array(this.config.bufferSize);
+      
       log.info('✅ WASM pitch detector loaded');
       
     } catch (error) {
@@ -161,15 +199,34 @@ export class PitchDetectorService {
         throw new Error('Web Audio API is not supported');
       }
       
-      this.audioContext = new AudioContextClass({
-        sampleRate: this.config.sampleRate,
+      // iOSではサンプルレートを指定しない方が安定する場合がある
+      const contextOptions: AudioContextOptions = {
         latencyHint: 'interactive'
-      });
+      };
       
-      // AudioWorkletをロード
-      await this.audioContext.audioWorklet.addModule('/js/audio/pitch-detection-processor.js');
+      // 非iOS環境ではサンプルレートを指定
+      if (!isIOS()) {
+        contextOptions.sampleRate = this.config.sampleRate;
+      }
       
-      log.info('✅ AudioContext created with sample rate:', this.audioContext.sampleRate);
+      this.audioContext = new AudioContextClass(contextOptions);
+      
+      // 実際のサンプルレートを設定に反映
+      this.config.sampleRate = this.audioContext.sampleRate;
+      log.info(`🔧 AudioContext sampleRate: ${this.audioContext.sampleRate}`);
+      
+      // AudioWorkletを使用する場合のみロード
+      if (!this.useScriptProcessor) {
+        try {
+          await this.audioContext.audioWorklet.addModule('/js/audio/pitch-detection-processor.js');
+          log.info('✅ AudioWorklet loaded');
+        } catch (workletError) {
+          log.warn('⚠️ AudioWorklet failed, falling back to ScriptProcessorNode:', workletError);
+          this.useScriptProcessor = true;
+        }
+      }
+      
+      log.info(`✅ AudioContext created (sampleRate: ${this.audioContext.sampleRate}, useScriptProcessor: ${this.useScriptProcessor})`);
       
     } catch (error) {
       log.error('❌ Failed to create AudioContext:', error);
@@ -183,8 +240,8 @@ export class PitchDetectorService {
   async getAudioInputDevices(): Promise<MediaDeviceInfo[]> {
     try {
       // デバイス一覧を取得するために一度権限をリクエスト
-      await navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => stream.getTracks().forEach(t => t.stop()));
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      stream.getTracks().forEach(t => t.stop());
       
       const devices = await navigator.mediaDevices.enumerateDevices();
       return devices.filter(d => d.kind === 'audioinput');
@@ -211,46 +268,50 @@ export class PitchDetectorService {
     try {
       log.info('🎤 Starting pitch detection...');
       
-      // AudioContextを再開
-      if (this.audioContext && this.audioContext.state === 'suspended') {
-        await this.audioContext.resume();
+      // AudioContextを再開（iOSでは必須）
+      if (this.audioContext) {
+        if (this.audioContext.state === 'suspended') {
+          log.info('🔧 Resuming AudioContext...');
+          await this.audioContext.resume();
+        }
+        log.info(`🔧 AudioContext state: ${this.audioContext.state}`);
       }
       
       // マイク入力を取得
       const constraints: MediaStreamConstraints = {
-        audio: deviceId ? { deviceId: { exact: deviceId } } : {
+        audio: deviceId ? { 
+          deviceId: { exact: deviceId },
+          echoCancellation: false,
+          noiseSuppression: false,
+          autoGainControl: false
+        } : {
           echoCancellation: false,
           noiseSuppression: false,
           autoGainControl: false
         }
       };
       
+      log.info('🎤 Requesting microphone access...');
       this.mediaStream = await navigator.mediaDevices.getUserMedia(constraints);
+      log.info('✅ Microphone access granted');
       
       // 入力ノードを作成
       this.sourceNode = this.audioContext!.createMediaStreamSource(this.mediaStream);
       
-      // AudioWorkletノードを作成
-      this.workletNode = new AudioWorkletNode(this.audioContext!, 'pitch-detection-processor');
-      
-      // WorkletからのメッセージをハンドルW
-      this.workletNode.port.onmessage = (event) => {
-        if (event.data.type === 'samples') {
-          this.processSamples(event.data.samples, event.data.timestamp);
-        }
-      };
-      
-      // ノードを接続
-      this.sourceNode.connect(this.workletNode);
-      
-      // Workletを有効化
-      this.workletNode.port.postMessage({ type: 'enable' });
-      this.workletNode.port.postMessage({ type: 'setHopSize', hopSize: this.config.hopSize });
+      if (this.useScriptProcessor) {
+        // ScriptProcessorNode（レガシー）を使用
+        this.setupScriptProcessor();
+      } else {
+        // AudioWorkletを使用
+        this.setupAudioWorklet();
+      }
       
       this.isRunning = true;
       this.currentNote = null;
       this.noteConfirmCount = 0;
       this.noNoteCount = 0;
+      this.bufferWriteIndex = 0;
+      this.lastProcessTime = performance.now();
       
       log.info('✅ Pitch detection started');
       
@@ -258,6 +319,79 @@ export class PitchDetectorService {
       log.error('❌ Failed to start pitch detection:', error);
       throw error;
     }
+  }
+  
+  /**
+   * AudioWorkletをセットアップ
+   */
+  private setupAudioWorklet(): void {
+    if (!this.audioContext) return;
+    
+    log.info('🔧 Setting up AudioWorklet...');
+    
+    this.workletNode = new AudioWorkletNode(this.audioContext, 'pitch-detection-processor');
+    
+    // Workletからのメッセージをハンドル
+    this.workletNode.port.onmessage = (event) => {
+      if (event.data.type === 'samples') {
+        this.processSamples(event.data.samples, event.data.timestamp);
+      }
+    };
+    
+    // ノードを接続
+    this.sourceNode!.connect(this.workletNode);
+    
+    // Workletを有効化
+    this.workletNode.port.postMessage({ type: 'enable' });
+    this.workletNode.port.postMessage({ type: 'setHopSize', hopSize: this.config.hopSize });
+    
+    log.info('✅ AudioWorklet setup complete');
+  }
+  
+  /**
+   * ScriptProcessorNodeをセットアップ（iOS/レガシーフォールバック）
+   */
+  private setupScriptProcessor(): void {
+    if (!this.audioContext) return;
+    
+    log.info('🔧 Setting up ScriptProcessorNode (legacy mode)...');
+    
+    // ScriptProcessorNodeを作成（バッファサイズは2の累乗）
+    const bufferSize = 2048; // 約42ms @ 48kHz
+    this.scriptProcessorNode = this.audioContext.createScriptProcessor(bufferSize, 1, 1);
+    
+    let processCount = 0;
+    
+    this.scriptProcessorNode.onaudioprocess = (event) => {
+      const inputData = event.inputBuffer.getChannelData(0);
+      
+      processCount++;
+      if (processCount % 50 === 1) {
+        // デバッグログ（50フレームに1回）
+        const maxAmp = Math.max(...Array.from(inputData).map(Math.abs));
+        log.info(`🎤 Audio input: maxAmp=${maxAmp.toFixed(4)}, samples=${inputData.length}`);
+      }
+      
+      // バッファにデータを蓄積
+      if (!this.processingBuffer) return;
+      
+      for (let i = 0; i < inputData.length; i++) {
+        this.processingBuffer[this.bufferWriteIndex] = inputData[i];
+        this.bufferWriteIndex++;
+        
+        // バッファが満杯になったら処理
+        if (this.bufferWriteIndex >= this.config.bufferSize) {
+          this.processSamples(this.processingBuffer, performance.now());
+          this.bufferWriteIndex = 0;
+        }
+      }
+    };
+    
+    // ノードを接続
+    this.sourceNode!.connect(this.scriptProcessorNode);
+    this.scriptProcessorNode.connect(this.audioContext.destination);
+    
+    log.info('✅ ScriptProcessorNode setup complete');
   }
   
   /**
@@ -275,6 +409,12 @@ export class PitchDetectorService {
       this.workletNode.port.postMessage({ type: 'disable' });
       this.workletNode.disconnect();
       this.workletNode = null;
+    }
+    
+    // ScriptProcessorNodeを切断
+    if (this.scriptProcessorNode) {
+      this.scriptProcessorNode.disconnect();
+      this.scriptProcessorNode = null;
     }
     
     // ソースノードを切断
@@ -305,6 +445,7 @@ export class PitchDetectorService {
    */
   private processSamples(samples: Float32Array, timestamp: number): void {
     if (!this.wasmModule || !this.sampleBuffer || !this.wasmMemory) {
+      log.warn('⚠️ WASM not ready');
       return;
     }
     
@@ -318,7 +459,8 @@ export class PitchDetectorService {
     }
     
     // サンプルをWASMメモリにコピー
-    this.sampleBuffer.set(samples.subarray(0, this.config.bufferSize));
+    const copyLength = Math.min(samples.length, this.config.bufferSize);
+    this.sampleBuffer.set(samples.subarray(0, copyLength));
     
     // ピッチを検出
     const frequency = this.wasmModule.analyze_pitch(
@@ -327,6 +469,13 @@ export class PitchDetectorService {
       this.config.sampleRate,
       this.config.yinThreshold
     );
+    
+    // 処理時間をログ（低頻度）
+    const now = performance.now();
+    if (now - this.lastProcessTime > 1000) {
+      log.info(`🎤 Pitch: ${frequency > 0 ? frequency.toFixed(1) + 'Hz' : 'none'}`);
+      this.lastProcessTime = now;
+    }
     
     // 結果を処理
     this.processFrequency(frequency, timestamp);
@@ -384,6 +533,8 @@ export class PitchDetectorService {
         this.currentNote = midiNote;
         this.noteConfirmCount = 0;
         
+        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
+        
         if (this.onNoteOn) {
           // 信頼度をベロシティに変換 (64-127)
           const velocity = Math.round(64 + confidence * 63);
@@ -396,6 +547,7 @@ export class PitchDetectorService {
       
       if (this.noteConfirmCount >= this.config.noteOnThreshold) {
         // 前のノートをオフ
+        log.info(`🎵 Note OFF: MIDI ${this.currentNote}`);
         if (this.onNoteOff) {
           this.onNoteOff(this.currentNote);
         }
@@ -404,6 +556,7 @@ export class PitchDetectorService {
         this.currentNote = midiNote;
         this.noteConfirmCount = 0;
         
+        log.info(`🎵 Note ON: MIDI ${midiNote} (confidence: ${(confidence * 100).toFixed(1)}%)`);
         if (this.onNoteOn) {
           const velocity = Math.round(64 + confidence * 63);
           this.onNoteOn(midiNote, velocity);
@@ -424,6 +577,7 @@ export class PitchDetectorService {
     
     if (this.currentNote !== null && 
         this.noNoteCount >= this.config.noteOffThreshold) {
+      log.info(`🎵 Note OFF: MIDI ${this.currentNote} (timeout)`);
       if (this.onNoteOff) {
         this.onNoteOff(this.currentNote);
       }
@@ -510,6 +664,7 @@ export class PitchDetectorService {
     this.wasmModule = null;
     this.wasmMemory = null;
     this.sampleBuffer = null;
+    this.processingBuffer = null;
     this.isInitialized = false;
     
     log.info('🎤 PitchDetectorService destroyed');
@@ -534,6 +689,13 @@ export class PitchDetectorService {
    */
   getCurrentNote(): number | null {
     return this.currentNote;
+  }
+  
+  /**
+   * ScriptProcessorNodeを使用中かどうか
+   */
+  isUsingScriptProcessor(): boolean {
+    return this.useScriptProcessor;
   }
 }
 
