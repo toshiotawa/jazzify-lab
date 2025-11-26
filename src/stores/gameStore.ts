@@ -136,6 +136,12 @@ const defaultSettings: GameSettings = {
   // 入力デバイス
   selectedMidiDevice: null,
   
+  // 音声入力設定
+  audioInputEnabled: false,
+  pitchAlgorithm: 'YIN',
+  pitchThreshold: 0.15,
+  pitchBufferSize: 512,
+  
   // キー設定
   transpose: 0,
   
