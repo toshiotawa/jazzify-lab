@@ -1406,7 +1406,7 @@ const SettingsPanel: React.FC = () => {
                     入力デバイス
                   </label>
                   <p className="text-xs text-gray-400">
-                    レジェンドモードは超低遅延のためMIDI入力専用に最適化されています。
+                    MIDI入力または音声入力（マイク）を使用できます。
                   </p>
                 </div>
 
@@ -1416,6 +1416,98 @@ const SettingsPanel: React.FC = () => {
                     value={settings.selectedMidiDevice}
                     onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
                   />
+                </div>
+                
+                {/* 音声入力（マイク）設定 */}
+                <div className="bg-purple-900 bg-opacity-20 p-4 rounded-lg border border-purple-700 border-opacity-30 mt-4">
+                  <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 音声入力設定（実験的機能）</h4>
+                  
+                  {/* 有効/無効トグル */}
+                  <div className="flex items-center justify-between mb-3">
+                    <div>
+                      <span className="text-sm text-gray-300">マイク入力を有効にする</span>
+                      <p className="text-xs text-gray-400">楽器の音をマイクで拾ってピッチ検出します</p>
+                    </div>
+                    <label className="relative inline-flex items-center cursor-pointer">
+                      <input
+                        type="checkbox"
+                        checked={settings.audioInputEnabled}
+                        onChange={(e) => gameActions.updateSettings({ audioInputEnabled: e.target.checked })}
+                        className="sr-only peer"
+                      />
+                      <div className="w-11 h-6 bg-gray-600 peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-purple-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-purple-600"></div>
+                    </label>
+                  </div>
+                  
+                  {settings.audioInputEnabled && (
+                    <div className="space-y-3 pt-3 border-t border-purple-700 border-opacity-30">
+                      {/* アルゴリズム選択 */}
+                      <div>
+                        <label className="block text-xs text-purple-200 mb-1">
+                          検出アルゴリズム
+                        </label>
+                        <select
+                          value={settings.pitchAlgorithm}
+                          onChange={(e) => gameActions.updateSettings({ 
+                            pitchAlgorithm: e.target.value as 'YIN' | 'AMDF' | 'ACF2+' | 'DynamicWavelet' 
+                          })}
+                          className="select select-bordered select-sm w-full bg-gray-800 text-white border-purple-600"
+                        >
+                          <option value="YIN">YIN（推奨・高精度）</option>
+                          <option value="AMDF">AMDF（軽量）</option>
+                          <option value="ACF2+">ACF2+（バランス型）</option>
+                          <option value="DynamicWavelet">Dynamic Wavelet</option>
+                        </select>
+                      </div>
+                      
+                      {/* 感度調整 */}
+                      <div>
+                        <label className="block text-xs text-purple-200 mb-1">
+                          検出感度: {Math.round((1 - settings.pitchThreshold) * 100)}%
+                        </label>
+                        <input
+                          type="range"
+                          min="0.05"
+                          max="0.3"
+                          step="0.01"
+                          value={settings.pitchThreshold}
+                          onChange={(e) => gameActions.updateSettings({ 
+                            pitchThreshold: parseFloat(e.target.value) 
+                          })}
+                          className="slider w-full"
+                          style={{ direction: 'rtl' }}
+                        />
+                        <div className="flex justify-between text-xs text-gray-500 mt-1">
+                          <span>低（ノイズ少）</span>
+                          <span>高（敏感）</span>
+                        </div>
+                      </div>
+                      
+                      {/* レイテンシ設定 */}
+                      <div>
+                        <label className="block text-xs text-purple-200 mb-1">
+                          バッファサイズ（レイテンシ）
+                        </label>
+                        <select
+                          value={settings.pitchBufferSize}
+                          onChange={(e) => gameActions.updateSettings({ 
+                            pitchBufferSize: parseInt(e.target.value) as 256 | 512 | 1024 | 2048 
+                          })}
+                          className="select select-bordered select-sm w-full bg-gray-800 text-white border-purple-600"
+                        >
+                          <option value="256">256（超低遅延 ~6ms）</option>
+                          <option value="512">512（推奨 ~12ms）</option>
+                          <option value="1024">1024（安定 ~23ms）</option>
+                          <option value="2048">2048（高精度 ~46ms）</option>
+                        </select>
+                      </div>
+                      
+                      <div className="text-xs text-purple-300 bg-purple-900 bg-opacity-30 p-2 rounded mt-2">
+                        💡 管楽器やギターなど、MIDI接続できない楽器で使用できます。
+                        静かな環境で使用すると精度が向上します。
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
 

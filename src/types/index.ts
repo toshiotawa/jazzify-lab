@@ -174,6 +174,16 @@ export interface GameSettings {
   // 入力デバイス
   selectedMidiDevice: string | null;
   
+  // 音声入力設定
+  /** 音声入力（マイク）の有効/無効 */
+  audioInputEnabled: boolean;
+  /** ピッチ検出アルゴリズム */
+  pitchAlgorithm: 'YIN' | 'AMDF' | 'ACF2+' | 'DynamicWavelet';
+  /** ピッチ検出の閾値 (0.05-0.3, 低いほど感度が高い) */
+  pitchThreshold: number;
+  /** ピッチ検出のバッファサイズ (256, 512, 1024, 2048) - 小さいほど低レイテンシ */
+  pitchBufferSize: 256 | 512 | 1024 | 2048;
+  
   // キー設定
   transpose: number;           // -6 to +6 (半音)
   

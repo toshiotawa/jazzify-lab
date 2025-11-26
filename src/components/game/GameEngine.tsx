@@ -16,6 +16,7 @@ import { LegendRenderBridge } from './LegendRenderBridge';
 import ScoreOverlay from './ScoreOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
+import { PitchDetectorService, type PitchResult } from '@/utils/PitchDetectorService';
 
 const TOTAL_WHITE_KEYS = 52;
 const VISIBLE_WHITE_KEYS = 24;
@@ -874,6 +875,10 @@ useEffect(() => {
   const midiControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  
+  // PitchDetectorService管理用のRef
+  const pitchDetectorRef = useRef<PitchDetectorService | null>(null);
+  const [isPitchDetectorReady, setIsPitchDetectorReady] = useState(false);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -935,6 +940,103 @@ useEffect(() => {
         isMounted = false;
       };
     }, [ensureMidiModule]);
+
+  // PitchDetectorService（音声入力）の初期化と制御
+  useEffect(() => {
+    // 音声入力が無効の場合は何もしない
+    if (!settings.audioInputEnabled) {
+      // 既存のピッチ検出器があれば停止
+      if (pitchDetectorRef.current?.running) {
+        pitchDetectorRef.current.stop();
+        log.info('🎤 音声入力を停止しました');
+      }
+      return;
+    }
+    
+    const initPitchDetector = async () => {
+      try {
+        // 既存のインスタンスがなければ作成
+        if (!pitchDetectorRef.current) {
+          pitchDetectorRef.current = new PitchDetectorService({
+            algorithm: settings.pitchAlgorithm,
+            threshold: settings.pitchThreshold,
+            bufferSize: settings.pitchBufferSize,
+            onNoteOn: (midiNote: number, _velocity: number) => {
+              // ゲームエンジンにノート入力を送信
+              handleNoteInput(midiNote);
+              devLog.debug(`🎤 音声入力: Note ${midiNote}`);
+            },
+            onNoteOff: (_midiNote: number) => {
+              // ノートオフの処理（必要に応じて）
+            },
+            onPitchDetected: (result: PitchResult) => {
+              // ピッチ検出のデバッグログ（開発時のみ）
+              devLog.debug(`🎤 Pitch: ${result.frequency.toFixed(1)}Hz (${result.noteName}) confidence: ${result.confidence.toFixed(2)}`);
+            },
+            onError: (error: Error) => {
+              log.error('❌ 音声入力エラー:', error);
+            }
+          });
+        }
+        
+        await pitchDetectorRef.current.initialize();
+        await pitchDetectorRef.current.start();
+        setIsPitchDetectorReady(true);
+        log.info('✅ 音声入力（ピッチ検出）開始');
+        
+      } catch (error) {
+        log.error('❌ 音声入力の初期化に失敗:', error);
+        setIsPitchDetectorReady(false);
+      }
+    };
+    
+    initPitchDetector();
+    
+    return () => {
+      if (pitchDetectorRef.current) {
+        pitchDetectorRef.current.stop();
+      }
+    };
+  }, [
+    settings.audioInputEnabled,
+    settings.pitchAlgorithm,
+    settings.pitchThreshold,
+    settings.pitchBufferSize,
+    handleNoteInput
+  ]);
+  
+  // 音声入力とPIXIの連携
+  useEffect(() => {
+    if (!isPitchDetectorReady || !pitchDetectorRef.current || !pixiRenderer) {
+      return;
+    }
+    
+    // ピッチ検出時に鍵盤をハイライト
+    pitchDetectorRef.current.updateConfig({
+      onNoteOn: (midiNote: number, _velocity: number) => {
+        handleNoteInput(midiNote);
+        pixiRenderer.highlightKey(midiNote, true);
+        devLog.debug(`🎤 音声入力: Note ${midiNote}`);
+        
+        // 一定時間後にハイライトを解除
+        setTimeout(() => {
+          pixiRenderer.highlightKey(midiNote, false);
+        }, 200);
+      }
+    });
+    
+    log.info('✅ 音声入力 ↔ PIXIレンダラー連携完了');
+  }, [isPitchDetectorReady, pixiRenderer, handleNoteInput]);
+  
+  // コンポーネントアンマウント時のクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (pitchDetectorRef.current) {
+        pitchDetectorRef.current.destroy();
+        pitchDetectorRef.current = null;
+      }
+    };
+  }, []);
 
   // MIDIとPIXIの連携を管理する専用のuseEffect
   useEffect(() => {
