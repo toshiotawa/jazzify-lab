@@ -173,6 +173,8 @@ export interface GameSettings {
   
   // 入力デバイス
   selectedMidiDevice: string | null;
+  /** 入力モード: 'midi' | 'audio' */
+  inputMode: 'midi' | 'audio';
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)
@@ -277,7 +279,7 @@ export interface InputEvent {
   note: number;
   velocity?: number;
   timestamp: number;
-  source: 'midi';
+  source: 'midi' | 'audio';
 }
 
 export interface MidiDevice {
@@ -492,6 +494,12 @@ export interface MidiControllerOptions {
   onNoteOff: (note: number) => void;
   onConnectionChange?: (connected: boolean) => void;
   playMidiSound?: boolean; // 音声再生の有効/無効（デフォルト: true）
+}
+
+export interface AudioPitchDetectorOptions {
+  onNoteOn: (note: number, velocity?: number) => void;
+  onNoteOff: (note: number) => void;
+  onConnectionChange?: (connected: boolean) => void;
 }
 
 export interface ClearConditions {
