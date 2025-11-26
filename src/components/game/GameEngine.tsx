@@ -874,6 +874,11 @@ useEffect(() => {
   const midiControllerRef = useRef<any>(null);
   // MIDI 初期化完了フラグ（初期化後に接続エフェクトを確実に発火させる）
   const [isMidiReady, setIsMidiReady] = useState(false);
+  
+  // AudioPitchController管理用のRef（マイク入力）
+  const audioPitchControllerRef = useRef<any>(null);
+  // マイク入力初期化完了フラグ
+  const [isMicReady, setIsMicReady] = useState(false);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -916,6 +921,90 @@ useEffect(() => {
       }
     };
   }, [handleNoteInput, ensureMidiModule]);
+
+  // AudioPitchController初期化（マイク入力選択時）
+  useEffect(() => {
+    // マイク入力モードでない場合は何もしない
+    if (settings.inputSource !== 'microphone') {
+      // マイク入力が無効になった場合は停止
+      if (audioPitchControllerRef.current) {
+        audioPitchControllerRef.current.stop();
+        log.info('🎤 マイク入力停止（入力ソース変更）');
+      }
+      return;
+    }
+
+    const initMicrophone = async () => {
+      try {
+        // AudioPitchControllerを動的にインポート
+        const { AudioPitchController } = await import('@/utils/AudioPitchController');
+        
+        if (!audioPitchControllerRef.current) {
+          audioPitchControllerRef.current = new AudioPitchController({
+            onNoteOn: (note: number, velocity?: number) => {
+              handleNoteInput(note);
+              log.debug(`🎤 ピッチ検出: MIDI ${note}, velocity ${velocity}`);
+            },
+            onNoteOff: (_note: number) => {
+              // ノートオフの処理（必要に応じて）
+            },
+            onConnectionChange: (connected: boolean) => {
+              log.info(`🎤 マイク接続状態変更: ${connected ? '接続' : '切断'}`);
+            },
+            onPitchDetected: (frequency: number, clarity: number, midiNote: number) => {
+              // デバッグ用（必要に応じてUIに表示）
+              log.debug(`🎵 ピッチ: ${frequency.toFixed(1)}Hz (${midiNote}), 明瞭度: ${(clarity * 100).toFixed(0)}%`);
+            },
+            clarityThreshold: settings.microphoneClarityThreshold,
+            bufferSize: 2048,
+            noteStabilityCount: 2,
+            silenceFramesForNoteOff: 8
+          });
+          
+          await audioPitchControllerRef.current.initialize();
+          log.info('✅ AudioPitchController初期化完了');
+        }
+        
+        // マイク入力を開始
+        audioPitchControllerRef.current.start();
+        setIsMicReady(true);
+        log.info('✅ マイク入力開始');
+        
+      } catch (error) {
+        log.error('❌ マイク入力初期化に失敗:', error);
+        setIsMicReady(false);
+      }
+    };
+
+    initMicrophone();
+
+    return () => {
+      if (audioPitchControllerRef.current) {
+        audioPitchControllerRef.current.stop();
+      }
+    };
+  }, [settings.inputSource, settings.microphoneClarityThreshold, handleNoteInput]);
+
+  // マイク感度設定の動的更新
+  useEffect(() => {
+    if (audioPitchControllerRef.current && settings.inputSource === 'microphone') {
+      audioPitchControllerRef.current.setClarityThreshold(settings.microphoneClarityThreshold);
+    }
+  }, [settings.microphoneClarityThreshold, settings.inputSource]);
+
+  // マイク入力とPIXIの連携
+  useEffect(() => {
+    if (settings.inputSource !== 'microphone' || !isMicReady || !pixiRenderer) {
+      return;
+    }
+    
+    if (audioPitchControllerRef.current) {
+      audioPitchControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+        pixiRenderer.highlightKey(note, active);
+      });
+      log.info('✅ AudioPitchController ↔ PIXIレンダラー連携完了');
+    }
+  }, [pixiRenderer, isMicReady, settings.inputSource]);
 
     useEffect(() => {
       let isMounted = true;
