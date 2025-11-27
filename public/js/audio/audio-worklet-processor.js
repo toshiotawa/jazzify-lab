@@ -9,7 +9,7 @@ class AudioProcessor extends AudioWorkletProcessor {
         this.writeIndex = 0;
         this.initialized = false;
         this.sampleBuffer = [];
-        this.bufferSize = 64; // Ultra-low latency buffer size
+        this.bufferSize = 48; // Ultra-low latency buffer size (optimized)
         
         // Wait for initialization message from main thread
         this.port.onmessage = (event) => {

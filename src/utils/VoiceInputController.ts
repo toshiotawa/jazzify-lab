@@ -92,9 +92,9 @@ export class VoiceInputController {
   private currentNote = -1;
   private lastDetectedNote = -1;
   private consecutiveFrames = 0;
-  private readonly consecutiveFramesThreshold = 2;
+  private readonly consecutiveFramesThreshold = 1; // 低レイテンシ: より速いノートオン反応
   private pitchHistory: number[] = [];
-  private readonly pitchHistorySize = 4;
+  private readonly pitchHistorySize = 3; // 低レイテンシ: より速いノート確定
   private isNoteOn = false;
 
   // iOS対応
@@ -392,8 +392,8 @@ export class VoiceInputController {
       return;
     }
 
-    // 32サンプルごとにピッチ検出
-    if ((this.writeIndex & 0x1F) === 0) {
+    // 16サンプルごとにピッチ検出（低レイテンシ）
+    if ((this.writeIndex & 0x0F) === 0) {
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
@@ -514,7 +514,7 @@ export class VoiceInputController {
       return -1;
     }
 
-    const windowSize = Math.min(4, this.pitchHistory.length);
+    const windowSize = Math.min(3, this.pitchHistory.length); // 低レイテンシ用に調整
     const recentHistory = this.pitchHistory.slice(-windowSize);
 
     // ノート出現回数カウント
