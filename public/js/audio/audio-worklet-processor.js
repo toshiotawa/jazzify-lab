@@ -8,7 +8,8 @@ class AudioProcessor extends AudioWorkletProcessor {
         this.ringSize = 0;
         this.writeIndex = 0;
         this.initialized = false;
-        this.sampleBuffer = [];
+        this.sampleBuffer = new Float32Array(256); // 初期バッファを確保
+        this.sampleBufferUsed = 0; // 使用中のサンプル数を追跡
         this.bufferSize = 64; // Ultra-low latency buffer size
         
         // Wait for initialization message from main thread
@@ -31,46 +32,34 @@ class AudioProcessor extends AudioWorkletProcessor {
         }
         
         const samples = input[0];
+        const samplesLength = samples.length;
         
-        // Optimized for 64-sample ultra-low latency processing
-        // Accumulate samples with minimal overhead
-        const currentLength = this.sampleBuffer.length;
-        const newLength = currentLength + samples.length;
-        
-        // Resize buffer if needed (avoid frequent allocations)
-        if (this.sampleBuffer.length < newLength) {
-            const newBuffer = new Float32Array(Math.max(newLength, this.bufferSize * 2));
-            newBuffer.set(this.sampleBuffer);
+        // 必要に応じてバッファを拡張
+        const neededSize = this.sampleBufferUsed + samplesLength;
+        if (this.sampleBuffer.length < neededSize) {
+            const newBuffer = new Float32Array(Math.max(neededSize * 2, 512));
+            newBuffer.set(this.sampleBuffer.subarray(0, this.sampleBufferUsed));
             this.sampleBuffer = newBuffer;
         }
         
-        // Copy new samples efficiently
-        this.sampleBuffer.set(samples, currentLength);
+        // 新しいサンプルをバッファに追加
+        this.sampleBuffer.set(samples, this.sampleBufferUsed);
+        this.sampleBufferUsed += samplesLength;
         
-        // Process in 64-sample chunks immediately
-        let processedSamples = 0;
-        while (currentLength + samples.length - processedSamples >= this.bufferSize) {
-            const samplesToProcess = this.sampleBuffer.slice(processedSamples, processedSamples + this.bufferSize);
+        // bufferSize (64) サンプルごとに処理
+        while (this.sampleBufferUsed >= this.bufferSize) {
+            // 処理するサンプルを抽出
+            const samplesToProcess = this.sampleBuffer.slice(0, this.bufferSize);
             
-            // Send samples to main thread for WASM processing
+            // メインスレッドに送信
             this.port.postMessage({
                 type: 'samples',
                 samples: samplesToProcess
             });
             
-            processedSamples += this.bufferSize;
-        }
-        
-        // Keep remaining samples for next cycle
-        if (processedSamples > 0) {
-            const remaining = currentLength + samples.length - processedSamples;
-            if (remaining > 0) {
-                const newBuffer = new Float32Array(remaining);
-                newBuffer.set(this.sampleBuffer.subarray(processedSamples, processedSamples + remaining));
-                this.sampleBuffer = newBuffer;
-            } else {
-                this.sampleBuffer = new Float32Array(0);
-            }
+            // 残りのサンプルを前にシフト
+            this.sampleBuffer.copyWithin(0, this.bufferSize, this.sampleBufferUsed);
+            this.sampleBufferUsed -= this.bufferSize;
         }
         
         return true;

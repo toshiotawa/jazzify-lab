@@ -83,19 +83,20 @@ export class VoiceInputController {
   private readonly bufferSize = 512; // 低レイテンシ用
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.05;
-  private readonly noteOffThreshold = 0.03;
-  private readonly pyinThreshold = 0.1;
-  private readonly silenceThreshold = 0.01;
+  private readonly noteOnThreshold = 0.02;  // 感度を上げる（0.05→0.02）
+  private readonly noteOffThreshold = 0.01; // 感度を上げる（0.03→0.01）
+  private readonly pyinThreshold = 0.15;    // 閾値を緩和（0.1→0.15）
+  private readonly silenceThreshold = 0.005; // 無音閾値を下げる（0.01→0.005）
 
   // ノート状態
   private currentNote = -1;
   private lastDetectedNote = -1;
   private consecutiveFrames = 0;
-  private readonly consecutiveFramesThreshold = 2;
+  private readonly consecutiveFramesThreshold = 1; // 即座に反応（2→1）
   private pitchHistory: number[] = [];
-  private readonly pitchHistorySize = 4;
+  private readonly pitchHistorySize = 3; // 履歴サイズを縮小（4→3）
   private isNoteOn = false;
+  private processCounter = 0; // 処理カウンター
 
   // iOS対応
   private readonly isIOSDevice: boolean;
@@ -243,7 +244,12 @@ export class VoiceInputController {
         this.ringBufferPtr = this.wasmModule.get_ring_buffer_ptr();
         this.ringSize = this.wasmModule.get_ring_buffer_size();
         this.writeIndex = 0;
+        this.processCounter = 0;
+        this.pitchHistory = [];
+        this.currentNote = -1;
+        this.isNoteOn = false;
         log.info('🔧 WASMリングバッファ設定完了 ptr:', this.ringBufferPtr, 'size:', this.ringSize);
+        log.info('🔧 ピッチ検出パラメータ: noteOnThreshold=', this.noteOnThreshold, 'pyinThreshold=', this.pyinThreshold);
       }
 
       // オーディオソース作成
@@ -372,15 +378,16 @@ export class VoiceInputController {
       this.writeIndex = (this.writeIndex + 1) % this.ringSize;
     }
 
-    // 32サンプルごとにピッチ検出
-    if ((this.writeIndex & 0x1F) === 0) {
-      const frequency = this.wasmModule.process_audio_block(this.writeIndex);
+    // 処理カウンターをインクリメント
+    this.processCounter++;
 
-      if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
-        this.handleDetectedPitch(frequency, maxAmplitude);
-      } else if (maxAmplitude < this.silenceThreshold) {
-        this.handleNoPitch();
-      }
+    // 毎回ピッチ検出を実行（レイテンシ改善）
+    const frequency = this.wasmModule.process_audio_block(this.writeIndex);
+
+    if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
+      this.handleDetectedPitch(frequency, maxAmplitude);
+    } else if (maxAmplitude < this.silenceThreshold) {
+      this.handleNoPitch();
     }
   }
 
@@ -396,9 +403,10 @@ export class VoiceInputController {
       maxAmplitude = Math.max(maxAmplitude, Math.abs(inputData[i]));
     }
 
-    // ノート状態更新
+    // ノート状態更新（閾値を緩和）
     if (!this.isNoteOn && maxAmplitude > this.noteOnThreshold) {
       this.isNoteOn = true;
+      log.info(`🎤 音声検出開始: 振幅=${maxAmplitude.toFixed(4)}`);
     } else if (this.isNoteOn && maxAmplitude < this.noteOffThreshold) {
       this.isNoteOn = false;
       this.handleNoPitch();
@@ -422,13 +430,16 @@ export class VoiceInputController {
 
     if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
       this.handleDetectedPitch(frequency, maxAmplitude);
+    } else if (maxAmplitude >= this.silenceThreshold) {
+      // 音は検出されているがピッチが検出できない場合もNoPitchを呼ばない
+      // これにより、ノイズでノートがオフになるのを防ぐ
     } else {
       this.handleNoPitch();
     }
   }
 
   /** ピッチ検出時のハンドリング */
-  private handleDetectedPitch(frequency: number, _amplitude: number): void {
+  private handleDetectedPitch(frequency: number, amplitude: number): void {
     const midiNote = this.frequencyToMidi(frequency);
     
     // ピッチ履歴更新
@@ -447,10 +458,13 @@ export class VoiceInputController {
     if (stableNote !== this.currentNote) {
       if (this.currentNote !== -1) {
         this.onNoteOff(this.currentNote);
+        devLog.debug(`🎵 Note Off: ${this.currentNote} (${this.midiToNoteName(this.currentNote)})`);
       }
       this.currentNote = stableNote;
-      this.onNoteOn(stableNote, 64);
-      devLog.debug(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)})`);
+      // ベロシティを振幅から計算（最小32、最大127）
+      const velocity = Math.min(127, Math.max(32, Math.round(amplitude * 1000)));
+      this.onNoteOn(stableNote, velocity);
+      log.info(`🎤 Note On: ${stableNote} (${this.midiToNoteName(stableNote)}) freq=${frequency.toFixed(1)}Hz amp=${amplitude.toFixed(3)}`);
     }
   }
 
@@ -472,11 +486,17 @@ export class VoiceInputController {
 
   /** 安定したノートを取得 */
   private getStableNote(): number {
-    if (this.pitchHistory.length < 2) {
+    // 履歴が1つでもあればすぐに反応
+    if (this.pitchHistory.length === 0) {
       return -1;
     }
 
-    const windowSize = Math.min(4, this.pitchHistory.length);
+    // 履歴が1つの場合はそのノートを返す（即座反応）
+    if (this.pitchHistory.length === 1) {
+      return this.pitchHistory[0] !== -1 ? this.pitchHistory[0] : -1;
+    }
+
+    const windowSize = Math.min(3, this.pitchHistory.length);
     const recentHistory = this.pitchHistory.slice(-windowSize);
 
     // ノート出現回数カウント
@@ -487,23 +507,25 @@ export class VoiceInputController {
       }
     }
 
-    // 最頻ノートを検索
+    // 最頻ノートを検索（条件を緩和）
     let mostCommonNote = -1;
     let maxCount = 0;
-    const minRequiredCount = Math.ceil(windowSize * 0.5);
 
     for (const [note, count] of noteCounts) {
-      if (count > maxCount && count >= minRequiredCount) {
-        // 最近の検出との一貫性チェック（±1半音許容）
-        const isConsistent = recentHistory.slice(-2).some(recentNote =>
-          recentNote !== -1 && Math.abs(recentNote - note) <= 1
-        );
-
-        if (isConsistent) {
-          mostCommonNote = note;
-          maxCount = count;
-        }
+      if (count > maxCount) {
+        mostCommonNote = note;
+        maxCount = count;
       }
+    }
+
+    // 最近のノートと近い場合（±2半音まで許容）
+    if (mostCommonNote !== -1) {
+      const lastNote = recentHistory[recentHistory.length - 1];
+      if (lastNote !== -1 && Math.abs(lastNote - mostCommonNote) <= 2) {
+        return mostCommonNote;
+      }
+      // 最新のノートを優先
+      return lastNote !== -1 ? lastNote : mostCommonNote;
     }
 
     return mostCommonNote;
