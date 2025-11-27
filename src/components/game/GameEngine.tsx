@@ -989,6 +989,8 @@ useEffect(() => {
 
   // ===== 音声入力（Voice Input）の初期化と管理 =====
   useEffect(() => {
+    log.info(`🎤 音声入力設定チェック: inputMethod=${settings.inputMethod}, selectedAudioDevice=${settings.selectedAudioDevice}`);
+    
     // 音声入力モードでない場合は切断してスキップ
     if (settings.inputMethod !== 'voice') {
       if (voiceControllerRef.current) {
@@ -1006,10 +1008,13 @@ useEffect(() => {
 
     const initVoiceInput = async () => {
       try {
+        log.info('🎤 音声入力初期化開始...');
+        
         // 既存のコントローラーがない場合は作成
         if (!voiceControllerRef.current) {
           voiceControllerRef.current = new VoiceInputController({
             onNoteOn: (note: number, _velocity?: number) => {
+              log.info(`🎤 Voice onNoteOn called: note=${note}`);
               handleNoteInput(note);
               // キーハイライト表示
               if (pixiRenderer) {
@@ -1019,11 +1024,12 @@ useEffect(() => {
                 }, 150);
               }
             },
-            onNoteOff: (_note: number) => {
-              // ノートオフの処理（必要に応じて）
+            onNoteOff: (note: number) => {
+              devLog.debug(`🎤 Voice onNoteOff called: note=${note}`);
             },
             onConnectionChange: (connected: boolean) => {
               log.info(`🎤 音声入力接続状態変更: ${connected ? '接続' : '切断'}`);
+              setIsVoiceReady(connected);
             },
             onError: (error: string) => {
               log.error('🎤 音声入力エラー:', error);
@@ -1034,15 +1040,14 @@ useEffect(() => {
         }
 
         // 選択されたデバイスに接続
-        if (settings.selectedAudioDevice || settings.inputMethod === 'voice') {
-          const connected = await voiceControllerRef.current.connect(settings.selectedAudioDevice ?? undefined);
-          if (connected) {
-            log.info('✅ 音声入力接続完了');
-            setIsVoiceReady(true);
-          } else {
-            log.warn('⚠️ 音声入力接続に失敗');
-            setIsVoiceReady(false);
-          }
+        log.info(`🎤 音声入力デバイスに接続中... deviceId=${settings.selectedAudioDevice ?? 'default'}`);
+        const connected = await voiceControllerRef.current.connect(settings.selectedAudioDevice ?? undefined);
+        if (connected) {
+          log.info('✅ 音声入力接続完了 - マイクからの入力を待機中');
+          setIsVoiceReady(true);
+        } else {
+          log.warn('⚠️ 音声入力接続に失敗');
+          setIsVoiceReady(false);
         }
       } catch (error) {
         log.error('❌ 音声入力初期化エラー:', error);

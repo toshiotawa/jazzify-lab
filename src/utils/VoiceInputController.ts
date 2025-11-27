@@ -83,10 +83,14 @@ export class VoiceInputController {
   private readonly bufferSize = 512; // 低レイテンシ用
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.05;
-  private readonly noteOffThreshold = 0.03;
+  private readonly noteOnThreshold = 0.02; // 音検出開始閾値を下げる（0.05 → 0.02）
+  private readonly noteOffThreshold = 0.015; // 音検出終了閾値を下げる（0.03 → 0.015）
   private readonly pyinThreshold = 0.1;
-  private readonly silenceThreshold = 0.01;
+  private readonly silenceThreshold = 0.005; // サイレンス閾値を下げる（0.01 → 0.005）
+  
+  // デバッグ用カウンター
+  private debugFrameCount = 0;
+  private lastDebugTime = 0;
 
   // ノート状態
   private currentNote = -1;
@@ -265,6 +269,7 @@ export class VoiceInputController {
 
       this.onConnectionChange?.(true);
       log.info('✅ 音声入力接続完了');
+      log.info(`🎤 音声検出閾値: noteOn=${this.noteOnThreshold}, noteOff=${this.noteOffThreshold}, silence=${this.silenceThreshold}`);
       return true;
     } catch (error) {
       log.error('音声入力接続エラー:', error);
@@ -372,8 +377,32 @@ export class VoiceInputController {
       this.writeIndex = (this.writeIndex + 1) % this.ringSize;
     }
 
-    // 32サンプルごとにピッチ検出
-    if ((this.writeIndex & 0x1F) === 0) {
+    // デバッグ: 定期的に入力レベルをログ出力
+    this.debugFrameCount++;
+    const now = Date.now();
+    if (now - this.lastDebugTime > 2000) { // 2秒ごと
+      devLog.debug(`🎤 Voice input level: ${maxAmplitude.toFixed(4)}, threshold: ${this.noteOnThreshold}, isNoteOn: ${this.isNoteOn}`);
+      this.lastDebugTime = now;
+    }
+
+    // ノート状態更新（processAudioDataと同様のロジックを追加）
+    if (!this.isNoteOn && maxAmplitude > this.noteOnThreshold) {
+      this.isNoteOn = true;
+      devLog.debug(`🎤 Note ON detected (amplitude: ${maxAmplitude.toFixed(4)})`);
+    } else if (this.isNoteOn && maxAmplitude < this.noteOffThreshold) {
+      this.isNoteOn = false;
+      this.handleNoPitch();
+      devLog.debug(`🎤 Note OFF detected (amplitude: ${maxAmplitude.toFixed(4)})`);
+      return;
+    }
+
+    // 音が検出されていない場合はピッチ検出をスキップ
+    if (!this.isNoteOn) {
+      return;
+    }
+
+    // 16サンプルごとにピッチ検出（32 → 16でより頻繁に検出）
+    if ((this.writeIndex & 0x0F) === 0) {
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
@@ -428,7 +457,7 @@ export class VoiceInputController {
   }
 
   /** ピッチ検出時のハンドリング */
-  private handleDetectedPitch(frequency: number, _amplitude: number): void {
+  private handleDetectedPitch(frequency: number, amplitude: number): void {
     const midiNote = this.frequencyToMidi(frequency);
     
     // ピッチ履歴更新
@@ -447,10 +476,11 @@ export class VoiceInputController {
     if (stableNote !== this.currentNote) {
       if (this.currentNote !== -1) {
         this.onNoteOff(this.currentNote);
+        devLog.debug(`🎵 Note Off: ${this.currentNote} (${this.midiToNoteName(this.currentNote)})`);
       }
       this.currentNote = stableNote;
       this.onNoteOn(stableNote, 64);
-      devLog.debug(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)})`);
+      log.info(`🎵 Voice Note On: ${stableNote} (${this.midiToNoteName(stableNote)}) freq=${frequency.toFixed(1)}Hz amp=${amplitude.toFixed(4)}`);
     }
   }
 
