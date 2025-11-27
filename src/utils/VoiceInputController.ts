@@ -78,30 +78,25 @@ export class VoiceInputController {
   private writeIndex = 0;
   private wasmInitialized = false;
 
-  // ピッチ検出パラメータ
+  // ピッチ検出パラメータ（高速化最適化）
   private sampleRate = 44100;
-  private readonly bufferSize = 512; // 低レイテンシ用
+  private readonly bufferSize = 256; // 超低レイテンシ用（512→256に削減）
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.008; // 振幅閾値を下げて感度向上
-  private readonly noteOffThreshold = 0.003; // ノートオフ閾値も下げる
-  private readonly pyinThreshold = 0.15; // PYIN閾値を少し上げてノイズ耐性向上
-  private readonly silenceThreshold = 0.002; // 無音閾値を下げる
+  private readonly noteOnThreshold = 0.006; // 振幅閾値をさらに下げて高感度化
+  private readonly noteOffThreshold = 0.002; // ノートオフ閾値も下げる
+  private readonly pyinThreshold = 0.12; // PYIN閾値を下げて高感度化（0.15→0.12）
+  private readonly silenceThreshold = 0.001; // 無音閾値を下げる
 
-  // ノート状態
+  // ノート状態（高速反応用）
   private currentNote = -1;
-  private lastDetectedNote = -1;
-  private consecutiveFrames = 0;
-  private readonly consecutiveFramesThreshold = 2;
+  private readonly consecutiveFramesThreshold = 1; // 即時反応（2→1）
   private pitchHistory: number[] = [];
-  private readonly pitchHistorySize = 4;
+  private readonly pitchHistorySize = 2; // 履歴を短縮（4→2）
   private isNoteOn = false;
 
   // iOS対応
   private readonly isIOSDevice: boolean;
-
-  // 周波数テーブル
-  private noteFrequencies: Map<number, number> = new Map();
 
   constructor(callbacks: VoiceInputCallbacks) {
     this.onNoteOn = callbacks.onNoteOn;
@@ -109,12 +104,6 @@ export class VoiceInputController {
     this.onConnectionChange = callbacks.onConnectionChange;
     this.onError = callbacks.onError;
     this.isIOSDevice = isIOS();
-
-    // 周波数テーブル初期化 (A0 = 21 ~ C8 = 108)
-    for (let i = 21; i <= 108; i++) {
-      const frequency = 440 * Math.pow(2, (i - 69) / 12);
-      this.noteFrequencies.set(i, frequency);
-    }
 
     if (this.isIOSDevice) {
       log.info('🍎 iOS環境を検出: 特別なオーディオ処理を適用');
@@ -392,8 +381,8 @@ export class VoiceInputController {
       return;
     }
 
-    // 32サンプルごとにピッチ検出
-    if ((this.writeIndex & 0x1F) === 0) {
+    // 16サンプルごとにピッチ検出（高速化: 32→16）
+    if ((this.writeIndex & 0x0F) === 0) {
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
@@ -508,59 +497,50 @@ export class VoiceInputController {
     }
   }
 
-  /** 安定したノートを取得 */
+  /** 安定したノートを取得（高速化版） */
   private getStableNote(): number {
-    if (this.pitchHistory.length < 2) {
+    const historyLen = this.pitchHistory.length;
+    
+    // 最低1フレームで即時反応（高速化）
+    if (historyLen === 0) {
       return -1;
     }
 
-    const windowSize = Math.min(4, this.pitchHistory.length);
-    const recentHistory = this.pitchHistory.slice(-windowSize);
-
-    // ノート出現回数カウント
-    const noteCounts = new Map<number, number>();
-    for (const note of recentHistory) {
-      if (note !== -1) {
-        noteCounts.set(note, (noteCounts.get(note) ?? 0) + 1);
-      }
+    // 直近2フレームのみチェック（高速化）
+    const recent = historyLen >= 2 
+      ? [this.pitchHistory[historyLen - 2], this.pitchHistory[historyLen - 1]]
+      : [this.pitchHistory[historyLen - 1]];
+    
+    // 最新のノートを優先
+    const latestNote = recent[recent.length - 1];
+    if (latestNote === -1) {
+      return -1;
     }
 
-    // 最頻ノートを検索
-    let mostCommonNote = -1;
-    let maxCount = 0;
-    const minRequiredCount = Math.ceil(windowSize * 0.5);
-
-    for (const [note, count] of noteCounts) {
-      if (count > maxCount && count >= minRequiredCount) {
-        // 最近の検出との一貫性チェック（±1半音許容）
-        const isConsistent = recentHistory.slice(-2).some(recentNote =>
-          recentNote !== -1 && Math.abs(recentNote - note) <= 1
-        );
-
-        if (isConsistent) {
-          mostCommonNote = note;
-          maxCount = count;
-        }
-      }
+    // 1フレームでも有効なら即座に返す（高速反応モード）
+    if (recent.length === 1) {
+      return latestNote;
     }
 
-    return mostCommonNote;
+    // 2フレーム一致または±1半音以内で安定と判定
+    const prevNote = recent[0];
+    if (prevNote !== -1 && Math.abs(prevNote - latestNote) <= 1) {
+      return latestNote;
+    }
+
+    // 不一致でも最新を返す（即時反応優先）
+    return latestNote;
   }
 
-  /** 周波数からMIDIノート番号に変換 */
+  /** 周波数からMIDIノート番号に変換（高速化版） */
   private frequencyToMidi(frequency: number): number {
-    let closestNote = 48;
-    let minDifference = Infinity;
-
-    for (const [note, noteFreq] of this.noteFrequencies) {
-      const difference = Math.abs(frequency - noteFreq);
-      if (difference < minDifference) {
-        minDifference = difference;
-        closestNote = note;
-      }
-    }
-
-    return closestNote;
+    // 直接計算（ループ不要で高速）
+    // MIDI = 69 + 12 * log2(f / 440)
+    const midiFloat = 69 + 12 * Math.log2(frequency / 440);
+    const midiNote = Math.round(midiFloat);
+    
+    // 範囲制限 (A0=21 ~ C8=108)
+    return Math.max(21, Math.min(108, midiNote));
   }
 
   /** MIDIノート番号から音名に変換 */
