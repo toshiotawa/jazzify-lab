@@ -83,10 +83,10 @@ export class VoiceInputController {
   private readonly bufferSize = 512; // 低レイテンシ用
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.05;
-  private readonly noteOffThreshold = 0.03;
-  private readonly pyinThreshold = 0.1;
-  private readonly silenceThreshold = 0.01;
+  private readonly noteOnThreshold = 0.008; // 振幅閾値を下げて感度向上
+  private readonly noteOffThreshold = 0.003; // ノートオフ閾値も下げる
+  private readonly pyinThreshold = 0.15; // PYIN閾値を少し上げてノイズ耐性向上
+  private readonly silenceThreshold = 0.002; // 無音閾値を下げる
 
   // ノート状態
   private currentNote = -1;
@@ -360,10 +360,25 @@ export class VoiceInputController {
 
     const ringBuffer = new Float32Array(currentMemory.buffer, this.ringBufferPtr, this.ringSize);
 
-    // 入力信号レベルチェック
+    // 入力信号レベルチェック（RMSも計算）
     let maxAmplitude = 0;
+    let sumSquares = 0;
     for (let i = 0; i < samples.length; i++) {
-      maxAmplitude = Math.max(maxAmplitude, Math.abs(samples[i]));
+      const sample = samples[i];
+      maxAmplitude = Math.max(maxAmplitude, Math.abs(sample));
+      sumSquares += sample * sample;
+    }
+    const rms = Math.sqrt(sumSquares / samples.length);
+    const effectiveLevel = Math.max(maxAmplitude, rms * 2);
+
+    // ノート状態更新
+    if (!this.isNoteOn && effectiveLevel > this.noteOnThreshold) {
+      this.isNoteOn = true;
+      devLog.debug('🎤 [Worklet] Note state: ON (level:', effectiveLevel.toFixed(4), ')');
+    } else if (this.isNoteOn && effectiveLevel < this.noteOffThreshold) {
+      this.isNoteOn = false;
+      devLog.debug('🎤 [Worklet] Note state: OFF (level:', effectiveLevel.toFixed(4), ')');
+      this.handleNoPitch();
     }
 
     // サンプルをリングバッファにコピー
@@ -372,13 +387,19 @@ export class VoiceInputController {
       this.writeIndex = (this.writeIndex + 1) % this.ringSize;
     }
 
+    // 完全な無音は除外
+    if (effectiveLevel < this.silenceThreshold) {
+      return;
+    }
+
     // 32サンプルごとにピッチ検出
     if ((this.writeIndex & 0x1F) === 0) {
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
         this.handleDetectedPitch(frequency, maxAmplitude);
-      } else if (maxAmplitude < this.silenceThreshold) {
+      } else if (this.isNoteOn) {
+        // ノートオン状態で周波数が検出されなかった場合のみハンドル
         this.handleNoPitch();
       }
     }
@@ -390,22 +411,32 @@ export class VoiceInputController {
       return;
     }
 
-    // 最大振幅計算
+    // 最大振幅とRMS計算（より正確な音量測定）
     let maxAmplitude = 0;
+    let sumSquares = 0;
     for (let i = 0; i < inputData.length; i++) {
-      maxAmplitude = Math.max(maxAmplitude, Math.abs(inputData[i]));
+      const sample = inputData[i];
+      maxAmplitude = Math.max(maxAmplitude, Math.abs(sample));
+      sumSquares += sample * sample;
     }
+    const rms = Math.sqrt(sumSquares / inputData.length);
 
-    // ノート状態更新
-    if (!this.isNoteOn && maxAmplitude > this.noteOnThreshold) {
+    // ノート状態更新（RMSベースでより安定した検出）
+    const effectiveLevel = Math.max(maxAmplitude, rms * 2);
+    
+    if (!this.isNoteOn && effectiveLevel > this.noteOnThreshold) {
       this.isNoteOn = true;
-    } else if (this.isNoteOn && maxAmplitude < this.noteOffThreshold) {
+      devLog.debug('🎤 Note state: ON (level:', effectiveLevel.toFixed(4), ')');
+    } else if (this.isNoteOn && effectiveLevel < this.noteOffThreshold) {
       this.isNoteOn = false;
+      devLog.debug('🎤 Note state: OFF (level:', effectiveLevel.toFixed(4), ')');
       this.handleNoPitch();
       return;
     }
 
-    if (!this.isNoteOn) {
+    // 振幅が非常に小さい場合でもピッチ検出を試みる（閾値を通過していなくても）
+    // ただし、完全な無音は除外
+    if (effectiveLevel < this.silenceThreshold) {
       return;
     }
 
@@ -422,14 +453,20 @@ export class VoiceInputController {
 
     if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
       this.handleDetectedPitch(frequency, maxAmplitude);
-    } else {
+    } else if (this.isNoteOn) {
+      // ノートオン状態で周波数が検出されなかった場合のみハンドル
       this.handleNoPitch();
     }
   }
 
   /** ピッチ検出時のハンドリング */
-  private handleDetectedPitch(frequency: number, _amplitude: number): void {
+  private handleDetectedPitch(frequency: number, amplitude: number): void {
     const midiNote = this.frequencyToMidi(frequency);
+    
+    // デバッグログ（検出頻度を制限）
+    if (this.pitchHistory.length % 10 === 0) {
+      devLog.debug(`🎤 Pitch detected: ${frequency.toFixed(1)}Hz → MIDI ${midiNote} (${this.midiToNoteName(midiNote)}) amp=${amplitude.toFixed(4)}`);
+    }
     
     // ピッチ履歴更新
     this.pitchHistory.push(midiNote);
@@ -447,10 +484,11 @@ export class VoiceInputController {
     if (stableNote !== this.currentNote) {
       if (this.currentNote !== -1) {
         this.onNoteOff(this.currentNote);
+        devLog.debug(`🎵 Note Off: ${this.currentNote} (${this.midiToNoteName(this.currentNote)})`);
       }
       this.currentNote = stableNote;
       this.onNoteOn(stableNote, 64);
-      devLog.debug(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)})`);
+      log.info(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)}) freq=${frequency.toFixed(1)}Hz`);
     }
   }
 

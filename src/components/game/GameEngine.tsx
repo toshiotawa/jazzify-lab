@@ -880,6 +880,13 @@ useEffect(() => {
   const voiceControllerRef = useRef<VoiceInputController | null>(null);
   // Voice初期化完了フラグ（将来のUI状態表示用）
   const [_isVoiceReady, setIsVoiceReady] = useState(false);
+  // PIXIレンダラーのrefを追加（コールバック内での最新値アクセス用）
+  const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
+  
+  // pixiRendererの変更をrefに反映
+  useEffect(() => {
+    pixiRendererRef.current = pixiRenderer;
+  }, [pixiRenderer]);
 
   // 共通音声システム + MIDIController初期化
   useEffect(() => {
@@ -1011,16 +1018,25 @@ useEffect(() => {
           voiceControllerRef.current = new VoiceInputController({
             onNoteOn: (note: number, _velocity?: number) => {
               handleNoteInput(note);
-              // キーハイライト表示
-              if (pixiRenderer) {
-                pixiRenderer.highlightKey(note, true);
+              // キーハイライト表示（refを使用して最新のレンダラーにアクセス）
+              const renderer = pixiRendererRef.current;
+              if (renderer) {
+                renderer.highlightKey(note, true);
                 setTimeout(() => {
-                  pixiRenderer.highlightKey(note, false);
+                  // タイムアウト時も最新のレンダラーを使用
+                  const currentRenderer = pixiRendererRef.current;
+                  if (currentRenderer) {
+                    currentRenderer.highlightKey(note, false);
+                  }
                 }, 150);
               }
             },
-            onNoteOff: (_note: number) => {
-              // ノートオフの処理（必要に応じて）
+            onNoteOff: (note: number) => {
+              // ノートオフの処理 - キーハイライトを解除
+              const renderer = pixiRendererRef.current;
+              if (renderer) {
+                renderer.highlightKey(note, false);
+              }
             },
             onConnectionChange: (connected: boolean) => {
               log.info(`🎤 音声入力接続状態変更: ${connected ? '接続' : '切断'}`);
@@ -1055,7 +1071,7 @@ useEffect(() => {
     return () => {
       // クリーンアップは inputMethod 切り替え時に行う
     };
-  }, [settings.inputMethod, settings.selectedAudioDevice, handleNoteInput, pixiRenderer]);
+  }, [settings.inputMethod, settings.selectedAudioDevice, handleNoteInput]); // pixiRendererはrefで管理するため依存関係から除外
 
   // 音声入力コントローラーのクリーンアップ
   useEffect(() => {
