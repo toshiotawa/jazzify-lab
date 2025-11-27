@@ -83,10 +83,10 @@ export class VoiceInputController {
   private readonly bufferSize = 512; // 低レイテンシ用
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.05;
-  private readonly noteOffThreshold = 0.03;
-  private readonly pyinThreshold = 0.1;
-  private readonly silenceThreshold = 0.01;
+  private readonly noteOnThreshold = 0.02; // 閾値を下げて感度を上げる
+  private readonly noteOffThreshold = 0.01; // 閾値を下げて感度を上げる
+  private readonly pyinThreshold = 0.15; // ピッチ検出の許容度を上げる
+  private readonly silenceThreshold = 0.005; // 無音判定閾値を下げる
 
   // ノート状態
   private currentNote = -1;
@@ -96,6 +96,10 @@ export class VoiceInputController {
   private pitchHistory: number[] = [];
   private readonly pitchHistorySize = 4;
   private isNoteOn = false;
+  
+  // ピッチ検出用カウンター
+  private sampleCounter = 0;
+  private readonly pitchDetectionInterval = 128; // 128サンプルごとにピッチ検出
 
   // iOS対応
   private readonly isIOSDevice: boolean;
@@ -293,7 +297,11 @@ export class VoiceInputController {
       // サンプル受信処理
       this.workletNode.port.onmessage = (e) => {
         if (e.data.type === 'samples') {
-          this.processLowLatencySamples(e.data.samples);
+          // AudioWorkletからのデータをFloat32Arrayに変換
+          const samples = e.data.samples instanceof Float32Array 
+            ? e.data.samples 
+            : new Float32Array(e.data.samples);
+          this.processLowLatencySamples(samples);
         }
       };
 
@@ -372,8 +380,13 @@ export class VoiceInputController {
       this.writeIndex = (this.writeIndex + 1) % this.ringSize;
     }
 
-    // 32サンプルごとにピッチ検出
-    if ((this.writeIndex & 0x1F) === 0) {
+    // サンプルカウンターを更新
+    this.sampleCounter += samples.length;
+
+    // 一定間隔でピッチ検出（より頻繁に実行）
+    if (this.sampleCounter >= this.pitchDetectionInterval) {
+      this.sampleCounter = 0;
+      
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
