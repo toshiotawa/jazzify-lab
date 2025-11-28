@@ -14,7 +14,7 @@ import type {
   JudgmentResult
 } from '@/types';
 import { unifiedFrameController } from './performanceOptimizer';
-import { log, devLog } from './logger';
+import { log } from './logger';
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
 
@@ -642,55 +642,43 @@ export class GameEngine {
   /**
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
+   * 🚀 パフォーマンス最適化: 不要なログ・分岐を削除
    */
   private updateNoteLogic(currentTime: number): void {
     const notesToDelete: string[] = [];
     const timingAdjSec = this.getTimingAdjSec();
     
     for (const [noteId, note] of this.activeNotes) {
-      const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
-      const isRecentNote = Math.abs(currentTime - displayTime) < 2.0; // 判定時間の±2秒以内
-      
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
       this.checkHitLineCrossing(note, currentTime, timingAdjSec);
       
-        // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
-        const latestNote = this.activeNotes.get(noteId) || note;
-        if (isRecentNote && latestNote.state !== note.state) {
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
-        }
-        
-        const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
-        if (isRecentNote && updatedNote.state !== latestNote.state) {
-        }
-        
-        if (updatedNote.state === 'missed' && !updatedNote.judged) {
-          const missJudgment: JudgmentResult = {
-            type: 'miss',
-            timingError: 0,
-            noteId: updatedNote.id,
-            timestamp: currentTime
-          };
-          this.updateScore(missJudgment);
-          updatedNote.judged = true;
-          this.onJudgment?.(missJudgment);
-        }
-        
-        if (updatedNote.state === 'completed') {
-          // 削除対象としてマーク（ループ中の削除を避ける）
-          notesToDelete.push(noteId);
-          
-          if (isRecentNote) {
-          }
-        }
+      // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
+      const latestNote = this.activeNotes.get(noteId) || note;
+      const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
+      
+      // Miss判定処理
+      if (updatedNote.state === 'missed' && !updatedNote.judged) {
+        const missJudgment: JudgmentResult = {
+          type: 'miss',
+          timingError: 0,
+          noteId: updatedNote.id,
+          timestamp: currentTime
+        };
+        this.updateScore(missJudgment);
+        updatedNote.judged = true;
+        this.onJudgment?.(missJudgment);
+      }
+      
+      // 削除対象としてマーク（ループ中の削除を避ける）
+      if (updatedNote.state === 'completed') {
+        notesToDelete.push(noteId);
+      }
     }
     
-      // バッチ削除（ループ後に実行）
-      for (const noteId of notesToDelete) {
-        this.recycleNote(noteId);
-      }
-    
+    // バッチ削除（ループ後に実行）
+    for (const noteId of notesToDelete) {
+      this.recycleNote(noteId);
+    }
   }
   
   private updateNoteState(note: ActiveNote, currentTime: number, timingAdjSec: number): ActiveNote {
@@ -747,12 +735,10 @@ export class GameEngine {
     // 動的レイアウト対応: 設定値からヒットラインを計算
     const screenHeight = this.settings.viewportHeight ?? 600;
     const pianoHeight = this.settings.pianoHeight ?? 80;
-    const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
+    const hitLineY = screenHeight - pianoHeight;
 
     const noteCenter = (note.y || 0);
     const prevNoteCenter = (note.previousY || 0);
-    
-    // ▼ crossing 判定用の "表示上の" 到達時刻を利用
     const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
     
     // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
@@ -760,12 +746,10 @@ export class GameEngine {
         prevNoteCenter <= hitLineY && 
         noteCenter >= hitLineY &&
         note.state === 'visible' &&
-        !note.crossingLogged) { // 重複ログ防止
+        !note.crossingLogged) {
 
-      const timeError = (currentTime - displayTime) * 1000;   // ms
-
-        // 重複ログ防止フラグを即座に設定
-        note.crossingLogged = true;
+      const timeError = (currentTime - displayTime) * 1000;
+      note.crossingLogged = true;
 
       // 練習モードガイド処理
       const practiceGuide = this.settings.practiceGuide ?? 'key';
@@ -778,11 +762,7 @@ export class GameEngine {
         }
         
         if (practiceGuide === 'key_auto') {
-          // オートプレイ: 自動的にノーツをヒット判定
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🤖 オートプレイ実行開始: ノート ${note.id} (pitch=${effectivePitch})`);
-          
-          // 自動判定を実行
+          // オートプレイ: 自動判定を実行
           const autoHit: NoteHit = {
             noteId: note.id,
             inputNote: effectivePitch,
@@ -791,34 +771,19 @@ export class GameEngine {
             timestamp: currentTime
           };
           
-          // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
-          const judgment = this.processHit(autoHit);
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
+          this.processHit(autoHit);
           
-          // 強制的にノーツ状態を確認
+          // 念のため再度状態をセット（確実にhit状態にする）
           const updatedNoteAfterHit = this.activeNotes.get(note.id);
-          if (updatedNoteAfterHit) {
-            // ログ削除: FPS最適化のため
-            // devLog.debug(`🔍 オートプレイ後ノート状態確認: ${note.id} - state: ${updatedNoteAfterHit.state}, hitTime: ${updatedNoteAfterHit.hitTime}`);
-            
-            // 念のため再度状態をセット（確実にhit状態にする）
-            if (updatedNoteAfterHit.state !== 'hit') {
-              log.warn(`⚠️ オートプレイ後の状態が異常: ${note.id} - 期待値: hit, 実際値: ${updatedNoteAfterHit.state}`);
-              updatedNoteAfterHit.state = 'hit';
-              updatedNoteAfterHit.hitTime = currentTime;
-              updatedNoteAfterHit.timingError = Math.abs(timeError);
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`🔧 強制修正完了: ${note.id} - state を 'hit' に変更`);
-            } else {
-              // ログ削除: FPS最適化のため
-              // devLog.debug(`✅ オートプレイ状態確認OK: ${note.id} - 正常にhit状態です`);
-            }
-          } else {
+          if (updatedNoteAfterHit && updatedNoteAfterHit.state !== 'hit') {
+            log.warn(`⚠️ オートプレイ後の状態が異常: ${note.id}`);
+            updatedNoteAfterHit.state = 'hit';
+            updatedNoteAfterHit.hitTime = currentTime;
+            updatedNoteAfterHit.timingError = Math.abs(timeError);
+          } else if (!updatedNoteAfterHit) {
             log.warn(`⚠️ オートプレイ後にノートが見つからない: ${note.id}`);
           }
         }
-        
       }
     }
   }

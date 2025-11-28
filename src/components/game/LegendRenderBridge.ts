@@ -12,6 +12,11 @@ export class LegendRenderBridge {
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
   private lastFrame: BridgeFrame | null = null;
+  // 🚀 パフォーマンス最適化: フレームスキップ制御
+  private lastFlushTime = 0;
+  private readonly minFlushInterval = 12; // ~83fps上限（エンジンよりやや高頻度）
+  private pendingFlush = false;
+  private flushTimeoutId: ReturnType<typeof setTimeout> | null = null;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -45,7 +50,7 @@ export class LegendRenderBridge {
       return;
     }
 
-    this.flush();
+    this.doFlush();
   }
 
   syncFromEngine(): void {
@@ -59,6 +64,12 @@ export class LegendRenderBridge {
       this.unsubscribe();
       this.unsubscribe = null;
     }
+    // 🚀 保留中のフラッシュをキャンセル
+    if (this.flushTimeoutId !== null) {
+      clearTimeout(this.flushTimeoutId);
+      this.flushTimeoutId = null;
+    }
+    this.pendingFlush = false;
     this.renderer = null;
     this.engine = null;
     this.lastFrame = null;
@@ -69,7 +80,7 @@ export class LegendRenderBridge {
       activeNotes: update.activeNotes,
       currentTime: update.currentTime
     };
-    this.flush();
+    this.scheduleFlush();
   }
 
   private primeFromEngine(engine: GameEngine): void {
@@ -78,13 +89,39 @@ export class LegendRenderBridge {
       activeNotes: snapshot.activeNotes,
       currentTime: snapshot.currentTime
     };
-    this.flush();
+    // 初回は即時フラッシュ
+    this.doFlush();
   }
 
-  private flush(): void {
+  // 🚀 フレームスキップ付きフラッシュスケジューラー
+  private scheduleFlush(): void {
+    if (this.pendingFlush) {
+      return; // 既にスケジュール済み
+    }
+    
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const elapsed = now - this.lastFlushTime;
+    
+    if (elapsed >= this.minFlushInterval) {
+      // 十分な時間が経過していれば即時フラッシュ
+      this.doFlush();
+    } else {
+      // そうでなければ次のタイミングでフラッシュ
+      this.pendingFlush = true;
+      const delay = Math.max(1, this.minFlushInterval - elapsed);
+      this.flushTimeoutId = setTimeout(() => {
+        this.flushTimeoutId = null;
+        this.pendingFlush = false;
+        this.doFlush();
+      }, delay);
+    }
+  }
+
+  private doFlush(): void {
     if (!this.renderer || !this.lastFrame) {
       return;
     }
+    this.lastFlushTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);
   }
 

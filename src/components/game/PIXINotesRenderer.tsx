@@ -135,12 +135,18 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
+  // 🚀 パフォーマンス最適化: フレームスキップ制御
+  private lastRenderTime = 0;
+  private readonly minRenderInterval = 14; // ~70fps上限（処理負荷軽減）
+  // 🚀 ノート位置キャッシュ（変化がない場合は再描画スキップ）
+  private lastNoteCount = 0;
+  private lastNoteHash = '';
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -600,6 +606,25 @@ export class PIXINotesRendererInstance {
     if (this.renderPending || this.destroyed) {
       return;
     }
+    // 🚀 フレームスキップ: 前回レンダリングから十分な時間が経過していない場合はスキップ
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const elapsed = now - this.lastRenderTime;
+    if (elapsed < this.minRenderInterval && this.lastRenderTime > 0) {
+      // 次のフレームで再試行をスケジュール
+      if (!this.renderHandle) {
+        this.renderPending = true;
+        const delay = Math.max(1, this.minRenderInterval - elapsed);
+        this.renderHandle = setTimeout(() => {
+          this.renderPending = false;
+          this.renderHandle = null;
+          if (!this.destroyed) {
+            this.lastRenderTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+            this.drawFrame();
+          }
+        }, delay);
+      }
+      return;
+    }
     this.renderPending = true;
     const raf =
       typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
@@ -612,6 +637,7 @@ export class PIXINotesRendererInstance {
     this.renderPending = false;
     this.renderHandle = null;
     if (this.destroyed) return;
+    this.lastRenderTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
     this.drawFrame();
   };
 
@@ -620,8 +646,7 @@ export class PIXINotesRendererInstance {
       this.renderStaticLayers();
       this.backgroundNeedsUpdate = false;
     }
-    const controller = (window as typeof window & { unifiedFrameController?: any })?.unifiedFrameController;
-    const token = controller?.beginFrame?.('render', 'canvas-notes');
+    // 🚀 パフォーマンス最適化: フレーム計測オーバーヘッドを削除
     const ctx = this.ctx;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -640,9 +665,6 @@ export class PIXINotesRendererInstance {
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
     this.drawChordOverlay(ctx);
-    if (token) {
-      controller.endFrame(token);
-    }
   }
 
     private renderStaticLayers(): void {

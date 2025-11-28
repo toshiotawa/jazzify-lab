@@ -87,6 +87,8 @@ export class VoiceInputController {
   private readonly noteOffThreshold = 0.003; // ノートオフ閾値も下げる
   private readonly pyinThreshold = 0.15; // PYIN閾値を少し上げてノイズ耐性向上
   private readonly silenceThreshold = 0.002; // 無音閾値を下げる
+  // 🚀 レイテンシ最適化: ピッチ検出間隔を8サンプルに短縮
+  private readonly pitchDetectionInterval = 8;
 
   // ノート状態
   private currentNote = -1;
@@ -94,7 +96,8 @@ export class VoiceInputController {
   private consecutiveFrames = 0;
   private readonly consecutiveFramesThreshold = 1; // 低レイテンシ: より速いノートオン反応
   private pitchHistory: number[] = [];
-  private readonly pitchHistorySize = 3; // 低レイテンシ: より速いノート確定
+  // 🚀 レイテンシ最適化: 履歴サイズを2に削減（即時反応優先）
+  private readonly pitchHistorySize = 2;
   private isNoteOn = false;
 
   // iOS対応
@@ -392,8 +395,8 @@ export class VoiceInputController {
       return;
     }
 
-    // 16サンプルごとにピッチ検出（低レイテンシ）
-    if ((this.writeIndex & 0x0F) === 0) {
+    // 🚀 レイテンシ最適化: 8サンプルごとにピッチ検出
+    if ((this.writeIndex % this.pitchDetectionInterval) === 0) {
       const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
       if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
@@ -510,11 +513,13 @@ export class VoiceInputController {
 
   /** 安定したノートを取得 */
   private getStableNote(): number {
-    if (this.pitchHistory.length < 2) {
+    // 🚀 レイテンシ最適化: 最小履歴数を1に削減（即時反応）
+    if (this.pitchHistory.length < 1) {
       return -1;
     }
 
-    const windowSize = Math.min(3, this.pitchHistory.length); // 低レイテンシ用に調整
+    // 🚀 レイテンシ最適化: ウィンドウサイズを2に削減
+    const windowSize = Math.min(2, this.pitchHistory.length);
     const recentHistory = this.pitchHistory.slice(-windowSize);
 
     // ノート出現回数カウント

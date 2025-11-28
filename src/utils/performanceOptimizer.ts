@@ -109,6 +109,8 @@ export class UnifiedFrameController {
   private frameTimeHistory: Record<FrameChannel, number[]>;
   private readonly maxFrameSamples = 180;
   private frameSequence = 0;
+  // 🚀 パフォーマンス最適化: 本番モードではベンチマーク無効化
+  private enableBenchmark = false;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -120,6 +122,11 @@ export class UnifiedFrameController {
       acc[channel] = [];
       return acc;
     }, {} as Record<FrameChannel, number[]>);
+  }
+  
+  /** ベンチマーク機能の有効/無効を切り替え（本番では無効推奨） */
+  setEnableBenchmark(enabled: boolean): void {
+    this.enableBenchmark = enabled;
   }
   
   private getChannelState(channel: FrameChannel): ChannelState {
@@ -169,8 +176,19 @@ export class UnifiedFrameController {
 
   beginFrame(channel: FrameChannel, label?: string): FrameToken {
     const normalizedLabel = label ?? channel;
-    const startMark = `ufc-${channel}-${this.frameSequence++}`;
     const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    
+    // 🚀 ベンチマーク無効時は軽量トークンのみ返す
+    if (!this.enableBenchmark) {
+      return {
+        channel,
+        label: normalizedLabel,
+        startMark: '',
+        startTime
+      };
+    }
+    
+    const startMark = `ufc-${channel}-${this.frameSequence++}`;
     if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
       try {
         performance.mark(`${startMark}-start`);
@@ -187,8 +205,15 @@ export class UnifiedFrameController {
   }
 
   endFrame(token: FrameToken): number {
+    const duration = this.now() - token.startTime;
+    
+    // 🚀 ベンチマーク無効時は計測・記録をスキップ
+    if (!this.enableBenchmark) {
+      return duration;
+    }
+    
     const endMark = `${token.startMark}-end`;
-    let duration = this.now() - token.startTime;
+    let measuredDuration = duration;
     if (typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.measure === 'function') {
       try {
         performance.mark(endMark);
@@ -196,7 +221,7 @@ export class UnifiedFrameController {
         performance.measure(measureName, `${token.startMark}-start`, endMark);
         const entries = performance.getEntriesByName(measureName);
         if (entries.length > 0) {
-          duration = entries[entries.length - 1]?.duration ?? duration;
+          measuredDuration = entries[entries.length - 1]?.duration ?? duration;
         }
         performance.clearMeasures(measureName);
         performance.clearMarks(`${token.startMark}-start`);
@@ -205,8 +230,8 @@ export class UnifiedFrameController {
         // ignore measurement failures
       }
     }
-    this.recordFrameTime(token.channel, duration);
-    return duration;
+    this.recordFrameTime(token.channel, measuredDuration);
+    return measuredDuration;
   }
 
   getFrameStats(channel?: FrameChannel): FrameStats | Record<FrameChannel, FrameStats> {
