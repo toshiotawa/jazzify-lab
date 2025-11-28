@@ -141,6 +141,12 @@ export class PIXINotesRendererInstance {
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
+  
+  // 🚀 パフォーマンス最適化: レンダリング頻度制御
+  private lastRenderTime = 0;
+  private readonly minRenderInterval = 14; // ~70FPS上限（16msだと60FPS）
+  private frameSkipCount = 0;
+  private readonly maxFrameSkip = 2; // 最大2フレームスキップ
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -160,11 +166,20 @@ export class PIXINotesRendererInstance {
 
   updateNotes(notes: ActiveNote[], _currentTime?: number): void {
     if (this.destroyed) return;
-    this.noteBuffer.length = notes.length;
-    for (let i = 0; i < notes.length; i += 1) {
+    
+    // 🚀 最適化: 配列長を調整してからコピー（GC削減）
+    const newLen = notes.length;
+    const bufLen = this.noteBuffer.length;
+    
+    if (bufLen !== newLen) {
+      this.noteBuffer.length = newLen;
+    }
+    
+    for (let i = 0; i < newLen; i += 1) {
       this.noteBuffer[i] = notes[i];
     }
-    this.requestRender();
+    
+    this.requestRenderThrottled();
   }
 
   updateSettings(newSettings: Partial<RendererSettings>): void {
@@ -606,6 +621,29 @@ export class PIXINotesRendererInstance {
         ? window.requestAnimationFrame.bind(window)
         : (callback: FrameRequestCallback) => setTimeout(() => callback(performance.now()), 1000 / 60);
     this.renderHandle = raf(this.renderLoop);
+  }
+
+  /**
+   * 🚀 スロットル付きレンダリングリクエスト
+   * 短時間での連続レンダリングを防ぎ、CPU負荷を軽減
+   */
+  private requestRenderThrottled(): void {
+    if (this.renderPending || this.destroyed) {
+      return;
+    }
+    
+    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const elapsed = now - this.lastRenderTime;
+    
+    // 最小レンダリング間隔内の場合はスキップ（ただし連続スキップは制限）
+    if (elapsed < this.minRenderInterval && this.frameSkipCount < this.maxFrameSkip) {
+      this.frameSkipCount += 1;
+      return;
+    }
+    
+    this.frameSkipCount = 0;
+    this.lastRenderTime = now;
+    this.requestRender();
   }
 
   private renderLoop = (): void => {

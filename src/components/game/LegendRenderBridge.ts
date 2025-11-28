@@ -11,7 +11,9 @@ export class LegendRenderBridge {
   private renderer: PIXINotesRendererInstance | null = null;
   private engine: GameEngine | null = null;
   private unsubscribe: (() => void) | null = null;
-  private lastFrame: BridgeFrame | null = null;
+  // 🚀 GC最適化: フレームオブジェクトを再利用
+  private lastFrame: BridgeFrame = { activeNotes: [], currentTime: 0 };
+  private hasFrame = false;
 
   attachEngine(engine: GameEngine | null): void {
     if (this.unsubscribe) {
@@ -22,7 +24,7 @@ export class LegendRenderBridge {
     this.engine = engine;
 
     if (!engine) {
-      this.lastFrame = null;
+      this.hasFrame = false;
       return;
     }
 
@@ -40,7 +42,7 @@ export class LegendRenderBridge {
       return;
     }
 
-    if (!this.lastFrame && this.engine) {
+    if (!this.hasFrame && this.engine) {
       this.primeFromEngine(this.engine);
       return;
     }
@@ -61,28 +63,28 @@ export class LegendRenderBridge {
     }
     this.renderer = null;
     this.engine = null;
-    this.lastFrame = null;
+    this.hasFrame = false;
   }
 
+  // 🚀 GC最適化: オブジェクト再利用
   private handleEngineUpdate(update: GameEngineUpdate): void {
-    this.lastFrame = {
-      activeNotes: update.activeNotes,
-      currentTime: update.currentTime
-    };
+    this.lastFrame.activeNotes = update.activeNotes;
+    this.lastFrame.currentTime = update.currentTime;
+    this.hasFrame = true;
     this.flush();
   }
 
+  // 🚀 GC最適化: オブジェクト再利用
   private primeFromEngine(engine: GameEngine): void {
     const snapshot = engine.getState();
-    this.lastFrame = {
-      activeNotes: snapshot.activeNotes,
-      currentTime: snapshot.currentTime
-    };
+    this.lastFrame.activeNotes = snapshot.activeNotes;
+    this.lastFrame.currentTime = snapshot.currentTime;
+    this.hasFrame = true;
     this.flush();
   }
 
   private flush(): void {
-    if (!this.renderer || !this.lastFrame) {
+    if (!this.renderer || !this.hasFrame) {
       return;
     }
     this.renderer.updateNotes(this.lastFrame.activeNotes, this.lastFrame.currentTime);

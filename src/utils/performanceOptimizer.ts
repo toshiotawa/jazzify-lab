@@ -26,35 +26,35 @@ export interface PerformanceConfig {
 // 🎯 本番用軽量化モード設定
 export const PRODUCTION_CONFIG: PerformanceConfig = {
   targetFPS: 60, // 60FPSを維持
-  skipFrameThreshold: 16, // 16ms (60FPS)
-  maxSkipFrames: 1, // 最大1フレームスキップ
+  skipFrameThreshold: 14, // 14ms - フレーム間隔を少し緩めて安定性向上
+  maxSkipFrames: 3, // 最大3フレームスキップ - 重い処理時の追従性向上
   
   enableHardwareAcceleration: true,
   reduceEffects: true, // エフェクト軽量化
-  limitActiveNotes: 30, // 同時表示ノーツ数制限
+  limitActiveNotes: 50, // 同時表示ノーツ数制限を緩和
   
-  noteUpdateInterval: 16, // 60FPS相当
-  effectUpdateInterval: 33, // 30FPS相当（エフェクトは低頻度）
+  noteUpdateInterval: 8, // 8ms - ロジック更新は高頻度で維持
+  effectUpdateInterval: 50, // 50ms - エフェクトはさらに低頻度に（20FPS相当）
   
-  objectPoolSize: 50,
-  garbageCollectionInterval: 3000 // 3秒ごと
+  objectPoolSize: 100, // プールサイズを拡大してGC圧削減
+  garbageCollectionInterval: 5000 // 5秒ごと - GC頻度を下げる
 };
 
-// 🎯 軽量化モード設定
+// 🎯 軽量化モード設定（低スペックPC向け）
 export const LIGHTWEIGHT_CONFIG: PerformanceConfig = {
   targetFPS: 30, // 60FPS → 30FPSに軽量化
-  skipFrameThreshold: 33, // 33ms（30FPS）
-  maxSkipFrames: 2,
+  skipFrameThreshold: 30, // 30ms - 少し緩めて安定性向上
+  maxSkipFrames: 4, // 最大4フレームスキップ
   
   enableHardwareAcceleration: true,
   reduceEffects: true,
-  limitActiveNotes: 20, // 同時表示ノーツ数制限
+  limitActiveNotes: 30, // 同時表示ノーツ数制限を緩和
   
-  noteUpdateInterval: 16, // 60FPS相当
-  effectUpdateInterval: 33, // 30FPS相当
+  noteUpdateInterval: 16, // 60FPS相当（ロジックは高頻度維持）
+  effectUpdateInterval: 66, // ~15FPS相当
   
-  objectPoolSize: 50,
-  garbageCollectionInterval: 5000 // 5秒ごと
+  objectPoolSize: 80, // プールサイズを拡大
+  garbageCollectionInterval: 8000 // 8秒ごと - さらにGC頻度を下げる
 };
 
 // 🎯 標準モード設定
