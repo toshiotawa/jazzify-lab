@@ -162,9 +162,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => bgmManager.stop();
   }, [isReady, stage, settings.bgmVolume]);
   
-  // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
-  const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
-  
   // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number, source?: 'mouse' | 'midi') => void>();
   
@@ -960,20 +957,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -1248,26 +1231,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {/* 魔法名表示 */}
                       {magicName && magicName.monsterId === monster.id && (
                         <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
                           <div className={`font-bold font-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
                             magicName.isSpecial ? 'text-yellow-300' : 'text-white'
                           }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
                             {magicName.name}
                           </div>
                         </div>
                       )}
                       
-                      {/* 行動ゲージ (singleモードのみ表示) */}
+                      {/* 行動ゲージ (singleモードのみ、HPゲージの上) */}
                       {stage.mode === 'single' && (
-                        <div 
-                          ref={el => {
-                            if (el) gaugeRefs.current.set(monster.id, el);
-                          }}
-                          className="w-full h-2 bg-gray-700 border border-gray-600 rounded-full overflow-hidden relative mb-1"
-                        >
+                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-1">
                           <div
-                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700 transition-all duration-100"
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700"
                             style={{ width: `${monster.gauge}%` }}
                           />
                         </div>
@@ -1294,7 +1270,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </div>
                           </div>
                         );
-                                             })()}
+                      })()}
                      </div>
                      );
                    })}
