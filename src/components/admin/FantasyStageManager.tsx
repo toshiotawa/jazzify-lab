@@ -5,7 +5,7 @@ import {
   FantasyStage as DbFantasyStage,
 } from '@/types';
 import {
-  fetchFantasyStages,
+  fetchFantasyModeStages,
   fetchFantasyStageById,
   createFantasyStage,
   updateFantasyStage,
@@ -146,7 +146,7 @@ const FantasyStageManager: React.FC = () => {
   } = useFieldArray({ name: 'chord_progression_data', control });
 
   useEffect(() => {
-    fetchFantasyStages().then(setStages).catch(() => {});
+    fetchFantasyModeStages().then(setStages).catch(() => {});
   }, []);
 
   const loadStage = async (id: string) => {
@@ -156,7 +156,7 @@ const FantasyStageManager: React.FC = () => {
       setSelectedStageId(id);
       const v: StageFormValues = {
         id: s.id,
-        stage_number: s.stage_number,
+        stage_number: s.stage_number ?? '',  // nullの場合は空文字列
         name: s.name,
         description: s.description || '',
         mode: (s.mode as any) || 'single',
@@ -215,7 +215,8 @@ const FantasyStageManager: React.FC = () => {
       chord_progression: v.chord_progression,
       chord_progression_data: v.chord_progression_data,
       note_interval_beats: v.note_interval_beats ?? null,
-      stage_tier: v.stage_tier
+      stage_tier: v.stage_tier,
+      usage_type: 'fantasy',  // ファンタジーモード専用
     };
 
     // モードに応じた不要フィールドの削除
@@ -287,7 +288,7 @@ const FantasyStageManager: React.FC = () => {
       toast.success('削除しました');
       setSelectedStageId(null);
       reset(defaultValues);
-      const refreshed = await fetchFantasyStages();
+      const refreshed = await fetchFantasyModeStages();
       setStages(refreshed);
     } catch (e: any) {
       toast.error(e?.message || '削除に失敗しました');

@@ -508,9 +508,11 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+export type FantasyStageUsageType = 'fantasy' | 'lesson' | 'both';
+
 export interface FantasyStage {
   id: string;
-  stage_number: string;
+  stage_number: string | null;  // レッスン専用ステージではnull可
   name: string;
   name_en?: string;
   description: string;
@@ -539,6 +541,8 @@ export interface FantasyStage {
   play_root_on_correct?: boolean;
   // 新規: ステージ種別（Basic/Advanced）
   stage_tier?: 'basic' | 'advanced';
+  // 新規: 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
+  usage_type?: FantasyStageUsageType;
 }
 
 export interface LessonContext {

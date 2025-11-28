@@ -79,7 +79,7 @@ export interface ChordDefinition {
 
 export interface FantasyStage {
   id: string;
-  stageNumber: string;
+  stageNumber: string | null;  // レッスン専用ステージではnull可
   name: string;
   name_en?: string;
   description: string;

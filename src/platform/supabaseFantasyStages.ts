@@ -1,8 +1,8 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
-import { FantasyStage } from '../types';
+import { FantasyStage, FantasyStageUsageType } from '../types';
 
 /**
- * ファンタジーステージ一覧を取得
+ * ファンタジーステージ一覧を取得（デフォルトで全ステージを返す）
  */
 export async function fetchFantasyStages(): Promise<FantasyStage[]> {
   const supabase = getSupabaseClient();
@@ -12,12 +12,78 @@ export async function fetchFantasyStages(): Promise<FantasyStage[]> {
     async () => await supabase
       .from('fantasy_stages')
       .select('*')
-      .order('stage_number', { ascending: true }),
+      .order('stage_number', { ascending: true, nullsFirst: false }),
     1000 * 60 * 5
   );
     
   if (error) {
     console.error('Error fetching fantasy stages:', error);
+    throw error;
+  }
+  
+  return data || [];
+}
+
+/**
+ * 使用タイプでフィルタリングしてファンタジーステージ一覧を取得
+ * @param usageTypes 取得するステージの使用タイプ配列（例: ['fantasy', 'both'] でファンタジーモード用を取得）
+ */
+export async function fetchFantasyStagesByUsageType(
+  usageTypes: FantasyStageUsageType[]
+): Promise<FantasyStage[]> {
+  const supabase = getSupabaseClient();
+  const cacheKey = `fantasy_stages:by_usage:${usageTypes.sort().join(',')}`;
+  
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .in('usage_type', usageTypes)
+      .order('stage_number', { ascending: true, nullsFirst: false }),
+    1000 * 60 * 5
+  );
+    
+  if (error) {
+    console.error('Error fetching fantasy stages by usage type:', error);
+    throw error;
+  }
+  
+  return data || [];
+}
+
+/**
+ * ファンタジーモード用ステージのみ取得（usage_type = 'fantasy' または 'both'）
+ */
+export async function fetchFantasyModeStages(): Promise<FantasyStage[]> {
+  return fetchFantasyStagesByUsageType(['fantasy', 'both']);
+}
+
+/**
+ * レッスンモード用ステージのみ取得（usage_type = 'lesson' または 'both'）
+ */
+export async function fetchLessonFantasyStages(): Promise<FantasyStage[]> {
+  return fetchFantasyStagesByUsageType(['lesson', 'both']);
+}
+
+/**
+ * レッスン専用ステージのみ取得（usage_type = 'lesson'）
+ * 管理画面用
+ */
+export async function fetchLessonOnlyFantasyStages(): Promise<FantasyStage[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await fetchWithCache(
+    'fantasy_stages:lesson_only',
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .eq('usage_type', 'lesson')
+      .order('name', { ascending: true }),
+    1000 * 60 * 5
+  );
+    
+  if (error) {
+    console.error('Error fetching lesson-only fantasy stages:', error);
     throw error;
   }
   
@@ -178,7 +244,7 @@ export async function fetchFantasyClearedStageCount(userId: string): Promise<num
 
 export interface UpsertFantasyStagePayload {
   id?: string;
-  stage_number: string;
+  stage_number?: string | null;  // レッスン専用ステージではnull可
   name: string;
   description?: string;
   max_hp?: number;
@@ -201,8 +267,10 @@ export interface UpsertFantasyStagePayload {
   count_in_measures?: number;
   note_interval_beats?: number | null;
   play_root_on_correct?: boolean;
-  // 新規: ステージ種別（Basic/Advanced）
+  // ステージ種別（Basic/Advanced）
   stage_tier?: 'basic' | 'advanced';
+  // 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
+  usage_type?: FantasyStageUsageType;
 }
 
 /**

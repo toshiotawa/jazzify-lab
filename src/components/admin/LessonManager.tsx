@@ -1082,6 +1082,7 @@ export const LessonManager: React.FC = () => {
                 <FantasyStageSelector 
                   selectedStageId={watchContent('fantasy_stage_id') || null}
                   onStageSelect={(stageId) => setValueContent('fantasy_stage_id', stageId)}
+                  filterMode="lesson"
                 />
               </div>
             )}
