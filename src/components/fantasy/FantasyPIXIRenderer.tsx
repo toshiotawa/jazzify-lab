@@ -1,6 +1,7 @@
 import React, { useEffect, useRef } from 'react';
 import type { MonsterState } from './FantasyGameEngine';
 import { cn } from '@/utils/cn';
+import { useEnemyStore } from '@/stores/enemyStore';
 
 interface FantasyPIXIRendererProps {
   width: number;
@@ -29,6 +30,15 @@ interface ParticleEffect {
   success: boolean;
 }
 
+interface DamagePopup {
+  id: string;
+  x: number;
+  y: number;
+  value: number;
+  start: number;
+  duration: number;
+}
+
 interface MonsterVisual {
   id: string;
   icon: string;
@@ -36,26 +46,34 @@ interface MonsterVisual {
   hpRatio: number;
   targetX: number;
   x: number;
+  y: number;
   flashUntil: number;
   defeated: boolean;
+  enraged: boolean;
+  enrageScale: number;
   magicText?: {
     value: string;
     isSpecial: boolean;
     until: number;
   };
+  damagePopup?: DamagePopup;
 }
 
-const BACKGROUND_TOP = '#0f172a';
-const BACKGROUND_BOTTOM = '#020617';
-const CARD_BG = 'rgba(15,23,42,0.8)';
-const HP_BAR_BG = 'rgba(15,23,42,0.6)';
-const HP_BAR_FILL = '#ef4444';
-const ENEMY_GAUGE_BG = 'rgba(15,23,42,0.4)';
-const ENEMY_GAUGE_FILL = '#eab308';
-const OVERLAY_TEXT_COLOR = '#f8fafc';
-const TAiko_LANE_COLOR = 'rgba(255,255,255,0.2)';
-const NOTE_FILL = '#38bdf8';
-const NOTE_PREVIEW_FILL = '#64748b';
+// 太鼓レーン関連
+const TAIKO_LANE_BG = 'rgba(30, 41, 59, 0.9)';
+const TAIKO_LANE_BORDER = 'rgba(148, 163, 184, 0.4)';
+const NOTE_STROKE = '#f59e0b';
+const JUDGE_LINE_COLOR = '#ef4444';
+
+// ダメージポップアップ用
+const DAMAGE_COLOR = '#fbbf24';
+const DAMAGE_STROKE = '#000000';
+
+// 怒りアイコン（💢）用
+const ANGER_EMOJI = '💢';
+
+// 攻撃成功時の吹き出しアイコン
+const HIT_EMOJI = '💥';
 
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
@@ -65,11 +83,11 @@ export class FantasyPIXIInstance {
   private pixelRatio: number;
   private destroyed = false;
   private renderHandle: number | ReturnType<typeof setTimeout> | null = null;
-  private enemyGauge = 0;
   private monsters: MonsterVisual[] = [];
   private taikoMode = false;
   private taikoNotes: TaikoDisplayNote[] = [];
   private effects: ParticleEffect[] = [];
+  private damagePopups: DamagePopup[] = [];
   private overlayText: { value: string; until: number } | null = null;
   private defaultMonsterIcon: string;
   private imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>;
@@ -77,6 +95,18 @@ export class FantasyPIXIInstance {
   private loadingImages = new Set<string>();
   private onMonsterDefeated?: () => void;
   private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
+  
+  // 必殺技エフェクト用
+  private specialAttackEffect: {
+    active: boolean;
+    start: number;
+    duration: number;
+    text: string;
+  } | null = null;
+
+  // 怒り状態を購読するためのunsubscribe関数
+  private unsubscribeEnraged: (() => void) | null = null;
+  private enragedState: Record<string, boolean> = {};
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -100,6 +130,13 @@ export class FantasyPIXIInstance {
     this.onMonsterDefeated = onMonsterDefeated;
     this.onShowMagicName = onShowMagicName;
     this.configureCanvasSize(width, height);
+    
+    // 怒り状態を購読
+    this.unsubscribeEnraged = useEnemyStore.subscribe((state) => {
+      this.enragedState = state.enraged;
+    });
+    this.enragedState = useEnemyStore.getState().enraged;
+    
     this.startLoop();
   }
 
@@ -118,6 +155,7 @@ export class FantasyPIXIInstance {
       const existing = this.monsters.find((m) => m.id === monster.id);
       const image = this.ensureImage(monster.icon);
       const targetX = spacing * (index + 1);
+      const isEnraged = this.enragedState[monster.id] || false;
       visuals.push({
         id: monster.id,
         icon: monster.icon,
@@ -125,16 +163,16 @@ export class FantasyPIXIInstance {
         hpRatio: monster.currentHp / monster.maxHp,
         targetX,
         x: existing ? existing.x : targetX,
+        y: existing?.y ?? this.height * 0.5,
         flashUntil: existing?.flashUntil ?? 0,
         defeated: monster.currentHp <= 0,
-        magicText: existing?.magicText
+        enraged: isEnraged,
+        enrageScale: existing?.enrageScale ?? 1,
+        magicText: existing?.magicText,
+        damagePopup: existing?.damagePopup
       });
     });
     this.monsters = visuals;
-  }
-
-  setEnemyGauge(value: number): void {
-    this.enemyGauge = Math.min(100, Math.max(0, value));
   }
 
   setDefaultMonsterIcon(icon: string): void {
@@ -156,8 +194,8 @@ export class FantasyPIXIInstance {
 
   getJudgeLinePosition(): { x: number; y: number } {
     return {
-      x: this.width * 0.25,
-      y: this.height - this.height * 0.25
+      x: this.width * 0.15,
+      y: this.height * 0.75
     };
   }
 
@@ -166,15 +204,32 @@ export class FantasyPIXIInstance {
       x,
       y,
       start: performance.now(),
-      duration: success ? 250 : 400,
+      duration: success ? 300 : 400,
       success
     });
   }
 
-  triggerAttackSuccessOnMonster(monsterId: string, chordName: string | undefined, isSpecial: boolean, _damageDealt: number, defeated: boolean): void {
+  triggerAttackSuccessOnMonster(
+    monsterId: string,
+    chordName: string | undefined,
+    isSpecial: boolean,
+    damageDealt: number,
+    defeated: boolean
+  ): void {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
-      visual.flashUntil = performance.now() + 220;
+      visual.flashUntil = performance.now() + 250;
+      
+      // ダメージポップアップを追加
+      this.damagePopups.push({
+        id: `damage_${Date.now()}_${Math.random()}`,
+        x: visual.x,
+        y: visual.y - 60,
+        value: damageDealt,
+        start: performance.now(),
+        duration: 1200
+      });
+      
       if (chordName) {
         visual.magicText = {
           value: chordName,
@@ -183,6 +238,12 @@ export class FantasyPIXIInstance {
         };
         this.onShowMagicName?.(chordName, isSpecial, monsterId);
       }
+      
+      // 必殺技エフェクト
+      if (isSpecial) {
+        this.triggerSpecialAttackEffect();
+      }
+      
       if (defeated && !visual.defeated) {
         visual.defeated = true;
         setTimeout(() => {
@@ -190,6 +251,16 @@ export class FantasyPIXIInstance {
         }, 400);
       }
     }
+  }
+
+  // 必殺技エフェクトをトリガー
+  private triggerSpecialAttackEffect(): void {
+    this.specialAttackEffect = {
+      active: true,
+      start: performance.now(),
+      duration: 1500,
+      text: 'Swing! Swing! Swing!'
+    };
   }
 
   updateOverlayText(text: string | null): void {
@@ -205,6 +276,9 @@ export class FantasyPIXIInstance {
 
   destroy(): void {
     this.destroyed = true;
+    if (this.unsubscribeEnraged) {
+      this.unsubscribeEnraged();
+    }
     if (this.renderHandle !== null) {
       if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function' && typeof this.renderHandle === 'number') {
         window.cancelAnimationFrame(this.renderHandle);
@@ -243,38 +317,27 @@ export class FantasyPIXIInstance {
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
     ctx.restore();
     ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    
     this.drawBackground(ctx);
-    this.drawEnemyGauge(ctx);
     this.drawMonsters(ctx);
+    
     if (this.taikoMode) {
       this.drawTaikoLane(ctx);
     }
+    
+    this.drawDamagePopups(ctx);
     this.drawEffects(ctx);
+    this.drawSpecialAttackEffect(ctx);
     this.drawOverlayText(ctx);
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D): void {
+    // シンプルな暗い背景（透明度を上げてゲーム感を出す）
     const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-    gradient.addColorStop(0, BACKGROUND_TOP);
-    gradient.addColorStop(1, BACKGROUND_BOTTOM);
+    gradient.addColorStop(0, 'rgba(10, 10, 20, 0.3)');
+    gradient.addColorStop(1, 'rgba(5, 5, 15, 0.3)');
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, this.width, this.height);
-  }
-
-  private drawEnemyGauge(ctx: CanvasRenderingContext2D): void {
-    const barWidth = this.width * 0.8;
-    const barHeight = 18;
-    const x = (this.width - barWidth) / 2;
-    const y = 20;
-    ctx.fillStyle = ENEMY_GAUGE_BG;
-    ctx.fillRect(x, y, barWidth, barHeight);
-    ctx.fillStyle = ENEMY_GAUGE_FILL;
-    ctx.fillRect(x, y, (barWidth * this.enemyGauge) / 100, barHeight);
-    ctx.font = '12px "Inter", sans-serif';
-    ctx.fillStyle = '#0f172a';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(`Enemy Gauge ${Math.round(this.enemyGauge)}%`, x + barWidth / 2, y + barHeight / 2);
   }
 
   private drawMonsters(ctx: CanvasRenderingContext2D): void {
@@ -288,91 +351,339 @@ export class FantasyPIXIInstance {
           hpRatio: 1,
           targetX: this.width / 2,
           x: this.width / 2,
+          y: this.height * 0.5,
           flashUntil: 0,
-          defeated: false
+          defeated: false,
+          enraged: false,
+          enrageScale: 1
         }
       ];
     }
+    
     const now = performance.now();
+    const monsterCount = this.monsters.length;
+    
     this.monsters.forEach((monster) => {
-      monster.x += (monster.targetX - monster.x) * 0.1;
-      const cardWidth = Math.min(180, this.width / Math.max(3, this.monsters.length + 1));
-      const cardHeight = cardWidth * 0.8;
-      const baseY = this.height * 0.35;
+      // スムーズな位置移動
+      monster.x += (monster.targetX - monster.x) * 0.12;
+      
+      // 怒り状態の更新
+      const isEnraged = this.enragedState[monster.id] || false;
+      monster.enraged = isEnraged;
+      
+      // 怒りスケールのアニメーション
+      const targetScale = isEnraged ? 1.25 : 1;
+      monster.enrageScale += (targetScale - monster.enrageScale) * 0.1;
+      
+      // モンスターのサイズ計算（背景・枠なし、画像のみ大きく表示）
+      const baseSize = Math.min(
+        this.width / Math.max(2, monsterCount + 0.5),
+        this.height * 0.7
+      );
+      const monsterSize = baseSize * monster.enrageScale;
+      
+      // Y位置（中央より少し上）
+      const baseY = this.height * 0.45;
+      // アイドルアニメーション（上下の浮遊）
+      const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
+      monster.y = baseY + floatOffset;
+      
       ctx.save();
-      ctx.translate(monster.x - cardWidth / 2, baseY);
-      ctx.fillStyle = CARD_BG;
-      ctx.fillRect(0, 0, cardWidth, cardHeight);
-      ctx.strokeStyle = monster.flashUntil > now ? '#fde047' : 'rgba(248,250,252,0.2)';
-      ctx.lineWidth = 2;
-      ctx.strokeRect(0, 0, cardWidth, cardHeight);
+      ctx.translate(monster.x, monster.y);
+      
+      // フラッシュ効果（ダメージ時）
+      if (monster.flashUntil > now) {
+        ctx.globalAlpha = 0.7 + Math.sin((now - monster.flashUntil + 250) * 0.05) * 0.3;
+      }
+      
+      // 怒り時の赤みがかった色合い
+      if (isEnraged) {
+        ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
+      }
+      
+      // モンスター画像を描画（背景・枠なし）
       if (monster.image) {
-        const padding = 12;
-        ctx.drawImage(monster.image, padding, padding, cardWidth - padding * 2, cardHeight - padding * 2);
+        const imgW = monsterSize;
+        const imgH = monsterSize;
+        ctx.drawImage(monster.image, -imgW / 2, -imgH / 2, imgW, imgH);
       } else {
-        ctx.fillStyle = 'rgba(248,250,252,0.1)';
+        // ローディング中のプレースホルダー
+        ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
+        ctx.beginPath();
+        ctx.arc(0, 0, monsterSize / 3, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      
+      ctx.filter = 'none';
+      ctx.globalAlpha = 1;
+      
+      // 怒りアイコン（💢）を表示
+      if (isEnraged) {
+        ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = '12px "Inter", sans-serif';
-        ctx.fillText('Loading...', cardWidth / 2, cardHeight / 2);
+        // アニメーション（パルス）
+        const pulse = 1 + Math.sin(now * 0.01) * 0.1;
+        ctx.save();
+        ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
+        ctx.scale(pulse, pulse);
+        ctx.fillText(ANGER_EMOJI, 0, 0);
+        ctx.restore();
       }
-      // HP
-      ctx.fillStyle = HP_BAR_BG;
-      ctx.fillRect(0, cardHeight + 8, cardWidth, 10);
-      ctx.fillStyle = HP_BAR_FILL;
-      ctx.fillRect(0, cardHeight + 8, cardWidth * monster.hpRatio, 10);
-      if (monster.magicText && monster.magicText.until > now) {
-        ctx.font = monster.magicText.isSpecial ? 'bold 16px "Inter", sans-serif' : '13px "Inter", sans-serif';
-        ctx.fillStyle = monster.magicText.isSpecial ? '#fbbf24' : '#f1f5f9';
+      
+      // ヒット時の吹き出しアイコン（💥）
+      if (monster.flashUntil > now) {
+        ctx.font = `${Math.floor(monsterSize * 0.35)}px sans-serif`;
         ctx.textAlign = 'center';
-        ctx.textBaseline = 'bottom';
-        ctx.fillText(monster.magicText.value, cardWidth / 2, -6);
+        ctx.textBaseline = 'middle';
+        const hitProgress = (monster.flashUntil - now) / 250;
+        ctx.globalAlpha = hitProgress;
+        ctx.save();
+        ctx.translate(monsterSize * 0.3, -monsterSize * 0.2);
+        const scale = 1 + (1 - hitProgress) * 0.5;
+        ctx.scale(scale, scale);
+        ctx.fillText(HIT_EMOJI, 0, 0);
+        ctx.restore();
+        ctx.globalAlpha = 1;
       }
+      
       ctx.restore();
     });
   }
 
   private drawTaikoLane(ctx: CanvasRenderingContext2D): void {
     const judgePos = this.getJudgeLinePosition();
-    const laneHeight = 60;
-    ctx.fillStyle = TAiko_LANE_COLOR;
-    ctx.fillRect(0, judgePos.y - laneHeight / 2, this.width, laneHeight);
-    ctx.strokeStyle = '#f87171';
+    // レーン高さを大幅に拡大
+    const laneHeight = Math.min(120, this.height * 0.35);
+    const laneY = judgePos.y - laneHeight / 2;
+    
+    // レーン背景
+    ctx.fillStyle = TAIKO_LANE_BG;
+    ctx.fillRect(0, laneY, this.width, laneHeight);
+    
+    // レーン上下の境界線
+    ctx.strokeStyle = TAIKO_LANE_BORDER;
     ctx.lineWidth = 2;
     ctx.beginPath();
-    ctx.moveTo(judgePos.x, judgePos.y - laneHeight / 2);
-    ctx.lineTo(judgePos.x, judgePos.y + laneHeight / 2);
+    ctx.moveTo(0, laneY);
+    ctx.lineTo(this.width, laneY);
+    ctx.moveTo(0, laneY + laneHeight);
+    ctx.lineTo(this.width, laneY + laneHeight);
     ctx.stroke();
+    
+    // 判定ライン（赤い縦線）
+    ctx.strokeStyle = JUDGE_LINE_COLOR;
+    ctx.lineWidth = 4;
+    ctx.shadowColor = JUDGE_LINE_COLOR;
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(judgePos.x, laneY);
+    ctx.lineTo(judgePos.x, laneY + laneHeight);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+    
+    // 判定エリアの円
+    ctx.strokeStyle = JUDGE_LINE_COLOR;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // ノーツを描画
     this.taikoNotes.forEach((note) => {
-      const radius = 14;
+      const radius = 30; // ノーツ半径を大幅に拡大
       const isAhead = note.x >= judgePos.x;
-      ctx.fillStyle = isAhead ? NOTE_FILL : NOTE_PREVIEW_FILL;
+      
+      // ノーツの影
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+      ctx.beginPath();
+      ctx.arc(note.x + 2, judgePos.y + 2, radius, 0, Math.PI * 2);
+      ctx.fill();
+      
+      // ノーツ本体
+      const gradient = ctx.createRadialGradient(
+        note.x - radius * 0.3, judgePos.y - radius * 0.3, 0,
+        note.x, judgePos.y, radius
+      );
+      gradient.addColorStop(0, isAhead ? '#fde047' : '#94a3b8');
+      gradient.addColorStop(1, isAhead ? '#f59e0b' : '#64748b');
+      
+      ctx.fillStyle = gradient;
       ctx.beginPath();
       ctx.arc(note.x, judgePos.y, radius, 0, Math.PI * 2);
       ctx.fill();
-      ctx.font = '10px "Inter", sans-serif';
-      ctx.fillStyle = '#0f172a';
+      
+      // ノーツの縁
+      ctx.strokeStyle = isAhead ? NOTE_STROKE : '#475569';
+      ctx.lineWidth = 3;
+      ctx.stroke();
+      
+      // コード名（ノーツの上にバッジとして表示）
+      const badgePadding = 8;
+      ctx.font = 'bold 14px "Inter", sans-serif';
+      const textWidth = ctx.measureText(note.chord).width;
+      const badgeWidth = textWidth + badgePadding * 2;
+      const badgeHeight = 24;
+      const badgeX = note.x - badgeWidth / 2;
+      const badgeY = judgePos.y - radius - badgeHeight - 8;
+      
+      // バッジ背景
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.beginPath();
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 6);
+      ctx.fill();
+      
+      // バッジのポインタ（三角形）
+      ctx.beginPath();
+      ctx.moveTo(note.x, badgeY + badgeHeight);
+      ctx.lineTo(note.x - 6, badgeY + badgeHeight + 6);
+      ctx.lineTo(note.x + 6, badgeY + badgeHeight + 6);
+      ctx.closePath();
+      ctx.fill();
+      
+      // コード名テキスト
+      ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(note.chord, note.x, judgePos.y);
+      ctx.fillText(note.chord, note.x, badgeY + badgeHeight / 2);
+    });
+  }
+
+  private drawDamagePopups(ctx: CanvasRenderingContext2D): void {
+    const now = performance.now();
+    
+    // 古いポップアップを削除
+    this.damagePopups = this.damagePopups.filter(
+      (popup) => now - popup.start < popup.duration
+    );
+    
+    this.damagePopups.forEach((popup) => {
+      const progress = (now - popup.start) / popup.duration;
+      const alpha = 1 - progress;
+      const yOffset = -progress * 60; // 上に移動
+      const scale = 1 + progress * 0.3; // 少し大きくなる
+      
+      ctx.save();
+      ctx.translate(popup.x, popup.y + yOffset);
+      ctx.scale(scale, scale);
+      ctx.globalAlpha = alpha;
+      
+      // ダメージテキスト
+      const fontSize = 32;
+      ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // 縁取り
+      ctx.strokeStyle = DAMAGE_STROKE;
+      ctx.lineWidth = 4;
+      ctx.strokeText(popup.value.toString(), 0, 0);
+      
+      // 本体
+      ctx.fillStyle = DAMAGE_COLOR;
+      ctx.fillText(popup.value.toString(), 0, 0);
+      
+      ctx.restore();
     });
   }
 
   private drawEffects(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
     this.effects = this.effects.filter((effect) => now - effect.start < effect.duration);
+    
     this.effects.forEach((effect) => {
       const progress = (now - effect.start) / effect.duration;
       const alpha = 1 - progress;
-      const radius = 10 + progress * 25;
-      ctx.strokeStyle = effect.success ? '#4ade80' : '#ef4444';
+      const radius = 20 + progress * 40;
+      
+      ctx.strokeStyle = effect.success ? '#22c55e' : '#ef4444';
       ctx.globalAlpha = alpha;
-      ctx.lineWidth = 3;
+      ctx.lineWidth = 4;
       ctx.beginPath();
       ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
       ctx.stroke();
+      
+      // 成功時は追加のパーティクル
+      if (effect.success) {
+        for (let i = 0; i < 6; i++) {
+          const angle = (i / 6) * Math.PI * 2 + progress * Math.PI;
+          const particleRadius = radius * 1.3;
+          const px = effect.x + Math.cos(angle) * particleRadius;
+          const py = effect.y + Math.sin(angle) * particleRadius;
+          
+          ctx.fillStyle = '#fbbf24';
+          ctx.globalAlpha = alpha * 0.8;
+          ctx.beginPath();
+          ctx.arc(px, py, 4, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+      
       ctx.globalAlpha = 1;
     });
+  }
+
+  private drawSpecialAttackEffect(ctx: CanvasRenderingContext2D): void {
+    if (!this.specialAttackEffect || !this.specialAttackEffect.active) return;
+    
+    const now = performance.now();
+    const elapsed = now - this.specialAttackEffect.start;
+    const progress = elapsed / this.specialAttackEffect.duration;
+    
+    if (progress >= 1) {
+      this.specialAttackEffect = null;
+      return;
+    }
+    
+    ctx.save();
+    
+    // フェーズ1: 白いフラッシュ (0-0.1)
+    if (progress < 0.1) {
+      const flashAlpha = Math.sin((progress / 0.1) * Math.PI) * 0.6;
+      ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
+      ctx.fillRect(0, 0, this.width, this.height);
+    }
+    
+    // フェーズ2: テキスト表示 (0.1-0.9)
+    if (progress > 0.1 && progress < 0.9) {
+      const textProgress = (progress - 0.1) / 0.8;
+      const textAlpha = textProgress < 0.2 ? textProgress / 0.2 : 
+                        textProgress > 0.8 ? (1 - textProgress) / 0.2 : 1;
+      
+      // 背景の暗転
+      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.5})`;
+      ctx.fillRect(0, 0, this.width, this.height);
+      
+      // テキスト
+      ctx.globalAlpha = textAlpha;
+      ctx.font = 'bold 48px "Inter", sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      
+      // グロー効果
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 20;
+      
+      // 縁取り
+      ctx.strokeStyle = '#000000';
+      ctx.lineWidth = 6;
+      ctx.strokeText(this.specialAttackEffect.text, this.width / 2, this.height / 2);
+      
+      // 本体（金色）
+      const gradient = ctx.createLinearGradient(
+        this.width / 2 - 200, this.height / 2,
+        this.width / 2 + 200, this.height / 2
+      );
+      gradient.addColorStop(0, '#fde047');
+      gradient.addColorStop(0.5, '#fbbf24');
+      gradient.addColorStop(1, '#f59e0b');
+      ctx.fillStyle = gradient;
+      ctx.fillText(this.specialAttackEffect.text, this.width / 2, this.height / 2);
+      
+      ctx.shadowBlur = 0;
+    }
+    
+    ctx.restore();
   }
 
   private drawOverlayText(ctx: CanvasRenderingContext2D): void {
@@ -381,11 +692,17 @@ export class FantasyPIXIInstance {
       this.overlayText = null;
       return;
     }
-    ctx.font = 'bold 32px "Inter", sans-serif';
-    ctx.fillStyle = OVERLAY_TEXT_COLOR;
+    
+    ctx.save();
+    ctx.font = 'bold 28px "Inter", sans-serif';
+    ctx.fillStyle = '#f8fafc';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.fillText(this.overlayText.value, this.width / 2, this.height * 0.1);
+    ctx.shadowColor = 'rgba(0, 0, 0, 0.8)';
+    ctx.shadowBlur = 4;
+    ctx.fillText(this.overlayText.value, this.width / 2, this.height * 0.12);
+    ctx.shadowBlur = 0;
+    ctx.restore();
   }
 
   private ensureImage(icon: string): HTMLImageElement | null {
@@ -410,7 +727,19 @@ export class FantasyPIXIInstance {
     img.onerror = () => {
       this.loadingImages.delete(icon);
     };
-    img.src = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+    // WebP優先、フォールバックでPNG
+    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
+    const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+    
+    const testImg = new Image();
+    testImg.onload = () => {
+      img.src = webpPath;
+    };
+    testImg.onerror = () => {
+      img.src = pngPath;
+    };
+    testImg.src = webpPath;
+    
     return null;
   }
 }
@@ -419,7 +748,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   width,
   height,
   monsterIcon,
-  enemyGauge,
   onReady,
   onMonsterDefeated,
   onShowMagicName,
@@ -430,29 +758,25 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<FantasyPIXIInstance | null>(null);
 
-    useEffect(() => {
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const renderer = new FantasyPIXIInstance(
-        canvas,
-        width,
-        height,
-        onMonsterDefeated,
-        onShowMagicName,
-        imageTexturesRef
-      );
-      rendererRef.current = renderer;
-      renderer.setDefaultMonsterIcon(monsterIcon);
-      renderer.setEnemyGauge(enemyGauge);
-      if (activeMonsters) {
-        renderer.setActiveMonsters(activeMonsters);
-      }
-      onReady?.(renderer);
-      return () => {
-        renderer.destroy();
-        rendererRef.current = null;
-      };
-    }, [onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const renderer = new FantasyPIXIInstance(
+      canvas,
+      width,
+      height,
+      onMonsterDefeated,
+      onShowMagicName,
+      imageTexturesRef
+    );
+    rendererRef.current = renderer;
+    onReady?.(renderer);
+    return () => {
+      renderer.destroy();
+      rendererRef.current = null;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
 
   useEffect(() => {
     rendererRef.current?.resize(width, height);
@@ -461,10 +785,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   useEffect(() => {
     rendererRef.current?.setDefaultMonsterIcon(monsterIcon);
   }, [monsterIcon]);
-
-  useEffect(() => {
-    rendererRef.current?.setEnemyGauge(enemyGauge);
-  }, [enemyGauge]);
 
   useEffect(() => {
     if (activeMonsters) {
