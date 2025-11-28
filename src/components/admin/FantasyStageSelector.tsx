@@ -1,32 +1,50 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { FantasyStage } from '@/types';
-import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
+import { 
+  fetchFantasyStages, 
+  fetchLessonFantasyStages,
+  fetchFantasyModeStages 
+} from '@/platform/supabaseFantasyStages';
 import { cn } from '@/utils/cn';
 
 interface FantasyStageSelectorProps {
   selectedStageId: string | null;
   onStageSelect: (stageId: string) => void;
+  /**
+   * ステージのフィルタリングモード
+   * - 'all': 全ステージを表示（デフォルト）
+   * - 'fantasy': ファンタジーモード用ステージのみ（usage_type = 'fantasy' or 'both'）
+   * - 'lesson': レッスンモード用ステージのみ（usage_type = 'lesson' or 'both'）
+   */
+  filterMode?: 'all' | 'fantasy' | 'lesson';
 }
 
 export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
   selectedStageId,
-  onStageSelect
+  onStageSelect,
+  filterMode = 'all'
 }) => {
   const [stages, setStages] = useState<FantasyStage[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   
-  // ステージ一覧の取得
+  // ステージ一覧の取得（filterModeに応じて取得関数を切り替え）
   useEffect(() => {
-    fetchFantasyStages()
+    const fetchFn = filterMode === 'lesson' 
+      ? fetchLessonFantasyStages 
+      : filterMode === 'fantasy'
+        ? fetchFantasyModeStages
+        : fetchFantasyStages;
+        
+    fetchFn()
       .then(setStages)
       .catch((err) => {
         console.error('Failed to fetch fantasy stages:', err);
         setError('ファンタジーステージの取得に失敗しました');
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [filterMode]);
   
   // 検索フィルタリング（nullセーフ）
   const filteredStages = useMemo(() => {
@@ -97,8 +115,18 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
                       モード: {stage.mode === 'single' ? 'シングル' : stage.mode === 'progression_order' ? 'リズム・順番' : stage.mode === 'progression_random' ? 'リズム・ランダム' : stage.mode === 'progression_timing' ? 'リズム・カスタム' : 'プログレッション'}
                     </span>
                     <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
-                      種別: {(stage as any).stage_tier === 'advanced' ? 'Advanced' : 'Basic'}
+                      種別: {stage.stage_tier === 'advanced' ? 'Advanced' : 'Basic'}
                     </span>
+                    {stage.usage_type && (
+                      <span className={cn(
+                        "text-xs px-2 py-1 rounded",
+                        stage.usage_type === 'lesson' && "bg-blue-100 text-blue-700",
+                        stage.usage_type === 'fantasy' && "bg-orange-100 text-orange-700",
+                        stage.usage_type === 'both' && "bg-green-100 text-green-700"
+                      )}>
+                        {stage.usage_type === 'lesson' ? 'レッスン専用' : stage.usage_type === 'fantasy' ? 'ファンタジー専用' : '両方'}
+                      </span>
+                    )}
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                       敵数: {stage.enemy_count}
                     </span>

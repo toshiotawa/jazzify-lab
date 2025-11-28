@@ -415,6 +415,9 @@ const FantasyMain: React.FC = () => {
   const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
     
+    // レッスン専用ステージ（stageNumberがnull）の場合は次ステージ遷移しない
+    if (!currentStage.stageNumber) return;
+    
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
     
     // フリープラン・ゲストユーザーの場合、1-4以降には進めない
