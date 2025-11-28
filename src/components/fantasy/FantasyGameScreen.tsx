@@ -125,12 +125,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const isMobile = vw < 900; // タブレット未満をモバイル扱い
         if (isMobile && isLandscape) {
           // 横画面ではUIを圧縮し、描画コンテナを拡大
-          // 画面高の約48%を上限に、最大280pxまで拡大
-          const h = Math.min(280, Math.max(200, Math.floor(vh * 0.48)));
+          // 画面高の約55%を上限に、最大320pxまで拡大（ダメージテキスト表示のため増加）
+          const h = Math.min(320, Math.max(240, Math.floor(vh * 0.55)));
           setMonsterAreaHeight(h);
         } else {
-          // 縦 or デスクトップは従来相当
-          const h = Math.min(220, Math.max(180, Math.floor(vh * 0.30)));
+          // 縦 or デスクトップは従来相当（ダメージテキスト表示のため増加）
+          const h = Math.min(280, Math.max(220, Math.floor(vh * 0.35)));
           setMonsterAreaHeight(h);
         }
       }
@@ -758,7 +758,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 400; // ピクセル/秒
+      const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
       // カウントイン中は複数ノーツを先行表示
