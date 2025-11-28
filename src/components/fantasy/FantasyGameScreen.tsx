@@ -1239,6 +1239,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </div>
                       )}
                       
+                      {/* 行動ゲージ (singleモードのみ、HPゲージの上) */}
+                      {stage.mode === 'single' && (
+                        <div className="w-full h-2 bg-gray-700 rounded-full overflow-hidden mb-1">
+                          <div
+                            className="h-full bg-gradient-to-r from-purple-500 to-purple-700"
+                            style={{ width: `${monster.gauge}%` }}
+                          />
+                        </div>
+                      )}
+                      
                       {/* HPゲージ */}
                       {(() => {
                         const isLandscape = window.innerWidth > window.innerHeight;
@@ -1260,7 +1270,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             </div>
                           </div>
                         );
-                                             })()}
+                      })()}
                      </div>
                      );
                    })}
