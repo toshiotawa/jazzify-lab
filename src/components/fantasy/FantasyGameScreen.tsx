@@ -758,7 +758,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 400; // ピクセル/秒
+      const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
       // カウントイン中は複数ノーツを先行表示

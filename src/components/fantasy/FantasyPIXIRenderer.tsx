@@ -48,6 +48,7 @@ interface MonsterVisual {
   x: number;
   y: number;
   flashUntil: number;
+  hitBounceUntil: number; // 攻撃成功時のバウンスアニメーション終了時刻
   defeated: boolean;
   enraged: boolean;
   enrageScale: number;
@@ -72,8 +73,8 @@ const DAMAGE_STROKE = '#000000';
 // 怒りアイコン（💢）用
 const ANGER_EMOJI = '💢';
 
-// 攻撃成功時の吹き出しアイコン
-const HIT_EMOJI = '💥';
+// 攻撃成功時の吹き出しアイコン（ゴキゲンな感じに）
+const HIT_EMOJI = '🎵';
 
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
@@ -165,6 +166,7 @@ export class FantasyPIXIInstance {
         x: existing ? existing.x : targetX,
         y: existing?.y ?? this.height * 0.5,
         flashUntil: existing?.flashUntil ?? 0,
+        hitBounceUntil: existing?.hitBounceUntil ?? 0, // バウンスアニメーション
         defeated: monster.currentHp <= 0,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
@@ -219,6 +221,7 @@ export class FantasyPIXIInstance {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
       visual.flashUntil = performance.now() + 250;
+      visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
       // ダメージポップアップを追加
       this.damagePopups.push({
@@ -353,6 +356,7 @@ export class FantasyPIXIInstance {
           x: this.width / 2,
           y: this.height * 0.5,
           flashUntil: 0,
+          hitBounceUntil: 0,
           defeated: false,
           enraged: false,
           enrageScale: 1
@@ -386,7 +390,16 @@ export class FantasyPIXIInstance {
       const baseY = this.height * 0.45;
       // アイドルアニメーション（上下の浮遊）
       const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
-      monster.y = baseY + floatOffset;
+      
+      // 攻撃成功時のバウンスアニメーション（上に跳ねる）
+      let bounceOffset = 0;
+      if (monster.hitBounceUntil > now) {
+        const bounceProgress = (monster.hitBounceUntil - now) / 400; // 0→1（終了→開始）
+        // イーズアウトバウンス: 最初に大きく上がって戻る
+        bounceOffset = -Math.sin(bounceProgress * Math.PI) * 25;
+      }
+      
+      monster.y = baseY + floatOffset + bounceOffset;
       
       ctx.save();
       ctx.translate(monster.x, monster.y);
@@ -453,43 +466,9 @@ export class FantasyPIXIInstance {
 
   private drawTaikoLane(ctx: CanvasRenderingContext2D): void {
     const judgePos = this.getJudgeLinePosition();
-    // レーン高さを大幅に拡大
-    const laneHeight = Math.min(120, this.height * 0.35);
-    const laneY = judgePos.y - laneHeight / 2;
     
-    // レーン背景
-    ctx.fillStyle = TAIKO_LANE_BG;
-    ctx.fillRect(0, laneY, this.width, laneHeight);
-    
-    // レーン上下の境界線
-    ctx.strokeStyle = TAIKO_LANE_BORDER;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, laneY);
-    ctx.lineTo(this.width, laneY);
-    ctx.moveTo(0, laneY + laneHeight);
-    ctx.lineTo(this.width, laneY + laneHeight);
-    ctx.stroke();
-    
-    // 判定ライン（赤い縦線）
-    ctx.strokeStyle = JUDGE_LINE_COLOR;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = JUDGE_LINE_COLOR;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.moveTo(judgePos.x, laneY);
-    ctx.lineTo(judgePos.x, laneY + laneHeight);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    
-    // 判定エリアの円
-    ctx.strokeStyle = JUDGE_LINE_COLOR;
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
-    ctx.stroke();
-    
-    // ノーツを描画
+    // リズムタイプ：レーン背景・境界線・判定ラインは非表示
+    // ノーツのみ描画
     this.taikoNotes.forEach((note) => {
       const radius = 30; // ノーツ半径を大幅に拡大
       const isAhead = note.x >= judgePos.x;
@@ -518,14 +497,14 @@ export class FantasyPIXIInstance {
       ctx.lineWidth = 3;
       ctx.stroke();
       
-      // コード名（ノーツの上にバッジとして表示）
-      const badgePadding = 8;
-      ctx.font = 'bold 14px "Inter", sans-serif';
+      // コード名（ノーツの上にバッジとして表示）- フォントを大きく
+      const badgePadding = 12;
+      ctx.font = 'bold 24px "Inter", sans-serif';
       const textWidth = ctx.measureText(note.chord).width;
       const badgeWidth = textWidth + badgePadding * 2;
-      const badgeHeight = 24;
+      const badgeHeight = 36;
       const badgeX = note.x - badgeWidth / 2;
-      const badgeY = judgePos.y - radius - badgeHeight - 8;
+      const badgeY = judgePos.y - radius - badgeHeight - 12;
       
       // バッジ背景
       ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
