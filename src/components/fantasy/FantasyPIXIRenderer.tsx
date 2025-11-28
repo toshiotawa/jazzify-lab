@@ -58,6 +58,9 @@ interface MonsterVisual {
     until: number;
   };
   damagePopup?: DamagePopup;
+  // フェードアウト関連
+  fadingOut: boolean;
+  fadeOutStart: number;
 }
 
 // 太鼓レーン関連
@@ -152,8 +155,32 @@ export class FantasyPIXIInstance {
     const count = sorted.length || 1;
     const spacing = this.width / (count + 1);
     const visuals: MonsterVisual[] = [];
+    const now = performance.now();
+    
+    // 新しいモンスターIDのセット
+    const newMonsterIds = new Set(sorted.map(m => m.id));
+    
+    // 以前存在していたが新しいリストにない敵をフェードアウト状態にして保持
+    this.monsters.forEach((oldMonster) => {
+      if (!newMonsterIds.has(oldMonster.id) && !oldMonster.fadingOut) {
+        // フェードアウト開始
+        visuals.push({
+          ...oldMonster,
+          fadingOut: true,
+          fadeOutStart: now
+        });
+      } else if (oldMonster.fadingOut) {
+        // 既にフェードアウト中の敵は継続（600ms後に完全に消える）
+        const fadeOutDuration = 600;
+        if (now - oldMonster.fadeOutStart < fadeOutDuration) {
+          visuals.push(oldMonster);
+        }
+        // fadeOutDuration を過ぎたら visuals に追加しない（=削除）
+      }
+    });
+    
     sorted.forEach((monster, index) => {
-      const existing = this.monsters.find((m) => m.id === monster.id);
+      const existing = this.monsters.find((m) => m.id === monster.id && !m.fadingOut);
       const image = this.ensureImage(monster.icon);
       const targetX = spacing * (index + 1);
       const isEnraged = this.enragedState[monster.id] || false;
@@ -171,7 +198,9 @@ export class FantasyPIXIInstance {
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
         magicText: existing?.magicText,
-        damagePopup: existing?.damagePopup
+        damagePopup: existing?.damagePopup,
+        fadingOut: false,
+        fadeOutStart: 0
       });
     });
     this.monsters = visuals;
@@ -359,17 +388,44 @@ export class FantasyPIXIInstance {
           hitBounceUntil: 0,
           defeated: false,
           enraged: false,
-          enrageScale: 1
+          enrageScale: 1,
+          fadingOut: false,
+          fadeOutStart: 0
         }
       ];
     }
     
     const now = performance.now();
-    const monsterCount = this.monsters.length;
+    // フェードアウト中でないモンスターのみをカウント（配置計算用）
+    const activeMonsters = this.monsters.filter(m => !m.fadingOut);
+    const monsterCount = activeMonsters.length || 1;
+    
+    // フェードアウト完了したモンスターを削除
+    const fadeOutDuration = 600;
+    this.monsters = this.monsters.filter((monster) => {
+      if (monster.fadingOut && now - monster.fadeOutStart >= fadeOutDuration) {
+        return false; // 削除
+      }
+      return true;
+    });
     
     this.monsters.forEach((monster) => {
-      // スムーズな位置移動
-      monster.x += (monster.targetX - monster.x) * 0.12;
+      // フェードアウト中のモンスターの透明度とY位置オフセットを計算
+      let fadeAlpha = 1;
+      let fadeYOffset = 0;
+      if (monster.fadingOut) {
+        const fadeProgress = Math.min((now - monster.fadeOutStart) / fadeOutDuration, 1);
+        // イーズアウト: 最初は速く、後半は遅く
+        const easedProgress = 1 - Math.pow(1 - fadeProgress, 2);
+        fadeAlpha = 1 - easedProgress;
+        // 上に浮かび上がるアニメーション
+        fadeYOffset = -easedProgress * 50;
+      }
+      
+      // スムーズな位置移動（フェードアウト中はtargetXを更新しない）
+      if (!monster.fadingOut) {
+        monster.x += (monster.targetX - monster.x) * 0.12;
+      }
       
       // 怒り状態の更新
       const isEnraged = this.enragedState[monster.id] || false;
@@ -388,8 +444,8 @@ export class FantasyPIXIInstance {
       
       // Y位置（中央より少し上）
       const baseY = this.height * 0.45;
-      // アイドルアニメーション（上下の浮遊）
-      const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
+      // アイドルアニメーション（上下の浮遊）- フェードアウト中は停止
+      const floatOffset = monster.fadingOut ? 0 : Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
       
       // 攻撃成功時のバウンスアニメーション（上に跳ねる）
       let bounceOffset = 0;
@@ -399,15 +455,16 @@ export class FantasyPIXIInstance {
         bounceOffset = -Math.sin(bounceProgress * Math.PI) * 25;
       }
       
-      monster.y = baseY + floatOffset + bounceOffset;
+      monster.y = baseY + floatOffset + bounceOffset + fadeYOffset;
       
       ctx.save();
       ctx.translate(monster.x, monster.y);
       
-      // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
+      // フェードアウト中の透明度を適用
+      ctx.globalAlpha = fadeAlpha;
       
       // 怒り時の赤みがかった色合い
-      if (isEnraged) {
+      if (isEnraged && !monster.fadingOut) {
         ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
       }
       
@@ -425,36 +482,40 @@ export class FantasyPIXIInstance {
       }
       
       ctx.filter = 'none';
-      ctx.globalAlpha = 1;
       
-      // 怒りアイコン（💢）を表示
-      if (isEnraged) {
-        ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        // アニメーション（パルス）
-        const pulse = 1 + Math.sin(now * 0.01) * 0.1;
-        ctx.save();
-        ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
-        ctx.scale(pulse, pulse);
-        ctx.fillText(ANGER_EMOJI, 0, 0);
-        ctx.restore();
-      }
-      
-      // ヒット時の吹き出しアイコン（💥）
-      if (monster.flashUntil > now) {
-        ctx.font = `${Math.floor(monsterSize * 0.35)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        const hitProgress = (monster.flashUntil - now) / 250;
-        ctx.globalAlpha = hitProgress;
-        ctx.save();
-        ctx.translate(monsterSize * 0.3, -monsterSize * 0.2);
-        const scale = 1 + (1 - hitProgress) * 0.5;
-        ctx.scale(scale, scale);
-        ctx.fillText(HIT_EMOJI, 0, 0);
-        ctx.restore();
+      // フェードアウト中でない場合のみ追加エフェクトを表示
+      if (!monster.fadingOut) {
         ctx.globalAlpha = 1;
+        
+        // 怒りアイコン（💢）を表示
+        if (isEnraged) {
+          ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          // アニメーション（パルス）
+          const pulse = 1 + Math.sin(now * 0.01) * 0.1;
+          ctx.save();
+          ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
+          ctx.scale(pulse, pulse);
+          ctx.fillText(ANGER_EMOJI, 0, 0);
+          ctx.restore();
+        }
+        
+        // ヒット時の吹き出しアイコン（💥）
+        if (monster.flashUntil > now) {
+          ctx.font = `${Math.floor(monsterSize * 0.35)}px sans-serif`;
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'middle';
+          const hitProgress = (monster.flashUntil - now) / 250;
+          ctx.globalAlpha = hitProgress;
+          ctx.save();
+          ctx.translate(monsterSize * 0.3, -monsterSize * 0.2);
+          const scale = 1 + (1 - hitProgress) * 0.5;
+          ctx.scale(scale, scale);
+          ctx.fillText(HIT_EMOJI, 0, 0);
+          ctx.restore();
+          ctx.globalAlpha = 1;
+        }
       }
       
       ctx.restore();
