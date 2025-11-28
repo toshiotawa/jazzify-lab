@@ -223,14 +223,14 @@ export class FantasyPIXIInstance {
       visual.flashUntil = performance.now() + 250;
       visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
-      // ダメージポップアップを追加
+      // ダメージポップアップを追加（モンスターの上部から開始、より長く表示）
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
-        y: visual.y - 60,
+        y: visual.y - 80, // より上から開始
         value: damageDealt,
         start: performance.now(),
-        duration: 1200
+        duration: 1800 // 1.8秒間表示（視認性向上）
       });
       
       if (chordName) {
@@ -404,10 +404,7 @@ export class FantasyPIXIInstance {
       ctx.save();
       ctx.translate(monster.x, monster.y);
       
-      // フラッシュ効果（ダメージ時）
-      if (monster.flashUntil > now) {
-        ctx.globalAlpha = 0.7 + Math.sin((now - monster.flashUntil + 250) * 0.05) * 0.3;
-      }
+      // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
       
       // 怒り時の赤みがかった色合い
       if (isEnraged) {
@@ -468,7 +465,14 @@ export class FantasyPIXIInstance {
     const judgePos = this.getJudgeLinePosition();
     
     // リズムタイプ：レーン背景・境界線・判定ラインは非表示
-    // ノーツのみ描画
+    // 判定エリアの円のみ表示
+    ctx.strokeStyle = JUDGE_LINE_COLOR;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
+    ctx.stroke();
+    
+    // ノーツを描画
     this.taikoNotes.forEach((note) => {
       const radius = 30; // ノーツ半径を大幅に拡大
       const isAhead = note.x >= judgePos.x;
@@ -538,9 +542,10 @@ export class FantasyPIXIInstance {
     
     this.damagePopups.forEach((popup) => {
       const progress = (now - popup.start) / popup.duration;
-      const alpha = 1 - progress;
-      const yOffset = -progress * 60; // 上に移動
-      const scale = 1 + progress * 0.3; // 少し大きくなる
+      // フェードアウトを後半に集中させる（最初の70%は完全に表示）
+      const alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
+      const yOffset = -progress * 40; // ゆっくり上に移動
+      const scale = 1 + progress * 0.2; // 少し大きくなる
       
       ctx.save();
       ctx.translate(popup.x, popup.y + yOffset);
