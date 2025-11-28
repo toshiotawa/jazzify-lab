@@ -60,9 +60,6 @@ interface MonsterVisual {
   damageText?: DamageTextEffect;
 }
 
-// 30fps = 約33ms間隔
-const FRAME_INTERVAL = 1000 / 30;
-
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -71,7 +68,6 @@ export class FantasyPIXIInstance {
   private pixelRatio: number;
   private destroyed = false;
   private renderHandle: number | null = null;
-  private lastFrameTime = 0;
   private monsters: MonsterVisual[] = [];
   private taikoMode = false;
   private taikoNotes: TaikoDisplayNote[] = [];
@@ -262,15 +258,9 @@ export class FantasyPIXIInstance {
     this.renderHandle = requestAnimationFrame(this.renderLoop);
   }
 
-  private renderLoop = (timestamp: number): void => {
+  private renderLoop = (): void => {
     if (this.destroyed) return;
-    
-    // 30fpsに制限
-    if (timestamp - this.lastFrameTime >= FRAME_INTERVAL) {
-      this.lastFrameTime = timestamp;
-      this.drawFrame();
-    }
-    
+    this.drawFrame();
     this.renderHandle = requestAnimationFrame(this.renderLoop);
   };
 
@@ -315,11 +305,11 @@ export class FantasyPIXIInstance {
     
     this.monsters.forEach((monster) => {
       // スムーズな移動
-      monster.x += (monster.targetX - monster.x) * 0.2;
+      monster.x += (monster.targetX - monster.x) * 0.15;
       
-      // 怒り時のスケールアニメーション（簡略化）
+      // 怒り時のスケールアニメーション
       const targetScale = monster.enraged ? 1.2 : 1;
-      monster.enrageScale += (targetScale - monster.enrageScale) * 0.15;
+      monster.enrageScale += (targetScale - monster.enrageScale) * 0.1;
       
       const baseSize = Math.min(this.height * 0.55, this.width / (this.monsters.length + 1) * 0.85);
       const monsterSize = baseSize * monster.enrageScale;
@@ -330,10 +320,22 @@ export class FantasyPIXIInstance {
       ctx.save();
       ctx.translate(monster.x, baseY);
       
-      // モンスター画像を描画
+      // モンスター画像を描画（背景・枠なし）
       if (monster.image && monster.image.complete) {
-        // フラッシュ時は黄色オーバーレイ
         const imgSize = monsterSize;
+        
+        // フラッシュ時は少し明るく
+        if (isFlashing) {
+          ctx.globalAlpha = 0.7;
+          ctx.drawImage(monster.image, -imgSize / 2, -imgSize / 2, imgSize, imgSize);
+          ctx.globalAlpha = 0.4;
+          ctx.fillStyle = '#ffdd00';
+          ctx.beginPath();
+          ctx.arc(0, 0, imgSize * 0.45, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.globalAlpha = 1;
+        }
+        
         ctx.drawImage(
           monster.image,
           -imgSize / 2,
@@ -341,27 +343,15 @@ export class FantasyPIXIInstance {
           imgSize,
           imgSize
         );
-        
-        // フラッシュ時は黄色の半透明オーバーレイ
-        if (isFlashing) {
-          ctx.fillStyle = 'rgba(255, 220, 0, 0.3)';
-          ctx.fillRect(-imgSize / 2, -imgSize / 2, imgSize, imgSize);
-        }
-        
-        // 怒り時は赤いオーバーレイ
-        if (monster.enraged) {
-          ctx.fillStyle = 'rgba(255, 80, 80, 0.2)';
-          ctx.fillRect(-imgSize / 2, -imgSize / 2, imgSize, imgSize);
-        }
       }
       
-      // 怒りアイコン表示
+      // 怒りアイコン表示（怒り時のみ）
       if (monster.enraged && this.angerIcon && this.angerIcon.complete) {
-        const iconSize = monsterSize * 0.25;
+        const iconSize = monsterSize * 0.3;
         ctx.drawImage(
           this.angerIcon,
           monsterSize * 0.25,
-          -monsterSize * 0.35,
+          -monsterSize * 0.4,
           iconSize,
           iconSize
         );
@@ -436,7 +426,7 @@ export class FantasyPIXIInstance {
       const radius = 30;
       const isAhead = note.x >= judgePos.x;
       
-      // ノーツの円（単色塗り）
+      // ノーツの円
       ctx.beginPath();
       ctx.arc(note.x, judgePos.y, radius, 0, Math.PI * 2);
       ctx.fillStyle = isAhead ? '#f97316' : '#64748b';
