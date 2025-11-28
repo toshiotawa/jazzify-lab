@@ -57,11 +57,12 @@ interface MonsterVisual {
     until: number;
   };
   damagePopup?: DamagePopup;
+  // ★ 攻撃成功時の跳ね上げアニメーション
+  bounceUntil: number;
+  bounceStartY: number;
 }
 
 // 太鼓レーン関連
-const TAIKO_LANE_BG = 'rgba(30, 41, 59, 0.9)';
-const TAIKO_LANE_BORDER = 'rgba(148, 163, 184, 0.4)';
 const NOTE_STROKE = '#f59e0b';
 const JUDGE_LINE_COLOR = '#ef4444';
 
@@ -74,6 +75,9 @@ const ANGER_EMOJI = '💢';
 
 // 攻撃成功時の吹き出しアイコン
 const HIT_EMOJI = '💥';
+
+// ★ 攻撃成功時のゴキゲン吹き出しアイコン
+const HAPPY_EMOJIS = ['😵', '😫', '🤯', '💫', '⭐'];
 
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
@@ -169,7 +173,10 @@ export class FantasyPIXIInstance {
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
         magicText: existing?.magicText,
-        damagePopup: existing?.damagePopup
+        damagePopup: existing?.damagePopup,
+        // ★ 跳ね上げアニメーション
+        bounceUntil: existing?.bounceUntil ?? 0,
+        bounceStartY: existing?.bounceStartY ?? this.height * 0.5
       });
     });
     this.monsters = visuals;
@@ -219,6 +226,10 @@ export class FantasyPIXIInstance {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
       visual.flashUntil = performance.now() + 250;
+      
+      // ★ 跳ね上げアニメーションをトリガー
+      visual.bounceUntil = performance.now() + 400;
+      visual.bounceStartY = visual.y;
       
       // ダメージポップアップを追加
       this.damagePopups.push({
@@ -355,7 +366,9 @@ export class FantasyPIXIInstance {
           flashUntil: 0,
           defeated: false,
           enraged: false,
-          enrageScale: 1
+          enrageScale: 1,
+          bounceUntil: 0,
+          bounceStartY: this.height * 0.5
         }
       ];
     }
@@ -386,7 +399,18 @@ export class FantasyPIXIInstance {
       const baseY = this.height * 0.45;
       // アイドルアニメーション（上下の浮遊）
       const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
-      monster.y = baseY + floatOffset;
+      
+      // ★ 跳ね上げアニメーション
+      let bounceOffset = 0;
+      const isBouncing = monster.bounceUntil > now;
+      if (isBouncing) {
+        const bounceDuration = 400;
+        const bounceProgress = 1 - (monster.bounceUntil - now) / bounceDuration;
+        // イージング: 上に飛んで戻る (sin曲線)
+        bounceOffset = -Math.sin(bounceProgress * Math.PI) * 25;
+      }
+      
+      monster.y = baseY + floatOffset + bounceOffset;
       
       ctx.save();
       ctx.translate(monster.x, monster.y);
@@ -431,19 +455,37 @@ export class FantasyPIXIInstance {
         ctx.restore();
       }
       
-      // ヒット時の吹き出しアイコン（💥）
-      if (monster.flashUntil > now) {
-        ctx.font = `${Math.floor(monsterSize * 0.35)}px sans-serif`;
+      // ★ ヒット時の吹き出しアイコン（💥 + ゴキゲン絵文字）
+      if (isBouncing) {
+        const bounceDuration = 400;
+        const bounceProgress = 1 - (monster.bounceUntil - now) / bounceDuration;
+        
+        ctx.font = `${Math.floor(monsterSize * 0.4)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const hitProgress = (monster.flashUntil - now) / 250;
-        ctx.globalAlpha = hitProgress;
+        
+        // フェードアウト効果
+        const alpha = bounceProgress < 0.7 ? 1 : (1 - bounceProgress) / 0.3;
+        ctx.globalAlpha = alpha;
+        
+        // 💥 エフェクト（左上）
         ctx.save();
-        ctx.translate(monsterSize * 0.3, -monsterSize * 0.2);
-        const scale = 1 + (1 - hitProgress) * 0.5;
-        ctx.scale(scale, scale);
+        ctx.translate(-monsterSize * 0.35, -monsterSize * 0.4);
+        const hitScale = 1 + bounceProgress * 0.3;
+        ctx.scale(hitScale, hitScale);
         ctx.fillText(HIT_EMOJI, 0, 0);
         ctx.restore();
+        
+        // ゴキゲン吹き出し（右上）- 敵がやられてる感
+        ctx.save();
+        ctx.translate(monsterSize * 0.4, -monsterSize * 0.35);
+        const happyScale = 0.8 + Math.sin(bounceProgress * Math.PI * 2) * 0.2;
+        ctx.scale(happyScale, happyScale);
+        // シード値を使って同じモンスターには同じ絵文字を表示
+        const emojiIndex = monster.id.charCodeAt(0) % HAPPY_EMOJIS.length;
+        ctx.fillText(HAPPY_EMOJIS[emojiIndex], 0, 0);
+        ctx.restore();
+        
         ctx.globalAlpha = 1;
       }
       
@@ -453,45 +495,34 @@ export class FantasyPIXIInstance {
 
   private drawTaikoLane(ctx: CanvasRenderingContext2D): void {
     const judgePos = this.getJudgeLinePosition();
-    // レーン高さを大幅に拡大
+    // レーン高さ（描画位置計算用のみ）
     const laneHeight = Math.min(120, this.height * 0.35);
     const laneY = judgePos.y - laneHeight / 2;
     
-    // レーン背景
-    ctx.fillStyle = TAIKO_LANE_BG;
-    ctx.fillRect(0, laneY, this.width, laneHeight);
+    // ★ レーン背景・境界線は描画しない（ノーツのみ流れる）
     
-    // レーン上下の境界線
-    ctx.strokeStyle = TAIKO_LANE_BORDER;
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(0, laneY);
-    ctx.lineTo(this.width, laneY);
-    ctx.moveTo(0, laneY + laneHeight);
-    ctx.lineTo(this.width, laneY + laneHeight);
-    ctx.stroke();
-    
-    // 判定ライン（赤い縦線）
-    ctx.strokeStyle = JUDGE_LINE_COLOR;
-    ctx.lineWidth = 4;
-    ctx.shadowColor = JUDGE_LINE_COLOR;
-    ctx.shadowBlur = 10;
-    ctx.beginPath();
-    ctx.moveTo(judgePos.x, laneY);
-    ctx.lineTo(judgePos.x, laneY + laneHeight);
-    ctx.stroke();
-    ctx.shadowBlur = 0;
-    
-    // 判定エリアの円
+    // 判定ライン（赤い縦線） - 控えめに表示
     ctx.strokeStyle = JUDGE_LINE_COLOR;
     ctx.lineWidth = 3;
+    ctx.globalAlpha = 0.6;
     ctx.beginPath();
-    ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
+    ctx.moveTo(judgePos.x, laneY + laneHeight * 0.2);
+    ctx.lineTo(judgePos.x, laneY + laneHeight * 0.8);
     ctx.stroke();
+    ctx.globalAlpha = 1;
+    
+    // 判定エリアの円（薄く表示）
+    ctx.strokeStyle = JUDGE_LINE_COLOR;
+    ctx.lineWidth = 2;
+    ctx.globalAlpha = 0.4;
+    ctx.beginPath();
+    ctx.arc(judgePos.x, judgePos.y, 30, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
     
     // ノーツを描画
     this.taikoNotes.forEach((note) => {
-      const radius = 30; // ノーツ半径を大幅に拡大
+      const radius = 30; // ノーツ半径
       const isAhead = note.x >= judgePos.x;
       
       // ノーツの影
@@ -518,26 +549,26 @@ export class FantasyPIXIInstance {
       ctx.lineWidth = 3;
       ctx.stroke();
       
-      // コード名（ノーツの上にバッジとして表示）
-      const badgePadding = 8;
-      ctx.font = 'bold 14px "Inter", sans-serif';
+      // コード名（ノーツの上に大きく表示）
+      const badgePadding = 12;
+      ctx.font = 'bold 22px "Inter", sans-serif'; // ★ フォントサイズを大きく
       const textWidth = ctx.measureText(note.chord).width;
       const badgeWidth = textWidth + badgePadding * 2;
-      const badgeHeight = 24;
+      const badgeHeight = 32; // ★ バッジ高さも拡大
       const badgeX = note.x - badgeWidth / 2;
-      const badgeY = judgePos.y - radius - badgeHeight - 8;
+      const badgeY = judgePos.y - radius - badgeHeight - 12;
       
       // バッジ背景
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 6);
+      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 8);
       ctx.fill();
       
       // バッジのポインタ（三角形）
       ctx.beginPath();
       ctx.moveTo(note.x, badgeY + badgeHeight);
-      ctx.lineTo(note.x - 6, badgeY + badgeHeight + 6);
-      ctx.lineTo(note.x + 6, badgeY + badgeHeight + 6);
+      ctx.lineTo(note.x - 8, badgeY + badgeHeight + 8);
+      ctx.lineTo(note.x + 8, badgeY + badgeHeight + 8);
       ctx.closePath();
       ctx.fill();
       
