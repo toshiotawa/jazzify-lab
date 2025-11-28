@@ -168,17 +168,25 @@ export async function getContextSongProgress(
   }
 }
 
+export interface SongStats {
+  clear_count: number;
+  b_rank_plus_count?: number;
+  best_score?: number;
+  best_rank?: string;
+  key_clears?: Record<string, number>;
+}
+
 /**
  * 汎用: user_song_stats を songId => stats にマップして返す（TTLキャッシュ付き）
  */
-export async function fetchUserSongStatsMap(userId: string): Promise<Record<string, { clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string }>> {
+export async function fetchUserSongStatsMap(userId: string): Promise<Record<string, SongStats>> {
   const supabase = getSupabaseClient();
   const cacheKey = `user_song_stats_map:${userId}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await supabase
       .from('user_song_stats')
-      .select('song_id, clear_count, best_score, best_rank, b_rank_plus_count')
+      .select('song_id, clear_count, best_score, best_rank, b_rank_plus_count, key_clears')
       .eq('user_id', userId),
     1000 * 60 // 60s
   );
@@ -186,16 +194,39 @@ export async function fetchUserSongStatsMap(userId: string): Promise<Record<stri
     console.warn('fetchUserSongStatsMap error:', error);
     return {};
   }
-  const map: Record<string, { clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string }> = {};
+  const map: Record<string, SongStats> = {};
   (data || []).forEach((stat: any) => {
     map[stat.song_id] = {
       clear_count: stat.clear_count,
       b_rank_plus_count: stat.b_rank_plus_count || 0,
       best_score: stat.best_score,
       best_rank: stat.best_rank,
+      key_clears: stat.key_clears || {},
     };
   });
   return map;
+}
+
+/**
+ * 特定の曲のキー別クリア回数を取得する
+ */
+export async function fetchSongKeyClears(userId: string, songId: string): Promise<Record<string, number>> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('user_song_stats')
+    .select('key_clears')
+    .eq('user_id', userId)
+    .eq('song_id', songId)
+    .single();
+  
+  if (error) {
+    if (error.code !== 'PGRST116') { // No rows found is not an error
+      console.warn('fetchSongKeyClears error:', error);
+    }
+    return {};
+  }
+  
+  return data?.key_clears || {};
 }
 
 /**
