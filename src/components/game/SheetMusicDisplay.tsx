@@ -41,6 +41,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
+  // isPlaying変化直後のフレームでcurrentTime更新をスキップするためのフラグ
+  const isPlayingJustChangedRef = useRef(false);
+  // 前回のisPlaying状態を追跡
+  const prevIsPlayingRef = useRef(false);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
@@ -370,6 +375,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
   // 再生状態に応じてtransform/scrollLeft方式を切り替え
   useEffect(() => {
+    // isPlayingが変化したかどうかを検出
+    const wasPlayingChanged = prevIsPlayingRef.current !== isPlaying;
+    prevIsPlayingRef.current = isPlaying;
+    
     if (!shouldRenderSheet) {
       return;
     }
@@ -378,6 +387,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
@@ -397,6 +407,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       
       // lastScrollXRefも更新して同期を保つ
       lastScrollXRef.current = scrollX;
+      
+      // 一時停止直後はcurrentTime更新による上書きを防ぐためフラグを設定
+      if (wasPlayingChanged) {
+        isPlayingJustChangedRef.current = true;
+      }
     }
   }, [isPlaying, shouldRenderSheet]);
 
@@ -414,6 +429,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const mapping = timeMappingRef.current;
       if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
         prevTimeRef.current = currentTime; // 早期returnでも更新
+        return;
+      }
+      
+      // 一時停止直後のフレームではスクロール更新をスキップ
+      // （isPlayingのuseEffectで設定したスクロール位置を上書きしないため）
+      if (isPlayingJustChangedRef.current) {
+        isPlayingJustChangedRef.current = false;
+        prevTimeRef.current = currentTime;
         return;
       }
 
