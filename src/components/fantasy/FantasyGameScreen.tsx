@@ -960,20 +960,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return hearts;
   }, [heartFlash]);
   
-  // 敵のゲージ表示（黄色系）
-  const renderEnemyGauge = useCallback(() => {
-    return (
-      <div className="w-48 h-6 bg-gray-700 border-2 border-gray-600 rounded-full mt-2 overflow-hidden">
-        <div 
-          className="h-full bg-gradient-to-r from-yellow-500 to-orange-400 rounded-full transition-all duration-200 ease-out"
-          style={{ 
-            width: `${Math.min(gameState.enemyGauge, 100)}%`,
-            boxShadow: gameState.enemyGauge > 80 ? '0 0 10px rgba(245, 158, 11, 0.6)' : 'none'
-          }}
-        />
-      </div>
-    );
-  }, [gameState.enemyGauge]);
   
   // NEXTコード表示（コード進行モード用）
   const getNextChord = useCallback(() => {
@@ -1120,11 +1106,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           >
             {/* 魔法名表示 - モンスターカード内に移動 */}
             <FantasyPIXIRenderer
-              width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
+              width={Math.max(monsterAreaWidth, 1)}
               height={monsterAreaHeight}
               monsterIcon={currentEnemy.icon}
-    
-              enemyGauge={gameState.enemyGauge}
+              enemyGauge={0}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
