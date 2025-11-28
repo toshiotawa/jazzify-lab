@@ -144,9 +144,12 @@ export class PIXINotesRendererInstance {
   
   // 🚀 パフォーマンス最適化: レンダリング頻度制御
   private lastRenderTime = 0;
-  private readonly minRenderInterval = 14; // ~70FPS上限（16msだと60FPS）
+  private readonly minRenderInterval = 16; // 16ms = 60FPS（安定性重視）
   private frameSkipCount = 0;
-  private readonly maxFrameSkip = 2; // 最大2フレームスキップ
+  private readonly maxFrameSkip = 1; // 最大1フレームスキップ（応答性向上）
+  
+  // 🚀 GC最適化: 一時オブジェクトのキャッシュ
+  private readonly tempGradientCache = new Map<string, CanvasGradient>();
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -624,21 +627,25 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 🚀 スロットル付きレンダリングリクエスト
-   * 短時間での連続レンダリングを防ぎ、CPU負荷を軽減
+   * 🚀 スロットル付きレンダリングリクエスト（最適化版）
+   * - 連続スキップ制限を緩和しつつ、安定した60FPSを維持
+   * - GC圧を最小化
    */
   private requestRenderThrottled(): void {
     if (this.renderPending || this.destroyed) {
       return;
     }
     
-    const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
+    const now = performance.now();
     const elapsed = now - this.lastRenderTime;
     
-    // 最小レンダリング間隔内の場合はスキップ（ただし連続スキップは制限）
-    if (elapsed < this.minRenderInterval && this.frameSkipCount < this.maxFrameSkip) {
+    // 60FPS（16ms）を維持しつつ、必要に応じてスキップ
+    if (elapsed < this.minRenderInterval) {
       this.frameSkipCount += 1;
-      return;
+      // 最大1フレームスキップ後は強制レンダリング
+      if (this.frameSkipCount <= this.maxFrameSkip) {
+        return;
+      }
     }
     
     this.frameSkipCount = 0;
@@ -653,34 +660,37 @@ export class PIXINotesRendererInstance {
     this.drawFrame();
   };
 
+  /**
+   * 🚀 最適化版: フレーム描画
+   * - unifiedFrameController の参照を削除（オーバーヘッド削減）
+   * - Canvas 操作の最適化
+   */
   private drawFrame(): void {
     if (this.backgroundNeedsUpdate) {
       this.renderStaticLayers();
       this.backgroundNeedsUpdate = false;
     }
-    const controller = (window as typeof window & { unifiedFrameController?: any })?.unifiedFrameController;
-    const token = controller?.beginFrame?.('render', 'canvas-notes');
+    
     const ctx = this.ctx;
-    ctx.save();
+    
+    // 🚀 save/restore を削減し、直接 transform 設定
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.restore();
     ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    
     if (this.backgroundCanvas) {
       ctx.drawImage(this.backgroundCanvas, 0, 0, this.width, this.height);
     } else {
       ctx.fillStyle = this.colors.background;
       ctx.fillRect(0, 0, this.width, this.height);
     }
+    
     if (this.settings.showHitLine) {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
     this.drawChordOverlay(ctx);
-    if (token) {
-      controller.endFrame(token);
-    }
   }
 
     private renderStaticLayers(): void {
