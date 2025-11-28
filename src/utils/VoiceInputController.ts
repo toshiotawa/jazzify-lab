@@ -97,19 +97,19 @@ export class VoiceInputController {
   private currentNote = -1;
   private isNoteOn = false;
 
-  // 最適化: 固定サイズピッチ履歴（動的配列を避ける）
-  private readonly pitchHistorySize = 3;
+  // 🚀 最適化: 固定サイズピッチ履歴（レイテンシ重視で縮小）
+  private readonly pitchHistorySize = 2; // 3→2に縮小（応答性向上）
   private pitchHistory: Int8Array = new Int8Array(this.pitchHistorySize);
   private pitchHistoryIndex = 0;
   private pitchHistoryCount = 0;
 
-  // 🚀 最適化: 処理スロットリング（レイテンシ重視に調整）
+  // 🚀 超低レイテンシ最適化: 処理スロットリング
   private lastProcessTime = 0;
-  private readonly minProcessInterval = 5; // 5ms間隔（約200Hz）- レイテンシ削減
+  private readonly minProcessInterval = 3; // 3ms間隔（約333Hz）- 最小レイテンシ
   private pendingSamples: Float32Array | null = null;
   private accumulatedSamples: Float32Array;
   private accumulatedLength = 0;
-  private readonly targetAccumulationSize = 384; // 384サンプルで処理開始（約8ms相当@48kHz）
+  private readonly targetAccumulationSize = 256; // 256サンプルで処理開始（約5ms相当@48kHz）
 
   // iOS対応
   private readonly isIOSDevice: boolean;
@@ -389,16 +389,16 @@ export class VoiceInputController {
     this.accumulatedSamples.set(samples, this.accumulatedLength);
     this.accumulatedLength = newLength;
 
-    // 🚀 スロットリング: 最小間隔チェック（レイテンシ重視で短縮）
+    // 🚀 超低レイテンシ: 最小間隔チェック（さらに短縮）
     const now = performance.now();
     const elapsed = now - this.lastProcessTime;
     
-    // 十分なサンプルが蓄積されたら即座に処理（レイテンシ優先）
+    // 十分なサンプルが蓄積されたら即座に処理（レイテンシ最優先）
     if (this.accumulatedLength >= this.targetAccumulationSize && elapsed >= this.minProcessInterval) {
       this.lastProcessTime = now;
       this.processAccumulatedSamples();
-    } else if (elapsed >= this.minProcessInterval * 3 && this.accumulatedLength >= this.targetAccumulationSize / 2) {
-      // 長時間経過した場合は少ないサンプルでも処理（応答性向上）
+    } else if (elapsed >= this.minProcessInterval * 2 && this.accumulatedLength >= this.targetAccumulationSize * 0.6) {
+      // 🚀 応答性向上: 6ms経過で60%のサンプルでも処理開始
       this.lastProcessTime = now;
       this.processAccumulatedSamples();
     }
@@ -551,40 +551,35 @@ export class VoiceInputController {
     }
   }
 
-  /** 安定したノートを取得 */
+  /** 
+   * 🚀 超低レイテンシ版: 安定したノートを取得
+   * - 履歴サイズ 2 に最適化
+   * - 連続した同じノートで即座に確定
+   */
   private getStableNote(): number {
-    if (this.pitchHistoryCount < 2) {
+    // 🚀 履歴が 1 つでも即座に返す（レイテンシ最優先）
+    if (this.pitchHistoryCount === 0) {
       return -1;
     }
-
-    // ノート出現回数カウント（小さな配列なので線形探索で十分）
-    const counts: Array<{ note: number; count: number }> = [];
     
-    for (let i = 0; i < this.pitchHistoryCount; i++) {
-      const note = this.pitchHistory[i];
-      if (note !== -1) {
-        const existing = counts.find(c => c.note === note);
-        if (existing) {
-          existing.count++;
-        } else {
-          counts.push({ note, count: 1 });
-        }
-      }
+    // 履歴が 1 つの場合、そのノートを返す
+    if (this.pitchHistoryCount === 1) {
+      const note = this.pitchHistory[0];
+      return note !== -1 ? note : -1;
     }
 
-    // 最頻ノートを検索
-    const minRequiredCount = Math.ceil(this.pitchHistoryCount * 0.5);
-    let mostCommonNote = -1;
-    let maxCount = 0;
-
-    for (const { note, count } of counts) {
-      if (count > maxCount && count >= minRequiredCount) {
-        mostCommonNote = note;
-        maxCount = count;
-      }
+    // 🚀 2つの履歴が同じなら即座に確定
+    const note0 = this.pitchHistory[0];
+    const note1 = this.pitchHistory[1];
+    
+    if (note0 === note1 && note0 !== -1) {
+      return note0;
     }
-
-    return mostCommonNote;
+    
+    // 異なる場合は最新のノートを返す（応答性重視）
+    const latestIndex = (this.pitchHistoryIndex - 1 + this.pitchHistorySize) % this.pitchHistorySize;
+    const latestNote = this.pitchHistory[latestIndex];
+    return latestNote !== -1 ? latestNote : -1;
   }
 
   /** 周波数からMIDIノート番号に変換（最適化版） */

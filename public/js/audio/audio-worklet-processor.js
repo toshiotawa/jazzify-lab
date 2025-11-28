@@ -1,8 +1,8 @@
 /**
- * AudioWorklet Processor - 最適化版
+ * AudioWorklet Processor - 低レイテンシ最適化版
  * 
  * 最適化ポイント:
- * - バッファサイズ増加（48→256）でpostMessage頻度削減
+ * - バッファサイズ 128 に縮小（約2.9ms @ 44.1kHz）でレイテンシ削減
  * - 事前割り当て済みバッファで動的メモリ割り当て排除
  * - 効率的なバッファ管理
  */
@@ -11,12 +11,12 @@ class AudioProcessor extends AudioWorkletProcessor {
     constructor() {
         super();
         
-        // 最適化されたバッファサイズ（256サンプル = 約5.8ms @ 44.1kHz）
-        // レイテンシとパフォーマンスのバランスを取る
-        this.bufferSize = 256;
+        // 🚀 低レイテンシ用バッファサイズ（128サンプル = 約2.9ms @ 44.1kHz）
+        // レイテンシを最小化しつつ安定性を維持
+        this.bufferSize = 128;
         
         // 事前割り当て済みバッファ（動的割り当てを避ける）
-        this.sampleBuffer = new Float32Array(this.bufferSize * 2);
+        this.sampleBuffer = new Float32Array(this.bufferSize * 4);
         this.currentLength = 0;
         
         // 出力用バッファ（再利用）
