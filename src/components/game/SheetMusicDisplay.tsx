@@ -41,8 +41,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
-  // isPlaying変化直後のフレームでcurrentTime更新をスキップするためのフラグ
-  const isPlayingJustChangedRef = useRef(false);
+  // 一時停止時のスクロール位置保護用タイムスタンプ
+  // この時刻から一定時間はcurrentTimeによるスクロール更新をスキップ
+  const pauseProtectionTimestampRef = useRef<number>(0);
   // 前回のisPlaying状態を追跡
   const prevIsPlayingRef = useRef(false);
   
@@ -391,27 +392,40 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (isPlaying) {
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
-    } else {
+    } else if (wasPlayingChanged) {
       // 一時停止時: transformの現在値からスクロール位置を取得して適用
-      // lastScrollXRef.currentが更新されていない可能性があるため、
-      // transformの実際の値を取得して使用する
+      // 重要: CSSトランジションを一時的に無効化して即座に位置を確定
+      const originalTransition = wrapper.style.transition;
+      wrapper.style.transition = 'none';
+      
+      // transformの実際の値を取得
       const currentTransform = wrapper.style.transform;
       const match = currentTransform.match(/translateX\(-?([\d.]+)px\)/);
-      const transformX = match ? parseFloat(match[1]) : lastScrollXRef.current;
+      const transformX = match ? parseFloat(match[1]) : 0;
       
       // transformXが有効な場合はその値を使用、そうでなければlastScrollXRefを使用
       const scrollX = transformX > 0 ? transformX : lastScrollXRef.current;
       
+      // transformをリセットしてからscrollLeftを設定
       wrapper.style.transform = 'translateX(0px)';
+      
+      // 強制的にリフローを発生させてトランジション無効化を確定
+      void wrapper.offsetHeight;
+      
       scrollContainer.scrollLeft = scrollX;
       
-      // lastScrollXRefも更新して同期を保つ
+      // lastScrollXRefを更新
       lastScrollXRef.current = scrollX;
       
-      // 一時停止直後はcurrentTime更新による上書きを防ぐためフラグを設定
-      if (wasPlayingChanged) {
-        isPlayingJustChangedRef.current = true;
-      }
+      // 保護タイムスタンプを設定（一定時間currentTimeによる更新をスキップ）
+      pauseProtectionTimestampRef.current = performance.now();
+      
+      // 次のフレームでトランジションを復元
+      requestAnimationFrame(() => {
+        if (wrapper) {
+          wrapper.style.transition = originalTransition;
+        }
+      });
     }
   }, [isPlaying, shouldRenderSheet]);
 
@@ -432,10 +446,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         return;
       }
       
-      // 一時停止直後のフレームではスクロール更新をスキップ
+      // 一時停止直後の保護期間中はスクロール更新をスキップ
       // （isPlayingのuseEffectで設定したスクロール位置を上書きしないため）
-      if (isPlayingJustChangedRef.current) {
-        isPlayingJustChangedRef.current = false;
+      const PAUSE_PROTECTION_MS = 200; // 一時停止後200msは更新をスキップ
+      const timeSincePause = performance.now() - pauseProtectionTimestampRef.current;
+      if (!isPlaying && timeSincePause < PAUSE_PROTECTION_MS) {
         prevTimeRef.current = currentTime;
         return;
       }
@@ -483,6 +498,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
+      // 再生中は常にlastScrollXRefを更新（一時停止時に正確な位置を保持するため）
+      if (isPlaying) {
+        lastScrollXRef.current = scrollX;
+      }
+
         if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
@@ -502,7 +522,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             }
           }
           lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
+          // 停止中のみここで更新（再生中は上で常時更新済み）
+          if (!isPlaying) {
+            lastScrollXRef.current = scrollX;
+          }
         }
 
       prevTimeRef.current = currentTime;
