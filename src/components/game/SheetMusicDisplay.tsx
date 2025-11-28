@@ -382,8 +382,21 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
     } else {
+      // 一時停止時: transformの現在値からスクロール位置を取得して適用
+      // lastScrollXRef.currentが更新されていない可能性があるため、
+      // transformの実際の値を取得して使用する
+      const currentTransform = wrapper.style.transform;
+      const match = currentTransform.match(/translateX\(-?([\d.]+)px\)/);
+      const transformX = match ? parseFloat(match[1]) : lastScrollXRef.current;
+      
+      // transformXが有効な場合はその値を使用、そうでなければlastScrollXRefを使用
+      const scrollX = transformX > 0 ? transformX : lastScrollXRef.current;
+      
       wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
+      scrollContainer.scrollLeft = scrollX;
+      
+      // lastScrollXRefも更新して同期を保つ
+      lastScrollXRef.current = scrollX;
     }
   }, [isPlaying, shouldRenderSheet]);
 
