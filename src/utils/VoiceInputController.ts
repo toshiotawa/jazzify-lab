@@ -1,6 +1,11 @@
 /**
  * VoiceInputController - 音声入力によるピッチ検出コントローラー
  * WASMピッチ検出器を使用した低レイテンシ単音検出（iOS対応）
+ * 
+ * 最適化版:
+ * - 処理スロットリングでUIスレッド負荷軽減
+ * - 固定リングバッファでWASM連携
+ * - 効率的なピッチ履歴管理
  */
 
 import { log, devLog } from '@/utils/logger';
@@ -90,18 +95,29 @@ export class VoiceInputController {
 
   // ノート状態
   private currentNote = -1;
-  private lastDetectedNote = -1;
-  private consecutiveFrames = 0;
-  private readonly consecutiveFramesThreshold = 1; // 低レイテンシ: より速いノートオン反応
-  private pitchHistory: number[] = [];
-  private readonly pitchHistorySize = 3; // 低レイテンシ: より速いノート確定
   private isNoteOn = false;
+
+  // 最適化: 固定サイズピッチ履歴（動的配列を避ける）
+  private readonly pitchHistorySize = 3;
+  private pitchHistory: Int8Array = new Int8Array(this.pitchHistorySize);
+  private pitchHistoryIndex = 0;
+  private pitchHistoryCount = 0;
+
+  // 最適化: 処理スロットリング
+  private lastProcessTime = 0;
+  private readonly minProcessInterval = 8; // 最小8ms間隔（約125Hz）
+  private pendingSamples: Float32Array | null = null;
+  private accumulatedSamples: Float32Array;
+  private accumulatedLength = 0;
+  private readonly targetAccumulationSize = 512; // 512サンプル貯まったら処理
 
   // iOS対応
   private readonly isIOSDevice: boolean;
 
-  // 周波数テーブル
-  private noteFrequencies: Map<number, number> = new Map();
+  // 周波数テーブル（事前計算）
+  private noteFrequencies: Float32Array;
+  private readonly noteMin = 21; // A0
+  private readonly noteMax = 108; // C8
 
   constructor(callbacks: VoiceInputCallbacks) {
     this.onNoteOn = callbacks.onNoteOn;
@@ -110,11 +126,16 @@ export class VoiceInputController {
     this.onError = callbacks.onError;
     this.isIOSDevice = isIOS();
 
-    // 周波数テーブル初期化 (A0 = 21 ~ C8 = 108)
-    for (let i = 21; i <= 108; i++) {
-      const frequency = 440 * Math.pow(2, (i - 69) / 12);
-      this.noteFrequencies.set(i, frequency);
+    // 周波数テーブル初期化（事前計算）
+    const noteCount = this.noteMax - this.noteMin + 1;
+    this.noteFrequencies = new Float32Array(noteCount);
+    for (let i = 0; i < noteCount; i++) {
+      const note = this.noteMin + i;
+      this.noteFrequencies[i] = 440 * Math.pow(2, (note - 69) / 12);
     }
+
+    // 蓄積バッファ初期化
+    this.accumulatedSamples = new Float32Array(this.targetAccumulationSize * 2);
 
     if (this.isIOSDevice) {
       log.info('🍎 iOS環境を検出: 特別なオーディオ処理を適用');
@@ -290,10 +311,10 @@ export class VoiceInputController {
         ringSize: this.ringSize
       });
 
-      // サンプル受信処理
+      // サンプル受信処理（最適化版）
       this.workletNode.port.onmessage = (e) => {
         if (e.data.type === 'samples') {
-          this.processLowLatencySamples(e.data.samples);
+          this.handleIncomingSamples(e.data.samples);
         }
       };
 
@@ -325,8 +346,8 @@ export class VoiceInputController {
         if (!this.analyserNode) return;
         const dataArray = new Float32Array(this.bufferSize);
         this.analyserNode.getFloatTimeDomainData(dataArray);
-        this.processAudioData(dataArray);
-      }, 10); // 10ms間隔で低レイテンシ
+        this.handleIncomingSamples(dataArray);
+      }, 16); // 16ms間隔（約60Hz）
 
       this.isProcessing = true;
       return;
@@ -335,7 +356,7 @@ export class VoiceInputController {
     this.scriptNode = this.audioContext.createScriptProcessor(this.bufferSize, 1, 1);
     this.scriptNode.onaudioprocess = (e) => {
       const inputData = e.inputBuffer.getChannelData(0);
-      this.processAudioData(inputData);
+      this.handleIncomingSamples(inputData);
     };
 
     source.connect(this.scriptNode);
@@ -345,85 +366,89 @@ export class VoiceInputController {
     log.info('✅ ScriptProcessor設定完了');
   }
 
-  /** 低レイテンシサンプル処理（リングバッファ経由） */
-  private processLowLatencySamples(samples: Float32Array): void {
-    if (!this.wasmModule || !this.wasmMemory || !this.isProcessing) {
+  /** 
+   * 受信サンプルの処理（最適化版）
+   * サンプルを蓄積してから一括処理することでオーバーヘッドを削減
+   */
+  private handleIncomingSamples(samples: Float32Array): void {
+    if (!this.isProcessing || !this.wasmModule || !this.wasmMemory) {
       return;
     }
 
-    // メモリ検証
-    const currentMemory = this.wasmModule.get_memory();
-    const requiredBytes = this.ringBufferPtr + (this.ringSize * 4);
-    if (requiredBytes > currentMemory.buffer.byteLength) {
+    // サンプルを蓄積バッファに追加
+    const newLength = this.accumulatedLength + samples.length;
+    
+    // バッファ拡張が必要な場合
+    if (newLength > this.accumulatedSamples.length) {
+      const newBuffer = new Float32Array(newLength * 2);
+      newBuffer.set(this.accumulatedSamples.subarray(0, this.accumulatedLength));
+      this.accumulatedSamples = newBuffer;
+    }
+    
+    this.accumulatedSamples.set(samples, this.accumulatedLength);
+    this.accumulatedLength = newLength;
+
+    // スロットリング: 最小間隔チェック
+    const now = performance.now();
+    if (now - this.lastProcessTime < this.minProcessInterval) {
       return;
     }
 
-    const ringBuffer = new Float32Array(currentMemory.buffer, this.ringBufferPtr, this.ringSize);
-
-    // 入力信号レベルチェック（RMSも計算）
-    let maxAmplitude = 0;
-    let sumSquares = 0;
-    for (let i = 0; i < samples.length; i++) {
-      const sample = samples[i];
-      maxAmplitude = Math.max(maxAmplitude, Math.abs(sample));
-      sumSquares += sample * sample;
-    }
-    const rms = Math.sqrt(sumSquares / samples.length);
-    const effectiveLevel = Math.max(maxAmplitude, rms * 2);
-
-    // ノート状態更新
-    if (!this.isNoteOn && effectiveLevel > this.noteOnThreshold) {
-      this.isNoteOn = true;
-      devLog.debug('🎤 [Worklet] Note state: ON (level:', effectiveLevel.toFixed(4), ')');
-    } else if (this.isNoteOn && effectiveLevel < this.noteOffThreshold) {
-      this.isNoteOn = false;
-      devLog.debug('🎤 [Worklet] Note state: OFF (level:', effectiveLevel.toFixed(4), ')');
-      this.handleNoPitch();
-    }
-
-    // サンプルをリングバッファにコピー
-    for (let i = 0; i < samples.length; i++) {
-      ringBuffer[this.writeIndex] = samples[i];
-      this.writeIndex = (this.writeIndex + 1) % this.ringSize;
-    }
-
-    // 完全な無音は除外
-    if (effectiveLevel < this.silenceThreshold) {
-      return;
-    }
-
-    // 16サンプルごとにピッチ検出（低レイテンシ）
-    if ((this.writeIndex & 0x0F) === 0) {
-      const frequency = this.wasmModule.process_audio_block(this.writeIndex);
-
-      if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
-        this.handleDetectedPitch(frequency, maxAmplitude);
-      } else if (this.isNoteOn) {
-        // ノートオン状態で周波数が検出されなかった場合のみハンドル
-        this.handleNoPitch();
-      }
+    // 十分なサンプルが蓄積されたら処理
+    if (this.accumulatedLength >= this.targetAccumulationSize) {
+      this.lastProcessTime = now;
+      this.processAccumulatedSamples();
     }
   }
 
-  /** 通常のオーディオデータ処理 */
-  private processAudioData(inputData: Float32Array): void {
-    if (!this.isProcessing || !this.wasmModule) {
+  /** 蓄積されたサンプルを一括処理 */
+  private processAccumulatedSamples(): void {
+    if (!this.wasmModule || !this.wasmMemory || this.accumulatedLength === 0) {
       return;
     }
 
-    // 最大振幅とRMS計算（より正確な音量測定）
+    const samples = this.accumulatedSamples.subarray(0, this.accumulatedLength);
+
+    // 入力信号レベルチェック（SIMD風に4要素ずつ処理）
     let maxAmplitude = 0;
     let sumSquares = 0;
-    for (let i = 0; i < inputData.length; i++) {
-      const sample = inputData[i];
-      maxAmplitude = Math.max(maxAmplitude, Math.abs(sample));
-      sumSquares += sample * sample;
-    }
-    const rms = Math.sqrt(sumSquares / inputData.length);
-
-    // ノート状態更新（RMSベースでより安定した検出）
-    const effectiveLevel = Math.max(maxAmplitude, rms * 2);
+    const len = samples.length;
+    const unrollLimit = len - (len % 4);
     
+    let i = 0;
+    while (i < unrollLimit) {
+      const s0 = samples[i];
+      const s1 = samples[i + 1];
+      const s2 = samples[i + 2];
+      const s3 = samples[i + 3];
+      
+      const a0 = Math.abs(s0);
+      const a1 = Math.abs(s1);
+      const a2 = Math.abs(s2);
+      const a3 = Math.abs(s3);
+      
+      if (a0 > maxAmplitude) maxAmplitude = a0;
+      if (a1 > maxAmplitude) maxAmplitude = a1;
+      if (a2 > maxAmplitude) maxAmplitude = a2;
+      if (a3 > maxAmplitude) maxAmplitude = a3;
+      
+      sumSquares += s0 * s0 + s1 * s1 + s2 * s2 + s3 * s3;
+      i += 4;
+    }
+    
+    // 残りの要素
+    while (i < len) {
+      const s = samples[i];
+      const a = Math.abs(s);
+      if (a > maxAmplitude) maxAmplitude = a;
+      sumSquares += s * s;
+      i++;
+    }
+    
+    const rms = Math.sqrt(sumSquares / len);
+    const effectiveLevel = Math.max(maxAmplitude, rms * 2);
+
+    // ノート状態更新
     if (!this.isNoteOn && effectiveLevel > this.noteOnThreshold) {
       this.isNoteOn = true;
       devLog.debug('🎤 Note state: ON (level:', effectiveLevel.toFixed(4), ')');
@@ -431,47 +456,53 @@ export class VoiceInputController {
       this.isNoteOn = false;
       devLog.debug('🎤 Note state: OFF (level:', effectiveLevel.toFixed(4), ')');
       this.handleNoPitch();
+      this.accumulatedLength = 0;
       return;
     }
 
-    // 振幅が非常に小さい場合でもピッチ検出を試みる（閾値を通過していなくても）
-    // ただし、完全な無音は除外
+    // 完全な無音は除外
     if (effectiveLevel < this.silenceThreshold) {
+      this.accumulatedLength = 0;
       return;
+    }
+
+    // メモリ検証
+    const currentMemory = this.wasmModule.get_memory();
+    const requiredBytes = this.ringBufferPtr + (this.ringSize * 4);
+    if (requiredBytes > currentMemory.buffer.byteLength) {
+      this.accumulatedLength = 0;
+      return;
+    }
+
+    // リングバッファに書き込み
+    const ringBuffer = new Float32Array(currentMemory.buffer, this.ringBufferPtr, this.ringSize);
+    for (let j = 0; j < len; j++) {
+      ringBuffer[this.writeIndex] = samples[j];
+      this.writeIndex = (this.writeIndex + 1) % this.ringSize;
     }
 
     // WASMでピッチ検出
-    const dataLength = inputData.length;
-    const byteLength = dataLength * Float32Array.BYTES_PER_ELEMENT;
-    const ptr = this.wasmModule.alloc(byteLength);
-    
-    const wasmArray = new Float32Array(this.wasmModule.get_memory().buffer, ptr, dataLength);
-    wasmArray.set(inputData);
-    
-    const frequency = this.wasmModule.analyze_pitch(ptr, byteLength, this.sampleRate, this.pyinThreshold);
-    this.wasmModule.free(ptr, byteLength);
+    const frequency = this.wasmModule.process_audio_block(this.writeIndex);
 
     if (frequency > 0 && frequency >= this.minFrequency && frequency <= this.maxFrequency) {
       this.handleDetectedPitch(frequency, maxAmplitude);
     } else if (this.isNoteOn) {
-      // ノートオン状態で周波数が検出されなかった場合のみハンドル
       this.handleNoPitch();
     }
+
+    // 蓄積バッファをクリア
+    this.accumulatedLength = 0;
   }
 
   /** ピッチ検出時のハンドリング */
   private handleDetectedPitch(frequency: number, amplitude: number): void {
     const midiNote = this.frequencyToMidi(frequency);
     
-    // デバッグログ（検出頻度を制限）
-    if (this.pitchHistory.length % 10 === 0) {
-      devLog.debug(`🎤 Pitch detected: ${frequency.toFixed(1)}Hz → MIDI ${midiNote} (${this.midiToNoteName(midiNote)}) amp=${amplitude.toFixed(4)}`);
-    }
-    
-    // ピッチ履歴更新
-    this.pitchHistory.push(midiNote);
-    if (this.pitchHistory.length > this.pitchHistorySize) {
-      this.pitchHistory.shift();
+    // ピッチ履歴更新（リングバッファ方式）
+    this.pitchHistory[this.pitchHistoryIndex] = midiNote;
+    this.pitchHistoryIndex = (this.pitchHistoryIndex + 1) % this.pitchHistorySize;
+    if (this.pitchHistoryCount < this.pitchHistorySize) {
+      this.pitchHistoryCount++;
     }
 
     // 安定したノートを取得
@@ -488,19 +519,28 @@ export class VoiceInputController {
       }
       this.currentNote = stableNote;
       this.onNoteOn(stableNote, 64);
-      log.info(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)}) freq=${frequency.toFixed(1)}Hz`);
+      log.info(`🎵 Note On: ${stableNote} (${this.midiToNoteName(stableNote)}) freq=${frequency.toFixed(1)}Hz amp=${amplitude.toFixed(4)}`);
     }
   }
 
   /** ピッチ未検出時のハンドリング */
   private handleNoPitch(): void {
-    this.pitchHistory.push(-1);
-    if (this.pitchHistory.length > this.pitchHistorySize) {
-      this.pitchHistory.shift();
+    // 履歴に-1を追加
+    this.pitchHistory[this.pitchHistoryIndex] = -1;
+    this.pitchHistoryIndex = (this.pitchHistoryIndex + 1) % this.pitchHistorySize;
+    if (this.pitchHistoryCount < this.pitchHistorySize) {
+      this.pitchHistoryCount++;
     }
 
-    const silentFrames = this.pitchHistory.filter(p => p === -1).length;
-    if (silentFrames >= this.consecutiveFramesThreshold && this.currentNote !== -1) {
+    // 連続した無音フレームをカウント
+    let silentFrames = 0;
+    for (let i = 0; i < this.pitchHistoryCount; i++) {
+      if (this.pitchHistory[i] === -1) {
+        silentFrames++;
+      }
+    }
+
+    if (silentFrames >= 1 && this.currentNote !== -1) {
       this.onNoteOff(this.currentNote);
       devLog.debug(`🎵 Note Off: ${this.currentNote}`);
       this.currentNote = -1;
@@ -510,57 +550,67 @@ export class VoiceInputController {
 
   /** 安定したノートを取得 */
   private getStableNote(): number {
-    if (this.pitchHistory.length < 2) {
+    if (this.pitchHistoryCount < 2) {
       return -1;
     }
 
-    const windowSize = Math.min(3, this.pitchHistory.length); // 低レイテンシ用に調整
-    const recentHistory = this.pitchHistory.slice(-windowSize);
-
-    // ノート出現回数カウント
-    const noteCounts = new Map<number, number>();
-    for (const note of recentHistory) {
+    // ノート出現回数カウント（小さな配列なので線形探索で十分）
+    const counts: Array<{ note: number; count: number }> = [];
+    
+    for (let i = 0; i < this.pitchHistoryCount; i++) {
+      const note = this.pitchHistory[i];
       if (note !== -1) {
-        noteCounts.set(note, (noteCounts.get(note) ?? 0) + 1);
+        const existing = counts.find(c => c.note === note);
+        if (existing) {
+          existing.count++;
+        } else {
+          counts.push({ note, count: 1 });
+        }
       }
     }
 
     // 最頻ノートを検索
+    const minRequiredCount = Math.ceil(this.pitchHistoryCount * 0.5);
     let mostCommonNote = -1;
     let maxCount = 0;
-    const minRequiredCount = Math.ceil(windowSize * 0.5);
 
-    for (const [note, count] of noteCounts) {
+    for (const { note, count } of counts) {
       if (count > maxCount && count >= minRequiredCount) {
-        // 最近の検出との一貫性チェック（±1半音許容）
-        const isConsistent = recentHistory.slice(-2).some(recentNote =>
-          recentNote !== -1 && Math.abs(recentNote - note) <= 1
-        );
-
-        if (isConsistent) {
-          mostCommonNote = note;
-          maxCount = count;
-        }
+        mostCommonNote = note;
+        maxCount = count;
       }
     }
 
     return mostCommonNote;
   }
 
-  /** 周波数からMIDIノート番号に変換 */
+  /** 周波数からMIDIノート番号に変換（最適化版） */
   private frequencyToMidi(frequency: number): number {
-    let closestNote = 48;
-    let minDifference = Infinity;
-
-    for (const [note, noteFreq] of this.noteFrequencies) {
-      const difference = Math.abs(frequency - noteFreq);
-      if (difference < minDifference) {
-        minDifference = difference;
-        closestNote = note;
+    // 二分探索で最も近い周波数を見つける
+    const noteCount = this.noteFrequencies.length;
+    let left = 0;
+    let right = noteCount - 1;
+    
+    while (left < right) {
+      const mid = (left + right) >> 1;
+      if (this.noteFrequencies[mid] < frequency) {
+        left = mid + 1;
+      } else {
+        right = mid;
       }
     }
-
-    return closestNote;
+    
+    // 前後の周波数と比較して最も近いものを選択
+    let closestIndex = left;
+    if (left > 0) {
+      const diffLeft = Math.abs(frequency - this.noteFrequencies[left - 1]);
+      const diffRight = Math.abs(frequency - this.noteFrequencies[left]);
+      if (diffLeft < diffRight) {
+        closestIndex = left - 1;
+      }
+    }
+    
+    return this.noteMin + closestIndex;
   }
 
   /** MIDIノート番号から音名に変換 */
@@ -643,8 +693,12 @@ export class VoiceInputController {
       this.currentNote = -1;
     }
 
+    // 状態リセット
     this.currentDeviceId = null;
-    this.pitchHistory = [];
+    this.pitchHistoryIndex = 0;
+    this.pitchHistoryCount = 0;
+    this.pitchHistory.fill(-1);
+    this.accumulatedLength = 0;
     this.onConnectionChange?.(false);
     
     log.info('✅ 音声入力切断完了');
