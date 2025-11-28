@@ -1,47 +1,5 @@
 let wasm;
 
-const cachedTextDecoder = (typeof TextDecoder !== 'undefined' ? new TextDecoder('utf-8', { ignoreBOM: true, fatal: true }) : { decode: () => { throw Error('TextDecoder not available') } } );
-
-if (typeof TextDecoder !== 'undefined') { cachedTextDecoder.decode(); };
-
-let cachedUint8ArrayMemory0 = null;
-
-function getUint8ArrayMemory0() {
-    if (cachedUint8ArrayMemory0 === null || cachedUint8ArrayMemory0.byteLength === 0) {
-        cachedUint8ArrayMemory0 = new Uint8Array(wasm.memory.buffer);
-    }
-    return cachedUint8ArrayMemory0;
-}
-
-function getStringFromWasm0(ptr, len) {
-    ptr = ptr >>> 0;
-    return cachedTextDecoder.decode(getUint8ArrayMemory0().subarray(ptr, ptr + len));
-}
-/**
- * @param {number} size
- * @returns {number}
- */
-export function alloc(size) {
-    const ret = wasm.alloc(size);
-    return ret >>> 0;
-}
-
-/**
- * @param {number} ptr
- * @param {number} size
- */
-export function free(ptr, size) {
-    wasm.free(ptr, size);
-}
-
-/**
- * @returns {any}
- */
-export function get_memory() {
-    const ret = wasm.get_memory();
-    return ret;
-}
-
 /**
  * @param {number} sample_rate
  */
@@ -66,6 +24,25 @@ export function get_ring_buffer_size() {
 }
 
 /**
+ * @returns {any}
+ */
+export function get_memory() {
+    const ret = wasm.get_memory();
+    return ret;
+}
+
+/**
+ * リングバッファからYINバッファへコピーしてピッチ検出
+ * @param {number} new_write_index
+ * @returns {number}
+ */
+export function process_audio_block(new_write_index) {
+    const ret = wasm.process_audio_block(new_write_index);
+    return ret;
+}
+
+/**
+ * 直接データからピッチ検出（analyze_pitch互換）
  * @param {number} ptr
  * @param {number} length
  * @param {number} sample_rate
@@ -78,12 +55,22 @@ export function analyze_pitch(ptr, length, sample_rate, yin_threshold) {
 }
 
 /**
- * @param {number} new_write_index
+ * メモリ割り当て（互換性のため維持）
+ * @param {number} size
  * @returns {number}
  */
-export function process_audio_block(new_write_index) {
-    const ret = wasm.process_audio_block(new_write_index);
-    return ret;
+export function alloc(size) {
+    const ret = wasm.alloc(size);
+    return ret >>> 0;
+}
+
+/**
+ * メモリ解放（互換性のため維持）
+ * @param {number} ptr
+ * @param {number} size
+ */
+export function free(ptr, size) {
+    wasm.free(ptr, size);
 }
 
 async function __wbg_load(module, imports) {
@@ -120,9 +107,6 @@ async function __wbg_load(module, imports) {
 function __wbg_get_imports() {
     const imports = {};
     imports.wbg = {};
-    imports.wbg.__wbg_log_c222819a41e063d3 = function(arg0) {
-        // Debug log removed
-    };
     imports.wbg.__wbindgen_init_externref_table = function() {
         const table = wasm.__wbindgen_export_0;
         const offset = table.grow(4);
@@ -137,13 +121,6 @@ function __wbg_get_imports() {
         const ret = wasm.memory;
         return ret;
     };
-    imports.wbg.__wbindgen_string_new = function(arg0, arg1) {
-        const ret = getStringFromWasm0(arg0, arg1);
-        return ret;
-    };
-    imports.wbg.__wbindgen_throw = function(arg0, arg1) {
-        throw new Error(getStringFromWasm0(arg0, arg1));
-    };
 
     return imports;
 }
@@ -155,7 +132,6 @@ function __wbg_init_memory(imports, memory) {
 function __wbg_finalize_init(instance, module) {
     wasm = instance.exports;
     __wbg_init.__wbindgen_wasm_module = module;
-    cachedUint8ArrayMemory0 = null;
 
 
     wasm.__wbindgen_start();
@@ -200,7 +176,7 @@ async function __wbg_init(module_or_path) {
     }
 
     if (typeof module_or_path === 'undefined') {
-        module_or_path = new URL('/wasm/pitch_detector_bg.wasm', window.location.origin);
+        module_or_path = new URL('pitch_detector_bg.wasm', import.meta.url);
     }
     const imports = __wbg_get_imports();
 
