@@ -281,6 +281,7 @@ const App: React.FC = () => {
     case '#admin-songs':
     case '#admin-fantasy-bgm':
     case '#admin-fantasy-stages':
+    case '#admin-lesson-stages':
     case '#admin-lessons':
     case '#admin-challenges':
     case '#admin-users':

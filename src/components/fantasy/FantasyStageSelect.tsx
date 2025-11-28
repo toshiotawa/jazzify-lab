@@ -56,6 +56,8 @@ interface FantasyStageSelectProps {
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
   return stages.reduce((groups, stage) => {
+    // stageNumberがnullの場合はスキップ（レッスン専用ステージ等）
+    if (!stage.stageNumber) return groups;
     const rank = stage.stageNumber.split('-')[0];
     if (!groups[rank]) groups[rank] = [];
     groups[rank].push(stage);
@@ -102,11 +104,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       // ゲストユーザーの場合、またはユーザーが存在しない場合は、ステージデータのみ読み込む
       if (!userId || isGuest) {
-        // ステージマスタデータの読み込み
+        // ステージマスタデータの読み込み（ファンタジーモード用のみ）
         const timeoutMs = 7000;
         const stagesQuery = supabase
           .from('fantasy_stages')
           .select('*')
+          .in('usage_type', ['fantasy', 'both'])
           .order('stage_number');
         const { data: stagesData, error: stagesError } = await Promise.race([
           stagesQuery,
@@ -157,6 +160,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const stagesQuery = supabase
         .from('fantasy_stages')
         .select('*')
+        .in('usage_type', ['fantasy', 'both'])
         .order('stage_number');
       const progressQuery = supabase
         .from('fantasy_user_progress')
@@ -323,6 +327,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
+    // stageNumberがnullの場合はアンロックしない（レッスン専用ステージ等）
+    if (!stage.stageNumber) return false;
+    
     // フリープラン・ゲストユーザーの場合はBasic/Advancedともに1-1, 1-2, 1-3のみアンロック
     if (isFreeOrGuest) {
       const allowedStages = ['1-1', '1-2', '1-3'];
@@ -369,15 +376,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // 全ステージのグローバルインデックスを計算
   const getStageGlobalIndex = useCallback((stage: FantasyStage) => {
     let globalIndex = 0;
+    // stageNumberがnullの場合は0を返す
+    if (!stage.stageNumber) return 0;
     const [targetMajor, targetMinor] = stage.stageNumber.split('-').map(Number);
     
-    // 選択中Tierのステージのみを対象
-    const tierFiltered = stages.filter(s => (s as any).tier === selectedTier);
+    // 選択中Tierのステージのみを対象（stageNumberがnullのものは除外）
+    const tierFiltered = stages.filter(s => (s as any).tier === selectedTier && s.stageNumber);
     
     // 全ステージをソートしてインデックスを見つける
     const allStages = tierFiltered.slice().sort((a, b) => {
-      const [aMajor, aMinor] = a.stageNumber.split('-').map(Number);
-      const [bMajor, bMinor] = b.stageNumber.split('-').map(Number);
+      const [aMajor, aMinor] = (a.stageNumber || '0-0').split('-').map(Number);
+      const [bMajor, bMinor] = (b.stageNumber || '0-0').split('-').map(Number);
       if (aMajor !== bMajor) return aMajor - bMajor;
       return aMinor - bMinor;
     });
@@ -466,7 +475,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
               {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
-                isFreeOrGuest && stage.stageNumber >= '1-4' 
+                isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
                   ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
                   : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
               )}
@@ -644,8 +653,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             <div className="space-y-2 sm:space-y-3">
               {groupedStages[selectedRank]
                 .sort((a, b) => {
-                  const [, aStage] = a.stageNumber.split('-').map(Number);
-                  const [, bStage] = b.stageNumber.split('-').map(Number);
+                  const [, aStage] = (a.stageNumber || '0-0').split('-').map(Number);
+                  const [, bStage] = (b.stageNumber || '0-0').split('-').map(Number);
                   return aStage - bStage;
                 })
                 .map((stage, index) => renderStageCard(stage, index))
