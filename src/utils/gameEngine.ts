@@ -581,12 +581,13 @@ export class GameEngine {
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
     const frameStartTime = performance.now();
     if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // 判定・状態更新ループ（ログ出力は削除）
+      // 判定・状態更新ループ
       this.updateNoteLogic(currentTime);
       unifiedFrameController.markNoteUpdate(frameStartTime);
     }
     
-    return this.buildVisibleBuffer();
+    // 🚀 GC最適化: バッファを再利用して配列作成を削減
+    return this.buildVisibleBufferOptimized();
   }
 
   private spawnUpcomingNotes(currentTime: number): void {
@@ -622,6 +623,35 @@ export class GameEngine {
     });
     this.visibleNotesBuffer.length = writeIndex;
     return this.visibleNotesBuffer;
+  }
+
+  /**
+   * 🚀 GC最適化版: バッファ再利用で配列作成を最小化
+   * - forEach を for...of に変更（わずかに高速）
+   * - 配列長の設定を最後に一度だけ実行
+   */
+  private buildVisibleBufferOptimized(): ActiveNote[] {
+    let writeIndex = 0;
+    const buffer = this.visibleNotesBuffer;
+    const bufferLen = buffer.length;
+    
+    for (const note of this.activeNotes.values()) {
+      if (note.state !== 'completed') {
+        if (writeIndex < bufferLen) {
+          buffer[writeIndex] = note;
+        } else {
+          buffer.push(note);
+        }
+        writeIndex += 1;
+      }
+    }
+    
+    // 配列サイズ調整（必要な場合のみ）
+    if (buffer.length !== writeIndex) {
+      buffer.length = writeIndex;
+    }
+    
+    return buffer;
   }
 
   /**

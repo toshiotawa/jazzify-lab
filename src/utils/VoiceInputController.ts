@@ -103,13 +103,13 @@ export class VoiceInputController {
   private pitchHistoryIndex = 0;
   private pitchHistoryCount = 0;
 
-  // 最適化: 処理スロットリング
+  // 🚀 最適化: 処理スロットリング（レイテンシ重視に調整）
   private lastProcessTime = 0;
-  private readonly minProcessInterval = 8; // 最小8ms間隔（約125Hz）
+  private readonly minProcessInterval = 5; // 5ms間隔（約200Hz）- レイテンシ削減
   private pendingSamples: Float32Array | null = null;
   private accumulatedSamples: Float32Array;
   private accumulatedLength = 0;
-  private readonly targetAccumulationSize = 512; // 512サンプル貯まったら処理
+  private readonly targetAccumulationSize = 384; // 384サンプルで処理開始（約8ms相当@48kHz）
 
   // iOS対応
   private readonly isIOSDevice: boolean;
@@ -367,20 +367,21 @@ export class VoiceInputController {
   }
 
   /** 
-   * 受信サンプルの処理（最適化版）
+   * 🚀 受信サンプルの処理（レイテンシ最適化版）
    * サンプルを蓄積してから一括処理することでオーバーヘッドを削減
+   * レイテンシを下げるため、蓄積サイズを小さくしつつ処理間隔を短縮
    */
   private handleIncomingSamples(samples: Float32Array): void {
     if (!this.isProcessing || !this.wasmModule || !this.wasmMemory) {
       return;
     }
 
-    // サンプルを蓄積バッファに追加
+    // サンプルを蓄積バッファに追加（メモリ効率的な方法）
     const newLength = this.accumulatedLength + samples.length;
     
-    // バッファ拡張が必要な場合
+    // バッファ拡張が必要な場合（倍のサイズで確保してGC削減）
     if (newLength > this.accumulatedSamples.length) {
-      const newBuffer = new Float32Array(newLength * 2);
+      const newBuffer = new Float32Array(Math.max(newLength * 2, 1024));
       newBuffer.set(this.accumulatedSamples.subarray(0, this.accumulatedLength));
       this.accumulatedSamples = newBuffer;
     }
@@ -388,14 +389,16 @@ export class VoiceInputController {
     this.accumulatedSamples.set(samples, this.accumulatedLength);
     this.accumulatedLength = newLength;
 
-    // スロットリング: 最小間隔チェック
+    // 🚀 スロットリング: 最小間隔チェック（レイテンシ重視で短縮）
     const now = performance.now();
-    if (now - this.lastProcessTime < this.minProcessInterval) {
-      return;
-    }
-
-    // 十分なサンプルが蓄積されたら処理
-    if (this.accumulatedLength >= this.targetAccumulationSize) {
+    const elapsed = now - this.lastProcessTime;
+    
+    // 十分なサンプルが蓄積されたら即座に処理（レイテンシ優先）
+    if (this.accumulatedLength >= this.targetAccumulationSize && elapsed >= this.minProcessInterval) {
+      this.lastProcessTime = now;
+      this.processAccumulatedSamples();
+    } else if (elapsed >= this.minProcessInterval * 3 && this.accumulatedLength >= this.targetAccumulationSize / 2) {
+      // 長時間経過した場合は少ないサンプルでも処理（応答性向上）
       this.lastProcessTime = now;
       this.processAccumulatedSamples();
     }
