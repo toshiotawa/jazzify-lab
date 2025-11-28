@@ -286,7 +286,8 @@ const ResultModal: React.FC = () => {
                     _user_id: userId,
                     _song_id: currentSong.id,
                     _rank: score.rank,
-                    _is_b_rank_plus: true
+                    _is_b_rank_plus: true,
+                    _transpose: settings.transpose
                   });
                   
                   if (updateResult) {

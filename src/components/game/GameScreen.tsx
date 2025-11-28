@@ -13,6 +13,7 @@ import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSong
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import KeyClearsModal from '@/components/ui/KeyClearsModal';
 
 /**
  * メインゲーム画面コンポーネント
@@ -537,7 +538,7 @@ const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
   const { profile, user } = useAuthStore();
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
-  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string}>>({});
+  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
   const [sortBy, setSortBy] = React.useState<'artist' | 'title'>('artist');
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -1051,12 +1052,13 @@ const MissionBackButton: React.FC = () => {
 interface SongListItemProps {
   song: any;
   accessible: boolean;
-  stats?: {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string};
+  stats?: {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>};
   onSelect: () => void;
 }
 
 const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, onSelect }) => {
   const [isLoading, setIsLoading] = React.useState(false);
+  const [showKeyClearsModal, setShowKeyClearsModal] = React.useState(false);
 
 
 
@@ -1129,14 +1131,21 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
         
         {/* ユーザー統計情報 */}
         {(() => {
-          const s = stats ?? { clear_count: 0, b_rank_plus_count: 0, best_score: undefined, best_rank: undefined };
+          const s = stats ?? { clear_count: 0, b_rank_plus_count: 0, best_score: undefined, best_rank: undefined, key_clears: {} };
           return (
           <div className="space-y-2 text-xs mt-2">
             <div className="flex items-center space-x-4">
-              <div className="flex items-center space-x-1">
+              <button
+                className="flex items-center space-x-1 hover:bg-slate-600 rounded px-1 py-0.5 transition-colors cursor-pointer"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  setShowKeyClearsModal(true);
+                }}
+                title="キー別クリア回数を表示"
+              >
                 <span className="text-gray-500">クリア回数:</span>
-                <span className="font-mono text-green-400">{s.clear_count}回</span>
-              </div>
+                <span className="font-mono text-green-400 underline decoration-dotted underline-offset-2">{s.clear_count}回</span>
+              </button>
               {s.best_rank && (
                 <div className="flex items-center space-x-1">
                   <span className="text-gray-500">最高ランク:</span>
@@ -1185,6 +1194,14 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
           <span className="hidden sm:inline">プレイ</span>
         </button>
       </div>
+
+      {/* キー別クリア回数モーダル */}
+      <KeyClearsModal
+        isOpen={showKeyClearsModal}
+        onClose={() => setShowKeyClearsModal(false)}
+        songTitle={song.title || '不明な曲'}
+        keyClears={stats?.key_clears || {}}
+      />
     </div>
   );
 };
