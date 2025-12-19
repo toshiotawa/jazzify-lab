@@ -50,7 +50,6 @@ const FantasyMain: React.FC = () => {
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
   const baseXpLabel = isEnglishCopy ? 'Base XP:' : '基本XP:';
   const rankBonusLabel = isEnglishCopy ? 'Membership bonus:' : 'ランクボーナス:';
-  const guildBonusLabel = isEnglishCopy ? 'Guild bonus:' : 'ギルドボーナス:';
   const earnedXpLabel = isEnglishCopy ? 'Earned:' : '獲得:';
   const levelingUpLabel = isEnglishCopy ? 'Level up!' : 'レベルアップ！';
   const currentLevelLabel = isEnglishCopy ? 'Current level' : '現在のレベル';
@@ -84,7 +83,7 @@ const FantasyMain: React.FC = () => {
     currentLevelXp: number;
     leveledUp: boolean;
     base: number;
-    multipliers: { membership: number; guild: number };
+    multipliers: { membership: number };
   } | null>(null);
   
   // フリープラン・ゲストユーザーかどうかの確認
@@ -322,20 +321,8 @@ const FantasyMain: React.FC = () => {
       return 1;
     })();
 
-    let guildMultiplier = 1;
-    try {
-      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
-      const { computeGuildBonus } = await import('@/utils/guildBonus');
-      const myGuild = await getMyGuild();
-      if (myGuild) {
-        const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
-        const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
-      }
-    } catch {}
-
     const seasonMultiplier = Math.max(0, Number(profile?.next_season_xp_multiplier ?? 1)) || 1;
-    const localGained = Math.round(xpGain * membershipMultiplier * guildMultiplier * seasonMultiplier);
+    const localGained = Math.round(xpGain * membershipMultiplier * seasonMultiplier);
 
     // ローカル進捗（見た目）を即時反映
     const prevLevelLocal = profile?.level || 1;
@@ -350,7 +337,7 @@ const FantasyMain: React.FC = () => {
       currentLevelXp: levelAfter.remainingXP,
       leveledUp: levelAfter.leveledUp,
       base: xpGain,
-      multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+      multipliers: { membership: membershipMultiplier },
     });
 
     // ログインユーザーであればDBに反映（失敗してもUIは維持）
@@ -364,7 +351,7 @@ const FantasyMain: React.FC = () => {
           rankMultiplier: 1,
           transposeMultiplier: 1,
           membershipMultiplier,
-          missionMultiplier: guildMultiplier,
+          missionMultiplier: 1,
           reason,
         });
 
@@ -381,7 +368,7 @@ const FantasyMain: React.FC = () => {
           currentLevelXp: currentLvXp,
           leveledUp,
           base: xpGain,
-          multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+          multipliers: { membership: membershipMultiplier },
         });
           if (leveledUp) {
             toast.success(`${levelingUpLabel} Lv.${previousLevel} → Lv.${xpResult.level}`, {
@@ -539,10 +526,6 @@ const FantasyMain: React.FC = () => {
                       <div className="flex justify-between">
                         <span>{rankBonusLabel}</span>
                         <span>x{xpInfo.multipliers.membership}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{guildBonusLabel}</span>
-                        <span>x{xpInfo.multipliers.guild}</span>
                       </div>
                     </div>
                     <div className="text-green-300 font-bold text-xl mt-2">
