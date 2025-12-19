@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
-import { MidiDeviceSelector, AudioDeviceSelector } from '@/components/ui/MidiDeviceManager';
+import { MidiDeviceSelector, AudioDeviceSelector, AudioOutputDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import ResultModal from './ResultModal';
 import SheetMusicDisplay from './SheetMusicDisplay';
 import ResizeHandle from '@/components/ui/ResizeHandle';
@@ -1475,6 +1475,18 @@ const SettingsPanel: React.FC = () => {
                     />
                   </div>
                 )}
+              </div>
+
+              {/* 音声出力デバイス設定（プレイバック） */}
+              <div className="bg-slate-900 bg-opacity-20 p-4 rounded-lg border border-slate-700 border-opacity-30">
+                <h4 className="text-sm font-medium text-slate-200 mb-3">🔈 音声出力（プレイバック）</h4>
+                <p className="text-xs text-gray-400 mb-3">
+                  対応ブラウザでは再生の出力先を選択できます（iOS Safari では未対応の場合があります）。
+                </p>
+                <AudioOutputDeviceSelector
+                  value={settings.selectedAudioOutputDevice}
+                  onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedAudioOutputDevice: deviceId })}
+                />
               </div>
 
             {/* 音量設定 */}

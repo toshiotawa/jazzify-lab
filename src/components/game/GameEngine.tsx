@@ -13,6 +13,7 @@ import ScoreOverlay from './ScoreOverlay';
 import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
 import { VoiceInputController } from '@/utils/VoiceInputController';
+import { applyAudioOutputDevice } from '@/utils/audioOutput';
 
 const TOTAL_WHITE_KEYS = 52;
 const VISIBLE_WHITE_KEYS = 24;
@@ -370,6 +371,11 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const isPlayingRef = useRef(isPlaying);
   const isIosDevice = useMemo(() => isIOS(), []);
   const playbackSpeedRef = useRef(settings.playbackSpeed);
+  const selectedAudioOutputDeviceRef = useRef<string | null>(settings.selectedAudioOutputDevice);
+
+  useEffect(() => {
+    selectedAudioOutputDeviceRef.current = settings.selectedAudioOutputDevice;
+  }, [settings.selectedAudioOutputDevice]);
     
     // 現在時刻の参照を最新化（高頻度の依存関係排除用）
       useEffect(() => {
@@ -390,8 +396,17 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     }
     const context = new AudioContextClass();
     audioContextRef.current = context;
+    // 出力デバイスの指定（対応ブラウザのみ・失敗しても致命ではない）
+    void applyAudioOutputDevice(context, selectedAudioOutputDeviceRef.current);
     return context;
   }, []);
+
+  useEffect(() => {
+    if (!audioContextRef.current) {
+      return;
+    }
+    void applyAudioOutputDevice(audioContextRef.current, settings.selectedAudioOutputDevice);
+  }, [settings.selectedAudioOutputDevice]);
 
   const ensureMusicGainNode = useCallback(
     (context: AudioContext): GainNode => {
@@ -1001,6 +1016,14 @@ useEffect(() => {
       return;
     }
 
+    // 未選択（=まだ許可要求もしていない）場合は何もしない
+    if (!settings.selectedAudioDevice) {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      return;
+    }
+
     // VoiceInputControllerが未サポートの場合はスキップ
     if (!VoiceInputController.isSupported()) {
       log.warn('⚠️ 音声入力はこのブラウザでサポートされていません');
@@ -1046,8 +1069,9 @@ useEffect(() => {
         }
 
         // 選択されたデバイスに接続
-        if (settings.selectedAudioDevice || settings.inputMethod === 'voice') {
-          const connected = await voiceControllerRef.current.connect(settings.selectedAudioDevice ?? undefined);
+        if (settings.selectedAudioDevice) {
+          const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
+          const connected = await voiceControllerRef.current.connect(deviceId);
           if (connected) {
             log.info('✅ 音声入力接続完了');
             setIsVoiceReady(true);

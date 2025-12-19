@@ -138,6 +138,7 @@ const defaultSettings: GameSettings = {
   inputMethod: 'midi',
   selectedMidiDevice: null,
   selectedAudioDevice: null,
+  selectedAudioOutputDevice: 'default',
   
   // キー設定
   transpose: 0,
