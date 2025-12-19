@@ -26,13 +26,14 @@ export const EnvironmentBadge: React.FC = () => {
         };
       default:
         // getEnvironment() の戻り値が増えた場合の安全策（現状は到達しない）
-        // eslint-disable-next-line @typescript-eslint/no-unused-vars
-        const _exhaustive: never = env;
-        return {
-          backgroundColor: '#666',
-          color: '#fff',
-          label: 'UNKNOWN'
-        };
+        {
+          const _exhaustive: never = env;
+          return {
+            backgroundColor: '#666',
+            color: '#fff',
+            label: 'UNKNOWN'
+          };
+        }
     }
   };
   
