@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
-import { useToast } from '@/stores/toastStore';
+import { useToastStore } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, FantasyStage } from '@/types';
 import { ensureDailyChallengeStagesExist, updateDailyChallengeStageSettings } from '@/platform/supabaseDailyChallenge';
 
@@ -28,7 +28,7 @@ const allowedChordsToText = (allowed: unknown): string => {
 };
 
 const DailyFantasyChallengeManager: React.FC = () => {
-  const toast = useToast();
+  const pushToast = useToastStore((s) => s.push);
   const [loading, setLoading] = useState(true);
   const [stages, setStages] = useState<Record<DailyChallengeDifficulty, FantasyStage> | null>(null);
 
@@ -58,11 +58,11 @@ const DailyFantasyChallengeManager: React.FC = () => {
         },
       });
     } catch {
-      toast.error('デイリーチャレンジ設定の読み込みに失敗しました');
+      pushToast('デイリーチャレンジ設定の読み込みに失敗しました', 'error');
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [pushToast]);
 
   useEffect(() => {
     load().catch(() => {});
@@ -129,15 +129,15 @@ const DailyFantasyChallengeManager: React.FC = () => {
                   try {
                     const allowedChords = parseChordList(form.allowedChordsText);
                     if (allowedChords.length === 0) {
-                      toast.error('許可コードを1つ以上入力してください');
+                      pushToast('許可コードを1つ以上入力してください', 'error');
                       return;
                     }
                     const bgmUrl = form.bgmUrl.trim() ? form.bgmUrl.trim() : null;
                     await updateDailyChallengeStageSettings({ difficulty, allowedChords, bgmUrl });
-                    toast.success('保存しました');
+                    pushToast('保存しました', 'success');
                     await load();
                   } catch {
-                    toast.error('保存に失敗しました');
+                    pushToast('保存に失敗しました', 'error');
                   }
                 }}
               >

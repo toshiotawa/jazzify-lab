@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useToast } from '@/stores/toastStore';
+import { useToastStore } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, DailyChallengeRecord } from '@/types';
 import { fetchDailyChallengeRecordsSince } from '@/platform/supabaseDailyChallenge';
 import { cn } from '@/utils/cn';
@@ -57,7 +57,7 @@ const getDaysInMonth = (ym: string): number => {
 const buildDate = (ym: string, day: number): string => `${ym}-${String(day).padStart(2, '0')}`;
 
 export const DailyChallengeRecordsSection: React.FC = () => {
-  const toast = useToast();
+  const pushToast = useToastStore((s) => s.push);
   const today = useMemo(() => toLocalDateString(new Date()), []);
 
   const [period, setPeriod] = useState<Period>('week');
@@ -82,13 +82,13 @@ export const DailyChallengeRecordsSection: React.FC = () => {
         setSelectedYearMonth((prev) => prev ?? latest);
       } catch {
         setRecords([]);
-        toast.error('記録の読み込みに失敗しました');
+        pushToast('記録の読み込みに失敗しました', 'error');
       } finally {
         setLoading(false);
       }
     };
     load().catch(() => {});
-  }, [difficulty, oneYearAgo, toast]);
+  }, [difficulty, oneYearAgo, pushToast]);
 
   const monthsWithRecords = useMemo(() => {
     return Array.from(new Set(records.map((r) => toYearMonth(r.played_on)))).sort();
