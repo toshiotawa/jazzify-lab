@@ -176,6 +176,8 @@ export interface GameSettings {
   inputMethod: InputMethod;          // 入力方式（MIDI / 音声）
   selectedMidiDevice: string | null;
   selectedAudioDevice: string | null; // 音声入力デバイス
+  /** 再生（プレイバック）出力デバイス。対応ブラウザのみ反映される */
+  selectedAudioOutputDevice: string | null;
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)

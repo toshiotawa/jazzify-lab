@@ -40,6 +40,11 @@ interface AudioDeviceInfo {
   label: string;
 }
 
+interface GetAudioDevicesOptions {
+  /** true の場合、デバイスラベル取得のために一度だけ権限要求を行う */
+  requestPermission?: boolean;
+}
+
 // iOS検出ユーティリティ
 const isIOS = (): boolean => {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') {
@@ -72,6 +77,7 @@ export class VoiceInputController {
   private scriptNode: ScriptProcessorNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private analyserTimer: ReturnType<typeof setInterval> | null = null;
+  private silentGainNode: GainNode | null = null;
   private currentDeviceId: string | null = null;
   private isProcessing = false;
 
@@ -178,15 +184,18 @@ export class VoiceInputController {
   }
 
   /** 利用可能なオーディオ入力デバイス取得 */
-  async getAudioDevices(): Promise<AudioDeviceInfo[]> {
+  async getAudioDevices(options?: GetAudioDevicesOptions): Promise<AudioDeviceInfo[]> {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return [];
     }
 
     try {
-      // まず権限を取得
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
+      if (options?.requestPermission) {
+        const ok = await VoiceInputController.requestMicrophonePermission();
+        if (!ok) {
+          return [];
+        }
+      }
 
       // デバイスリスト取得
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -199,6 +208,29 @@ export class VoiceInputController {
     } catch (error) {
       log.warn('オーディオデバイスリストの取得に失敗:', error);
       return [];
+    }
+  }
+
+  /**
+   * マイク権限を要求する（権限付与後すぐに停止）
+   * iOS ではユーザー操作（タップ等）の直後に呼ぶことを推奨。
+   */
+  static async requestMicrophonePermission(deviceId?: string): Promise<boolean> {
+    if (!isVoiceInputSupported() || !navigator.mediaDevices?.getUserMedia) {
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined
+        },
+        video: false
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (error) {
+      log.warn('マイク権限の取得に失敗:', error);
+      return false;
     }
   }
 
@@ -303,6 +335,11 @@ export class VoiceInputController {
     try {
       await this.audioContext.audioWorklet.addModule('/js/audio/audio-worklet-processor.js');
       this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-processor');
+      if (!this.silentGainNode) {
+        this.silentGainNode = this.audioContext.createGain();
+        this.silentGainNode.gain.value = 0;
+        this.silentGainNode.connect(this.audioContext.destination);
+      }
 
       // Workletにリングバッファ情報を送信
       this.workletNode.port.postMessage({
@@ -319,7 +356,7 @@ export class VoiceInputController {
       };
 
       source.connect(this.workletNode);
-      this.workletNode.connect(this.audioContext.destination);
+      this.workletNode.connect(this.silentGainNode);
       this.isProcessing = true;
       
       log.info('✅ AudioWorklet設定完了');
@@ -360,7 +397,12 @@ export class VoiceInputController {
     };
 
     source.connect(this.scriptNode);
-    this.scriptNode.connect(this.audioContext.destination);
+    if (!this.silentGainNode) {
+      this.silentGainNode = this.audioContext.createGain();
+      this.silentGainNode.gain.value = 0;
+      this.silentGainNode.connect(this.audioContext.destination);
+    }
+    this.scriptNode.connect(this.silentGainNode);
     this.isProcessing = true;
 
     log.info('✅ ScriptProcessor設定完了');
@@ -652,6 +694,15 @@ export class VoiceInputController {
     if (this.analyserNode) {
       this.analyserNode.disconnect();
       this.analyserNode = null;
+    }
+
+    if (this.silentGainNode) {
+      try {
+        this.silentGainNode.disconnect();
+      } catch (e) {
+        log.warn('silentGainNode disconnect失敗:', e);
+      }
+      this.silentGainNode = null;
     }
 
     if (this.analyserTimer) {
