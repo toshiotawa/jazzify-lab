@@ -515,6 +515,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
+  const primaryMonsterIcon = useMemo(() => {
+    const activeIcon = gameState.activeMonsters?.[0]?.icon;
+    if (isDailyChallenge) {
+      // デイリーチャレンジは monster_icons/monster_XX.png を使用
+      return activeIcon ?? 'monster_01';
+    }
+    return currentEnemy.icon;
+  }, [currentEnemy.icon, gameState.activeMonsters, isDailyChallenge]);
 
   // 最新のgameState参照を保持（タイムアップ時に使用）
   useEffect(() => {
@@ -755,16 +763,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // 敵が変更された時にモンスタースプライトを更新（状態機械対応）
   useEffect(() => {
-    if (fantasyPixiInstance && currentEnemy) {
+    if (fantasyPixiInstance && primaryMonsterIcon) {
       // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
       // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
-      fantasyPixiInstance.createMonsterSprite(currentEnemy.icon);
+      fantasyPixiInstance.createMonsterSprite(primaryMonsterIcon);
       devLog.debug('🔄 モンスタースプライト更新要求:', { 
-        monster: currentEnemy.icon,
+        monster: primaryMonsterIcon,
         enemyIndex: gameState.currentEnemyIndex
       });
     }
-  }, [fantasyPixiInstance, currentEnemy, gameState.currentEnemyIndex]);
+  }, [fantasyPixiInstance, primaryMonsterIcon, gameState.currentEnemyIndex]);
   
   // 太鼓モードの切り替えを監視
   useEffect(() => {
@@ -1191,14 +1199,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <FantasyPIXIRenderer
               width={Math.max(monsterAreaWidth, 1)}   // 0 を渡さない
               height={monsterAreaHeight}
-              monsterIcon={currentEnemy.icon}
+              monsterIcon={primaryMonsterIcon}
     
               enemyGauge={isDailyChallenge ? 0 : gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
               onShowMagicName={handleShowMagicName}
               className="w-full h-full"
-              activeMonsters={isDailyChallenge ? undefined : gameState.activeMonsters}
+              activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
             />
           </div>
