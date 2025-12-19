@@ -63,7 +63,10 @@ export const useToastStore = create<ToastState>()(
 );
 
 export function useToast() {
-  const { push, remove, clear } = useToastStore();
+  // selector を使って購読範囲を最小化（toasts配列の更新で呼び出し元が再レンダーされないようにする）
+  const push = useToastStore((s) => s.push);
+  const remove = useToastStore((s) => s.remove);
+  const clear = useToastStore((s) => s.clear);
   
   return {
     success: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'success', options),

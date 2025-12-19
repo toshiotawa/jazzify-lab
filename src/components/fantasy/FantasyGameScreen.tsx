@@ -55,6 +55,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   timeLimitSeconds = 120,
 }) => {
   const isDailyChallenge = uiMode === 'daily_challenge';
+  // タイマーeffectが onGameComplete 変化で再起動しないよう、最新参照は ref で保持する
+  const onGameCompleteRef = useRef<FantasyGameScreenProps['onGameComplete']>(onGameComplete);
+  useEffect(() => {
+    onGameCompleteRef.current = onGameComplete;
+  }, [onGameComplete]);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
@@ -552,7 +557,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setOverlay(null);
           const s = gameStateRef.current;
           if (!s) return;
-          onGameComplete('clear', s.score, s.correctAnswers, s.totalQuestions);
+          onGameCompleteRef.current('clear', s.score, s.correctAnswers, s.totalQuestions);
         }, 800);
       }
     };
@@ -560,7 +565,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     tick();
     const intervalId = setInterval(tick, 200);
     return () => clearInterval(intervalId);
-  }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame, onGameComplete]);
+  }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
