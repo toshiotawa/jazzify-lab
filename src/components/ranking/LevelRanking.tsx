@@ -258,12 +258,6 @@ const LevelRanking: React.FC = () => {
               >
                 <FaPlus /> さらに読み込む（50件）
               </button>
-              <button
-                onClick={() => { window.location.hash = '#guilds-ranking'; }}
-                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-purple-700 text-white hover:bg-purple-600"
-              >
-                ギルドランキングへ
-              </button>
             </div>
             {/* ソート切り替えボタン */}
             <div className="flex justify-center space-x-2">

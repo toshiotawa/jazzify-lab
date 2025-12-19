@@ -453,22 +453,6 @@ const Dashboard: React.FC = () => {
                 </button>
                 )}
 
-                {/* ギルド */}
-                {!isStandardGlobal && (
-                <button
-                  onClick={() => { window.location.hash = '#guilds'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaUsers className="w-6 h-6 text-cyan-400" />
-                    <h3 className="text-lg font-semibold">ギルド</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    参加して交流し、みんなでチャレンジ
-                  </p>
-                </button>
-                )}
-
                 {/* 日記 */}
                 {!isStandardGlobal && (
                 <button

@@ -48,7 +48,6 @@ const GameHeader: React.FC = () => {
             {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
             {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
             {!isFree && <HashButton hash="#ranking" disabled={isGuest}>{isEnglishCopy ? 'Ranking' : 'ランキング'}</HashButton>}
-            {!isFree && <HashButton hash="#guilds" disabled={isGuest}>{isEnglishCopy ? 'Guild' : 'ギルド'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>{isEnglishCopy ? 'Diary' : '日記'}</HashButton>}
             {!isFree && <HashButton hash="#information" disabled={isGuest}>{isEnglishCopy ? 'Updates' : 'お知らせ'}</HashButton>}
