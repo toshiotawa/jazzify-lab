@@ -110,6 +110,11 @@ export class FantasyPIXIInstance {
   private unsubscribeEnraged: (() => void) | null = null;
   private enragedState: Record<string, boolean> = {};
 
+  // 🚀 パフォーマンス最適化: レンダリング頻度制御
+  private lastRenderTime = 0;
+  private readonly minRenderInterval = 16; // 16ms = 60FPS
+  private needsRender = true; // 変更があった場合のみ true
+
   constructor(
     canvas: HTMLCanvasElement,
     width: number,
@@ -146,6 +151,7 @@ export class FantasyPIXIInstance {
     this.width = width;
     this.height = height;
     this.configureCanvasSize(width, height);
+    this.requestRender();
   }
 
   setActiveMonsters(monsters: MonsterState[]): void {
@@ -190,11 +196,13 @@ export class FantasyPIXIInstance {
     }
 
     this.monsters = visuals;
+    this.requestRender();
   }
 
   setDefaultMonsterIcon(icon: string): void {
     this.defaultMonsterIcon = icon;
     this.ensureImage(icon);
+    this.requestRender();
   }
 
   createMonsterSprite(icon: string): void {
@@ -202,11 +210,15 @@ export class FantasyPIXIInstance {
   }
 
   updateTaikoMode(enabled: boolean): void {
-    this.taikoMode = enabled;
+    if (this.taikoMode !== enabled) {
+      this.taikoMode = enabled;
+      this.requestRender();
+    }
   }
 
   updateTaikoNotes(notes: TaikoDisplayNote[]): void {
     this.taikoNotes = notes;
+    this.requestRender();
   }
 
   getJudgeLinePosition(): { x: number; y: number } {
@@ -325,9 +337,35 @@ export class FantasyPIXIInstance {
 
   private renderLoop = (): void => {
     if (this.destroyed) return;
-    this.drawFrame();
+    
+    const now = performance.now();
+    
+    // 🚀 アニメーションがアクティブかどうかを判定
+    const hasActiveAnimations = 
+      this.effects.length > 0 ||
+      this.damagePopups.length > 0 ||
+      this.specialAttackEffect?.active ||
+      this.overlayText !== null ||
+      this.monsters.some(m => 
+        m.flashUntil > now || 
+        m.hitBounceUntil > now || 
+        (m.defeated && m.defeatedAt && now - m.defeatedAt < 450) ||
+        Math.abs(m.x - m.targetX) > 1 ||
+        m.enraged
+      );
+    
+    // アニメーションがある場合のみ毎フレーム描画、そうでなければ必要な時のみ
+    if (hasActiveAnimations || this.needsRender) {
+      this.drawFrame();
+      this.needsRender = false;
+    }
+    
     this.startLoop();
   };
+
+  private requestRender(): void {
+    this.needsRender = true;
+  }
 
   private drawFrame(): void {
     const ctx = this.ctx;

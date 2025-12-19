@@ -105,15 +105,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const gameStateRef = useRef<FantasyGameState | null>(null);
   
   // BGMManagerからタイミング情報を定期的に取得
+  // 🚀 パフォーマンス最適化: 間隔を200msに
   useEffect(() => {
     const interval = setInterval(() => {
-      setCurrentBeat(bgmManager.getCurrentBeat());
-      setCurrentMeasure(bgmManager.getCurrentMeasure());
+      const newBeat = bgmManager.getCurrentBeat();
+      const newMeasure = bgmManager.getCurrentMeasure();
+      // 変更があった場合のみ状態を更新（関数形式で比較）
+      setCurrentBeat(prev => prev !== newBeat ? newBeat : prev);
+      setCurrentMeasure(prev => prev !== newMeasure ? newMeasure : prev);
       // Ready状態は2秒後に自動的に解除
       if (isReady && readyStartTimeRef.current > 0 && performance.now() - readyStartTimeRef.current > 2000) {
         setIsReady(false);
       }
-    }, 50); // 50ms間隔で更新
+    }, 200); // 200ms間隔で更新（パフォーマンス改善）
     
     return () => clearInterval(interval);
   }, [isReady]);
@@ -559,6 +563,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (hasTimeUpFiredRef.current) return;
     if (isReady) return; // Ready終了後に開始
     if (!gameState.isGameActive) return;
+    // 練習モード（無限時間）の場合はタイマーを動作させない
+    if (timeLimitSeconds === Infinity) return;
 
     const startMs = performance.now();
     const tick = () => {
@@ -1164,8 +1170,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               スコア <span className="text-yellow-300 font-bold">{gameState.correctAnswers}</span>
             </div>
             <div className="text-sm font-sans text-white">
-              残り <span className="text-yellow-300 font-bold">{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</span>
+              残り <span className="text-yellow-300 font-bold">
+                {timeLimitSeconds === Infinity 
+                  ? '∞' 
+                  : `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
+              </span>
             </div>
+            {playMode === 'practice' && (
+              <button
+                onClick={onSwitchToChallenge}
+                className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-xs font-bold transition-colors"
+              >
+                挑戦
+              </button>
+            )}
             <button
               onClick={onBackToStageSelect}
               className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
