@@ -34,9 +34,6 @@ const App: React.FC = () => {
   const [initError, setInitError] = useState<string | null>(null);
   const [initProgress, setInitProgress] = useState(0);
   
-  // ゲームストアの初期化状態
-  const settings = useGameStore((state) => state.settings);
-  
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
   const isFree = profile?.rank === 'free';
@@ -184,7 +181,7 @@ const App: React.FC = () => {
   if (!user && !isGuest || forceLogin) {
     return (
       <>
-        <AuthLanding />
+        <AuthLanding mode="login" />
         <ToastContainer />
       </>
     );

@@ -49,7 +49,7 @@ const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
   throw new Error(`Failed to load monster image for ${icon}`);
 };
 
-const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
+export const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
   await Promise.all(
     monsterIds.map(async (id) => {
       if (cache.has(id)) {
@@ -1284,7 +1284,7 @@ export const useFantasyGameEngine = ({
         }
         
         // 以降は既存のミス判定ロジック
-        let currentNoteIndex = prevState.currentNoteIndex;
+        const currentNoteIndex = prevState.currentNoteIndex;
         const currentNote = prevState.taikoNotes[currentNoteIndex];
         if (!currentNote) return { ...prevState, lastNormalizedTime: normalizedTime };
         
@@ -1481,7 +1481,7 @@ export const useFantasyGameEngine = ({
         devLog.debug(`🎯 ${completedMonsters.length}体のコードが完成しました！`, { ids: completedMonsters.map(m => m.id) });
 
         // ★ 攻撃処理後の状態を計算する
-        let stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
+        const stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
@@ -1528,7 +1528,7 @@ export const useFantasyGameEngine = ({
         });
 
         // モンスターの補充
-        let newMonsterQueue = [...stateAfterAttack.monsterQueue];
+        const newMonsterQueue = [...stateAfterAttack.monsterQueue];
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 

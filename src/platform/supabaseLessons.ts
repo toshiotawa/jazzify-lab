@@ -44,7 +44,7 @@ export async function fetchLessonsByCourse(
     return data || [];
   }
 
-  const { data, error } = await fetchWithCache<Lesson>(
+  const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await getSupabaseClient()
       .from('lessons')

@@ -89,13 +89,11 @@ const LevelRanking: React.FC = () => {
     if (open && user && !isGuest) {
       resetAndLoad();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user, isGuest, isStandardGlobal]);
 
   // ソートキー変更時は再フェッチせず再ソートのみ
   useEffect(() => {
     setEntries(prev => sortEntries(prev, sortKey));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortKey]);
 
   if (!open) return null;

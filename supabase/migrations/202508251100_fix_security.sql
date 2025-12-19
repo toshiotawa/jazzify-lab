@@ -8,12 +8,6 @@ do $$ begin
   ) then
     execute 'alter view public.view_level_ranking set (security_invoker = on)';
   end if;
-
-  if exists (
-    select 1 from pg_views v where v.schemaname = 'public' and v.viewname = 'v_suspicious_guild_success'
-  ) then
-    execute 'alter view public.v_suspicious_guild_success set (security_invoker = on)';
-  end if;
 end $$;
 
 -- 2) practice_diaries: enable RLS and add policies

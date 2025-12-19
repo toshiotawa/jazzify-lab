@@ -1,7 +1,7 @@
 import { getWindow } from '@/platform';
 import { STORAGE_KEY_GEO_COUNTRY, STORAGE_KEY_SIGNUP_COUNTRY } from '@/constants/storageKeys';
 
-type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum';
+type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
 
 const GLOBAL_SUBDOMAIN_HINTS = new Set(['en', 'global', 'intl', 'world']);
 const GLOBAL_LANG_PARAM = 'lang';

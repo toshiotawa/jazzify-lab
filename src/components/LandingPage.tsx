@@ -17,7 +17,6 @@ const TypewriterText: React.FC<{
   const [displayedText, setDisplayedText] = useState('');
   useEffect(() => {
     let cancelled = false;
-    let startTimer: number | undefined;
     let intervalId: number | undefined;
     const start = () => {
       let index = 0;
@@ -30,7 +29,7 @@ const TypewriterText: React.FC<{
         }
       }, speedMsPerChar);
     };
-    startTimer = window.setTimeout(start, delayMs);
+    const startTimer = window.setTimeout(start, delayMs);
     return () => {
       cancelled = true;
       if (startTimer) window.clearTimeout(startTimer);

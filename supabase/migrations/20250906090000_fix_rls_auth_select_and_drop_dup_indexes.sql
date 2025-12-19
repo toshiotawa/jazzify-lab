@@ -146,53 +146,6 @@ create policy notifications_update_own on public.notifications for update using 
 drop policy if exists notifications_select_own on public.notifications;
 create policy notifications_select_own on public.notifications for select using ((select auth.uid()) = user_id);
 
--- guild policies: wrap auth.uid()/role
-drop policy if exists guilds_update_leader on public.guilds;
-create policy guilds_update_leader on public.guilds for update using ((select auth.uid()) = leader_id) with check ((select auth.uid()) = leader_id);
-
-drop policy if exists guilds_delete_leader on public.guilds;
-create policy guilds_delete_leader on public.guilds for delete using ((select auth.uid()) = leader_id);
-
-drop policy if exists guild_members_select_visible on public.guild_members;
-create policy guild_members_select_visible on public.guild_members for select using (
-  user_id = (select auth.uid()) or exists(select 1 from public.guilds g where g.id = guild_members.guild_id and g.leader_id = (select auth.uid()))
-);
-
-drop policy if exists guild_invite_select on public.guild_invitations;
-create policy guild_invite_select on public.guild_invitations for select using (
-  inviter_id = (select auth.uid()) or invitee_id = (select auth.uid()) or exists(select 1 from public.guilds g where g.id = public.guild_invitations.guild_id and g.leader_id = (select auth.uid()))
-);
-
-drop policy if exists guild_join_req_select on public.guild_join_requests;
-create policy guild_join_req_select on public.guild_join_requests for select using (
-  requester_id = (select auth.uid()) or exists(select 1 from public.guilds g where g.id = public.guild_join_requests.guild_id and g.leader_id = (select auth.uid()))
-);
-
-drop policy if exists guild_members_delete_self on public.guild_members;
-create policy guild_members_delete_self on public.guild_members for delete using (user_id = (select auth.uid()));
-
--- guild board policies
-drop policy if exists guild_posts_rw on public.guild_posts;
-create policy guild_posts_rw on public.guild_posts for all using (
-  exists(select 1 from public.guild_members gm where gm.guild_id = public.guild_posts.guild_id and gm.user_id = (select auth.uid()))
-) with check (
-  exists(select 1 from public.guild_members gm where gm.guild_id = public.guild_posts.guild_id and gm.user_id = (select auth.uid()))
-);
-
-drop policy if exists guild_post_comments_rw on public.guild_post_comments;
-create policy guild_post_comments_rw on public.guild_post_comments for all using (
-  exists(select 1 from public.guild_posts p join public.guild_members gm on gm.guild_id = p.guild_id where p.id = public.guild_post_comments.post_id and gm.user_id = (select auth.uid()))
-) with check (
-  exists(select 1 from public.guild_posts p join public.guild_members gm on gm.guild_id = p.guild_id where p.id = public.guild_post_comments.post_id and gm.user_id = (select auth.uid()))
-);
-
-drop policy if exists guild_post_likes_rw on public.guild_post_likes;
-create policy guild_post_likes_rw on public.guild_post_likes for all using (
-  exists(select 1 from public.guild_posts p join public.guild_members gm on gm.guild_id = p.guild_id where p.id = public.guild_post_likes.post_id and gm.user_id = (select auth.uid()))
-) with check (
-  exists(select 1 from public.guild_posts p join public.guild_members gm on gm.guild_id = p.guild_id where p.id = public.guild_post_likes.post_id and gm.user_id = (select auth.uid()))
-);
-
 -- fantasy_* policies (read/write)
 drop policy if exists fantasy_bgm_assets_write_policy on public.fantasy_bgm_assets;
 create policy fantasy_bgm_assets_write_policy on public.fantasy_bgm_assets for all using (
@@ -200,23 +153,6 @@ create policy fantasy_bgm_assets_write_policy on public.fantasy_bgm_assets for a
 ) with check (
   (select auth.role()) = 'service_role' or exists (select 1 from public.profiles p where p.id = (select auth.uid()) and p.is_admin = true)
 );
-
--- guild_member_streaks policies
-drop policy if exists "Users can read their own streak data" on public.guild_member_streaks;
-create policy "Users can read their own streak data" on public.guild_member_streaks for select using ((select auth.uid()) = user_id);
-
-drop policy if exists "Guild members can read guild streak data" on public.guild_member_streaks;
-create policy "Guild members can read guild streak data" on public.guild_member_streaks for select using (
-  exists (
-    select 1
-    from public.guild_members gm1
-    join public.guild_members gm2 on gm1.guild_id = gm2.guild_id
-    where gm1.user_id = (select auth.uid()) and gm2.user_id = public.guild_member_streaks.user_id
-  )
-);
-
-drop policy if exists "System can manage streak data" on public.guild_member_streaks;
-create policy "System can manage streak data" on public.guild_member_streaks for all using ((select auth.role()) = 'service_role');
 
 -- comment_likes policies
 drop policy if exists comment_likes_insert_own on public.comment_likes;

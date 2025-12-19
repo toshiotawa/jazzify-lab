@@ -1,5 +1,3 @@
-/* tslint:disable */
-/* eslint-disable */
 export function init_pitch_detector(sample_rate: number): void;
 export function get_ring_buffer_ptr(): number;
 export function get_ring_buffer_size(): number;
