@@ -68,6 +68,8 @@ type StageMode =
   | 'progression_random'
   | 'progression_timing';
 
+export type FantasyPlayMode = 'challenge' | 'practice';
+
 export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
@@ -127,6 +129,7 @@ export interface MonsterState {
 
 export interface FantasyGameState {
   currentStage: FantasyStage | null;
+  playMode: FantasyPlayMode;
   currentQuestionIndex: number;
   currentChordTarget: ChordDefinition | null; // 廃止予定（互換性のため残す）
   playerHp: number;
@@ -344,6 +347,18 @@ const assignPositions = (count: number): ('A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G
   return allPositions.slice(0, count); // 8体以上の場合は全列使用
 };
 
+const PRACTICE_QUEUE_BATCH_SIZE = 24;
+
+const createPracticeQueueBatch = (count: number): number[] => {
+  const safeCount = Math.max(1, Math.floor(count));
+  const indices = Array.from({ length: safeCount }, (_, i) => i);
+  for (let i = indices.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [indices[i], indices[j]] = [indices[j], indices[i]];
+  }
+  return indices;
+};
+
 /**
  * 既に使用されているコードを除外してランダムにコードを選択
  */
@@ -513,6 +528,7 @@ export const useFantasyGameEngine = ({
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
+    playMode: 'challenge',
     currentQuestionIndex: 0,
     currentChordTarget: getChordDefinition('CM7', displayOpts) || null, // デフォルト値を設定
     playerHp: 5,
@@ -680,6 +696,10 @@ export const useFantasyGameEngine = ({
         const remainingMonsters = updatedMonsters.filter(m => m.id !== currentMonster.id);
         const newMonsterQueue = [...prevState.monsterQueue];
 
+        if (prevState.playMode === 'practice' && newMonsterQueue.length === 0) {
+          newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
+        }
+
         if (newMonsterQueue.length > 0) {
           const monsterIndex = newMonsterQueue.shift()!;
 
@@ -781,41 +801,50 @@ export const useFantasyGameEngine = ({
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage) => {
+  const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
     devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
 
     // 旧 BGM を確実に殺す
     bgmManager.stop();
 
     // 新しいステージ定義から値を取得
-    const totalEnemies = stage.enemyCount;
+    const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : stage.enemyCount;
     const enemyHp = stage.enemyHp;
-    const totalQuestions = totalEnemies * enemyHp;
+    const totalQuestions = playMode === 'practice' ? Number.POSITIVE_INFINITY : totalEnemies * enemyHp;
     const simultaneousCount = stage.mode.startsWith('progression') ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
-    const monsterIds = getStageMonsterIds(totalEnemies);
+    const monsterIds = (() => {
+      if (playMode === 'practice') {
+        // 無限湧きのため、固定長のバッチだけ確保（以降はフォールバックのランダムでもOK）
+        return getStageMonsterIds(PRACTICE_QUEUE_BATCH_SIZE);
+      }
+      return getStageMonsterIds(stage.enemyCount);
+    })();
     setStageMonsterIds(monsterIds);
 
-    // モンスター画像をプリロード
+    // モンスター画像をプリロード（練習は無限のため、初回バッチのみ）
     try {
       const textureMap = imageTexturesRef.current;
       textureMap.clear();
       await preloadMonsterImages(monsterIds, textureMap);
-      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
+      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
     } catch (error) {
       devLog.error('❌ モンスター画像プリロード失敗:', error);
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
-    const monsterIndices = Array.from({ length: totalEnemies }, (_, i) => i);
-    // Fisher-Yates shuffle
-    for (let i = monsterIndices.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1));
-        [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
-    }
-    const monsterQueue = monsterIndices;
+    const monsterQueue = playMode === 'practice'
+      ? createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE)
+      : (() => {
+          const monsterIndices = Array.from({ length: stage.enemyCount }, (_, i) => i);
+          for (let i = monsterIndices.length - 1; i > 0; i--) {
+            const j = Math.floor(Math.random() * (i + 1));
+            [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
+          }
+          return monsterIndices;
+        })();
     
     // 初期モンスターを配置
     const initialMonsterCount = Math.min(simultaneousCount, totalEnemies);
@@ -937,6 +966,7 @@ export const useFantasyGameEngine = ({
 
     const newState: FantasyGameState = {
       currentStage: stage,
+      playMode,
       currentQuestionIndex: 0,
       currentChordTarget: firstChord,
       playerHp: stage.maxHp,
@@ -1050,6 +1080,9 @@ export const useFantasyGameEngine = ({
   
   // 敵の攻撃処理
   const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
+    if (gameState.playMode === 'practice') {
+      return;
+    }
     // 攻撃時に入力バッファをリセット（削除済み）
     
     // 怒り状態のトグル（IDがわかる場合）: タイマーを延長可能に
@@ -1067,6 +1100,9 @@ export const useFantasyGameEngine = ({
     }
     
     setGameState(prevState => {
+      if (prevState.playMode === 'practice') {
+        return prevState;
+      }
       // ID未指定だった場合はここで先頭モンスターを適用
       if (!attackingMonsterId && prevState.activeMonsters?.length) {
         const { setEnrage } = useEnemyStore.getState();
@@ -1175,7 +1211,7 @@ export const useFantasyGameEngine = ({
     });
     
     onEnemyAttack(attackingMonsterId);
-  }, [onGameStateChange, onGameComplete, onEnemyAttack]);
+  }, [gameState.playMode, onGameStateChange, onGameComplete, onEnemyAttack]);
   
   // ゲージタイマーの管理
   useEffect(() => {
@@ -1193,11 +1229,12 @@ export const useFantasyGameEngine = ({
     }
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
-    // Ready中（single）では開始しない
+    // Ready中は開始しない
     if (
       gameState.isGameActive &&
       gameState.currentStage &&
-      !(isReady && gameState.currentStage.mode === 'single')
+      gameState.playMode !== 'practice' &&
+      !isReady
     ) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
@@ -1216,16 +1253,16 @@ export const useFantasyGameEngine = ({
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
-    /* Ready 中はゲージ停止 - FantasyGameScreenで管理 → エンジンでもガード */
-    if (isReady) {
-      // singleモード時のみ停止
-      const mode = gameState.currentStage?.mode;
-      if (mode === 'single') {
-        return;
-      }
+    /* Ready 中は停止 */
+    if (isReady) return;
+    if (gameState.playMode === 'practice') {
+      return;
     }
     
     setGameState(prevState => {
+      if (prevState.playMode === 'practice') {
+        return prevState;
+      }
       if (!prevState.isGameActive || !prevState.currentStage) {
         devLog.debug('⏰ ゲージ更新スキップ: ゲーム非アクティブ');
         return prevState;
@@ -1313,8 +1350,9 @@ export const useFantasyGameEngine = ({
             currentTime: currentTime.toFixed(3),
             hitTime: currentNote.hitTime.toFixed(3)
           });
-          
+
           // 敵の攻撃を発動（先頭モンスターを指定）
+          // ※練習モードでは updateEnemyGauge 自体が動かないため、ここに到達しない
           const attackerId = prevState.activeMonsters?.[0]?.id;
           if (attackerId) {
             const { setEnrage } = useEnemyStore.getState();
@@ -1383,7 +1421,6 @@ export const useFantasyGameEngine = ({
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
       
       if (attackingMonster) {
-        console.log('🎲 Found attacking monster:', attackingMonster);
         devLog.debug('💥 モンスターゲージ満タン！攻撃開始', { 
           monsterId: attackingMonster.id,
           monsterName: attackingMonster.name 
@@ -1407,7 +1444,6 @@ export const useFantasyGameEngine = ({
         );
         
         // 攻撃処理を非同期で実行
-        console.log('🚀 Calling handleEnemyAttack with id:', attackingMonster.id);
         setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
         
         const nextState = { 
@@ -1428,7 +1464,7 @@ export const useFantasyGameEngine = ({
         return nextState;
       }
     });
-  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode]);
+  }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, gameState.playMode]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
   const handleNoteInput = useCallback((note: number) => {
@@ -1529,6 +1565,9 @@ export const useFantasyGameEngine = ({
 
         // モンスターの補充
         const newMonsterQueue = [...stateAfterAttack.monsterQueue];
+        if (stateAfterAttack.playMode === 'practice' && newMonsterQueue.length === 0) {
+          newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
+        }
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
         const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
 
@@ -1711,7 +1750,12 @@ export const useFantasyGameEngine = ({
 
   // エフェクトの分離：enemyGaugeTimer専用
   useEffect(() => {
-    if (!gameState.isGameActive || !gameState.currentStage || (isReady && gameState.currentStage.mode === 'single')) {
+    if (
+      !gameState.isGameActive ||
+      !gameState.currentStage ||
+      gameState.playMode === 'practice' ||
+      isReady
+    ) {
       if (enemyGaugeTimer) {
         clearInterval(enemyGaugeTimer);
         setEnemyGaugeTimer(null);
