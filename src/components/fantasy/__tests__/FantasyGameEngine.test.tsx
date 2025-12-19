@@ -1,7 +1,5 @@
-import React from 'react';
-import { render, waitFor } from '@testing-library/react';
-import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import FantasyGameEngine from '../FantasyGameEngine';
+import { vi, describe, it, expect, beforeEach, afterAll } from 'vitest';
+import { preloadMonsterImages } from '../FantasyGameEngine';
 import { getStageMonsterIds } from '@/data/monsters';
 
 // Mock monster data
@@ -63,17 +61,6 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
     simultaneousMonsterCount: 1,
   };
 
-  const mockCallbacks = {
-    onGameEnd: vi.fn(),
-    onChordCorrect: vi.fn(),
-    onChordIncorrect: vi.fn(),
-    onPlayerDamage: vi.fn(),
-    onEnemyDeath: vi.fn(),
-    onEnemyAttack: vi.fn(),
-    onKeyPress: vi.fn(),
-    onKeyRelease: vi.fn(),
-  };
-
     const OriginalImage = global.Image;
 
     beforeEach(() => {
@@ -88,33 +75,15 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
     });
 
     it('should preload monster images using Image API', async () => {
-      const { container } = render(
-      <FantasyGameEngine
-        stage={mockStage}
-        currentSongId="test-song"
-        onGameEnd={mockCallbacks.onGameEnd}
-        onChordCorrect={mockCallbacks.onChordCorrect}
-        onChordIncorrect={mockCallbacks.onChordIncorrect}
-        onPlayerDamage={mockCallbacks.onPlayerDamage}
-        onEnemyDeath={mockCallbacks.onEnemyDeath}
-        onEnemyAttack={mockCallbacks.onEnemyAttack}
-        onKeyPress={mockCallbacks.onKeyPress}
-        onKeyRelease={mockCallbacks.onKeyRelease}
-      />
-    );
+      const monsterIds = getStageMonsterIds(mockStage.enemyCount);
+      await preloadMonsterImages(monsterIds, new Map());
 
-      await waitFor(() => {
-        expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
-      });
-      await waitFor(() => {
-        expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
-      });
+      expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
+      expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
       const expectedPaths = ['monster_01', 'monster_02', 'monster_03'].map(
         (id) => expect.stringContaining(`monster_icons/${id}.webp`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(expectedPaths));
-
-      expect(container).toBeTruthy();
     });
 
     it('should fall back to PNG when WebP load fails', async () => {
@@ -122,31 +91,14 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
         (id) => `${import.meta.env.BASE_URL}monster_icons/${id}.webp`
       );
       failingWebp.forEach((src) => MockImage.failingSources.add(src));
+      const monsterIds = getStageMonsterIds(mockStage.enemyCount);
+      await preloadMonsterImages(monsterIds, new Map());
 
-      const { container } = render(
-      <FantasyGameEngine
-        stage={mockStage}
-        currentSongId="test-song"
-        onGameEnd={mockCallbacks.onGameEnd}
-        onChordCorrect={mockCallbacks.onChordCorrect}
-        onChordIncorrect={mockCallbacks.onChordIncorrect}
-        onPlayerDamage={mockCallbacks.onPlayerDamage}
-        onEnemyDeath={mockCallbacks.onEnemyDeath}
-        onEnemyAttack={mockCallbacks.onEnemyAttack}
-        onKeyPress={mockCallbacks.onKeyPress}
-        onKeyRelease={mockCallbacks.onKeyRelease}
-      />
-    );
-
-      await waitFor(() => {
-        expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
-      });
+      expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
       const pngPaths = ['monster_01', 'monster_02', 'monster_03'].map(
         (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(pngPaths));
-
-      expect(container).toBeTruthy();
     });
 
     it('should handle complete failure of monster image loading', async () => {
@@ -154,26 +106,8 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
         MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.webp`);
         MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.png`);
       });
-
-      const { container } = render(
-      <FantasyGameEngine
-        stage={mockStage}
-        currentSongId="test-song"
-        onGameEnd={mockCallbacks.onGameEnd}
-        onChordCorrect={mockCallbacks.onChordCorrect}
-        onChordIncorrect={mockCallbacks.onChordIncorrect}
-        onPlayerDamage={mockCallbacks.onPlayerDamage}
-        onEnemyDeath={mockCallbacks.onEnemyDeath}
-        onEnemyAttack={mockCallbacks.onEnemyAttack}
-        onKeyPress={mockCallbacks.onKeyPress}
-        onKeyRelease={mockCallbacks.onKeyRelease}
-      />
-    );
-
-      await waitFor(() => {
-        expect(getStageMonsterIds).toHaveBeenCalled();
-      });
-
-      expect(container).toBeTruthy();
+      const monsterIds = getStageMonsterIds(mockStage.enemyCount);
+      await expect(preloadMonsterImages(monsterIds, new Map())).rejects.toBeInstanceOf(Error);
+      expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
     });
 });

@@ -72,7 +72,6 @@ const LessonPage: React.FC = () => {
     if (selectedCourse?.id) {
       loadLessons(selectedCourse.id);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedCourse?.id]);
 
   // リアルタイム更新監視を追加（最適化版）

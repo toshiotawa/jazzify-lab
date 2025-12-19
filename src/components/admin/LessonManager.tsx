@@ -106,7 +106,6 @@ export const LessonManager: React.FC = () => {
 
   useEffect(() => {
     loadInitialData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   useEffect(() => {

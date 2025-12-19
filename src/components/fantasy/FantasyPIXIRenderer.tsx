@@ -787,7 +787,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       renderer.destroy();
       rendererRef.current = null;
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
 
   useEffect(() => {

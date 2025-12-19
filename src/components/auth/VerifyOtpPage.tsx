@@ -25,7 +25,6 @@ const VerifyOtpPage: React.FC = () => {
       toast.error('不正なアクセスです。再度操作をお試しください。');
       navigate('/login', { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
   const handleVerifyOtp = async () => {

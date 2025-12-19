@@ -23,7 +23,7 @@ const ContactPage: React.FC = () => {
         <div className="container mx-auto px-6 py-12">
           <h1 className="text-3xl font-bold mb-6">お問い合わせ</h1>
           <p className="text-gray-300 mb-6">ご質問・ご要望などありましたら、以下のフォームからお送りください。（プレースホルダー）</p>
-          <form name="contact" method="POST" data-netlify="true" className="space-y-4 max-w-xl" netlify-honeypot="bot-field">
+          <form name="contact" method="POST" data-netlify="true" data-netlify-honeypot="bot-field" className="space-y-4 max-w-xl">
             <input type="hidden" name="form-name" value="contact" />
             <p className="hidden">
               <label>Don’t fill this out if you're human: <input name="bot-field" /></label>

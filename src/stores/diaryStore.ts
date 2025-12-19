@@ -195,9 +195,7 @@ export const useDiaryStore = create<DiaryState & DiaryActions>()(
           const d = s.diaries.find(x => x.id === diaryId);
           if (d) {
             d.content = '';
-            // @ts-expect-error optional at runtime
             d.is_deleted = true;
-            // @ts-expect-error optional at runtime
             d.image_url = undefined;
           }
           // コメント・いいね一覧は残す（文脈維持）。必要ならクリア

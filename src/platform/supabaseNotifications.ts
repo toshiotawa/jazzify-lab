@@ -4,7 +4,7 @@ export interface NotificationItem {
   id: string;
   user_id: string;      // recipient
   actor_id: string;
-  type: 'diary_like' | 'diary_comment' | 'comment_thread_reply' | 'guild_post_like' | 'guild_post_comment';
+  type: 'diary_like' | 'diary_comment' | 'comment_thread_reply';
   diary_id?: string | null;
   comment_id?: string | null;
   created_at: string;
@@ -32,7 +32,7 @@ export async function fetchLatestNotifications(limit = 10): Promise<Notification
   if (error) throw error;
   // 空のINクエリ防止
   const actorIds = (data || []).map(n => n.actor_id);
-  let actorMap = new Map<string, { nickname: string; avatar_url: string | null }>();
+  const actorMap = new Map<string, { nickname: string; avatar_url: string | null }>();
   if (actorIds.length > 0) {
     const { data: profiles } = await supabase
       .from('profiles')

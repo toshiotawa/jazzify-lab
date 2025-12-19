@@ -208,7 +208,7 @@ function extractChordPositions(doc: Document): MusicXmlChordPosition[] {
           const kind = kindElement?.textContent || 'major';
           
           // 表示用テキストを作成
-          let displayText = root + kindText;
+          const displayText = root + kindText;
           
           const chordSymbol: ChordSymbol = {
             id: `chord-${measureNumber}-${elementIndex}`,

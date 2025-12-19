@@ -115,7 +115,10 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
           if (parsed && bass) {
             const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
             // ルート,3rd,5th,... の音名を pitch class で比較
-            const toPc = (name: string) => parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi! % 12;
+            const toPc = (name: string): number => {
+              const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
+              return typeof midi === 'number' ? (midi % 12) : 0;
+            };
             const bassPc = bass.midi % 12;
             const pcs = chordNotes.map(toPc);
             const idx = pcs.findIndex((pc) => pc === bassPc);

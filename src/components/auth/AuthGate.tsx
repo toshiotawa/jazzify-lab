@@ -123,6 +123,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const [country, setCountry] = useState<string>(() => localStorage.getItem('signup_country') || 'JP');
   const [submitting, setSubmitting] = useState(false);
   const countryLocale = locale === 'ja' ? 'ja' : 'en';
+  const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
+  const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
   const nicknamePlaceholder = isEnglishCopy ? 'Nickname (required)' : 'ニックネーム（必須）';
   const countryLabel = isEnglishCopy ? 'Country' : '国';
   const countryHelper = isEnglishCopy

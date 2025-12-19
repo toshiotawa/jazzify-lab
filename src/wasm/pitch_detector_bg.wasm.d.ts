@@ -1,5 +1,3 @@
-/* tslint:disable */
-/* eslint-disable */
 export const memory: WebAssembly.Memory;
 export const get_ring_buffer_ptr: () => number;
 export const get_ring_buffer_size: () => number;

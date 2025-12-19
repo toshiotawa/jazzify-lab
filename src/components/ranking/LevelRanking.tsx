@@ -89,13 +89,11 @@ const LevelRanking: React.FC = () => {
     if (open && user && !isGuest) {
       resetAndLoad();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, user, isGuest, isStandardGlobal]);
 
   // ソートキー変更時は再フェッチせず再ソートのみ
   useEffect(() => {
     setEntries(prev => sortEntries(prev, sortKey));
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sortKey]);
 
   if (!open) return null;
@@ -257,12 +255,6 @@ const LevelRanking: React.FC = () => {
                 className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
               >
                 <FaPlus /> さらに読み込む（50件）
-              </button>
-              <button
-                onClick={() => { window.location.hash = '#guilds-ranking'; }}
-                className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-purple-700 text-white hover:bg-purple-600"
-              >
-                ギルドランキングへ
               </button>
             </div>
             {/* ソート切り替えボタン */}

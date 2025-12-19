@@ -568,19 +568,6 @@ export async function claimReward(missionId: string) {
     const rewardXP = mission?.reward_multiplier || 2000;
     const { addXp } = await import('@/platform/supabaseXp');
 
-    // ギルド倍率
-    let guildMultiplier = 1;
-    try {
-      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
-      const { computeGuildBonus } = await import('@/utils/guildBonus');
-      const myGuild = await getMyGuild();
-      if (myGuild) {
-        const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
-        const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
-      }
-    } catch {}
-
     const xpResult = await addXp({
       songId: null,
       baseXp: rewardXP,
@@ -588,7 +575,7 @@ export async function claimReward(missionId: string) {
       rankMultiplier: 1,
       transposeMultiplier: 1,
       membershipMultiplier: 1,
-      missionMultiplier: 1 * guildMultiplier,
+      missionMultiplier: 1,
       reason: 'mission_clear',
     });
     
