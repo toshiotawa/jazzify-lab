@@ -10,7 +10,6 @@ type PlayMode = 'challenge' | 'practice';
 type ViewState =
   | { type: 'loading' }
   | { type: 'blocked'; reason: 'invalid' | 'already_played' | 'missing_stage' }
-  | { type: 'ready'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty }
   | { type: 'playing'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty; playMode: PlayMode }
   | { type: 'result'; difficulty: DailyChallengeDifficulty; score: number };
 
@@ -90,7 +89,8 @@ const DailyChallengeMain: React.FC = () => {
         return;
       }
 
-      setView({ type: 'ready', stage: toEngineStage(stage), difficulty });
+      // playModeは'challenge'で初期化するが、autoStart=falseなのでユーザーが選択するまでゲームは開始されない
+      setView({ type: 'playing', stage: toEngineStage(stage), difficulty, playMode: 'challenge' });
     };
 
     run().catch(() => setView({ type: 'blocked', reason: 'invalid' }));
@@ -130,46 +130,6 @@ const DailyChallengeMain: React.FC = () => {
     );
   }
 
-  if (view.type === 'ready') {
-    return (
-      <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-        <div className="text-white text-center max-w-md w-full">
-          <h2 className="text-3xl font-bold mb-4 font-sans">デイリーチャレンジ</h2>
-          <div className="text-lg mb-2 text-yellow-300">{difficultyLabel(view.difficulty)}</div>
-          <p className="text-sm text-gray-200 mb-8">モードを選択してください</p>
-          
-          <div className="flex flex-col gap-4">
-            <button
-              className="w-full px-6 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transition-all"
-              onClick={() => {
-                setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: 'challenge' });
-              }}
-            >
-              🎯 挑戦する（2分）
-            </button>
-            <button
-              className="w-full px-6 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-lg rounded-lg shadow-lg transition-all border border-white/20"
-              onClick={() => {
-                setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: 'practice' });
-              }}
-            >
-              🎹 練習する（時間無制限）
-            </button>
-          </div>
-          
-          <button
-            className="mt-8 px-4 py-2 text-gray-300 hover:text-white transition-colors"
-            onClick={() => {
-              window.location.hash = '#dashboard';
-            }}
-          >
-            ← ダッシュボードに戻る
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   if (view.type === 'result') {
     return (
       <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
@@ -198,29 +158,28 @@ const DailyChallengeMain: React.FC = () => {
 
   return (
     <FantasyGameScreen
-      key={`${view.difficulty}:${today}:${view.playMode}`}
+      key={`${view.difficulty}:${today}`}
       stage={view.stage}
-      autoStart
+      autoStart={false}
       playMode={view.playMode}
-      onPlayModeChange={() => {}}
+      onPlayModeChange={(mode) => {
+        // ユーザーがモードを選択したときにplayModeを更新
+        setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: mode });
+      }}
       onSwitchToChallenge={() => {
         setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: 'challenge' });
       }}
       uiMode="daily_challenge"
       timeLimitSeconds={isPracticeMode ? Infinity : 120}
       onBackToStageSelect={() => {
-        // 練習モードの場合は選択画面に戻る、挑戦モードの場合はダッシュボードに戻る
-        if (isPracticeMode) {
-          setView({ type: 'ready', stage: view.stage, difficulty: view.difficulty });
-        } else {
-          window.location.hash = '#dashboard';
-        }
+        window.location.hash = '#dashboard';
       }}
       onGameComplete={async (_result, _score, correctAnswers) => {
         const score = correctAnswers;
-        // 練習モードの場合はスコアを保存しない
+        // 練習モードの場合はスコアを保存しない、スタートボタン画面に戻す
         if (isPracticeMode) {
-          setView({ type: 'ready', stage: view.stage, difficulty: view.difficulty });
+          // リロードして選択画面に戻す
+          window.location.reload();
           return;
         }
         try {

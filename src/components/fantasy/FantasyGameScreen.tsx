@@ -1129,7 +1129,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               }}
               className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
             >
-              {isEnglishCopy ? 'Challenge' : '挑戦'}
+              {isDailyChallenge 
+                ? '🎯 挑戦する（2分）' 
+                : (isEnglishCopy ? 'Challenge' : '挑戦')}
             </button>
             <button
               onClick={() => {
@@ -1138,7 +1140,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               }}
               className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-lg rounded-lg shadow-lg transform hover:scale-105 transition-all border border-white/20"
             >
-              {isEnglishCopy ? 'Practice' : '練習する'}
+              {isDailyChallenge 
+                ? '🎹 練習する（時間無制限）' 
+                : (isEnglishCopy ? 'Practice' : '練習する')}
             </button>
           </div>
           
