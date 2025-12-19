@@ -1353,7 +1353,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       )}
                       
                       {/* HPゲージ */}
-                      {!isDailyChallenge && (() => {
+                      {(() => {
                         const isLandscape = window.innerWidth > window.innerHeight;
                         // 横画面のモバイルではUI圧縮中だが、バーは従来より大きめに
                         const gaugeHeightClass = (isMobile && isLandscape)
