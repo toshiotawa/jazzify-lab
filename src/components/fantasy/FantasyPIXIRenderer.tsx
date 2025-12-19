@@ -50,6 +50,7 @@ interface MonsterVisual {
   flashUntil: number;
   hitBounceUntil: number; // 攻撃成功時のバウンスアニメーション終了時刻
   defeated: boolean;
+  defeatedAt?: number; // 撃破アニメ開始時刻
   enraged: boolean;
   enrageScale: number;
   magicText?: {
@@ -148,12 +149,14 @@ export class FantasyPIXIInstance {
   }
 
   setActiveMonsters(monsters: MonsterState[]): void {
+    const now = performance.now();
+    const existingById = new Map(this.monsters.map((m) => [m.id, m] as const));
     const sorted = [...monsters].sort((a, b) => a.position.localeCompare(b.position));
     const count = sorted.length || 1;
     const spacing = this.width / (count + 1);
     const visuals: MonsterVisual[] = [];
     sorted.forEach((monster, index) => {
-      const existing = this.monsters.find((m) => m.id === monster.id);
+      const existing = existingById.get(monster.id);
       const image = this.ensureImage(monster.icon);
       const targetX = spacing * (index + 1);
       const isEnraged = this.enragedState[monster.id] || false;
@@ -168,12 +171,24 @@ export class FantasyPIXIInstance {
         flashUntil: existing?.flashUntil ?? 0,
         hitBounceUntil: existing?.hitBounceUntil ?? 0, // バウンスアニメーション
         defeated: monster.currentHp <= 0,
+        defeatedAt: existing?.defeatedAt,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
         magicText: existing?.magicText,
         damagePopup: existing?.damagePopup
       });
     });
+
+    // 既に倒された（または倒されつつある）モンスターを少しの間保持してフェードアウトさせる
+    const FADE_MS = 450;
+    for (const prev of this.monsters) {
+      const stillAliveInNext = visuals.some((v) => v.id === prev.id);
+      if (stillAliveInNext) continue;
+      if (!prev.defeated || !prev.defeatedAt) continue;
+      if (now - prev.defeatedAt > FADE_MS) continue;
+      visuals.push(prev);
+    }
+
     this.monsters = visuals;
   }
 
@@ -249,6 +264,7 @@ export class FantasyPIXIInstance {
       
       if (defeated && !visual.defeated) {
         visual.defeated = true;
+        visual.defeatedAt = performance.now();
         setTimeout(() => {
           this.onMonsterDefeated?.();
         }, 400);
@@ -403,6 +419,18 @@ export class FantasyPIXIInstance {
       
       ctx.save();
       ctx.translate(monster.x, monster.y);
+
+      // 撃破フェード（倒されたモンスターは一定時間で消える）
+      if (monster.defeated && monster.defeatedAt) {
+        const FADE_MS = 450;
+        const p = Math.min(1, Math.max(0, (now - monster.defeatedAt) / FADE_MS));
+        const alpha = 1 - p;
+        if (alpha <= 0.01) {
+          ctx.restore();
+          return;
+        }
+        ctx.globalAlpha = alpha;
+      }
       
       // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
       

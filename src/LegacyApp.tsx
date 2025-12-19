@@ -30,6 +30,7 @@ import GuildHistory from '@/components/guild/GuildHistory';
 import MyGuildHistory from '@/components/guild/MyGuildHistory';
 import GuildPage from '@/components/guild/GuildPage';
 import GuildInfoPage from '@/components/guild/GuildInfoPage';
+import DailyChallengeMain from '@/components/dailyChallenge/DailyChallengeMain';
 
 /**
  * メインアプリケーションコンポーネント
@@ -287,10 +288,14 @@ const App: React.FC = () => {
     case '#admin-users':
     case '#admin-announcements':
     case '#admin-courses':
+    case '#admin-dayly-fantasy':
       MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
       break;
     case '#fantasy':
       MainContent = isFree ? <Dashboard /> : <FantasyMain />;
+      break;
+    case '#daily-challenge':
+      MainContent = isFree ? <Dashboard /> : <DailyChallengeMain />;
       break;
     case '#Story':
       MainContent = isFree ? <Dashboard /> : <StoryPage />;
