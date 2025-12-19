@@ -5,10 +5,12 @@ import { useToast } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, FantasyStage } from '@/types';
 import { createDailyChallengeRecord, fetchDailyChallengeRecordsSince, fetchDailyChallengeStage } from '@/platform/supabaseDailyChallenge';
 
+type PlayMode = 'challenge' | 'practice';
+
 type ViewState =
   | { type: 'loading' }
   | { type: 'blocked'; reason: 'invalid' | 'already_played' | 'missing_stage' }
-  | { type: 'playing'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty }
+  | { type: 'playing'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty; playMode: PlayMode }
   | { type: 'result'; difficulty: DailyChallengeDifficulty; score: number };
 
 const toLocalDateString = (d: Date): string => {
@@ -87,7 +89,8 @@ const DailyChallengeMain: React.FC = () => {
         return;
       }
 
-      setView({ type: 'playing', stage: toEngineStage(stage), difficulty });
+      // playModeは'challenge'で初期化するが、autoStart=falseなのでユーザーが選択するまでゲームは開始されない
+      setView({ type: 'playing', stage: toEngineStage(stage), difficulty, playMode: 'challenge' });
     };
 
     run().catch(() => setView({ type: 'blocked', reason: 'invalid' }));
@@ -151,21 +154,34 @@ const DailyChallengeMain: React.FC = () => {
     );
   }
 
+  const isPracticeMode = view.playMode === 'practice';
+
   return (
     <FantasyGameScreen
       key={`${view.difficulty}:${today}`}
       stage={view.stage}
-      autoStart
-      playMode="challenge"
-      onPlayModeChange={() => {}}
-      onSwitchToChallenge={() => {}}
+      autoStart={false}
+      playMode={view.playMode}
+      onPlayModeChange={(mode) => {
+        // ユーザーがモードを選択したときにplayModeを更新
+        setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: mode });
+      }}
+      onSwitchToChallenge={() => {
+        setView({ type: 'playing', stage: view.stage, difficulty: view.difficulty, playMode: 'challenge' });
+      }}
       uiMode="daily_challenge"
-      timeLimitSeconds={120}
+      timeLimitSeconds={isPracticeMode ? Infinity : 120}
       onBackToStageSelect={() => {
         window.location.hash = '#dashboard';
       }}
       onGameComplete={async (_result, _score, correctAnswers) => {
         const score = correctAnswers;
+        // 練習モードの場合はスコアを保存しない、スタートボタン画面に戻す
+        if (isPracticeMode) {
+          // リロードして選択画面に戻す
+          window.location.reload();
+          return;
+        }
         try {
           const res = await createDailyChallengeRecord({
             playedOn: today,
