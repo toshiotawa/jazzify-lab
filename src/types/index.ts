@@ -545,6 +545,19 @@ export interface FantasyStage {
   usage_type?: FantasyStageUsageType;
 }
 
+// ===== デイリーチャレンジ（日次記録） =====
+
+export type DailyChallengeDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export interface DailyChallengeRecord {
+  id: string;
+  user_id: string;
+  played_on: string; // YYYY-MM-DD
+  difficulty: DailyChallengeDifficulty;
+  score: number;
+  created_at: string;
+}
+
 export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）

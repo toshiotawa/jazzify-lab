@@ -32,6 +32,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
+import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 
 /**
  * ダッシュボード画面
@@ -502,6 +503,9 @@ const Dashboard: React.FC = () => {
                     </p>
                   </button>
               </div>
+
+              {/* 記録（デイリーチャレンジ） */}
+              <DailyChallengeRecordsSection />
             </>
           )}
 
