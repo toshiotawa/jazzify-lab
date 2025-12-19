@@ -22,6 +22,10 @@ interface FantasySettingsModalProps {
   bgmVolume?: number; // BGM音量設定をpropsで受け取る
   noteNameLang?: DisplayLang; // 音名表示言語
   simpleNoteName?: boolean; // 簡易表記
+  // デイリーチャレンジ用の追加props
+  isDailyChallenge?: boolean; // デイリーチャレンジモードかどうか
+  isPracticeMode?: boolean; // 練習モードかどうか
+  showKeyboardGuide?: boolean; // 鍵盤上にガイドを表示するかどうか
 }
 
 interface FantasySettings {
@@ -31,6 +35,7 @@ interface FantasySettings {
   bgmVolume: number; // BGM音量
   noteNameLang: DisplayLang; // 音名表示言語
   simpleNoteName: boolean; // 簡易表記
+  showKeyboardGuide?: boolean; // 鍵盤上にガイドを表示（デイリーチャレンジ用）
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -44,7 +49,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   soundEffectVolume = 0.8, // デフォルト80%効果音音量
   bgmVolume = 0.7, // デフォルト70%BGM音量
   noteNameLang = 'en', // デフォルト英語表記
-  simpleNoteName = false // デフォルト簡易表記OFF
+  simpleNoteName = false, // デフォルト簡易表記OFF
+  // デイリーチャレンジ用
+  isDailyChallenge = false,
+  isPracticeMode = false,
+  showKeyboardGuide = false
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
@@ -52,7 +61,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
     bgmVolume: bgmVolume, // propsから受け取ったBGM音量を使用
     noteNameLang: noteNameLang,
-    simpleNoteName: simpleNoteName
+    simpleNoteName: simpleNoteName,
+    showKeyboardGuide: showKeyboardGuide
   });
   
   // propsのmidiDeviceIdが変更されたらsettingsも更新
@@ -84,6 +94,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, simpleNoteName: simpleNoteName }));
   }, [simpleNoteName]);
+
+  // propsのshowKeyboardGuideが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, showKeyboardGuide: showKeyboardGuide }));
+  }, [showKeyboardGuide]);
 
   // 設定変更ハンドラー
   const handleSettingChange = (key: keyof FantasySettings, value: any) => {
@@ -124,7 +139,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
         onClick={(e) => e.stopPropagation()} // モーダル内のクリックは伝播を止める
       >
         <div className="flex justify-between items-center mb-4 sticky top-0 bg-gray-800 pb-2">
-          <h2 className="text-xl font-bold text-white">ファンタジーモード設定</h2>
+          <h2 className="text-xl font-bold text-white">
+            {isDailyChallenge ? 'デイリーチャレンジ設定' : 'ファンタジーモード設定'}
+          </h2>
           <button
             onClick={onClose}
             className="text-gray-400 hover:text-white transition-colors"
@@ -205,57 +222,90 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </p>
           </div>
 
-          {/* 音名表示設定 */}
-          <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              ヒント音名表示言語
-            </label>
-            <div className="flex space-x-4">
-              <label className="flex items-center">
+          {/* 鍵盤上にガイドを表示（デイリーチャレンジ時のみ表示） */}
+          {isDailyChallenge && (
+            <div>
+              <label className={cn(
+                "flex items-center space-x-2",
+                !isPracticeMode && "opacity-50 cursor-not-allowed"
+              )}>
                 <input
-                  type="radio"
-                  name="noteNameLang"
-                  value="en"
-                  checked={settings.noteNameLang === 'en'}
-                  onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
-                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                  type="checkbox"
+                  checked={settings.showKeyboardGuide}
+                  onChange={(e) => handleSettingChange('showKeyboardGuide', e.target.checked)}
+                  disabled={!isPracticeMode}
+                  className={cn(
+                    "rounded border-gray-600 text-blue-600 focus:ring-blue-500",
+                    !isPracticeMode && "cursor-not-allowed"
+                  )}
                 />
-                <span className="text-sm text-white">英語 (C, D, E)</span>
+                <span className="text-sm font-medium text-white">
+                  鍵盤上にガイドを表示
+                </span>
               </label>
-              <label className="flex items-center">
-                <input
-                  type="radio"
-                  name="noteNameLang"
-                  value="solfege"
-                  checked={settings.noteNameLang === 'solfege'}
-                  onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
-                  className="mr-2 text-blue-600 focus:ring-blue-500"
-                />
-                <span className="text-sm text-white">ドレミ</span>
-              </label>
+              <p className="text-xs text-gray-400 mt-1">
+                {isPracticeMode 
+                  ? '練習モード時のみ、押すべき鍵盤をハイライト表示します'
+                  : '挑戦モードでは常にOFFです（練習モードでのみ変更可能）'}
+              </p>
             </div>
-            <p className="text-xs text-gray-400 mt-1">
-              ヒント表示の音名言語を切り替えます（コードネームは常に英語表記）
-            </p>
-          </div>
+          )}
 
-          {/* 簡易表記設定 */}
-          <div>
-            <label className="flex items-center space-x-2">
-              <input
-                type="checkbox"
-                checked={settings.simpleNoteName}
-                onChange={(e) => handleSettingChange('simpleNoteName', e.target.checked)}
-                className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
-              />
-              <span className="text-sm font-medium text-white">
-                ヒント音名の簡易表記
-              </span>
-            </label>
-            <p className="text-xs text-gray-400 mt-1">
-              ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
-            </p>
-          </div>
+          {/* 音名表示設定（デイリーチャレンジ以外で表示） */}
+          {!isDailyChallenge && (
+            <div>
+              <label className="block text-sm font-medium text-white mb-2">
+                ヒント音名表示言語
+              </label>
+              <div className="flex space-x-4">
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="noteNameLang"
+                    value="en"
+                    checked={settings.noteNameLang === 'en'}
+                    onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-white">英語 (C, D, E)</span>
+                </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    name="noteNameLang"
+                    value="solfege"
+                    checked={settings.noteNameLang === 'solfege'}
+                    onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
+                    className="mr-2 text-blue-600 focus:ring-blue-500"
+                  />
+                  <span className="text-sm text-white">ドレミ</span>
+                </label>
+              </div>
+              <p className="text-xs text-gray-400 mt-1">
+                ヒント表示の音名言語を切り替えます（コードネームは常に英語表記）
+              </p>
+            </div>
+          )}
+
+          {/* 簡易表記設定（デイリーチャレンジ以外で表示） */}
+          {!isDailyChallenge && (
+            <div>
+              <label className="flex items-center space-x-2">
+                <input
+                  type="checkbox"
+                  checked={settings.simpleNoteName}
+                  onChange={(e) => handleSettingChange('simpleNoteName', e.target.checked)}
+                  className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm font-medium text-white">
+                  ヒント音名の簡易表記
+                </span>
+              </label>
+              <p className="text-xs text-gray-400 mt-1">
+                ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
+              </p>
+            </div>
+          )}
         </div>
 
         <div className="flex justify-end space-x-3 mt-6">
