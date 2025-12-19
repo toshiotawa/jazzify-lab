@@ -392,7 +392,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+    isReady,
+    // デイリーチャレンジは「倒しても終了しない」（終了条件はタイムリミットで制御）
+    endlessChallenge: isDailyChallenge && playMode === 'challenge'
   });
 
   // ===== 開始後のみ重い初期化を行う（デイリーチャレンジ初期表示を軽くする） =====
