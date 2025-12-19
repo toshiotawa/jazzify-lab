@@ -180,6 +180,11 @@ interface FantasyGameEngineProps {
   onEnemyAttack: (attackingMonsterId?: string) => void;
   // ★ 追加: Ready フェーズ中フラグ
   isReady?: boolean;
+  /**
+   * ★ 追加: クリア条件を発生させず無限継続する（主にデイリーチャレンジ用）
+   * - クリア/終了は外部（タイムリミット等）で制御する想定
+   */
+  endlessChallenge?: boolean;
 }
 
 // ===== コード定義データ =====
@@ -516,7 +521,8 @@ export const useFantasyGameEngine = ({
   onGameComplete,
   onEnemyAttack,
   displayOpts = { lang: 'en', simple: false },
-  isReady = false
+  isReady = false,
+  endlessChallenge = false
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   // ステージで使用するモンスターIDを保持
@@ -525,6 +531,7 @@ export const useFantasyGameEngine = ({
   const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   // 怒り状態の自動解除タイマーをモンスターIDごとに管理
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  const endlessChallengeRef = useRef<boolean>(false);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -696,7 +703,7 @@ export const useFantasyGameEngine = ({
         const remainingMonsters = updatedMonsters.filter(m => m.id !== currentMonster.id);
         const newMonsterQueue = [...prevState.monsterQueue];
 
-        if (prevState.playMode === 'practice' && newMonsterQueue.length === 0) {
+        if ((prevState.playMode === 'practice' || endlessChallengeRef.current) && newMonsterQueue.length === 0) {
           newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
         }
 
@@ -721,7 +728,7 @@ export const useFantasyGameEngine = ({
 
         // ゲームクリア判定
         const newEnemiesDefeated = prevState.enemiesDefeated + 1;
-        if (newEnemiesDefeated >= prevState.totalEnemies) {
+        if (!endlessChallengeRef.current && newEnemiesDefeated >= prevState.totalEnemies) {
           const finalState = {
             ...prevState,
             activeMonsters: [],
@@ -807,6 +814,8 @@ export const useFantasyGameEngine = ({
     // 旧 BGM を確実に殺す
     bgmManager.stop();
 
+    endlessChallengeRef.current = playMode === 'challenge' && endlessChallenge;
+
     // 新しいステージ定義から値を取得
     const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : stage.enemyCount;
     const enemyHp = stage.enemyHp;
@@ -815,7 +824,7 @@ export const useFantasyGameEngine = ({
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = (() => {
-      if (playMode === 'practice') {
+      if (playMode === 'practice' || endlessChallengeRef.current) {
         // 無限湧きのため、固定長のバッチだけ確保（以降はフォールバックのランダムでもOK）
         return getStageMonsterIds(PRACTICE_QUEUE_BATCH_SIZE);
       }
@@ -835,7 +844,7 @@ export const useFantasyGameEngine = ({
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
-    const monsterQueue = playMode === 'practice'
+    const monsterQueue = playMode === 'practice' || endlessChallengeRef.current
       ? createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE)
       : (() => {
           const monsterIndices = Array.from({ length: stage.enemyCount }, (_, i) => i);
@@ -1022,7 +1031,7 @@ export const useFantasyGameEngine = ({
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
     setGameState(prevState => {
-      const isComplete = prevState.enemiesDefeated >= prevState.totalEnemies;
+      const isComplete = !endlessChallengeRef.current && prevState.enemiesDefeated >= prevState.totalEnemies;
       
       if (isComplete) {
         // ゲームクリア
@@ -1565,7 +1574,7 @@ export const useFantasyGameEngine = ({
 
         // モンスターの補充
         const newMonsterQueue = [...stateAfterAttack.monsterQueue];
-        if (stateAfterAttack.playMode === 'practice' && newMonsterQueue.length === 0) {
+        if ((stateAfterAttack.playMode === 'practice' || endlessChallengeRef.current) && newMonsterQueue.length === 0) {
           newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
         }
         const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
@@ -1601,7 +1610,7 @@ export const useFantasyGameEngine = ({
         stateAfterAttack.enemyGauge = 0;
 
         // ゲームクリア判定
-        if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
+        if (!endlessChallengeRef.current && stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
             const finalState = { ...stateAfterAttack, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, activeMonsters: [] };
             onGameComplete('clear', finalState);
             return finalState;
@@ -1628,7 +1637,7 @@ export const useFantasyGameEngine = ({
       const newEnemiesDefeated = prevState.enemiesDefeated + 1;
 
       // ゲームクリア判定
-      if (newEnemiesDefeated >= prevState.totalEnemies) {
+      if (!endlessChallengeRef.current && newEnemiesDefeated >= prevState.totalEnemies) {
         const finalState = {
           ...prevState,
           isGameActive: false,
