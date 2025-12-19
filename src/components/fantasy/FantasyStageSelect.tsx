@@ -53,6 +53,9 @@ interface FantasyStageSelectProps {
 // ===== 定数 =====
 // WIZARD_RANKS, getRankFromClearedStages, RANK_COLORS, RANK_NAMESの定義を削除
 
+const isDailyChallengeStageNumber = (stageNumber: string | null | undefined): boolean =>
+  (stageNumber ?? '').toUpperCase().startsWith('DC-');
+
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
   return stages.reduce((groups, stage) => {
@@ -120,7 +123,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
         }
         
-          const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+          const filteredStagesData = (stagesData || []).filter(
+            (stage: { stage_number?: string | null }) => !isDailyChallengeStageNumber(stage.stage_number),
+          );
+          const convertedStages: FantasyStage[] = filteredStagesData.map((stage: any) => ({
             id: stage.id,
             stageNumber: stage.stage_number,
             name: stage.name,
@@ -218,7 +224,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+        const filteredStagesData = (stagesData || []).filter(
+          (stage: { stage_number?: string | null }) => !isDailyChallengeStageNumber(stage.stage_number),
+        );
+        const convertedStages: FantasyStage[] = filteredStagesData.map((stage: any) => ({
           id: stage.id,
           stageNumber: stage.stage_number,
           name: stage.name,
@@ -286,7 +295,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : (isEnglishCopy ? 'An unknown error occurred.' : '不明なエラーが発生しました');
         setError(errorMessage);
-      console.error('❌ ファンタジーデータ読み込みエラー:', err);
+      devLog.error('❌ ファンタジーデータ読み込みエラー:', err);
     } finally {
       setLoading(false);
       }
@@ -542,8 +551,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const groupedStages = groupStagesByRank(
     (stages || []).filter(s => (s as any).tier === selectedTier)
   );
-  const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
-  const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
+  const selectedRankNumberRaw = Number.parseInt(selectedRank, 10);
+  const selectedRankNumber = Number.isFinite(selectedRankNumberRaw) ? selectedRankNumberRaw : 1;
+  const selectedRankInfo = getFantasyRankInfo(selectedRankNumber, selectedTier);
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
@@ -644,10 +654,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {selectedRank && groupedStages[selectedRank] && (
           <div className={cn(
             "rounded-xl p-4 sm:p-6 bg-gradient-to-br",
-            getRankColor(parseInt(selectedRank))
+            getRankColor(selectedRankNumber)
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank), selectedTier).title}
+             ランク {selectedRank} - {selectedRankInfo.title}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
@@ -664,8 +674,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
               <div className="text-white text-xs sm:text-sm">
-               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).stageName}</p>
-               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).description}</p>
+               <p className="font-semibold mb-1 sm:mb-2">{selectedRankInfo.stageName}</p>
+               <p className="leading-relaxed">{selectedRankInfo.description}</p>
               </div>
             </div>
           </div>
