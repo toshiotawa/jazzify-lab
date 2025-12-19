@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
-import { FantasyStage } from './FantasyGameEngine';
+import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -61,6 +61,7 @@ const FantasyMain: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [playMode, setPlayMode] = useState<FantasyPlayMode>('challenge');
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
@@ -207,6 +208,7 @@ const FantasyMain: React.FC = () => {
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
+    setPlayMode('challenge');
     setGameKey(prevKey => prevKey + 1);
   }, []);
   
@@ -568,10 +570,26 @@ const FantasyMain: React.FC = () => {
                 <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">{nextStageButtonLabel}</button>
               )}
               <button
-                onClick={() => { setShowResult(false); setGameKey(prevKey => prevKey + 1); setPendingAutoStart(true); }}
+                onClick={() => {
+                  setPlayMode('challenge');
+                  setShowResult(false);
+                  setGameKey(prevKey => prevKey + 1);
+                  setPendingAutoStart(true);
+                }}
                 className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
               >
                 {retryButtonLabel}
+              </button>
+              <button
+                onClick={() => {
+                  setPlayMode('practice');
+                  setShowResult(false);
+                  setGameKey(prevKey => prevKey + 1);
+                  setPendingAutoStart(true);
+                }}
+                className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors font-sans border border-white/20"
+              >
+                {isEnglishCopy ? 'Practice' : '練習する'}
               </button>
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
@@ -596,6 +614,13 @@ const FantasyMain: React.FC = () => {
         // ▲▲▲ ここまで ▲▲▲
         stage={currentStage}
         autoStart={pendingAutoStart}   // ★
+        playMode={playMode}
+        onPlayModeChange={setPlayMode}
+        onSwitchToChallenge={() => {
+          setPlayMode('challenge');
+          setGameKey(prevKey => prevKey + 1);
+          setPendingAutoStart(true);
+        }}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}

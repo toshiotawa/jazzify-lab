@@ -305,6 +305,9 @@ const LPFantasyDemo: React.FC = () => {
                   <FantasyGameScreen
                     stage={stage}
                     autoStart
+                    playMode="challenge"
+                    onPlayModeChange={() => {}}
+                    onSwitchToChallenge={() => {}}
                     onGameComplete={handleDemoGameComplete}
                     onBackToStageSelect={closeDemo}
                     noteNameLang="en"

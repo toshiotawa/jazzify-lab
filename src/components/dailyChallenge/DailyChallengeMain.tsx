@@ -156,6 +156,9 @@ const DailyChallengeMain: React.FC = () => {
       key={`${view.difficulty}:${today}`}
       stage={view.stage}
       autoStart
+      playMode="challenge"
+      onPlayModeChange={() => {}}
+      onSwitchToChallenge={() => {}}
       uiMode="daily_challenge"
       timeLimitSeconds={120}
       onBackToStageSelect={() => {
