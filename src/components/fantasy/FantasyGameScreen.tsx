@@ -104,8 +104,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const hasTimeUpFiredRef = useRef(false);
   const gameStateRef = useRef<FantasyGameState | null>(null);
   
-  // BGMManagerからタイミング情報を定期的に取得
+  // BGMManagerからタイミング情報を定期的に取得（未開始時は動かさない）
   useEffect(() => {
+    if (!isReady && !gameStateRef.current?.isGameActive) {
+      return;
+    }
     const interval = setInterval(() => {
       setCurrentBeat(bgmManager.getCurrentBeat());
       setCurrentMeasure(bgmManager.getCurrentMeasure());
@@ -114,7 +117,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         setIsReady(false);
       }
     }, 50); // 50ms間隔で更新
-    
     return () => clearInterval(interval);
   }, [isReady]);
   
@@ -180,118 +182,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // 高速化のため playNote 関数を事前に保持する Ref
   const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(null);
-
-  // マウント時に playNote をロード
-  useEffect(() => {
-    import('@/utils/MidiController').then(({ playNote }) => {
-      playNoteRef.current = playNote;
-    }).catch(console.error);
-  }, []);
-  
-  // MIDIControllerの初期化と管理
-  useEffect(() => {
-    // MIDIControllerのインスタンスを作成（一度だけ）
-    if (!midiControllerRef.current) {
-      const controller = new MIDIController({
-        onNoteOn: (note: number, velocity?: number) => {
-          devLog.debug('🎹 MIDI Note On:', { note, velocity });
-          if (handleNoteInputRef.current) {
-            handleNoteInputRef.current(note, 'midi'); // MIDI経由として指定
-          }
-        },
-        onNoteOff: (note: number) => {
-          devLog.debug('🎹 MIDI Note Off:', { note });
-        },
-        playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
-      });
-      
-      controller.setConnectionChangeCallback((connected: boolean) => {
-        setIsMidiConnected(connected);
-        devLog.debug('🎹 MIDI接続状態変更:', { connected });
-      });
-      
-      midiControllerRef.current = controller;
-      
-      // 初期化
-      controller.initialize().then(() => {
-        devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
-        
-        // ★★★ デフォルト音量設定を追加 ★★★
-        // ファンタジーモード開始時にデフォルト音量（80%）を設定
-        import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
-          // 音声システムを初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8); // デフォルト80%音量
-            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
-            
-            // FantasySoundManagerの初期化
-            import('@/utils/FantasySoundManager')
-              .then(async (mod) => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                await FSM?.init(
-                  settings.soundEffectVolume ?? 0.8,
-                  settings.rootSoundVolume ?? 0.5,
-                  stage?.playRootOnCorrect !== false
-                );
-                FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
-                devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-              })
-              .catch(err => console.error('Failed to import/init FantasySoundManager:', err));
-          }).catch(error => {
-            console.error('Audio system initialization failed:', error);
-          });
-        }).catch(error => {
-          console.error('MidiController import failed:', error);
-        });
-        
-        // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
-        // 接続処理は下のuseEffectに任せる。
-      }).catch(error => {
-        devLog.debug('❌ MIDI初期化エラー:', error);
-      });
-    }
-    
-    // クリーンアップ
-    return () => {
-      if (midiControllerRef.current) {
-        midiControllerRef.current.destroy();
-        midiControllerRef.current = null;
-      }
-    };
-  }, []); // 空の依存配列で一度だけ実行
-  
-  // ★★★ 修正箇所 ★★★
-  // gameStoreのデバイスIDを監視して接続/切断
-  useEffect(() => {
-    const connect = async () => {
-      const deviceId = settings.selectedMidiDevice;
-      if (midiControllerRef.current && deviceId) {
-        const success = await midiControllerRef.current.connectDevice(deviceId);
-        if (success) {
-          devLog.debug('✅ MIDIデバイス接続成功:', deviceId);
-        }
-      } else if (midiControllerRef.current && !deviceId) {
-        midiControllerRef.current.disconnect();
-      }
-    };
-    connect();
-  }, [settings.selectedMidiDevice]);
-
-  // ステージ変更時にMIDI接続を確認・復元
-  useEffect(() => {
-    const restoreMidiConnection = async () => {
-      if (midiControllerRef.current && midiControllerRef.current.getCurrentDeviceId()) {
-        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
-        if (isRestored) {
-          devLog.debug('✅ ステージ変更後のMIDI接続を復元しました');
-        }
-      }
-    };
-
-    // コンポーネントが表示されたときに接続復元を試みる
-    const timer = setTimeout(restoreMidiConnection, 100);
-    return () => clearTimeout(timer);
-  }, [stage]); // stageが変更されたときに実行
   
   // ステージ設定に応じてルート音を有効/無効にする
   useEffect(() => {
@@ -505,6 +395,119 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     isReady
   });
 
+  // ===== 開始後のみ重い初期化を行う（デイリーチャレンジ初期表示を軽くする） =====
+
+  // playNote を遅延ロード（クリック音用）
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    import('@/utils/MidiController')
+      .then(({ playNote }) => {
+        playNoteRef.current = playNote;
+      })
+      .catch(() => {});
+  }, [gameState.isGameActive]);
+
+  // MIDIController 初期化（開始後のみ）
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    if (midiControllerRef.current) return;
+
+    const controller = new MIDIController({
+      onNoteOn: (note: number, velocity?: number) => {
+        devLog.debug('🎹 MIDI Note On:', { note, velocity });
+        handleNoteInputRef.current?.(note, 'midi');
+      },
+      onNoteOff: (note: number) => {
+        devLog.debug('🎹 MIDI Note Off:', { note });
+      },
+      playMidiSound: true,
+    });
+
+    controller.setConnectionChangeCallback((connected: boolean) => {
+      setIsMidiConnected(connected);
+      devLog.debug('🎹 MIDI接続状態変更:', { connected });
+    });
+
+    midiControllerRef.current = controller;
+
+    controller
+      .initialize()
+      .then(() => {
+        devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
+
+        import('@/utils/MidiController')
+          .then(({ updateGlobalVolume, initializeAudioSystem }) => {
+            initializeAudioSystem()
+              .then(() => {
+                updateGlobalVolume(0.8);
+                devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+
+                import('@/utils/FantasySoundManager')
+                  .then(async (mod) => {
+                    const FSM = (mod as any).FantasySoundManager ?? mod.default;
+                    await FSM?.init(
+                      settings.soundEffectVolume ?? 0.8,
+                      settings.rootSoundVolume ?? 0.5,
+                      stage?.playRootOnCorrect !== false
+                    );
+                    FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
+                    devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+                  })
+                  .catch(() => {});
+              })
+              .catch(() => {});
+          })
+          .catch(() => {});
+      })
+      .catch((error) => {
+        devLog.debug('❌ MIDI初期化エラー:', error);
+      });
+
+    return () => {
+      midiControllerRef.current?.destroy();
+      midiControllerRef.current = null;
+    };
+  }, [
+    gameState.isGameActive,
+    settings.rootSoundVolume,
+    settings.soundEffectVolume,
+    stage?.playRootOnCorrect,
+  ]);
+
+  // gameStore のデバイスIDを監視して接続/切断（開始後のみ）
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    const deviceId = settings.selectedMidiDevice;
+    const run = async () => {
+      if (midiControllerRef.current && deviceId) {
+        const success = await midiControllerRef.current.connectDevice(deviceId);
+        if (success) {
+          devLog.debug('✅ MIDIデバイス接続成功:', deviceId);
+        }
+        return;
+      }
+      if (midiControllerRef.current && !deviceId) {
+        midiControllerRef.current.disconnect();
+      }
+    };
+    void run();
+  }, [gameState.isGameActive, settings.selectedMidiDevice]);
+
+  // ステージ変更時にMIDI接続を確認・復元（開始後のみ）
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    const restoreMidiConnection = async () => {
+      if (midiControllerRef.current && midiControllerRef.current.getCurrentDeviceId()) {
+        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
+        if (isRestored) {
+          devLog.debug('✅ ステージ変更後のMIDI接続を復元しました');
+        }
+      }
+    };
+    const timer = setTimeout(() => void restoreMidiConnection(), 100);
+    return () => clearTimeout(timer);
+  }, [stage, gameState.isGameActive]);
+
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   useEffect(() => {
     if (!gameState.isGameActive) return;
@@ -550,12 +553,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
+    hasTimeUpFiredRef.current = false;
+    setRemainingSeconds(timeLimitSeconds);
     initializeGame(buildInitStage(), mode);
   }, [buildInitStage, initializeGame, onPlayModeChange]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
     if (!isDailyChallenge) return;
+    if (playMode !== 'challenge') return;
     if (hasTimeUpFiredRef.current) return;
     if (isReady) return; // Ready終了後に開始
     if (!gameState.isGameActive) return;
@@ -584,7 +590,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     tick();
     const intervalId = setInterval(tick, 200);
     return () => clearInterval(intervalId);
-  }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
+  }, [isDailyChallenge, playMode, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
@@ -1123,7 +1129,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               }}
               className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
             >
-              {isEnglishCopy ? 'Challenge' : '挑戦'}
+              {isDailyChallenge ? (isEnglishCopy ? 'Start' : 'スタート') : (isEnglishCopy ? 'Challenge' : '挑戦')}
             </button>
             <button
               onClick={() => {
@@ -1164,7 +1170,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               スコア <span className="text-yellow-300 font-bold">{gameState.correctAnswers}</span>
             </div>
             <div className="text-sm font-sans text-white">
-              残り <span className="text-yellow-300 font-bold">{Math.floor(remainingSeconds / 60)}:{String(remainingSeconds % 60).padStart(2, '0')}</span>
+              残り{' '}
+              <span className="text-yellow-300 font-bold">
+                {playMode === 'practice'
+                  ? '∞'
+                  : `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
+              </span>
             </div>
             <button
               onClick={onBackToStageSelect}

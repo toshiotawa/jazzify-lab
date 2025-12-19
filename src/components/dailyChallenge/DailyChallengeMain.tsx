@@ -1,6 +1,7 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import FantasyGameScreen from '@/components/fantasy/FantasyGameScreen';
 import type { FantasyStage as EngineFantasyStage } from '@/components/fantasy/FantasyGameEngine';
+import type { FantasyPlayMode } from '@/components/fantasy/FantasyGameEngine';
 import { useToast } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, FantasyStage } from '@/types';
 import { createDailyChallengeRecord, fetchDailyChallengeRecordsSince, fetchDailyChallengeStage } from '@/platform/supabaseDailyChallenge';
@@ -40,9 +41,11 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
     description: dbStage.description || '',
     // デイリーチャレンジ固定仕様
     maxHp: 1,
+    // - 敵の攻撃は事実上発生させない（制限時間勝負のため）
+    // - enemyCount を大きくするとプリロードが重くなるため、敵は1体に固定してHPを大きくする
     enemyGaugeSeconds: 9999,
-    enemyCount: 9999,
-    enemyHp: 1,
+    enemyCount: 1,
+    enemyHp: 9999,
     minDamage: 1,
     maxDamage: 1,
     mode: 'single',
@@ -62,6 +65,11 @@ const DailyChallengeMain: React.FC = () => {
   const toast = useToast();
   const today = useMemo(() => toLocalDateString(new Date()), []);
   const [view, setView] = useState<ViewState>({ type: 'loading' });
+  const [playMode, setPlayMode] = useState<FantasyPlayMode>('challenge');
+  const playModeRef = useRef<FantasyPlayMode>('challenge');
+  useEffect(() => {
+    playModeRef.current = playMode;
+  }, [playMode]);
 
   useEffect(() => {
     const run = async () => {
@@ -155,10 +163,9 @@ const DailyChallengeMain: React.FC = () => {
     <FantasyGameScreen
       key={`${view.difficulty}:${today}`}
       stage={view.stage}
-      autoStart
-      playMode="challenge"
-      onPlayModeChange={() => {}}
-      onSwitchToChallenge={() => {}}
+      playMode={playMode}
+      onPlayModeChange={setPlayMode}
+      onSwitchToChallenge={() => setPlayMode('challenge')}
       uiMode="daily_challenge"
       timeLimitSeconds={120}
       onBackToStageSelect={() => {
@@ -166,20 +173,27 @@ const DailyChallengeMain: React.FC = () => {
       }}
       onGameComplete={async (_result, _score, correctAnswers) => {
         const score = correctAnswers;
-        try {
-          const res = await createDailyChallengeRecord({
-            playedOn: today,
-            difficulty: view.difficulty,
-            score,
-          });
-          if (res.status === 'already_played') {
-            toast.info('本日はプレイ済みです');
+        // 練習は記録しない（デイリー消費を避ける）
+        if (playModeRef.current === 'challenge') {
+          try {
+            const res = await createDailyChallengeRecord({
+              playedOn: today,
+              difficulty: view.difficulty,
+              score,
+            });
+            if (res.status === 'already_played') {
+              toast.info('本日はプレイ済みです');
+            }
+          } catch {
+            toast.error('記録の保存に失敗しました');
+          } finally {
+            setView({ type: 'result', difficulty: view.difficulty, score });
           }
-        } catch {
-          toast.error('記録の保存に失敗しました');
-        } finally {
-          setView({ type: 'result', difficulty: view.difficulty, score });
+          return;
         }
+
+        // 練習はリザルト画面だけ表示（記録しない）
+        setView({ type: 'result', difficulty: view.difficulty, score });
       }}
     />
   );
