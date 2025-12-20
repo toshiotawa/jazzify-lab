@@ -1270,12 +1270,14 @@ export const useFantasyGameEngine = ({
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中は停止 */
     if (isReady) return;
-    if (gameState.playMode === 'practice') {
+    // 練習モードでも太鼓モードなら動かす必要がある
+    if (gameState.playMode === 'practice' && !gameState.isTaikoMode) {
       return;
     }
     
     setGameState(prevState => {
-      if (prevState.playMode === 'practice') {
+      // 練習モードでも太鼓モードなら動かす必要がある
+      if (prevState.playMode === 'practice' && !prevState.isTaikoMode) {
         return prevState;
       }
       if (!prevState.isGameActive || !prevState.currentStage) {
@@ -1369,7 +1371,8 @@ export const useFantasyGameEngine = ({
           // 敵の攻撃を発動（先頭モンスターを指定）
           // ※練習モードでは updateEnemyGauge 自体が動かないため、ここに到達しない
           const attackerId = prevState.activeMonsters?.[0]?.id;
-          if (attackerId) {
+          // 練習モードでは攻撃演出（怒りなど）をスキップ
+          if (attackerId && prevState.playMode !== 'practice') {
             const { setEnrage } = useEnemyStore.getState();
             const timers = enrageTimersRef.current;
             const oldTimer = timers.get(attackerId);
@@ -1381,6 +1384,8 @@ export const useFantasyGameEngine = ({
             }, 500);
             timers.set(attackerId, t);
           }
+          // 攻撃処理自体は handleEnemyAttack 側で practice モードをガードしているので安全だが、
+          // 一応呼ぶ
           setTimeout(() => handleEnemyAttack(attackerId), 0);
           
           // 次のノーツへ進む。ただし末尾なら次ループ開始まで待機
@@ -1776,7 +1781,7 @@ export const useFantasyGameEngine = ({
     if (
       !gameState.isGameActive ||
       !gameState.currentStage ||
-      gameState.playMode === 'practice' ||
+      (gameState.playMode === 'practice' && !gameState.isTaikoMode) || // 太鼓モードなら練習でも動かす
       isReady
     ) {
       if (enemyGaugeTimer) {
@@ -1794,7 +1799,8 @@ export const useFantasyGameEngine = ({
     return () => {
       clearInterval(timer);
     };
-  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady]); // Ready も依存に追加
+  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady, gameState.isTaikoMode, gameState.playMode]); // 依存配列追加
+
 
   // パフォーマンス監視（開発環境のみ）
   useEffect(() => {
