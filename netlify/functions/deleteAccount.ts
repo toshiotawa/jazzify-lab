@@ -57,10 +57,12 @@ export const handler: Handler = async (event, _context) => {
     }
 
     // プロフィール匿名化（外部キーを保つ）
+    // email と nickname は NOT NULL 制約があるため、匿名化した値を設定
+    const anonymizedEmail = `deleted_${user.id}@deleted.local`;
     const { error: anonErr } = await supabase
       .from('profiles')
       .update({
-        email: null,
+        email: anonymizedEmail,
         nickname: '退会ユーザー',
         bio: null,
         twitter_handle: null,
