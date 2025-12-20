@@ -7,7 +7,7 @@ import { Link } from 'react-router-dom';
  */
 const WithdrawalCompletePage: React.FC = () => {
   return (
-    <div className="w-full min-h-screen flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-800 text-white p-4">
+    <div className="w-full min-h-screen overflow-y-auto flex flex-col items-center justify-center bg-gradient-to-b from-slate-900 to-slate-800 text-white p-4">
       <div className="max-w-md w-full bg-slate-800 rounded-xl p-8 text-center shadow-2xl border border-slate-600">
         {/* 成功アイコン */}
         <div className="mb-6">
@@ -52,12 +52,6 @@ const WithdrawalCompletePage: React.FC = () => {
           >
             トップページへ
           </Link>
-          <a
-            href="https://jazzify.jp/"
-            className="text-primary-400 hover:text-primary-300 text-sm underline"
-          >
-            公式サイトへ
-          </a>
         </div>
       </div>
 
