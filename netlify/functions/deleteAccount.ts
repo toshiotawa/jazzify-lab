@@ -15,7 +15,12 @@ if (!supabaseServiceRoleKey) {
   throw new Error('SUPABASE_SERVICE_ROLE_KEY が設定されていません');
 }
 
-const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  auth: {
+    autoRefreshToken: false,
+    persistSession: false,
+  },
+});
 
 export const handler: Handler = async (event, _context) => {
   const headers = {
@@ -81,7 +86,7 @@ export const handler: Handler = async (event, _context) => {
     // Supabase Authユーザーを削除（以降ログイン不可）
     const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
     if (delErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete auth user' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete auth user', details: delErr.message }) };
     }
 
     return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };

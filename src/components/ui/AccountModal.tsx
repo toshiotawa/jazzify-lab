@@ -624,7 +624,8 @@ const AccountPage: React.FC = () => {
                               window.location.href = '/';
                             } else {
                               const err = await response.json().catch(()=>({error:'退会に失敗しました'}));
-                              alert(err.error || '退会に失敗しました');
+                              const errorMessage = err.details ? `${err.error}: ${err.details}` : err.error;
+                              alert(errorMessage || '退会に失敗しました');
                             }
                           } catch (e) {
                             alert('退会処理中にエラーが発生しました');
