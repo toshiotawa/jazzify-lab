@@ -1000,13 +1000,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, stage.mode]);
 
   // 問題が変わったタイミングでハイライトを確実にリセット
+  // progressionモードではcurrentNoteIndexの変更でコードが変わるため、明示的にchordIdも追跡
+  const resetTargetChordId = gameState.activeMonsters?.[0]?.chordTarget?.id || gameState.currentChordTarget?.id;
   useEffect(() => {
     if (!pixiRenderer) return;
     // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
-  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex, resetTargetChordId]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
+  // 依存配列にchordTarget.idを含めることで、コード変更時に確実に更新される
+  const currentTargetChordId = gameState.activeMonsters?.[0]?.chordTarget?.id || gameState.currentChordTarget?.id;
   useEffect(() => {
     if (!pixiRenderer) return;
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
@@ -1026,7 +1030,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.currentNoteIndex, currentTargetChordId]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   useEffect(() => {
