@@ -17,6 +17,7 @@ import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer'
 import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
+import { resolveChord } from '@/utils/chord-utils';
 import { note as parseNote } from 'tonal';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -89,7 +90,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 設定状態を管理（初期値はstageから取得）
   // デイリーチャレンジ: 練習モード時のみガイド表示可能、挑戦モード時は常にOFF
-  const [showKeyboardGuide, setShowKeyboardGuide] = useState(false);
+  // デイリーチャレンジの練習はガイドONをデフォルトにする
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState<boolean>(() => uiMode === 'daily_challenge');
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
@@ -1011,7 +1013,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!pixiRenderer) return;
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
     const setGuideMidi = (midiNotes: number[]) => {
-      (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
+      pixiRenderer.setGuideHighlightsByMidiNotes(midiNotes);
     };
     if (!canGuide) {
       // ガイドだけ消す（演奏中オレンジは維持）
@@ -1024,9 +1026,72 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
+    // デイリーチャレンジは常に基本形（root position）のガイドに固定する
+    const guideMidiNotes = (() => {
+      if (!isDailyChallenge) {
+        return chord.notes;
+      }
+      // 単音（type='note'）はそのまま
+      if (chord.notes.length <= 1) {
+        return chord.notes;
+      }
+      const resolved = resolveChord(chord.id, 4, { lang: 'en', simple: false });
+      if (!resolved) {
+        return chord.notes;
+      }
+      const toTonalName = (n: string) => n.replace(/x/g, '##');
+      const midi = resolved.notes
+        .map((n) => parseNote(toTonalName(n) + '4'))
+        .map((p) => (p && typeof p.midi === 'number' ? p.midi : null))
+        .filter((v): v is number => v !== null);
+      return midi.length > 0 ? midi : chord.notes;
+    })();
     // 差分適用のみ（オレンジは残る）
-    setGuideMidi(chord.notes as number[]);
+    setGuideMidi(guideMidiNotes);
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+
+  // 正解した音を「問題中ずっと」鍵盤に保持表示（ガイドON/OFFどちらでも）
+  useEffect(() => {
+    if (!pixiRenderer) return;
+
+    const targetMonster = gameState.activeMonsters?.[0];
+    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    if (!chord) {
+      pixiRenderer.setLockedHighlightsByMidiNotes([]);
+      return;
+    }
+
+    // 「ガイド表示位置のオクターブ」で光らせるための基準ノート列
+    const guideMidiNotes = (() => {
+      // デイリーチャレンジは基本形固定
+      if (isDailyChallenge) {
+        if (chord.notes.length <= 1) {
+          return chord.notes;
+        }
+        const resolved = resolveChord(chord.id, 4, { lang: 'en', simple: false });
+        if (!resolved) {
+          return chord.notes;
+        }
+        const toTonalName = (n: string) => n.replace(/x/g, '##');
+        const midi = resolved.notes
+          .map((n) => parseNote(toTonalName(n) + '4'))
+          .map((p) => (p && typeof p.midi === 'number' ? p.midi : null))
+          .filter((v): v is number => v !== null);
+        return midi.length > 0 ? midi : chord.notes;
+      }
+      return chord.notes;
+    })();
+
+    const correctPitchClasses = new Set<number>(targetMonster?.correctNotes ?? []);
+    const locked = guideMidiNotes.filter((m) => correctPitchClasses.has(((m % 12) + 12) % 12));
+    pixiRenderer.setLockedHighlightsByMidiNotes(locked);
+  }, [
+    pixiRenderer,
+    gameState.activeMonsters,
+    gameState.currentChordTarget,
+    gameState.currentNoteIndex,
+    isDailyChallenge
+  ]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {

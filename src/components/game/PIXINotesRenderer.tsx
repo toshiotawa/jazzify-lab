@@ -135,6 +135,8 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
+  // 正解などで「保持」するハイライト（問題切替でリセット）
+  private lockedHighlightedKeys = new Set<number>();
     private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
@@ -244,6 +246,26 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(next);
   }
 
+  /**
+   * 問題の正解状況などで「保持」するハイライトを設定（オクターブ含めて固定）
+   * - ガイドON/OFFに依存しない
+   * - 次の問題に切り替わったら呼び出し側で空配列にしてリセットする
+   */
+  setLockedHighlightsByMidiNotes(midiNotes: number[]): void {
+    const next = new Set<number>();
+    midiNotes.forEach((note) => {
+      const midi = this.clampMidi(note);
+      next.add(midi);
+    });
+    this.lockedHighlightedKeys = next;
+    this.requestRender();
+  }
+
+  clearLockedHighlights(): void {
+    this.lockedHighlightedKeys.clear();
+    this.requestRender();
+  }
+
   setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
     const normalized = new Set<number>();
     pitchClasses.forEach((pc) => {
@@ -262,6 +284,7 @@ export class PIXINotesRendererInstance {
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.lockedHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -285,6 +308,7 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.lockedHighlightedKeys.clear();
       this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
@@ -888,7 +912,9 @@ export class PIXINotesRendererInstance {
       ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
       ctx.globalAlpha = 1;
     };
+    // ガイド（緑）→ 正解保持（ヒット色）→ 演奏中（オレンジ）の順で重ねる
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    this.lockedHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.hit));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }
