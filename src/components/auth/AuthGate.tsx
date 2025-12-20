@@ -163,8 +163,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     error?.toLowerCase().includes('profile already exists');
 
   return (
-    <div className="w-full h-screen flex items-center justify-center bg-black/70 p-6">
-      <div className="bg-slate-800 rounded-lg w-full max-w-md p-8 text-white space-y-6">
+    <div className="w-full h-screen flex items-center justify-center bg-black/70 p-6 overflow-y-auto">
+      <div className="bg-slate-800 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto p-8 text-white space-y-6">
           <h2 className="text-xl font-bold text-center">
             {isExistingProfileError ? profileConfirmedHeading : accountRegistrationHeading}
           </h2>
