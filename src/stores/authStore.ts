@@ -632,8 +632,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           throw error;
         }
 
-        // 作成成功後、プロフィール情報を取得
-        await get().fetchProfile();
+        // 作成成功後、プロフィール情報を取得（キャッシュをクリアして最新を取得）
+        await get().fetchProfile({ forceRefresh: true });
         
         set(state => {
           state.loading = false;
