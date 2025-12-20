@@ -135,7 +135,8 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private correctHighlightedKeys = new Set<number>(); // 正解した鍵盤のハイライト
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -244,6 +245,34 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(next);
   }
 
+  /**
+   * 正解した音のハイライトを設定
+   * @param pitchClasses mod12でのピッチクラス配列
+   */
+  setCorrectHighlightsByPitchClasses(pitchClasses: number[]): void {
+    const normalized = new Set<number>();
+    pitchClasses.forEach((pc) => {
+      const safe = ((pc % 12) + 12) % 12;
+      normalized.add(safe);
+    });
+    const target = new Set<number>();
+    for (let midi = MIN_MIDI; midi <= MAX_MIDI; midi += 1) {
+      if (normalized.has(midi % 12)) {
+        target.add(midi);
+      }
+    }
+    this.correctHighlightedKeys = target;
+    this.requestRender();
+  }
+
+  /**
+   * 正解ハイライトをクリア
+   */
+  clearCorrectHighlights(): void {
+    this.correctHighlightedKeys.clear();
+    this.requestRender();
+  }
+
   setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
     const normalized = new Set<number>();
     pitchClasses.forEach((pc) => {
@@ -262,6 +291,7 @@ export class PIXINotesRendererInstance {
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -285,7 +315,8 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
-      this.pointerStates.clear();
+    this.correctHighlightedKeys.clear();
+    this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
 
@@ -878,17 +909,21 @@ export class PIXINotesRendererInstance {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
-    const drawHighlight = (midi: number, color: string): void => {
+    const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-        const keyTop = top;
+      const keyTop = top;
       const keyHeight = geometry.isBlack ? geometry.height : height;
       ctx.fillStyle = color;
-      ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
+      ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
       ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
       ctx.globalAlpha = 1;
     };
+    // 1. ガイド（緑）を最初に描画
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 2. 正解ハイライト（明るい緑/シアン）を描画 - 正解した鍵盤はより目立つ
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, '#10B981', 0.5)); // Emerald-500
+    // 3. 押下中（オレンジ）を最後に描画
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }

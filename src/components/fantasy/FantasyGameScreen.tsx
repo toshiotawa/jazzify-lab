@@ -1002,9 +1002,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 問題が変わったタイミングでハイライトを確実にリセット
   useEffect(() => {
     if (!pixiRenderer) return;
-    // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
+    // progression/single 共通：押下中のオレンジは保持。ガイドと正解ハイライトをクリア。
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
+    (pixiRenderer as any).clearCorrectHighlights?.();
   }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+
+  // 正解した音のハイライト更新（全モード共通）
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    // 同時出現数が1の場合のみ表示（複数モンスター時は複雑になるため）
+    if (gameState.simultaneousMonsterCount !== 1) {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    const targetMonster = gameState.activeMonsters?.[0];
+    if (!targetMonster || !targetMonster.correctNotes || targetMonster.correctNotes.length === 0) {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    // 正解した音（mod12）をハイライト
+    (pixiRenderer as any).setCorrectHighlightsByPitchClasses?.(targetMonster.correctNotes);
+  }, [pixiRenderer, gameState.simultaneousMonsterCount, gameState.activeMonsters]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
@@ -1024,8 +1042,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    // 差分適用のみ（オレンジは残る）
-    setGuideMidi(chord.notes as number[]);
+    // ガイド表示は常に基本形（rootPositionNotes）を使用
+    setGuideMidi(chord.rootPositionNotes as number[]);
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）

@@ -74,6 +74,7 @@ export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
   notes: number[];     // MIDIノート番号の配列（ガイド用ボイシングに使用）
+  rootPositionNotes: number[]; // 基本形のMIDIノート番号の配列（ガイド表示用）
   noteNames: string[]; // 表示用（オクターブなし、ボイシング順）
   quality: string;     // コードの性質（'major', 'minor', 'dominant7'など）
   root: string;        // ルート音（例: 'C', 'G', 'A'）
@@ -202,6 +203,7 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
       id: step,
       displayName: step,
       notes: [midi],
+      rootPositionNotes: [midi], // 単音の場合は同じ
       noteNames: [step],
       quality: 'maj', // ダミー（使用しない）
       root: step
@@ -217,6 +219,12 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
 
   // 'Fx' のような 'x' を tonal の '##' に戻す
   const toTonalName = (n: string) => n.replace(/x/g, '##');
+
+  // 常に基本形のMIDIノートを計算（ガイド表示用）
+  const rootPositionNotes = resolved.notes.map(n => {
+    const nn = parseNote(toTonalName(n) + '4');
+    return (nn && typeof nn.midi === 'number') ? nn.midi : 60;
+  });
 
   // inversion / octave を受け取り（未指定なら null）
   const maybeInversion = typeof spec === 'object' ? (spec.inversion ?? null) : null;
@@ -252,10 +260,7 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
     noteNamesForDisplay = rotated; // オクターブ無し
   } else {
     // 従来: ルートポジションを4オクターブ基準で表示用に構築
-    midiNotes = resolved.notes.map(n => {
-      const nn = parseNote(toTonalName(n) + '4');
-      return (nn && typeof nn.midi === 'number') ? nn.midi : 60;
-    });
+    midiNotes = rootPositionNotes; // 基本形を使用
     noteNamesForDisplay = resolved.notes;
   }
 
@@ -263,6 +268,7 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
     id: chordId,
     displayName: resolved.displayName,
     notes: midiNotes,
+    rootPositionNotes, // 常に基本形のMIDIノートを保持
     noteNames: noteNamesForDisplay,
     quality: resolved.quality,
     root: resolved.root
