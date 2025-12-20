@@ -163,6 +163,16 @@ export const handler: Handler = async (event, _context) => {
       return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to anonymize profile', details: anonErr.message }) };
     }
 
+    // 2.5. ユーザーのいいねを削除（likes_countトリガーにより日記のいいね数が減少する）
+    const { error: deleteLikesErr } = await supabase
+      .from('diary_likes')
+      .delete()
+      .eq('user_id', user.id);
+    if (deleteLikesErr) {
+      console.error('Failed to delete diary likes:', deleteLikesErr.message);
+      // いいね削除失敗は退会処理を止めない（続行する）
+    }
+
     // 3. 全セッションを無効化（クライアントのトークンを無効にする）
     // これにより、リロードしてもログイン状態が保持されなくなる
     const { error: signOutError } = await supabase.auth.admin.signOut(user.id, 'global');

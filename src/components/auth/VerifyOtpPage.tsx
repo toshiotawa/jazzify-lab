@@ -34,7 +34,7 @@ const VerifyOtpPage: React.FC = () => {
 
     try {
       await verifyOtp(email, otpCode);
-      toast.success('ログインに成功しました！');
+      // トースト通知は不要（新規ユーザーはプロフィール登録へ、既存ユーザーはダッシュボードへ遷移するため）
       navigate(redirect || '/main#dashboard', { replace: true });
     } catch (err) {
       toast.error('OTP検証に失敗しました。コードを確認してください。');
