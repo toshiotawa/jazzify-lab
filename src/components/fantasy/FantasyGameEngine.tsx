@@ -517,6 +517,15 @@ const getCurrentEnemy = (enemyIndex: number) => {
   return ENEMY_LIST[0]; // フォールバック
 };
 
+/**
+ * UI側（ガイド/表示）で参照される互換フィールド currentChordTarget を、
+ * 実際に表示しているモンスターの chordTarget と常に同期させるためのヘルパー。
+ */
+const deriveCurrentChordTarget = (
+  activeMonsters: MonsterState[],
+  fallback: ChordDefinition | null
+): ChordDefinition | null => activeMonsters[0]?.chordTarget ?? fallback;
+
 // ===== メインコンポーネント =====
 
 export const useFantasyGameEngine = ({
@@ -701,6 +710,7 @@ export const useFantasyGameEngine = ({
         }
         return m;
       });
+      const nextCurrentChordTarget = deriveCurrentChordTarget(updatedMonsters, prevState.currentChordTarget);
 
       // 敵を倒した場合、新しいモンスターを補充（既存ロジック維持）
       if (isDefeated) {
@@ -744,7 +754,8 @@ export const useFantasyGameEngine = ({
             correctAnswers: prevState.correctAnswers + 1,
             // クリア時は便宜上インデックスを選択ノーツの次へ（表示整合用）
             currentNoteIndex: chosenIndex === currentIndex ? nextIndexByChosen : prevState.currentNoteIndex,
-            taikoNotes: updatedTaikoNotes
+            taikoNotes: updatedTaikoNotes,
+            currentChordTarget: nextCurrentChordTarget
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -764,7 +775,8 @@ export const useFantasyGameEngine = ({
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           // 末尾待機は「順番通り末尾を取った」場合のみ
-          awaitingLoopStart: (chosenIndex === currentIndex && isLastNoteByChosen) ? true : prevState.awaitingLoopStart
+          awaitingLoopStart: (chosenIndex === currentIndex && isLastNoteByChosen) ? true : prevState.awaitingLoopStart,
+          currentChordTarget: deriveCurrentChordTarget(remainingMonsters, prevState.currentChordTarget)
         };
       }
 
@@ -777,7 +789,8 @@ export const useFantasyGameEngine = ({
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          awaitingLoopStart: true,
+          currentChordTarget: nextCurrentChordTarget
         };
       }
 
@@ -789,7 +802,8 @@ export const useFantasyGameEngine = ({
         currentNoteIndex: (chosenIndex === currentIndex) ? nextIndexByChosen : prevState.currentNoteIndex,
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage
+        score: prevState.score + 100 * actualDamage,
+        currentChordTarget: nextCurrentChordTarget
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -805,7 +819,8 @@ export const useFantasyGameEngine = ({
 
       return {
         ...prevState,
-        activeMonsters: updatedMonsters
+        activeMonsters: updatedMonsters,
+        currentChordTarget: deriveCurrentChordTarget(updatedMonsters, prevState.currentChordTarget)
       };
     }
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
@@ -1310,6 +1325,7 @@ export const useFantasyGameEngine = ({
             }));
           }
           
+          const nextCurrentChordTarget = deriveCurrentChordTarget(refreshedMonsters, prevState.currentChordTarget);
           return {
             ...prevState,
             taikoNotes: resetNotes,
@@ -1317,7 +1333,8 @@ export const useFantasyGameEngine = ({
             awaitingLoopStart: false,
             taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            currentChordTarget: nextCurrentChordTarget
           };
         }
         
@@ -1380,35 +1397,39 @@ export const useFantasyGameEngine = ({
             // 末尾：次ループまで待つ（インデックスは進めない）
             const nextNote = prevState.taikoNotes[0];
             const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            const updatedMonsters = prevState.activeMonsters.map(m => ({
+              ...m,
+              correctNotes: [],
+              gauge: 0,
+              chordTarget: nextNote.chord,
+              nextChord: nextNextNote.chord
+            }));
             return {
               ...prevState,
               awaitingLoopStart: true,
               // 視覚的なコード切り替えのみ行う
-              activeMonsters: prevState.activeMonsters.map(m => ({
-                ...m,
-                correctNotes: [],
-                gauge: 0,
-                chordTarget: nextNote.chord,
-                nextChord: nextNextNote.chord
-              })),
-              lastNormalizedTime: normalizedTime
+              activeMonsters: updatedMonsters,
+              lastNormalizedTime: normalizedTime,
+              currentChordTarget: deriveCurrentChordTarget(updatedMonsters, prevState.currentChordTarget)
             };
           }
           
           // 末尾でなければ通常通り進行
           const nextNote = prevState.taikoNotes[nextIndex];
           const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
+          const updatedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: nextNote.chord,
+            nextChord: nextNextNote.chord
+          }));
           return {
             ...prevState,
             currentNoteIndex: nextIndex,
-            activeMonsters: prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: nextNote.chord,
-              nextChord: nextNextNote.chord
-            })),
-            lastNormalizedTime: normalizedTime
+            activeMonsters: updatedMonsters,
+            lastNormalizedTime: normalizedTime,
+            currentChordTarget: deriveCurrentChordTarget(updatedMonsters, prevState.currentChordTarget)
           };
         }
         
