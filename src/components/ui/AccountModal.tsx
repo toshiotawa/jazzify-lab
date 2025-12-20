@@ -67,8 +67,6 @@ const AccountPage: React.FC = () => {
     fantasyClearedCountBasic: 0,
     fantasyClearedCountAdvanced: 0,
   });
-  const [withdrawalComplete, setWithdrawalComplete] = useState(false);
-  const [withdrawalMessage, setWithdrawalMessage] = useState('');
   const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
   const isJapanUser =
     !normalizedCountry ||
@@ -621,9 +619,10 @@ const AccountPage: React.FC = () => {
                               },
                             });
                             if (response.ok) {
-                              const result = await response.json().catch(() => ({ success: true }));
-                              setWithdrawalMessage(result.message || '退会が完了しました。ご利用ありがとうございました。');
-                              setWithdrawalComplete(true);
+                              // 退会成功時は即座にログアウトしてから退会完了ページへリダイレクト
+                              // サーバー側でセッションは無効化されているが、クライアント側のストアもクリアする
+                              await logout();
+                              window.location.href = '/withdrawal-complete';
                             } else {
                               const err = await response.json().catch(()=>({error:'退会に失敗しました'}));
                               const errorMessage = err.details ? `${err.error}: ${err.details}` : err.error;
@@ -659,37 +658,6 @@ const AccountPage: React.FC = () => {
         </div>
       </div>
 
-      {/* 退会完了モーダル */}
-      {withdrawalComplete && (
-        <div className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70">
-          <div className="bg-slate-800 rounded-xl p-8 max-w-md mx-4 text-center shadow-2xl border border-slate-600">
-            <div className="mb-6">
-              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-green-500/20 flex items-center justify-center">
-                <svg className="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              <h2 className="text-xl font-bold text-white mb-2">退会処理が完了しました</h2>
-              <p className="text-gray-300 text-sm leading-relaxed">
-                {withdrawalMessage}
-              </p>
-            </div>
-            <p className="text-gray-400 text-xs mb-6">
-              これまでJazzifyをご利用いただき、誠にありがとうございました。<br />
-              またのご利用をお待ちしております。
-            </p>
-            <button
-              className="btn btn-primary w-full"
-              onClick={async () => {
-                await logout();
-                window.location.href = '/';
-              }}
-            >
-              トップページへ
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

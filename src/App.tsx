@@ -13,6 +13,7 @@ import ContactPage from '@/components/contact/ContactPage';
 import TermsPage from '@/components/legal/TermsPage';
 import PrivacyPage from '@/components/legal/PrivacyPage';
 import TokushohoPage from '@/components/legal/TokushohoPage';
+import WithdrawalCompletePage from '@/components/auth/WithdrawalCompletePage';
 
 // LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
@@ -66,7 +67,8 @@ const App: React.FC = () => {
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/legal/tokushoho" element={<TokushohoPage />} />
-                                  <Route path="/login" element={<AuthLanding mode="login" />} />
+          <Route path="/withdrawal-complete" element={<WithdrawalCompletePage />} />
+          <Route path="/login" element={<AuthLanding mode="login" />} />
             <Route path="/signup" element={<AuthLanding mode="signup" />} />
             <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
 
