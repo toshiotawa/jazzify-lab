@@ -632,13 +632,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           throw error;
         }
 
-        // 作成成功後、プロフィール情報を取得
-        await get().fetchProfile();
-        
+        // 作成成功: 即座にhasProfileをtrueに設定してUIを更新
         set(state => {
+          state.hasProfile = true;
           state.loading = false;
           state.error = null;
         });
+
+        // プロフィール情報の詳細を取得（非同期で実行、UIはブロックしない）
+        get().fetchProfile().catch(console.error);
         
       } catch (error) {
         console.error('Profile creation error:', error);
