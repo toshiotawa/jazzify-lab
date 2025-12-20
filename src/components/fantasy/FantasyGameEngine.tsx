@@ -1200,6 +1200,14 @@ export const useFantasyGameEngine = ({
             nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
+          // activeMonsters も更新する（ガイド表示を正しく更新するため）
+          const updatedActiveMonsters = prevState.activeMonsters.map(monster => ({
+            ...monster,
+            chordTarget: nextChord!,
+            correctNotes: [],
+            gauge: 0
+          }));
+          
           const nextState = {
             ...prevState,
             playerHp: newHp,
@@ -1207,7 +1215,8 @@ export const useFantasyGameEngine = ({
             currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
             currentChordTarget: nextChord,
             enemyGauge: 0,
-            correctNotes: [] // 新しいコードでリセット
+            correctNotes: [], // 新しいコードでリセット
+            activeMonsters: updatedActiveMonsters // 追加：ガイド表示更新のため
           };
           
           onGameStateChange(nextState);
