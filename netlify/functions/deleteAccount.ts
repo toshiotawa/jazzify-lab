@@ -61,9 +61,19 @@ export const handler: Handler = async (event, _context) => {
       return { statusCode: 400, headers, body: JSON.stringify({ error: 'Freeプランのみ退会できます。まずCustomer Portalで解約してください。' }) };
     }
 
-    // プロフィール匿名化（外部キーを保つ）
-    // email と nickname は NOT NULL 制約があるため、匿名化した値を設定
+    // 匿名化用のメールアドレスを生成
     const anonymizedEmail = `deleted_${user.id}@deleted.local`;
+
+    // 1. Auth ユーザーのメールアドレスを変更（これにより元のメールでログイン不可になる）
+    const { error: authUpdateErr } = await supabase.auth.admin.updateUserById(user.id, {
+      email: anonymizedEmail,
+      email_confirm: true, // メール確認済みとしてマーク
+    });
+    if (authUpdateErr) {
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to update auth email', details: authUpdateErr.message }) };
+    }
+
+    // 2. プロフィール匿名化（外部キーを保つ）
     const { error: anonErr } = await supabase
       .from('profiles')
       .update({
@@ -80,23 +90,20 @@ export const handler: Handler = async (event, _context) => {
       })
       .eq('id', user.id);
     if (anonErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to anonymize profile' }) };
+      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to anonymize profile', details: anonErr.message }) };
     }
 
-    // Supabase Authユーザーを削除（以降ログイン不可）
+    // 3. Supabase Authユーザーの削除を試みる（失敗しても退会は完了）
     // 注意: 外部キー制約により削除が失敗する場合があるが、
-    // プロフィールが匿名化されていれば実質的に退会状態なので成功として扱う
-    const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
+    // メールアドレスが変更されているため元のアドレスでログインできない
+    await supabase.auth.admin.deleteUser(user.id).catch(() => {});
     
-    // Auth削除の結果に関わらず、プロフィール匿名化が成功していれば退会完了
-    // （メールアドレスが変更されているため、元のアドレスでログインできなくなる）
     return { 
       statusCode: 200, 
       headers, 
       body: JSON.stringify({ 
         success: true,
-        authDeleted: !delErr,
-        message: delErr ? 'プロフィールは匿名化されました。次回ログアウト後は再ログインできません。' : '退会が完了しました。'
+        message: '退会が完了しました。ご利用ありがとうございました。'
       }) 
     };
   } catch (error: any) {
