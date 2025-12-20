@@ -528,7 +528,6 @@ export interface FantasyStage {
   mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
   allowed_chords: string[];
   chord_progression?: string[];
-  show_guide: boolean;
   simultaneous_monster_count?: number;
   bgm_url?: string;
   mp3_url?: string;

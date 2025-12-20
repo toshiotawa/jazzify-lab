@@ -56,7 +56,6 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
     mode: 'single' as const,
     allowedChords: ['C', 'G', 'Am'],
     showSheetMusic: true,
-    showGuide: true,
     monsterIcon: 'dragon',
     simultaneousMonsterCount: 1,
   };

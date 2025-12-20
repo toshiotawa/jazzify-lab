@@ -144,7 +144,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           monsterIcon: 'dragon',
           chordProgression: stage.chord_progression,
           simultaneousMonsterCount: stage.simultaneous_monster_count || 1,
-          showGuide: stage.show_guide || false,
           // 追加: 拍間隔（存在すれば）
           noteIntervalBeats: (stage as any).note_interval_beats,
           showSheetMusic: false,
@@ -245,7 +244,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         chordProgressionData: (stage as any).chord_progression_data,
         showSheetMusic: false,
-        showGuide: stage.show_guide,
         // 追加: 拍間隔（存在すれば）
         noteIntervalBeats: (stage as any).note_interval_beats,
         monsterIcon: 'dragon',

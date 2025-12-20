@@ -108,21 +108,20 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
 
         const bass = pitches[0] || null;
 
-        // inversion 推定
+        // inversion 推定（ベース音の pitch class がコード構成音の何番目か）
         let inversion: number | null = null;
-        if (chordText) {
+        if (chordText && bass) {
           const parsed = parseChordName(chordText);
-          if (parsed && bass) {
+          if (parsed) {
             const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
-            // ルート,3rd,5th,... の音名を pitch class で比較
             const toPc = (name: string): number => {
               const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
               return typeof midi === 'number' ? (midi % 12) : 0;
             };
             const bassPc = bass.midi % 12;
             const pcs = chordNotes.map(toPc);
-            const idx = pcs.findIndex((pc) => pc === bassPc);
-            inversion = idx >= 0 ? idx : 0;
+            const foundIndex = pcs.findIndex((pc) => pc === bassPc);
+            inversion = foundIndex >= 0 ? foundIndex : 0;
           }
         }
 
@@ -146,7 +145,7 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
               octave: single.octave,
               inversion: 0,
               type: 'note'
-            } as any);
+            });
           }
         }
 

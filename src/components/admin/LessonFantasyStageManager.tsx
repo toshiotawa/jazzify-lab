@@ -41,7 +41,6 @@ interface StageFormValues {
   min_damage: number;
   max_damage: number;
   simultaneous_monster_count: number;
-  show_guide: boolean;
   // ルート音設定
   play_root_on_correct: boolean;
   // BGM/表示
@@ -70,7 +69,6 @@ const defaultValues: StageFormValues = {
   min_damage: 1,
   max_damage: 1,
   simultaneous_monster_count: 1,
-  show_guide: false,
   play_root_on_correct: true,
   bpm: 120,
   measure_count: 8,
@@ -160,7 +158,6 @@ const LessonFantasyStageManager: React.FC = () => {
         min_damage: s.min_damage,
         max_damage: s.max_damage,
         simultaneous_monster_count: s.simultaneous_monster_count || 1,
-        show_guide: !!s.show_guide,
         play_root_on_correct: (s as any).play_root_on_correct ?? true,
         bpm: (s as any).bpm || 120,
         measure_count: (s as any).measure_count || 8,
@@ -195,7 +192,6 @@ const LessonFantasyStageManager: React.FC = () => {
       min_damage: v.min_damage,
       max_damage: v.max_damage,
       simultaneous_monster_count: v.simultaneous_monster_count,
-      show_guide: v.show_guide,
       play_root_on_correct: v.play_root_on_correct,
       bpm: v.bpm,
       measure_count: v.measure_count,
@@ -382,10 +378,6 @@ const LessonFantasyStageManager: React.FC = () => {
                     <option value="progression_random">progression_random（ランダム）</option>
                     <option value="progression_timing">progression_timing（カスタム）</option>
                   </select>
-                </div>
-                <div>
-                  <SmallLabel>ガイド表示</SmallLabel>
-                  <input type="checkbox" className="toggle toggle-primary" {...register('show_guide')} />
                 </div>
                 <div>
                   <SmallLabel>正解時にルート音を鳴らす</SmallLabel>

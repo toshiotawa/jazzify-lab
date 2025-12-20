@@ -133,11 +133,6 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
                       HP: {stage.max_hp}
                     </span>
-                    {stage.show_guide && (
-                      <span className="text-xs px-2 py-1 bg-green-100 text-green-700 rounded">
-                        ガイド表示
-                      </span>
-                    )}
                   </div>
                 </div>
                 {selectedStageId === stage.id && (

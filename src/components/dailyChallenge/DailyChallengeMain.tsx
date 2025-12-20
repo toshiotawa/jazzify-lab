@@ -51,7 +51,6 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
     allowedChords: dbStage.allowed_chords,
     chordProgression: Array.isArray(dbStage.chord_progression) ? dbStage.chord_progression : undefined,
     showSheetMusic: false,
-    showGuide: false,
     monsterIcon: 'dragon',
     bgmUrl,
     simultaneousMonsterCount: 1,
