@@ -87,9 +87,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // 設定状態を管理（初期値はstageから取得）
-  // デイリーチャレンジ: 練習モード時のみガイド表示可能、挑戦モード時は常にOFF
-  const [showKeyboardGuide, setShowKeyboardGuide] = useState(false);
+  // 設定状態を管理
+  // 練習モード時はデフォルトでON、それ以外（挑戦モード）はOFF
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState(
+    playMode === 'practice'
+  );
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
@@ -97,14 +99,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 鍵盤ガイド表示の実効値を計算
-  // デイリーチャレンジ: 練習モード時のみユーザー設定に従う、挑戦モード時は常にOFF
-  // 通常ファンタジーモード: stage.showGuide を使用
+  // 挑戦モード: 常にOFF
+  // 練習モード: ユーザー設定（showKeyboardGuide）に従う
   const effectiveShowGuide = useMemo(() => {
-    if (isDailyChallenge) {
-      return playMode === 'practice' && showKeyboardGuide;
+    if (playMode === 'challenge') {
+      return false;
     }
-    return stage.showGuide;
-  }, [isDailyChallenge, playMode, showKeyboardGuide, stage.showGuide]);
+    return showKeyboardGuide;
+  }, [playMode, showKeyboardGuide]);
   
   // 時間管理 - BGMManagerから取得
   const [currentBeat, setCurrentBeat] = useState(1);
@@ -186,6 +188,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  
+  // 正解済みノート追跡用Ref（PIXIレンダラー用）
+  const correctNotesRef = useRef<Set<number>>(new Set());
   
   // ノート入力のハンドリング用ref
   const handleNoteInputRef = useRef<(note: number, source?: 'mouse' | 'midi') => void>();
@@ -428,6 +433,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     }
 
+    // PIXIレンダラーの正解ハイライトを更新（オクターブはガイド表示の場所のその音だけ光ればよい）
+    if (pixiRenderer) {
+      // 既存の正解済みノートに追加
+      const currentCorrect = new Set(correctNotesRef.current);
+      chord.notes.forEach(n => currentCorrect.add(n));
+      correctNotesRef.current = currentCorrect;
+      
+      // PIXIに通知
+      pixiRenderer.setCorrectHighlightsByMidiNotes(Array.from(currentCorrect));
+    }
+
     // ルート音を再生（非同期対応）
     const allowRootSound = stage?.playRootOnCorrect !== false;
     if (allowRootSound) {
@@ -446,7 +462,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         console.error('Failed to play root note:', error);
       }
     }
-  }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
+  }, [fantasyPixiInstance, stage?.playRootOnCorrect, pixiRenderer]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -1004,6 +1020,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!pixiRenderer) return;
     // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
+    
+    // 正解ハイライトもリセット
+    correctNotesRef.current.clear();
+    pixiRenderer.setCorrectHighlightsByMidiNotes([]);
   }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
