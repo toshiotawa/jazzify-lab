@@ -1001,34 +1001,47 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: effectiveShowGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, stage.mode]);
 
-  // 問題が変わったタイミングでハイライトを確実にリセット
-  useEffect(() => {
-    if (!pixiRenderer) return;
-    // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
-    (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
-  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
-
-  // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
-  useEffect(() => {
-    if (!pixiRenderer) return;
+  // ガイド用ハイライト更新（“現在の出題”から導出して毎回適用）
+  // - 問題が切り替わる経路が複数あるため、依存漏れが起きにくい形に統一する
+  // - 押下中のオレンジは保持しつつ、ガイド（緑）だけ更新する
+  const guideTargetMidiNotes = useMemo((): number[] => {
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
-    const setGuideMidi = (midiNotes: number[]) => {
-      (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
-    };
-    if (!canGuide) {
-      // ガイドだけ消す（演奏中オレンジは維持）
-      setGuideMidi([]);
-      return;
-    }
+    if (!canGuide) return [];
     const targetMonster = gameState.activeMonsters?.[0];
-    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
-    if (!chord) {
-      setGuideMidi([]);
-      return;
-    }
-    // 差分適用のみ（オレンジは残る）
-    setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+    const chord = targetMonster?.chordTarget ?? gameState.currentChordTarget;
+    if (!chord) return [];
+    return chord.notes;
+  }, [
+    effectiveShowGuide,
+    gameState.simultaneousMonsterCount,
+    gameState.activeMonsters,
+    gameState.currentChordTarget
+  ]);
+
+  const guideTargetKey = useMemo((): string => {
+    // “問題が切り替わった”を安定して検出するためのキー
+    // currentQuestionIndex/currentNoteIndex は切替経路により片方しか動かない場合があるため両方を見る
+    const chordId = gameState.activeMonsters?.[0]?.chordTarget?.id ?? gameState.currentChordTarget?.id ?? '';
+    return [
+      String(gameState.currentQuestionIndex),
+      String(gameState.currentNoteIndex),
+      chordId,
+      String(gameState.simultaneousMonsterCount),
+      effectiveShowGuide ? '1' : '0',
+    ].join('|');
+  }, [
+    effectiveShowGuide,
+    gameState.activeMonsters,
+    gameState.currentChordTarget,
+    gameState.currentNoteIndex,
+    gameState.currentQuestionIndex,
+    gameState.simultaneousMonsterCount,
+  ]);
+
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    pixiRenderer.setGuideHighlightsByMidiNotes(guideTargetMidiNotes);
+  }, [pixiRenderer, guideTargetKey, guideTargetMidiNotes]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   useEffect(() => {
