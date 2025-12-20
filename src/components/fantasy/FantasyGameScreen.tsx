@@ -933,9 +933,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // 直前に消化したノーツはプレビューで復活させない
           if (i === lastCompletedIndex) continue;
-          // 現在判定中のノーツは次ループ分としては表示しない
-          if (i === gameState.currentNoteIndex) continue;
-          // すでに通常ノーツで表示しているものは重複させない
+          // すでに通常ノーツで表示しているものは重複させない（currentNoteIndexのスキップは不要）
           if (displayedBaseIds.has(note.id)) continue;
 
           const virtualHitTime = note.hitTime + loopDuration;
@@ -1028,7 +1026,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   useEffect(() => {
