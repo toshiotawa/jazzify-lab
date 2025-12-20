@@ -1310,7 +1310,7 @@ export const useFantasyGameEngine = ({
             }));
           }
           
-          return {
+          const nextState = {
             ...prevState,
             taikoNotes: resetNotes,
             currentNoteIndex: newNoteIndex,
@@ -1319,6 +1319,8 @@ export const useFantasyGameEngine = ({
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters
           };
+          onGameStateChange(nextState);
+          return nextState;
         }
         
         // 末尾処理後の待機中はミス判定を停止（ループ境界待ち）
@@ -1380,7 +1382,7 @@ export const useFantasyGameEngine = ({
             // 末尾：次ループまで待つ（インデックスは進めない）
             const nextNote = prevState.taikoNotes[0];
             const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
-            return {
+            const nextState = {
               ...prevState,
               awaitingLoopStart: true,
               // 視覚的なコード切り替えのみ行う
@@ -1393,12 +1395,14 @@ export const useFantasyGameEngine = ({
               })),
               lastNormalizedTime: normalizedTime
             };
+            onGameStateChange(nextState);
+            return nextState;
           }
           
           // 末尾でなければ通常通り進行
           const nextNote = prevState.taikoNotes[nextIndex];
           const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
-          return {
+          const nextState = {
             ...prevState,
             currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
@@ -1410,6 +1414,8 @@ export const useFantasyGameEngine = ({
             })),
             lastNormalizedTime: normalizedTime
           };
+          onGameStateChange(nextState);
+          return nextState;
         }
         
         return { ...prevState, lastNormalizedTime: normalizedTime };
@@ -1485,7 +1491,12 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用の処理を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note);
+        const nextState = handleTaikoModeInput(prevState, note);
+        // 状態が変わった場合のみコールバックを呼ぶ
+        if (nextState !== prevState) {
+          onGameStateChange(nextState);
+        }
+        return nextState;
       }
 
       const noteMod12 = note % 12;
