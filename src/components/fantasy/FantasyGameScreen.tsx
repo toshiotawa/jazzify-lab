@@ -1001,12 +1001,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: effectiveShowGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, stage.mode]);
 
+  // 先頭モンスターのchordTargetを明示的に抽出（依存配列での変更検知を確実にするため）
+  const currentTargetChord = gameState.activeMonsters?.[0]?.chordTarget;
+
   // 問題が変わったタイミングでハイライトを確実にリセット
   useEffect(() => {
     if (!pixiRenderer) return;
     // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
-  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+    devLog.debug('🔄 ガイドリセット:', { 
+      currentNoteIndex: gameState.currentNoteIndex,
+      chordId: currentTargetChord?.id 
+    });
+  }, [pixiRenderer, currentTargetChord, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
@@ -1020,17 +1027,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    const targetMonster = gameState.activeMonsters?.[0];
-    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    const chord = currentTargetChord || gameState.currentChordTarget;
     if (!chord) {
       setGuideMidi([]);
       return;
     }
     // 差分適用のみ（オレンジは残る）
+    devLog.debug('🎹 ガイド設定:', { 
+      chordId: chord.id, 
+      notes: chord.notes,
+      currentNoteIndex: gameState.currentNoteIndex 
+    });
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, currentTargetChord, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
+  const currentCorrectNotes = gameState.activeMonsters?.[0]?.correctNotes;
   useEffect(() => {
     if (!pixiRenderer) return;
     // Singleモードでのみ有効
@@ -1038,9 +1050,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       (pixiRenderer as any).clearCorrectHighlights?.();
       return;
     }
-    const targetMonster = gameState.activeMonsters?.[0];
-    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
-    const correctNotes = targetMonster?.correctNotes || [];
+    const chord = currentTargetChord || gameState.currentChordTarget;
+    const correctNotes = currentCorrectNotes || [];
     
     if (!chord || correctNotes.length === 0) {
       (pixiRenderer as any).clearCorrectHighlights?.();
@@ -1060,7 +1071,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     
     (pixiRenderer as any).setCorrectHighlightsByMidiNotes?.(correctMidiNotes);
-  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, stage.mode, currentTargetChord, currentCorrectNotes, gameState.currentChordTarget]);
 
   // 問題が変わったら正解済みハイライトをリセット
   useEffect(() => {
