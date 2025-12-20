@@ -88,12 +88,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
   // 設定状態を管理（初期値はstageから取得）
-  // showGuideはstage.showGuideを直接使用（状態管理しない）
+  // デイリーチャレンジ: 練習モード時のみガイド表示可能、挑戦モード時は常にOFF
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState(false);
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  
+  // 鍵盤ガイド表示の実効値を計算
+  // デイリーチャレンジ: 練習モード時のみユーザー設定に従う、挑戦モード時は常にOFF
+  // 通常ファンタジーモード: stage.showGuide を使用
+  const effectiveShowGuide = useMemo(() => {
+    if (isDailyChallenge) {
+      return playMode === 'practice' && showKeyboardGuide;
+    }
+    return stage.showGuide;
+  }, [isDailyChallenge, playMode, showKeyboardGuide, stage.showGuide]);
   
   // 時間管理 - BGMManagerから取得
   const [currentBeat, setCurrentBeat] = useState(1);
@@ -682,7 +693,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           noteWidth: dynamicNoteWidth,
           transpose: 0,
           transposingInstrument: 'concert_pitch',
-          practiceGuide: stage.showGuide ? 'key' : 'off', // ガイド表示設定に基づく
+          practiceGuide: effectiveShowGuide ? 'key' : 'off', // ガイド表示設定に基づく
           showHitLine: false, // ヒットラインを非表示
           viewportHeight: 120, // pianoHeightと同じ値に設定してノーツ下降部分を完全に非表示
           timingAdjustment: 0
@@ -730,10 +741,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         totalWhiteKeys,
         whiteKeyWidth: whiteKeyWidth.toFixed(2),
         noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: stage.showGuide
+        showGuide: effectiveShowGuide
       });
     }
-  }, [handleNoteInputBridge, stage.showGuide]);
+  }, [handleNoteInputBridge, effectiveShowGuide]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -983,10 +994,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
     if (!pixiRenderer) return;
-    const canGuide = stage.showGuide && gameState.simultaneousMonsterCount === 1;
+    const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
     pixiRenderer.updateSettings({ practiceGuide: canGuide ? 'key' : 'off' });
-    devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: stage.showGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
-  }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, stage.mode]);
+    devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: effectiveShowGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, stage.mode]);
 
   // 問題が変わったタイミングでハイライトを確実にリセット
   useEffect(() => {
@@ -998,7 +1009,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
     if (!pixiRenderer) return;
-    const canGuide = stage.showGuide && gameState.simultaneousMonsterCount === 1;
+    const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
     const setGuideMidi = (midiNotes: number[]) => {
       (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
     };
@@ -1015,7 +1026,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, stage.showGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
@@ -1189,6 +1200,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               </button>
             )}
             <button
+              onClick={() => setIsSettingsModalOpen(true)}
+              className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors"
+            >
+              ⚙️
+            </button>
+            <button
               onClick={onBackToStageSelect}
               className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
             >
@@ -1357,7 +1374,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                               
                               const isCorrect = monster.correctNotes.includes(noteMod12);
 
-                              if (!stage.showGuide && !isCorrect) {
+                              if (!effectiveShowGuide && !isCorrect) {
                                 return (
                                   <span
                                     key={index}
@@ -1585,37 +1602,41 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       <FantasySettingsModal
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
-        onSettingsChange={(settings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', settings);
-          // setShowGuide(settings.showGuide); // この行を削除
-          setCurrentNoteNameLang(settings.noteNameLang);
-          setCurrentSimpleNoteName(settings.simpleNoteName);
+        onSettingsChange={(newSettings) => {
+          devLog.debug('⚙️ ファンタジー設定変更:', newSettings);
+          setCurrentNoteNameLang(newSettings.noteNameLang);
+          setCurrentSimpleNoteName(newSettings.simpleNoteName);
+          
+          // 鍵盤ガイド表示設定が変更されたら更新（デイリーチャレンジの練習モード時のみ）
+          if (newSettings.showKeyboardGuide !== undefined) {
+            setShowKeyboardGuide(newSettings.showKeyboardGuide);
+          }
           
           // ★★★ 音量更新処理を追加 ★★★
           // ピアノ音量設定が変更されたら、グローバル音量を更新
-          if (settings.volume !== undefined) {
+          if (newSettings.volume !== undefined) {
             // gameStoreの音量設定も更新
-            updateSettings({ midiVolume: settings.volume });
+            updateSettings({ midiVolume: newSettings.volume });
             
             // グローバル音量を更新
             import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(settings.volume);
-              devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${settings.volume}`);
+              updateGlobalVolume(newSettings.volume);
+              devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
             }).catch(error => {
               console.error('MidiController import failed:', error);
             });
           }
           
           // 効果音音量設定が変更されたら、gameStoreを更新
-          if (settings.soundEffectVolume !== undefined) {
-            updateSettings({ soundEffectVolume: settings.soundEffectVolume });
-            devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${settings.soundEffectVolume}`);
+          if (newSettings.soundEffectVolume !== undefined) {
+            updateSettings({ soundEffectVolume: newSettings.soundEffectVolume });
+            devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${newSettings.soundEffectVolume}`);
             
             // FantasySoundManagerの音量も即座に更新
             import('@/utils/FantasySoundManager')
               .then((mod) => {
                 const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                FSM?.setVolume(settings.soundEffectVolume);
+                FSM?.setVolume(newSettings.soundEffectVolume);
               })
               .catch(error => {
                 console.error('Failed to update FantasySoundManager volume:', error);
@@ -1626,11 +1647,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         midiDeviceId={settings.selectedMidiDevice}
         volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
         soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
+        bgmVolume={settings.bgmVolume} // gameStoreのBGM音量を渡す
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
+        // デイリーチャレンジ用の追加props
+        isDailyChallenge={isDailyChallenge}
+        isPracticeMode={playMode === 'practice'}
+        showKeyboardGuide={showKeyboardGuide}
       />
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}
