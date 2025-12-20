@@ -1525,6 +1525,14 @@ export const useFantasyGameEngine = ({
         // ★ 攻撃処理後の状態を計算する
         const stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
+        // コード進行モードの場合はインデックスを進める
+        if (stateAfterAttack.currentStage?.mode !== 'single') {
+          const progression = stateAfterAttack.currentStage?.chordProgression || [];
+          if (progression.length > 0) {
+            stateAfterAttack.currentQuestionIndex = (stateAfterAttack.currentQuestionIndex + 1) % progression.length;
+          }
+        }
+        
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
         // 攻撃処理ループ
@@ -1555,11 +1563,21 @@ export const useFantasyGameEngine = ({
         // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
         remainingMonsters = remainingMonsters.map(monster => {
           if (completedMonsters.some(cm => cm.id === monster.id)) {
-            const nextChord = selectRandomChord(
-              stateAfterAttack.currentStage!.allowedChords,
-              monster.chordTarget.id,
-              displayOpts
-            );
+            let nextChord;
+            
+            if (stateAfterAttack.currentStage?.mode === 'single') {
+              // ランダムモード：前回と異なるコードを選択
+              nextChord = selectRandomChord(
+                stateAfterAttack.currentStage.allowedChords,
+                monster.chordTarget.id,
+                displayOpts
+              );
+            } else {
+              // 進行モード：更新済みインデックスを使用
+              const progression = stateAfterAttack.currentStage?.chordProgression || [];
+              nextChord = getProgressionChord(progression, stateAfterAttack.currentQuestionIndex, displayOpts);
+            }
+            
             return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
           }
           // SPアタックの場合は全ての敵のゲージをリセット
@@ -1593,6 +1611,16 @@ export const useFantasyGameEngine = ({
               displayOpts,
               stageMonsterIds
             );
+            
+            // 進行モードの場合はコードを上書き
+            if (stateAfterAttack.currentStage?.mode !== 'single') {
+              const progression = stateAfterAttack.currentStage?.chordProgression || [];
+              const nextChord = getProgressionChord(progression, stateAfterAttack.currentQuestionIndex, displayOpts);
+              if (nextChord) {
+                newMonster.chordTarget = nextChord;
+              }
+            }
+            
             remainingMonsters.push(newMonster);
           }
         }
