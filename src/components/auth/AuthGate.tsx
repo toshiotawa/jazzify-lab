@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
 import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
-import { Navigate, useLocation } from 'react-router-dom';
+import { Navigate, useLocation, useNavigate } from 'react-router-dom';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -122,6 +122,18 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const [agreed, setAgreed] = useState(false);
   const [country, setCountry] = useState<string>(() => localStorage.getItem('signup_country') || 'JP');
   const [submitting, setSubmitting] = useState(false);
+  const navigate = useNavigate();
+  
+  // hasProfileの変化を直接監視して、trueになったらダッシュボードへ遷移
+  const hasProfile = useAuthStore(state => state.hasProfile);
+  
+  useEffect(() => {
+    if (hasProfile) {
+      console.log('✅ AccountRegistrationModal: hasProfile=true検出、ダッシュボードへ遷移');
+      navigate('/main#dashboard', { replace: true });
+    }
+  }, [hasProfile, navigate]);
+  
   const countryLocale = locale === 'ja' ? 'ja' : 'en';
   const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
   const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
@@ -148,6 +160,12 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     setSubmitting(true);
     try {
       await onSubmit(nickname.trim(), agreed, country);
+      // 成功時: hasProfileがtrueになればuseEffectでナビゲーションされる
+      // 念のためフォールバックとしてここでも遷移を試みる
+      const currentHasProfile = useAuthStore.getState().hasProfile;
+      if (currentHasProfile) {
+        navigate('/main#dashboard', { replace: true });
+      }
     } finally {
       setSubmitting(false);
     }
@@ -163,8 +181,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     error?.toLowerCase().includes('profile already exists');
 
   return (
-    <div className="w-full h-screen flex items-center justify-center bg-black/70 p-6">
-      <div className="bg-slate-800 rounded-lg w-full max-w-md p-8 text-white space-y-6">
+    <div className="w-full min-h-screen overflow-y-auto flex items-center justify-center bg-black/70 p-6">
+      <div className="bg-slate-800 rounded-lg w-full max-w-md p-8 text-white space-y-6 my-auto">
           <h2 className="text-xl font-bold text-center">
             {isExistingProfileError ? profileConfirmedHeading : accountRegistrationHeading}
           </h2>
