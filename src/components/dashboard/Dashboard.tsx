@@ -304,9 +304,10 @@ const Dashboard: React.FC = () => {
                         <span className="animate-pulse">{statsLoadingText}</span>
                       </div>
                   ) : userStats ? (
-                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
                       {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
                       {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
+                      <span>デイリーチャレンジ実施日数 {userStats.dailyChallengeParticipationDays}</span>
                     </div>
                   ) : null}
                   
