@@ -257,7 +257,6 @@ export interface UpsertFantasyStagePayload {
   allowed_chords?: any[]; // ChordSpec[] or string[]
   chord_progression?: any[]; // ChordSpec[]
   chord_progression_data?: any; // JSON array
-  show_guide?: boolean;
   bgm_url?: string | null;
   mp3_url?: string | null;
   simultaneous_monster_count?: number;

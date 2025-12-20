@@ -102,7 +102,6 @@ const LPFantasyDemo: React.FC = () => {
           allowedChords: Array.isArray(dbStage.allowed_chords) ? dbStage.allowed_chords : [],
           chordProgression: Array.isArray(dbStage.chord_progression) ? dbStage.chord_progression : undefined,
           showSheetMusic: false,
-          showGuide: !!dbStage.show_guide,
           monsterIcon: 'dragon',
           bgmUrl: (dbStage as any).bgm_url || (dbStage as any).mp3_url,
           simultaneousMonsterCount: (dbStage as any).simultaneous_monster_count || 1,

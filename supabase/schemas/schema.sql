@@ -909,7 +909,6 @@ CREATE TABLE IF NOT EXISTS "public"."fantasy_stages" (
     "bgm_url" "text",
     "created_at" timestamp with time zone DEFAULT "now"(),
     "updated_at" timestamp with time zone DEFAULT "now"(),
-    "show_guide" boolean DEFAULT false,
     "enemy_count" integer DEFAULT 1 NOT NULL,
     "enemy_hp" integer DEFAULT 5 NOT NULL,
     "min_damage" integer DEFAULT 10 NOT NULL,
@@ -955,8 +954,6 @@ COMMENT ON COLUMN "public"."fantasy_stages"."chord_progression" IS 'コード進
 COMMENT ON COLUMN "public"."fantasy_stages"."description_en" IS 'Stage description (English)';
 
 
-
-COMMENT ON COLUMN "public"."fantasy_stages"."show_guide" IS 'ガイド表示ON/OFF設定（true: ガイド表示、false: ガイド非表示）';
 
 COMMENT ON COLUMN "public"."fantasy_stages"."play_root_on_correct" IS '正解時にルート音を鳴らす（true: 鳴らす, false: 鳴らさない）';
 

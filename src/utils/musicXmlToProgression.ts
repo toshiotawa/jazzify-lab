@@ -1,11 +1,10 @@
-import { parseChordName, buildChordNotes } from '@/utils/chord-utils';
 import type { ChordProgressionDataItem } from '@/components/fantasy/TaikoNoteSystem';
 import { note as parseNote } from 'tonal';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
  * - chord: 歌詞(lyric)からコード名を取得（基本ルール）
- * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
+ * - octave: 同時発音ノーツの最低音から推定（なければデフォルト octave=4）
  * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
  * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
  */
@@ -108,31 +107,12 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
 
         const bass = pitches[0] || null;
 
-        // inversion 推定
-        let inversion: number | null = null;
-        if (chordText) {
-          const parsed = parseChordName(chordText);
-          if (parsed && bass) {
-            const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
-            // ルート,3rd,5th,... の音名を pitch class で比較
-            const toPc = (name: string): number => {
-              const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
-              return typeof midi === 'number' ? (midi % 12) : 0;
-            };
-            const bassPc = bass.midi % 12;
-            const pcs = chordNotes.map(toPc);
-            const idx = pcs.findIndex((pc) => pc === bassPc);
-            inversion = idx >= 0 ? idx : 0;
-          }
-        }
-
         // 出力アイテムを作成
         if (chordText) {
           result.push({
             bar,
             beats: toBeats(currentPos, divisionsPerQuarter),
             chord: chordText,
-            inversion: inversion ?? 0,
             octave: bass ? bass.octave : 4
           });
         } else {
@@ -144,9 +124,8 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
               beats: toBeats(currentPos, divisionsPerQuarter),
               chord: single.step, // 音名のみ（例: 'G', 'F#'）
               octave: single.octave,
-              inversion: 0,
               type: 'note'
-            } as any);
+            });
           }
         }
 
