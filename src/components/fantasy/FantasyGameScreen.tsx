@@ -1003,6 +1003,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // 先頭モンスターのchordTargetを明示的に抽出（依存配列での変更検知を確実にするため）
   const currentTargetChord = gameState.activeMonsters?.[0]?.chordTarget;
+  // オブジェクト参照ではなくIDで変更を検知（taikoNotes内の同じchordオブジェクトが再利用される場合があるため）
+  const currentTargetChordId = currentTargetChord?.id;
+
+  // デバッグ: gameStateの変更を追跡
+  useEffect(() => {
+    devLog.debug('📊 gameState変更検知:', {
+      currentNoteIndex: gameState.currentNoteIndex,
+      chordId: currentTargetChordId,
+      activeMonsters: gameState.activeMonsters?.length,
+      simultaneousMonsterCount: gameState.simultaneousMonsterCount,
+      isTaikoMode: gameState.isTaikoMode
+    });
+  }, [gameState.currentNoteIndex, currentTargetChordId, gameState.activeMonsters?.length, gameState.simultaneousMonsterCount, gameState.isTaikoMode]);
 
   // 問題が変わったタイミングでハイライトを確実にリセット
   useEffect(() => {
@@ -1011,35 +1024,48 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
     devLog.debug('🔄 ガイドリセット:', { 
       currentNoteIndex: gameState.currentNoteIndex,
-      chordId: currentTargetChord?.id 
+      chordId: currentTargetChordId 
     });
-  }, [pixiRenderer, currentTargetChord, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, currentTargetChordId, gameState.currentChordTarget?.id, gameState.currentNoteIndex]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
-    if (!pixiRenderer) return;
+    devLog.debug('🎯 ガイドuseEffect発火:', {
+      hasPixiRenderer: !!pixiRenderer,
+      effectiveShowGuide,
+      simultaneousMonsterCount: gameState.simultaneousMonsterCount,
+      currentTargetChordId,
+      currentNoteIndex: gameState.currentNoteIndex
+    });
+    if (!pixiRenderer) {
+      devLog.debug('❌ pixiRendererがnull');
+      return;
+    }
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
     const setGuideMidi = (midiNotes: number[]) => {
+      devLog.debug('🎹 setGuideMidi呼び出し:', { midiNotes });
       (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
     };
     if (!canGuide) {
       // ガイドだけ消す（演奏中オレンジは維持）
+      devLog.debug('❌ canGuide=false, ガイドをクリア', { effectiveShowGuide, simCount: gameState.simultaneousMonsterCount });
       setGuideMidi([]);
       return;
     }
     const chord = currentTargetChord || gameState.currentChordTarget;
     if (!chord) {
+      devLog.debug('❌ chordがnull');
       setGuideMidi([]);
       return;
     }
     // 差分適用のみ（オレンジは残る）
-    devLog.debug('🎹 ガイド設定:', { 
+    devLog.debug('✅ ガイド設定:', { 
       chordId: chord.id, 
       notes: chord.notes,
       currentNoteIndex: gameState.currentNoteIndex 
     });
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, currentTargetChord, gameState.currentChordTarget, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, currentTargetChord, currentTargetChordId, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   const currentCorrectNotes = gameState.activeMonsters?.[0]?.correctNotes;
