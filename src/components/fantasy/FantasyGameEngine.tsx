@@ -1245,12 +1245,13 @@ export const useFantasyGameEngine = ({
     
     // ゲームがアクティブな場合のみ新しいタイマーを開始
     // Ready中は開始しない
-    if (
-      gameState.isGameActive &&
-      gameState.currentStage &&
-      gameState.playMode !== 'practice' &&
-      !isReady
-    ) {
+    // 練習モードでも太鼓モード（progression系）の場合はタイマーが必要
+    const needsTimer = gameState.isGameActive && 
+      gameState.currentStage && 
+      !isReady &&
+      (gameState.playMode !== 'practice' || gameState.isTaikoMode);
+    
+    if (needsTimer) {
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
@@ -1264,18 +1265,21 @@ export const useFantasyGameEngine = ({
         clearInterval(enemyGaugeTimer);
       }
     };
-  }, [gameState.isGameActive, gameState.currentStage, isReady]); // ゲーム状態とステージ、Readyの変更を監視
+  }, [gameState.isGameActive, gameState.currentStage, gameState.isTaikoMode, gameState.playMode, isReady]); // ゲーム状態とステージ、Readyの変更を監視
   
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中は停止 */
     if (isReady) return;
-    if (gameState.playMode === 'practice') {
+    // 練習モードでもsingleモード以外（太鼓モード）はノーツ進行処理が必要
+    // ※singleモードの練習モードではゲージ更新は不要
+    if (gameState.playMode === 'practice' && !gameState.isTaikoMode) {
       return;
     }
     
     setGameState(prevState => {
-      if (prevState.playMode === 'practice') {
+      // 練習モードでもsingleモード以外（太鼓モード）は処理を続行
+      if (prevState.playMode === 'practice' && !prevState.isTaikoMode) {
         return prevState;
       }
       if (!prevState.isGameActive || !prevState.currentStage) {
@@ -1363,25 +1367,28 @@ export const useFantasyGameEngine = ({
             measure: currentNote.measure,
             timeDiff: timeDiff.toFixed(3),
             currentTime: currentTime.toFixed(3),
-            hitTime: currentNote.hitTime.toFixed(3)
+            hitTime: currentNote.hitTime.toFixed(3),
+            playMode: prevState.playMode
           });
 
           // 敵の攻撃を発動（先頭モンスターを指定）
-          // ※練習モードでは updateEnemyGauge 自体が動かないため、ここに到達しない
-          const attackerId = prevState.activeMonsters?.[0]?.id;
-          if (attackerId) {
-            const { setEnrage } = useEnemyStore.getState();
-            const timers = enrageTimersRef.current;
-            const oldTimer = timers.get(attackerId);
-            if (oldTimer) clearTimeout(oldTimer);
-            setEnrage(attackerId, true);
-            const t = setTimeout(() => {
-              setEnrage(attackerId, false);
-              timers.delete(attackerId);
-            }, 500);
-            timers.set(attackerId, t);
+          // ※練習モードではHP減少をスキップ（問題の切り替えのみ行う）
+          if (prevState.playMode !== 'practice') {
+            const attackerId = prevState.activeMonsters?.[0]?.id;
+            if (attackerId) {
+              const { setEnrage } = useEnemyStore.getState();
+              const timers = enrageTimersRef.current;
+              const oldTimer = timers.get(attackerId);
+              if (oldTimer) clearTimeout(oldTimer);
+              setEnrage(attackerId, true);
+              const t = setTimeout(() => {
+                setEnrage(attackerId, false);
+                timers.delete(attackerId);
+              }, 500);
+              timers.set(attackerId, t);
+            }
+            setTimeout(() => handleEnemyAttack(attackerId), 0);
           }
-          setTimeout(() => handleEnemyAttack(attackerId), 0);
           
           // 次のノーツへ進む。ただし末尾なら次ループ開始まで待機
           const nextIndex = currentNoteIndex + 1;
@@ -1764,12 +1771,13 @@ export const useFantasyGameEngine = ({
 
   // エフェクトの分離：enemyGaugeTimer専用
   useEffect(() => {
-    if (
-      !gameState.isGameActive ||
-      !gameState.currentStage ||
-      gameState.playMode === 'practice' ||
-      isReady
-    ) {
+    // 練習モードでも太鼓モード（progression系）の場合はタイマーが必要
+    const needsTimer = gameState.isGameActive && 
+      gameState.currentStage && 
+      !isReady &&
+      (gameState.playMode !== 'practice' || gameState.isTaikoMode);
+    
+    if (!needsTimer) {
       if (enemyGaugeTimer) {
         clearInterval(enemyGaugeTimer);
         setEnemyGaugeTimer(null);
@@ -1785,7 +1793,7 @@ export const useFantasyGameEngine = ({
     return () => {
       clearInterval(timer);
     };
-  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady]); // Ready も依存に追加
+  }, [gameState.isGameActive, gameState.currentStage?.id, gameState.isTaikoMode, gameState.playMode, updateEnemyGauge, isReady]); // 太鼓モードと練習モードも依存に追加
 
   // パフォーマンス監視（開発環境のみ）
   useEffect(() => {
