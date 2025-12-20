@@ -97,7 +97,7 @@ export interface FantasyStage {
   chordProgression?: ChordSpec[]; // 変更
   chordProgressionData?: ChordProgressionDataItem[] | string; // 型明確化
   showSheetMusic: boolean;
-  showGuide: boolean; // ガイド表示設定を追加
+  showGuide: boolean; // 廃止予定: ガイド表示はplayModeに基づいて決定（練習=ON、挑戦=OFF）
   monsterIcon: string;
   bgmUrl?: string;
   simultaneousMonsterCount: number; // 同時出現モンスター数 (1-8)
@@ -189,8 +189,11 @@ interface FantasyGameEngineProps {
  * @param spec コードIDまたはChordSpec
  * @param displayOpts 表示オプション
  * @returns ChordDefinition
+ * 
+ * 転回形は明示的にinversionが指定されている場合のみ適用。
+ * それ以外は全て基本形（オクターブ4）で表示。
  */
-const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
+const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDefinition | null => {
   // 単音指定のハンドリング
   if (typeof spec === 'object' && spec.type === 'note') {
     const step = spec.chord; // 'G', 'F#' など
@@ -225,11 +228,11 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
   let midiNotes: number[];
   let noteNamesForDisplay: string[];
 
-  if (useVoicing) {
-    // ガイド表示時: 未指定なら inversion=0, octave=4 を既定値として使用
+  // 明示的にinversionが指定されている場合のみ転回形を適用
+  if (maybeInversion !== null && maybeInversion > 0) {
     const baseNames = resolved.notes; // 例: ['A','C','E']
     const N = baseNames.length;
-    const inv = Math.max(0, Math.min(N - 1, (maybeInversion ?? 0)));
+    const inv = Math.max(0, Math.min(N - 1, maybeInversion));
     const rotated = [...baseNames.slice(inv), ...baseNames.slice(0, inv)];
     const bassOct = (maybeOctave ?? 4);
 
@@ -251,10 +254,24 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoici
     });
     noteNamesForDisplay = rotated; // オクターブ無し
   } else {
-    // 従来: ルートポジションを4オクターブ基準で表示用に構築
-    midiNotes = resolved.notes.map(n => {
-      const nn = parseNote(toTonalName(n) + '4');
-      return (nn && typeof nn.midi === 'number') ? nn.midi : 60;
+    // 基本形: ルートポジションをオクターブ基準で表示用に構築
+    const bassOct = (maybeOctave ?? 4);
+    let prevMidi = -Infinity;
+    midiNotes = resolved.notes.map((n) => {
+      let oct = bassOct;
+      let parsed = parseNote(toTonalName(n) + String(oct));
+      if (!parsed || typeof parsed.midi !== 'number') {
+        parsed = parseNote(toTonalName(n) + '4');
+      }
+      let midi = (parsed && typeof parsed.midi === 'number') ? parsed.midi : 60;
+      // 音が前の音より低い場合はオクターブを上げる（基本形でも昇順に配置）
+      while (midi <= prevMidi) {
+        oct += 1;
+        const n2 = parseNote(toTonalName(n) + String(oct));
+        if (n2 && typeof n2.midi === 'number') midi = n2.midi; else break;
+      }
+      prevMidi = midi;
+      return midi;
     });
     noteNamesForDisplay = resolved.notes;
   }
@@ -301,8 +318,7 @@ const createMonsterFromQueue = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
-  stageMonsterIds?: string[],
-  useVoicingForGuide: boolean = false
+  stageMonsterIds?: string[]
 ): MonsterState => {
   // stageMonsterIdsが提供されている場合は、それを使用
   let iconKey: string;
@@ -315,7 +331,7 @@ const createMonsterFromQueue = (
   }
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts, useVoicingForGuide);
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -361,19 +377,15 @@ const createPracticeQueueBatch = (count: number): number[] => {
 
 /**
  * 既に使用されているコードを除外してランダムにコードを選択
- */
-/**
- * 既に使用されているコードを除外してランダムにコードを選択
  * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
  */
 const selectUniqueRandomChord = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
-  displayOpts?: DisplayOpts,
-  useVoicingForGuide: boolean = false
+  displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(spec => getChordDefinition(spec, displayOpts, useVoicingForGuide))
+    .map(spec => getChordDefinition(spec, displayOpts))
     .filter(Boolean) as ChordDefinition[];
 
   if (previousChordId && availableChords.length > 1) {
@@ -466,11 +478,10 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
 const selectRandomChord = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
-  displayOpts?: DisplayOpts,
-  useVoicingForGuide: boolean = false
+  displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
   let availableChords = allowedChords
-    .map(spec => getChordDefinition(spec, displayOpts, useVoicingForGuide))
+    .map(spec => getChordDefinition(spec, displayOpts))
     .filter(Boolean) as ChordDefinition[];
     
   if (availableChords.length === 0) return null;
@@ -489,11 +500,11 @@ const selectRandomChord = (
 /**
  * コード進行から次のコードを取得
  */
-const getProgressionChord = (progression: ChordSpec[], questionIndex: number, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
+const getProgressionChord = (progression: ChordSpec[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
   if (progression.length === 0) return null;
   
   const spec = progression[questionIndex % progression.length];
-  return getChordDefinition(spec, displayOpts, useVoicing) || null;
+  return getChordDefinition(spec, displayOpts) || null;
 };
 
 /**
@@ -710,8 +721,7 @@ export const useFantasyGameEngine = ({
             (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
             undefined,
             displayOpts,
-            stageMonsterIds,
-            stage.showGuide
+            stageMonsterIds
           );
 
           newMonster.chordTarget = nextNote.chord;
@@ -868,9 +878,7 @@ export const useFantasyGameEngine = ({
           (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
           lastChordId,
           displayOpts,
-          monsterIds,        // ✅ 今回作った配列
-          // singleモードかつ同時出現1体、かつガイドONならボイシング適用
-          (stage.mode === 'single' && simultaneousCount === 1 && stage.showGuide)
+          monsterIds
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -910,7 +918,7 @@ export const useFantasyGameEngine = ({
               progressionData,
               stage.bpm || 120,
               stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
+              (spec) => getChordDefinition(spec, displayOpts),
               0 // カウントインを渡す
             );
           }
@@ -923,7 +931,7 @@ export const useFantasyGameEngine = ({
             stage.measureCount || 8,
             stage.bpm || 120,
             stage.timeSignature || 4,
-            (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
+            (spec) => getChordDefinition(spec, displayOpts),
             0,
             ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
           );
@@ -938,7 +946,7 @@ export const useFantasyGameEngine = ({
               stage.measureCount || 8,
               stage.bpm || 120,
               stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts, stage.showGuide),
+              (spec) => getChordDefinition(spec, displayOpts),
               0,
               (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
             );
@@ -1045,14 +1053,13 @@ export const useFantasyGameEngine = ({
             nextChord = selectRandomChord(
               (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               monster.chordTarget?.id,
-              displayOpts,
-              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
+              displayOpts
             );
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
           return {
@@ -1184,14 +1191,13 @@ export const useFantasyGameEngine = ({
             nextChord = selectRandomChord(
               (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               previousChordId,
-              displayOpts,
-              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
+              displayOpts
             );
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
+            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
           }
           
           const nextState = {
@@ -1585,8 +1591,7 @@ export const useFantasyGameEngine = ({
               (stateAfterAttack.currentStage!.allowedChords && stateAfterAttack.currentStage!.allowedChords.length > 0) ? stateAfterAttack.currentStage!.allowedChords : (stateAfterAttack.currentStage!.chordProgression || []),
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
-              stageMonsterIds, // stageMonsterIdsを渡す
-              stateAfterAttack.currentStage?.showGuide ?? false
+              stageMonsterIds
             );
             remainingMonsters.push(newMonster);
           }
@@ -1662,7 +1667,7 @@ export const useFantasyGameEngine = ({
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex, displayOpts, !!prevState.currentStage?.showGuide);
+        nextChord = getProgressionChord(progression, nextIndex, displayOpts);
       }
 
       nextState = {

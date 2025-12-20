@@ -20,6 +20,7 @@ interface RendererSettings {
     blackKey: string | number;
     activeKey: string | number;
     guideKey: string | number;
+    correctKey: string | number; // 正解済み鍵盤の色
     background: string | number;
   };
   noteNameStyle: NoteNameStyle;
@@ -100,6 +101,7 @@ const createDefaultSettings = (): RendererSettings => ({
     blackKey: '#2D2D2D',
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
+    correctKey: '#EF4444', // 正解済み鍵盤は赤色
     background: '#05060A'
   },
   noteNameStyle: 'off',
@@ -135,7 +137,8 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -259,9 +262,31 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(target);
   }
 
+  /**
+   * 正解済み鍵盤をMIDIノート番号で設定（赤色で表示保持）
+   * Singleモード専用：正解した音のガイド位置のオクターブのみ光る
+   */
+  setCorrectHighlightsByMidiNotes(midiNotes: number[]): void {
+    this.correctHighlightedKeys.clear();
+    midiNotes.forEach((note) => {
+      const midi = this.clampMidi(note);
+      this.correctHighlightedKeys.add(midi);
+    });
+    this.requestRender();
+  }
+
+  /**
+   * 正解済み鍵盤のハイライトをクリア
+   */
+  clearCorrectHighlights(): void {
+    this.correctHighlightedKeys.clear();
+    this.requestRender();
+  }
+
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -285,7 +310,8 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
-      this.pointerStates.clear();
+    this.correctHighlightedKeys.clear();
+    this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
 
@@ -312,6 +338,7 @@ export class PIXINotesRendererInstance {
       blackKey: toColor(colors.blackKey),
       activeKey: toColor(colors.activeKey),
       guideKey: toColor(colors.guideKey),
+      correctKey: toColor(colors.correctKey),
       background: toColor(colors.background)
     };
   }
@@ -878,17 +905,21 @@ export class PIXINotesRendererInstance {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
-    const drawHighlight = (midi: number, color: string): void => {
+    const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-        const keyTop = top;
+      const keyTop = top;
       const keyHeight = geometry.isBlack ? geometry.height : height;
       ctx.fillStyle = color;
-      ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
+      ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
       ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
       ctx.globalAlpha = 1;
     };
+    // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 正解済みハイライト（赤色）- ガイドより上に描画
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
+    // アクティブハイライト（オレンジ）- 最前面
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }

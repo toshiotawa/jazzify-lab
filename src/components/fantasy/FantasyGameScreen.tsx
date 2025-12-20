@@ -87,9 +87,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // 設定状態を管理（初期値はstageから取得）
-  // デイリーチャレンジ: 練習モード時のみガイド表示可能、挑戦モード時は常にOFF
-  const [showKeyboardGuide, setShowKeyboardGuide] = useState(false);
+  // 設定状態を管理
+  // ガイド表示: 練習モードはデフォルトON（トグル可能）、挑戦モードは常にOFF
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState(true); // 練習モードのデフォルト値
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
@@ -97,14 +97,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
   // 鍵盤ガイド表示の実効値を計算
-  // デイリーチャレンジ: 練習モード時のみユーザー設定に従う、挑戦モード時は常にOFF
-  // 通常ファンタジーモード: stage.showGuide を使用
+  // 練習モード: ユーザー設定に従う（デフォルトON）
+  // 挑戦モード: 常にOFF（show_guide設定に関係なく）
   const effectiveShowGuide = useMemo(() => {
-    if (isDailyChallenge) {
-      return playMode === 'practice' && showKeyboardGuide;
+    // 挑戦モードは常にOFF
+    if (playMode === 'challenge') {
+      return false;
     }
-    return stage.showGuide;
-  }, [isDailyChallenge, playMode, showKeyboardGuide, stage.showGuide]);
+    // 練習モードはユーザー設定に従う
+    return showKeyboardGuide;
+  }, [playMode, showKeyboardGuide]);
   
   // 時間管理 - BGMManagerから取得
   const [currentBeat, setCurrentBeat] = useState(1);
@@ -1027,6 +1029,44 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+
+  // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    // Singleモードでのみ有効
+    if (stage.mode !== 'single') {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    const targetMonster = gameState.activeMonsters?.[0];
+    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    const correctNotes = targetMonster?.correctNotes || [];
+    
+    if (!chord || correctNotes.length === 0) {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    
+    // ガイド表示位置のオクターブの音のみハイライト
+    // chord.notesはガイド用のMIDI番号を含む
+    const correctMidiNotes: number[] = [];
+    correctNotes.forEach((noteMod12: number) => {
+      // chord.notes内で同じpitch class（mod 12）を持つMIDI番号を探す
+      chord.notes.forEach((midiNote: number) => {
+        if (midiNote % 12 === noteMod12) {
+          correctMidiNotes.push(midiNote);
+        }
+      });
+    });
+    
+    (pixiRenderer as any).setCorrectHighlightsByMidiNotes?.(correctMidiNotes);
+  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget]);
+
+  // 問題が変わったら正解済みハイライトをリセット
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    (pixiRenderer as any).clearCorrectHighlights?.();
+  }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
   
   // HPハート表示（プレイヤーと敵の両方を赤色のハートで表示）
   const renderHearts = useCallback((hp: number, maxHp: number, isPlayer: boolean = true) => {
