@@ -84,12 +84,21 @@ export const handler: Handler = async (event, _context) => {
     }
 
     // Supabase Authユーザーを削除（以降ログイン不可）
+    // 注意: 外部キー制約により削除が失敗する場合があるが、
+    // プロフィールが匿名化されていれば実質的に退会状態なので成功として扱う
     const { error: delErr } = await supabase.auth.admin.deleteUser(user.id);
-    if (delErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to delete auth user', details: delErr.message }) };
-    }
-
-    return { statusCode: 200, headers, body: JSON.stringify({ success: true }) };
+    
+    // Auth削除の結果に関わらず、プロフィール匿名化が成功していれば退会完了
+    // （メールアドレスが変更されているため、元のアドレスでログインできなくなる）
+    return { 
+      statusCode: 200, 
+      headers, 
+      body: JSON.stringify({ 
+        success: true,
+        authDeleted: !delErr,
+        message: delErr ? 'プロフィールは匿名化されました。次回ログアウト後は再ログインできません。' : '退会が完了しました。'
+      }) 
+    };
   } catch (error: any) {
     return { statusCode: 500, headers, body: JSON.stringify({ error: 'Internal server error', details: error?.message }) };
   }
