@@ -2,6 +2,7 @@ import { fetchWithCache, getSupabaseClient, clearCacheByPattern } from '@/platfo
 import { requireUserId } from '@/platform/authHelpers';
 import type { DailyChallengeDifficulty, DailyChallengeRecord, FantasyStage } from '@/types';
 import { createFantasyStage, fetchFantasyStageByNumber, updateFantasyStage } from '@/platform/supabaseFantasyStages';
+import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 
 const DAILY_CHALLENGE_STAGE_NUMBERS: Record<DailyChallengeDifficulty, string> = {
   beginner: 'DC-BEGINNER',
@@ -177,6 +178,8 @@ export async function createDailyChallengeRecord(args: {
   }
 
   clearCacheByPattern(new RegExp(`^daily_challenge_records:since:${userId}:${args.difficulty}:`));
+  // デイリーチャレンジ実施日数を更新するため、ユーザー統計キャッシュをクリア
+  clearUserStatsCache(userId);
   return { status: 'created' };
 }
 
