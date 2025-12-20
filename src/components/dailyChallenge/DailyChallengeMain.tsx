@@ -57,6 +57,8 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
     simultaneousMonsterCount: 1,
     bpm: 120,
     playRootOnCorrect: dbStage.play_root_on_correct ?? true,
+    // デイリーチャレンジでは転回形を無効化し、常に基本形とする
+    disableVoicing: true,
   };
 };
 
@@ -160,7 +162,7 @@ const DailyChallengeMain: React.FC = () => {
     <FantasyGameScreen
       key={`${view.difficulty}:${today}`}
       stage={view.stage}
-      autoStart={false}
+      autoStart={isPracticeMode}
       playMode={view.playMode}
       onPlayModeChange={(mode) => {
         // ユーザーがモードを選択したときにplayModeを更新

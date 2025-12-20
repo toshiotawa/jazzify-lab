@@ -222,34 +222,32 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             </p>
           </div>
 
-          {/* 鍵盤上にガイドを表示（デイリーチャレンジ時のみ表示） */}
-          {isDailyChallenge && (
-            <div>
-              <label className={cn(
-                "flex items-center space-x-2",
-                !isPracticeMode && "opacity-50 cursor-not-allowed"
-              )}>
-                <input
-                  type="checkbox"
-                  checked={settings.showKeyboardGuide}
-                  onChange={(e) => handleSettingChange('showKeyboardGuide', e.target.checked)}
-                  disabled={!isPracticeMode}
-                  className={cn(
-                    "rounded border-gray-600 text-blue-600 focus:ring-blue-500",
-                    !isPracticeMode && "cursor-not-allowed"
-                  )}
-                />
-                <span className="text-sm font-medium text-white">
-                  鍵盤上にガイドを表示
-                </span>
-              </label>
-              <p className="text-xs text-gray-400 mt-1">
-                {isPracticeMode 
-                  ? '練習モード時のみ、押すべき鍵盤をハイライト表示します'
-                  : '挑戦モードでは常にOFFです（練習モードでのみ変更可能）'}
-              </p>
-            </div>
-          )}
+          {/* 鍵盤上にガイドを表示 */}
+          <div>
+            <label className={cn(
+              "flex items-center space-x-2",
+              !isPracticeMode && "opacity-50 cursor-not-allowed"
+            )}>
+              <input
+                type="checkbox"
+                checked={settings.showKeyboardGuide}
+                onChange={(e) => handleSettingChange('showKeyboardGuide', e.target.checked)}
+                disabled={!isPracticeMode}
+                className={cn(
+                  "rounded border-gray-600 text-blue-600 focus:ring-blue-500",
+                  !isPracticeMode && "cursor-not-allowed"
+                )}
+              />
+              <span className="text-sm font-medium text-white">
+                鍵盤上にガイドを表示
+              </span>
+            </label>
+            <p className="text-xs text-gray-400 mt-1">
+              {isPracticeMode 
+                ? '練習モード時のみ、押すべき鍵盤をハイライト表示します'
+                : '挑戦モードでは常にOFFです（練習モードでのみ変更可能）'}
+            </p>
+          </div>
 
           {/* 音名表示設定（デイリーチャレンジ以外で表示） */}
           {!isDailyChallenge && (

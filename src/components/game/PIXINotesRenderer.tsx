@@ -135,7 +135,8 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private correctHighlightedKeys = new Set<number>();
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -259,9 +260,20 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(target);
   }
 
+  setCorrectHighlightsByMidiNotes(midiNotes: number[]): void {
+    const next = new Set<number>();
+    midiNotes.forEach((note) => {
+      const midi = this.clampMidi(note);
+      next.add(midi);
+    });
+    this.correctHighlightedKeys = next;
+    this.requestRender();
+  }
+
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -285,6 +297,7 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
       this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
@@ -889,6 +902,7 @@ export class PIXINotesRendererInstance {
       ctx.globalAlpha = 1;
     };
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.hit));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }

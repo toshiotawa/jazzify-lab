@@ -111,6 +111,8 @@ export interface FantasyStage {
   tier?: 'basic' | 'advanced';
   // 追加: 1小節内のノート間隔（太鼓進行のシンプル生成で使用）
   noteIntervalBeats?: number;
+  // 追加: ガイド表示時のボイシング（転回形）を無効化するかどうか
+  disableVoicing?: boolean;
 }
 
 export interface MonsterState {
@@ -191,7 +193,12 @@ interface FantasyGameEngineProps {
  * @returns ChordDefinition
  */
 const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, useVoicing: boolean = false): ChordDefinition | null => {
-  // 単音指定のハンドリング
+  const useVoicing = useVoicingForGuide && !displayOpts?.disableVoicing; // stage.disableVoicing をここで受け取れるようにしたいが、displayOpts経由か？
+  // いや、getChordDefinitionの引数で制御するのが正しい。
+  // createMonsterFromQueue -> selectUniqueRandomChord -> getChordDefinition という流れ。
+  // createMonsterFromQueue の引数 `useVoicingForGuide` が既に制御フラグになっている。
+  // 呼び出し元で stage.disableVoicing を見て useVoicingForGuide を false にすれば良い。
+
   if (typeof spec === 'object' && spec.type === 'note') {
     const step = spec.chord; // 'G', 'F#' など
     const octave = spec.octave ?? 4;
@@ -869,8 +876,8 @@ export const useFantasyGameEngine = ({
           lastChordId,
           displayOpts,
           monsterIds,        // ✅ 今回作った配列
-          // singleモードかつ同時出現1体、かつガイドONならボイシング適用
-          (stage.mode === 'single' && simultaneousCount === 1 && stage.showGuide)
+          // singleモードかつ同時出現1体、かつガイドONならボイシング適用。ただしdisableVoicingなら無効。
+          (stage.mode === 'single' && simultaneousCount === 1 && stage.showGuide && !stage.disableVoicing)
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -1046,7 +1053,7 @@ export const useFantasyGameEngine = ({
               (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               monster.chordTarget?.id,
               displayOpts,
-              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
+              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1 && !prevState.currentStage?.disableVoicing)
             );
           } else {
             // コード進行モード：ループさせる
@@ -1182,12 +1189,12 @@ export const useFantasyGameEngine = ({
             // ランダムモード：前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
             nextChord = selectRandomChord(
-              (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
-              previousChordId,
-              displayOpts,
-              (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1)
-            );
-          } else {
+          (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
+          previousChordId,
+          displayOpts,
+          (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1 && !prevState.currentStage?.disableVoicing)
+        );
+      } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
             const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
@@ -1586,7 +1593,7 @@ export const useFantasyGameEngine = ({
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
               stageMonsterIds, // stageMonsterIdsを渡す
-              stateAfterAttack.currentStage?.showGuide ?? false
+              (stateAfterAttack.currentStage?.showGuide && !stateAfterAttack.currentStage?.disableVoicing) ?? false
             );
             remainingMonsters.push(newMonster);
           }
@@ -1657,7 +1664,8 @@ export const useFantasyGameEngine = ({
         nextChord = selectRandomChord(
           (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
           prevState.currentChordTarget?.id,
-          displayOpts
+          displayOpts,
+          (prevState.currentStage?.showGuide && prevState.currentStage?.mode === 'single' && prevState.simultaneousMonsterCount === 1 && !prevState.currentStage?.disableVoicing)
         );
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
