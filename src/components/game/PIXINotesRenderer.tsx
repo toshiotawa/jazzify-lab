@@ -20,6 +20,7 @@ interface RendererSettings {
     blackKey: string | number;
     activeKey: string | number;
     guideKey: string | number;
+    correctKey: string | number;
     background: string | number;
   };
   noteNameStyle: NoteNameStyle;
@@ -100,6 +101,7 @@ const createDefaultSettings = (): RendererSettings => ({
     blackKey: '#2D2D2D',
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
+    correctKey: '#3B82F6',
     background: '#05060A'
   },
   noteNameStyle: 'off',
@@ -135,7 +137,8 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private correctHighlightedKeys = new Set<number>();
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
@@ -244,6 +247,16 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(next);
   }
 
+  setCorrectHighlights(midiNotes: number[]): void {
+    const next = new Set<number>();
+    midiNotes.forEach((note) => {
+      const midi = this.clampMidi(note);
+      next.add(midi);
+    });
+    this.correctHighlightedKeys = next;
+    this.requestRender();
+  }
+
   setGuideHighlightsByPitchClasses(pitchClasses: number[]): void {
     const normalized = new Set<number>();
     pitchClasses.forEach((pc) => {
@@ -262,6 +275,7 @@ export class PIXINotesRendererInstance {
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -285,6 +299,7 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
       this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
@@ -312,6 +327,7 @@ export class PIXINotesRendererInstance {
       blackKey: toColor(colors.blackKey),
       activeKey: toColor(colors.activeKey),
       guideKey: toColor(colors.guideKey),
+      correctKey: toColor(colors.correctKey),
       background: toColor(colors.background)
     };
   }
@@ -889,6 +905,7 @@ export class PIXINotesRendererInstance {
       ctx.globalAlpha = 1;
     };
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey));
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }
