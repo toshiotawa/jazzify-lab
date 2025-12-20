@@ -1,11 +1,23 @@
+import type { Handler } from '@netlify/functions';
 import { createClient } from '@supabase/supabase-js';
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+const supabaseUrl =
+  process.env.SUPABASE_URL ??
+  process.env.VITE_SUPABASE_URL ??
+  process.env.SUPABASE_SERVICE_ROLE_URL;
 
-export const handler = async (event: any) => {
+if (!supabaseUrl) {
+  throw new Error('SUPABASE_URL か VITE_SUPABASE_URL が設定されていません');
+}
+
+const supabaseServiceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+if (!supabaseServiceRoleKey) {
+  throw new Error('SUPABASE_SERVICE_ROLE_KEY が設定されていません');
+}
+
+const supabase = createClient(supabaseUrl, supabaseServiceRoleKey);
+
+export const handler: Handler = async (event, _context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
