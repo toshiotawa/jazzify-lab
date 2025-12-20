@@ -87,24 +87,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // 設定状態を管理（初期値はstageから取得）
-  // デイリーチャレンジ: 練習モード時のみガイド表示可能、挑戦モード時は常にOFF
-  const [showKeyboardGuide, setShowKeyboardGuide] = useState(false);
+  // 設定状態を管理
+  // 練習モードではデフォルトON
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState(true);
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
   
+  // 正解した鍵盤のハイライト用（問題が切り替わるまで維持）
+  const [correctHighlights, setCorrectHighlights] = useState<Set<number>>(new Set());
+  
   // 鍵盤ガイド表示の実効値を計算
   // デイリーチャレンジ: 練習モード時のみユーザー設定に従う、挑戦モード時は常にOFF
   // 通常ファンタジーモード: stage.showGuide を使用
   const effectiveShowGuide = useMemo(() => {
+    // デイリーチャレンジの場合
     if (isDailyChallenge) {
       return playMode === 'practice' && showKeyboardGuide;
     }
-    return stage.showGuide;
-  }, [isDailyChallenge, playMode, showKeyboardGuide, stage.showGuide]);
+    // 通常モードの場合
+    // 練習モードなら設定依存、本番モードなら常にOFF
+    if (playMode === 'practice') {
+      return showKeyboardGuide;
+    }
+    return false; // 本番はOFF
+  }, [isDailyChallenge, playMode, showKeyboardGuide]);
   
   // 時間管理 - BGMManagerから取得
   const [currentBeat, setCurrentBeat] = useState(1);
@@ -427,6 +436,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
       }
     }
+
+    // 正解した音をハイライトに追加
+    setCorrectHighlights(prev => {
+      const next = new Set(prev);
+      chord.notes.forEach(n => next.add(n));
+      return next;
+    });
 
     // ルート音を再生（非同期対応）
     const allowRootSound = stage?.playRootOnCorrect !== false;
@@ -1004,7 +1020,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!pixiRenderer) return;
     // progression/single 共通：押下中のオレンジは保持。ガイドのみクリア。
     (pixiRenderer as any).setGuideHighlightsByMidiNotes?.([]);
+    
+    // 正解ハイライトもクリア
+    setCorrectHighlights(new Set());
   }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
+
+  // 正解ハイライトの更新
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    if ((pixiRenderer as any).setCorrectHighlights) {
+      (pixiRenderer as any).setCorrectHighlights(Array.from(correctHighlights));
+    }
+  }, [pixiRenderer, correctHighlights]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
   useEffect(() => {
