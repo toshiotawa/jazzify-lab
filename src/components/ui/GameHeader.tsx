@@ -4,6 +4,7 @@ import { useGameActions } from '@/stores/helpers';
 import NotificationBell from '@/components/ui/NotificationBell';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { FaUserCircle } from 'react-icons/fa';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -108,8 +109,17 @@ const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy
         <>
           {/* 通知ベル（アカウントの左） */}
           <NotificationBell />
-            <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
-              {isEnglishCopy ? 'Account' : 'アカウント'}
+          {/* モバイル: アイコンのみ */}
+          <a 
+            href="#account" 
+            className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
+            aria-label={isEnglishCopy ? 'Account' : 'アカウント'}
+          >
+            <FaUserCircle size={24} />
+          </a>
+          {/* デスクトップ: テキストボタン */}
+          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
+            {isEnglishCopy ? 'Account' : 'アカウント'}
           </a>
         </>
       ) : isGuest ? (
