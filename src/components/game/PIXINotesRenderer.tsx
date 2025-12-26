@@ -721,7 +721,8 @@ export class PIXINotesRendererInstance {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
-    this.drawKeyHighlights(ctx);
+    this.drawWhiteKeyHighlights(ctx);
+    this.drawDynamicBlackKeys(ctx);
     this.drawKeyLabels(ctx);
     this.drawChordOverlay(ctx);
   }
@@ -742,7 +743,8 @@ export class PIXINotesRendererInstance {
       this.drawGuideLanes(ctx);
       ctx.fillStyle = '#000000';
       ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
-      this.drawStaticKeys(ctx);
+      // 白鍵のみ静的に描画（黒鍵は動的に描画するため除外）
+      this.drawStaticWhiteKeys(ctx);
       this.backgroundCanvas = canvas;
     }
 
@@ -782,23 +784,48 @@ export class PIXINotesRendererInstance {
       }
     }
 
-  private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
+  /**
+   * 静的な白鍵のみを描画（背景キャンバス用）
+   */
+  private drawStaticWhiteKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
     ctx.strokeStyle = 'rgba(15,23,42,0.35)';
     ctx.lineWidth = 1;
     
-    // 白鍵を3Dで描画
+    // 白鍵のみを3Dで描画
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
       this.draw3DWhiteKey(ctx, key, false);
     }
     
-    // 黒鍵を3Dで描画
+    ctx.restore();
+  }
+
+  /**
+   * 動的な黒鍵を描画（毎フレーム呼び出し）
+   */
+  private drawDynamicBlackKeys(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    
     for (const midi of this.blackKeyOrder) {
-      const key = this.keyGeometries.get(midi);
-      if (!key) continue;
-      this.draw3DBlackKey(ctx, key, false);
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) continue;
+      
+      const isPressed = this.highlightedKeys.has(midi);
+      const isGuide = this.guideHighlightedKeys.has(midi);
+      const isCorrect = this.correctHighlightedKeys.has(midi);
+      
+      let highlightColor: string | undefined;
+      if (isPressed) {
+        highlightColor = this.colors.activeKey;
+      } else if (isCorrect) {
+        highlightColor = this.colors.correctKey;
+      } else if (isGuide) {
+        highlightColor = this.colors.guideKey;
+      }
+      
+      this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
     }
     
     ctx.restore();
@@ -1053,68 +1080,21 @@ export class PIXINotesRendererInstance {
     }
   }
 
-  private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
+  /**
+   * 白鍵のハイライトのみを描画
+   * 黒鍵は drawDynamicBlackKeys で別途描画される
+   */
+  private drawWhiteKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
-    
-    // 押下されている鍵盤を収集（アクティブな鍵盤は押下状態）
-    const pressedWhiteKeys = new Set<number>();
-    const pressedBlackKeys = new Set<number>();
-    
-    this.highlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (!geometry) return;
-      if (geometry.isBlack) {
-        pressedBlackKeys.add(midi);
-      } else {
-        pressedWhiteKeys.add(midi);
-      }
-    });
-    
-    // ガイドハイライト用のセットも作成
-    const guideWhiteKeys = new Set<number>();
-    const guideBlackKeys = new Set<number>();
-    this.guideHighlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (!geometry) return;
-      if (geometry.isBlack) {
-        guideBlackKeys.add(midi);
-      } else {
-        guideWhiteKeys.add(midi);
-      }
-    });
-    
-    // 正解済みハイライト用のセットも作成
-    const correctWhiteKeys = new Set<number>();
-    const correctBlackKeys = new Set<number>();
-    this.correctHighlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (!geometry) return;
-      if (geometry.isBlack) {
-        correctBlackKeys.add(midi);
-      } else {
-        correctWhiteKeys.add(midi);
-      }
-    });
-    
-    // いずれかのハイライト（押下・ガイド・正解済み）があるかを判定
-    const hasAnyHighlight = this.highlightedKeys.size > 0 ||
-      this.guideHighlightedKeys.size > 0 ||
-      this.correctHighlightedKeys.size > 0;
-    
-    // ハイライトがない場合は何も描画しない（背景のみ）
-    if (!hasAnyHighlight) {
-      ctx.restore();
-      return;
-    }
     
     // 白鍵のハイライト描画（3D対応）
     for (const midi of this.whiteKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) continue;
       
-      const isPressed = pressedWhiteKeys.has(midi);
-      const isGuide = guideWhiteKeys.has(midi);
-      const isCorrect = correctWhiteKeys.has(midi);
+      const isPressed = this.highlightedKeys.has(midi);
+      const isGuide = this.guideHighlightedKeys.has(midi);
+      const isCorrect = this.correctHighlightedKeys.has(midi);
       
       // いずれかのハイライト状態がある場合、3D鍵盤を再描画
       if (isPressed || isGuide || isCorrect) {
@@ -1128,28 +1108,6 @@ export class PIXINotesRendererInstance {
         }
         this.draw3DWhiteKey(ctx, geometry, isPressed, highlightColor);
       }
-    }
-    
-    // 常にすべての黒鍵を再描画（白鍵の上に正しく表示するため）
-    for (const midi of this.blackKeyOrder) {
-      const geometry = this.keyGeometries.get(midi);
-      if (!geometry) continue;
-      
-      const isPressed = pressedBlackKeys.has(midi);
-      const isGuide = guideBlackKeys.has(midi);
-      const isCorrect = correctBlackKeys.has(midi);
-      
-      let highlightColor: string | undefined;
-      if (isPressed) {
-        highlightColor = this.colors.activeKey;
-      } else if (isCorrect) {
-        highlightColor = this.colors.correctKey;
-      } else if (isGuide) {
-        highlightColor = this.colors.guideKey;
-      }
-      
-      // ハイライトの有無に関わらず黒鍵を再描画
-      this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
     }
     
     ctx.restore();
