@@ -1096,6 +1096,11 @@ export class PIXINotesRendererInstance {
       }
     });
     
+    // 白鍵でハイライトがあるものを判定
+    const hasWhiteHighlight = this.whiteKeyOrder.some((midi) => {
+      return pressedWhiteKeys.has(midi) || guideWhiteKeys.has(midi) || correctWhiteKeys.has(midi);
+    });
+    
     // 白鍵のハイライト描画（3D対応）
     for (const midi of this.whiteKeyOrder) {
       const geometry = this.keyGeometries.get(midi);
@@ -1119,16 +1124,16 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // 黒鍵のハイライト描画（3D対応）
-    for (const midi of this.blackKeyOrder) {
-      const geometry = this.keyGeometries.get(midi);
-      if (!geometry) continue;
-      
-      const isPressed = pressedBlackKeys.has(midi);
-      const isGuide = guideBlackKeys.has(midi);
-      const isCorrect = correctBlackKeys.has(midi);
-      
-      if (isPressed || isGuide || isCorrect) {
+    // 白鍵のハイライトがある場合、すべての黒鍵を再描画（白鍵の上に黒鍵を表示するため）
+    if (hasWhiteHighlight) {
+      for (const midi of this.blackKeyOrder) {
+        const geometry = this.keyGeometries.get(midi);
+        if (!geometry) continue;
+        
+        const isPressed = pressedBlackKeys.has(midi);
+        const isGuide = guideBlackKeys.has(midi);
+        const isCorrect = correctBlackKeys.has(midi);
+        
         let highlightColor: string | undefined;
         if (isPressed) {
           highlightColor = this.colors.activeKey;
@@ -1137,7 +1142,31 @@ export class PIXINotesRendererInstance {
         } else if (isGuide) {
           highlightColor = this.colors.guideKey;
         }
+        
+        // ハイライトの有無に関わらず黒鍵を再描画
         this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
+      }
+    } else {
+      // 白鍵のハイライトがない場合は、ハイライトのある黒鍵のみ再描画
+      for (const midi of this.blackKeyOrder) {
+        const geometry = this.keyGeometries.get(midi);
+        if (!geometry) continue;
+        
+        const isPressed = pressedBlackKeys.has(midi);
+        const isGuide = guideBlackKeys.has(midi);
+        const isCorrect = correctBlackKeys.has(midi);
+        
+        if (isPressed || isGuide || isCorrect) {
+          let highlightColor: string | undefined;
+          if (isPressed) {
+            highlightColor = this.colors.activeKey;
+          } else if (isCorrect) {
+            highlightColor = this.colors.correctKey;
+          } else if (isGuide) {
+            highlightColor = this.colors.guideKey;
+          }
+          this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
+        }
       }
     }
     
