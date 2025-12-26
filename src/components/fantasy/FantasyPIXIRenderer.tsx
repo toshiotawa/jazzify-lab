@@ -53,6 +53,9 @@ interface MonsterVisual {
   defeatedAt?: number; // 撃破アニメ開始時刻
   enraged: boolean;
   enrageScale: number;
+  floatPhase: number; // 浮遊アニメーションの初期位相（ランダム）
+  floatAmplitude: number; // 浮遊アニメーションの振幅（ランダム）
+  floatSpeed: number; // 浮遊アニメーションの速度（ランダム）
   magicText?: {
     value: string;
     isSpecial: boolean;
@@ -180,6 +183,10 @@ export class FantasyPIXIInstance {
         defeatedAt: existing?.defeatedAt,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
+        // 浮遊アニメーションのランダムパラメータ（既存値を維持）
+        floatPhase: existing?.floatPhase ?? Math.random() * Math.PI * 2,
+        floatAmplitude: existing?.floatAmplitude ?? 3 + Math.random() * 4, // 3〜7pxの範囲
+        floatSpeed: existing?.floatSpeed ?? 0.0015 + Math.random() * 0.001, // 速度に変化を持たせる
         magicText: existing?.magicText,
         damagePopup: existing?.damagePopup
       });
@@ -415,7 +422,10 @@ export class FantasyPIXIInstance {
           hitBounceUntil: 0,
           defeated: false,
           enraged: false,
-          enrageScale: 1
+          enrageScale: 1,
+          floatPhase: Math.random() * Math.PI * 2,
+          floatAmplitude: 3 + Math.random() * 4,
+          floatSpeed: 0.0015 + Math.random() * 0.001
         }
       ];
     }
@@ -444,8 +454,8 @@ export class FantasyPIXIInstance {
       
       // Y位置（中央より少し上）
       const baseY = this.height * 0.45;
-      // アイドルアニメーション（上下の浮遊）
-      const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
+      // アイドルアニメーション（上下の浮遊）- 各モンスターごとにランダムな位相・振幅・速度
+      const floatOffset = Math.sin(now * monster.floatSpeed + monster.floatPhase) * monster.floatAmplitude;
       
       // 攻撃成功時のバウンスアニメーション（上に跳ねる）
       let bounceOffset = 0;
