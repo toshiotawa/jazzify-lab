@@ -10,6 +10,9 @@ import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import type { DisplayLang } from '@/utils/display-note';
 
+/** 鍵盤上の音名表示スタイル */
+type KeyboardNoteNameStyle = 'off' | 'abc' | 'solfege';
+
 interface FantasySettingsModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -22,6 +25,7 @@ interface FantasySettingsModalProps {
   bgmVolume?: number; // BGM音量設定をpropsで受け取る
   noteNameLang?: DisplayLang; // 音名表示言語
   simpleNoteName?: boolean; // 簡易表記
+  keyboardNoteNameStyle?: KeyboardNoteNameStyle; // 鍵盤上の音名表示スタイル
   // デイリーチャレンジ用の追加props
   isDailyChallenge?: boolean; // デイリーチャレンジモードかどうか
   isPracticeMode?: boolean; // 練習モードかどうか
@@ -35,6 +39,7 @@ interface FantasySettings {
   bgmVolume: number; // BGM音量
   noteNameLang: DisplayLang; // 音名表示言語
   simpleNoteName: boolean; // 簡易表記
+  keyboardNoteNameStyle: KeyboardNoteNameStyle; // 鍵盤上の音名表示スタイル
   showKeyboardGuide?: boolean; // 鍵盤上にガイドを表示（デイリーチャレンジ用）
 }
 
@@ -50,6 +55,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   bgmVolume = 0.7, // デフォルト70%BGM音量
   noteNameLang = 'en', // デフォルト英語表記
   simpleNoteName = false, // デフォルト簡易表記OFF
+  keyboardNoteNameStyle = 'abc', // デフォルト英語表示
   // デイリーチャレンジ用
   isDailyChallenge = false,
   isPracticeMode = false,
@@ -62,6 +68,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
     bgmVolume: bgmVolume, // propsから受け取ったBGM音量を使用
     noteNameLang: noteNameLang,
     simpleNoteName: simpleNoteName,
+    keyboardNoteNameStyle: keyboardNoteNameStyle,
     showKeyboardGuide: showKeyboardGuide
   });
   
@@ -94,6 +101,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, simpleNoteName: simpleNoteName }));
   }, [simpleNoteName]);
+
+  // propsのkeyboardNoteNameStyleが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, keyboardNoteNameStyle: keyboardNoteNameStyle }));
+  }, [keyboardNoteNameStyle]);
 
   // propsのshowKeyboardGuideが変更されたらsettingsも更新
   useEffect(() => {
@@ -250,6 +262,51 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               </p>
             </div>
           )}
+
+          {/* 鍵盤上の音名表示設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              鍵盤上の音名表示
+            </label>
+            <div className="flex space-x-4">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="keyboardNoteNameStyle"
+                  value="abc"
+                  checked={settings.keyboardNoteNameStyle === 'abc'}
+                  onChange={(e) => handleSettingChange('keyboardNoteNameStyle', e.target.value)}
+                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-white">英語 (C, D, E)</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="keyboardNoteNameStyle"
+                  value="solfege"
+                  checked={settings.keyboardNoteNameStyle === 'solfege'}
+                  onChange={(e) => handleSettingChange('keyboardNoteNameStyle', e.target.value)}
+                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-white">ドレミ</span>
+              </label>
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="keyboardNoteNameStyle"
+                  value="off"
+                  checked={settings.keyboardNoteNameStyle === 'off'}
+                  onChange={(e) => handleSettingChange('keyboardNoteNameStyle', e.target.value)}
+                  className="mr-2 text-blue-600 focus:ring-blue-500"
+                />
+                <span className="text-sm text-white">OFF</span>
+              </label>
+            </div>
+            <p className="text-xs text-gray-400 mt-1">
+              鍵盤に表示される音名のスタイルを切り替えます
+            </p>
+          </div>
 
           {/* 音名表示設定（デイリーチャレンジ以外で表示） */}
           {!isDailyChallenge && (
