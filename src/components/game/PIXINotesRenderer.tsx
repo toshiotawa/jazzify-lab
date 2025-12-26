@@ -804,6 +804,24 @@ export class PIXINotesRendererInstance {
     const depth = KEY_3D_DEPTH;
     const pressedOffset = KEY_PRESSED_OFFSET;
 
+    // 押下された白鍵の側面を先に描画（背景として）
+    for (let i = 0; i < this.whiteKeyOrder.length; i++) {
+      const midi = this.whiteKeyOrder[i];
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      if (isPressed) {
+        // 隣の鍵盤の押下状態をチェック
+        const leftMidi = i > 0 ? this.whiteKeyOrder[i - 1] : null;
+        const rightMidi = i < this.whiteKeyOrder.length - 1 ? this.whiteKeyOrder[i + 1] : null;
+        const leftPressed = leftMidi !== null && this.highlightedKeys.has(leftMidi);
+        const rightPressed = rightMidi !== null && this.highlightedKeys.has(rightMidi);
+        
+        this.drawWhiteKeySideFaces(ctx, key, keyTop, pianoHeight, pressedOffset, leftPressed, rightPressed);
+      }
+    }
+
     // 白鍵を描画
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
@@ -814,6 +832,17 @@ export class PIXINotesRendererInstance {
       const currentDepth = isPressed ? depth - pressedOffset : depth;
 
       this.draw3DWhiteKey(ctx, key, keyTop, pianoHeight, yOffset, currentDepth, isPressed);
+    }
+
+    // 押下された黒鍵の側面を先に描画
+    for (const midi of this.blackKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      if (isPressed) {
+        this.drawBlackKeySideFaces(ctx, key, keyTop, pressedOffset);
+      }
     }
 
     // 黒鍵を描画（白鍵の上に）
@@ -829,6 +858,121 @@ export class PIXINotesRendererInstance {
     }
 
     ctx.restore();
+  }
+
+  /**
+   * 押下された白鍵の左右の側面を描画
+   */
+  private drawWhiteKeySideFaces(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    pianoHeight: number,
+    pressedOffset: number,
+    leftPressed: boolean,
+    rightPressed: boolean
+  ): void {
+    const x = key.x;
+    const y = keyTop + pressedOffset;
+    const w = key.width;
+    const h = pianoHeight - KEY_3D_DEPTH + KEY_PRESSED_OFFSET;
+
+    // 左側面を描画（左隣が押下されていない場合）
+    if (!leftPressed) {
+      const leftGradient = ctx.createLinearGradient(x, y, x + pressedOffset, y);
+      leftGradient.addColorStop(0, '#8a9aaa');
+      leftGradient.addColorStop(1, '#b8c4d0');
+      ctx.fillStyle = leftGradient;
+      ctx.beginPath();
+      ctx.moveTo(x, keyTop);
+      ctx.lineTo(x, y);
+      ctx.lineTo(x, y + h);
+      ctx.lineTo(x, keyTop + pianoHeight - KEY_3D_DEPTH);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 左側面の境界線
+      ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, keyTop);
+      ctx.lineTo(x, keyTop + pianoHeight - KEY_3D_DEPTH + pressedOffset);
+      ctx.stroke();
+    }
+
+    // 右側面を描画（右隣が押下されていない場合）
+    if (!rightPressed) {
+      const rightGradient = ctx.createLinearGradient(x + w - pressedOffset, y, x + w, y);
+      rightGradient.addColorStop(0, '#b8c4d0');
+      rightGradient.addColorStop(1, '#6b7a8a');
+      ctx.fillStyle = rightGradient;
+      ctx.beginPath();
+      ctx.moveTo(x + w, keyTop);
+      ctx.lineTo(x + w, y);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w, keyTop + pianoHeight - KEY_3D_DEPTH);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 右側面の境界線
+      ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x + w, keyTop);
+      ctx.lineTo(x + w, keyTop + pianoHeight - KEY_3D_DEPTH + pressedOffset);
+      ctx.stroke();
+    }
+  }
+
+  /**
+   * 押下された黒鍵の左右の側面を描画
+   */
+  private drawBlackKeySideFaces(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    pressedOffset: number
+  ): void {
+    const x = key.x;
+    const y = keyTop + pressedOffset;
+    const w = key.width;
+    const h = key.height - KEY_3D_DEPTH + KEY_PRESSED_OFFSET;
+
+    // 左側面
+    const leftGradient = ctx.createLinearGradient(x, y, x + pressedOffset, y);
+    leftGradient.addColorStop(0, '#0a0a12');
+    leftGradient.addColorStop(1, '#1a1a2e');
+    ctx.fillStyle = leftGradient;
+    ctx.beginPath();
+    ctx.moveTo(x, keyTop);
+    ctx.lineTo(x, y);
+    ctx.lineTo(x, y + h);
+    ctx.lineTo(x, keyTop + key.height - KEY_3D_DEPTH);
+    ctx.closePath();
+    ctx.fill();
+
+    // 右側面
+    const rightGradient = ctx.createLinearGradient(x + w - pressedOffset, y, x + w, y);
+    rightGradient.addColorStop(0, '#1a1a2e');
+    rightGradient.addColorStop(1, '#050508');
+    ctx.fillStyle = rightGradient;
+    ctx.beginPath();
+    ctx.moveTo(x + w, keyTop);
+    ctx.lineTo(x + w, y);
+    ctx.lineTo(x + w, y + h);
+    ctx.lineTo(x + w, keyTop + key.height - KEY_3D_DEPTH);
+    ctx.closePath();
+    ctx.fill();
+
+    // 境界線
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, keyTop);
+    ctx.lineTo(x, keyTop + key.height - KEY_3D_DEPTH + pressedOffset);
+    ctx.moveTo(x + w, keyTop);
+    ctx.lineTo(x + w, keyTop + key.height - KEY_3D_DEPTH + pressedOffset);
+    ctx.stroke();
   }
 
   /**

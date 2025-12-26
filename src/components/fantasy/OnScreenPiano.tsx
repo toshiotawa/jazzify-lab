@@ -171,14 +171,25 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
     return clamp(percent, 0, 100);
   };
 
+  // 隣の鍵盤が押下されているかチェック
+  const isNeighborPressed = (noteIndex: number, direction: 'left' | 'right'): boolean => {
+    const neighborIndex = direction === 'left' ? noteIndex - 1 : noteIndex + 1;
+    if (neighborIndex < 0 || neighborIndex >= whiteKeys.length) return false;
+    return activeNotes.has(whiteKeys[neighborIndex]);
+  };
+
   return (
     <div className="w-full select-none" style={{ height: `${heightPx}px`, touchAction: 'none' }}>
       <div className="relative h-full bg-slate-900">
         {/* 白鍵レイヤー */}
         <div className="absolute inset-0 flex" style={{ paddingBottom: `${KEY_3D_DEPTH}px` }}>
-          {whiteKeys.map((note) => {
+          {whiteKeys.map((note, index) => {
             const isActive = activeNotes.has(note);
             const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
+            const leftNeighborPressed = isNeighborPressed(index, 'left');
+            const rightNeighborPressed = isNeighborPressed(index, 'right');
+            const pressedOffset = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
+            
             return (
               <div
                 key={note}
@@ -190,8 +201,21 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 onPointerEnter={handlePointerEnter(note)}
                 role="button"
                 aria-label={`MIDI ${note}`}
-                style={{ paddingTop: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0 }}
               >
+                {/* 左側面（押下時、左隣が押下されていない場合） */}
+                {isActive && !leftNeighborPressed && (
+                  <div
+                    className="absolute left-0 top-0 w-[2px] bg-gradient-to-r from-slate-400 to-slate-300"
+                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                  />
+                )}
+                {/* 右側面（押下時、右隣が押下されていない場合） */}
+                {isActive && !rightNeighborPressed && (
+                  <div
+                    className="absolute right-0 top-0 w-[2px] bg-gradient-to-r from-slate-300 to-slate-500"
+                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                  />
+                )}
                 {/* 鍵盤上面 */}
                 <div
                   className={`absolute left-0 right-0 rounded-b-md border border-slate-400 transition-all duration-75 ${
@@ -200,7 +224,7 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                       : 'bg-gradient-to-b from-white to-slate-100'
                   }`}
                   style={{
-                    top: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0,
+                    top: isActive ? `${pressedOffset}px` : 0,
                     bottom: `${currentDepth}px`,
                   }}
                 />
@@ -220,6 +244,8 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
             const left = getBlackLeftPercent(note);
             const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
             const blackKeyHeight = 65; // 黒鍵の高さ（%）
+            const pressedOffset = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
+            
             return (
               <div
                 key={note}
@@ -227,7 +253,7 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 style={{
                   left: `${left}%`,
                   width: '9%',
-                  top: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0,
+                  top: 0,
                   height: `${blackKeyHeight}%`,
                 }}
                 onPointerDown={handlePointerDown(note)}
@@ -238,6 +264,20 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 role="button"
                 aria-label={`MIDI ${note}`}
               >
+                {/* 左側面（押下時） */}
+                {isActive && (
+                  <div
+                    className="absolute left-0 top-0 w-[2px] bg-gradient-to-r from-slate-900 to-slate-800"
+                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                  />
+                )}
+                {/* 右側面（押下時） */}
+                {isActive && (
+                  <div
+                    className="absolute right-0 top-0 w-[2px] bg-gradient-to-r from-slate-800 to-black"
+                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                  />
+                )}
                 {/* 黒鍵上面 */}
                 <div
                   className={`absolute inset-0 rounded-b-md border border-slate-800 transition-all duration-75 ${
@@ -245,7 +285,10 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                       ? 'bg-gradient-to-b from-slate-600 to-slate-700'
                       : 'bg-gradient-to-b from-slate-900 to-black'
                   }`}
-                  style={{ bottom: `${currentDepth}px` }}
+                  style={{ 
+                    top: isActive ? `${pressedOffset}px` : 0,
+                    bottom: `${currentDepth}px` 
+                  }}
                 />
                 {/* 黒鍵の手前側面 */}
                 <div
