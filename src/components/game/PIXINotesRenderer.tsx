@@ -720,10 +720,17 @@ export class PIXINotesRendererInstance {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
-    // 3D鍵盤を動的に描画（押下状態に応じて）
-    this.drawDynamicKeys(ctx);
-    this.drawKeyHighlights(ctx);
-    // 鍵盤に音名を表示
+    
+    // 描画順序（立体感を出すため）:
+    // 1. 白鍵本体
+    // 2. 白鍵ハイライト
+    // 3. 黒鍵本体（白鍵ハイライトの上に重なる）
+    // 4. 黒鍵ハイライト
+    // 5. 音名ラベル
+    this.drawDynamicWhiteKeys(ctx);
+    this.drawWhiteKeyHighlights(ctx);
+    this.drawDynamicBlackKeys(ctx);
+    this.drawBlackKeyHighlights(ctx);
     this.drawKeyLabels(ctx);
     this.drawChordOverlay(ctx);
   }
@@ -793,10 +800,10 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 3D効果付きの鍵盤を描画（動的レイヤー）
+   * 3D効果付きの白鍵を描画（動的レイヤー）
    * 押下状態に応じて沈み込み効果を適用
    */
-  private drawDynamicKeys(ctx: CanvasRenderingContext2D): void {
+  private drawDynamicWhiteKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
     
     const keyTop = this.settings.hitLineY;
@@ -833,6 +840,19 @@ export class PIXINotesRendererInstance {
 
       this.draw3DWhiteKey(ctx, key, keyTop, pianoHeight, yOffset, currentDepth, isPressed);
     }
+
+    ctx.restore();
+  }
+
+  /**
+   * 3D効果付きの黒鍵を描画（動的レイヤー）
+   */
+  private drawDynamicBlackKeys(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    
+    const keyTop = this.settings.hitLineY;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
 
     // 押下された黒鍵の側面を先に描画
     for (const midi of this.blackKeyOrder) {
@@ -1192,7 +1212,10 @@ export class PIXINotesRendererInstance {
     }
   }
 
-  private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
+  /**
+   * 白鍵のハイライトを描画
+   */
+  private drawWhiteKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
     const keyTop = this.settings.hitLineY;
     const pianoHeight = this.settings.pianoHeight;
@@ -1201,22 +1224,18 @@ export class PIXINotesRendererInstance {
 
     const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
-      if (!geometry) return;
+      if (!geometry || geometry.isBlack) return;
 
       const isPressed = this.highlightedKeys.has(midi);
       const yOffset = isPressed ? pressedOffset : 0;
       const currentDepth = isPressed ? depth - pressedOffset : depth;
 
       const y = keyTop + yOffset;
-      const h = geometry.isBlack 
-        ? geometry.height - currentDepth 
-        : pianoHeight - currentDepth;
-      const radius = geometry.isBlack 
-        ? Math.min(6, geometry.width * 0.45)
-        : Math.min(6, geometry.width * 0.25);
+      const h = pianoHeight - currentDepth;
+      const radius = Math.min(6, geometry.width * 0.25);
 
       ctx.fillStyle = color;
-      ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
+      ctx.globalAlpha = alpha ?? 0.35;
       
       // 3D形状に合わせたハイライト
       ctx.beginPath();
@@ -1226,7 +1245,7 @@ export class PIXINotesRendererInstance {
       
       // 手前の側面にもハイライトを適用
       if (currentDepth > 0) {
-        ctx.globalAlpha = (alpha ?? (geometry.isBlack ? 0.55 : 0.35)) * 0.6;
+        ctx.globalAlpha = (alpha ?? 0.35) * 0.6;
         ctx.beginPath();
         ctx.moveTo(geometry.x, y + h);
         ctx.lineTo(geometry.x + geometry.width, y + h);
@@ -1239,47 +1258,67 @@ export class PIXINotesRendererInstance {
       ctx.globalAlpha = 1;
     };
 
-    // ガイドハイライト（緑色）- 白鍵のみ先に描画
-    this.guideHighlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (geometry && !geometry.isBlack) {
-        drawHighlight(midi, this.colors.guideKey);
-      }
-    });
-    // 正解済みハイライト（赤色）- 白鍵
-    this.correctHighlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (geometry && !geometry.isBlack) {
-        drawHighlight(midi, this.colors.correctKey, 0.6);
-      }
-    });
-    // アクティブハイライト（オレンジ）- 白鍵
-    this.highlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (geometry && !geometry.isBlack) {
-        drawHighlight(midi, this.colors.activeKey);
-      }
-    });
+    // ガイドハイライト（緑色）
+    this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 正解済みハイライト（赤色）
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
+    // アクティブハイライト（オレンジ）
+    this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
 
-    // 黒鍵のハイライト（白鍵の上に描画）
-    this.guideHighlightedKeys.forEach((midi) => {
+    ctx.restore();
+  }
+
+  /**
+   * 黒鍵のハイライトを描画
+   */
+  private drawBlackKeyHighlights(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    const keyTop = this.settings.hitLineY;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
+
+    const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
-      if (geometry && geometry.isBlack) {
-        drawHighlight(midi, this.colors.guideKey);
+      if (!geometry || !geometry.isBlack) return;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      const yOffset = isPressed ? pressedOffset : 0;
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+
+      const y = keyTop + yOffset;
+      const h = geometry.height - currentDepth;
+      const radius = Math.min(6, geometry.width * 0.45);
+
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha ?? 0.55;
+      
+      // 3D形状に合わせたハイライト
+      ctx.beginPath();
+      this.drawRoundedRectPath(ctx, geometry.x, y, geometry.width, h, radius);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 手前の側面にもハイライトを適用
+      if (currentDepth > 0) {
+        ctx.globalAlpha = (alpha ?? 0.55) * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(geometry.x, y + h);
+        ctx.lineTo(geometry.x + geometry.width, y + h);
+        ctx.lineTo(geometry.x + geometry.width, y + h + currentDepth);
+        ctx.lineTo(geometry.x, y + h + currentDepth);
+        ctx.closePath();
+        ctx.fill();
       }
-    });
-    this.correctHighlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (geometry && geometry.isBlack) {
-        drawHighlight(midi, this.colors.correctKey, 0.6);
-      }
-    });
-    this.highlightedKeys.forEach((midi) => {
-      const geometry = this.keyGeometries.get(midi);
-      if (geometry && geometry.isBlack) {
-        drawHighlight(midi, this.colors.activeKey);
-      }
-    });
+      
+      ctx.globalAlpha = 1;
+    };
+
+    // ガイドハイライト（緑色）
+    this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 正解済みハイライト（赤色）
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
+    // アクティブハイライト（オレンジ）
+    this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
 
     ctx.restore();
   }
