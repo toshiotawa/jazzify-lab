@@ -806,17 +806,23 @@ export class PIXINotesRendererInstance {
       ctx.strokeStyle = 'rgba(15,23,42,0.35)';
       ctx.stroke();
       
-      // 白鍵の音名表示（C, D, E, F, G, A, B）
-      const noteName = NOTE_NAMES[midi % 12];
-      const octave = Math.floor(midi / 12) - 1;
-      // Cの音のみオクターブ番号付きで表示、それ以外は音名のみ
-      const displayName = noteName === 'C' ? `C${octave}` : noteName;
-      const fontSize = Math.max(8, Math.min(12, key.width * 0.5));
-      ctx.font = `${fontSize}px 'Inter', sans-serif`;
-      ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'bottom';
-      ctx.fillText(displayName, key.x + key.width / 2, keyBottom - 4);
+      // 白鍵の音名表示（noteNameStyle設定に従う）
+      if (this.settings.noteNameStyle !== 'off') {
+        const noteName = NOTE_NAMES[midi % 12];
+        // solfegeの場合は日本語表記、abcの場合は英語表記（オクターブ番号なし）
+        let displayName: string;
+        if (this.settings.noteNameStyle === 'solfege') {
+          displayName = JAPANESE_NOTE_MAP[noteName] || noteName;
+        } else {
+          displayName = noteName;
+        }
+        const fontSize = Math.max(8, Math.min(12, key.width * 0.5));
+        ctx.font = `${fontSize}px 'Inter', sans-serif`;
+        ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(displayName, key.x + key.width / 2, keyBottom - 4);
+      }
       
       ctx.restore();
     }

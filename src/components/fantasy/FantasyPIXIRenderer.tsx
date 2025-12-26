@@ -341,7 +341,9 @@ export class FantasyPIXIInstance {
     const now = performance.now();
     
     // 🚀 アニメーションがアクティブかどうかを判定
+    // モンスターが存在する場合はアイドルアニメーション（上下浮遊）のため常にアクティブ
     const hasActiveAnimations = 
+      this.monsters.length > 0 || // モンスターが存在すればアイドルアニメーションが必要
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.specialAttackEffect?.active ||
