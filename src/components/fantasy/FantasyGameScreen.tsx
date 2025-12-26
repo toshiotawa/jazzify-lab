@@ -92,6 +92,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [showKeyboardGuide, setShowKeyboardGuide] = useState(true); // 練習モードのデフォルト値
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
+  const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>('abc'); // 鍵盤上の音名表示
   
   // 魔法名表示状態
   const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
@@ -688,7 +689,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const dynamicNoteWidth = Math.max(whiteKeyWidth - 2, 16); // 最小16px
       
         renderer.updateSettings({
-          noteNameStyle: 'abc',
+          noteNameStyle: keyboardNoteNameStyle,
           simpleDisplayMode: true, // シンプル表示モードを有効
           pianoHeight: 120, // ファンタジーモード用に大幅に縮小
           noteHeight: 16, // 音符の高さも縮小
@@ -743,10 +744,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         totalWhiteKeys,
         whiteKeyWidth: whiteKeyWidth.toFixed(2),
         noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: effectiveShowGuide
+        showGuide: effectiveShowGuide,
+        keyboardNoteNameStyle
       });
     }
-  }, [handleNoteInputBridge, effectiveShowGuide]);
+  }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -756,6 +758,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     instance.updateTaikoMode(gameState.isTaikoMode);
     isTaikoModeRef.current = gameState.isTaikoMode;
   }, [gameState.isTaikoMode]);
+
+  // 鍵盤上の音名表示設定変更時にレンダラーを更新
+  useEffect(() => {
+    if (pixiRenderer) {
+      pixiRenderer.updateSettings({
+        noteNameStyle: keyboardNoteNameStyle
+      });
+      devLog.debug('🎹 鍵盤上の音名表示設定を更新:', keyboardNoteNameStyle);
+    }
+  }, [keyboardNoteNameStyle, pixiRenderer]);
   
   // 魔法名表示ハンドラー
   const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
@@ -1651,6 +1663,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setCurrentNoteNameLang(newSettings.noteNameLang);
           setCurrentSimpleNoteName(newSettings.simpleNoteName);
           
+          // 鍵盤上の音名表示設定が変更されたら更新
+          if (newSettings.keyboardNoteNameStyle !== undefined) {
+            setKeyboardNoteNameStyle(newSettings.keyboardNoteNameStyle);
+          }
+          
           // 鍵盤ガイド表示設定が変更されたら更新（デイリーチャレンジの練習モード時のみ）
           if (newSettings.showKeyboardGuide !== undefined) {
             setShowKeyboardGuide(newSettings.showKeyboardGuide);
@@ -1694,6 +1711,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         bgmVolume={settings.bgmVolume} // gameStoreのBGM音量を渡す
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
+        keyboardNoteNameStyle={keyboardNoteNameStyle}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}
