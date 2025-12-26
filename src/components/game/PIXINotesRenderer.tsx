@@ -717,12 +717,17 @@ export class PIXINotesRendererInstance {
       ctx.fillRect(0, 0, this.width, this.height);
     }
     
+    // 鍵盤を先に描画（白鍵ハイライト → 黒鍵）
+    this.drawWhiteKeyHighlights(ctx);
+    this.drawDynamicBlackKeys(ctx);
+    
+    // ノーツを鍵盤の上に描画
     if (this.settings.showHitLine) {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
-    this.drawWhiteKeyHighlights(ctx);
-    this.drawDynamicBlackKeys(ctx);
+    
+    // ラベルとオーバーレイを最後に描画
     this.drawKeyLabels(ctx);
     this.drawChordOverlay(ctx);
   }
