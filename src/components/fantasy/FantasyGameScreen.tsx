@@ -1031,10 +1031,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
+  // ★★★ 修正: 複数モンスター時はハイライトを非表示 ★★★
   useEffect(() => {
     if (!pixiRenderer) return;
     // Singleモードでのみ有効
     if (stage.mode !== 'single') {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    // ★★★ 複数モンスター時は正解ハイライトを非表示 ★★★
+    if (gameState.simultaneousMonsterCount > 1) {
       (pixiRenderer as any).clearCorrectHighlights?.();
       return;
     }
@@ -1060,7 +1066,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     
     (pixiRenderer as any).setCorrectHighlightsByMidiNotes?.(correctMidiNotes);
-  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget, gameState.simultaneousMonsterCount]);
 
   // 問題が変わったら正解済みハイライトをリセット
   useEffect(() => {
@@ -1331,9 +1337,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
+              // ★★★ 修正点: PIXIレンダラーと同じ計算で絶対位置配置 ★★★
               <div
-                className="flex justify-center items-start w-full mx-auto gap-0"
+                className="relative w-full mx-auto"
                 style={{
                   // スマホ横画面ではUIエリアを圧縮
                   height: (window.innerWidth > window.innerHeight && window.innerWidth < 900)
@@ -1343,49 +1349,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               >
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
-                  .map((monster) => {
+                  .map((monster, index) => {
                     // モンスター数に応じて幅を動的に計算
                     const monsterCount = gameState.activeMonsters.length;
-                    let widthPercent: string;
-                    let maxWidth: string;
+                    
+                    // PIXIレンダラーと同じ計算でx座標を算出
+                    const spacing = monsterAreaWidth / (monsterCount + 1);
+                    const xPosition = spacing * (index + 1);
                     
                     // モバイル判定（768px未満）
                     const isMobile = window.innerWidth < 768;
                     
-                    if (isMobile) {
-                      // モバイルの場合
-                      if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '120px';
-                      } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '80px';
-                      } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '60px';
-                      }
-                    } else {
-                      // デスクトップの場合
-                      if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '220px';
-                      } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '150px';
-                      } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '120px';
-                      }
-                    }
+                    // カードの幅を計算（PIXIのモンスターサイズに合わせる）
+                    const cardWidth = isMobile
+                      ? Math.min(100, spacing * 0.9)
+                      : Math.min(180, spacing * 0.85);
                     
                     return (
                       <div 
                         key={monster.id}
-                        // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
-                        className="flex-shrink-0 flex flex-col items-center"
-                        style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
+                        // ★★★ 修正点: 絶対位置で配置、中央揃え ★★★
+                        className="absolute flex flex-col items-center"
+                        style={{ 
+                          left: `${xPosition}px`,
+                          transform: 'translateX(-50%)', // 中央揃え
+                          width: `${cardWidth}px`
+                        }}
                       >
                       {/* 太鼓の達人モードでは敵の下に何も表示しない */}
                       {!gameState.isTaikoMode && (
