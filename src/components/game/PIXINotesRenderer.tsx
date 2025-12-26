@@ -1096,10 +1096,16 @@ export class PIXINotesRendererInstance {
       }
     });
     
-    // 白鍵でハイライトがあるものを判定
-    const hasWhiteHighlight = this.whiteKeyOrder.some((midi) => {
-      return pressedWhiteKeys.has(midi) || guideWhiteKeys.has(midi) || correctWhiteKeys.has(midi);
-    });
+    // いずれかのハイライト（押下・ガイド・正解済み）があるかを判定
+    const hasAnyHighlight = this.highlightedKeys.size > 0 ||
+      this.guideHighlightedKeys.size > 0 ||
+      this.correctHighlightedKeys.size > 0;
+    
+    // ハイライトがない場合は何も描画しない（背景のみ）
+    if (!hasAnyHighlight) {
+      ctx.restore();
+      return;
+    }
     
     // 白鍵のハイライト描画（3D対応）
     for (const midi of this.whiteKeyOrder) {
@@ -1124,50 +1130,26 @@ export class PIXINotesRendererInstance {
       }
     }
     
-    // 白鍵のハイライトがある場合、すべての黒鍵を再描画（白鍵の上に黒鍵を表示するため）
-    if (hasWhiteHighlight) {
-      for (const midi of this.blackKeyOrder) {
-        const geometry = this.keyGeometries.get(midi);
-        if (!geometry) continue;
-        
-        const isPressed = pressedBlackKeys.has(midi);
-        const isGuide = guideBlackKeys.has(midi);
-        const isCorrect = correctBlackKeys.has(midi);
-        
-        let highlightColor: string | undefined;
-        if (isPressed) {
-          highlightColor = this.colors.activeKey;
-        } else if (isCorrect) {
-          highlightColor = this.colors.correctKey;
-        } else if (isGuide) {
-          highlightColor = this.colors.guideKey;
-        }
-        
-        // ハイライトの有無に関わらず黒鍵を再描画
-        this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
+    // 常にすべての黒鍵を再描画（白鍵の上に正しく表示するため）
+    for (const midi of this.blackKeyOrder) {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry) continue;
+      
+      const isPressed = pressedBlackKeys.has(midi);
+      const isGuide = guideBlackKeys.has(midi);
+      const isCorrect = correctBlackKeys.has(midi);
+      
+      let highlightColor: string | undefined;
+      if (isPressed) {
+        highlightColor = this.colors.activeKey;
+      } else if (isCorrect) {
+        highlightColor = this.colors.correctKey;
+      } else if (isGuide) {
+        highlightColor = this.colors.guideKey;
       }
-    } else {
-      // 白鍵のハイライトがない場合は、ハイライトのある黒鍵のみ再描画
-      for (const midi of this.blackKeyOrder) {
-        const geometry = this.keyGeometries.get(midi);
-        if (!geometry) continue;
-        
-        const isPressed = pressedBlackKeys.has(midi);
-        const isGuide = guideBlackKeys.has(midi);
-        const isCorrect = correctBlackKeys.has(midi);
-        
-        if (isPressed || isGuide || isCorrect) {
-          let highlightColor: string | undefined;
-          if (isPressed) {
-            highlightColor = this.colors.activeKey;
-          } else if (isCorrect) {
-            highlightColor = this.colors.correctKey;
-          } else if (isGuide) {
-            highlightColor = this.colors.guideKey;
-          }
-          this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
-        }
-      }
+      
+      // ハイライトの有無に関わらず黒鍵を再描画
+      this.draw3DBlackKey(ctx, geometry, isPressed, highlightColor);
     }
     
     ctx.restore();
