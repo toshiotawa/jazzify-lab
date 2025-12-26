@@ -26,6 +26,10 @@ const blackKeyOffsetBySemitone: Record<number, number> = {
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
+// 3D効果用の定数
+const KEY_3D_DEPTH = 8; // 鍵盤の奥行き（px）
+const KEY_PRESSED_DEPTH = 4; // 押下時の奥行き（px）
+
 const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
   startMidi = 48, // C3
   endMidi = 72,   // C5
@@ -169,15 +173,16 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
 
   return (
     <div className="w-full select-none" style={{ height: `${heightPx}px`, touchAction: 'none' }}>
-      <div className="relative h-full">
+      <div className="relative h-full bg-slate-900">
         {/* 白鍵レイヤー */}
-        <div className="absolute inset-0 flex">
+        <div className="absolute inset-0 flex" style={{ paddingBottom: `${KEY_3D_DEPTH}px` }}>
           {whiteKeys.map((note) => {
             const isActive = activeNotes.has(note);
+            const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
             return (
               <div
                 key={note}
-                className={`flex-1 border border-slate-700 bg-white ${isActive ? 'bg-yellow-200 shadow-inner' : 'bg-gradient-to-b from-white to-slate-100'} relative`}
+                className="flex-1 relative"
                 onPointerDown={handlePointerDown(note)}
                 onPointerUp={handlePointerUpOrCancel}
                 onPointerCancel={handlePointerUpOrCancel}
@@ -185,20 +190,46 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 onPointerEnter={handlePointerEnter(note)}
                 role="button"
                 aria-label={`MIDI ${note}`}
-              />
+                style={{ paddingTop: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0 }}
+              >
+                {/* 鍵盤上面 */}
+                <div
+                  className={`absolute left-0 right-0 rounded-b-md border border-slate-400 transition-all duration-75 ${
+                    isActive
+                      ? 'bg-gradient-to-b from-slate-200 to-slate-300'
+                      : 'bg-gradient-to-b from-white to-slate-100'
+                  }`}
+                  style={{
+                    top: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0,
+                    bottom: `${currentDepth}px`,
+                  }}
+                />
+                {/* 手前の側面（3D効果） */}
+                <div
+                  className="absolute left-0 right-0 bottom-0 bg-gradient-to-b from-slate-300 to-slate-500 border-x border-b border-slate-500 rounded-b-sm"
+                  style={{ height: `${currentDepth}px` }}
+                />
+              </div>
             );
           })}
         </div>
         {/* 黒鍵レイヤー */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 pointer-events-none">
           {blackKeys.map((note) => {
             const isActive = activeNotes.has(note);
             const left = getBlackLeftPercent(note);
+            const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
+            const blackKeyHeight = 65; // 黒鍵の高さ（%）
             return (
               <div
                 key={note}
-                className={`absolute -translate-x-1/2 w-[70%] max-w-[70%] h-[65%] top-0 rounded-b-md border border-slate-800 ${isActive ? 'bg-gray-700' : 'bg-black'} shadow-xl`}
-                style={{ left: `${left}%` }}
+                className="absolute -translate-x-1/2 pointer-events-auto"
+                style={{
+                  left: `${left}%`,
+                  width: '9%',
+                  top: isActive ? `${KEY_3D_DEPTH - KEY_PRESSED_DEPTH}px` : 0,
+                  height: `${blackKeyHeight}%`,
+                }}
                 onPointerDown={handlePointerDown(note)}
                 onPointerUp={handlePointerUpOrCancel}
                 onPointerCancel={handlePointerUpOrCancel}
@@ -206,7 +237,22 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 onPointerEnter={handlePointerEnter(note)}
                 role="button"
                 aria-label={`MIDI ${note}`}
-              />
+              >
+                {/* 黒鍵上面 */}
+                <div
+                  className={`absolute inset-0 rounded-b-md border border-slate-800 transition-all duration-75 ${
+                    isActive
+                      ? 'bg-gradient-to-b from-slate-600 to-slate-700'
+                      : 'bg-gradient-to-b from-slate-900 to-black'
+                  }`}
+                  style={{ bottom: `${currentDepth}px` }}
+                />
+                {/* 黒鍵の手前側面 */}
+                <div
+                  className="absolute left-0 right-0 bottom-0 bg-gradient-to-b from-slate-800 to-black border-x border-b border-black rounded-b-sm"
+                  style={{ height: `${currentDepth}px` }}
+                />
+              </div>
             );
           })}
         </div>
