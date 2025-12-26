@@ -250,11 +250,11 @@ export class FantasyPIXIInstance {
       visual.flashUntil = performance.now() + 250;
       visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
-      // ダメージポップアップを追加（モンスターの上部から開始、より長く表示）
+      // ダメージポップアップを追加（モンスターの少し上から開始、より長く表示）
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
-        y: visual.y - 80, // より上から開始
+        y: visual.y - 30, // モンスターの少し上から開始（以前より下げた）
         value: damageDealt,
         start: performance.now(),
         duration: 1800 // 1.8秒間表示（視認性向上）
@@ -289,7 +289,7 @@ export class FantasyPIXIInstance {
     this.specialAttackEffect = {
       active: true,
       start: performance.now(),
-      duration: 1500,
+      duration: 700, // 1500msから700msに短縮（暗転時間を短く）
       text: 'Swing! Swing! Swing!'
     };
   }
@@ -694,14 +694,14 @@ export class FantasyPIXIInstance {
       ctx.fillRect(0, 0, this.width, this.height);
     }
     
-    // フェーズ2: テキスト表示 (0.1-0.9)
-    if (progress > 0.1 && progress < 0.9) {
-      const textProgress = (progress - 0.1) / 0.8;
-      const textAlpha = textProgress < 0.2 ? textProgress / 0.2 : 
-                        textProgress > 0.8 ? (1 - textProgress) / 0.2 : 1;
+    // フェーズ2: テキスト表示 (0.1-0.85) - 暗転時間を短縮
+    if (progress > 0.1 && progress < 0.85) {
+      const textProgress = (progress - 0.1) / 0.75;
+      const textAlpha = textProgress < 0.15 ? textProgress / 0.15 : 
+                        textProgress > 0.85 ? (1 - textProgress) / 0.15 : 1;
       
-      // 背景の暗転
-      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.5})`;
+      // 背景の暗転（より軽く）
+      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.35})`;
       ctx.fillRect(0, 0, this.width, this.height);
       
       // テキスト

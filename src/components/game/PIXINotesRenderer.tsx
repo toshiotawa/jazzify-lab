@@ -805,6 +805,19 @@ export class PIXINotesRendererInstance {
       ctx.restore();
       ctx.strokeStyle = 'rgba(15,23,42,0.35)';
       ctx.stroke();
+      
+      // 白鍵の音名表示（C, D, E, F, G, A, B）
+      const noteName = NOTE_NAMES[midi % 12];
+      const octave = Math.floor(midi / 12) - 1;
+      // Cの音のみオクターブ番号付きで表示、それ以外は音名のみ
+      const displayName = noteName === 'C' ? `C${octave}` : noteName;
+      const fontSize = Math.max(8, Math.min(12, key.width * 0.5));
+      ctx.font = `${fontSize}px 'Inter', sans-serif`;
+      ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(displayName, key.x + key.width / 2, keyBottom - 4);
+      
       ctx.restore();
     }
     for (const midi of this.blackKeyOrder) {
@@ -905,14 +918,63 @@ export class PIXINotesRendererInstance {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
+    const blackKeyHeight = height * 0.6;
+    
     const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
       const keyTop = top;
-      const keyHeight = geometry.isBlack ? geometry.height : height;
+      
       ctx.fillStyle = color;
       ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
-      ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
+      
+      if (geometry.isBlack) {
+        // 黒鍵はそのまま矩形で描画
+        ctx.fillRect(geometry.x, keyTop, geometry.width, geometry.height);
+      } else {
+        // 白鍵は黒鍵を避けた形状で描画
+        // 隣接する黒鍵を取得
+        const prevBlack = this.keyGeometries.get(midi - 1);
+        const nextBlack = this.keyGeometries.get(midi + 1);
+        const hasLeftBlack = prevBlack?.isBlack ?? false;
+        const hasRightBlack = nextBlack?.isBlack ?? false;
+        
+        // 白鍵の下部（黒鍵より下）は常に全幅
+        const lowerTop = keyTop + blackKeyHeight;
+        const lowerHeight = height - blackKeyHeight;
+        ctx.fillRect(geometry.x, lowerTop, geometry.width, lowerHeight);
+        
+        // 白鍵の上部（黒鍵の高さ部分）は黒鍵を避けて描画
+        if (!hasLeftBlack && !hasRightBlack) {
+          // 両隣に黒鍵がない（AとEの場合など）：全幅で描画
+          ctx.fillRect(geometry.x, keyTop, geometry.width, blackKeyHeight);
+        } else if (hasLeftBlack && hasRightBlack) {
+          // 両隣に黒鍵がある（D, G, Aなど）：中央部分のみ
+          const leftBlackRight = prevBlack!.x + prevBlack!.width;
+          const rightBlackLeft = nextBlack!.x;
+          const upperX = leftBlackRight;
+          const upperWidth = rightBlackLeft - leftBlackRight;
+          if (upperWidth > 0) {
+            ctx.fillRect(upperX, keyTop, upperWidth, blackKeyHeight);
+          }
+        } else if (hasLeftBlack) {
+          // 左側のみ黒鍵がある（EとBなど）：右側を描画
+          const leftBlackRight = prevBlack!.x + prevBlack!.width;
+          const upperX = leftBlackRight;
+          const upperWidth = geometry.x + geometry.width - leftBlackRight;
+          if (upperWidth > 0) {
+            ctx.fillRect(upperX, keyTop, upperWidth, blackKeyHeight);
+          }
+        } else if (hasRightBlack) {
+          // 右側のみ黒鍵がある（CとFなど）：左側を描画
+          const rightBlackLeft = nextBlack!.x;
+          const upperWidth = rightBlackLeft - geometry.x;
+          if (upperWidth > 0) {
+            ctx.fillRect(geometry.x, keyTop, upperWidth, blackKeyHeight);
+          }
+        }
+      }
+      
       ctx.globalAlpha = 1;
     };
     // ガイドハイライト（緑色）
