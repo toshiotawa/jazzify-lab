@@ -801,7 +801,7 @@ export class PIXINotesRendererInstance {
 
   /**
    * 3D効果付きの白鍵を描画（動的レイヤー）
-   * 押下状態に応じて沈み込み効果を適用
+   * 押下状態に応じて沈み込み効果を適用（上端固定、手前が沈む）
    */
   private drawDynamicWhiteKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
@@ -835,10 +835,10 @@ export class PIXINotesRendererInstance {
       if (!key) continue;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定、押下時は手前の側面が短くなる
       const currentDepth = isPressed ? depth - pressedOffset : depth;
 
-      this.draw3DWhiteKey(ctx, key, keyTop, pianoHeight, yOffset, currentDepth, isPressed);
+      this.draw3DWhiteKey(ctx, key, keyTop, pianoHeight, 0, currentDepth, isPressed);
     }
 
     ctx.restore();
@@ -846,6 +846,7 @@ export class PIXINotesRendererInstance {
 
   /**
    * 3D効果付きの黒鍵を描画（動的レイヤー）
+   * 上端固定、手前が沈む
    */
   private drawDynamicBlackKeys(ctx: CanvasRenderingContext2D): void {
     ctx.save();
@@ -871,17 +872,18 @@ export class PIXINotesRendererInstance {
       if (!key) continue;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定、押下時は手前の側面が短くなる
       const currentDepth = isPressed ? depth - pressedOffset : depth;
 
-      this.draw3DBlackKey(ctx, key, keyTop, yOffset, currentDepth, isPressed);
+      this.draw3DBlackKey(ctx, key, keyTop, 0, currentDepth, isPressed);
     }
 
     ctx.restore();
   }
 
   /**
-   * 押下された白鍵の左右の側面を描画
+   * 押下された白鍵の左右の側面を描画（上端固定）
+   * 隣の鍵盤との段差を表現
    */
   private drawWhiteKeySideFaces(
     ctx: CanvasRenderingContext2D,
@@ -893,21 +895,22 @@ export class PIXINotesRendererInstance {
     rightPressed: boolean
   ): void {
     const x = key.x;
-    const y = keyTop + pressedOffset;
     const w = key.width;
-    const h = pianoHeight - KEY_3D_DEPTH + KEY_PRESSED_OFFSET;
+    // 押下時の鍵盤下端位置
+    const pressedBottom = keyTop + pianoHeight - (KEY_3D_DEPTH - KEY_PRESSED_OFFSET);
+    // 通常時の鍵盤下端位置
+    const normalBottom = keyTop + pianoHeight - KEY_3D_DEPTH;
 
     // 左側面を描画（左隣が押下されていない場合）
+    // 押下された鍵盤は沈んでいるので、隣の鍵盤との間に段差ができる
     if (!leftPressed) {
-      const leftGradient = ctx.createLinearGradient(x, y, x + pressedOffset, y);
-      leftGradient.addColorStop(0, '#8a9aaa');
-      leftGradient.addColorStop(1, '#b8c4d0');
-      ctx.fillStyle = leftGradient;
+      const sideHeight = pressedOffset;
+      ctx.fillStyle = '#7a8a9a';
       ctx.beginPath();
-      ctx.moveTo(x, keyTop);
-      ctx.lineTo(x, y);
-      ctx.lineTo(x, y + h);
-      ctx.lineTo(x, keyTop + pianoHeight - KEY_3D_DEPTH);
+      ctx.moveTo(x, normalBottom);
+      ctx.lineTo(x, pressedBottom);
+      ctx.lineTo(x + 2, pressedBottom);
+      ctx.lineTo(x + 2, normalBottom);
       ctx.closePath();
       ctx.fill();
       
@@ -915,22 +918,20 @@ export class PIXINotesRendererInstance {
       ctx.strokeStyle = 'rgba(15,23,42,0.3)';
       ctx.lineWidth = 0.5;
       ctx.beginPath();
-      ctx.moveTo(x, keyTop);
-      ctx.lineTo(x, keyTop + pianoHeight - KEY_3D_DEPTH + pressedOffset);
+      ctx.moveTo(x, normalBottom);
+      ctx.lineTo(x, pressedBottom);
       ctx.stroke();
     }
 
     // 右側面を描画（右隣が押下されていない場合）
     if (!rightPressed) {
-      const rightGradient = ctx.createLinearGradient(x + w - pressedOffset, y, x + w, y);
-      rightGradient.addColorStop(0, '#b8c4d0');
-      rightGradient.addColorStop(1, '#6b7a8a');
-      ctx.fillStyle = rightGradient;
+      const sideHeight = pressedOffset;
+      ctx.fillStyle = '#6a7a8a';
       ctx.beginPath();
-      ctx.moveTo(x + w, keyTop);
-      ctx.lineTo(x + w, y);
-      ctx.lineTo(x + w, y + h);
-      ctx.lineTo(x + w, keyTop + pianoHeight - KEY_3D_DEPTH);
+      ctx.moveTo(x + w, normalBottom);
+      ctx.lineTo(x + w, pressedBottom);
+      ctx.lineTo(x + w - 2, pressedBottom);
+      ctx.lineTo(x + w - 2, normalBottom);
       ctx.closePath();
       ctx.fill();
       
@@ -938,14 +939,14 @@ export class PIXINotesRendererInstance {
       ctx.strokeStyle = 'rgba(15,23,42,0.3)';
       ctx.lineWidth = 0.5;
       ctx.beginPath();
-      ctx.moveTo(x + w, keyTop);
-      ctx.lineTo(x + w, keyTop + pianoHeight - KEY_3D_DEPTH + pressedOffset);
+      ctx.moveTo(x + w, normalBottom);
+      ctx.lineTo(x + w, pressedBottom);
       ctx.stroke();
     }
   }
 
   /**
-   * 押下された黒鍵の左右の側面を描画
+   * 押下された黒鍵の左右の側面を描画（上端固定）
    */
   private drawBlackKeySideFaces(
     ctx: CanvasRenderingContext2D,
@@ -954,33 +955,29 @@ export class PIXINotesRendererInstance {
     pressedOffset: number
   ): void {
     const x = key.x;
-    const y = keyTop + pressedOffset;
     const w = key.width;
-    const h = key.height - KEY_3D_DEPTH + KEY_PRESSED_OFFSET;
+    // 押下時の鍵盤下端位置
+    const pressedBottom = keyTop + key.height - (KEY_3D_DEPTH - KEY_PRESSED_OFFSET);
+    // 通常時の鍵盤下端位置
+    const normalBottom = keyTop + key.height - KEY_3D_DEPTH;
 
-    // 左側面
-    const leftGradient = ctx.createLinearGradient(x, y, x + pressedOffset, y);
-    leftGradient.addColorStop(0, '#0a0a12');
-    leftGradient.addColorStop(1, '#1a1a2e');
-    ctx.fillStyle = leftGradient;
+    // 左側面（段差部分）
+    ctx.fillStyle = '#0a0a12';
     ctx.beginPath();
-    ctx.moveTo(x, keyTop);
-    ctx.lineTo(x, y);
-    ctx.lineTo(x, y + h);
-    ctx.lineTo(x, keyTop + key.height - KEY_3D_DEPTH);
+    ctx.moveTo(x, normalBottom);
+    ctx.lineTo(x, pressedBottom);
+    ctx.lineTo(x + 1.5, pressedBottom);
+    ctx.lineTo(x + 1.5, normalBottom);
     ctx.closePath();
     ctx.fill();
 
-    // 右側面
-    const rightGradient = ctx.createLinearGradient(x + w - pressedOffset, y, x + w, y);
-    rightGradient.addColorStop(0, '#1a1a2e');
-    rightGradient.addColorStop(1, '#050508');
-    ctx.fillStyle = rightGradient;
+    // 右側面（段差部分）
+    ctx.fillStyle = '#050508';
     ctx.beginPath();
-    ctx.moveTo(x + w, keyTop);
-    ctx.lineTo(x + w, y);
-    ctx.lineTo(x + w, y + h);
-    ctx.lineTo(x + w, keyTop + key.height - KEY_3D_DEPTH);
+    ctx.moveTo(x + w, normalBottom);
+    ctx.lineTo(x + w, pressedBottom);
+    ctx.lineTo(x + w - 1.5, pressedBottom);
+    ctx.lineTo(x + w - 1.5, normalBottom);
     ctx.closePath();
     ctx.fill();
 
@@ -988,10 +985,10 @@ export class PIXINotesRendererInstance {
     ctx.strokeStyle = 'rgba(0,0,0,0.5)';
     ctx.lineWidth = 0.5;
     ctx.beginPath();
-    ctx.moveTo(x, keyTop);
-    ctx.lineTo(x, keyTop + key.height - KEY_3D_DEPTH + pressedOffset);
-    ctx.moveTo(x + w, keyTop);
-    ctx.lineTo(x + w, keyTop + key.height - KEY_3D_DEPTH + pressedOffset);
+    ctx.moveTo(x, normalBottom);
+    ctx.lineTo(x, pressedBottom);
+    ctx.moveTo(x + w, normalBottom);
+    ctx.lineTo(x + w, pressedBottom);
     ctx.stroke();
   }
 
@@ -1213,7 +1210,7 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 白鍵のハイライトを描画
+   * 白鍵のハイライトを描画（上端固定）
    */
   private drawWhiteKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
@@ -1227,10 +1224,9 @@ export class PIXINotesRendererInstance {
       if (!geometry || geometry.isBlack) return;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定
+      const y = keyTop;
       const currentDepth = isPressed ? depth - pressedOffset : depth;
-
-      const y = keyTop + yOffset;
       const h = pianoHeight - currentDepth;
       const radius = Math.min(6, geometry.width * 0.25);
 
@@ -1269,7 +1265,7 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 黒鍵のハイライトを描画
+   * 黒鍵のハイライトを描画（上端固定）
    */
   private drawBlackKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
@@ -1282,10 +1278,9 @@ export class PIXINotesRendererInstance {
       if (!geometry || !geometry.isBlack) return;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定
+      const y = keyTop;
       const currentDepth = isPressed ? depth - pressedOffset : depth;
-
-      const y = keyTop + yOffset;
       const h = geometry.height - currentDepth;
       const radius = Math.min(6, geometry.width * 0.45);
 
@@ -1324,7 +1319,7 @@ export class PIXINotesRendererInstance {
   }
 
   /**
-   * 鍵盤に音名を表示
+   * 鍵盤に音名を表示（上端固定）
    */
   private drawKeyLabels(ctx: CanvasRenderingContext2D): void {
     if (this.settings.noteNameStyle === 'off') return;
@@ -1341,10 +1336,9 @@ export class PIXINotesRendererInstance {
       if (!key) continue;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定
+      const y = keyTop;
       const currentDepth = isPressed ? depth - pressedOffset : depth;
-
-      const y = keyTop + yOffset;
       const h = pianoHeight - currentDepth;
 
       const label = this.getKeyLabel(midi);
@@ -1364,10 +1358,9 @@ export class PIXINotesRendererInstance {
       if (!key) continue;
 
       const isPressed = this.highlightedKeys.has(midi);
-      const yOffset = isPressed ? pressedOffset : 0;
+      // 上端は固定
+      const y = keyTop;
       const currentDepth = isPressed ? depth - pressedOffset : depth;
-
-      const y = keyTop + yOffset;
       const h = key.height - currentDepth;
 
       const label = this.getKeyLabel(midi);

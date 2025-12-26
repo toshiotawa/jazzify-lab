@@ -188,7 +188,8 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
             const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
             const leftNeighborPressed = isNeighborPressed(index, 'left');
             const rightNeighborPressed = isNeighborPressed(index, 'right');
-            const pressedOffset = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
+            // 押下時に見える側面の高さ
+            const sideVisibleHeight = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
             
             return (
               <div
@@ -202,29 +203,34 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 role="button"
                 aria-label={`MIDI ${note}`}
               >
-                {/* 左側面（押下時、左隣が押下されていない場合） */}
+                {/* 左側面（押下時、左隣が押下されていない場合）- 鍵盤下端の段差 */}
                 {isActive && !leftNeighborPressed && (
                   <div
-                    className="absolute left-0 top-0 w-[2px] bg-gradient-to-r from-slate-400 to-slate-300"
-                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                    className="absolute left-0 w-[2px] bg-gradient-to-r from-slate-500 to-slate-400"
+                    style={{ 
+                      bottom: `${currentDepth}px`,
+                      height: `${sideVisibleHeight}px`
+                    }}
                   />
                 )}
-                {/* 右側面（押下時、右隣が押下されていない場合） */}
+                {/* 右側面（押下時、右隣が押下されていない場合）- 鍵盤下端の段差 */}
                 {isActive && !rightNeighborPressed && (
                   <div
-                    className="absolute right-0 top-0 w-[2px] bg-gradient-to-r from-slate-300 to-slate-500"
-                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                    className="absolute right-0 w-[2px] bg-gradient-to-r from-slate-400 to-slate-600"
+                    style={{ 
+                      bottom: `${currentDepth}px`,
+                      height: `${sideVisibleHeight}px`
+                    }}
                   />
                 )}
-                {/* 鍵盤上面 */}
+                {/* 鍵盤上面（上端固定） */}
                 <div
-                  className={`absolute left-0 right-0 rounded-b-md border border-slate-400 transition-all duration-75 ${
+                  className={`absolute left-0 right-0 top-0 rounded-b-md border border-slate-400 transition-all duration-75 ${
                     isActive
                       ? 'bg-gradient-to-b from-slate-200 to-slate-300'
                       : 'bg-gradient-to-b from-white to-slate-100'
                   }`}
                   style={{
-                    top: isActive ? `${pressedOffset}px` : 0,
                     bottom: `${currentDepth}px`,
                   }}
                 />
@@ -244,7 +250,8 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
             const left = getBlackLeftPercent(note);
             const currentDepth = isActive ? KEY_PRESSED_DEPTH : KEY_3D_DEPTH;
             const blackKeyHeight = 65; // 黒鍵の高さ（%）
-            const pressedOffset = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
+            // 押下時に見える側面の高さ
+            const sideVisibleHeight = KEY_3D_DEPTH - KEY_PRESSED_DEPTH;
             
             return (
               <div
@@ -264,29 +271,34 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 role="button"
                 aria-label={`MIDI ${note}`}
               >
-                {/* 左側面（押下時） */}
+                {/* 左側面（押下時）- 鍵盤下端の段差 */}
                 {isActive && (
                   <div
-                    className="absolute left-0 top-0 w-[2px] bg-gradient-to-r from-slate-900 to-slate-800"
-                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                    className="absolute left-0 w-[2px] bg-gradient-to-r from-black to-slate-800"
+                    style={{ 
+                      bottom: `${currentDepth}px`,
+                      height: `${sideVisibleHeight}px`
+                    }}
                   />
                 )}
-                {/* 右側面（押下時） */}
+                {/* 右側面（押下時）- 鍵盤下端の段差 */}
                 {isActive && (
                   <div
-                    className="absolute right-0 top-0 w-[2px] bg-gradient-to-r from-slate-800 to-black"
-                    style={{ height: `calc(100% - ${currentDepth}px)`, marginTop: `${pressedOffset}px` }}
+                    className="absolute right-0 w-[2px] bg-gradient-to-r from-slate-800 to-black"
+                    style={{ 
+                      bottom: `${currentDepth}px`,
+                      height: `${sideVisibleHeight}px`
+                    }}
                   />
                 )}
-                {/* 黒鍵上面 */}
+                {/* 黒鍵上面（上端固定） */}
                 <div
-                  className={`absolute inset-0 rounded-b-md border border-slate-800 transition-all duration-75 ${
+                  className={`absolute left-0 right-0 top-0 rounded-b-md border border-slate-800 transition-all duration-75 ${
                     isActive
                       ? 'bg-gradient-to-b from-slate-600 to-slate-700'
                       : 'bg-gradient-to-b from-slate-900 to-black'
                   }`}
                   style={{ 
-                    top: isActive ? `${pressedOffset}px` : 0,
                     bottom: `${currentDepth}px` 
                   }}
                 />
