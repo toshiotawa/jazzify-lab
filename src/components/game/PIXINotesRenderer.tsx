@@ -806,6 +806,27 @@ export class PIXINotesRendererInstance {
       ctx.strokeStyle = 'rgba(15,23,42,0.35)';
       ctx.stroke();
       ctx.restore();
+      
+      // 白鍵に音名を表示
+      if (this.settings.noteNameStyle !== 'off') {
+        const noteName = NOTE_NAMES[midi % 12];
+        // C のみ表示、または全ての白鍵に表示
+        const isC = noteName === 'C';
+        if (isC) {
+          const displayName = this.settings.noteNameStyle === 'solfege' 
+            ? JAPANESE_NOTE_MAP[noteName] || noteName
+            : noteName;
+          const octave = Math.floor(midi / 12) - 1;
+          const label = `${displayName}${octave}`;
+          
+          const fontSize = Math.max(9, Math.min(12, key.width * 0.55));
+          ctx.font = `${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+          ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+          ctx.textAlign = 'center';
+          ctx.textBaseline = 'bottom';
+          ctx.fillText(label, key.x + key.width / 2, keyBottom - 4);
+        }
+      }
     }
     for (const midi of this.blackKeyOrder) {
       const key = this.keyGeometries.get(midi);
@@ -905,16 +926,28 @@ export class PIXINotesRendererInstance {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
+    const blackKeyHeight = height * 0.6; // 黒鍵の高さ
+    
     const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-      const keyTop = top;
-      const keyHeight = geometry.isBlack ? geometry.height : height;
+      
       ctx.fillStyle = color;
-      ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
-      ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
+      
+      if (geometry.isBlack) {
+        // 黒鍵: 全体をハイライト
+        ctx.globalAlpha = alpha ?? 0.55;
+        ctx.fillRect(geometry.x, top, geometry.width, geometry.height);
+      } else {
+        // 白鍵: 黒鍵より下の部分のみハイライト（黒鍵に覆いかぶさらないように）
+        const whiteKeyLowerTop = top + blackKeyHeight;
+        const whiteKeyLowerHeight = height - blackKeyHeight;
+        ctx.globalAlpha = alpha ?? 0.35;
+        ctx.fillRect(geometry.x, whiteKeyLowerTop, geometry.width, whiteKeyLowerHeight);
+      }
       ctx.globalAlpha = 1;
     };
+    
     // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
     // 正解済みハイライト（赤色）- ガイドより上に描画

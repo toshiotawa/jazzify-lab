@@ -250,11 +250,12 @@ export class FantasyPIXIInstance {
       visual.flashUntil = performance.now() + 250;
       visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
-      // ダメージポップアップを追加（モンスターの上部から開始、より長く表示）
+      // ダメージポップアップを追加（モンスターの近くから開始、より長く表示）
+      // ★★★ 修正: y座標を下げる（-80 -> -40） ★★★
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
-        y: visual.y - 80, // より上から開始
+        y: visual.y - 40, // モンスターの近くから開始
         value: damageDealt,
         start: performance.now(),
         duration: 1800 // 1.8秒間表示（視認性向上）
@@ -285,11 +286,12 @@ export class FantasyPIXIInstance {
   }
 
   // 必殺技エフェクトをトリガー
+  // ★★★ 修正: エフェクト時間を短縮（1500ms -> 800ms） ★★★
   private triggerSpecialAttackEffect(): void {
     this.specialAttackEffect = {
       active: true,
       start: performance.now(),
-      duration: 1500,
+      duration: 800, // 0.8秒に短縮
       text: 'Swing! Swing! Swing!'
     };
   }
