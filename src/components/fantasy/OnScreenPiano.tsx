@@ -167,6 +167,11 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
     return clamp(percent, 0, 100);
   };
 
+  // 3D効果用の定数
+  const whiteFrontHeight = 10; // 白鍵の側面高さ
+  const blackFrontHeight = 6;  // 黒鍵の側面高さ
+  const pressedFrontHeight = 2; // 押下時の側面高さ
+
   return (
     <div className="w-full select-none" style={{ height: `${heightPx}px`, touchAction: 'none' }}>
       <div className="relative h-full">
@@ -174,10 +179,13 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
         <div className="absolute inset-0 flex">
           {whiteKeys.map((note) => {
             const isActive = activeNotes.has(note);
+            const topOffset = isActive ? whiteFrontHeight - pressedFrontHeight : 0;
+            const currentFrontHeight = isActive ? pressedFrontHeight : whiteFrontHeight;
+            
             return (
               <div
                 key={note}
-                className={`flex-1 border border-slate-700 bg-white ${isActive ? 'bg-yellow-200 shadow-inner' : 'bg-gradient-to-b from-white to-slate-100'} relative`}
+                className="flex-1 relative"
                 onPointerDown={handlePointerDown(note)}
                 onPointerUp={handlePointerUpOrCancel}
                 onPointerCancel={handlePointerUpOrCancel}
@@ -185,20 +193,51 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 onPointerEnter={handlePointerEnter(note)}
                 role="button"
                 aria-label={`MIDI ${note}`}
-              />
+              >
+                {/* 白鍵の上面 */}
+                <div
+                  className={`absolute left-0 right-0 rounded-b-md border border-slate-600 transition-all duration-[50ms] ${
+                    isActive 
+                      ? 'bg-gradient-to-b from-amber-100 to-amber-200' 
+                      : 'bg-gradient-to-b from-white to-slate-100'
+                  }`}
+                  style={{
+                    top: topOffset,
+                    bottom: currentFrontHeight,
+                  }}
+                />
+                {/* 白鍵の側面（3D効果） */}
+                <div
+                  className="absolute left-0 right-0 bottom-0 rounded-b-md border-x border-b border-slate-700 transition-all duration-[50ms]"
+                  style={{
+                    height: currentFrontHeight,
+                    background: isActive
+                      ? 'linear-gradient(to bottom, #c8a060, #a08050, #806040)'
+                      : 'linear-gradient(to bottom, #b8c4d8, #9aa8bc, #7a8a9e)',
+                  }}
+                />
+              </div>
             );
           })}
         </div>
         {/* 黒鍵レイヤー */}
-        <div className="absolute inset-0">
+        <div className="absolute inset-0 pointer-events-none">
           {blackKeys.map((note) => {
             const isActive = activeNotes.has(note);
             const left = getBlackLeftPercent(note);
+            const topOffset = isActive ? blackFrontHeight - pressedFrontHeight : 0;
+            const currentFrontHeight = isActive ? pressedFrontHeight : blackFrontHeight;
+            const blackKeyHeight = heightPx * 0.65; // 黒鍵の総高さ
+            
             return (
               <div
                 key={note}
-                className={`absolute -translate-x-1/2 w-[70%] max-w-[70%] h-[65%] top-0 rounded-b-md border border-slate-800 ${isActive ? 'bg-gray-700' : 'bg-black'} shadow-xl`}
-                style={{ left: `${left}%` }}
+                className="absolute -translate-x-1/2 pointer-events-auto"
+                style={{ 
+                  left: `${left}%`,
+                  width: '9%',
+                  height: blackKeyHeight,
+                }}
                 onPointerDown={handlePointerDown(note)}
                 onPointerUp={handlePointerUpOrCancel}
                 onPointerCancel={handlePointerUpOrCancel}
@@ -206,7 +245,30 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
                 onPointerEnter={handlePointerEnter(note)}
                 role="button"
                 aria-label={`MIDI ${note}`}
-              />
+              >
+                {/* 黒鍵の上面 */}
+                <div
+                  className={`absolute inset-x-0 rounded-b-md border border-slate-900 transition-all duration-[50ms] ${
+                    isActive 
+                      ? 'bg-gradient-to-br from-slate-600 via-slate-700 to-slate-800' 
+                      : 'bg-gradient-to-br from-slate-800 via-slate-900 to-black'
+                  }`}
+                  style={{
+                    top: topOffset,
+                    bottom: currentFrontHeight,
+                  }}
+                />
+                {/* 黒鍵の側面（3D効果） */}
+                <div
+                  className="absolute inset-x-0 bottom-0 rounded-b-md border-x border-b border-black transition-all duration-[50ms]"
+                  style={{
+                    height: currentFrontHeight,
+                    background: isActive
+                      ? 'linear-gradient(to bottom, #3a3a4a, #2a2a3a, #1a1a2a)'
+                      : 'linear-gradient(to bottom, #1a1a2e, #0f0f1a, #050508)',
+                  }}
+                />
+              </div>
             );
           })}
         </div>
