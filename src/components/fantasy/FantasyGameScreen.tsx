@@ -444,12 +444,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const parts = id.split('/');
           if (parts[1]) bassToPlay = parts[1];
         }
+        // 楽譜モードの場合はdisplayNameのオクターブをそのまま使用（例: A#3 → A#3）
+        if (stage?.isSheetMusicMode && chord.displayName) {
+          // displayNameにオクターブ情報が含まれている場合はそのまま使用
+          const octaveMatch = chord.displayName.match(/\d+$/);
+          if (octaveMatch) {
+            // オクターブ情報を含む完全な音名を渡す
+            bassToPlay = chord.displayName;
+          }
+        }
         await FSM?.playRootNote(bassToPlay);
       } catch (error) {
         console.error('Failed to play root note:', error);
       }
     }
-  }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
+  }, [fantasyPixiInstance, stage?.playRootOnCorrect, stage?.isSheetMusicMode]);
   // ▲▲▲ ここまで ▲▲▲
   
   const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
@@ -1470,18 +1479,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </>
                       )}
                       
-                      {/* 魔法名表示 */}
-                      {magicName && magicName.monsterId === monster.id && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
+                      {/* 魔法名表示（HPバー付近の表示は削除） */}
                       
                       {/* 行動ゲージ (singleモードのみ表示) */}
                       {!isDailyChallenge && playMode !== 'practice' && stage.mode === 'single' && (

@@ -338,7 +338,13 @@ export class FantasySoundManager {
     if (!this.bassEnabled || !this.bassSampler) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
-    const n = tonalNote(rootName + '2');        // C2 付近
+    
+    // rootNameにオクターブ情報が含まれているかチェック（例: A#3, C4）
+    const hasOctave = /\d+$/.test(rootName);
+    // オクターブ情報がなければデフォルトでオクターブ2を付ける
+    const noteWithOctave = hasOctave ? rootName : rootName + '2';
+    
+    const n = tonalNote(noteWithOctave);
     if (n.midi == null) return;
     
     // Tone.js 例外対策：必ず前回より >0 の startTime
