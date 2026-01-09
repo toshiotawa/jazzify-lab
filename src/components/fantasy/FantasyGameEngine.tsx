@@ -330,9 +330,17 @@ const createMonsterFromQueue = (
   // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
   let iconKey: string;
   if (sheetMusicMode?.enabled && chord) {
-    // 楽譜モード: 音名をそのまま使用（例: "A#3"）
-    // 特殊なプレフィックスを付けて楽譜画像であることを示す
-    iconKey = `sheet_music_${sheetMusicMode.clef}_${chord.id}`;
+    // 楽譜モード: 音名形式は "treble_C4" または "bass_C3" など
+    // chord.id が既に "treble_C4" 形式の場合はそのまま使用
+    // 旧形式（"C4"のみ）の場合は clef を付加
+    const chordId = chord.id;
+    if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+      // 新形式: そのまま使用
+      iconKey = `sheet_music_${chordId}`;
+    } else {
+      // 旧形式: clef を付加（後方互換性）
+      iconKey = `sheet_music_${sheetMusicMode.clef}_${chordId}`;
+    }
   } else if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
     // stageMonsterIdsが提供されている場合は、それを使用
     iconKey = stageMonsterIds[monsterIndex];
