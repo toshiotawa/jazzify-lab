@@ -96,8 +96,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
   const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>('abc'); // 鍵盤上の音名表示
   
-  // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
   // 鍵盤ガイド表示の実効値を計算
   // 練習モード: ユーザー設定に従う（デフォルトON）
@@ -716,14 +715,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [keyboardNoteNameStyle, pixiRenderer]);
   
-  // 魔法名表示ハンドラー
-  const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
-    setMagicName({ monsterId, name, isSpecial });
-    // 500ms後に自動的に非表示
-    setTimeout(() => {
-      setMagicName(null);
-    }, 500);
-  }, []);
+  // 魔法名表示ハンドラー - 削除（パフォーマンス改善のため）
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
@@ -1286,7 +1278,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               enemyGauge={(isDailyChallenge || playMode === 'practice') ? 0 : gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
@@ -1417,18 +1408,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </>
                       )}
                       
-                      {/* 魔法名表示 */}
-                      {magicName && magicName.monsterId === monster.id && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
+                      {/* 魔法名表示 - 削除（パフォーマンス改善のため） */}
                       
                       {/* 行動ゲージ (singleモードのみ表示) */}
                       {!isDailyChallenge && playMode !== 'practice' && stage.mode === 'single' && (
