@@ -122,6 +122,22 @@ const getNoteDisplayLabel = (note: string): string => {
   return note;
 };
 
+// クリック追加用のルート音リスト（16種類）
+const CLICK_ADD_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'Bb', 'B'] as const;
+
+// クリック追加用コードタイプ定義
+interface ClickAddChordType {
+  label: string;
+  suffix: string; // ルート音に付加するサフィックス（例: '', 'm', '7'）
+  isNote: boolean; // type: 'note' かどうか
+}
+
+const CLICK_ADD_CHORD_TYPES: ClickAddChordType[] = [
+  { label: '単音 (type:note)', suffix: '', isNote: true },
+  { label: '(R.M3.P5)', suffix: '', isNote: false },
+  { label: 'm (R.m3.P5)', suffix: 'm', isNote: false },
+];
+
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700">
     <h4 className="font-semibold mb-3">{title}</h4>
@@ -711,6 +727,36 @@ const FantasyStageManager: React.FC = () => {
                     invEl.value = '';
                     octEl.value = '';
                   }}>1行追加</button>
+                </div>
+
+                {/* クリック追加セクション */}
+                <div className="border border-slate-600 rounded-lg p-3 space-y-3">
+                  <SmallLabel>クリック追加（転回形:0, オクターブ:4）</SmallLabel>
+                  {CLICK_ADD_CHORD_TYPES.map((chordType) => (
+                    <div key={chordType.label} className="space-y-1">
+                      <div className="text-xs text-gray-400">{chordType.label}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {CLICK_ADD_ROOTS.map((root) => {
+                          const chordName = `${root}${chordType.suffix}`;
+                          return (
+                            <button
+                              key={`${chordType.label}-${root}`}
+                              type="button"
+                              className="btn btn-xs btn-outline hover:btn-primary"
+                              onClick={() => {
+                                const spec = chordType.isNote
+                                  ? { chord: chordName, inversion: 0, octave: 4, type: 'note' as const }
+                                  : { chord: chordName, inversion: 0, octave: 4 };
+                                appendAllowedChord(spec as any);
+                              }}
+                            >
+                              {chordName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
