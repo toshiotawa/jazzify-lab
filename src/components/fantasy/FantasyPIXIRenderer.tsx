@@ -798,8 +798,10 @@ export class FantasyPIXIInstance {
       if (parts.length >= 4) {
         const clef = parts[2]; // 'treble' or 'bass'
         const noteName = parts.slice(3).join('_'); // 音名（'A#3'など）
+        // ファイル名では # を sharp に変換（Netlifyでは#を含むファイル名は使えない）
+        const safeNoteName = noteName.replace(/#/g, 'sharp');
         // 画像パス: /notes_images/{clef}/{clef}_{noteName}.png
-        const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${noteName}.png`;
+        const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNoteName}.png`;
         img.src = pngPath;
         return null;
       }
