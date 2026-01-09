@@ -1513,11 +1513,28 @@ export const useFantasyGameEngine = ({
       
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新
       
-      // 各モンスターのゲージを更新
-      const updatedMonsters = prevState.activeMonsters.map(monster => ({
-        ...monster,
-        gauge: Math.min(monster.gauge + incrementRate, 100)
-      }));
+      // 🚀 パフォーマンス最適化: ゲージが既に100%のモンスターがいるかチェック
+      const hasMaxGauge = prevState.activeMonsters.some(m => m.gauge >= 100);
+      if (hasMaxGauge) {
+        // 既に攻撃待ちのモンスターがいる場合は更新をスキップ
+        return prevState;
+      }
+      
+      // 各モンスターのゲージを更新（変更がある場合のみ新しいオブジェクトを生成）
+      let hasGaugeChange = false;
+      const updatedMonsters = prevState.activeMonsters.map(monster => {
+        const newGauge = Math.min(monster.gauge + incrementRate, 100);
+        if (Math.abs(newGauge - monster.gauge) < 0.01) {
+          return monster; // 変更なし、同じ参照を返す
+        }
+        hasGaugeChange = true;
+        return { ...monster, gauge: newGauge };
+      });
+      
+      // 変更がない場合は状態更新をスキップ
+      if (!hasGaugeChange) {
+        return prevState;
+      }
       
       // ゲージが満タンになったモンスターをチェック
       const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
@@ -1557,13 +1574,13 @@ export const useFantasyGameEngine = ({
         onGameStateChange(nextState);
         return nextState;
       } else {
-        const nextState = { 
+        // 🚀 パフォーマンス最適化: onGameStateChange を呼び出さない（UIは自動更新される）
+        return { 
           ...prevState, 
           activeMonsters: updatedMonsters,
           // 互換性のため（最初のモンスターのゲージを代表値として使用）
           enemyGauge: updatedMonsters[0]?.gauge || 0 
         };
-        return nextState;
       }
     });
   }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, gameState.playMode]);
