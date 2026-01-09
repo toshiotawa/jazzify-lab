@@ -154,7 +154,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           tier: (stage as any).stage_tier || 'basic',
           // 楽譜モード
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
-          sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
         }));
         
         setStages(convertedStages);
@@ -263,7 +262,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         tier: (stage as any).stage_tier || 'basic',
         // 楽譜モード
         isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
-        sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
       }));
       
       const convertedProgress: FantasyUserProgress = {

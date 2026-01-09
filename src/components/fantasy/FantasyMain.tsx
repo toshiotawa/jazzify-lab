@@ -151,7 +151,6 @@ const FantasyMain: React.FC = () => {
             noteIntervalBeats: (stage as any).note_interval_beats,
             playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
-            sheetMusicClef: (stage as any).sheet_music_clef || 'treble'
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -199,7 +198,6 @@ const FantasyMain: React.FC = () => {
           noteIntervalBeats: (stage as any).note_interval_beats,
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
-          sheetMusicClef: (stage as any).sheet_music_clef || 'treble'
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -476,7 +474,6 @@ const FantasyMain: React.FC = () => {
         tier: (nextStageData as any).stage_tier || 'basic',
         // 楽譜モード
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
-        sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
       };
 
       setGameResult(null);
