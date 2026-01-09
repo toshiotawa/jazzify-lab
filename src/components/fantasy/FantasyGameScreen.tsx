@@ -1407,14 +1407,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {!gameState.isTaikoMode && (
                         <>
                           {/* 通常モードの表示 */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
+                          {/* 楽譜モード: 挑戦モードでは非表示、練習モードではオクターブなしで表示 */}
+                          {stage.isSheetMusicMode ? (
+                            playMode === 'practice' ? (
+                              <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                                monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                              }`}>
+                                {/* オクターブを除去して表示 (例: "A#3" → "A#") */}
+                                {monster.chordTarget.displayName.replace(/\d+$/, '')}
+                              </div>
+                            ) : null /* 挑戦モードでは音名を非表示 */
+                          ) : (
+                            /* 通常コードモードの表示 */
+                            <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                              monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                            }`}>
+                              {monster.chordTarget.displayName}
+                            </div>
+                          )}
                           
-                          {/* ヒント表示 */}
-                          {!isDailyChallenge && (
+                          {/* ヒント表示（楽譜モードでは非表示 - 単音なのでヒント不要） */}
+                          {!isDailyChallenge && !stage.isSheetMusicMode && (
                             <div className={`mt-1 font-medium h-6 text-center ${
                               monsterCount > 5 ? 'text-xs' : 'text-sm'
                             }`}>

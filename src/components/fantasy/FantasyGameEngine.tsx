@@ -61,6 +61,41 @@ export const preloadMonsterImages = async (monsterIds: string[], cache: Map<stri
   );
 };
 
+/**
+ * 楽譜モード用の画像をプリロード
+ */
+const loadSheetMusicImage = (noteName: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    // noteName: "treble_A#3" → clef: "treble", note: "A#3"
+    const clef = noteName.startsWith('bass_') ? 'bass' : 'treble';
+    const note = noteName.replace(/^(treble|bass)_/, '');
+    // ファイル名では # を sharp に変換
+    const safeNote = note.replace(/#/g, 'sharp');
+    img.src = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNote}.png`;
+  });
+
+export const preloadSheetMusicImages = async (noteNames: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
+  await Promise.all(
+    noteNames.map(async (noteName) => {
+      // アイコンキーは sheet_music_{noteName} の形式
+      const iconKey = `sheet_music_${noteName}`;
+      if (cache.has(iconKey)) {
+        return;
+      }
+      try {
+        const image = await loadSheetMusicImage(noteName);
+        cache.set(iconKey, image);
+      } catch (error) {
+        devLog.debug(`楽譜画像のプリロード失敗: ${noteName}`, error);
+      }
+    })
+  );
+};
+
 type StageMode = 
   | 'single'
   | 'progression' // 互換用途（基本進行）
@@ -883,10 +918,20 @@ export const useFantasyGameEngine = ({
     try {
       const textureMap = imageTexturesRef.current;
       textureMap.clear();
-      await preloadMonsterImages(monsterIds, textureMap);
-      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
+      
+      // 楽譜モードの場合は楽譜画像をプリロード
+      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+        const noteNames = stage.allowedChords.map(chord => 
+          typeof chord === 'string' ? chord : (chord as any).chord || chord
+        ).filter(Boolean);
+        await preloadSheetMusicImages(noteNames, textureMap);
+        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
+      } else {
+        await preloadMonsterImages(monsterIds, textureMap);
+        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
+      }
     } catch (error) {
-      devLog.error('❌ モンスター画像プリロード失敗:', error);
+      devLog.error('❌ 画像プリロード失敗:', error);
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
