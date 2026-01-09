@@ -387,15 +387,27 @@ const createMonsterFromQueue = (
   stageMonsterIds?: string[],
   sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' }
 ): MonsterState => {
+  // コードを選択（空の場合はダミーコードを使用 - 太鼓モードでは後で taikoNotes から上書きされる）
   const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  
+  // コードが見つからない場合（progression_timing で allowedChords が空の場合など）
+  // ダミーのコードを作成（後で taikoNotes から上書きされる）
+  const effectiveChord: ChordDefinition = chord ?? {
+    id: 'placeholder',
+    notes: [60], // C4
+    noteNames: ['C'],
+    displayName: '---',
+    quality: 'placeholder',
+    root: 'C'
+  };
   
   // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
   let iconKey: string;
-  if (sheetMusicMode?.enabled && chord) {
+  if (sheetMusicMode?.enabled && effectiveChord.id !== 'placeholder') {
     // 楽譜モード: 音名形式は "treble_C4" または "bass_C3" など
-    // chord.id が既に "treble_C4" 形式の場合はそのまま使用
+    // effectiveChord.id が既に "treble_C4" 形式の場合はそのまま使用
     // 旧形式（"C4"のみ）の場合は clef を付加
-    const chordId = chord.id;
+    const chordId = effectiveChord.id;
     if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
       // 新形式: そのまま使用
       iconKey = `sheet_music_${chordId}`;
@@ -421,7 +433,7 @@ const createMonsterFromQueue = (
     currentHp: enemyHp,
     maxHp: enemyHp,
     gauge: 0,
-    chordTarget: chord!,
+    chordTarget: effectiveChord,
     correctNotes: [],
     icon: enemy.icon,
     name: enemy.name
@@ -843,7 +855,8 @@ export const useFantasyGameEngine = ({
             playerSp: newSp,
             enemiesDefeated: newEnemiesDefeated,
             correctAnswers: prevState.correctAnswers + 1,
-            currentNoteIndex: wasAwaitingLoop ? nextIndexByChosen : (chosenIndex === currentIndex ? nextIndexByChosen : prevState.currentNoteIndex),
+            // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
+            currentNoteIndex: nextIndexByChosen,
             taikoNotes: updatedTaikoNotes,
             awaitingLoopStart: false
           };
@@ -856,22 +869,20 @@ export const useFantasyGameEngine = ({
           ...prevState,
           activeMonsters: monstersWithDefeat,
           playerSp: newSp,
-          // awaitingLoopStart状態からの復帰の場合は、chosenIndexの次へ進める
-          currentNoteIndex: wasAwaitingLoop 
-            ? (isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen)
-            : ((chosenIndex === currentIndex) ? (isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen) : prevState.currentNoteIndex),
+          // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
+          // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
+          currentNoteIndex: isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen,
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
-          // awaitingLoopStart状態を解除（次ループ開始）、ただし末尾なら再度待機
-          awaitingLoopStart: wasAwaitingLoop ? false : ((chosenIndex === currentIndex && isLastNoteByChosen) ? true : prevState.awaitingLoopStart)
+          // 末尾ノーツをヒットした場合は次ループ開始待ち
+          awaitingLoopStart: isLastNoteByChosen ? true : false
         };
       }
 
-      // 末尾（選択ノーツ基準）で、かつ順番通りの場合のみ待機
-      // ただし、awaitingLoopStartからの復帰の場合は待機しない
-      if (!wasAwaitingLoop && isLastNoteByChosen && chosenIndex === currentIndex) {
+      // 末尾ノーツをヒットした場合は次ループ開始待ち
+      if (isLastNoteByChosen) {
         return {
           ...prevState,
           activeMonsters: updatedMonsters,
@@ -887,15 +898,12 @@ export const useFantasyGameEngine = ({
         ...prevState,
         activeMonsters: updatedMonsters,
         playerSp: newSp,
-        // awaitingLoopStart状態からの復帰の場合は、chosenIndexの次へ進める
-        currentNoteIndex: wasAwaitingLoop 
-          ? nextIndexByChosen 
-          : ((chosenIndex === currentIndex) ? nextIndexByChosen : prevState.currentNoteIndex),
+        // ヒットしたノーツの次へ進める
+        currentNoteIndex: nextIndexByChosen,
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
-        // awaitingLoopStart状態を解除
-        awaitingLoopStart: wasAwaitingLoop ? false : prevState.awaitingLoopStart
+        awaitingLoopStart: false
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -1506,9 +1514,31 @@ export const useFantasyGameEngine = ({
             }, 500);
             timers.set(attackerId, t);
           }
-          // 攻撃処理自体は handleEnemyAttack 側で practice モードをガードしているので安全だが、
-          // 一応呼ぶ
-          setTimeout(() => handleEnemyAttack(attackerId), 0);
+          
+          // HP減少とゲームオーバー判定を直接行う（非同期呼び出しによる状態競合を防ぐ）
+          const newHp = Math.max(0, prevState.playerHp - 1);
+          const isGameOver = newHp <= 0;
+          
+          if (isGameOver) {
+            const finalState = {
+              ...prevState,
+              playerHp: 0,
+              isGameActive: false,
+              isGameOver: true,
+              gameResult: 'gameover' as const,
+              isCompleting: true,
+              lastNormalizedTime: normalizedTime
+            };
+            // ゲームオーバーコールバックを安全に呼び出し
+            setTimeout(() => {
+              try {
+                onGameComplete('gameover', finalState);
+              } catch (error) {
+                devLog.debug('❌ 太鼓モード ゲームオーバーコールバックエラー:', error);
+              }
+            }, 100);
+            return finalState;
+          }
           
           // 次のノーツへ進む。ただし末尾なら次ループ開始まで待機
           const nextIndex = currentNoteIndex + 1;
@@ -1518,6 +1548,8 @@ export const useFantasyGameEngine = ({
             const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
             return {
               ...prevState,
+              playerHp: newHp,
+              playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
               awaitingLoopStart: true,
               // 視覚的なコード切り替えのみ行う
               activeMonsters: prevState.activeMonsters.map(m => ({
@@ -1536,6 +1568,8 @@ export const useFantasyGameEngine = ({
           const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
           return {
             ...prevState,
+            playerHp: newHp,
+            playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
             currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
