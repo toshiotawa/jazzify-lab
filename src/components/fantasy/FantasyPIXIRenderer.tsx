@@ -10,7 +10,6 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void;
-  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
   className?: string;
   activeMonsters?: MonsterState[];
   imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>;
@@ -56,11 +55,6 @@ interface MonsterVisual {
   floatPhase: number; // 浮遊アニメーションの初期位相（ランダム）
   floatAmplitude: number; // 浮遊アニメーションの振幅（ランダム）
   floatSpeed: number; // 浮遊アニメーションの速度（ランダム）
-  magicText?: {
-    value: string;
-    isSpecial: boolean;
-    until: number;
-  };
   damagePopup?: DamagePopup;
 }
 
@@ -99,7 +93,6 @@ export class FantasyPIXIInstance {
   private imageCache = new Map<string, HTMLImageElement>();
   private loadingImages = new Set<string>();
   private onMonsterDefeated?: () => void;
-  private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
   
   // 必殺技エフェクト用
   private specialAttackEffect: {
@@ -123,7 +116,6 @@ export class FantasyPIXIInstance {
     width: number,
     height: number,
     onMonsterDefeated?: () => void,
-    onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void,
     imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>
   ) {
     this.canvas = canvas;
@@ -138,7 +130,6 @@ export class FantasyPIXIInstance {
     this.defaultMonsterIcon = '';
     this.imageTexturesRef = imageTexturesRef;
     this.onMonsterDefeated = onMonsterDefeated;
-    this.onShowMagicName = onShowMagicName;
     this.configureCanvasSize(width, height);
     
     // 怒り状態を購読
@@ -187,7 +178,6 @@ export class FantasyPIXIInstance {
         floatPhase: existing?.floatPhase ?? Math.random() * Math.PI * 2,
         floatAmplitude: existing?.floatAmplitude ?? 3 + Math.random() * 4, // 3〜7pxの範囲
         floatSpeed: existing?.floatSpeed ?? 0.0015 + Math.random() * 0.001, // 速度に変化を持たせる
-        magicText: existing?.magicText,
         damagePopup: existing?.damagePopup
       });
     });
@@ -247,7 +237,7 @@ export class FantasyPIXIInstance {
 
   triggerAttackSuccessOnMonster(
     monsterId: string,
-    chordName: string | undefined,
+    _chordName: string | undefined,
     isSpecial: boolean,
     damageDealt: number,
     defeated: boolean
@@ -266,15 +256,6 @@ export class FantasyPIXIInstance {
         start: performance.now(),
         duration: 1800 // 1.8秒間表示（視認性向上）
       });
-      
-      if (chordName) {
-        visual.magicText = {
-          value: chordName,
-          isSpecial,
-          until: performance.now() + 1500
-        };
-        this.onShowMagicName?.(chordName, isSpecial, monsterId);
-      }
       
       // 必殺技エフェクト
       if (isSpecial) {
@@ -425,7 +406,8 @@ export class FantasyPIXIInstance {
           enrageScale: 1,
           floatPhase: Math.random() * Math.PI * 2,
           floatAmplitude: 3 + Math.random() * 4,
-          floatSpeed: 0.0015 + Math.random() * 0.001
+          floatSpeed: 0.0015 + Math.random() * 0.001,
+          damagePopup: undefined
         }
       ];
     }
@@ -830,7 +812,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   monsterIcon,
   onReady,
   onMonsterDefeated,
-  onShowMagicName,
   className,
   activeMonsters,
   imageTexturesRef
@@ -846,7 +827,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       width,
       height,
       onMonsterDefeated,
-      onShowMagicName,
       imageTexturesRef
     );
     rendererRef.current = renderer;
@@ -855,7 +835,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       renderer.destroy();
       rendererRef.current = null;
     };
-  }, [onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+  }, [onReady, onMonsterDefeated, imageTexturesRef]);
 
   useEffect(() => {
     rendererRef.current?.resize(width, height);
