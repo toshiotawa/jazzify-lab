@@ -63,7 +63,6 @@ interface StageFormValues {
   stage_tier: 'basic' | 'advanced';
   // 楽譜モード
   is_sheet_music_mode: boolean;
-  sheet_music_clef: 'treble' | 'bass';
 }
 
 const defaultValues: StageFormValues = {
@@ -92,7 +91,6 @@ const defaultValues: StageFormValues = {
   mp3_url: '',
   stage_tier: 'basic',
   is_sheet_music_mode: false,
-  sheet_music_clef: 'treble'
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -215,7 +213,6 @@ const FantasyStageManager: React.FC = () => {
         chord_progression_data: (s as any).chord_progression_data || [],
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
-        sheet_music_clef: (s as any).sheet_music_clef || 'treble'
       };
       reset(v);
     } catch (e: any) {
@@ -254,7 +251,6 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
       is_sheet_music_mode: v.is_sheet_music_mode,
-      sheet_music_clef: v.sheet_music_clef,
     };
 
     // モードに応じた不要フィールドの削除

@@ -973,15 +973,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    const targetMonster = gameState.activeMonsters?.[0];
-    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    
+    // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
+    let chord;
+    if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
+      const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
+      chord = currentNote?.chord;
+    } else {
+      // 通常モード: activeMonsters または currentChordTarget を参照
+      const targetMonster = gameState.activeMonsters?.[0];
+      chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    }
+    
     if (!chord) {
       setGuideMidi([]);
       return;
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   // ※モンスターが複数いる場合は非表示にする

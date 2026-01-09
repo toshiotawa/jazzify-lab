@@ -113,7 +113,6 @@ const LPFantasyDemo: React.FC = () => {
           playRootOnCorrect: (dbStage as any).play_root_on_correct ?? true,
           tier: (dbStage as any).stage_tier || 'basic',
           isSheetMusicMode: !!(dbStage as any).is_sheet_music_mode,
-          sheetMusicClef: (dbStage as any).sheet_music_clef || 'treble',
         } as any;
         setStage(mapped);
       } catch (e: any) {
