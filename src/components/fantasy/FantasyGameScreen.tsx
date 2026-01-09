@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MIDIController } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
@@ -20,6 +20,8 @@ import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+// 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -196,15 +198,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
 
-  // 高速化のため playNote 関数を事前に保持する Ref
-  const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(null);
-
-  // マウント時に playNote をロード
-  useEffect(() => {
-    import('@/utils/MidiController').then(({ playNote }) => {
-      playNoteRef.current = playNote;
-    }).catch(console.error);
-  }, []);
+  // 🚀 パフォーマンス最適化: playNote を直接参照（動的インポート不要）
+  const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(playNote);
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -231,36 +226,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       midiControllerRef.current = controller;
       
       // 初期化
-      controller.initialize().then(() => {
+      controller.initialize().then(async () => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // ★★★ デフォルト音量設定を追加 ★★★
-        // ファンタジーモード開始時にデフォルト音量（80%）を設定
-        import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
+        // 🚀 パフォーマンス最適化: 動的インポートを削除、直接呼び出し
+        try {
           // 音声システムを初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8); // デフォルト80%音量
-            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
-            
-            // FantasySoundManagerの初期化
-            import('@/utils/FantasySoundManager')
-              .then(async (mod) => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                await FSM?.init(
-                  settings.soundEffectVolume ?? 0.8,
-                  settings.rootSoundVolume ?? 0.5,
-                  stage?.playRootOnCorrect !== false
-                );
-                FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
-                devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-              })
-              .catch(err => console.error('Failed to import/init FantasySoundManager:', err));
-          }).catch(error => {
-            console.error('Audio system initialization failed:', error);
-          });
-        }).catch(error => {
-          console.error('MidiController import failed:', error);
-        });
+          await initializeAudioSystem();
+          updateGlobalVolume(0.8); // デフォルト80%音量
+          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+          
+          // FantasySoundManagerの初期化（静的インポート済み）
+          await FantasySoundManager.init(
+            settings.soundEffectVolume ?? 0.8,
+            settings.rootSoundVolume ?? 0.5,
+            stage?.playRootOnCorrect !== false
+          );
+          FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+          devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+        } catch (error) {
+          console.error('Audio system initialization failed:', error);
+        }
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
@@ -311,20 +297,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => clearTimeout(timer);
   }, [stage]); // stageが変更されたときに実行
   
-  // ステージ設定に応じてルート音を有効/無効にする
+  // 🚀 パフォーマンス最適化: ステージ設定に応じてルート音を有効/無効にする（動的インポート不要）
   useEffect(() => {
-    let cancelled = false;
-    const apply = async () => {
-      try {
-        const mod = await import('@/utils/FantasySoundManager');
-        const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
-        FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
-      } catch {}
-      if (cancelled) return;
-    };
-    apply();
-    return () => { cancelled = true; };
+    // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
+    FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
   }, [stage?.playRootOnCorrect]);
   
   // PIXI.js レンダラー
@@ -431,23 +407,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     }
 
-    // ルート音を再生（非同期対応）
+    // 🚀 パフォーマンス最適化: ルート音を同期的に再生（動的インポート不要）
     const allowRootSound = stage?.playRootOnCorrect !== false;
     if (allowRootSound) {
-      try {
-        const mod = await import('@/utils/FantasySoundManager');
-        const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        // スラッシュコード対応: 分母があればそれをルートとして鳴らす
-        const id = chord.id || chord.displayName || chord.root;
-        let bassToPlay = chord.root;
-        if (typeof id === 'string' && id.includes('/')) {
-          const parts = id.split('/');
-          if (parts[1]) bassToPlay = parts[1];
-        }
-        await FSM?.playRootNote(bassToPlay);
-      } catch (error) {
-        console.error('Failed to play root note:', error);
+      // スラッシュコード対応: 分母があればそれをルートとして鳴らす
+      const id = chord.id || chord.displayName || chord.root;
+      let bassToPlay = chord.root;
+      if (typeof id === 'string' && id.includes('/')) {
+        const parts = id.split('/');
+        if (parts[1]) bassToPlay = parts[1];
       }
+      // fire-and-forget で呼び出し（await せずにラグを防止）
+      FantasySoundManager.playRootNote(bassToPlay).catch(e => 
+        devLog.debug('Failed to play root note:', e)
+      );
     }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
@@ -461,21 +434,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, []);
   
-  const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
+  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生（single クイズモードのみ）
-          try {
-        if (stage.mode === 'single') {
-          const mod = await import('@/utils/FantasySoundManager');
-          const FSM = (mod as any).FantasySoundManager ?? mod.default;
-          FSM?.playEnemyAttack();
-        }
-      } catch (error) {
-      devLog.debug('Failed to play enemy attack sound:', error);
+    // 🚀 パフォーマンス最適化: 敵の攻撃音を同期的に再生（動的インポート不要）
+    if (stage.mode === 'single') {
+      FantasySoundManager.playEnemyAttack();
     }
-    
-    // confetti削除 - 何もしない
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -607,10 +572,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
+  // 🚀 パフォーマンス最適化: 動的インポートを完全に削除
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
-    // iOS Safari ではユーザー操作コンテキストでの同期的なメソッド呼び出しが必要だが、
-    // Tone.start() は内部で resume() を呼ぶ。Promise を待機するとラグになるため待たない。
     if ((window as any).Tone?.context?.state !== 'running') {
        (window as any).Tone?.start?.().catch(() => {});
     }
@@ -620,35 +584,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
+    // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
-      const play = playNoteRef.current;
-      if (play) {
-         // awaitせずに実行（fire-and-forget）
-         play(note, 64).catch(e => console.error('Failed to play note:', e));
-         activeNotesRef.current.add(note);
-      } else {
-         // まだロードされていない場合のフォールバック
-         import('@/utils/MidiController').then(({ playNote }) => {
-            playNoteRef.current = playNote;
-            playNote(note, 64);
-            activeNotesRef.current.add(note);
-         }).catch(console.error);
-      }
+      // fire-and-forget で呼び出し
+      playNote(note, 64).catch(e => devLog.debug('Failed to play note:', e));
+      activeNotesRef.current.add(note);
       devLog.debug('🎵 Played note via click:', note);
     }
     
     // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
     
-    // FantasySoundManagerのアンロックは低優先度で実行
+    // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
     if (source === 'mouse') {
-        setTimeout(() => {
-             import('@/utils/FantasySoundManager').then(mod => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                FSM?.unlock?.();
-             }).catch(() => {});
-        }, 0);
+      setTimeout(() => {
+        FantasySoundManager.unlock().catch(() => {});
+      }, 0);
     }
   }, [engineHandleNoteInput]);
   
@@ -710,22 +661,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // キーボードのクリックイベントを接続
       devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
+      // 🚀 パフォーマンス最適化: 動的インポートを削除
       renderer.setKeyCallbacks(
         (note: number) => {
           devLog.debug('🎹 Fantasy mode key press:', note);
           handleNoteInputBridge(note, 'mouse'); // マウスクリックとして扱う
         },
-        async (note: number) => {
+        (note: number) => {
           devLog.debug('🎹 Fantasy mode key release:', note);
-          // マウスリリース時に音を止める
-          try {
-            const { stopNote } = await import('@/utils/MidiController');
-            stopNote(note);
-            activeNotesRef.current.delete(note);
-            devLog.debug('🎵 Stopped note via release:', note);
-          } catch (error) {
-            console.error('Failed to stop note:', error);
-          }
+          // マウスリリース時に音を止める（静的インポート済み）
+          stopNote(note);
+          activeNotesRef.current.delete(note);
+          devLog.debug('🎵 Stopped note via release:', note);
         }
       );
       devLog.debug('✅ Key callbacks set successfully');
@@ -1686,35 +1633,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             setShowKeyboardGuide(newSettings.showKeyboardGuide);
           }
           
-          // ★★★ 音量更新処理を追加 ★★★
+          // 🚀 パフォーマンス最適化: 動的インポートを削除
           // ピアノ音量設定が変更されたら、グローバル音量を更新
           if (newSettings.volume !== undefined) {
             // gameStoreの音量設定も更新
             updateSettings({ midiVolume: newSettings.volume });
-            
-            // グローバル音量を更新
-            import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(newSettings.volume);
-              devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
-            }).catch(error => {
-              console.error('MidiController import failed:', error);
-            });
+            // グローバル音量を更新（静的インポート済み）
+            updateGlobalVolume(newSettings.volume);
+            devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
           }
           
           // 効果音音量設定が変更されたら、gameStoreを更新
           if (newSettings.soundEffectVolume !== undefined) {
             updateSettings({ soundEffectVolume: newSettings.soundEffectVolume });
             devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${newSettings.soundEffectVolume}`);
-            
-            // FantasySoundManagerの音量も即座に更新
-            import('@/utils/FantasySoundManager')
-              .then((mod) => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                FSM?.setVolume(newSettings.soundEffectVolume);
-              })
-              .catch(error => {
-                console.error('Failed to update FantasySoundManager volume:', error);
-              });
+            // FantasySoundManagerの音量も即座に更新（静的インポート済み）
+            FantasySoundManager.setVolume(newSettings.soundEffectVolume);
           }
         }}
         // gameStoreの値を渡す
