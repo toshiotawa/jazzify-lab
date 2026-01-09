@@ -13,6 +13,7 @@ import {
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
 import { FantasyStageSelector } from './FantasyStageSelector';
+import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -121,6 +122,85 @@ const getNoteDisplayLabel = (note: string): string => {
   if (note.startsWith('bass_')) return note.replace('bass_', '');
   return note;
 };
+
+// クリック追加用のルート音リスト（16種類）
+const CLICK_ADD_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'Bb', 'B'] as const;
+
+// インターバル表記を人間が読みやすい形式に変換
+const formatInterval = (interval: string): string => {
+  // 1P → R, 3M → M3, 3m → m3, 5P → P5, 7m → m7, 7M → M7, etc.
+  if (interval === '1P') return 'R';
+  const degree = interval.slice(0, -1);
+  const quality = interval.slice(-1);
+  const qualityMap: Record<string, string> = {
+    'P': 'P',
+    'M': 'M',
+    'm': 'm',
+    'A': 'A',
+    'd': 'd',
+  };
+  return `${qualityMap[quality] || quality}${degree}`;
+};
+
+// コードクオリティからコード表記のサフィックスを取得
+const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'maj': '',
+  'min': 'm',
+  'aug': 'aug',
+  'dim': 'dim',
+  '7': '7',
+  'maj7': 'M7',
+  'm7': 'm7',
+  'mM7': 'mM7',
+  'dim7': 'dim7',
+  'aug7': 'aug7',
+  'm7b5': 'm7b5',
+  '6': '6',
+  'm6': 'm6',
+  '9': '9',
+  'm9': 'm9',
+  'maj9': 'M9',
+  '11': '11',
+  'm11': 'm11',
+  '13': '13',
+  'm13': 'm13',
+  'sus2': 'sus2',
+  'sus4': 'sus4',
+  '7sus4': '7sus4',
+  'add9': 'add9',
+  'madd9': 'madd9',
+};
+
+// クリック追加用コードタイプ定義
+interface ClickAddChordType {
+  label: string;
+  suffix: string;
+  isNote: boolean;
+}
+
+// CHORD_TEMPLATESから動的にクリック追加用リストを生成
+const generateClickAddChordTypes = (): ClickAddChordType[] => {
+  const types: ClickAddChordType[] = [
+    // 単音は特別扱い
+    { label: '単音 (type:note)', suffix: '', isNote: true },
+  ];
+
+  // CHORD_TEMPLATESの各エントリを変換
+  for (const [quality, intervals] of Object.entries(CHORD_TEMPLATES)) {
+    const suffix = QUALITY_TO_SUFFIX[quality as ChordQuality];
+    const intervalLabel = intervals.map(formatInterval).join('.');
+    const displayLabel = suffix ? `${suffix} (${intervalLabel})` : `(${intervalLabel})`;
+    types.push({
+      label: displayLabel,
+      suffix,
+      isNote: false,
+    });
+  }
+
+  return types;
+};
+
+const CLICK_ADD_CHORD_TYPES = generateClickAddChordTypes();
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700">
@@ -711,6 +791,36 @@ const FantasyStageManager: React.FC = () => {
                     invEl.value = '';
                     octEl.value = '';
                   }}>1行追加</button>
+                </div>
+
+                {/* クリック追加セクション */}
+                <div className="border border-slate-600 rounded-lg p-3 space-y-3">
+                  <SmallLabel>クリック追加（転回形:0, オクターブ:4）</SmallLabel>
+                  {CLICK_ADD_CHORD_TYPES.map((chordType) => (
+                    <div key={chordType.label} className="space-y-1">
+                      <div className="text-xs text-gray-400">{chordType.label}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {CLICK_ADD_ROOTS.map((root) => {
+                          const chordName = `${root}${chordType.suffix}`;
+                          return (
+                            <button
+                              key={`${chordType.label}-${root}`}
+                              type="button"
+                              className="btn btn-xs btn-outline hover:btn-primary"
+                              onClick={() => {
+                                const spec = chordType.isNote
+                                  ? { chord: chordName, inversion: 0, octave: 4, type: 'note' as const }
+                                  : { chord: chordName, inversion: 0, octave: 4 };
+                                appendAllowedChord(spec as any);
+                              }}
+                            >
+                              {chordName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
                 <div className="flex flex-wrap gap-2">
