@@ -61,7 +61,24 @@ interface StageFormValues {
   chord_progression_data: TimingRow[]; // for timing
   // 新規: ステージ種別
   stage_tier: 'basic' | 'advanced';
+  // 新規: 楽譜モード
+  sheet_music_mode: boolean;
+  allowed_notes: string[];
 }
+
+// 利用可能な音名リスト（画像ファイル名に対応）
+const AVAILABLE_TREBLE_NOTES = [
+  'treble_A3', 'treble_A#3', 'treble_Bb3', 'treble_B3',
+  'treble_C4', 'treble_C#4', 'treble_Db4', 'treble_D4', 'treble_D#4', 'treble_Eb4', 'treble_E4', 'treble_F4', 'treble_F#4', 'treble_Gb4', 'treble_G4', 'treble_G#4', 'treble_Ab4', 'treble_A4', 'treble_A#4', 'treble_Bb4', 'treble_B4',
+  'treble_C5', 'treble_C#5', 'treble_Db5', 'treble_D5', 'treble_D#5', 'treble_Eb5', 'treble_E5', 'treble_F5', 'treble_F#5', 'treble_Gb5', 'treble_G5', 'treble_G#5', 'treble_Ab5', 'treble_A5', 'treble_A#5', 'treble_Bb5', 'treble_B5',
+  'treble_C6'
+];
+
+const AVAILABLE_BASS_NOTES = [
+  'bass_C2', 'bass_C#2', 'bass_Db2', 'bass_D2', 'bass_D#2', 'bass_Eb2', 'bass_E2', 'bass_F2', 'bass_F#2', 'bass_Gb2', 'bass_G2', 'bass_G#2', 'bass_Ab2', 'bass_A2', 'bass_A#2', 'bass_Bb2', 'bass_B2',
+  'bass_C3', 'bass_C#3', 'bass_Db3', 'bass_D3', 'bass_D#3', 'bass_Eb3', 'bass_E3', 'bass_F3', 'bass_F#3', 'bass_Gb3', 'bass_G3', 'bass_G#3', 'bass_Ab3', 'bass_A3', 'bass_A#3', 'bass_Bb3', 'bass_B3',
+  'bass_C4', 'bass_C#4', 'bass_Db4', 'bass_D4', 'bass_D#4', 'bass_Eb4', 'bass_E4'
+];
 
 const defaultValues: StageFormValues = {
   stage_number: '',
@@ -87,7 +104,9 @@ const defaultValues: StageFormValues = {
   chord_progression_data: [],
   bgm_url: '',
   mp3_url: '',
-  stage_tier: 'basic'
+  stage_tier: 'basic',
+  sheet_music_mode: false,
+  allowed_notes: []
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -179,7 +198,9 @@ const FantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
-        stage_tier: (s as any).stage_tier || 'basic'
+        stage_tier: (s as any).stage_tier || 'basic',
+        sheet_music_mode: (s as any).sheet_music_mode ?? false,
+        allowed_notes: Array.isArray((s as any).allowed_notes) ? (s as any).allowed_notes : []
       };
       reset(v);
     } catch (e: any) {
@@ -217,6 +238,8 @@ const FantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
+      sheet_music_mode: v.sheet_music_mode,
+      allowed_notes: v.allowed_notes,
     };
 
     // モードに応じた不要フィールドの削除
@@ -228,6 +251,10 @@ const FantasyStageManager: React.FC = () => {
       delete base.time_signature;
       delete base.count_in_measures;
       delete base.bpm; // single ではテンポ不要
+    }
+    // 楽譜モードでない場合はallowed_notesを削除
+    if (!v.sheet_music_mode) {
+      delete base.allowed_notes;
     }
     if (v.mode === 'progression_order') {
       delete base.chord_progression_data;
@@ -433,6 +460,154 @@ const FantasyStageManager: React.FC = () => {
                     <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
                   </div>
                 </Row>
+              </Section>
+            )}
+
+            {/* 楽譜モード設定（singleモードのみ） */}
+            {mode === 'single' && (
+              <Section title="楽譜モード設定">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-3">
+                    <input 
+                      type="checkbox" 
+                      className="toggle toggle-primary" 
+                      {...register('sheet_music_mode')} 
+                    />
+                    <SmallLabel>楽譜モードを有効にする（敵アイコンに楽譜画像を使用）</SmallLabel>
+                  </div>
+                  
+                  {watch('sheet_music_mode') && (
+                    <div className="space-y-4 mt-4 p-4 bg-slate-700/50 rounded-lg">
+                      <p className="text-sm text-gray-300">出題する音名をチェックボックスで選択してください（trebleとbassの混在可）</p>
+                      
+                      {/* ト音記号（Treble Clef） */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-semibold text-blue-300">🎼 ト音記号（Treble Clef）</h5>
+                          <div className="flex gap-2">
+                            <button 
+                              type="button" 
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const current = watch('allowed_notes') || [];
+                                const allTreble = AVAILABLE_TREBLE_NOTES.filter(n => !current.includes(n));
+                                setValue('allowed_notes', [...current, ...allTreble]);
+                              }}
+                            >全選択</button>
+                            <button 
+                              type="button" 
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const current = watch('allowed_notes') || [];
+                                setValue('allowed_notes', current.filter(n => !n.startsWith('treble_')));
+                              }}
+                            >全解除</button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                          {AVAILABLE_TREBLE_NOTES.map(note => {
+                            const displayName = note.replace('treble_', '');
+                            const isSelected = (watch('allowed_notes') || []).includes(note);
+                            return (
+                              <label 
+                                key={note} 
+                                className={`flex items-center gap-1 p-2 rounded cursor-pointer text-sm transition-colors ${
+                                  isSelected ? 'bg-blue-600/50 border border-blue-400' : 'bg-slate-600/50 hover:bg-slate-500/50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm checkbox-primary"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const current = watch('allowed_notes') || [];
+                                    if (e.target.checked) {
+                                      setValue('allowed_notes', [...current, note]);
+                                    } else {
+                                      setValue('allowed_notes', current.filter(n => n !== note));
+                                    }
+                                  }}
+                                />
+                                <span>{displayName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* ヘ音記号（Bass Clef） */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <h5 className="font-semibold text-green-300">🎼 ヘ音記号（Bass Clef）</h5>
+                          <div className="flex gap-2">
+                            <button 
+                              type="button" 
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const current = watch('allowed_notes') || [];
+                                const allBass = AVAILABLE_BASS_NOTES.filter(n => !current.includes(n));
+                                setValue('allowed_notes', [...current, ...allBass]);
+                              }}
+                            >全選択</button>
+                            <button 
+                              type="button" 
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const current = watch('allowed_notes') || [];
+                                setValue('allowed_notes', current.filter(n => !n.startsWith('bass_')));
+                              }}
+                            >全解除</button>
+                          </div>
+                        </div>
+                        <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+                          {AVAILABLE_BASS_NOTES.map(note => {
+                            const displayName = note.replace('bass_', '');
+                            const isSelected = (watch('allowed_notes') || []).includes(note);
+                            return (
+                              <label 
+                                key={note} 
+                                className={`flex items-center gap-1 p-2 rounded cursor-pointer text-sm transition-colors ${
+                                  isSelected ? 'bg-green-600/50 border border-green-400' : 'bg-slate-600/50 hover:bg-slate-500/50'
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="checkbox checkbox-sm checkbox-success"
+                                  checked={isSelected}
+                                  onChange={(e) => {
+                                    const current = watch('allowed_notes') || [];
+                                    if (e.target.checked) {
+                                      setValue('allowed_notes', [...current, note]);
+                                    } else {
+                                      setValue('allowed_notes', current.filter(n => n !== note));
+                                    }
+                                  }}
+                                />
+                                <span>{displayName}</span>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      
+                      {/* 選択中の音名表示 */}
+                      <div className="mt-4">
+                        <SmallLabel>選択中の音名: {(watch('allowed_notes') || []).length}個</SmallLabel>
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {(watch('allowed_notes') || []).map(note => (
+                            <span 
+                              key={note} 
+                              className={`badge badge-sm ${note.startsWith('treble_') ? 'badge-primary' : 'badge-success'}`}
+                            >
+                              {note.replace('treble_', '').replace('bass_', '')}
+                              {note.startsWith('treble_') ? ' (T)' : ' (B)'}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </Section>
             )}
 

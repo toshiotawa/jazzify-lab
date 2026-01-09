@@ -789,18 +789,27 @@ export class FantasyPIXIInstance {
     img.onerror = () => {
       this.loadingImages.delete(icon);
     };
-    // WebP優先、フォールバックでPNG
-    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
-    const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
     
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = webpPath;
-    };
-    testImg.onerror = () => {
+    // 楽譜モード判定: 'treble_' または 'bass_' で始まる場合
+    if (icon.startsWith('treble_') || icon.startsWith('bass_')) {
+      // 楽譜モード: /notes_images/treble/ または /notes_images/bass/ から読み込み
+      const clef = icon.startsWith('treble_') ? 'treble' : 'bass';
+      const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${icon}.png`;
       img.src = pngPath;
-    };
-    testImg.src = webpPath;
+    } else {
+      // 通常モード: WebP優先、フォールバックでPNG
+      const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
+      const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+      
+      const testImg = new Image();
+      testImg.onload = () => {
+        img.src = webpPath;
+      };
+      testImg.onerror = () => {
+        img.src = pngPath;
+      };
+      testImg.src = webpPath;
+    }
     
     return null;
   }

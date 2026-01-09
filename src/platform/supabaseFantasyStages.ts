@@ -271,6 +271,10 @@ export interface UpsertFantasyStagePayload {
   stage_tier?: 'basic' | 'advanced';
   // 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
   usage_type?: FantasyStageUsageType;
+  // 楽譜モード（敵アイコンとして楽譜画像を使用）
+  sheet_music_mode?: boolean;
+  // 楽譜モード時の許可された音名リスト
+  allowed_notes?: string[];
 }
 
 /**

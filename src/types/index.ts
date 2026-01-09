@@ -545,6 +545,10 @@ export interface FantasyStage {
   stage_tier?: 'basic' | 'advanced';
   // 新規: 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
   usage_type?: FantasyStageUsageType;
+  // 新規: 楽譜モード（敵アイコンとして楽譜画像を使用）
+  sheet_music_mode?: boolean;
+  // 新規: 楽譜モード時の許可された音名リスト（例: ['treble_A#3', 'bass_C4']）
+  allowed_notes?: string[];
 }
 
 // ===== デイリーチャレンジ（日次記録） =====
