@@ -61,6 +61,41 @@ export const preloadMonsterImages = async (monsterIds: string[], cache: Map<stri
   );
 };
 
+/**
+ * 楽譜モード用の画像をプリロード
+ */
+const loadSheetMusicImage = (noteName: string): Promise<HTMLImageElement> =>
+  new Promise((resolve, reject) => {
+    const img = new Image();
+    img.decoding = 'async';
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    // noteName: "treble_A#3" → clef: "treble", note: "A#3"
+    const clef = noteName.startsWith('bass_') ? 'bass' : 'treble';
+    const note = noteName.replace(/^(treble|bass)_/, '');
+    // ファイル名では # を sharp に変換
+    const safeNote = note.replace(/#/g, 'sharp');
+    img.src = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNote}.png`;
+  });
+
+export const preloadSheetMusicImages = async (noteNames: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
+  await Promise.all(
+    noteNames.map(async (noteName) => {
+      // アイコンキーは sheet_music_{noteName} の形式
+      const iconKey = `sheet_music_${noteName}`;
+      if (cache.has(iconKey)) {
+        return;
+      }
+      try {
+        const image = await loadSheetMusicImage(noteName);
+        cache.set(iconKey, image);
+      } catch (error) {
+        devLog.debug(`楽譜画像のプリロード失敗: ${noteName}`, error);
+      }
+    })
+  );
+};
+
 type StageMode = 
   | 'single'
   | 'progression' // 互換用途（基本進行）
@@ -111,6 +146,10 @@ export interface FantasyStage {
   tier?: 'basic' | 'advanced';
   // 追加: 1小節内のノート間隔（太鼓進行のシンプル生成で使用）
   noteIntervalBeats?: number;
+  // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
+  isSheetMusicMode?: boolean;
+  // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
+  sheetMusicClef?: 'treble' | 'bass';
 }
 
 export interface MonsterState {
@@ -212,6 +251,32 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
   }
 
   const chordId = typeof spec === 'string' ? spec : spec.chord;
+  
+  // 楽譜モードの音名形式をハンドリング（treble_C4, bass_A3 など）
+  if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+    // プレフィックスを除去して音名を取得（例: "treble_A#3" → "A#3"）
+    const noteName = chordId.replace(/^(treble|bass)_/, '');
+    // 音名とオクターブを分離（例: "A#3" → step="A#", octave=3）
+    const match = noteName.match(/^([A-G][#b]?)(\d+)$/);
+    if (match) {
+      const step = match[1];
+      const octave = parseInt(match[2], 10);
+      const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+      const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
+      if (midi) {
+        return {
+          id: chordId, // 元のID（treble_A#3）を保持
+          displayName: noteName, // 表示用は音名のみ（A#3）
+          notes: [midi],
+          noteNames: [step],
+          quality: 'maj', // ダミー
+          root: step
+        };
+      }
+    }
+    // パースに失敗した場合は警告を出さずにnullを返す
+    return null;
+  }
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
@@ -318,11 +383,27 @@ const createMonsterFromQueue = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
-  stageMonsterIds?: string[]
+  stageMonsterIds?: string[],
+  sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' }
 ): MonsterState => {
-  // stageMonsterIdsが提供されている場合は、それを使用
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  
+  // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
   let iconKey: string;
-  if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
+  if (sheetMusicMode?.enabled && chord) {
+    // 楽譜モード: 音名形式は "treble_C4" または "bass_C3" など
+    // chord.id が既に "treble_C4" 形式の場合はそのまま使用
+    // 旧形式（"C4"のみ）の場合は clef を付加
+    const chordId = chord.id;
+    if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+      // 新形式: そのまま使用
+      iconKey = `sheet_music_${chordId}`;
+    } else {
+      // 旧形式: clef を付加（後方互換性）
+      iconKey = `sheet_music_${sheetMusicMode.clef}_${chordId}`;
+    }
+  } else if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
+    // stageMonsterIdsが提供されている場合は、それを使用
     iconKey = stageMonsterIds[monsterIndex];
   } else {
     // フォールバック: 従来のランダム選択
@@ -331,7 +412,6 @@ const createMonsterFromQueue = (
   }
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -721,7 +801,8 @@ export const useFantasyGameEngine = ({
             (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
             undefined,
             displayOpts,
-            stageMonsterIds
+            stageMonsterIds,
+            stage.isSheetMusicMode ? { enabled: true, clef: stage.sheetMusicClef || 'treble' } : undefined
           );
 
           newMonster.chordTarget = nextNote.chord;
@@ -837,10 +918,20 @@ export const useFantasyGameEngine = ({
     try {
       const textureMap = imageTexturesRef.current;
       textureMap.clear();
-      await preloadMonsterImages(monsterIds, textureMap);
-      devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
+      
+      // 楽譜モードの場合は楽譜画像をプリロード
+      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+        const noteNames = stage.allowedChords.map(chord => 
+          typeof chord === 'string' ? chord : (chord as any).chord || chord
+        ).filter(Boolean);
+        await preloadSheetMusicImages(noteNames, textureMap);
+        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
+      } else {
+        await preloadMonsterImages(monsterIds, textureMap);
+        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
+      }
     } catch (error) {
-      devLog.error('❌ モンスター画像プリロード失敗:', error);
+      devLog.error('❌ 画像プリロード失敗:', error);
     }
 
     // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
@@ -865,6 +956,11 @@ export const useFantasyGameEngine = ({
     // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
     let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
 
+    // 楽譜モード設定を準備
+    const sheetMusicOpt = stage.isSheetMusicMode 
+      ? { enabled: true, clef: stage.sheetMusicClef || 'treble' as const }
+      : undefined;
+
     // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
     // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
     for (let i = 0; i < initialMonsterCount; i++) {
@@ -878,7 +974,8 @@ export const useFantasyGameEngine = ({
           (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
           lastChordId,
           displayOpts,
-          monsterIds
+          monsterIds,
+          sheetMusicOpt
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -1594,6 +1691,9 @@ export const useFantasyGameEngine = ({
         if (monstersToAddCount > 0) {
                       const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
           const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
+          const sheetMusicOpt = stateAfterAttack.currentStage?.isSheetMusicMode 
+            ? { enabled: true, clef: stateAfterAttack.currentStage.sheetMusicClef || 'treble' as const }
+            : undefined;
 
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;
@@ -1605,7 +1705,8 @@ export const useFantasyGameEngine = ({
               (stateAfterAttack.currentStage!.allowedChords && stateAfterAttack.currentStage!.allowedChords.length > 0) ? stateAfterAttack.currentStage!.allowedChords : (stateAfterAttack.currentStage!.chordProgression || []),
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
-              stageMonsterIds
+              stageMonsterIds,
+              sheetMusicOpt
             );
             remainingMonsters.push(newMonster);
           }

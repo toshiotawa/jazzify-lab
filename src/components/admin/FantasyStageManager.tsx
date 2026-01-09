@@ -61,6 +61,9 @@ interface StageFormValues {
   chord_progression_data: TimingRow[]; // for timing
   // 新規: ステージ種別
   stage_tier: 'basic' | 'advanced';
+  // 楽譜モード
+  is_sheet_music_mode: boolean;
+  sheet_music_clef: 'treble' | 'bass';
 }
 
 const defaultValues: StageFormValues = {
@@ -87,7 +90,38 @@ const defaultValues: StageFormValues = {
   chord_progression_data: [],
   bgm_url: '',
   mp3_url: '',
-  stage_tier: 'basic'
+  stage_tier: 'basic',
+  is_sheet_music_mode: false,
+  sheet_music_clef: 'treble'
+};
+
+// 楽譜モード用の音名リスト（プレフィックス付き）
+// 形式: {clef}_{noteName} (例: treble_C4, bass_C3)
+const TREBLE_NOTES = [
+  'treble_A3', 'treble_A#3', 'treble_Bb3', 'treble_B3',
+  'treble_C4', 'treble_C#4', 'treble_Db4', 'treble_D4', 'treble_D#4', 'treble_Eb4', 'treble_E4', 'treble_F4', 'treble_F#4', 'treble_Gb4', 'treble_G4', 'treble_G#4', 'treble_Ab4',
+  'treble_A4', 'treble_A#4', 'treble_Bb4', 'treble_B4',
+  'treble_C5', 'treble_C#5', 'treble_Db5', 'treble_D5', 'treble_D#5', 'treble_Eb5', 'treble_E5', 'treble_F5', 'treble_F#5', 'treble_Gb5', 'treble_G5', 'treble_G#5', 'treble_Ab5',
+  'treble_A5', 'treble_A#5', 'treble_Bb5', 'treble_B5',
+  'treble_C6'
+];
+
+const BASS_NOTES = [
+  'bass_C2', 'bass_C#2', 'bass_Db2', 'bass_D2', 'bass_D#2', 'bass_Eb2', 'bass_E2', 'bass_F2', 'bass_F#2', 'bass_Gb2', 'bass_G2', 'bass_G#2', 'bass_Ab2',
+  'bass_A2', 'bass_A#2', 'bass_Bb2', 'bass_B2',
+  'bass_C3', 'bass_C#3', 'bass_Db3', 'bass_D3', 'bass_D#3', 'bass_Eb3', 'bass_E3', 'bass_F3', 'bass_F#3', 'bass_Gb3', 'bass_G3', 'bass_G#3', 'bass_Ab3',
+  'bass_A3', 'bass_A#3', 'bass_Bb3', 'bass_B3',
+  'bass_C4', 'bass_C#4', 'bass_Db4', 'bass_D4', 'bass_D#4', 'bass_Eb4', 'bass_E4'
+];
+
+// すべての楽譜音名（treble + bass）
+const ALL_SHEET_MUSIC_NOTES = [...TREBLE_NOTES, ...BASS_NOTES];
+
+// 音名から表示用のラベルを取得（プレフィックスを除去）
+const getNoteDisplayLabel = (note: string): string => {
+  if (note.startsWith('treble_')) return note.replace('treble_', '');
+  if (note.startsWith('bass_')) return note.replace('bass_', '');
+  return note;
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -179,7 +213,9 @@ const FantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
-        stage_tier: (s as any).stage_tier || 'basic'
+        stage_tier: (s as any).stage_tier || 'basic',
+        is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
+        sheet_music_clef: (s as any).sheet_music_clef || 'treble'
       };
       reset(v);
     } catch (e: any) {
@@ -217,6 +253,8 @@ const FantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
+      is_sheet_music_mode: v.is_sheet_music_mode,
+      sheet_music_clef: v.sheet_music_clef,
     };
 
     // モードに応じた不要フィールドの削除
@@ -404,6 +442,197 @@ const FantasyStageManager: React.FC = () => {
               </Row>
             </Section>
 
+            {/* 楽譜モード設定（singleモード用） */}
+            {mode === 'single' && (
+              <Section title="楽譜モード設定">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <SmallLabel>楽譜モードを有効にする</SmallLabel>
+                    <input type="checkbox" className="toggle toggle-primary" {...register('is_sheet_music_mode')} />
+                  </div>
+                  
+                  {watch('is_sheet_music_mode') && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-xs text-gray-400">
+                        出題する音名を選択してください。ト音記号とヘ音記号を混ぜて出題できます。
+                      </p>
+                      
+                      {/* ト音記号セクション */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <SmallLabel>🎼 ト音記号（Treble）</SmallLabel>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-xs"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = [...new Set([...currentValues, ...TREBLE_NOTES])];
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              全選択
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = currentValues.filter((c: any) => !String(c).startsWith('treble_'));
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              解除
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3">
+                          <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1">
+                            {TREBLE_NOTES.map((noteName) => {
+                              const currentChords = watch('allowed_chords') || [];
+                              const isChecked = currentChords.some(
+                                (chord: any) => String(chord) === noteName
+                              );
+                              return (
+                                <label
+                                  key={noteName}
+                                  className={`
+                                    flex items-center justify-center p-1.5 rounded cursor-pointer text-xs
+                                    border transition-all
+                                    ${isChecked ? 'bg-blue-500/30 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 hover:border-slate-500'}
+                                  `}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const currentValues = watch('allowed_chords') || [];
+                                      if (e.target.checked) {
+                                        const newValues = [...currentValues, noteName];
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      } else {
+                                        const newValues = currentValues.filter((c: any) => String(c) !== noteName);
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      }
+                                    }}
+                                  />
+                                  {getNoteDisplayLabel(noteName)}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* ヘ音記号セクション */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <SmallLabel>🎼 ヘ音記号（Bass）</SmallLabel>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-xs"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = [...new Set([...currentValues, ...BASS_NOTES])];
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              全選択
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = currentValues.filter((c: any) => !String(c).startsWith('bass_'));
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              解除
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3">
+                          <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1">
+                            {BASS_NOTES.map((noteName) => {
+                              const currentChords = watch('allowed_chords') || [];
+                              const isChecked = currentChords.some(
+                                (chord: any) => String(chord) === noteName
+                              );
+                              return (
+                                <label
+                                  key={noteName}
+                                  className={`
+                                    flex items-center justify-center p-1.5 rounded cursor-pointer text-xs
+                                    border transition-all
+                                    ${isChecked ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-slate-800 border-slate-600 hover:border-slate-500'}
+                                  `}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const currentValues = watch('allowed_chords') || [];
+                                      if (e.target.checked) {
+                                        const newValues = [...currentValues, noteName];
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      } else {
+                                        const newValues = currentValues.filter((c: any) => String(c) !== noteName);
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      }
+                                    }}
+                                  />
+                                  {getNoteDisplayLabel(noteName)}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 一括操作ボタン */}
+                      <div className="flex gap-2 pt-2 border-t border-slate-700">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            setValue('allowed_chords', ALL_SHEET_MUSIC_NOTES);
+                            replaceAllowedChords(ALL_SHEET_MUSIC_NOTES as any[]);
+                          }}
+                        >
+                          すべて選択
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline"
+                          onClick={() => {
+                            setValue('allowed_chords', []);
+                            replaceAllowedChords([]);
+                          }}
+                        >
+                          すべて解除
+                        </button>
+                        <span className="text-xs text-gray-400 ml-auto self-center">
+                          選択中: {(watch('allowed_chords') || []).length} 音
+                        </span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
+
             {/* progression 共通（テンポ系） */}
             {(mode === 'progression_order' || mode === 'progression_random' || mode === 'progression_timing') && (
               <Section title="テンポ・譜割設定（リズム系モード）">
@@ -436,7 +665,8 @@ const FantasyStageManager: React.FC = () => {
               </Section>
             )}
 
-            {/* コード入力: allowed_chords */}
+            {/* コード入力: allowed_chords（楽譜モードでない場合のみ通常表示） */}
+            {!(mode === 'single' && watch('is_sheet_music_mode')) && (
             <Section title="許可コード（single / random 用）">
               <div className="space-y-3">
                 {/* クイック複数追加 */}
@@ -497,6 +727,7 @@ const FantasyStageManager: React.FC = () => {
                 </div>
               </div>
             </Section>
+            )}
 
             {/* progression_order 用コード進行 */}
             {mode === 'progression_order' && (
