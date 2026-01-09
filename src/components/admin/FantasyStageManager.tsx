@@ -460,8 +460,10 @@ const FantasyStageManager: React.FC = () => {
                       <div className="bg-slate-900/50 rounded-lg p-4 max-h-64 overflow-y-auto">
                         <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
                           {(watch('sheet_music_clef') === 'treble' ? TREBLE_NOTES : BASS_NOTES).map((noteName) => {
-                            const isChecked = (allowedChordFields as any[]).some(
-                              (f) => (typeof f === 'string' ? f : f.chord || f) === noteName
+                            // watch で現在の allowed_chords の値を直接取得
+                            const currentChords = watch('allowed_chords') || [];
+                            const isChecked = currentChords.some(
+                              (chord: any) => (typeof chord === 'string' ? chord : chord?.chord || chord) === noteName
                             );
                             return (
                               <label
@@ -477,13 +479,19 @@ const FantasyStageManager: React.FC = () => {
                                   className="hidden"
                                   checked={isChecked}
                                   onChange={(e) => {
+                                    const currentValues = watch('allowed_chords') || [];
                                     if (e.target.checked) {
-                                      appendAllowedChord(noteName as any);
+                                      // 追加
+                                      const newValues = [...currentValues, noteName];
+                                      setValue('allowed_chords', newValues);
+                                      replaceAllowedChords(newValues as any[]);
                                     } else {
-                                      const idx = (allowedChordFields as any[]).findIndex(
-                                        (f) => (typeof f === 'string' ? f : f.chord || f) === noteName
+                                      // 削除
+                                      const newValues = currentValues.filter(
+                                        (chord: any) => (typeof chord === 'string' ? chord : chord?.chord || chord) !== noteName
                                       );
-                                      if (idx >= 0) removeAllowedChord(idx);
+                                      setValue('allowed_chords', newValues);
+                                      replaceAllowedChords(newValues as any[]);
                                     }
                                   }}
                                 />
