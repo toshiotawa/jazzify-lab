@@ -4,6 +4,7 @@ import { useGameActions } from '@/stores/helpers';
 import NotificationBell from '@/components/ui/NotificationBell';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { FaUserCircle } from 'react-icons/fa';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -48,7 +49,6 @@ const GameHeader: React.FC = () => {
             {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
             {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
             {!isFree && <HashButton hash="#ranking" disabled={isGuest}>{isEnglishCopy ? 'Ranking' : 'ランキング'}</HashButton>}
-            {!isFree && <HashButton hash="#guilds" disabled={isGuest}>{isEnglishCopy ? 'Guild' : 'ギルド'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>{isEnglishCopy ? 'Diary' : '日記'}</HashButton>}
             {!isFree && <HashButton hash="#information" disabled={isGuest}>{isEnglishCopy ? 'Updates' : 'お知らせ'}</HashButton>}
@@ -109,8 +109,17 @@ const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy
         <>
           {/* 通知ベル（アカウントの左） */}
           <NotificationBell />
-            <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
-              {isEnglishCopy ? 'Account' : 'アカウント'}
+          {/* モバイル: アイコンのみ */}
+          <a 
+            href="#account" 
+            className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
+            aria-label={isEnglishCopy ? 'Account' : 'アカウント'}
+          >
+            <FaUserCircle size={24} />
+          </a>
+          {/* デスクトップ: テキストボタン */}
+          <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
+            {isEnglishCopy ? 'Account' : 'アカウント'}
           </a>
         </>
       ) : isGuest ? (

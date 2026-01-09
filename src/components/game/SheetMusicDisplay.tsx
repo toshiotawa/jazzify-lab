@@ -41,6 +41,12 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // 前回時刻の保持用（巻き戻し検出用）
   const prevTimeRef = useRef(0);
   
+  // 一時停止時のスクロール位置保護用タイムスタンプ
+  // この時刻から一定時間はcurrentTimeによるスクロール更新をスキップ
+  const pauseProtectionTimestampRef = useRef<number>(0);
+  // 前回のisPlaying状態を追跡
+  const prevIsPlayingRef = useRef(false);
+  
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
@@ -370,6 +376,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
   // 再生状態に応じてtransform/scrollLeft方式を切り替え
   useEffect(() => {
+    // isPlayingが変化したかどうかを検出
+    const wasPlayingChanged = prevIsPlayingRef.current !== isPlaying;
+    prevIsPlayingRef.current = isPlaying;
+    
     if (!shouldRenderSheet) {
       return;
     }
@@ -378,12 +388,44 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     if (!wrapper || !scrollContainer) {
       return;
     }
+    
     if (isPlaying) {
       scrollContainer.scrollLeft = 0;
       wrapper.style.transform = `translateX(-${lastScrollXRef.current}px)`;
-    } else {
+    } else if (wasPlayingChanged) {
+      // 一時停止時: transformの現在値からスクロール位置を取得して適用
+      // 重要: CSSトランジションを一時的に無効化して即座に位置を確定
+      const originalTransition = wrapper.style.transition;
+      wrapper.style.transition = 'none';
+      
+      // transformの実際の値を取得
+      const currentTransform = wrapper.style.transform;
+      const match = currentTransform.match(/translateX\(-?([\d.]+)px\)/);
+      const transformX = match ? parseFloat(match[1]) : 0;
+      
+      // transformXが有効な場合はその値を使用、そうでなければlastScrollXRefを使用
+      const scrollX = transformX > 0 ? transformX : lastScrollXRef.current;
+      
+      // transformをリセットしてからscrollLeftを設定
       wrapper.style.transform = 'translateX(0px)';
-      scrollContainer.scrollLeft = lastScrollXRef.current;
+      
+      // 強制的にリフローを発生させてトランジション無効化を確定
+      void wrapper.offsetHeight;
+      
+      scrollContainer.scrollLeft = scrollX;
+      
+      // lastScrollXRefを更新
+      lastScrollXRef.current = scrollX;
+      
+      // 保護タイムスタンプを設定（一定時間currentTimeによる更新をスキップ）
+      pauseProtectionTimestampRef.current = performance.now();
+      
+      // 次のフレームでトランジションを復元
+      requestAnimationFrame(() => {
+        if (wrapper) {
+          wrapper.style.transition = originalTransition;
+        }
+      });
     }
   }, [isPlaying, shouldRenderSheet]);
 
@@ -401,6 +443,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const mapping = timeMappingRef.current;
       if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
         prevTimeRef.current = currentTime; // 早期returnでも更新
+        return;
+      }
+      
+      // 一時停止直後の保護期間中はスクロール更新をスキップ
+      // （isPlayingのuseEffectで設定したスクロール位置を上書きしないため）
+      const PAUSE_PROTECTION_MS = 200; // 一時停止後200msは更新をスキップ
+      const timeSincePause = performance.now() - pauseProtectionTimestampRef.current;
+      if (!isPlaying && timeSincePause < PAUSE_PROTECTION_MS) {
+        prevTimeRef.current = currentTime;
         return;
       }
 
@@ -447,6 +498,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
       const forceAtZero = currentTime < 0.02;       // 0秒付近
 
+      // 再生中は常にlastScrollXRefを更新（一時停止時に正確な位置を保持するため）
+      if (isPlaying) {
+        lastScrollXRef.current = scrollX;
+      }
+
         if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
@@ -466,7 +522,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             }
           }
           lastRenderedIndexRef.current = activeIndex;
-          lastScrollXRef.current = scrollX;
+          // 停止中のみここで更新（再生中は上で常時更新済み）
+          if (!isPlaying) {
+            lastScrollXRef.current = scrollX;
+          }
         }
 
       prevTimeRef.current = currentTime;

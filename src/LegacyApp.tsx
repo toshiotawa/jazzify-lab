@@ -19,17 +19,12 @@ import Dashboard from '@/components/dashboard/Dashboard';
 import InformationPage from '@/components/information/InformationPage';
 import LevelRanking from '@/components/ranking/LevelRanking';
 import MissionRanking from '@/components/ranking/MissionRanking';
-import GuildRanking from '@/components/ranking/GuildRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
 import StoryPage from '@/components/fantasy/StoryPage';
-import GuildDashboard from '@/components/guild/GuildDashboard';
-import GuildHistory from '@/components/guild/GuildHistory';
-import MyGuildHistory from '@/components/guild/MyGuildHistory';
-import GuildPage from '@/components/guild/GuildPage';
-import GuildInfoPage from '@/components/guild/GuildInfoPage';
+import DailyChallengeMain from '@/components/dailyChallenge/DailyChallengeMain';
 
 /**
  * メインアプリケーションコンポーネント
@@ -38,9 +33,6 @@ const App: React.FC = () => {
   const [isInitialized, setIsInitialized] = useState(false);
   const [initError, setInitError] = useState<string | null>(null);
   const [initProgress, setInitProgress] = useState(0);
-  
-  // ゲームストアの初期化状態
-  const settings = useGameStore((state) => state.settings);
   
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
@@ -189,7 +181,7 @@ const App: React.FC = () => {
   if (!user && !isGuest || forceLogin) {
     return (
       <>
-        <AuthLanding />
+        <AuthLanding mode="login" />
         <ToastContainer />
       </>
     );
@@ -247,30 +239,12 @@ const App: React.FC = () => {
     case '#ranking':
       MainContent = isFree ? <Dashboard /> : <LevelRanking />;
       break;
-    case '#guilds-info':
-      MainContent = isFree ? <Dashboard /> : <GuildInfoPage />;
-      break;
-    case '#guilds':
-      MainContent = isFree ? <Dashboard /> : <GuildDashboard />;
-      break;
-    case '#guild':
-      MainContent = isFree ? <Dashboard /> : <GuildPage />;
-      break;
-    case '#guild-history':
-      MainContent = isFree ? <Dashboard /> : <GuildHistory />;
-      break;
-    case '#my-guild-history':
-      MainContent = isFree ? <Dashboard /> : <MyGuildHistory />;
-      break;
     case '#missions':
     case '#mission':
       MainContent = isFree ? <Dashboard /> : <MissionPage />;
       break;
     case '#mission-ranking':
       MainContent = isFree ? <Dashboard /> : <MissionRanking />;
-      break;
-    case '#guilds-ranking':
-      MainContent = isFree ? <Dashboard /> : <GuildRanking />;
       break;
     case '#information':
       MainContent = isFree ? <Dashboard /> : <InformationPage />;
@@ -281,15 +255,20 @@ const App: React.FC = () => {
     case '#admin-songs':
     case '#admin-fantasy-bgm':
     case '#admin-fantasy-stages':
+    case '#admin-lesson-stages':
     case '#admin-lessons':
     case '#admin-challenges':
     case '#admin-users':
     case '#admin-announcements':
     case '#admin-courses':
+    case '#admin-dayly-fantasy':
       MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
       break;
     case '#fantasy':
       MainContent = isFree ? <Dashboard /> : <FantasyMain />;
+      break;
+    case '#daily-challenge':
+      MainContent = isFree ? <Dashboard /> : <DailyChallengeMain />;
       break;
     case '#Story':
       MainContent = isFree ? <Dashboard /> : <StoryPage />;

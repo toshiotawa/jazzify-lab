@@ -26,35 +26,35 @@ export interface PerformanceConfig {
 // 🎯 本番用軽量化モード設定
 export const PRODUCTION_CONFIG: PerformanceConfig = {
   targetFPS: 60, // 60FPSを維持
-  skipFrameThreshold: 16, // 16ms (60FPS)
-  maxSkipFrames: 1, // 最大1フレームスキップ
+  skipFrameThreshold: 14, // 14ms - フレーム間隔を少し緩めて安定性向上
+  maxSkipFrames: 3, // 最大3フレームスキップ - 重い処理時の追従性向上
   
   enableHardwareAcceleration: true,
   reduceEffects: true, // エフェクト軽量化
-  limitActiveNotes: 30, // 同時表示ノーツ数制限
+  limitActiveNotes: 50, // 同時表示ノーツ数制限を緩和
   
-  noteUpdateInterval: 16, // 60FPS相当
-  effectUpdateInterval: 33, // 30FPS相当（エフェクトは低頻度）
+  noteUpdateInterval: 8, // 8ms - ロジック更新は高頻度で維持
+  effectUpdateInterval: 50, // 50ms - エフェクトはさらに低頻度に（20FPS相当）
   
-  objectPoolSize: 50,
-  garbageCollectionInterval: 3000 // 3秒ごと
+  objectPoolSize: 100, // プールサイズを拡大してGC圧削減
+  garbageCollectionInterval: 5000 // 5秒ごと - GC頻度を下げる
 };
 
-// 🎯 軽量化モード設定
+// 🎯 軽量化モード設定（低スペックPC向け）
 export const LIGHTWEIGHT_CONFIG: PerformanceConfig = {
   targetFPS: 30, // 60FPS → 30FPSに軽量化
-  skipFrameThreshold: 33, // 33ms（30FPS）
-  maxSkipFrames: 2,
+  skipFrameThreshold: 30, // 30ms - 少し緩めて安定性向上
+  maxSkipFrames: 4, // 最大4フレームスキップ
   
   enableHardwareAcceleration: true,
   reduceEffects: true,
-  limitActiveNotes: 20, // 同時表示ノーツ数制限
+  limitActiveNotes: 30, // 同時表示ノーツ数制限を緩和
   
-  noteUpdateInterval: 16, // 60FPS相当
-  effectUpdateInterval: 33, // 30FPS相当
+  noteUpdateInterval: 16, // 60FPS相当（ロジックは高頻度維持）
+  effectUpdateInterval: 66, // ~15FPS相当
   
-  objectPoolSize: 50,
-  garbageCollectionInterval: 5000 // 5秒ごと
+  objectPoolSize: 80, // プールサイズを拡大
+  garbageCollectionInterval: 8000 // 8秒ごと - さらにGC頻度を下げる
 };
 
 // 🎯 標準モード設定
@@ -106,9 +106,11 @@ export class UnifiedFrameController {
   private config: PerformanceConfig;
   private lastNoteUpdateTime = 0;
   private lastEffectUpdateTime = 0;
-  private frameTimeHistory: Record<FrameChannel, number[]>;
+  // 🚀 リングバッファ方式に変更（shift()による GC 削減）
+  private frameTimeHistory: Record<FrameChannel, Float32Array>;
+  private frameTimeIndex: Record<FrameChannel, number>;
+  private frameTimeCount: Record<FrameChannel, number>;
   private readonly maxFrameSamples = 180;
-  private frameSequence = 0;
   
   constructor(config: PerformanceConfig = PRODUCTION_CONFIG) {
     this.config = config;
@@ -116,10 +118,19 @@ export class UnifiedFrameController {
       acc[channel] = { lastFrameTime: 0, skipCount: 0 };
       return acc;
     }, {} as Record<FrameChannel, ChannelState>);
-    this.frameTimeHistory = FRAME_CHANNELS.reduce<Record<FrameChannel, number[]>>((acc, channel) => {
-      acc[channel] = [];
+    // 🚀 リングバッファ初期化（固定サイズ Float32Array）
+    this.frameTimeHistory = FRAME_CHANNELS.reduce<Record<FrameChannel, Float32Array>>((acc, channel) => {
+      acc[channel] = new Float32Array(this.maxFrameSamples);
       return acc;
-    }, {} as Record<FrameChannel, number[]>);
+    }, {} as Record<FrameChannel, Float32Array>);
+    this.frameTimeIndex = FRAME_CHANNELS.reduce<Record<FrameChannel, number>>((acc, channel) => {
+      acc[channel] = 0;
+      return acc;
+    }, {} as Record<FrameChannel, number>);
+    this.frameTimeCount = FRAME_CHANNELS.reduce<Record<FrameChannel, number>>((acc, channel) => {
+      acc[channel] = 0;
+      return acc;
+    }, {} as Record<FrameChannel, number>);
   }
   
   private getChannelState(channel: FrameChannel): ChannelState {
@@ -167,44 +178,25 @@ export class UnifiedFrameController {
     return { ...this.config };
   }
 
+  /**
+   * 🚀 最適化版: performance.mark/measure を廃止
+   * - 毎フレームの mark/measure 呼び出しは GC とオーバーヘッドの原因
+   * - 単純な performance.now() 差分のみで十分
+   */
   beginFrame(channel: FrameChannel, label?: string): FrameToken {
     const normalizedLabel = label ?? channel;
-    const startMark = `ufc-${channel}-${this.frameSequence++}`;
-    const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
-    if (typeof performance !== 'undefined' && typeof performance.mark === 'function') {
-      try {
-        performance.mark(`${startMark}-start`);
-      } catch {
-        // noop
-      }
-    }
+    // 🚀 mark/measure を削除し、シンプルな時間計測のみ
     return {
       channel,
       label: normalizedLabel,
-      startMark,
-      startTime
+      startMark: '', // 未使用だが互換性のため保持
+      startTime: this.now()
     };
   }
 
   endFrame(token: FrameToken): number {
-    const endMark = `${token.startMark}-end`;
-    let duration = this.now() - token.startTime;
-    if (typeof performance !== 'undefined' && typeof performance.mark === 'function' && typeof performance.measure === 'function') {
-      try {
-        performance.mark(endMark);
-        const measureName = `${token.startMark}-measure`;
-        performance.measure(measureName, `${token.startMark}-start`, endMark);
-        const entries = performance.getEntriesByName(measureName);
-        if (entries.length > 0) {
-          duration = entries[entries.length - 1]?.duration ?? duration;
-        }
-        performance.clearMeasures(measureName);
-        performance.clearMarks(`${token.startMark}-start`);
-        performance.clearMarks(endMark);
-      } catch {
-        // ignore measurement failures
-      }
-    }
+    // 🚀 シンプルな時間差計算のみ（GC圧削減）
+    const duration = this.now() - token.startTime;
     this.recordFrameTime(token.channel, duration);
     return duration;
   }
@@ -220,17 +212,29 @@ export class UnifiedFrameController {
     return result;
   }
 
+  /**
+   * 🚀 リングバッファ方式でフレーム時間を記録（GC削減）
+   */
   private recordFrameTime(channel: FrameChannel, duration: number): void {
     const history = this.frameTimeHistory[channel];
-    history.push(duration);
-    if (history.length > this.maxFrameSamples) {
-      history.shift();
+    const index = this.frameTimeIndex[channel];
+    
+    history[index] = duration;
+    this.frameTimeIndex[channel] = (index + 1) % this.maxFrameSamples;
+    
+    if (this.frameTimeCount[channel] < this.maxFrameSamples) {
+      this.frameTimeCount[channel]++;
     }
   }
 
+  /**
+   * 🚀 リングバッファからの統計計算（スプレッド演算子を避ける）
+   */
   private buildStats(channel: FrameChannel): FrameStats {
     const history = this.frameTimeHistory[channel];
-    if (history.length === 0) {
+    const count = this.frameTimeCount[channel];
+    
+    if (count === 0) {
       return {
         channel,
         sampleCount: 0,
@@ -239,13 +243,24 @@ export class UnifiedFrameController {
         max: 0
       };
     }
-    const total = history.reduce((sum, value) => sum + value, 0);
+    
+    let total = 0;
+    let min = Infinity;
+    let max = -Infinity;
+    
+    for (let i = 0; i < count; i++) {
+      const value = history[i];
+      total += value;
+      if (value < min) min = value;
+      if (value > max) max = value;
+    }
+    
     return {
       channel,
-      sampleCount: history.length,
-      average: total / history.length,
-      min: Math.min(...history),
-      max: Math.max(...history)
+      sampleCount: count,
+      average: total / count,
+      min: min === Infinity ? 0 : min,
+      max: max === -Infinity ? 0 : max
     };
   }
 
@@ -402,7 +417,7 @@ export const performanceUtils = {
     let timeout: NodeJS.Timeout;
     return ((...args: any[]) => {
       clearTimeout(timeout);
-      timeout = setTimeout(() => func.apply(null, args), wait);
+      timeout = setTimeout(() => func(...args), wait);
     }) as T;
   },
   
@@ -413,7 +428,7 @@ export const performanceUtils = {
     let inThrottle: boolean;
     return ((...args: any[]) => {
       if (!inThrottle) {
-        func.apply(null, args);
+        func(...args);
         inThrottle = true;
         setTimeout(() => inThrottle = false, limit);
       }

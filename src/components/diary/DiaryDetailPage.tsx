@@ -67,7 +67,14 @@ const DiaryDetailPage: React.FC = () => {
           ) : (
             <>
               <div className="flex items-center space-x-2 text-sm text-gray-300 mb-2">
-                <img src={diary.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full object-cover cursor-pointer" onClick={()=>{window.location.href=`/main#diary-user?id=${diary.user_id}`;}} />
+                <button
+                  type="button"
+                  className="shrink-0"
+                  aria-label="ユーザーページへ"
+                  onClick={() => { window.location.href = `/main#diary-user?id=${diary.user_id}`; }}
+                >
+                  <img src={diary.avatar_url || DEFAULT_AVATAR_URL} className="w-8 h-8 rounded-full object-cover" />
+                </button>
                 <button className="font-semibold hover:text-blue-400" onClick={()=>{window.location.href=`/main#diary-user?id=${diary.user_id}`;}}>{diary.nickname}</button>
                 <span className="text-gray-500">{diary.practice_date}</span>
                 <span className="text-gray-500">{new Date(diary.created_at).toLocaleTimeString('ja-JP', { hour:'2-digit', minute:'2-digit', timeZone:'Asia/Tokyo' })}</span>

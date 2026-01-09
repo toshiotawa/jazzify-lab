@@ -32,6 +32,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
+import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 
 /**
  * ダッシュボード画面
@@ -303,9 +304,10 @@ const Dashboard: React.FC = () => {
                         <span className="animate-pulse">{statsLoadingText}</span>
                       </div>
                   ) : userStats ? (
-                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                    <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
                       {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
                       {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
+                      <span>デイリーチャレンジ実施日数 {userStats.dailyChallengeParticipationDays}</span>
                     </div>
                   ) : null}
                   
@@ -452,22 +454,6 @@ const Dashboard: React.FC = () => {
                 </button>
                 )}
 
-                {/* ギルド */}
-                {!isStandardGlobal && (
-                <button
-                  onClick={() => { window.location.hash = '#guilds'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaUsers className="w-6 h-6 text-cyan-400" />
-                    <h3 className="text-lg font-semibold">ギルド</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    参加して交流し、みんなでチャレンジ
-                  </p>
-                </button>
-                )}
-
                 {/* 日記 */}
                 {!isStandardGlobal && (
                 <button
@@ -502,6 +488,9 @@ const Dashboard: React.FC = () => {
                     </p>
                   </button>
               </div>
+
+              {/* 記録（デイリーチャレンジ） */}
+              <DailyChallengeRecordsSection />
             </>
           )}
 

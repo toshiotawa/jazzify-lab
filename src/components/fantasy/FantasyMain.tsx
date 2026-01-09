@@ -6,7 +6,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
-import { FantasyStage } from './FantasyGameEngine';
+import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -50,7 +50,6 @@ const FantasyMain: React.FC = () => {
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
   const baseXpLabel = isEnglishCopy ? 'Base XP:' : '基本XP:';
   const rankBonusLabel = isEnglishCopy ? 'Membership bonus:' : 'ランクボーナス:';
-  const guildBonusLabel = isEnglishCopy ? 'Guild bonus:' : 'ギルドボーナス:';
   const earnedXpLabel = isEnglishCopy ? 'Earned:' : '獲得:';
   const levelingUpLabel = isEnglishCopy ? 'Level up!' : 'レベルアップ！';
   const currentLevelLabel = isEnglishCopy ? 'Current level' : '現在のレベル';
@@ -62,6 +61,7 @@ const FantasyMain: React.FC = () => {
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
+  const [playMode, setPlayMode] = useState<FantasyPlayMode>('challenge');
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
@@ -84,7 +84,7 @@ const FantasyMain: React.FC = () => {
     currentLevelXp: number;
     leveledUp: boolean;
     base: number;
-    multipliers: { membership: number; guild: number };
+    multipliers: { membership: number };
   } | null>(null);
   
   // フリープラン・ゲストユーザーかどうかの確認
@@ -208,6 +208,7 @@ const FantasyMain: React.FC = () => {
     setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
+    setPlayMode('challenge');
     setGameKey(prevKey => prevKey + 1);
   }, []);
   
@@ -322,20 +323,8 @@ const FantasyMain: React.FC = () => {
       return 1;
     })();
 
-    let guildMultiplier = 1;
-    try {
-      const { getMyGuild, fetchGuildMemberMonthlyXp } = await import('@/platform/supabaseGuilds');
-      const { computeGuildBonus } = await import('@/utils/guildBonus');
-      const myGuild = await getMyGuild();
-      if (myGuild) {
-        const perMember = await fetchGuildMemberMonthlyXp(myGuild.id);
-        const contributors = perMember.filter(x => Number(x.monthly_xp || 0) >= 1).length;
-        guildMultiplier = computeGuildBonus(myGuild.level || 1, contributors).totalMultiplier;
-      }
-    } catch {}
-
     const seasonMultiplier = Math.max(0, Number(profile?.next_season_xp_multiplier ?? 1)) || 1;
-    const localGained = Math.round(xpGain * membershipMultiplier * guildMultiplier * seasonMultiplier);
+    const localGained = Math.round(xpGain * membershipMultiplier * seasonMultiplier);
 
     // ローカル進捗（見た目）を即時反映
     const prevLevelLocal = profile?.level || 1;
@@ -350,7 +339,7 @@ const FantasyMain: React.FC = () => {
       currentLevelXp: levelAfter.remainingXP,
       leveledUp: levelAfter.leveledUp,
       base: xpGain,
-      multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+      multipliers: { membership: membershipMultiplier },
     });
 
     // ログインユーザーであればDBに反映（失敗してもUIは維持）
@@ -364,7 +353,7 @@ const FantasyMain: React.FC = () => {
           rankMultiplier: 1,
           transposeMultiplier: 1,
           membershipMultiplier,
-          missionMultiplier: guildMultiplier,
+          missionMultiplier: 1,
           reason,
         });
 
@@ -381,7 +370,7 @@ const FantasyMain: React.FC = () => {
           currentLevelXp: currentLvXp,
           leveledUp,
           base: xpGain,
-          multipliers: { membership: membershipMultiplier, guild: guildMultiplier },
+          multipliers: { membership: membershipMultiplier },
         });
           if (leveledUp) {
             toast.success(`${levelingUpLabel} Lv.${previousLevel} → Lv.${xpResult.level}`, {
@@ -414,6 +403,9 @@ const FantasyMain: React.FC = () => {
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
+    
+    // レッスン専用ステージ（stageNumberがnull）の場合は次ステージ遷移しない
+    if (!currentStage.stageNumber) return;
     
     const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
     
@@ -537,10 +529,6 @@ const FantasyMain: React.FC = () => {
                         <span>{rankBonusLabel}</span>
                         <span>x{xpInfo.multipliers.membership}</span>
                       </div>
-                      <div className="flex justify-between">
-                        <span>{guildBonusLabel}</span>
-                        <span>x{xpInfo.multipliers.guild}</span>
-                      </div>
                     </div>
                     <div className="text-green-300 font-bold text-xl mt-2">
                       {earnedXpLabel} +{xpInfo.gained} XP
@@ -582,10 +570,26 @@ const FantasyMain: React.FC = () => {
                 <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">{nextStageButtonLabel}</button>
               )}
               <button
-                onClick={() => { setShowResult(false); setGameKey(prevKey => prevKey + 1); setPendingAutoStart(true); }}
+                onClick={() => {
+                  setPlayMode('challenge');
+                  setShowResult(false);
+                  setGameKey(prevKey => prevKey + 1);
+                  setPendingAutoStart(true);
+                }}
                 className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
               >
                 {retryButtonLabel}
+              </button>
+              <button
+                onClick={() => {
+                  setPlayMode('practice');
+                  setShowResult(false);
+                  setGameKey(prevKey => prevKey + 1);
+                  setPendingAutoStart(true);
+                }}
+                className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors font-sans border border-white/20"
+              >
+                {isEnglishCopy ? 'Practice' : '練習する'}
               </button>
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
@@ -610,6 +614,13 @@ const FantasyMain: React.FC = () => {
         // ▲▲▲ ここまで ▲▲▲
         stage={currentStage}
         autoStart={pendingAutoStart}   // ★
+        playMode={playMode}
+        onPlayModeChange={setPlayMode}
+        onSwitchToChallenge={() => {
+          setPlayMode('challenge');
+          setGameKey(prevKey => prevKey + 1);
+          setPendingAutoStart(true);
+        }}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
         noteNameLang={settings.noteNameStyle === 'solfege' ? 'solfege' : 'en'}

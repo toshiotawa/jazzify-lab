@@ -163,7 +163,7 @@ export class FantasySoundManager {
       // 低遅延SE用 Web Audio セットアップ + デコード
       await this._setupSeContextAndBuffers(baseUrl);
 
-      const Tone = window.Tone as typeof import('tone');
+      const Tone = window.Tone as unknown as typeof import('tone');
       this.bassSampler = new Tone.Sampler({
         urls: {
           "A1": "A1.mp3",
@@ -337,7 +337,7 @@ export class FantasySoundManager {
 
     if (!this.bassEnabled || !this.bassSampler) return;
     
-    const Tone = window.Tone as typeof import('tone');
+    const Tone = window.Tone as unknown as typeof import('tone');
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     

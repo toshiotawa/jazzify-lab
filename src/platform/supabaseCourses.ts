@@ -1,6 +1,6 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey } from './supabaseClient';
 import { Course } from '@/types';
-import { resolveCourseAccess } from '@/utils/lessonAccess';
+import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
 
 // コースキャッシュキー生成関数
 export const COURSES_CACHE_KEY = () => 'courses';
@@ -48,7 +48,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
     return data || [];
   }
 
-  const { data, error } = await fetchWithCache<Course>(
+  const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await getSupabaseClient()
         .from('courses')
@@ -85,7 +85,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
  * @returns {Promise<Course[]>}
  */
 export async function fetchCoursesSimple(): Promise<Course[]> {
-  const { data, error } = await fetchWithCache<Course>(
+  const { data, error } = await fetchWithCache(
     'courses-simple',
     async () => await getSupabaseClient()
         .from('courses')
@@ -228,7 +228,7 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
  */
 export function canAccessCourse(
   course: Course, 
-  userRank: string, 
+  userRank: MembershipRank, 
   completedCourseIds: string[] = [],
   isUnlocked: boolean | null = null
 ): {

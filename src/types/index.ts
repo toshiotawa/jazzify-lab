@@ -176,6 +176,8 @@ export interface GameSettings {
   inputMethod: InputMethod;          // 入力方式（MIDI / 音声）
   selectedMidiDevice: string | null;
   selectedAudioDevice: string | null; // 音声入力デバイス
+  /** 再生（プレイバック）出力デバイス。対応ブラウザのみ反映される */
+  selectedAudioOutputDevice: string | null;
   
   // キー設定
   transpose: number;           // -6 to +6 (半音)
@@ -508,9 +510,11 @@ export interface ClearConditions {
 }
 
 // ファンタジーモード関連の型定義
+export type FantasyStageUsageType = 'fantasy' | 'lesson' | 'both';
+
 export interface FantasyStage {
   id: string;
-  stage_number: string;
+  stage_number: string | null;  // レッスン専用ステージではnull可
   name: string;
   name_en?: string;
   description: string;
@@ -539,6 +543,21 @@ export interface FantasyStage {
   play_root_on_correct?: boolean;
   // 新規: ステージ種別（Basic/Advanced）
   stage_tier?: 'basic' | 'advanced';
+  // 新規: 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
+  usage_type?: FantasyStageUsageType;
+}
+
+// ===== デイリーチャレンジ（日次記録） =====
+
+export type DailyChallengeDifficulty = 'beginner' | 'intermediate' | 'advanced';
+
+export interface DailyChallengeRecord {
+  id: string;
+  user_id: string;
+  played_on: string; // YYYY-MM-DD
+  difficulty: DailyChallengeDifficulty;
+  score: number;
+  created_at: string;
 }
 
 export interface LessonContext {

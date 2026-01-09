@@ -20,6 +20,7 @@ interface RendererSettings {
     blackKey: string | number;
     activeKey: string | number;
     guideKey: string | number;
+    correctKey: string | number; // 正解済み鍵盤の色
     background: string | number;
   };
   noteNameStyle: NoteNameStyle;
@@ -100,6 +101,7 @@ const createDefaultSettings = (): RendererSettings => ({
     blackKey: '#2D2D2D',
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
+    correctKey: '#EF4444', // 正解済み鍵盤は赤色
     background: '#05060A'
   },
   noteNameStyle: 'off',
@@ -135,12 +137,22 @@ export class PIXINotesRendererInstance {
   private blackKeyOrder: number[] = [];
   private highlightedKeys = new Set<number>();
   private guideHighlightedKeys = new Set<number>();
-    private pointerStates = new Map<number, PointerState>();
+  private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
+  private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number) => void;
   private onKeyRelease?: (note: number) => void;
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
+  
+  // 🚀 パフォーマンス最適化: レンダリング頻度制御
+  private lastRenderTime = 0;
+  private readonly minRenderInterval = 16; // 16ms = 60FPS（安定性重視）
+  private frameSkipCount = 0;
+  private readonly maxFrameSkip = 1; // 最大1フレームスキップ（応答性向上）
+  
+  // 🚀 GC最適化: 一時オブジェクトのキャッシュ
+  private readonly tempGradientCache = new Map<string, CanvasGradient>();
 
   constructor(canvas: HTMLCanvasElement, width: number, height: number) {
     this.canvas = canvas;
@@ -160,11 +172,20 @@ export class PIXINotesRendererInstance {
 
   updateNotes(notes: ActiveNote[], _currentTime?: number): void {
     if (this.destroyed) return;
-    this.noteBuffer.length = notes.length;
-    for (let i = 0; i < notes.length; i += 1) {
+    
+    // 🚀 最適化: 配列長を調整してからコピー（GC削減）
+    const newLen = notes.length;
+    const bufLen = this.noteBuffer.length;
+    
+    if (bufLen !== newLen) {
+      this.noteBuffer.length = newLen;
+    }
+    
+    for (let i = 0; i < newLen; i += 1) {
       this.noteBuffer[i] = notes[i];
     }
-    this.requestRender();
+    
+    this.requestRenderThrottled();
   }
 
   updateSettings(newSettings: Partial<RendererSettings>): void {
@@ -241,9 +262,31 @@ export class PIXINotesRendererInstance {
     this.applyGuideHighlights(target);
   }
 
+  /**
+   * 正解済み鍵盤をMIDIノート番号で設定（赤色で表示保持）
+   * Singleモード専用：正解した音のガイド位置のオクターブのみ光る
+   */
+  setCorrectHighlightsByMidiNotes(midiNotes: number[]): void {
+    this.correctHighlightedKeys.clear();
+    midiNotes.forEach((note) => {
+      const midi = this.clampMidi(note);
+      this.correctHighlightedKeys.add(midi);
+    });
+    this.requestRender();
+  }
+
+  /**
+   * 正解済み鍵盤のハイライトをクリア
+   */
+  clearCorrectHighlights(): void {
+    this.correctHighlightedKeys.clear();
+    this.requestRender();
+  }
+
   clearAllHighlights(): void {
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
+    this.correctHighlightedKeys.clear();
     this.requestRender();
   }
 
@@ -267,7 +310,8 @@ export class PIXINotesRendererInstance {
     this.noteBuffer.length = 0;
     this.highlightedKeys.clear();
     this.guideHighlightedKeys.clear();
-      this.pointerStates.clear();
+    this.correctHighlightedKeys.clear();
+    this.pointerStates.clear();
     this.backgroundCanvas = null;
   }
 
@@ -294,6 +338,7 @@ export class PIXINotesRendererInstance {
       blackKey: toColor(colors.blackKey),
       activeKey: toColor(colors.activeKey),
       guideKey: toColor(colors.guideKey),
+      correctKey: toColor(colors.correctKey),
       background: toColor(colors.background)
     };
   }
@@ -608,6 +653,33 @@ export class PIXINotesRendererInstance {
     this.renderHandle = raf(this.renderLoop);
   }
 
+  /**
+   * 🚀 スロットル付きレンダリングリクエスト（最適化版）
+   * - 連続スキップ制限を緩和しつつ、安定した60FPSを維持
+   * - GC圧を最小化
+   */
+  private requestRenderThrottled(): void {
+    if (this.renderPending || this.destroyed) {
+      return;
+    }
+    
+    const now = performance.now();
+    const elapsed = now - this.lastRenderTime;
+    
+    // 60FPS（16ms）を維持しつつ、必要に応じてスキップ
+    if (elapsed < this.minRenderInterval) {
+      this.frameSkipCount += 1;
+      // 最大1フレームスキップ後は強制レンダリング
+      if (this.frameSkipCount <= this.maxFrameSkip) {
+        return;
+      }
+    }
+    
+    this.frameSkipCount = 0;
+    this.lastRenderTime = now;
+    this.requestRender();
+  }
+
   private renderLoop = (): void => {
     this.renderPending = false;
     this.renderHandle = null;
@@ -615,34 +687,37 @@ export class PIXINotesRendererInstance {
     this.drawFrame();
   };
 
+  /**
+   * 🚀 最適化版: フレーム描画
+   * - unifiedFrameController の参照を削除（オーバーヘッド削減）
+   * - Canvas 操作の最適化
+   */
   private drawFrame(): void {
     if (this.backgroundNeedsUpdate) {
       this.renderStaticLayers();
       this.backgroundNeedsUpdate = false;
     }
-    const controller = (window as typeof window & { unifiedFrameController?: any })?.unifiedFrameController;
-    const token = controller?.beginFrame?.('render', 'canvas-notes');
+    
     const ctx = this.ctx;
-    ctx.save();
+    
+    // 🚀 save/restore を削減し、直接 transform 設定
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
-    ctx.restore();
     ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+    
     if (this.backgroundCanvas) {
       ctx.drawImage(this.backgroundCanvas, 0, 0, this.width, this.height);
     } else {
       ctx.fillStyle = this.colors.background;
       ctx.fillRect(0, 0, this.width, this.height);
     }
+    
     if (this.settings.showHitLine) {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
     this.drawKeyHighlights(ctx);
     this.drawChordOverlay(ctx);
-    if (token) {
-      controller.endFrame(token);
-    }
   }
 
     private renderStaticLayers(): void {
@@ -730,6 +805,25 @@ export class PIXINotesRendererInstance {
       ctx.restore();
       ctx.strokeStyle = 'rgba(15,23,42,0.35)';
       ctx.stroke();
+      
+      // 白鍵の音名表示（noteNameStyle設定に従う）
+      if (this.settings.noteNameStyle !== 'off') {
+        const noteName = NOTE_NAMES[midi % 12];
+        // solfegeの場合は日本語表記、abcの場合は英語表記（オクターブ番号なし）
+        let displayName: string;
+        if (this.settings.noteNameStyle === 'solfege') {
+          displayName = JAPANESE_NOTE_MAP[noteName] || noteName;
+        } else {
+          displayName = noteName;
+        }
+        const fontSize = Math.max(8, Math.min(12, key.width * 0.5));
+        ctx.font = `${fontSize}px 'Inter', sans-serif`;
+        ctx.fillStyle = 'rgba(71, 85, 105, 0.8)';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'bottom';
+        ctx.fillText(displayName, key.x + key.width / 2, keyBottom - 4);
+      }
+      
       ctx.restore();
     }
     for (const midi of this.blackKeyOrder) {
@@ -830,17 +924,70 @@ export class PIXINotesRendererInstance {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
-    const drawHighlight = (midi: number, color: string): void => {
+    const blackKeyHeight = height * 0.6;
+    
+    const drawHighlight = (midi: number, color: string, alpha?: number): void => {
       const geometry = this.keyGeometries.get(midi);
       if (!geometry) return;
-        const keyTop = top;
-      const keyHeight = geometry.isBlack ? geometry.height : height;
+      const keyTop = top;
+      
       ctx.fillStyle = color;
-      ctx.globalAlpha = geometry.isBlack ? 0.55 : 0.35;
-      ctx.fillRect(geometry.x, keyTop, geometry.width, keyHeight);
+      ctx.globalAlpha = alpha ?? (geometry.isBlack ? 0.55 : 0.35);
+      
+      if (geometry.isBlack) {
+        // 黒鍵はそのまま矩形で描画
+        ctx.fillRect(geometry.x, keyTop, geometry.width, geometry.height);
+      } else {
+        // 白鍵は黒鍵を避けた形状で描画
+        // 隣接する黒鍵を取得
+        const prevBlack = this.keyGeometries.get(midi - 1);
+        const nextBlack = this.keyGeometries.get(midi + 1);
+        const hasLeftBlack = prevBlack?.isBlack ?? false;
+        const hasRightBlack = nextBlack?.isBlack ?? false;
+        
+        // 白鍵の下部（黒鍵より下）は常に全幅
+        const lowerTop = keyTop + blackKeyHeight;
+        const lowerHeight = height - blackKeyHeight;
+        ctx.fillRect(geometry.x, lowerTop, geometry.width, lowerHeight);
+        
+        // 白鍵の上部（黒鍵の高さ部分）は黒鍵を避けて描画
+        if (!hasLeftBlack && !hasRightBlack) {
+          // 両隣に黒鍵がない（AとEの場合など）：全幅で描画
+          ctx.fillRect(geometry.x, keyTop, geometry.width, blackKeyHeight);
+        } else if (hasLeftBlack && hasRightBlack) {
+          // 両隣に黒鍵がある（D, G, Aなど）：中央部分のみ
+          const leftBlackRight = prevBlack!.x + prevBlack!.width;
+          const rightBlackLeft = nextBlack!.x;
+          const upperX = leftBlackRight;
+          const upperWidth = rightBlackLeft - leftBlackRight;
+          if (upperWidth > 0) {
+            ctx.fillRect(upperX, keyTop, upperWidth, blackKeyHeight);
+          }
+        } else if (hasLeftBlack) {
+          // 左側のみ黒鍵がある（EとBなど）：右側を描画
+          const leftBlackRight = prevBlack!.x + prevBlack!.width;
+          const upperX = leftBlackRight;
+          const upperWidth = geometry.x + geometry.width - leftBlackRight;
+          if (upperWidth > 0) {
+            ctx.fillRect(upperX, keyTop, upperWidth, blackKeyHeight);
+          }
+        } else if (hasRightBlack) {
+          // 右側のみ黒鍵がある（CとFなど）：左側を描画
+          const rightBlackLeft = nextBlack!.x;
+          const upperWidth = rightBlackLeft - geometry.x;
+          if (upperWidth > 0) {
+            ctx.fillRect(geometry.x, keyTop, upperWidth, blackKeyHeight);
+          }
+        }
+      }
+      
       ctx.globalAlpha = 1;
     };
+    // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 正解済みハイライト（赤色）- ガイドより上に描画
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
+    // アクティブハイライト（オレンジ）- 最前面
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
     ctx.restore();
   }

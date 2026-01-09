@@ -410,7 +410,7 @@ export async function fetchUserLessonStats(): Promise<{
     .reverse();
 
   let currentStreak = 0;
-  let today = new Date();
+  const today = new Date();
   today.setHours(0, 0, 0, 0);
 
   for (const dateStr of completedDates) {

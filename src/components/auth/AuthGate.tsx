@@ -123,6 +123,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
   const [country, setCountry] = useState<string>(() => localStorage.getItem('signup_country') || 'JP');
   const [submitting, setSubmitting] = useState(false);
   const countryLocale = locale === 'ja' ? 'ja' : 'en';
+  const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
+  const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
   const nicknamePlaceholder = isEnglishCopy ? 'Nickname (required)' : 'ニックネーム（必須）';
   const countryLabel = isEnglishCopy ? 'Country' : '国';
   const countryHelper = isEnglishCopy
@@ -161,8 +163,8 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
     error?.toLowerCase().includes('profile already exists');
 
   return (
-    <div className="w-full h-screen flex items-center justify-center bg-black/70 p-6">
-      <div className="bg-slate-800 rounded-lg w-full max-w-md p-8 text-white space-y-6">
+    <div className="w-full h-screen flex items-center justify-center bg-black/70 p-6 overflow-y-auto">
+      <div className="bg-slate-800 rounded-lg w-full max-w-md max-h-[90vh] overflow-y-auto p-8 text-white space-y-6">
           <h2 className="text-xl font-bold text-center">
             {isExistingProfileError ? profileConfirmedHeading : accountRegistrationHeading}
           </h2>

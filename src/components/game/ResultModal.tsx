@@ -9,8 +9,6 @@ import { useMissionStore } from '@/stores/missionStore';
 import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
-import { getMyGuild, fetchGuildMemberMonthlyXp, fetchGuildDailyStreaks } from '@/platform/supabaseGuilds';
-import { computeGuildBonus } from '@/utils/guildBonus';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -68,27 +66,6 @@ const ResultModal: React.FC = () => {
       
       (async () => {
         try {
-          // 追加: ギルド倍率の取得（チャレンジギルドのみストリーク加算）
-          let guildMultiplier = 1;
-          try {
-            const myGuild = await getMyGuild();
-            if (myGuild) {
-              const memberMonthly = await fetchGuildMemberMonthlyXp(myGuild.id);
-              const contributors = memberMonthly.filter(m => Number(m.monthly_xp || 0) >= 1).length;
-              let streakSum = 0;
-              if (myGuild.guild_type === 'challenge') {
-                try {
-                  const st = await fetchGuildDailyStreaks(myGuild.id);
-                  streakSum = Object.values(st).reduce((acc, s: any) => acc + (s?.tierPercent || 0), 0);
-                } catch {}
-              }
-              const b = computeGuildBonus(myGuild.level || 1, contributors, streakSum);
-              guildMultiplier = 1 + b.levelBonus + b.memberBonus + (myGuild.guild_type === 'challenge' ? b.streakBonus : 0);
-            }
-          } catch (e) {
-            // 失敗しても続行
-          }
-
           // 会員ランクを正規化（standard_global -> standard）
         const normalizeMembershipRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
           if (rank === 'premium') return 'premium';
@@ -107,7 +84,6 @@ const ResultModal: React.FC = () => {
             missionBonusMultiplier: 1,
             challengeBonusMultiplier: 1,
             seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
-            guildMultiplier,
           });
 
           // デバッグ用: ランクボーナスの確認
@@ -116,7 +92,6 @@ const ResultModal: React.FC = () => {
             membershipMultiplier: detailed.multipliers.membership,
             base: detailed.base,
             total: detailed.total,
-            guildMultiplier,
           });
 
           // 正しい基本XPを計算（最低100を保証）
@@ -130,7 +105,7 @@ const ResultModal: React.FC = () => {
             rankMultiplier: 1,
             transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
             membershipMultiplier: profile.rank === 'premium' ? 1.5 : (profile.rank === 'platinum' || profile.rank === 'black') ? 2 : 1,
-            missionMultiplier: 1 * guildMultiplier, // ここにギルド倍率を乗せる
+            missionMultiplier: 1,
             reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
           });
 
@@ -286,7 +261,8 @@ const ResultModal: React.FC = () => {
                     _user_id: userId,
                     _song_id: currentSong.id,
                     _rank: score.rank,
-                    _is_b_rank_plus: true
+                    _is_b_rank_plus: true,
+                    _transpose: settings.transpose
                   });
                   
                   if (updateResult) {
@@ -625,10 +601,6 @@ const ResultModal: React.FC = () => {
                 <div className="flex justify-between">
                   <span>移調ボーナス:</span>
                   <span>x{xpInfo.detailed?.multipliers?.transpose || 1}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>ギルドボーナス:</span>
-                  <span>x{xpInfo.detailed?.multipliers?.guild || 1}</span>
                 </div>
               </div>
             </div>

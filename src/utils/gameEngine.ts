@@ -571,22 +571,38 @@ export class GameEngine {
     this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
   }
   
+  /**
+   * 🚀 最適化版ノート更新
+   * - performance.now() 呼び出しを削減
+   * - フレーム間引き判定を効率化
+   */
   private updateNotes(currentTime: number): ActiveNote[] {
     this.spawnUpcomingNotes(currentTime);
     
-    // ===== 🚀 CPU最適化: ループ分離による高速化 =====
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
     this.updateNotePositions(currentTime);
     
     // Loop 2: 判定・状態更新専用（フレーム間引き、重い処理）
-    const frameStartTime = performance.now();
-    if (unifiedFrameController.shouldUpdateNotes(frameStartTime)) {
-      // 判定・状態更新ループ（ログ出力は削除）
+    // 🚀 frameStartTime を再利用せず、shouldUpdateNotes 内部で判定
+    if (this.shouldRunLogicUpdate()) {
       this.updateNoteLogic(currentTime);
-      unifiedFrameController.markNoteUpdate(frameStartTime);
     }
     
-    return this.buildVisibleBuffer();
+    // 🚀 GC最適化: バッファを再利用して配列作成を削減
+    return this.buildVisibleBufferOptimized();
+  }
+  
+  // 🚀 ロジック更新のタイミング制御（シンプル版）
+  private lastLogicUpdateTime = 0;
+  private readonly logicUpdateInterval = 8; // 8ms間隔
+  
+  private shouldRunLogicUpdate(): boolean {
+    const now = performance.now();
+    if (now - this.lastLogicUpdateTime >= this.logicUpdateInterval) {
+      this.lastLogicUpdateTime = now;
+      return true;
+    }
+    return false;
   }
 
   private spawnUpcomingNotes(currentTime: number): void {
@@ -625,6 +641,35 @@ export class GameEngine {
   }
 
   /**
+   * 🚀 GC最適化版: バッファ再利用で配列作成を最小化
+   * - forEach を for...of に変更（わずかに高速）
+   * - 配列長の設定を最後に一度だけ実行
+   */
+  private buildVisibleBufferOptimized(): ActiveNote[] {
+    let writeIndex = 0;
+    const buffer = this.visibleNotesBuffer;
+    const bufferLen = buffer.length;
+    
+    for (const note of this.activeNotes.values()) {
+      if (note.state !== 'completed') {
+        if (writeIndex < bufferLen) {
+          buffer[writeIndex] = note;
+        } else {
+          buffer.push(note);
+        }
+        writeIndex += 1;
+      }
+    }
+    
+    // 配列サイズ調整（必要な場合のみ）
+    if (buffer.length !== writeIndex) {
+      buffer.length = writeIndex;
+    }
+    
+    return buffer;
+  }
+
+  /**
    * 🚀 位置更新専用ループ（毎フレーム実行）
    * Y座標計算のみの軽量処理
    */
@@ -639,12 +684,17 @@ export class GameEngine {
     }
   }
 
+  // 🚀 GC最適化: 削除リストをクラスレベルでキャッシュ
+  private readonly notesToDeleteBuffer: string[] = [];
+  
   /**
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
    * 重い処理（判定、状態変更、削除）のみ
    */
   private updateNoteLogic(currentTime: number): void {
-    const notesToDelete: string[] = [];
+    // 🚀 バッファをクリアして再利用
+    this.notesToDeleteBuffer.length = 0;
+    const notesToDelete = this.notesToDeleteBuffer;
     const timingAdjSec = this.getTimingAdjSec();
     
     for (const [noteId, note] of this.activeNotes) {
@@ -901,52 +951,59 @@ export class GameEngine {
     clearTimeout(handle as ReturnType<typeof setTimeout>);
   }
 
+  /**
+   * 🚀 最適化版フレームループ
+   * - フレームスキップ判定を簡略化
+   * - beginFrame/endFrame のオーバーヘッドを削減
+   * - リスナー呼び出しを最適化
+   */
   private readonly runFrame = (timestamp: number) => {
     this.rafHandle = null;
     if (!this.isGameLoopRunning) {
       return;
     }
+    
     const frameStartTime = timestamp || this.now();
+    
+    // 🚀 簡略化されたフレームスキップ判定
     if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
       this.scheduleNextFrame();
       return;
     }
-    const frameToken = unifiedFrameController.beginFrame('logic', 'game-loop');
+    
     const currentTime = this.getCurrentTime();
     const activeNotes = this.updateNotes(currentTime);
     
     this.checkABRepeatLoop(currentTime);
     
-    const timing: MusicalTiming = {
-      currentTime,
-      audioTime: this.audioContext?.currentTime || 0,
-      latencyOffset: this.latencyOffset
-    };
-    
+    // 🚀 オブジェクト生成を最小化（timing/abRepeatState は固定値）
     const frameUpdate: GameEngineUpdate = {
       currentTime,
       activeNotes,
-      timing,
-      score: { ...this.score },
-      abRepeatState: {
-        start: null,
-        end: null,
-        enabled: false
-      }
+      timing: {
+        currentTime,
+        audioTime: this.audioContext?.currentTime || 0,
+        latencyOffset: this.latencyOffset
+      },
+      score: this.score, // 🚀 スプレッドを削除（参照渡し）
+      abRepeatState: this.cachedAbRepeatState
     };
+    
+    // メインコールバック
     this.onUpdate?.(frameUpdate);
+    
+    // 🚀 リスナー呼び出しの最適化（for...of は forEach より若干速い）
     if (this.updateListeners.size > 0) {
-      this.updateListeners.forEach((listener) => {
-        try {
-          listener(frameUpdate);
-        } catch (error) {
-          log.warn('⚠️ GameEngine update listener error:', error);
-        }
-      });
+      for (const listener of this.updateListeners) {
+        listener(frameUpdate);
+      }
     }
-    unifiedFrameController.endFrame(frameToken);
+    
     this.scheduleNextFrame();
   };
+  
+  // 🚀 キャッシュされた ABRepeat 状態（毎フレームのオブジェクト生成を削減）
+  private readonly cachedAbRepeatState = { start: null, end: null, enabled: false };
 
   private now(): number {
     return typeof performance !== 'undefined' ? performance.now() : Date.now();

@@ -53,9 +53,14 @@ interface FantasyStageSelectProps {
 // ===== 定数 =====
 // WIZARD_RANKS, getRankFromClearedStages, RANK_COLORS, RANK_NAMESの定義を削除
 
+const isDailyChallengeStageNumber = (stageNumber: string | null | undefined): boolean =>
+  (stageNumber ?? '').toUpperCase().startsWith('DC-');
+
 // ===== ステージグルーピング =====
 const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[]> => {
   return stages.reduce((groups, stage) => {
+    // stageNumberがnullの場合はスキップ（レッスン専用ステージ等）
+    if (!stage.stageNumber) return groups;
     const rank = stage.stageNumber.split('-')[0];
     if (!groups[rank]) groups[rank] = [];
     groups[rank].push(stage);
@@ -102,11 +107,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       // ゲストユーザーの場合、またはユーザーが存在しない場合は、ステージデータのみ読み込む
       if (!userId || isGuest) {
-        // ステージマスタデータの読み込み
+        // ステージマスタデータの読み込み（ファンタジーモード用のみ）
         const timeoutMs = 7000;
         const stagesQuery = supabase
           .from('fantasy_stages')
           .select('*')
+          .in('usage_type', ['fantasy', 'both'])
           .order('stage_number');
         const { data: stagesData, error: stagesError } = await Promise.race([
           stagesQuery,
@@ -117,7 +123,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           throw new Error(`ステージデータの読み込みに失敗: ${stagesError.message}`);
         }
         
-          const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+          const filteredStagesData = (stagesData || []).filter(
+            (stage: { stage_number?: string | null }) => !isDailyChallengeStageNumber(stage.stage_number),
+          );
+          const convertedStages: FantasyStage[] = filteredStagesData.map((stage: any) => ({
             id: stage.id,
             stageNumber: stage.stage_number,
             name: stage.name,
@@ -157,6 +166,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const stagesQuery = supabase
         .from('fantasy_stages')
         .select('*')
+        .in('usage_type', ['fantasy', 'both'])
         .order('stage_number');
       const progressQuery = supabase
         .from('fantasy_user_progress')
@@ -214,7 +224,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       }
       
       //// データの変換とセット
-        const convertedStages: FantasyStage[] = (stagesData || []).map((stage: any) => ({
+        const filteredStagesData = (stagesData || []).filter(
+          (stage: { stage_number?: string | null }) => !isDailyChallengeStageNumber(stage.stage_number),
+        );
+        const convertedStages: FantasyStage[] = filteredStagesData.map((stage: any) => ({
           id: stage.id,
           stageNumber: stage.stage_number,
           name: stage.name,
@@ -282,7 +295,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       } catch (err) {
         const errorMessage = err instanceof Error ? err.message : (isEnglishCopy ? 'An unknown error occurred.' : '不明なエラーが発生しました');
         setError(errorMessage);
-      console.error('❌ ファンタジーデータ読み込みエラー:', err);
+      devLog.error('❌ ファンタジーデータ読み込みエラー:', err);
     } finally {
       setLoading(false);
       }
@@ -323,6 +336,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   
   // ステージがアンロックされているかチェック
   const isStageUnlocked = useCallback((stage: FantasyStage): boolean => {
+    // stageNumberがnullの場合はアンロックしない（レッスン専用ステージ等）
+    if (!stage.stageNumber) return false;
+    
     // フリープラン・ゲストユーザーの場合はBasic/Advancedともに1-1, 1-2, 1-3のみアンロック
     if (isFreeOrGuest) {
       const allowedStages = ['1-1', '1-2', '1-3'];
@@ -369,15 +385,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // 全ステージのグローバルインデックスを計算
   const getStageGlobalIndex = useCallback((stage: FantasyStage) => {
     let globalIndex = 0;
+    // stageNumberがnullの場合は0を返す
+    if (!stage.stageNumber) return 0;
     const [targetMajor, targetMinor] = stage.stageNumber.split('-').map(Number);
     
-    // 選択中Tierのステージのみを対象
-    const tierFiltered = stages.filter(s => (s as any).tier === selectedTier);
+    // 選択中Tierのステージのみを対象（stageNumberがnullのものは除外）
+    const tierFiltered = stages.filter(s => (s as any).tier === selectedTier && s.stageNumber);
     
     // 全ステージをソートしてインデックスを見つける
     const allStages = tierFiltered.slice().sort((a, b) => {
-      const [aMajor, aMinor] = a.stageNumber.split('-').map(Number);
-      const [bMajor, bMinor] = b.stageNumber.split('-').map(Number);
+      const [aMajor, aMinor] = (a.stageNumber || '0-0').split('-').map(Number);
+      const [bMajor, bMinor] = (b.stageNumber || '0-0').split('-').map(Number);
       if (aMajor !== bMajor) return aMajor - bMajor;
       return aMinor - bMinor;
     });
@@ -466,7 +484,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
               {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
-                isFreeOrGuest && stage.stageNumber >= '1-4' 
+                isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
                   ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
                   : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
               )}
@@ -533,8 +551,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const groupedStages = groupStagesByRank(
     (stages || []).filter(s => (s as any).tier === selectedTier)
   );
-  const currentWizardRank = userProgress ? userProgress.wizardRank : 'F';
-  const totalCleared = userProgress ? userProgress.totalClearedStages : 0;
+  const selectedRankNumberRaw = Number.parseInt(selectedRank, 10);
+  const selectedRankNumber = Number.isFinite(selectedRankNumberRaw) ? selectedRankNumberRaw : 1;
+  const selectedRankInfo = getFantasyRankInfo(selectedRankNumber, selectedTier);
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
@@ -635,17 +654,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         {selectedRank && groupedStages[selectedRank] && (
           <div className={cn(
             "rounded-xl p-4 sm:p-6 bg-gradient-to-br",
-            getRankColor(parseInt(selectedRank))
+            getRankColor(selectedRankNumber)
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-             ランク {selectedRank} - {getFantasyRankInfo(parseInt(selectedRank), selectedTier).title}
+             ランク {selectedRank} - {selectedRankInfo.title}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
               {groupedStages[selectedRank]
                 .sort((a, b) => {
-                  const [, aStage] = a.stageNumber.split('-').map(Number);
-                  const [, bStage] = b.stageNumber.split('-').map(Number);
+                  const [, aStage] = (a.stageNumber || '0-0').split('-').map(Number);
+                  const [, bStage] = (b.stageNumber || '0-0').split('-').map(Number);
                   return aStage - bStage;
                 })
                 .map((stage, index) => renderStageCard(stage, index))
@@ -655,8 +674,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             {/* ランク説明 */}
             <div className="mt-4 sm:mt-6 bg-black bg-opacity-30 rounded-lg p-3 sm:p-4">
               <div className="text-white text-xs sm:text-sm">
-               <p className="font-semibold mb-1 sm:mb-2">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).stageName}</p>
-               <p className="leading-relaxed">{getFantasyRankInfo(parseInt(selectedRank), selectedTier).description}</p>
+               <p className="font-semibold mb-1 sm:mb-2">{selectedRankInfo.stageName}</p>
+               <p className="leading-relaxed">{selectedRankInfo.description}</p>
               </div>
             </div>
           </div>

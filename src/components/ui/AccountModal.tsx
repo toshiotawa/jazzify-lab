@@ -619,12 +619,14 @@ const AccountPage: React.FC = () => {
                               },
                             });
                             if (response.ok) {
-                              alert('退会が完了しました');
+                              // 退会成功時は即座にログアウトしてから退会完了ページへリダイレクト
+                              // サーバー側でセッションは無効化されているが、クライアント側のストアもクリアする
                               await logout();
-                              window.location.href = '/';
+                              window.location.href = '/withdrawal-complete';
                             } else {
                               const err = await response.json().catch(()=>({error:'退会に失敗しました'}));
-                              alert(err.error || '退会に失敗しました');
+                              const errorMessage = err.details ? `${err.error}: ${err.details}` : err.error;
+                              alert(errorMessage || '退会に失敗しました');
                             }
                           } catch (e) {
                             alert('退会処理中にエラーが発生しました');
@@ -655,6 +657,7 @@ const AccountPage: React.FC = () => {
           </button>
         </div>
       </div>
+
     </div>
   );
 };

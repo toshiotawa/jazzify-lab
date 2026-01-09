@@ -4,6 +4,7 @@ import { requireUserId } from '@/platform/authHelpers';
 export interface UserStats {
   missionCompletedCount: number;
   lessonCompletedCount: number;
+  dailyChallengeParticipationDays: number;
 }
 
 // キャッシュ用の変数
@@ -26,8 +27,8 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
   }
 
   try {
-    // ミッションとレッスンの統計を並行取得
-    const [missionResult, lessonResult] = await Promise.all([
+    // ミッション、レッスン、デイリーチャレンジの統計を並行取得
+    const [missionResult, lessonResult, dailyChallengeResult] = await Promise.all([
       supabase
         .from('user_challenge_progress')
         .select('challenge_id')
@@ -37,7 +38,12 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
         .from('user_lesson_progress')
         .select('lesson_id')
         .eq('user_id', targetUserId)
-        .eq('completed', true)
+        .eq('completed', true),
+      // デイリーチャレンジの実施日数（played_onでDISTINCT）
+      supabase
+        .from('daily_challenge_records')
+        .select('played_on')
+        .eq('user_id', targetUserId)
     ]);
 
     // エラーチェック
@@ -47,10 +53,19 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
     if (lessonResult.error) {
       throw new Error(`レッスン統計の取得に失敗しました: ${lessonResult.error.message}`);
     }
+    if (dailyChallengeResult.error) {
+      throw new Error(`デイリーチャレンジ統計の取得に失敗しました: ${dailyChallengeResult.error.message}`);
+    }
+
+    // 同じ日に複数の難易度をプレイしても1日としてカウント
+    const uniqueDays = new Set(
+      (dailyChallengeResult.data || []).map((r: { played_on: string }) => r.played_on)
+    );
 
     const result = {
       missionCompletedCount: missionResult.data?.length || 0,
       lessonCompletedCount: lessonResult.data?.length || 0,
+      dailyChallengeParticipationDays: uniqueDays.size,
     };
 
     // キャッシュに保存
@@ -65,6 +80,7 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
     return {
       missionCompletedCount: 0,
       lessonCompletedCount: 0,
+      dailyChallengeParticipationDays: 0,
     };
   }
 }

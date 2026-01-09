@@ -241,7 +241,7 @@ export const useAudioDevices = () => {
   const [isSupported, setIsSupported] = useState(true);
 
   // デバイス一覧を取得
-  const refreshDevices = useCallback(async () => {
+  const refreshDevices = useCallback(async (options?: { requestPermission?: boolean }) => {
     setIsRefreshing(true);
     setError(null);
 
@@ -258,15 +258,13 @@ export const useAudioDevices = () => {
         onNoteOff: () => {}
       });
 
-      const deviceList = await tempController.getAudioDevices();
+      const deviceList = await tempController.getAudioDevices({ requestPermission: options?.requestPermission });
       tempController.destroy();
 
       setDevices(deviceList);
-      console.log(`🎤 Found ${deviceList.length} audio input devices:`, deviceList);
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
-      console.error('❌ Audio device refresh failed:', err);
       setDevices([]);
     } finally {
       setIsRefreshing(false);
@@ -276,7 +274,8 @@ export const useAudioDevices = () => {
   // 初回ロード時にデバイス一覧を取得
   useEffect(() => {
     if (VoiceInputController.isSupported()) {
-      refreshDevices();
+      // 初回は権限要求しない（iOSで早期に許可ダイアログが出ないようにする）
+      refreshDevices({ requestPermission: false });
     } else {
       setIsSupported(false);
       setError('音声入力はこのブラウザでサポートされていません');
@@ -321,10 +320,27 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
 }) => {
   const { devices, isRefreshing, error, isSupported, refreshDevices } = useAudioDevices();
 
-  const handleDeviceChange = (newDeviceId: string | null) => {
+  const handleDeviceChange = async (newDeviceId: string | null) => {
+    // OFF にする場合は権限不要
+    if (!newDeviceId) {
+      onChange(null);
+      return;
+    }
+
+    // iOS 含む: ユーザー操作中に権限要求を行う
+    const permissionOk = await VoiceInputController.requestMicrophonePermission(
+      newDeviceId === 'default' ? undefined : newDeviceId
+    );
+    if (!permissionOk) {
+      // 許可できない場合は選択を変更しない
+      return;
+    }
+
+    // 許可後にラベル取得が可能になることがあるため更新
+    void refreshDevices({ requestPermission: false });
+
     // 同じデバイスを選択した場合は再接続を強制
     if (newDeviceId && newDeviceId === value) {
-      console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
       onChange(null);
       setTimeout(() => {
         onChange(newDeviceId);
@@ -345,21 +361,27 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           <select
             id="audio-device-select"
             value={value || ''}
-            onChange={(e) => handleDeviceChange(e.target.value || null)}
+            onChange={(e) => void handleDeviceChange(e.target.value || null)}
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-purple-600 lp-mobile-select"
             disabled={isRefreshing || !isSupported}
           >
-            <option value="">デフォルト</option>
-            {devices.map((device) => (
-              <option key={device.deviceId} value={device.deviceId}>
-                {`🎤 ${device.label}`}
-              </option>
-            ))}
+            <option value="">未接続（マイクOFF）</option>
+            <option value="default">デフォルト</option>
+            {devices
+              .filter((device) => device.deviceId !== 'default' && device.deviceId !== '')
+              .map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {`🎤 ${device.label}`}
+                </option>
+              ))}
           </select>
 
           <button
             className="btn btn-xs btn-outline btn-purple"
-            onClick={refreshDevices}
+            onClick={() => {
+              // 再検出はユーザー操作なので、必要なら権限要求してからデバイス名を更新する
+              void refreshDevices({ requestPermission: true });
+            }}
             disabled={isRefreshing || !isSupported}
           >
             {isRefreshing ? '🔄' : '🔄'} 再検出
@@ -379,13 +401,161 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           {value ? (
             <span className="text-green-400">✅ 選択済み</span>
           ) : (
-            <span className="text-gray-400">デフォルト使用</span>
+            <span className="text-gray-400">未接続</span>
           )}
         </div>
 
         {VoiceInputController.isIOS() && (
           <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
-            📱 iOS環境: マイク許可を求められた場合は「許可」を選択してください。
+            📱 iOS環境: マイクは「デバイス選択時」に許可が求められます。
+          </div>
+        )}
+
+        {error && (
+          <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
+            ❌ {error}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+// ===== Audio Output Device (Playback) =====
+
+interface AudioOutputDevice {
+  deviceId: string;
+  label: string;
+}
+
+const isAudioOutputSelectionSupported = (): boolean => {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  const maybeAudioContext = window.AudioContext || (window as typeof window & { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+  if (maybeAudioContext && 'setSinkId' in maybeAudioContext.prototype) {
+    return true;
+  }
+  return false;
+};
+
+export const useAudioOutputDevices = () => {
+  const [devices, setDevices] = useState<AudioOutputDevice[]>([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const refreshDevices = useCallback(async () => {
+    setIsRefreshing(true);
+    setError(null);
+
+    try {
+      if (!navigator.mediaDevices?.enumerateDevices) {
+        throw new Error('このブラウザではデバイス一覧取得がサポートされていません');
+      }
+      const list = await navigator.mediaDevices.enumerateDevices();
+      const outputs = list
+        .filter((device) => device.kind === 'audiooutput')
+        .map((device, idx) => ({
+          deviceId: device.deviceId,
+          label: device.label || `Speaker ${idx + 1}`
+        }));
+      setDevices(outputs);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
+      setError(errorMessage);
+      setDevices([]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void refreshDevices();
+  }, [refreshDevices]);
+
+  useEffect(() => {
+    if (!navigator.mediaDevices) return;
+    const handleDeviceChange = () => {
+      void refreshDevices();
+    };
+    navigator.mediaDevices.addEventListener('devicechange', handleDeviceChange);
+    return () => {
+      navigator.mediaDevices.removeEventListener('devicechange', handleDeviceChange);
+    };
+  }, [refreshDevices]);
+
+  return {
+    devices,
+    isRefreshing,
+    error,
+    refreshDevices,
+    isSupported: isAudioOutputSelectionSupported()
+  };
+};
+
+interface AudioOutputDeviceSelectorProps {
+  value: string | null;
+  onChange: (deviceId: string | null) => void;
+  className?: string;
+}
+
+export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps> = ({
+  value,
+  onChange,
+  className = ''
+}) => {
+  const { devices, isRefreshing, error, refreshDevices, isSupported } = useAudioOutputDevices();
+
+  return (
+    <div className={`space-y-3 ${className}`}>
+      <div>
+        <label htmlFor="audio-output-device-select" className="block text-xs text-slate-200 mb-1">
+          出力デバイス
+        </label>
+        <div className="flex gap-2">
+          <select
+            id="audio-output-device-select"
+            value={value || 'default'}
+            onChange={(e) => onChange(e.target.value || null)}
+            className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-slate-600 lp-mobile-select"
+            disabled={isRefreshing || !isSupported}
+          >
+            <option value="default">システム既定</option>
+            {devices
+              .filter((d) => d.deviceId !== 'default')
+              .map((device) => (
+                <option key={device.deviceId} value={device.deviceId}>
+                  {`🔈 ${device.label}`}
+                </option>
+              ))}
+          </select>
+          <button
+            className="btn btn-xs btn-outline btn-slate"
+            onClick={() => void refreshDevices()}
+            disabled={isRefreshing}
+          >
+            {isRefreshing ? '🔄' : '🔄'} 再検出
+          </button>
+        </div>
+      </div>
+
+      <div className="text-xs text-slate-200 space-y-1">
+        <div className="flex justify-between">
+          <span>検出デバイス数:</span>
+          <span className="font-mono">{devices.length} 個</span>
+        </div>
+        <div className="flex justify-between">
+          <span>対応状況:</span>
+          {isSupported ? (
+            <span className="text-green-400">✅ 対応</span>
+          ) : (
+            <span className="text-gray-400">未対応</span>
+          )}
+        </div>
+
+        {!isSupported && (
+          <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
+            このブラウザでは出力デバイスの切り替えができません（iOS Safari は未対応の場合があります）。
           </div>
         )}
 

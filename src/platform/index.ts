@@ -35,6 +35,7 @@ export interface PlatformWindow {
   clearInterval(id: number): void;
   location: Location;
   navigator: Navigator;
+  localStorage?: Storage;
 }
 
 export interface PlatformDocument {

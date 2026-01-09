@@ -1,4 +1,5 @@
-import { createClient, SupabaseClient, PostgrestResponse } from '@supabase/supabase-js';
+import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { log } from '@/utils/logger';
 
 /**
  * Supabase クライアントのシングルトンラッパー。
@@ -74,7 +75,7 @@ interface CacheEntry<T> {
 // 最適化: キャッシュTTLを調整
 const DEFAULT_TTL = 1000 * 600; // 600 秒（10分）に延長
 const cache: Map<string, CacheEntry<unknown>> = new Map();
-const inFlightRequests: Map<string, Promise<PostgrestResponse<any>>> = new Map();
+const inFlightRequests: Map<string, Promise<unknown>> = new Map();
 
 /**
  * クエリを実行し、結果を TTL 付きでキャッシュする
@@ -82,34 +83,42 @@ const inFlightRequests: Map<string, Promise<PostgrestResponse<any>>> = new Map()
  * @param executor Supabase 呼び出しを返すコールバック
  * @param ttl キャッシュ有効期限 (ms)
  */
-export async function fetchWithCache<T>(
+type CacheableResponse = {
+  data: unknown;
+  error: unknown;
+  status: number;
+  statusText: string;
+  count?: number | null;
+};
+
+export async function fetchWithCache<R extends CacheableResponse>(
   cacheKey: string,
-  executor: () => Promise<PostgrestResponse<T>>, // 実クエリ
+  executor: () => Promise<R>, // 実クエリ
   ttl: number = DEFAULT_TTL,
-): Promise<PostgrestResponse<T>> {
+): Promise<R> {
   const now = Date.now();
   const cached = cache.get(cacheKey);
   if (cached && cached.expires > now) {
-    return { 
-      data: cached.data, 
-      error: null, 
-      status: 200, 
+    return {
+      data: cached.data as R['data'],
+      error: null,
+      status: 200,
       statusText: 'OK',
-      count: null 
-    };
+      count: null,
+    } as unknown as R;
   }
   // in-flight 去重
-  const existing = inFlightRequests.get(cacheKey) as Promise<PostgrestResponse<T>> | undefined;
+  const existing = inFlightRequests.get(cacheKey) as Promise<R> | undefined;
   if (existing) return existing;
   const execPromise = executor().then((res) => {
-    if (!res.error) {
-      cache.set(cacheKey, { data: res.data as unknown as T, expires: Date.now() + ttl });
+    if (!(res as { error: unknown }).error) {
+      cache.set(cacheKey, { data: res.data, expires: Date.now() + ttl });
     }
     return res;
   }).finally(() => {
     inFlightRequests.delete(cacheKey);
   });
-  inFlightRequests.set(cacheKey, execPromise as unknown as Promise<PostgrestResponse<any>>);
+  inFlightRequests.set(cacheKey, execPromise as Promise<unknown>);
   return execPromise;
 }
 
@@ -145,15 +154,15 @@ export function subscribeRealtime<T = Record<string, unknown>>(
     ...(options?.filter && { filter: options.filter })
   };
   
-  channel.on(
+  // supabase-js の型定義差分を吸収（runtimeは問題ない）
+  (channel as unknown as { on: (...args: unknown[]) => unknown }).on(
     'postgres_changes',
     eventConfig,
-    (payload) => {
-      // 最適化: キャッシュクリアは必要な場合のみ
+    (payload: unknown) => {
       if (options?.clearCache !== false) {
         clearCacheByPattern(`.*${tableName}.*`);
       }
-      callback(payload);
+      callback(payload as { eventType: string; new: T; old: T });
     },
   );
   channel.subscribe();

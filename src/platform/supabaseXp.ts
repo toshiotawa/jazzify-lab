@@ -93,33 +93,6 @@ export async function addXp(params: AddXpParams) {
     throw new Error('Profile update affected 0 rows. Is the profile missing?');
   }
 
-  // 追加: ギルド貢献の記録（所属していれば、当月エントリとして追加）
-  try {
-    const { data: membership } = await supabase
-      .from('guild_members')
-      .select('guild_id, guilds!inner(guild_type)')
-      .eq('user_id', userId)
-      .maybeSingle();
-    const guildId = (membership as any)?.guild_id as string | undefined;
-    const guildType = (membership as any)?.guilds?.guild_type as string | undefined;
-    if (guildId && gained > 0) {
-      const now = new Date();
-      const monthStartUtc = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-      const monthStr = monthStartUtc.toISOString().slice(0, 10);
-      await supabase
-        .from('guild_xp_contributions')
-        .insert({ guild_id: guildId, user_id: userId, gained_xp: gained, month: monthStr });
-      
-      // チャレンジギルドの場合、ストリークを更新
-      if (guildType === 'challenge') {
-        const { updateUserStreak } = await import('@/platform/supabaseGuilds');
-        await updateUserStreak(userId, guildId);
-      }
-    }
-  } catch (e) {
-    log.warn('guild_xp_contributions insert failed:', e);
-  }
-
   return {
     gainedXp: gained,
     totalXp: newTotalXp,

@@ -40,6 +40,11 @@ interface AudioDeviceInfo {
   label: string;
 }
 
+interface GetAudioDevicesOptions {
+  /** true の場合、デバイスラベル取得のために一度だけ権限要求を行う */
+  requestPermission?: boolean;
+}
+
 // iOS検出ユーティリティ
 const isIOS = (): boolean => {
   if (typeof navigator === 'undefined' || typeof window === 'undefined') {
@@ -72,6 +77,7 @@ export class VoiceInputController {
   private scriptNode: ScriptProcessorNode | null = null;
   private analyserNode: AnalyserNode | null = null;
   private analyserTimer: ReturnType<typeof setInterval> | null = null;
+  private silentGainNode: GainNode | null = null;
   private currentDeviceId: string | null = null;
   private isProcessing = false;
 
@@ -97,19 +103,19 @@ export class VoiceInputController {
   private currentNote = -1;
   private isNoteOn = false;
 
-  // 最適化: 固定サイズピッチ履歴（動的配列を避ける）
-  private readonly pitchHistorySize = 3;
+  // 🚀 最適化: 固定サイズピッチ履歴（レイテンシ重視で縮小）
+  private readonly pitchHistorySize = 2; // 3→2に縮小（応答性向上）
   private pitchHistory: Int8Array = new Int8Array(this.pitchHistorySize);
   private pitchHistoryIndex = 0;
   private pitchHistoryCount = 0;
 
-  // 最適化: 処理スロットリング
+  // 🚀 超低レイテンシ最適化: 処理スロットリング
   private lastProcessTime = 0;
-  private readonly minProcessInterval = 8; // 最小8ms間隔（約125Hz）
+  private readonly minProcessInterval = 3; // 3ms間隔（約333Hz）- 最小レイテンシ
   private pendingSamples: Float32Array | null = null;
   private accumulatedSamples: Float32Array;
   private accumulatedLength = 0;
-  private readonly targetAccumulationSize = 512; // 512サンプル貯まったら処理
+  private readonly targetAccumulationSize = 256; // 256サンプルで処理開始（約5ms相当@48kHz）
 
   // iOS対応
   private readonly isIOSDevice: boolean;
@@ -178,15 +184,18 @@ export class VoiceInputController {
   }
 
   /** 利用可能なオーディオ入力デバイス取得 */
-  async getAudioDevices(): Promise<AudioDeviceInfo[]> {
+  async getAudioDevices(options?: GetAudioDevicesOptions): Promise<AudioDeviceInfo[]> {
     if (!navigator.mediaDevices?.enumerateDevices) {
       return [];
     }
 
     try {
-      // まず権限を取得
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      stream.getTracks().forEach(track => track.stop());
+      if (options?.requestPermission) {
+        const ok = await VoiceInputController.requestMicrophonePermission();
+        if (!ok) {
+          return [];
+        }
+      }
 
       // デバイスリスト取得
       const devices = await navigator.mediaDevices.enumerateDevices();
@@ -199,6 +208,29 @@ export class VoiceInputController {
     } catch (error) {
       log.warn('オーディオデバイスリストの取得に失敗:', error);
       return [];
+    }
+  }
+
+  /**
+   * マイク権限を要求する（権限付与後すぐに停止）
+   * iOS ではユーザー操作（タップ等）の直後に呼ぶことを推奨。
+   */
+  static async requestMicrophonePermission(deviceId?: string): Promise<boolean> {
+    if (!isVoiceInputSupported() || !navigator.mediaDevices?.getUserMedia) {
+      return false;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: deviceId ? { exact: deviceId } : undefined
+        },
+        video: false
+      });
+      stream.getTracks().forEach((track) => track.stop());
+      return true;
+    } catch (error) {
+      log.warn('マイク権限の取得に失敗:', error);
+      return false;
     }
   }
 
@@ -303,6 +335,11 @@ export class VoiceInputController {
     try {
       await this.audioContext.audioWorklet.addModule('/js/audio/audio-worklet-processor.js');
       this.workletNode = new AudioWorkletNode(this.audioContext, 'audio-processor');
+      if (!this.silentGainNode) {
+        this.silentGainNode = this.audioContext.createGain();
+        this.silentGainNode.gain.value = 0;
+        this.silentGainNode.connect(this.audioContext.destination);
+      }
 
       // Workletにリングバッファ情報を送信
       this.workletNode.port.postMessage({
@@ -319,7 +356,7 @@ export class VoiceInputController {
       };
 
       source.connect(this.workletNode);
-      this.workletNode.connect(this.audioContext.destination);
+      this.workletNode.connect(this.silentGainNode);
       this.isProcessing = true;
       
       log.info('✅ AudioWorklet設定完了');
@@ -360,27 +397,33 @@ export class VoiceInputController {
     };
 
     source.connect(this.scriptNode);
-    this.scriptNode.connect(this.audioContext.destination);
+    if (!this.silentGainNode) {
+      this.silentGainNode = this.audioContext.createGain();
+      this.silentGainNode.gain.value = 0;
+      this.silentGainNode.connect(this.audioContext.destination);
+    }
+    this.scriptNode.connect(this.silentGainNode);
     this.isProcessing = true;
 
     log.info('✅ ScriptProcessor設定完了');
   }
 
   /** 
-   * 受信サンプルの処理（最適化版）
+   * 🚀 受信サンプルの処理（レイテンシ最適化版）
    * サンプルを蓄積してから一括処理することでオーバーヘッドを削減
+   * レイテンシを下げるため、蓄積サイズを小さくしつつ処理間隔を短縮
    */
   private handleIncomingSamples(samples: Float32Array): void {
     if (!this.isProcessing || !this.wasmModule || !this.wasmMemory) {
       return;
     }
 
-    // サンプルを蓄積バッファに追加
+    // サンプルを蓄積バッファに追加（メモリ効率的な方法）
     const newLength = this.accumulatedLength + samples.length;
     
-    // バッファ拡張が必要な場合
+    // バッファ拡張が必要な場合（倍のサイズで確保してGC削減）
     if (newLength > this.accumulatedSamples.length) {
-      const newBuffer = new Float32Array(newLength * 2);
+      const newBuffer = new Float32Array(Math.max(newLength * 2, 1024));
       newBuffer.set(this.accumulatedSamples.subarray(0, this.accumulatedLength));
       this.accumulatedSamples = newBuffer;
     }
@@ -388,14 +431,16 @@ export class VoiceInputController {
     this.accumulatedSamples.set(samples, this.accumulatedLength);
     this.accumulatedLength = newLength;
 
-    // スロットリング: 最小間隔チェック
+    // 🚀 超低レイテンシ: 最小間隔チェック（さらに短縮）
     const now = performance.now();
-    if (now - this.lastProcessTime < this.minProcessInterval) {
-      return;
-    }
-
-    // 十分なサンプルが蓄積されたら処理
-    if (this.accumulatedLength >= this.targetAccumulationSize) {
+    const elapsed = now - this.lastProcessTime;
+    
+    // 十分なサンプルが蓄積されたら即座に処理（レイテンシ最優先）
+    if (this.accumulatedLength >= this.targetAccumulationSize && elapsed >= this.minProcessInterval) {
+      this.lastProcessTime = now;
+      this.processAccumulatedSamples();
+    } else if (elapsed >= this.minProcessInterval * 2 && this.accumulatedLength >= this.targetAccumulationSize * 0.6) {
+      // 🚀 応答性向上: 6ms経過で60%のサンプルでも処理開始
       this.lastProcessTime = now;
       this.processAccumulatedSamples();
     }
@@ -548,40 +593,35 @@ export class VoiceInputController {
     }
   }
 
-  /** 安定したノートを取得 */
+  /** 
+   * 🚀 超低レイテンシ版: 安定したノートを取得
+   * - 履歴サイズ 2 に最適化
+   * - 連続した同じノートで即座に確定
+   */
   private getStableNote(): number {
-    if (this.pitchHistoryCount < 2) {
+    // 🚀 履歴が 1 つでも即座に返す（レイテンシ最優先）
+    if (this.pitchHistoryCount === 0) {
       return -1;
     }
-
-    // ノート出現回数カウント（小さな配列なので線形探索で十分）
-    const counts: Array<{ note: number; count: number }> = [];
     
-    for (let i = 0; i < this.pitchHistoryCount; i++) {
-      const note = this.pitchHistory[i];
-      if (note !== -1) {
-        const existing = counts.find(c => c.note === note);
-        if (existing) {
-          existing.count++;
-        } else {
-          counts.push({ note, count: 1 });
-        }
-      }
+    // 履歴が 1 つの場合、そのノートを返す
+    if (this.pitchHistoryCount === 1) {
+      const note = this.pitchHistory[0];
+      return note !== -1 ? note : -1;
     }
 
-    // 最頻ノートを検索
-    const minRequiredCount = Math.ceil(this.pitchHistoryCount * 0.5);
-    let mostCommonNote = -1;
-    let maxCount = 0;
-
-    for (const { note, count } of counts) {
-      if (count > maxCount && count >= minRequiredCount) {
-        mostCommonNote = note;
-        maxCount = count;
-      }
+    // 🚀 2つの履歴が同じなら即座に確定
+    const note0 = this.pitchHistory[0];
+    const note1 = this.pitchHistory[1];
+    
+    if (note0 === note1 && note0 !== -1) {
+      return note0;
     }
-
-    return mostCommonNote;
+    
+    // 異なる場合は最新のノートを返す（応答性重視）
+    const latestIndex = (this.pitchHistoryIndex - 1 + this.pitchHistorySize) % this.pitchHistorySize;
+    const latestNote = this.pitchHistory[latestIndex];
+    return latestNote !== -1 ? latestNote : -1;
   }
 
   /** 周波数からMIDIノート番号に変換（最適化版） */
@@ -654,6 +694,15 @@ export class VoiceInputController {
     if (this.analyserNode) {
       this.analyserNode.disconnect();
       this.analyserNode = null;
+    }
+
+    if (this.silentGainNode) {
+      try {
+        this.silentGainNode.disconnect();
+      } catch (e) {
+        log.warn('silentGainNode disconnect失敗:', e);
+      }
+      this.silentGainNode = null;
     }
 
     if (this.analyserTimer) {

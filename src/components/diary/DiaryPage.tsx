@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaArrowLeft, FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard } from 'react-icons/fa';
+import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaCalendarCheck } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import DiaryEditor from './DiaryEditor';
@@ -10,8 +10,6 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
-import GuildInviteControls from '@/components/guild/GuildInviteControls';
-import { getGuildOfUser, Guild } from '@/platform/supabaseGuilds';
 
 interface UserDiary {
   id: string;
@@ -55,7 +53,6 @@ const DiaryPage: React.FC = () => {
   const [editingId, setEditingId] = useState<string|null>(null);
   const [editText, setEditText] = useState<string>('');
   const toast = useToast();
-  const [joinedGuild, setJoinedGuild] = useState<Guild | null>(null);
   // タイトルのホバー/クリック状態（フックは常にトップレベルで宣言）
   const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
   const [clickedTitle, setClickedTitle] = useState<boolean>(false);
@@ -93,15 +90,13 @@ const DiaryPage: React.FC = () => {
     setError(null);
     
     try {
-      const [result, stats, guild] = await Promise.all([
+      const [result, stats] = await Promise.all([
         fetchUserDiaries(targetUserId),
         fetchUserStats(targetUserId).catch(() => null),
-        getGuildOfUser(targetUserId).catch(() => null),
       ]);
       setDiaries(result.diaries);
       setProfile(result.profile);
       setUserStats(stats);
-      setJoinedGuild(guild);
     } catch (e: any) {
       setError(e.message || 'データの読み込みに失敗しました');
     } finally {
@@ -246,13 +241,6 @@ const DiaryPage: React.FC = () => {
                       />
                       <div>
                         <h3 className="text-xl font-semibold">{profile.nickname}</h3>
-                        {/* 参加ギルド表示 */}
-                        {joinedGuild && (
-                          <div className="mt-1 text-sm">
-                            参加ギルド: <button className="hover:text-blue-400 underline" onClick={() => { const p = new URLSearchParams(); p.set('id', joinedGuild.id); window.location.hash = `#guild?${p.toString()}`; }}>{joinedGuild.name}</button>
-                            <span className="text-xs text-gray-400 ml-2">Lv.{joinedGuild.level} / メンバー {joinedGuild.members_count}</span>
-                          </div>
-                        )}
                         {/* 称号表示（ホバー/タップで条件表示） */}
                         <div className="relative mb-2 mt-1">
                           <div
@@ -295,16 +283,14 @@ const DiaryPage: React.FC = () => {
                             <span className="text-gray-400">レッスンクリア</span>
                             <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
                           </div>
+                          <div className="flex items-center space-x-2" aria-label="デイリーチャレンジ実施日数">
+                            <FaCalendarCheck className="text-yellow-400" aria-hidden="true" />
+                            <span className="text-gray-400">デイリーチャレンジ</span>
+                            <span className="font-semibold text-white">{userStats?.dailyChallengeParticipationDays ?? 0}</span>
+                          </div>
                         </div>
                       </div>
                     </div>
-
-                    {/* ギルド勧誘/参加リクエストコントロール */}
-                    {userId && user && user.id !== userId && (
-                      <div className="mt-3">
-                        <GuildInviteControls targetUserId={userId} />
-                      </div>
-                    )}
 
                     {profile.bio && (
                       <p className="mt-3 text-sm text-gray-300 whitespace-pre-wrap">{profile.bio}</p>

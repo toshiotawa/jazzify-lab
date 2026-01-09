@@ -25,7 +25,6 @@ const VerifyOtpPage: React.FC = () => {
       toast.error('不正なアクセスです。再度操作をお試しください。');
       navigate('/login', { replace: true });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [location.search]);
 
   const handleVerifyOtp = async () => {
@@ -35,7 +34,7 @@ const VerifyOtpPage: React.FC = () => {
 
     try {
       await verifyOtp(email, otpCode);
-      toast.success('ログインに成功しました！');
+      // トースト通知は不要（新規ユーザーはプロフィール登録へ、既存ユーザーはダッシュボードへ遷移するため）
       navigate(redirect || '/main#dashboard', { replace: true });
     } catch (err) {
       toast.error('OTP検証に失敗しました。コードを確認してください。');
