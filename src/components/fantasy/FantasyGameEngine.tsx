@@ -661,32 +661,52 @@ export const useFantasyGameEngine = ({
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    // 次ループ開始待ち中は入力を無視
-    if (prevState.awaitingLoopStart) {
-      devLog.debug('🥁 太鼓：次ループ待ち中のため入力を無視');
-      return prevState;
-    }
-
-    const currentIndex = prevState.currentNoteIndex;
-    const currentNote = prevState.taikoNotes[currentIndex];
-    if (!currentNote) return prevState;
-
     const currentTime = bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
+    
+    // 現在の時間をループ内0..Tへ正規化
+    const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
 
-    // 候補（current と next まで）を収集し、入力ノートの構成音かつ判定内のもののみ採用
+    const currentIndex = prevState.currentNoteIndex;
     const noteMod12 = note % 12;
-    const candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
+    
+    // 候補インデックスを決定
+    let candidateIndices: number[];
+    
+    if (prevState.awaitingLoopStart) {
+      // 次ループ開始待ち中は、次ループの先頭ノーツ（インデックス0, 1）を候補にする
+      candidateIndices = [0, 1].filter(i => i < prevState.taikoNotes.length);
+      devLog.debug('🥁 太鼓：awaitingLoopStart状態、次ループの先頭ノーツを候補に', { candidateIndices });
+    } else {
+      // 通常時は current と next を候補にする
+      candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
+      
+      // ループ境界付近では次ループの先頭ノーツも候補に追加
+      const timeToLoop = loopDuration - normalizedTime;
+      if (timeToLoop < 1.0 && currentIndex >= prevState.taikoNotes.length - 2) {
+        // 次ループの先頭ノーツを追加（重複を避ける）
+        if (!candidateIndices.includes(0)) candidateIndices.push(0);
+        if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) candidateIndices.push(1);
+      }
+    }
 
     const candidates = candidateIndices
       .map(i => {
         const n = prevState.taikoNotes[i];
         const includesNote = Array.from(new Set<number>(n.chord.notes.map((x: number) => x % 12))).includes(noteMod12);
-        const j = judgeTimingWindowWithLoop(currentTime, n.hitTime, 150, loopDuration);
-        return { i, n, j, includesNote };
+        
+        // awaitingLoopStart状態または次ループの先頭ノーツの場合は、仮想的なhitTimeを使用
+        let effectiveHitTime = n.hitTime;
+        if (prevState.awaitingLoopStart || (i < currentIndex && currentIndex >= prevState.taikoNotes.length - 2)) {
+          // 次ループのノーツとして扱う
+          effectiveHitTime = n.hitTime + loopDuration;
+        }
+        
+        const j = judgeTimingWindowWithLoop(currentTime, effectiveHitTime, 150, loopDuration);
+        return { i, n, j, includesNote, effectiveHitTime };
       })
       .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
       // 優先順位: |timingDiff| 最小 → 同点は手前優先
@@ -694,7 +714,7 @@ export const useFantasyGameEngine = ({
         const da = Math.abs(a.j.timingDiff);
         const db = Math.abs(b.j.timingDiff);
         if (da !== db) return da - db;
-        if (a.n.hitTime !== b.n.hitTime) return a.n.hitTime - b.n.hitTime;
+        if (a.effectiveHitTime !== b.effectiveHitTime) return a.effectiveHitTime - b.effectiveHitTime;
         return a.i - b.i;
       });
 
@@ -730,9 +750,13 @@ export const useFantasyGameEngine = ({
       devLog.debug('✅ 太鼓の達人：コード完成！', {
         chord: chosenNote.chord.displayName,
         timing: chosen.j.timing,
-        noteIndex: chosenIndex
+        noteIndex: chosenIndex,
+        wasAwaitingLoop: prevState.awaitingLoopStart
       });
 
+      // awaitingLoopStart状態からの復帰かどうか
+      const wasAwaitingLoop = prevState.awaitingLoopStart;
+      
       // 次のノーツインデックス（選ばれたノーツ基準）
       const nextIndexByChosen = chosenIndex + 1;
       const isLastNoteByChosen = nextIndexByChosen >= prevState.taikoNotes.length;
@@ -750,9 +774,9 @@ export const useFantasyGameEngine = ({
       }
 
       // ダメージ計算
-      const stage = prevState.currentStage!;
+      const stageForDamage = prevState.currentStage!;
       const isSpecialAttack = prevState.playerSp >= 5;
-      const baseDamage = Math.floor(Math.random() * (stage.maxDamage - stage.minDamage + 1)) + stage.minDamage;
+      const baseDamage = Math.floor(Math.random() * (stageForDamage.maxDamage - stageForDamage.minDamage + 1)) + stageForDamage.minDamage;
       const actualDamage = isSpecialAttack ? baseDamage * 2 : baseDamage;
 
       // モンスターのHP更新
@@ -765,8 +789,19 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
-      // 現在ヒットしたノーツにフラグを立てる（選ばれたノーツのみ）
-      const updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+      // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
+      let updatedTaikoNotes;
+      if (wasAwaitingLoop) {
+        // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
+        updatedTaikoNotes = prevState.taikoNotes.map((n, i) => ({
+          ...n,
+          isHit: i === chosenIndex,
+          isMissed: false
+        }));
+      } else {
+        // 通常時は選ばれたノーツのみにフラグを立てる
+        updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+      }
 
       // モンスター更新（次のターゲット/次次ターゲットは選ばれたノーツ基準）
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -808,9 +843,9 @@ export const useFantasyGameEngine = ({
             playerSp: newSp,
             enemiesDefeated: newEnemiesDefeated,
             correctAnswers: prevState.correctAnswers + 1,
-            // クリア時は便宜上インデックスを選択ノーツの次へ（表示整合用）
-            currentNoteIndex: chosenIndex === currentIndex ? nextIndexByChosen : prevState.currentNoteIndex,
-            taikoNotes: updatedTaikoNotes
+            currentNoteIndex: wasAwaitingLoop ? nextIndexByChosen : (chosenIndex === currentIndex ? nextIndexByChosen : prevState.currentNoteIndex),
+            taikoNotes: updatedTaikoNotes,
+            awaitingLoopStart: false
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -821,21 +856,22 @@ export const useFantasyGameEngine = ({
           ...prevState,
           activeMonsters: monstersWithDefeat,
           playerSp: newSp,
-          // 選択が現行ノーツのときのみインデックスを進める
-          currentNoteIndex: (chosenIndex === currentIndex)
+          // awaitingLoopStart状態からの復帰の場合は、chosenIndexの次へ進める
+          currentNoteIndex: wasAwaitingLoop 
             ? (isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen)
-            : prevState.currentNoteIndex,
+            : ((chosenIndex === currentIndex) ? (isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen) : prevState.currentNoteIndex),
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
-          // 末尾待機は「順番通り末尾を取った」場合のみ
-          awaitingLoopStart: (chosenIndex === currentIndex && isLastNoteByChosen) ? true : prevState.awaitingLoopStart
+          // awaitingLoopStart状態を解除（次ループ開始）、ただし末尾なら再度待機
+          awaitingLoopStart: wasAwaitingLoop ? false : ((chosenIndex === currentIndex && isLastNoteByChosen) ? true : prevState.awaitingLoopStart)
         };
       }
 
       // 末尾（選択ノーツ基準）で、かつ順番通りの場合のみ待機
-      if (isLastNoteByChosen && chosenIndex === currentIndex) {
+      // ただし、awaitingLoopStartからの復帰の場合は待機しない
+      if (!wasAwaitingLoop && isLastNoteByChosen && chosenIndex === currentIndex) {
         return {
           ...prevState,
           activeMonsters: updatedMonsters,
@@ -851,11 +887,15 @@ export const useFantasyGameEngine = ({
         ...prevState,
         activeMonsters: updatedMonsters,
         playerSp: newSp,
-        // 順番通りのときのみ進める。先取り命中時は据え置き
-        currentNoteIndex: (chosenIndex === currentIndex) ? nextIndexByChosen : prevState.currentNoteIndex,
+        // awaitingLoopStart状態からの復帰の場合は、chosenIndexの次へ進める
+        currentNoteIndex: wasAwaitingLoop 
+          ? nextIndexByChosen 
+          : ((chosenIndex === currentIndex) ? nextIndexByChosen : prevState.currentNoteIndex),
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage
+        score: prevState.score + 100 * actualDamage,
+        // awaitingLoopStart状態を解除
+        awaitingLoopStart: wasAwaitingLoop ? false : prevState.awaitingLoopStart
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
