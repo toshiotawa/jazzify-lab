@@ -164,6 +164,7 @@ export interface MonsterState {
   icon: string;
   name: string;
   nextChord?: ChordDefinition; // 次のコード（ループ時の表示用）
+  defeatedAt?: number; // 撃破されたタイムスタンプ（HP0演出後に削除するため）
 }
 
 export interface FantasyGameState {
@@ -782,40 +783,24 @@ export const useFantasyGameEngine = ({
         return m;
       });
 
-      // 敵を倒した場合、新しいモンスターを補充（既存ロジック維持）
+      // 敵を倒した場合、defeatedAtを設定してHPバーが0になる演出を見せる
+      // モンスターの補充は200ms後にuseEffectで行う
       if (isDefeated) {
-        const remainingMonsters = updatedMonsters.filter(m => m.id !== currentMonster.id);
-        const newMonsterQueue = [...prevState.monsterQueue];
-
-        if (prevState.playMode === 'practice' && newMonsterQueue.length === 0) {
-          newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
-        }
-
-        if (newMonsterQueue.length > 0) {
-          const monsterIndex = newMonsterQueue.shift()!;
-
-          const newMonster = createMonsterFromQueue(
-            monsterIndex,
-            'D' as const,
-            stage.enemyHp,
-            (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
-            undefined,
-            displayOpts,
-            stageMonsterIds,
-            stage.isSheetMusicMode ? { enabled: true, clef: stage.sheetMusicClef || 'treble' } : undefined
-          );
-
-          newMonster.chordTarget = nextNote.chord;
-          newMonster.nextChord = nextNextNote.chord;
-          remainingMonsters.push(newMonster);
-        }
+        const now = Date.now();
+        // 撃破されたモンスターにdefeatedAtを設定（即座に削除せずHP0の状態を見せる）
+        const monstersWithDefeat = updatedMonsters.map(m => {
+          if (m.id === currentMonster.id) {
+            return { ...m, currentHp: 0, defeatedAt: now };
+          }
+          return m;
+        });
 
         // ゲームクリア判定
         const newEnemiesDefeated = prevState.enemiesDefeated + 1;
         if (newEnemiesDefeated >= prevState.totalEnemies) {
           const finalState = {
             ...prevState,
-            activeMonsters: [],
+            activeMonsters: [], // クリア時は即座にクリア
             isGameActive: false,
             isGameOver: true,
             gameResult: 'clear' as const,
@@ -831,10 +816,10 @@ export const useFantasyGameEngine = ({
           return finalState;
         }
 
+        // 撃破済みモンスターはそのままactiveMontersに残す（200ms後にuseEffectで補充）
         return {
           ...prevState,
-          activeMonsters: remainingMonsters,
-          monsterQueue: newMonsterQueue,
+          activeMonsters: monstersWithDefeat,
           playerSp: newSp,
           // 選択が現行ノーツのときのみインデックスを進める
           currentNoteIndex: (chosenIndex === currentIndex)
@@ -1656,15 +1641,19 @@ export const useFantasyGameEngine = ({
         stateAfterAttack.score += 1000 * completedMonsters.length;
         stateAfterAttack.correctAnswers += completedMonsters.length;
         
-        // 倒されたモンスターを特定
-        const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0);
+        // 倒されたモンスターを特定し、defeatedAtタイムスタンプを設定（HPバーが0になる演出のため）
+        const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0 && !m.defeatedAt);
         stateAfterAttack.enemiesDefeated += defeatedMonstersThisTurn.length;
 
-        // 生き残ったモンスターのリストを作成
-        let remainingMonsters = stateAfterAttack.activeMonsters.filter(m => m.currentHp > 0);
-        
-        // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
-        remainingMonsters = remainingMonsters.map(monster => {
+        // 撃破されたモンスターにdefeatedAtを設定（HP0の状態を200ms見せるため）
+        // 生き残ったモンスターは通常通り処理
+        const now = Date.now();
+        const updatedMonsters = stateAfterAttack.activeMonsters.map(monster => {
+          // 今回撃破されたモンスター → defeatedAtを設定してHP0の状態を見せる
+          if (monster.currentHp <= 0 && !monster.defeatedAt) {
+            return { ...monster, currentHp: 0, defeatedAt: now };
+          }
+          // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
           if (completedMonsters.some(cm => cm.id === monster.id)) {
             const nextChord = selectRandomChord(
               stateAfterAttack.currentStage!.allowedChords,
@@ -1680,41 +1669,11 @@ export const useFantasyGameEngine = ({
           return monster;
         });
 
-        // モンスターの補充
-        const newMonsterQueue = [...stateAfterAttack.monsterQueue];
-        if (stateAfterAttack.playMode === 'practice' && newMonsterQueue.length === 0) {
-          newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
-        }
-        const slotsToFill = stateAfterAttack.simultaneousMonsterCount - remainingMonsters.length;
-        const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
-
-        if (monstersToAddCount > 0) {
-                      const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
-          const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
-          const sheetMusicOpt = stateAfterAttack.currentStage?.isSheetMusicMode 
-            ? { enabled: true, clef: stateAfterAttack.currentStage.sheetMusicClef || 'treble' as const }
-            : undefined;
-
-          for (let i = 0; i < monstersToAddCount; i++) {
-            const monsterIndex = newMonsterQueue.shift()!;
-            const position = availablePositions[i] || 'B';
-            const newMonster = createMonsterFromQueue(
-              monsterIndex,
-              position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
-              stateAfterAttack.maxEnemyHp,
-              (stateAfterAttack.currentStage!.allowedChords && stateAfterAttack.currentStage!.allowedChords.length > 0) ? stateAfterAttack.currentStage!.allowedChords : (stateAfterAttack.currentStage!.chordProgression || []),
-              lastUsedChordId, // 直前のコードを避ける
-              displayOpts,
-              stageMonsterIds,
-              sheetMusicOpt
-            );
-            remainingMonsters.push(newMonster);
-          }
-        }
+        // 注: モンスターの補充は200ms後にuseEffectで行う（HPバーが0になる演出を見せるため）
+        // ここでは撃破済みモンスターも含めてactiveMonsters に残す
         
-        // 最終的なモンスターリストとキューを更新
-        stateAfterAttack.activeMonsters = remainingMonsters;
-        stateAfterAttack.monsterQueue = newMonsterQueue;
+        // 最終的なモンスターリストを更新（キューは変更しない）
+        stateAfterAttack.activeMonsters = updatedMonsters;
         
         // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
@@ -1902,6 +1861,80 @@ export const useFantasyGameEngine = ({
     };
   }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady, gameState.isTaikoMode, gameState.playMode]); // 依存配列追加
 
+  // 撃破済みモンスター（defeatedAt設定済み）を200ms後に削除して新しいモンスターを補充
+  const DEFEAT_ANIMATION_DELAY = 200; // HPバー0演出の表示時間（ms）
+  useEffect(() => {
+    // 撃破済みモンスターを取得
+    const defeatedMonsters = gameState.activeMonsters.filter(m => m.defeatedAt !== undefined);
+    if (defeatedMonsters.length === 0 || !gameState.isGameActive) return;
+
+    // 最も古い撃破時刻を取得
+    const oldestDefeatedAt = Math.min(...defeatedMonsters.map(m => m.defeatedAt!));
+    const timeElapsed = Date.now() - oldestDefeatedAt;
+    const remainingTime = Math.max(0, DEFEAT_ANIMATION_DELAY - timeElapsed);
+
+    const timer = setTimeout(() => {
+      setGameState(prevState => {
+        // 200ms経過した撃破済みモンスターを削除
+        const monstersToRemove = prevState.activeMonsters.filter(
+          m => m.defeatedAt !== undefined && (Date.now() - m.defeatedAt) >= DEFEAT_ANIMATION_DELAY
+        );
+        if (monstersToRemove.length === 0) return prevState;
+
+        // 生き残ったモンスター（撃破されていない or まだ200ms経っていない）
+        const remainingMonsters = prevState.activeMonsters.filter(
+          m => m.defeatedAt === undefined || (Date.now() - m.defeatedAt) < DEFEAT_ANIMATION_DELAY
+        );
+
+        // 新しいモンスターを補充
+        const newMonsterQueue = [...prevState.monsterQueue];
+        if (prevState.playMode === 'practice' && newMonsterQueue.length === 0) {
+          newMonsterQueue.push(...createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE));
+        }
+
+        const slotsToFill = prevState.simultaneousMonsterCount - remainingMonsters.length;
+        const monstersToAddCount = Math.min(slotsToFill, newMonsterQueue.length);
+
+        if (monstersToAddCount > 0 && prevState.currentStage) {
+          const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(
+            pos => !remainingMonsters.some(m => m.position === pos)
+          );
+          const sheetMusicOpt = prevState.currentStage.isSheetMusicMode
+            ? { enabled: true, clef: prevState.currentStage.sheetMusicClef || 'treble' as const }
+            : undefined;
+          const allowedChords = (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0)
+            ? prevState.currentStage.allowedChords
+            : (prevState.currentStage.chordProgression || []);
+
+          for (let i = 0; i < monstersToAddCount; i++) {
+            const monsterIndex = newMonsterQueue.shift()!;
+            const position = availablePositions[i] || 'B';
+            const newMonster = createMonsterFromQueue(
+              monsterIndex,
+              position as 'A' | 'B' | 'C' | 'D' | 'E' | 'F' | 'G' | 'H',
+              prevState.maxEnemyHp,
+              allowedChords,
+              undefined,
+              displayOpts,
+              stageMonsterIds,
+              sheetMusicOpt
+            );
+            remainingMonsters.push(newMonster);
+          }
+        }
+
+        const newState = {
+          ...prevState,
+          activeMonsters: remainingMonsters,
+          monsterQueue: newMonsterQueue
+        };
+        onGameStateChange(newState);
+        return newState;
+      });
+    }, remainingTime);
+
+    return () => clearTimeout(timer);
+  }, [gameState.activeMonsters, gameState.isGameActive, displayOpts, stageMonsterIds, onGameStateChange]);
 
   // パフォーマンス監視（開発環境のみ）
   useEffect(() => {
