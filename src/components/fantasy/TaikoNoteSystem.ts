@@ -165,7 +165,57 @@ export function generateBasicProgressionNotes(
 }
 
 /**
- * ランダムプログレッション用：各小節ごとにランダムでコードを決定（直前と同じコードは禁止）
+ * Fisher-Yatesシャッフルでコードプールをシャッフル
+ * @param array シャッフル対象の配列
+ * @returns シャッフルされた新しい配列
+ */
+function shuffleArray<T>(array: T[]): T[] {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+/**
+ * 袋方式でコードを選択するジェネレーター
+ * 全コードが一巡するまで同じコードが出ないことを保証
+ * @param chordPool コードプール
+ * @param lastChordId 最後に選ばれたコードID（最初のシャッフル後に先頭に来ないようにする）
+ */
+function* createBagGenerator<T>(
+  items: T[],
+  getId: (item: T) => string,
+  lastId?: string
+): Generator<T, never, unknown> {
+  if (items.length === 0) {
+    throw new Error('Items array cannot be empty');
+  }
+  
+  let currentBag: T[] = [];
+  
+  while (true) {
+    // 袋が空になったらシャッフルして補充
+    if (currentBag.length === 0) {
+      currentBag = shuffleArray(items);
+      
+      // 直前のコードと最初のコードが同じ場合、最初のコードを末尾に移動
+      if (lastId && items.length > 1 && getId(currentBag[0]) === lastId) {
+        const first = currentBag.shift()!;
+        currentBag.push(first);
+      }
+    }
+    
+    const selected = currentBag.shift()!;
+    lastId = getId(selected);
+    yield selected;
+  }
+}
+
+/**
+ * ランダムプログレッション用：袋方式（Fisher-Yatesシャッフル）で偏りのないランダム選択
+ * 全コードが一巡するまで同じコードが出ないことを保証
  * @param chordPool 選択可能なコードのプール（allowedChords or chordProgression）
  * @param measureCount 総小節数
  * @param bpm BPM
@@ -191,24 +241,16 @@ export function generateRandomProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const safeRandom = () => Math.floor(Math.random() * chordPool.length);
+  const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
 
-  let lastChordId = '';
+  // 袋方式ジェネレーターを作成
+  const bagGenerator = createBagGenerator(chordPool, specToId);
 
   // 各小節に対して intervalBeats おきに配置（1拍目から）
   for (let measure = 1; measure <= measureCount; measure++) {
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
-      // 直前と同じコードは避ける
-      let nextSpec = chordPool[safeRandom()];
-      const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
-      if (chordPool.length > 1) {
-        let guard = 0;
-        while (specToId(nextSpec) === lastChordId && guard < 10) {
-          nextSpec = chordPool[safeRandom()];
-          guard++;
-        }
-      }
-      lastChordId = specToId(nextSpec);
+      // 袋から次のコードを取得
+      const nextSpec = bagGenerator.next().value;
 
       const chord = getChordDefinition(nextSpec);
       if (!chord) continue;
