@@ -111,6 +111,10 @@ export interface FantasyStage {
   tier?: 'basic' | 'advanced';
   // 追加: 1小節内のノート間隔（太鼓進行のシンプル生成で使用）
   noteIntervalBeats?: number;
+  // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
+  isSheetMusicMode?: boolean;
+  // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
+  sheetMusicClef?: 'treble' | 'bass';
 }
 
 export interface MonsterState {
@@ -318,11 +322,19 @@ const createMonsterFromQueue = (
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts,
-  stageMonsterIds?: string[]
+  stageMonsterIds?: string[],
+  sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' }
 ): MonsterState => {
-  // stageMonsterIdsが提供されている場合は、それを使用
+  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  
+  // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
   let iconKey: string;
-  if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
+  if (sheetMusicMode?.enabled && chord) {
+    // 楽譜モード: 音名をそのまま使用（例: "A#3"）
+    // 特殊なプレフィックスを付けて楽譜画像であることを示す
+    iconKey = `sheet_music_${sheetMusicMode.clef}_${chord.id}`;
+  } else if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
+    // stageMonsterIdsが提供されている場合は、それを使用
     iconKey = stageMonsterIds[monsterIndex];
   } else {
     // フォールバック: 従来のランダム選択
@@ -331,7 +343,6 @@ const createMonsterFromQueue = (
   }
   
   const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -721,7 +732,8 @@ export const useFantasyGameEngine = ({
             (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
             undefined,
             displayOpts,
-            stageMonsterIds
+            stageMonsterIds,
+            stage.isSheetMusicMode ? { enabled: true, clef: stage.sheetMusicClef || 'treble' } : undefined
           );
 
           newMonster.chordTarget = nextNote.chord;
@@ -865,6 +877,11 @@ export const useFantasyGameEngine = ({
     // ▼▼▼ 修正点2: コードの重複を避けるロジックを追加 ▼▼▼
     let lastChordId: string | undefined = undefined; // 直前のコードIDを記録する変数を追加
 
+    // 楽譜モード設定を準備
+    const sheetMusicOpt = stage.isSheetMusicMode 
+      ? { enabled: true, clef: stage.sheetMusicClef || 'treble' as const }
+      : undefined;
+
     // 既に同時出現数が 1 の場合に後続モンスターが "フェードアウト待ち" の間に
     // 追加生成されないよう、queue だけ作って最初の 1 体だけ生成する。
     for (let i = 0; i < initialMonsterCount; i++) {
@@ -878,7 +895,8 @@ export const useFantasyGameEngine = ({
           (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
           lastChordId,
           displayOpts,
-          monsterIds
+          monsterIds,
+          sheetMusicOpt
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -1594,6 +1612,9 @@ export const useFantasyGameEngine = ({
         if (monstersToAddCount > 0) {
                       const availablePositions = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'].filter(pos => !remainingMonsters.some(m => m.position === pos));
           const lastUsedChordId = completedMonsters.length > 0 ? completedMonsters[0].chordTarget.id : undefined;
+          const sheetMusicOpt = stateAfterAttack.currentStage?.isSheetMusicMode 
+            ? { enabled: true, clef: stateAfterAttack.currentStage.sheetMusicClef || 'treble' as const }
+            : undefined;
 
           for (let i = 0; i < monstersToAddCount; i++) {
             const monsterIndex = newMonsterQueue.shift()!;
@@ -1605,7 +1626,8 @@ export const useFantasyGameEngine = ({
               (stateAfterAttack.currentStage!.allowedChords && stateAfterAttack.currentStage!.allowedChords.length > 0) ? stateAfterAttack.currentStage!.allowedChords : (stateAfterAttack.currentStage!.chordProgression || []),
               lastUsedChordId, // 直前のコードを避ける
               displayOpts,
-              stageMonsterIds
+              stageMonsterIds,
+              sheetMusicOpt
             );
             remainingMonsters.push(newMonster);
           }

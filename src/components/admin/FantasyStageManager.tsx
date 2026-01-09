@@ -61,6 +61,9 @@ interface StageFormValues {
   chord_progression_data: TimingRow[]; // for timing
   // 新規: ステージ種別
   stage_tier: 'basic' | 'advanced';
+  // 楽譜モード
+  is_sheet_music_mode: boolean;
+  sheet_music_clef: 'treble' | 'bass';
 }
 
 const defaultValues: StageFormValues = {
@@ -87,8 +90,28 @@ const defaultValues: StageFormValues = {
   chord_progression_data: [],
   bgm_url: '',
   mp3_url: '',
-  stage_tier: 'basic'
+  stage_tier: 'basic',
+  is_sheet_music_mode: false,
+  sheet_music_clef: 'treble'
 };
+
+// 楽譜モード用の音名リスト
+const TREBLE_NOTES = [
+  'C4', 'C#4', 'Db4', 'D4', 'D#4', 'Eb4', 'E4', 'F4', 'F#4', 'Gb4', 'G4', 'G#4', 'Ab4',
+  'A4', 'A#4', 'Bb4', 'B4',
+  'C5', 'C#5', 'Db5', 'D5', 'D#5', 'Eb5', 'E5', 'F5', 'F#5', 'Gb5', 'G5', 'G#5', 'Ab5',
+  'A5', 'A#5', 'Bb5', 'B5',
+  'C6',
+  'A3', 'A#3', 'B3', 'Bb3'
+];
+
+const BASS_NOTES = [
+  'C2', 'C#2', 'Db2', 'D2', 'D#2', 'Eb2', 'E2', 'F2', 'F#2', 'Gb2', 'G2', 'G#2', 'Ab2',
+  'A2', 'A#2', 'Bb2', 'B2',
+  'C3', 'C#3', 'Db3', 'D3', 'D#3', 'Eb3', 'E3', 'F3', 'F#3', 'Gb3', 'G3', 'G#3', 'Ab3',
+  'A3', 'A#3', 'Bb3', 'B3',
+  'C4', 'C#4', 'Db4', 'D4', 'D#4', 'Eb4', 'E4'
+];
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700">
@@ -179,7 +202,9 @@ const FantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
-        stage_tier: (s as any).stage_tier || 'basic'
+        stage_tier: (s as any).stage_tier || 'basic',
+        is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
+        sheet_music_clef: (s as any).sheet_music_clef || 'treble'
       };
       reset(v);
     } catch (e: any) {
@@ -217,6 +242,8 @@ const FantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
+      is_sheet_music_mode: v.is_sheet_music_mode,
+      sheet_music_clef: v.sheet_music_clef,
     };
 
     // モードに応じた不要フィールドの削除
@@ -404,6 +431,97 @@ const FantasyStageManager: React.FC = () => {
               </Row>
             </Section>
 
+            {/* 楽譜モード設定（singleモード用） */}
+            {mode === 'single' && (
+              <Section title="楽譜モード設定">
+                <div className="space-y-4">
+                  <Row>
+                    <div className="flex items-center gap-4">
+                      <SmallLabel>楽譜モードを有効にする</SmallLabel>
+                      <input type="checkbox" className="toggle toggle-primary" {...register('is_sheet_music_mode')} />
+                    </div>
+                    {watch('is_sheet_music_mode') && (
+                      <div>
+                        <SmallLabel>楽譜タイプ</SmallLabel>
+                        <select className="select select-bordered w-full" {...register('sheet_music_clef')}>
+                          <option value="treble">ト音記号（Treble）</option>
+                          <option value="bass">ヘ音記号（Bass）</option>
+                        </select>
+                      </div>
+                    )}
+                  </Row>
+                  
+                  {watch('is_sheet_music_mode') && (
+                    <div className="mt-4">
+                      <SmallLabel>出題する音名を選択（チェックボックスで選択）</SmallLabel>
+                      <p className="text-xs text-gray-400 mb-2">
+                        選択した音名が「許可コード」として登録されます。画像は public/notes_images/{watch('sheet_music_clef')}/ から読み込まれます。
+                      </p>
+                      <div className="bg-slate-900/50 rounded-lg p-4 max-h-64 overflow-y-auto">
+                        <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-12 gap-2">
+                          {(watch('sheet_music_clef') === 'treble' ? TREBLE_NOTES : BASS_NOTES).map((noteName) => {
+                            const isChecked = (allowedChordFields as any[]).some(
+                              (f) => (typeof f === 'string' ? f : f.chord || f) === noteName
+                            );
+                            return (
+                              <label
+                                key={noteName}
+                                className={`
+                                  flex items-center justify-center p-2 rounded cursor-pointer text-sm
+                                  border transition-all
+                                  ${isChecked ? 'bg-primary/30 border-primary text-white' : 'bg-slate-800 border-slate-600 hover:border-slate-500'}
+                                `}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="hidden"
+                                  checked={isChecked}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      appendAllowedChord(noteName as any);
+                                    } else {
+                                      const idx = (allowedChordFields as any[]).findIndex(
+                                        (f) => (typeof f === 'string' ? f : f.chord || f) === noteName
+                                      );
+                                      if (idx >= 0) removeAllowedChord(idx);
+                                    }
+                                  }}
+                                />
+                                {noteName}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
+                      <div className="flex gap-2 mt-2">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            const notes = watch('sheet_music_clef') === 'treble' ? TREBLE_NOTES : BASS_NOTES;
+                            replaceAllowedChords(notes as any[]);
+                            setValue('allowed_chords', notes);
+                          }}
+                        >
+                          全て選択
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline"
+                          onClick={() => {
+                            replaceAllowedChords([]);
+                            setValue('allowed_chords', []);
+                          }}
+                        >
+                          全て解除
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Section>
+            )}
+
             {/* progression 共通（テンポ系） */}
             {(mode === 'progression_order' || mode === 'progression_random' || mode === 'progression_timing') && (
               <Section title="テンポ・譜割設定（リズム系モード）">
@@ -436,7 +554,8 @@ const FantasyStageManager: React.FC = () => {
               </Section>
             )}
 
-            {/* コード入力: allowed_chords */}
+            {/* コード入力: allowed_chords（楽譜モードでない場合のみ通常表示） */}
+            {!(mode === 'single' && watch('is_sheet_music_mode')) && (
             <Section title="許可コード（single / random 用）">
               <div className="space-y-3">
                 {/* クイック複数追加 */}
@@ -497,6 +616,7 @@ const FantasyStageManager: React.FC = () => {
                 </div>
               </div>
             </Section>
+            )}
 
             {/* progression_order 用コード進行 */}
             {mode === 'progression_order' && (

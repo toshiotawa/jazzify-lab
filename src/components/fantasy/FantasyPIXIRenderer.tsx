@@ -789,7 +789,23 @@ export class FantasyPIXIInstance {
     img.onerror = () => {
       this.loadingImages.delete(icon);
     };
-    // WebP優先、フォールバックでPNG
+    
+    // 楽譜モード用の画像パスを処理
+    // フォーマット: sheet_music_{clef}_{noteName} (例: sheet_music_treble_A#3)
+    if (icon.startsWith('sheet_music_')) {
+      const parts = icon.split('_');
+      // parts: ['sheet', 'music', 'treble', 'A#3']
+      if (parts.length >= 4) {
+        const clef = parts[2]; // 'treble' or 'bass'
+        const noteName = parts.slice(3).join('_'); // 音名（'A#3'など）
+        // 画像パス: /notes_images/{clef}/{clef}_{noteName}.png
+        const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${noteName}.png`;
+        img.src = pngPath;
+        return null;
+      }
+    }
+    
+    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
     const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
     const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
     

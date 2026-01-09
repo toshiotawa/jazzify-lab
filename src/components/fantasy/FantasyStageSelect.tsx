@@ -152,6 +152,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           bpm: (stage as any).bpm || 120,
           tier: (stage as any).stage_tier || 'basic',
+          // 楽譜モード
+          isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
+          sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
         }));
         
         setStages(convertedStages);
@@ -258,6 +261,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         // 追加: 正解時にルート音を鳴らす
         playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
         tier: (stage as any).stage_tier || 'basic',
+        // 楽譜モード
+        isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
+        sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
       }));
       
       const convertedProgress: FantasyUserProgress = {
