@@ -216,6 +216,32 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
   }
 
   const chordId = typeof spec === 'string' ? spec : spec.chord;
+  
+  // 楽譜モードの音名形式をハンドリング（treble_C4, bass_A3 など）
+  if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+    // プレフィックスを除去して音名を取得（例: "treble_A#3" → "A#3"）
+    const noteName = chordId.replace(/^(treble|bass)_/, '');
+    // 音名とオクターブを分離（例: "A#3" → step="A#", octave=3）
+    const match = noteName.match(/^([A-G][#b]?)(\d+)$/);
+    if (match) {
+      const step = match[1];
+      const octave = parseInt(match[2], 10);
+      const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+      const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
+      if (midi) {
+        return {
+          id: chordId, // 元のID（treble_A#3）を保持
+          displayName: noteName, // 表示用は音名のみ（A#3）
+          notes: [midi],
+          noteNames: [step],
+          quality: 'maj', // ダミー
+          root: step
+        };
+      }
+    }
+    // パースに失敗した場合は警告を出さずにnullを返す
+    return null;
+  }
   const resolved = resolveChord(chordId, 4, displayOpts);
   if (!resolved) {
     console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
