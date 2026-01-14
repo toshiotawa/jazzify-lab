@@ -164,17 +164,15 @@ export class FantasySoundManager {
     // 効果音のロードはバックグラウンドで完了を待つ
     // ルート音はシンセを使用（外部サーバー不要で即時再生）
     this.loadedPromise = Promise.all(promises).then(async () => {
-      // ─ AudioSystem初期化 ─ 非ブロッキングで並列実行
-      this._initializeAudioSystem().catch(e => 
-        console.warn('[FantasySoundManager] AudioSystem init failed:', e)
-      );
+      // ─ AudioSystem初期化 ─ Tone.jsを先にロードする（シンセに必要）
+      await this._initializeAudioSystem();
 
       // 低遅延SE用 Web Audio セットアップ + デコード（バックグラウンド）
       this._setupSeContextAndBuffers(baseUrl).catch(e =>
         console.warn('[FantasySoundManager] SE buffer setup failed:', e)
       );
 
-      // 🚀 シンセサイザーを初期化（外部サーバー不要で即時利用可能）
+      // 🚀 シンセサイザーを初期化（Tone.jsロード後に実行）
       this._initializeBassSynth(bassVol, bassEnabled);
 
       this.isInited = true;

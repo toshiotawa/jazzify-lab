@@ -19,6 +19,37 @@ import { LessonContext } from '@/types';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 
+// 🚀 パフォーマンス最適化: モンスター画像のグローバルキャッシュ
+const monsterImageCache = new Map<string, HTMLImageElement>();
+const preloadingMonsters = new Set<string>();
+
+// モンスター画像をプリロード（バックグラウンド）
+const preloadMonsterImagesGlobal = () => {
+  // 最初の20体のモンスターをプリロード（よく使われるもの）
+  for (let i = 1; i <= 20; i++) {
+    const id = `monster_${String(i).padStart(2, '0')}`;
+    if (monsterImageCache.has(id) || preloadingMonsters.has(id)) continue;
+    preloadingMonsters.add(id);
+    const img = new Image();
+    img.onload = () => {
+      monsterImageCache.set(id, img);
+      preloadingMonsters.delete(id);
+    };
+    img.onerror = () => {
+      preloadingMonsters.delete(id);
+    };
+    img.src = `${import.meta.env.BASE_URL}monster_icons/${id}.png`;
+  }
+};
+
+// ステージアイコンをプリロード
+const preloadStageIcons = () => {
+  for (let i = 1; i <= 10; i++) {
+    const img = new Image();
+    img.src = `/stage_icons/${i}.png`;
+  }
+};
+
 // ===== 型定義 =====
 
 interface FantasyUserProgress {
@@ -308,6 +339,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   // 初期読み込み
   useEffect(() => {
     loadFantasyData();
+    // 🚀 パフォーマンス最適化: ステージ選択画面表示時に画像をプリロード開始
+    preloadMonsterImagesGlobal();
+    preloadStageIcons();
   }, [loadFantasyData]);
   
   // Tier変更時にそのTierの最初のランクへ自動切替

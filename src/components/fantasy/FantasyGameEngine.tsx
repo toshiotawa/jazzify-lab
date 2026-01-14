@@ -26,6 +26,9 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
+// 🚀 パフォーマンス最適化: グローバル画像キャッシュ（ステージ間で共有）
+const globalMonsterImageCache = new Map<string, HTMLImageElement>();
+
 // 🚀 パフォーマンス最適化: PNG直接読み込み（WebPファイルは存在しないため）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -37,14 +40,24 @@ const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   });
 
 const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
+  // グローバルキャッシュをチェック
+  if (globalMonsterImageCache.has(icon)) {
+    return globalMonsterImageCache.get(icon)!;
+  }
   const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
-  return loadImageAsset(pngPath);
+  const img = await loadImageAsset(pngPath);
+  globalMonsterImageCache.set(icon, img);
+  return img;
 };
 
 export const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
   await Promise.all(
     monsterIds.map(async (id) => {
-      if (cache.has(id)) {
+      // グローバルキャッシュもチェック
+      if (cache.has(id) || globalMonsterImageCache.has(id)) {
+        if (globalMonsterImageCache.has(id)) {
+          cache.set(id, globalMonsterImageCache.get(id)!);
+        }
         return;
       }
       const image = await loadMonsterImage(id);
