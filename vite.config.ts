@@ -95,7 +95,8 @@ export default defineConfig(({ mode }) => {
         '@stripe/stripe-js',
         'opensheetmusicdisplay',
         'tonal',
-        'tone'
+        'tone',
+        'lamejs'
       ],
       exclude: ['@/wasm'],
       esbuildOptions: {

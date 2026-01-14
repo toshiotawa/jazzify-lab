@@ -14,6 +14,7 @@ interface BgmFormData {
   mp3File?: FileList;
   convertToMp3?: boolean;
   addCountIn?: boolean;
+  countBeats?: number;
 }
 
 const FantasyBgmManager: React.FC = () => {
@@ -21,6 +22,7 @@ const FantasyBgmManager: React.FC = () => {
     defaultValues: {
       convertToMp3: true,
       addCountIn: false,
+      countBeats: 4,
     }
   });
   const [assets, setAssets] = useState<FantasyBgmAsset[]>([]);
@@ -81,7 +83,7 @@ const FantasyBgmManager: React.FC = () => {
           convertToMp3: values.convertToMp3 ?? false,
           addCountIn: values.addCountIn ?? false,
           bpm: values.bpm ?? undefined,
-          countBeats: 4, // 4拍固定
+          countBeats: values.countBeats ?? 4,
           mp3Bitrate: 192,
         });
         
@@ -238,10 +240,24 @@ const FantasyBgmManager: React.FC = () => {
               {...register('addCountIn')}
             />
             <div>
-              <span className="text-sm text-white">カウント追加（4拍）</span>
-              <p className="text-xs text-gray-400">曲の先頭に設定BPMで4拍分のカウント音を追加</p>
+              <span className="text-sm text-white">カウント追加</span>
+              <p className="text-xs text-gray-400">曲の先頭に設定BPMでカウント音を追加</p>
             </div>
           </label>
+          
+          {watchedAddCountIn && (
+            <div className="ml-8 flex items-center gap-2">
+              <label className="text-xs text-gray-300">拍数:</label>
+              <input
+                type="number"
+                min={1}
+                max={16}
+                className="input input-bordered input-xs w-20 text-white"
+                {...register('countBeats', { valueAsNumber: true, min: 1, max: 16 })}
+              />
+              <span className="text-xs text-gray-400">拍</span>
+            </div>
+          )}
           
           {watchedAddCountIn && (!watchedBpm || watchedBpm <= 0) && (
             <p className="text-xs text-amber-400">

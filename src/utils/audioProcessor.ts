@@ -5,24 +5,7 @@
  * - MP3への変換
  */
 
-// lamejs型定義
-interface LameEncoder {
-  encodeBuffer(left: Int16Array, right: Int16Array): Int8Array;
-  flush(): Int8Array;
-}
-
-interface LameModule {
-  Mp3Encoder: new (channels: number, sampleRate: number, bitrate: number) => LameEncoder;
-}
-
-// lamejsの動的インポート
-let lamejs: LameModule | null = null;
-async function getLamejs(): Promise<LameModule> {
-  if (!lamejs) {
-    lamejs = await import('lamejs') as unknown as LameModule;
-  }
-  return lamejs;
-}
+import lamejs from 'lamejs';
 
 /**
  * クリック音を生成
@@ -154,14 +137,12 @@ export async function encodeToMp3(
   audioBuffer: AudioBuffer,
   bitrate: number = 192
 ): Promise<Blob> {
-  const lame = await getLamejs();
-  
   const channels = audioBuffer.numberOfChannels;
   const sampleRate = audioBuffer.sampleRate;
   const samples = audioBuffer.length;
   
   // ステレオまたはモノラル
-  const encoder = new lame.Mp3Encoder(channels, sampleRate, bitrate);
+  const encoder = new lamejs.Mp3Encoder(channels, sampleRate, bitrate);
   
   // チャンネルデータを取得
   const leftChannel = audioBuffer.getChannelData(0);
