@@ -25,13 +25,9 @@ const App: React.FC = () => {
 
   // アプリケーション起動時に一度だけ認証状態を初期化
   useEffect(() => {
-    const initializeAuth = async () => {
-      console.log('🚀 App: 認証初期化開始');
-      await init();
-      console.log('✅ App: 認証初期化完了');
+    init().finally(() => {
       setInitialized(true);
-    };
-    initializeAuth();
+    });
   }, [init]);
 
   useEffect(() => {
