@@ -1,5 +1,53 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState, useCallback, memo } from 'react';
 import { MIDIController, playNote, stopNote } from '@/utils/MidiController';
+
+// 🚀 パフォーマンス最適化: 白鍵コンポーネントをメモ化
+interface WhiteKeyProps {
+  note: number;
+  isActive: boolean;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerEnter: (e: React.PointerEvent) => void;
+}
+
+const WhiteKey = memo<WhiteKeyProps>(({ note, isActive, onPointerDown, onPointerUp, onPointerEnter }) => (
+  <div
+    className={`flex-1 border border-slate-700 bg-white ${isActive ? 'bg-yellow-200 shadow-inner' : 'bg-gradient-to-b from-white to-slate-100'} relative`}
+    onPointerDown={onPointerDown}
+    onPointerUp={onPointerUp}
+    onPointerCancel={onPointerUp}
+    onPointerLeave={onPointerUp}
+    onPointerEnter={onPointerEnter}
+    role="button"
+    aria-label={`MIDI ${note}`}
+  />
+));
+WhiteKey.displayName = 'WhiteKey';
+
+// 🚀 パフォーマンス最適化: 黒鍵コンポーネントをメモ化
+interface BlackKeyProps {
+  note: number;
+  isActive: boolean;
+  left: number;
+  onPointerDown: (e: React.PointerEvent) => void;
+  onPointerUp: (e: React.PointerEvent) => void;
+  onPointerEnter: (e: React.PointerEvent) => void;
+}
+
+const BlackKey = memo<BlackKeyProps>(({ note, isActive, left, onPointerDown, onPointerUp, onPointerEnter }) => (
+  <div
+    className={`absolute -translate-x-1/2 w-[70%] max-w-[70%] h-[65%] top-0 rounded-b-md border border-slate-800 ${isActive ? 'bg-gray-700' : 'bg-black'} shadow-xl`}
+    style={{ left: `${left}%` }}
+    onPointerDown={onPointerDown}
+    onPointerUp={onPointerUp}
+    onPointerCancel={onPointerUp}
+    onPointerLeave={onPointerUp}
+    onPointerEnter={onPointerEnter}
+    role="button"
+    aria-label={`MIDI ${note}`}
+  />
+));
+BlackKey.displayName = 'BlackKey';
 
 interface OnScreenPianoProps {
   startMidi?: number; // デフォルト: C3
@@ -67,24 +115,50 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
 
   const totalWhites = whiteKeys.length;
 
-  const setNoteActive = (note: number, active: boolean) => {
+  // 🚀 パフォーマンス最適化: useCallbackでメモ化
+  const setNoteActive = useCallback((note: number, active: boolean) => {
     setActiveNotes(prev => {
       const next = new Set(prev);
       if (active) next.add(note); else next.delete(note);
       return next;
     });
-  };
+  }, []);
 
-  const handlePointerDown = (note: number) => (e: React.PointerEvent) => {
-    try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
-    isPointerDownRef.current = true;
-    pointerIdToNoteRef.current.set(e.pointerId, note);
-    setNoteActive(note, true);
-    // velocityは固定（やや強め）
-    playNote(note, 64);
-  };
+  // 🚀 ポインターハンドラーをメモ化（鍵盤コンポーネントに安定した参照を渡す）
+  const pointerHandlersRef = useRef<Map<number, {
+    down: (e: React.PointerEvent) => void;
+    enter: (e: React.PointerEvent) => void;
+  }>>(new Map());
 
-  const handlePointerUpOrCancel = (e: React.PointerEvent) => {
+  const getPointerHandlers = useCallback((note: number) => {
+    if (!pointerHandlersRef.current.has(note)) {
+      pointerHandlersRef.current.set(note, {
+        down: (e: React.PointerEvent) => {
+          try { (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId); } catch {}
+          isPointerDownRef.current = true;
+          pointerIdToNoteRef.current.set(e.pointerId, note);
+          setNoteActive(note, true);
+          playNote(note, 64);
+        },
+        enter: (e: React.PointerEvent) => {
+          if (!isPointerDownRef.current) return;
+          const map = pointerIdToNoteRef.current;
+          const prev = map.get(e.pointerId);
+          if (prev === note) return;
+          if (prev != null) {
+            setNoteActive(prev, false);
+            stopNote(prev);
+          }
+          map.set(e.pointerId, note);
+          setNoteActive(note, true);
+          playNote(note, 64);
+        }
+      });
+    }
+    return pointerHandlersRef.current.get(note)!;
+  }, [setNoteActive]);
+
+  const handlePointerUpOrCancel = useCallback((e: React.PointerEvent) => {
     const map = pointerIdToNoteRef.current;
     const note = map.get(e.pointerId);
     if (note != null) {
@@ -93,21 +167,7 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
       map.delete(e.pointerId);
     }
     if (map.size === 0) isPointerDownRef.current = false;
-  };
-
-  const handlePointerEnter = (note: number) => (e: React.PointerEvent) => {
-    if (!isPointerDownRef.current) return;
-    const map = pointerIdToNoteRef.current;
-    const prev = map.get(e.pointerId);
-    if (prev === note) return;
-    if (prev != null) {
-      setNoteActive(prev, false);
-      stopNote(prev);
-    }
-    map.set(e.pointerId, note);
-    setNoteActive(note, true);
-    playNote(note, 64);
-  };
+  }, [setNoteActive]);
 
   useEffect(() => {
     // MIDI入力でのハイライト + 音を鳴らす
@@ -173,18 +233,15 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
         {/* 白鍵レイヤー */}
         <div className="absolute inset-0 flex">
           {whiteKeys.map((note) => {
-            const isActive = activeNotes.has(note);
+            const handlers = getPointerHandlers(note);
             return (
-              <div
+              <WhiteKey
                 key={note}
-                className={`flex-1 border border-slate-700 bg-white ${isActive ? 'bg-yellow-200 shadow-inner' : 'bg-gradient-to-b from-white to-slate-100'} relative`}
-                onPointerDown={handlePointerDown(note)}
+                note={note}
+                isActive={activeNotes.has(note)}
+                onPointerDown={handlers.down}
                 onPointerUp={handlePointerUpOrCancel}
-                onPointerCancel={handlePointerUpOrCancel}
-                onPointerLeave={handlePointerUpOrCancel}
-                onPointerEnter={handlePointerEnter(note)}
-                role="button"
-                aria-label={`MIDI ${note}`}
+                onPointerEnter={handlers.enter}
               />
             );
           })}
@@ -192,20 +249,16 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
         {/* 黒鍵レイヤー */}
         <div className="absolute inset-0">
           {blackKeys.map((note) => {
-            const isActive = activeNotes.has(note);
-            const left = getBlackLeftPercent(note);
+            const handlers = getPointerHandlers(note);
             return (
-              <div
+              <BlackKey
                 key={note}
-                className={`absolute -translate-x-1/2 w-[70%] max-w-[70%] h-[65%] top-0 rounded-b-md border border-slate-800 ${isActive ? 'bg-gray-700' : 'bg-black'} shadow-xl`}
-                style={{ left: `${left}%` }}
-                onPointerDown={handlePointerDown(note)}
+                note={note}
+                isActive={activeNotes.has(note)}
+                left={getBlackLeftPercent(note)}
+                onPointerDown={handlers.down}
                 onPointerUp={handlePointerUpOrCancel}
-                onPointerCancel={handlePointerUpOrCancel}
-                onPointerLeave={handlePointerUpOrCancel}
-                onPointerEnter={handlePointerEnter(note)}
-                role="button"
-                aria-label={`MIDI ${note}`}
+                onPointerEnter={handlers.enter}
               />
             );
           })}
@@ -215,4 +268,5 @@ const OnScreenPiano: React.FC<OnScreenPianoProps> = ({
   );
 };
 
-export default OnScreenPiano;
+// 🚀 パフォーマンス最適化: コンポーネント全体をメモ化
+export default memo(OnScreenPiano);

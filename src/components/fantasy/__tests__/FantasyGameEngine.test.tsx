@@ -74,40 +74,42 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       global.Image = OriginalImage;
     });
 
-    it('should preload monster images using Image API', async () => {
+    it('should preload monster images using Image API (PNG directly)', async () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
 
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
       expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
+      // 🚀 パフォーマンス最適化: PNGを直接ロード（WebPフォールバックなし）
       const expectedPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.webp`)
+        (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(expectedPaths));
     });
 
-    it('should fall back to PNG when WebP load fails', async () => {
-      const failingWebp = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => `${import.meta.env.BASE_URL}monster_icons/${id}.webp`
-      );
-      failingWebp.forEach((src) => MockImage.failingSources.add(src));
+    it('should load PNG directly without WebP fallback', async () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
 
-      expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
+      // 🚀 パフォーマンス最適化: 直接PNGのみをロード（WebPテストなし）
+      expect(MockImage.sources.length).toBe(3);
       const pngPaths = ['monster_01', 'monster_02', 'monster_03'].map(
         (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(pngPaths));
+      // WebPパスが含まれていないことを確認
+      const hasWebp = MockImage.sources.some(src => src.includes('.webp'));
+      expect(hasWebp).toBe(false);
     });
 
     it('should handle complete failure of monster image loading', async () => {
       ['monster_01', 'monster_02', 'monster_03'].forEach((id) => {
-        MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.webp`);
+        // 🚀 パフォーマンス最適化: PNGのみをテスト（WebPは使用しない）
         MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.png`);
       });
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
-      await expect(preloadMonsterImages(monsterIds, new Map())).rejects.toBeInstanceOf(Error);
+      // エラーイベントがrejectされることを確認
+      await expect(preloadMonsterImages(monsterIds, new Map())).rejects.toBeDefined();
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
     });
 });

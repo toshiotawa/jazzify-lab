@@ -288,14 +288,24 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
     clearAllEffects
   }));
   
-  // アニメーションループ
+  // 🚀 アクティブなエフェクトがあるかどうかをチェック
+  const hasActiveEffects = magicCircles.length > 0 || 
+    monsterAnimations.length > 0 || 
+    magicTexts.length > 0 || 
+    damageTexts.length > 0 ||
+    isScreenShaking;
+
+  // アニメーションループ（エフェクトがある時のみ実行）
   const animate = useCallback((currentTime: number) => {
-    const deltaTime = currentTime - lastTimeRef.current;
+    const deltaTime = Math.min(currentTime - lastTimeRef.current, 50); // 最大50msに制限
     lastTimeRef.current = currentTime;
+    
+    let hasRemainingEffects = false;
     
     // 魔法陣の更新
     setMagicCircles(prev => {
-      return prev
+      if (prev.length === 0) return prev;
+      const updated = prev
         .map(circle => {
           const config = EFFECT_CONFIGS.magicCircle[circle.type];
           const progress = 1 - (circle.life / circle.maxLife);
@@ -309,11 +319,14 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           };
         })
         .filter(circle => circle.life > 0);
+      if (updated.length > 0) hasRemainingEffects = true;
+      return updated;
     });
     
     // モンスターアニメーションの更新
     setMonsterAnimations(prev => {
-      return prev
+      if (prev.length === 0) return prev;
+      const updated = prev
         .map(animation => {
           const config = EFFECT_CONFIGS.monsterAnimation[animation.type];
           const progress = 1 - (animation.life / animation.maxLife);
@@ -345,11 +358,14 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           };
         })
         .filter(animation => animation.life > 0);
+      if (updated.length > 0) hasRemainingEffects = true;
+      return updated;
     });
     
     // 魔法テキストの更新
     setMagicTexts(prev => {
-      return prev
+      if (prev.length === 0) return prev;
+      const updated = prev
         .map(text => ({
           ...text,
           life: text.life - deltaTime,
@@ -357,11 +373,14 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           y: text.y - deltaTime * 0.05 // 上に移動
         }))
         .filter(text => text.life > 0);
+      if (updated.length > 0) hasRemainingEffects = true;
+      return updated;
     });
     
     // ダメージテキストの更新
     setDamageTexts(prev => {
-      return prev
+      if (prev.length === 0) return prev;
+      const updated = prev
         .map(text => ({
           ...text,
           life: text.life - deltaTime,
@@ -370,21 +389,32 @@ const FantasyEffects = React.forwardRef<FantasyEffectsRef, FantasyEffectsProps>(
           x: text.x + Math.sin(text.life * 0.01) * 2 // 左右に揺れる
         }))
         .filter(text => text.life > 0);
+      if (updated.length > 0) hasRemainingEffects = true;
+      return updated;
     });
     
-    animationFrameRef.current = requestAnimationFrame(animate);
+    // 🚀 エフェクトが残っている場合のみ次フレームを要求
+    if (hasRemainingEffects) {
+      animationFrameRef.current = requestAnimationFrame(animate);
+    } else {
+      animationFrameRef.current = undefined;
+    }
   }, []);
   
-  // アニメーション開始・停止
+  // 🚀 エフェクトがある時のみアニメーション開始
   useEffect(() => {
-    animationFrameRef.current = requestAnimationFrame(animate);
+    if (hasActiveEffects && !animationFrameRef.current) {
+      lastTimeRef.current = performance.now();
+      animationFrameRef.current = requestAnimationFrame(animate);
+    }
     
     return () => {
       if (animationFrameRef.current) {
         cancelAnimationFrame(animationFrameRef.current);
+        animationFrameRef.current = undefined;
       }
     };
-  }, [animate]);
+  }, [animate, hasActiveEffects]);
   
   return (
     <div

@@ -1469,7 +1469,7 @@ export const useFantasyGameEngine = ({
       devLog.debug('⏰ 敵ゲージタイマー開始');
       const timer = setInterval(() => {
         updateEnemyGauge();
-      }, 100); // 100ms間隔で更新
+      }, 150); // 🚀 パフォーマンス最適化: 150ms間隔で更新（元100ms）
       setEnemyGaugeTimer(timer);
     }
     
@@ -2028,7 +2028,7 @@ export const useFantasyGameEngine = ({
 
     const timer = setInterval(() => {
       updateEnemyGauge();
-    }, 100);
+    }, 150); // 🚀 パフォーマンス最適化: 150ms間隔（元100ms）
     setEnemyGaugeTimer(timer);
 
     return () => {
