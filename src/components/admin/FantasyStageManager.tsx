@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { useToast } from '@/stores/toastStore';
 import {
@@ -12,7 +12,9 @@ import {
   deleteFantasyStage,
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
+import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
+import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -61,6 +63,8 @@ interface StageFormValues {
   chord_progression_data: TimingRow[]; // for timing
   // 新規: ステージ種別
   stage_tier: 'basic' | 'advanced';
+  // 楽譜モード
+  is_sheet_music_mode: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -87,8 +91,117 @@ const defaultValues: StageFormValues = {
   chord_progression_data: [],
   bgm_url: '',
   mp3_url: '',
-  stage_tier: 'basic'
+  stage_tier: 'basic',
+  is_sheet_music_mode: false,
 };
+
+// 楽譜モード用の音名リスト（プレフィックス付き）
+// 形式: {clef}_{noteName} (例: treble_C4, bass_C3)
+const TREBLE_NOTES = [
+  'treble_A3', 'treble_A#3', 'treble_Bb3', 'treble_B3',
+  'treble_C4', 'treble_C#4', 'treble_Db4', 'treble_D4', 'treble_D#4', 'treble_Eb4', 'treble_E4', 'treble_F4', 'treble_F#4', 'treble_Gb4', 'treble_G4', 'treble_G#4', 'treble_Ab4',
+  'treble_A4', 'treble_A#4', 'treble_Bb4', 'treble_B4',
+  'treble_C5', 'treble_C#5', 'treble_Db5', 'treble_D5', 'treble_D#5', 'treble_Eb5', 'treble_E5', 'treble_F5', 'treble_F#5', 'treble_Gb5', 'treble_G5', 'treble_G#5', 'treble_Ab5',
+  'treble_A5', 'treble_A#5', 'treble_Bb5', 'treble_B5',
+  'treble_C6'
+];
+
+const BASS_NOTES = [
+  'bass_C2', 'bass_C#2', 'bass_Db2', 'bass_D2', 'bass_D#2', 'bass_Eb2', 'bass_E2', 'bass_F2', 'bass_F#2', 'bass_Gb2', 'bass_G2', 'bass_G#2', 'bass_Ab2',
+  'bass_A2', 'bass_A#2', 'bass_Bb2', 'bass_B2',
+  'bass_C3', 'bass_C#3', 'bass_Db3', 'bass_D3', 'bass_D#3', 'bass_Eb3', 'bass_E3', 'bass_F3', 'bass_F#3', 'bass_Gb3', 'bass_G3', 'bass_G#3', 'bass_Ab3',
+  'bass_A3', 'bass_A#3', 'bass_Bb3', 'bass_B3',
+  'bass_C4', 'bass_C#4', 'bass_Db4', 'bass_D4', 'bass_D#4', 'bass_Eb4', 'bass_E4'
+];
+
+// すべての楽譜音名（treble + bass）
+const ALL_SHEET_MUSIC_NOTES = [...TREBLE_NOTES, ...BASS_NOTES];
+
+// 音名から表示用のラベルを取得（プレフィックスを除去）
+const getNoteDisplayLabel = (note: string): string => {
+  if (note.startsWith('treble_')) return note.replace('treble_', '');
+  if (note.startsWith('bass_')) return note.replace('bass_', '');
+  return note;
+};
+
+// クリック追加用のルート音リスト（16種類）
+const CLICK_ADD_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'Bb', 'B'] as const;
+
+// インターバル表記を人間が読みやすい形式に変換
+const formatInterval = (interval: string): string => {
+  // 1P → R, 3M → M3, 3m → m3, 5P → P5, 7m → m7, 7M → M7, etc.
+  if (interval === '1P') return 'R';
+  const degree = interval.slice(0, -1);
+  const quality = interval.slice(-1);
+  const qualityMap: Record<string, string> = {
+    'P': 'P',
+    'M': 'M',
+    'm': 'm',
+    'A': 'A',
+    'd': 'd',
+  };
+  return `${qualityMap[quality] || quality}${degree}`;
+};
+
+// コードクオリティからコード表記のサフィックスを取得
+const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'maj': '',
+  'min': 'm',
+  'aug': 'aug',
+  'dim': 'dim',
+  '7': '7',
+  'maj7': 'M7',
+  'm7': 'm7',
+  'mM7': 'mM7',
+  'dim7': 'dim7',
+  'aug7': 'aug7',
+  'm7b5': 'm7b5',
+  '6': '6',
+  'm6': 'm6',
+  '9': '9',
+  'm9': 'm9',
+  'maj9': 'M9',
+  '11': '11',
+  'm11': 'm11',
+  '13': '13',
+  'm13': 'm13',
+  'sus2': 'sus2',
+  'sus4': 'sus4',
+  '7sus4': '7sus4',
+  'add9': 'add9',
+  'madd9': 'madd9',
+};
+
+// クリック追加用コードタイプ定義
+interface ClickAddChordType {
+  label: string;
+  suffix: string;
+  isNote: boolean;
+}
+
+// CHORD_TEMPLATESから動的にクリック追加用リストを生成
+const generateClickAddChordTypes = (): ClickAddChordType[] => {
+  const types: ClickAddChordType[] = [
+    // 単音は特別扱い
+    { label: '単音 (type:note)', suffix: '', isNote: true },
+  ];
+
+  // CHORD_TEMPLATESの各エントリを変換
+  for (const [quality, intervals] of Object.entries(CHORD_TEMPLATES)) {
+    const suffix = QUALITY_TO_SUFFIX[quality as ChordQuality];
+    const intervalLabel = intervals.map(formatInterval).join('.');
+    const displayLabel = suffix ? `${suffix} (${intervalLabel})` : `(${intervalLabel})`;
+    types.push({
+      label: displayLabel,
+      suffix,
+      isNote: false,
+    });
+  }
+
+  return types;
+};
+
+const CLICK_ADD_CHORD_TYPES = generateClickAddChordTypes();
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
   <div className="bg-slate-800/60 rounded-lg p-4 border border-slate-700">
@@ -117,6 +230,7 @@ const FantasyStageManager: React.FC = () => {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [stages, setStages] = useState<DbFantasyStage[]>([]);
+  const [bgmAssets, setBgmAssets] = useState<FantasyBgmAsset[]>([]);
 
   const { register, handleSubmit, reset, watch, setValue, control } = useForm<StageFormValues>({
     defaultValues,
@@ -147,7 +261,23 @@ const FantasyStageManager: React.FC = () => {
 
   useEffect(() => {
     fetchFantasyModeStages().then(setStages).catch(() => {});
+    fetchFantasyBgmAssets().then(setBgmAssets).catch(() => {});
   }, []);
+
+  // BGMを選択した際にテンポ情報を自動入力
+  const handleBgmSelect = useCallback((bgmUrl: string) => {
+    setValue('bgm_url', bgmUrl);
+    // URLに一致するBGMアセットを探す
+    const matchedBgm = bgmAssets.find(b => b.mp3_url === bgmUrl);
+    if (matchedBgm) {
+      // テンポ情報がある場合は自動入力
+      if (matchedBgm.bpm) setValue('bpm', matchedBgm.bpm);
+      if (matchedBgm.time_signature) setValue('time_signature', matchedBgm.time_signature);
+      if (matchedBgm.measure_count) setValue('measure_count', matchedBgm.measure_count);
+      if (matchedBgm.count_in_measures) setValue('count_in_measures', matchedBgm.count_in_measures);
+      toast.success('BGMのテンポ情報を自動入力しました');
+    }
+  }, [bgmAssets, setValue, toast]);
 
   const loadStage = async (id: string) => {
     try {
@@ -179,7 +309,8 @@ const FantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
-        stage_tier: (s as any).stage_tier || 'basic'
+        stage_tier: (s as any).stage_tier || 'basic',
+        is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
       };
       reset(v);
     } catch (e: any) {
@@ -217,6 +348,7 @@ const FantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
+      is_sheet_music_mode: v.is_sheet_music_mode,
     };
 
     // モードに応じた不要フィールドの削除
@@ -224,10 +356,8 @@ const FantasyStageManager: React.FC = () => {
       delete base.chord_progression;
       delete base.chord_progression_data;
       delete base.note_interval_beats;
-      delete base.measure_count;
-      delete base.time_signature;
-      delete base.count_in_measures;
-      delete base.bpm; // single ではテンポ不要
+      // singleモードでもBGMを使用する場合はテンポ設定を保持する
+      // bpm, measure_count, time_signature, count_in_measures は保持
     }
     if (v.mode === 'progression_order') {
       delete base.chord_progression_data;
@@ -404,39 +534,230 @@ const FantasyStageManager: React.FC = () => {
               </Row>
             </Section>
 
-            {/* progression 共通（テンポ系） */}
-            {(mode === 'progression_order' || mode === 'progression_random' || mode === 'progression_timing') && (
-              <Section title="テンポ・譜割設定（リズム系モード）">
-                <Row>
-                  <div>
-                    <SmallLabel>BPM *</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('bpm', { valueAsNumber: true })} />
+            {/* 楽譜モード設定（singleモード用） */}
+            {mode === 'single' && (
+              <Section title="楽譜モード設定">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <SmallLabel>楽譜モードを有効にする</SmallLabel>
+                    <input type="checkbox" className="toggle toggle-primary" {...register('is_sheet_music_mode')} />
                   </div>
-                  <div>
-                    <SmallLabel>拍子 *</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('time_signature', { valueAsNumber: true })} />
-                  </div>
-                  {(mode === 'progression_order' || mode === 'progression_random') && (
-                    <div>
-                      <SmallLabel>出題拍間隔（note_interval_beats）</SmallLabel>
-                      <input type="number" className="input input-bordered w-full" placeholder="省略時は拍子と同じ" {...register('note_interval_beats', { valueAsNumber: true })} />
+                  
+                  {watch('is_sheet_music_mode') && (
+                    <div className="mt-4 space-y-4">
+                      <p className="text-xs text-gray-400">
+                        出題する音名を選択してください。ト音記号とヘ音記号を混ぜて出題できます。
+                      </p>
+                      
+                      {/* ト音記号セクション */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <SmallLabel>🎼 ト音記号（Treble）</SmallLabel>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-xs"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = [...new Set([...currentValues, ...TREBLE_NOTES])];
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              全選択
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = currentValues.filter((c: any) => !String(c).startsWith('treble_'));
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              解除
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3">
+                          <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1">
+                            {TREBLE_NOTES.map((noteName) => {
+                              const currentChords = watch('allowed_chords') || [];
+                              const isChecked = currentChords.some(
+                                (chord: any) => String(chord) === noteName
+                              );
+                              return (
+                                <label
+                                  key={noteName}
+                                  className={`
+                                    flex items-center justify-center p-1.5 rounded cursor-pointer text-xs
+                                    border transition-all
+                                    ${isChecked ? 'bg-blue-500/30 border-blue-400 text-white' : 'bg-slate-800 border-slate-600 hover:border-slate-500'}
+                                  `}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const currentValues = watch('allowed_chords') || [];
+                                      if (e.target.checked) {
+                                        const newValues = [...currentValues, noteName];
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      } else {
+                                        const newValues = currentValues.filter((c: any) => String(c) !== noteName);
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      }
+                                    }}
+                                  />
+                                  {getNoteDisplayLabel(noteName)}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* ヘ音記号セクション */}
+                      <div>
+                        <div className="flex items-center justify-between mb-2">
+                          <SmallLabel>🎼 ヘ音記号（Bass）</SmallLabel>
+                          <div className="flex gap-1">
+                            <button
+                              type="button"
+                              className="btn btn-xs"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = [...new Set([...currentValues, ...BASS_NOTES])];
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              全選択
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline"
+                              onClick={() => {
+                                const currentValues = watch('allowed_chords') || [];
+                                const newValues = currentValues.filter((c: any) => !String(c).startsWith('bass_'));
+                                setValue('allowed_chords', newValues);
+                                replaceAllowedChords(newValues as any[]);
+                              }}
+                            >
+                              解除
+                            </button>
+                          </div>
+                        </div>
+                        <div className="bg-slate-900/50 rounded-lg p-3">
+                          <div className="grid grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-1">
+                            {BASS_NOTES.map((noteName) => {
+                              const currentChords = watch('allowed_chords') || [];
+                              const isChecked = currentChords.some(
+                                (chord: any) => String(chord) === noteName
+                              );
+                              return (
+                                <label
+                                  key={noteName}
+                                  className={`
+                                    flex items-center justify-center p-1.5 rounded cursor-pointer text-xs
+                                    border transition-all
+                                    ${isChecked ? 'bg-amber-500/30 border-amber-400 text-white' : 'bg-slate-800 border-slate-600 hover:border-slate-500'}
+                                  `}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    className="hidden"
+                                    checked={isChecked}
+                                    onChange={(e) => {
+                                      const currentValues = watch('allowed_chords') || [];
+                                      if (e.target.checked) {
+                                        const newValues = [...currentValues, noteName];
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      } else {
+                                        const newValues = currentValues.filter((c: any) => String(c) !== noteName);
+                                        setValue('allowed_chords', newValues);
+                                        replaceAllowedChords(newValues as any[]);
+                                      }
+                                    }}
+                                  />
+                                  {getNoteDisplayLabel(noteName)}
+                                </label>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 一括操作ボタン */}
+                      <div className="flex gap-2 pt-2 border-t border-slate-700">
+                        <button
+                          type="button"
+                          className="btn btn-sm"
+                          onClick={() => {
+                            setValue('allowed_chords', ALL_SHEET_MUSIC_NOTES);
+                            replaceAllowedChords(ALL_SHEET_MUSIC_NOTES as any[]);
+                          }}
+                        >
+                          すべて選択
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-sm btn-outline"
+                          onClick={() => {
+                            setValue('allowed_chords', []);
+                            replaceAllowedChords([]);
+                          }}
+                        >
+                          すべて解除
+                        </button>
+                        <span className="text-xs text-gray-400 ml-auto self-center">
+                          選択中: {(watch('allowed_chords') || []).length} 音
+                        </span>
+                      </div>
                     </div>
                   )}
-                  {(mode === 'progression_order' || mode === 'progression_random') && (
-                    <div>
-                      <SmallLabel>小節数</SmallLabel>
-                      <input type="number" className="input input-bordered w-full" {...register('measure_count', { valueAsNumber: true })} />
-                    </div>
-                  )}
-                  <div>
-                    <SmallLabel>カウントイン小節数</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
-                  </div>
-                </Row>
+                </div>
               </Section>
             )}
 
-            {/* コード入力: allowed_chords */}
+            {/* BGMテンポ設定（全モード共通） */}
+            <Section title="BGM・テンポ設定">
+              <p className="text-xs text-gray-400 mb-3">
+                BGMを使用する場合、テンポ情報を設定してください。BGMアセットにテンポが登録されている場合は自動取得できます。
+              </p>
+              <Row>
+                <div>
+                  <SmallLabel>BPM {mode !== 'single' && '*'}</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('bpm', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>拍子 {mode !== 'single' && '*'}</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('time_signature', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>小節数（曲の長さ）</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('measure_count', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>カウントイン小節数</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
+                </div>
+                {(mode === 'progression_order' || mode === 'progression_random') && (
+                  <div>
+                    <SmallLabel>出題拍間隔（note_interval_beats）</SmallLabel>
+                    <input type="number" className="input input-bordered w-full" placeholder="省略時は拍子と同じ" {...register('note_interval_beats', { valueAsNumber: true })} />
+                  </div>
+                )}
+              </Row>
+            </Section>
+
+            {/* コード入力: allowed_chords（楽譜モードでない場合のみ通常表示） */}
+            {!(mode === 'single' && watch('is_sheet_music_mode')) && (
             <Section title="許可コード（single / random 用）">
               <div className="space-y-3">
                 {/* クイック複数追加 */}
@@ -487,6 +808,36 @@ const FantasyStageManager: React.FC = () => {
                   }}>1行追加</button>
                 </div>
 
+                {/* クリック追加セクション */}
+                <div className="border border-slate-600 rounded-lg p-3 space-y-3">
+                  <SmallLabel>クリック追加（転回形:0, オクターブ:4）</SmallLabel>
+                  {CLICK_ADD_CHORD_TYPES.map((chordType) => (
+                    <div key={chordType.label} className="space-y-1">
+                      <div className="text-xs text-gray-400">{chordType.label}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {CLICK_ADD_ROOTS.map((root) => {
+                          const chordName = `${root}${chordType.suffix}`;
+                          return (
+                            <button
+                              key={`${chordType.label}-${root}`}
+                              type="button"
+                              className="btn btn-xs btn-outline hover:btn-primary"
+                              onClick={() => {
+                                const spec = chordType.isNote
+                                  ? { chord: chordName, inversion: 0, octave: 4, type: 'note' as const }
+                                  : { chord: chordName, inversion: 0, octave: 4 };
+                                appendAllowedChord(spec as any);
+                              }}
+                            >
+                              {chordName}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
                 <div className="flex flex-wrap gap-2">
                   {allowedChordFields.map((f, idx) => (
                     <div key={(f as any).id || idx} className="badge badge-lg gap-2 bg-slate-700">
@@ -497,6 +848,7 @@ const FantasyStageManager: React.FC = () => {
                 </div>
               </div>
             </Section>
+            )}
 
             {/* progression_order 用コード進行 */}
             {mode === 'progression_order' && (
@@ -653,16 +1005,40 @@ const FantasyStageManager: React.FC = () => {
             )}
 
             <Section title="BGM / メディア">
-              <Row>
+              <div className="space-y-4">
+                {/* BGMアセットから選択 */}
                 <div>
-                  <SmallLabel>BGM URL</SmallLabel>
-                  <input className="input input-bordered w-full" placeholder="FantasyBGMで取得したURLを貼り付け" {...register('bgm_url')} />
+                  <SmallLabel>BGMアセットから選択（テンポ情報自動入力）</SmallLabel>
+                  <select
+                    className="select select-bordered w-full"
+                    value={watch('bgm_url') || ''}
+                    onChange={(e) => handleBgmSelect(e.target.value)}
+                  >
+                    <option value="">-- 選択してください --</option>
+                    {bgmAssets.map(bgm => (
+                      <option key={bgm.id} value={bgm.mp3_url || ''}>
+                        {bgm.name}
+                        {bgm.bpm && ` (BPM: ${bgm.bpm})`}
+                        {bgm.time_signature && ` (${bgm.time_signature}/4)`}
+                        {bgm.measure_count && ` (${bgm.measure_count}小節)`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    BGMを選択すると、テンポ設定が自動入力されます
+                  </p>
                 </div>
-                <div>
-                  <SmallLabel>MP3 URL（予備）</SmallLabel>
-                  <input className="input input-bordered w-full" {...register('mp3_url')} />
-                </div>
-              </Row>
+                <Row>
+                  <div>
+                    <SmallLabel>BGM URL（直接入力）</SmallLabel>
+                    <input className="input input-bordered w-full" placeholder="FantasyBGMで取得したURLを貼り付け" {...register('bgm_url')} />
+                  </div>
+                  <div>
+                    <SmallLabel>MP3 URL（予備）</SmallLabel>
+                    <input className="input input-bordered w-full" {...register('mp3_url')} />
+                  </div>
+                </Row>
+              </div>
             </Section>
 
             <div className="flex items-center gap-3">

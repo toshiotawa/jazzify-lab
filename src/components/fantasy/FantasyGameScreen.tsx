@@ -6,7 +6,7 @@
 import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
-import { MIDIController } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
@@ -20,6 +20,8 @@ import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+// 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -92,9 +94,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [showKeyboardGuide, setShowKeyboardGuide] = useState(true); // 練習モードのデフォルト値
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
+  const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>('abc'); // 鍵盤上の音名表示
   
-  // 魔法名表示状態
-  const [magicName, setMagicName] = useState<{ monsterId: string; name: string; isSpecial: boolean } | null>(null);
+  // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
   // 鍵盤ガイド表示の実効値を計算
   // 練習モード: ユーザー設定に従う（デフォルトON）
@@ -195,15 +197,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 再生中のノートを追跡
   const activeNotesRef = useRef<Set<number>>(new Set());
 
-  // 高速化のため playNote 関数を事前に保持する Ref
-  const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(null);
-
-  // マウント時に playNote をロード
-  useEffect(() => {
-    import('@/utils/MidiController').then(({ playNote }) => {
-      playNoteRef.current = playNote;
-    }).catch(console.error);
-  }, []);
+  // 🚀 パフォーマンス最適化: playNote を直接参照（動的インポート不要）
+  const playNoteRef = useRef<((note: number, velocity?: number) => Promise<void>) | null>(playNote);
   
   // MIDIControllerの初期化と管理
   useEffect(() => {
@@ -230,36 +225,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       midiControllerRef.current = controller;
       
       // 初期化
-      controller.initialize().then(() => {
+      controller.initialize().then(async () => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // ★★★ デフォルト音量設定を追加 ★★★
-        // ファンタジーモード開始時にデフォルト音量（80%）を設定
-        import('@/utils/MidiController').then(({ updateGlobalVolume, initializeAudioSystem }) => {
+        // 🚀 パフォーマンス最適化: 動的インポートを削除、直接呼び出し
+        try {
           // 音声システムを初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8); // デフォルト80%音量
-            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
-            
-            // FantasySoundManagerの初期化
-            import('@/utils/FantasySoundManager')
-              .then(async (mod) => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                await FSM?.init(
-                  settings.soundEffectVolume ?? 0.8,
-                  settings.rootSoundVolume ?? 0.5,
-                  stage?.playRootOnCorrect !== false
-                );
-                FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
-                devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-              })
-              .catch(err => console.error('Failed to import/init FantasySoundManager:', err));
-          }).catch(error => {
-            console.error('Audio system initialization failed:', error);
-          });
-        }).catch(error => {
-          console.error('MidiController import failed:', error);
-        });
+          await initializeAudioSystem();
+          updateGlobalVolume(0.8); // デフォルト80%音量
+          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+          
+          // FantasySoundManagerの初期化（静的インポート済み）
+          await FantasySoundManager.init(
+            settings.soundEffectVolume ?? 0.8,
+            settings.rootSoundVolume ?? 0.5,
+            stage?.playRootOnCorrect !== false
+          );
+          FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+          devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+        } catch (error) {
+          console.error('Audio system initialization failed:', error);
+        }
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。
@@ -310,20 +296,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => clearTimeout(timer);
   }, [stage]); // stageが変更されたときに実行
   
-  // ステージ設定に応じてルート音を有効/無効にする
+  // 🚀 パフォーマンス最適化: ステージ設定に応じてルート音を有効/無効にする（動的インポート不要）
   useEffect(() => {
-    let cancelled = false;
-    const apply = async () => {
-      try {
-        const mod = await import('@/utils/FantasySoundManager');
-        const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
-        FSM?.enableRootSound(stage?.playRootOnCorrect !== false);
-      } catch {}
-      if (cancelled) return;
-    };
-    apply();
-    return () => { cancelled = true; };
+    // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
+    FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
   }, [stage?.playRootOnCorrect]);
   
   // PIXI.js レンダラー
@@ -430,23 +406,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     }
 
-    // ルート音を再生（非同期対応）
+    // 🚀 パフォーマンス最適化: ルート音を同期的に再生（動的インポート不要）
     const allowRootSound = stage?.playRootOnCorrect !== false;
     if (allowRootSound) {
-      try {
-        const mod = await import('@/utils/FantasySoundManager');
-        const FSM = (mod as any).FantasySoundManager ?? mod.default;
-        // スラッシュコード対応: 分母があればそれをルートとして鳴らす
-        const id = chord.id || chord.displayName || chord.root;
-        let bassToPlay = chord.root;
-        if (typeof id === 'string' && id.includes('/')) {
-          const parts = id.split('/');
-          if (parts[1]) bassToPlay = parts[1];
-        }
-        await FSM?.playRootNote(bassToPlay);
-      } catch (error) {
-        console.error('Failed to play root note:', error);
+      // スラッシュコード対応: 分母があればそれをルートとして鳴らす
+      const id = chord.id || chord.displayName || chord.root;
+      let bassToPlay = chord.root;
+      if (typeof id === 'string' && id.includes('/')) {
+        const parts = id.split('/');
+        if (parts[1]) bassToPlay = parts[1];
       }
+      // fire-and-forget で呼び出し（await せずにラグを防止）
+      FantasySoundManager.playRootNote(bassToPlay).catch(e => 
+        devLog.debug('Failed to play root note:', e)
+      );
     }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
@@ -460,21 +433,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
   }, []);
   
-  const handleEnemyAttack = useCallback(async (attackingMonsterId?: string) => {
+  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
     devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
     
-    // 敵の攻撃音を再生（single クイズモードのみ）
-          try {
-        if (stage.mode === 'single') {
-          const mod = await import('@/utils/FantasySoundManager');
-          const FSM = (mod as any).FantasySoundManager ?? mod.default;
-          FSM?.playEnemyAttack();
-        }
-      } catch (error) {
-      devLog.debug('Failed to play enemy attack sound:', error);
+    // 🚀 パフォーマンス最適化: 敵の攻撃音を同期的に再生（動的インポート不要）
+    if (stage.mode === 'single') {
+      FantasySoundManager.playEnemyAttack();
     }
-    
-    // confetti削除 - 何もしない
     
     // ダメージ時の画面振動
     setDamageShake(true);
@@ -606,10 +571,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
+  // 🚀 パフォーマンス最適化: 動的インポートを完全に削除
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
     // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
-    // iOS Safari ではユーザー操作コンテキストでの同期的なメソッド呼び出しが必要だが、
-    // Tone.start() は内部で resume() を呼ぶ。Promise を待機するとラグになるため待たない。
     if ((window as any).Tone?.context?.state !== 'running') {
        (window as any).Tone?.start?.().catch(() => {});
     }
@@ -619,35 +583,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
-    // クリック時にも音声を再生（MidiControllerの共通音声システムを使用）
+    // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
-      const play = playNoteRef.current;
-      if (play) {
-         // awaitせずに実行（fire-and-forget）
-         play(note, 64).catch(e => console.error('Failed to play note:', e));
-         activeNotesRef.current.add(note);
-      } else {
-         // まだロードされていない場合のフォールバック
-         import('@/utils/MidiController').then(({ playNote }) => {
-            playNoteRef.current = playNote;
-            playNote(note, 64);
-            activeNotesRef.current.add(note);
-         }).catch(console.error);
-      }
+      // fire-and-forget で呼び出し
+      playNote(note, 64).catch(e => devLog.debug('Failed to play note:', e));
+      activeNotesRef.current.add(note);
       devLog.debug('🎵 Played note via click:', note);
     }
     
     // ファンタジーゲームエンジンにのみ送信
     engineHandleNoteInput(note);
     
-    // FantasySoundManagerのアンロックは低優先度で実行
+    // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
     if (source === 'mouse') {
-        setTimeout(() => {
-             import('@/utils/FantasySoundManager').then(mod => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                FSM?.unlock?.();
-             }).catch(() => {});
-        }, 0);
+      setTimeout(() => {
+        FantasySoundManager.unlock().catch(() => {});
+      }, 0);
     }
   }, [engineHandleNoteInput]);
   
@@ -688,7 +639,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const dynamicNoteWidth = Math.max(whiteKeyWidth - 2, 16); // 最小16px
       
         renderer.updateSettings({
-          noteNameStyle: 'abc',
+          noteNameStyle: keyboardNoteNameStyle,
           simpleDisplayMode: true, // シンプル表示モードを有効
           pianoHeight: 120, // ファンタジーモード用に大幅に縮小
           noteHeight: 16, // 音符の高さも縮小
@@ -709,22 +660,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // キーボードのクリックイベントを接続
       devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
+      // 🚀 パフォーマンス最適化: 動的インポートを削除
       renderer.setKeyCallbacks(
         (note: number) => {
           devLog.debug('🎹 Fantasy mode key press:', note);
           handleNoteInputBridge(note, 'mouse'); // マウスクリックとして扱う
         },
-        async (note: number) => {
+        (note: number) => {
           devLog.debug('🎹 Fantasy mode key release:', note);
-          // マウスリリース時に音を止める
-          try {
-            const { stopNote } = await import('@/utils/MidiController');
-            stopNote(note);
-            activeNotesRef.current.delete(note);
-            devLog.debug('🎵 Stopped note via release:', note);
-          } catch (error) {
-            console.error('Failed to stop note:', error);
-          }
+          // マウスリリース時に音を止める（静的インポート済み）
+          stopNote(note);
+          activeNotesRef.current.delete(note);
+          devLog.debug('🎵 Stopped note via release:', note);
         }
       );
       devLog.debug('✅ Key callbacks set successfully');
@@ -743,10 +690,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         totalWhiteKeys,
         whiteKeyWidth: whiteKeyWidth.toFixed(2),
         noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: effectiveShowGuide
+        showGuide: effectiveShowGuide,
+        keyboardNoteNameStyle
       });
     }
-  }, [handleNoteInputBridge, effectiveShowGuide]);
+  }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -756,15 +704,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     instance.updateTaikoMode(gameState.isTaikoMode);
     isTaikoModeRef.current = gameState.isTaikoMode;
   }, [gameState.isTaikoMode]);
+
+  // 鍵盤上の音名表示設定変更時にレンダラーを更新
+  useEffect(() => {
+    if (pixiRenderer) {
+      pixiRenderer.updateSettings({
+        noteNameStyle: keyboardNoteNameStyle
+      });
+      devLog.debug('🎹 鍵盤上の音名表示設定を更新:', keyboardNoteNameStyle);
+    }
+  }, [keyboardNoteNameStyle, pixiRenderer]);
   
-  // 魔法名表示ハンドラー
-  const handleShowMagicName = useCallback((name: string, isSpecial: boolean, monsterId: string) => {
-    setMagicName({ monsterId, name, isSpecial });
-    // 500ms後に自動的に非表示
-    setTimeout(() => {
-      setMagicName(null);
-    }, 500);
-  }, []);
+  // 魔法名表示ハンドラー - 削除（パフォーマンス改善のため）
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
@@ -889,62 +840,64 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
+      // awaitingLoopStart状態の場合は、次ループ開始を待っている状態
+      // この場合、現在ループのノーツは全て消化済みなので表示しない
+      const isAwaitingLoop = gameState.awaitingLoopStart;
+      
       // 通常のノーツ（現在ループのみ表示）
-      gameState.taikoNotes.forEach((note, index) => {
-        // 2週目以降は全てのノーツを表示対象とする
-        const loopCount = Math.floor(currentTime / loopDuration);
+      if (!isAwaitingLoop) {
+        gameState.taikoNotes.forEach((note, index) => {
+          // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
+          if (note.isHit) return;
 
-        // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
-        if (note.isHit) return;
+          // 既にこのループで消化済みのインデックスは表示しない（復活防止）
+          if (index < gameState.currentNoteIndex) return;
 
-        // 既にこのループで消化済みのインデックスは表示しない（復活防止）
-        if (index < gameState.currentNoteIndex) return;
+          // 現在ループ基準の時間差
+          const timeUntilHit = note.hitTime - normalizedTime;
 
-        // 現在ループ基準の時間差
-        const timeUntilHit = note.hitTime - normalizedTime;
+          // 判定ライン左側も少しだけ表示
+          const lowerBound = -0.35;
 
-        // 判定ライン左側も少しだけ表示
-        const lowerBound = -0.35;
-
-        // 表示範囲内のノーツ（現在ループのみ）
-        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: note.id,
-            chord: note.chord.displayName,
-            x
-          });
-        }
-      });
+          // 表示範囲内のノーツ（現在ループのみ）
+          if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+            notesToDisplay.push({
+              id: note.id,
+              chord: note.chord.displayName,
+              x
+            });
+          }
+        });
+      }
       
       // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
       
-      // 直前に消化したノーツのインデックス（復活させない）
-      const lastCompletedIndex = gameState.taikoNotes.length > 0
-        ? (gameState.currentNoteIndex - 1 + gameState.taikoNotes.length) % gameState.taikoNotes.length
-        : -1;
-      
-      // ループ対応：次ループは「2小節分だけ」先読みし、判定ライン右側のみ表示
+      // 次ループのプレビュー表示
+      // ループ境界までの時間を計算
       const timeToLoop = loopDuration - normalizedTime;
-      if (timeToLoop < previewWindow && gameState.taikoNotes.length > 0) {
+      
+      // 次ループのノーツを先読み表示する条件:
+      // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
+      // 2. ループ境界が近い（lookAheadTime以内）
+      const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
+      
+      if (shouldShowNextLoopPreview && gameState.taikoNotes.length > 0) {
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
 
-          // 直前に消化したノーツはプレビューで復活させない
-          if (i === lastCompletedIndex) continue;
-          // 現在判定中のノーツは次ループ分としては表示しない
-          if (i === gameState.currentNoteIndex) continue;
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
+          // 次ループの仮想的なヒット時間を計算
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
           // 現在より過去とみなせるものは描画しない
           if (timeUntilHit <= 0) continue;
-          // 2小節分だけに制限
-          if (timeUntilHit > previewWindow) break;
+          // lookAheadTime先までを表示（プレビュー範囲を拡大）
+          if (timeUntilHit > lookAheadTime) break;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
@@ -1020,21 +973,37 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    const targetMonster = gameState.activeMonsters?.[0];
-    const chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    
+    // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
+    let chord;
+    if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
+      const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
+      chord = currentNote?.chord;
+    } else {
+      // 通常モード: activeMonsters または currentChordTarget を参照
+      const targetMonster = gameState.activeMonsters?.[0];
+      chord = targetMonster?.chordTarget || gameState.currentChordTarget;
+    }
+    
     if (!chord) {
       setGuideMidi([]);
       return;
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
+  // ※モンスターが複数いる場合は非表示にする
   useEffect(() => {
     if (!pixiRenderer) return;
     // Singleモードでのみ有効
     if (stage.mode !== 'single') {
+      (pixiRenderer as any).clearCorrectHighlights?.();
+      return;
+    }
+    // モンスターが複数いる場合は正解ハイライトを非表示
+    if (gameState.simultaneousMonsterCount > 1) {
       (pixiRenderer as any).clearCorrectHighlights?.();
       return;
     }
@@ -1060,7 +1029,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     
     (pixiRenderer as any).setCorrectHighlightsByMidiNotes?.(correctMidiNotes);
-  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget]);
+  }, [pixiRenderer, stage.mode, gameState.activeMonsters, gameState.currentChordTarget, gameState.simultaneousMonsterCount]);
 
   // 問題が変わったら正解済みハイライトをリセット
   useEffect(() => {
@@ -1321,7 +1290,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               enemyGauge={(isDailyChallenge || playMode === 'practice') ? 0 : gameState.enemyGauge}
               onReady={handleFantasyPixiReady}
               onMonsterDefeated={handleMonsterDefeated}
-              onShowMagicName={handleShowMagicName}
               className="w-full h-full"
               activeMonsters={gameState.activeMonsters}
               imageTexturesRef={imageTexturesRef}
@@ -1331,9 +1299,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* モンスターの UI オーバーレイ */}
           <div className="mt-2">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
-              // ★★★ 修正点: flexboxで中央揃え、gap-0で隣接 ★★★
+              // ★★★ 修正点: 絶対配置でPIXIレンダラーと同じx座標に配置 ★★★
               <div
-                className="flex justify-center items-start w-full mx-auto gap-0"
+                className="relative w-full mx-auto"
                 style={{
                   // スマホ横画面ではUIエリアを圧縮
                   height: (window.innerWidth > window.innerHeight && window.innerWidth < 900)
@@ -1343,62 +1311,73 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               >
                 {gameState.activeMonsters
                   .sort((a, b) => a.position.localeCompare(b.position)) // 'A', 'B', 'C', 'D', 'E', 'F', 'G', 'H'順でソート
-                  .map((monster) => {
+                  .map((monster, index) => {
                     // モンスター数に応じて幅を動的に計算
                     const monsterCount = gameState.activeMonsters.length;
-                    let widthPercent: string;
-                    let maxWidth: string;
+                    
+                    // PIXIレンダラーと同じ計算でx座標を算出
+                    const spacing = monsterAreaWidth / (monsterCount + 1);
+                    const xPosition = spacing * (index + 1);
                     
                     // モバイル判定（768px未満）
                     const isMobile = window.innerWidth < 768;
                     
+                    // 各アイテムの幅を計算
+                    let itemWidth: number;
                     if (isMobile) {
-                      // モバイルの場合
                       if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '120px';
+                        itemWidth = Math.min(120, monsterAreaWidth * 0.3);
                       } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '80px';
+                        itemWidth = Math.min(80, monsterAreaWidth * 0.18);
                       } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '60px';
+                        itemWidth = Math.min(60, monsterAreaWidth * 0.12);
                       }
                     } else {
-                      // デスクトップの場合
                       if (monsterCount <= 3) {
-                        widthPercent = '30%';
-                        maxWidth = '220px';
+                        itemWidth = Math.min(220, monsterAreaWidth * 0.3);
                       } else if (monsterCount <= 5) {
-                        widthPercent = '18%';
-                        maxWidth = '150px';
+                        itemWidth = Math.min(150, monsterAreaWidth * 0.18);
                       } else {
-                        // 6体以上
-                        widthPercent = '12%';
-                        maxWidth = '120px';
+                        itemWidth = Math.min(120, monsterAreaWidth * 0.12);
                       }
                     }
                     
                     return (
                       <div 
                         key={monster.id}
-                        // ★★★ 修正点: flexアイテムとして定義、幅を設定 ★★★
-                        className="flex-shrink-0 flex flex-col items-center"
-                        style={{ width: widthPercent, maxWidth }} // 動的に幅を設定
+                        // ★★★ 修正点: 絶対配置でx座標を指定 ★★★
+                        className="absolute flex flex-col items-center"
+                        style={{ 
+                          left: `${xPosition}px`, 
+                          transform: 'translateX(-50%)',
+                          width: `${itemWidth}px`
+                        }}
                       >
                       {/* 太鼓の達人モードでは敵の下に何も表示しない */}
                       {!gameState.isTaikoMode && (
                         <>
                           {/* 通常モードの表示 */}
-                          <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                            monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                          }`}>
-                            {monster.chordTarget.displayName}
-                          </div>
+                          {/* 楽譜モード: 挑戦モードでは非表示、練習モードではオクターブなしで表示 */}
+                          {stage.isSheetMusicMode ? (
+                            playMode === 'practice' ? (
+                              <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                                monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                              }`}>
+                                {/* オクターブを除去して表示 (例: "A#3" → "A#") */}
+                                {monster.chordTarget.displayName.replace(/\d+$/, '')}
+                              </div>
+                            ) : null /* 挑戦モードでは音名を非表示 */
+                          ) : (
+                            /* 通常コードモードの表示 */
+                            <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
+                              monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
+                            }`}>
+                              {monster.chordTarget.displayName}
+                            </div>
+                          )}
                           
-                          {/* ヒント表示 */}
-                          {!isDailyChallenge && (
+                          {/* ヒント表示（楽譜モードでは非表示 - 単音なのでヒント不要） */}
+                          {!isDailyChallenge && !stage.isSheetMusicMode && (
                             <div className={`mt-1 font-medium h-6 text-center ${
                               monsterCount > 5 ? 'text-xs' : 'text-sm'
                             }`}>
@@ -1441,18 +1420,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         </>
                       )}
                       
-                      {/* 魔法名表示 */}
-                      {magicName && magicName.monsterId === monster.id && (
-                        <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 z-20 pointer-events-none">
-                          {/* ▼▼▼ 変更点 ▼▼▼ */}
-                          <div className={`font-bold font-sans drop-shadow-[0_2px_4px_rgba(0,0,0,0.8)] opacity-75 text-sm ${
-                            magicName.isSpecial ? 'text-yellow-300' : 'text-white'
-                          }`}>
-                          {/* ▲▲▲ ここまで ▲▲▲ */}
-                            {magicName.name}
-                          </div>
-                        </div>
-                      )}
+                      {/* 魔法名表示 - 削除（パフォーマンス改善のため） */}
                       
                       {/* 行動ゲージ (singleモードのみ表示) */}
                       {!isDailyChallenge && playMode !== 'practice' && stage.mode === 'single' && (
@@ -1647,40 +1615,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setCurrentNoteNameLang(newSettings.noteNameLang);
           setCurrentSimpleNoteName(newSettings.simpleNoteName);
           
+          // 鍵盤上の音名表示設定が変更されたら更新
+          if (newSettings.keyboardNoteNameStyle !== undefined) {
+            setKeyboardNoteNameStyle(newSettings.keyboardNoteNameStyle);
+          }
+          
           // 鍵盤ガイド表示設定が変更されたら更新（デイリーチャレンジの練習モード時のみ）
           if (newSettings.showKeyboardGuide !== undefined) {
             setShowKeyboardGuide(newSettings.showKeyboardGuide);
           }
           
-          // ★★★ 音量更新処理を追加 ★★★
+          // 🚀 パフォーマンス最適化: 動的インポートを削除
           // ピアノ音量設定が変更されたら、グローバル音量を更新
           if (newSettings.volume !== undefined) {
             // gameStoreの音量設定も更新
             updateSettings({ midiVolume: newSettings.volume });
-            
-            // グローバル音量を更新
-            import('@/utils/MidiController').then(({ updateGlobalVolume }) => {
-              updateGlobalVolume(newSettings.volume);
-              devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
-            }).catch(error => {
-              console.error('MidiController import failed:', error);
-            });
+            // グローバル音量を更新（静的インポート済み）
+            updateGlobalVolume(newSettings.volume);
+            devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
           }
           
           // 効果音音量設定が変更されたら、gameStoreを更新
           if (newSettings.soundEffectVolume !== undefined) {
             updateSettings({ soundEffectVolume: newSettings.soundEffectVolume });
             devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${newSettings.soundEffectVolume}`);
-            
-            // FantasySoundManagerの音量も即座に更新
-            import('@/utils/FantasySoundManager')
-              .then((mod) => {
-                const FSM = (mod as any).FantasySoundManager ?? mod.default;
-                FSM?.setVolume(newSettings.soundEffectVolume);
-              })
-              .catch(error => {
-                console.error('Failed to update FantasySoundManager volume:', error);
-              });
+            // FantasySoundManagerの音量も即座に更新（静的インポート済み）
+            FantasySoundManager.setVolume(newSettings.soundEffectVolume);
           }
         }}
         // gameStoreの値を渡す
@@ -1690,6 +1650,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         bgmVolume={settings.bgmVolume} // gameStoreのBGM音量を渡す
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
+        keyboardNoteNameStyle={keyboardNoteNameStyle}
         // gameStoreを更新するコールバックを渡す
         onMidiDeviceChange={(deviceId) => updateSettings({ selectedMidiDevice: deviceId })}
         isMidiConnected={isMidiConnected}

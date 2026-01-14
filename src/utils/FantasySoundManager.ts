@@ -328,16 +328,18 @@ export class FantasySoundManager {
     }
   }
 
-  // ベース音関連のprivateメソッド
+  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド
   private async _playRootNote(rootName: string) {
-    // 先に初期化の完了を待つ（未完了だと bassSampler が null で早期 return してしまう）
-    if (this.loadedPromise) {
+    // 初期化完了済みの場合は待機をスキップ（高速化）
+    if (!this.isInited && this.loadedPromise) {
       await this.loadedPromise;
     }
 
     if (!this.bassEnabled || !this.bassSampler) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
+    if (!Tone) return; // Tone.js未ロードの場合は早期リターン
+    
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     

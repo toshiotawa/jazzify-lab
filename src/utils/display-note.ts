@@ -41,14 +41,17 @@ const SOLFEGE_MAP: Record<string, string> = {
 
 /**
  * 簡易化マッピング（ダブルシャープ・フラット → 基本音名）
+ * ★注: tonalは##形式で返すため、両方の形式をサポート
  */
 const SIMPLIFY_MAP: Record<string, string> = {
   // 異名同音（白鍵）
   'B#': 'C', 'E#': 'F', 'Cb': 'B', 'Fb': 'E',
   
-  // ダブルシャープ → 基本音名
+  // ダブルシャープ → 基本音名（x形式と##形式の両方をサポート）
   'Cx': 'D', 'Dx': 'E', 'Ex': 'F#', 'Fx': 'G',
   'Gx': 'A', 'Ax': 'B', 'Bx': 'C#',
+  'C##': 'D', 'D##': 'E', 'E##': 'F#', 'F##': 'G',
+  'G##': 'A', 'A##': 'B', 'B##': 'C#',
   
   // ダブルフラット → 基本音名
   'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb',
@@ -73,13 +76,13 @@ export function toDisplayName(noteName: string, opts: DisplayOpts): string {
   let displayName = parsed.name;
   
   // 簡易表記が有効な場合
+  // ★修正: ダブルシャープ・ダブルフラット、理論的異名同音（B#, Cb, E#, Fb）のみを簡易化
+  // 一般的なフラット系（Eb, Bb など）はそのまま保持して音楽理論的正確性を維持
   if (opts.simple && parsed.alt !== 0) {
-    // シャープ・フラットが1つでも付いていれば簡易化を試みる
-    const enharmonicNote = Note.enharmonic(displayName);
-    if (enharmonicNote && enharmonicNote !== displayName) {
-      displayName = enharmonicNote;
-    } else if (SIMPLIFY_MAP[displayName]) {
-      // フォールバック: 手動マッピング
+    // ダブルシャープ・ダブルフラット（alt >= 2 or <= -2）または
+    // 理論的異名同音（B#, Cb, E#, Fb）の場合のみ簡易化
+    const needsSimplification = Math.abs(parsed.alt) >= 2 || SIMPLIFY_MAP[displayName];
+    if (needsSimplification && SIMPLIFY_MAP[displayName]) {
       displayName = SIMPLIFY_MAP[displayName];
     }
   }

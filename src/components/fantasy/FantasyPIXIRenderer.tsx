@@ -10,7 +10,6 @@ interface FantasyPIXIRendererProps {
   enemyGauge: number;
   onReady?: (instance: FantasyPIXIInstance) => void;
   onMonsterDefeated?: () => void;
-  onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
   className?: string;
   activeMonsters?: MonsterState[];
   imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>;
@@ -53,11 +52,9 @@ interface MonsterVisual {
   defeatedAt?: number; // 撃破アニメ開始時刻
   enraged: boolean;
   enrageScale: number;
-  magicText?: {
-    value: string;
-    isSpecial: boolean;
-    until: number;
-  };
+  floatPhase: number; // 浮遊アニメーションの初期位相（ランダム）
+  floatAmplitude: number; // 浮遊アニメーションの振幅（ランダム）
+  floatSpeed: number; // 浮遊アニメーションの速度（ランダム）
   damagePopup?: DamagePopup;
 }
 
@@ -96,7 +93,6 @@ export class FantasyPIXIInstance {
   private imageCache = new Map<string, HTMLImageElement>();
   private loadingImages = new Set<string>();
   private onMonsterDefeated?: () => void;
-  private onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void;
   
   // 必殺技エフェクト用
   private specialAttackEffect: {
@@ -120,7 +116,6 @@ export class FantasyPIXIInstance {
     width: number,
     height: number,
     onMonsterDefeated?: () => void,
-    onShowMagicName?: (magicName: string, isSpecial: boolean, monsterId: string) => void,
     imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>
   ) {
     this.canvas = canvas;
@@ -135,7 +130,6 @@ export class FantasyPIXIInstance {
     this.defaultMonsterIcon = '';
     this.imageTexturesRef = imageTexturesRef;
     this.onMonsterDefeated = onMonsterDefeated;
-    this.onShowMagicName = onShowMagicName;
     this.configureCanvasSize(width, height);
     
     // 怒り状態を購読
@@ -180,7 +174,10 @@ export class FantasyPIXIInstance {
         defeatedAt: existing?.defeatedAt,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
-        magicText: existing?.magicText,
+        // 浮遊アニメーションのランダムパラメータ（既存値を維持）
+        floatPhase: existing?.floatPhase ?? Math.random() * Math.PI * 2,
+        floatAmplitude: existing?.floatAmplitude ?? 3 + Math.random() * 4, // 3〜7pxの範囲
+        floatSpeed: existing?.floatSpeed ?? 0.0015 + Math.random() * 0.001, // 速度に変化を持たせる
         damagePopup: existing?.damagePopup
       });
     });
@@ -240,7 +237,7 @@ export class FantasyPIXIInstance {
 
   triggerAttackSuccessOnMonster(
     monsterId: string,
-    chordName: string | undefined,
+    _chordName: string | undefined,
     isSpecial: boolean,
     damageDealt: number,
     defeated: boolean
@@ -250,24 +247,15 @@ export class FantasyPIXIInstance {
       visual.flashUntil = performance.now() + 250;
       visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
-      // ダメージポップアップを追加（モンスターの上部から開始、より長く表示）
+      // ダメージポップアップを追加（モンスターの少し上から開始、より長く表示）
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
-        y: visual.y - 80, // より上から開始
+        y: visual.y - 30, // モンスターの少し上から開始（以前より下げた）
         value: damageDealt,
         start: performance.now(),
         duration: 1800 // 1.8秒間表示（視認性向上）
       });
-      
-      if (chordName) {
-        visual.magicText = {
-          value: chordName,
-          isSpecial,
-          until: performance.now() + 1500
-        };
-        this.onShowMagicName?.(chordName, isSpecial, monsterId);
-      }
       
       // 必殺技エフェクト
       if (isSpecial) {
@@ -289,7 +277,7 @@ export class FantasyPIXIInstance {
     this.specialAttackEffect = {
       active: true,
       start: performance.now(),
-      duration: 1500,
+      duration: 700, // 1500msから700msに短縮（暗転時間を短く）
       text: 'Swing! Swing! Swing!'
     };
   }
@@ -341,7 +329,9 @@ export class FantasyPIXIInstance {
     const now = performance.now();
     
     // 🚀 アニメーションがアクティブかどうかを判定
+    // モンスターが存在する場合はアイドルアニメーション（上下浮遊）のため常にアクティブ
     const hasActiveAnimations = 
+      this.monsters.length > 0 || // モンスターが存在すればアイドルアニメーションが必要
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.specialAttackEffect?.active ||
@@ -413,7 +403,11 @@ export class FantasyPIXIInstance {
           hitBounceUntil: 0,
           defeated: false,
           enraged: false,
-          enrageScale: 1
+          enrageScale: 1,
+          floatPhase: Math.random() * Math.PI * 2,
+          floatAmplitude: 3 + Math.random() * 4,
+          floatSpeed: 0.0015 + Math.random() * 0.001,
+          damagePopup: undefined
         }
       ];
     }
@@ -442,8 +436,8 @@ export class FantasyPIXIInstance {
       
       // Y位置（中央より少し上）
       const baseY = this.height * 0.45;
-      // アイドルアニメーション（上下の浮遊）
-      const floatOffset = Math.sin(now * 0.002 + monster.id.charCodeAt(0)) * 4;
+      // アイドルアニメーション（上下の浮遊）- 各モンスターごとにランダムな位相・振幅・速度
+      const floatOffset = Math.sin(now * monster.floatSpeed + monster.floatPhase) * monster.floatAmplitude;
       
       // 攻撃成功時のバウンスアニメーション（上に跳ねる）
       let bounceOffset = 0;
@@ -694,14 +688,14 @@ export class FantasyPIXIInstance {
       ctx.fillRect(0, 0, this.width, this.height);
     }
     
-    // フェーズ2: テキスト表示 (0.1-0.9)
-    if (progress > 0.1 && progress < 0.9) {
-      const textProgress = (progress - 0.1) / 0.8;
-      const textAlpha = textProgress < 0.2 ? textProgress / 0.2 : 
-                        textProgress > 0.8 ? (1 - textProgress) / 0.2 : 1;
+    // フェーズ2: テキスト表示 (0.1-0.85) - 暗転時間を短縮
+    if (progress > 0.1 && progress < 0.85) {
+      const textProgress = (progress - 0.1) / 0.75;
+      const textAlpha = textProgress < 0.15 ? textProgress / 0.15 : 
+                        textProgress > 0.85 ? (1 - textProgress) / 0.15 : 1;
       
-      // 背景の暗転
-      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.5})`;
+      // 背景の暗転（より軽く）
+      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.35})`;
       ctx.fillRect(0, 0, this.width, this.height);
       
       // テキスト
@@ -777,7 +771,25 @@ export class FantasyPIXIInstance {
     img.onerror = () => {
       this.loadingImages.delete(icon);
     };
-    // WebP優先、フォールバックでPNG
+    
+    // 楽譜モード用の画像パスを処理
+    // フォーマット: sheet_music_{clef}_{noteName} (例: sheet_music_treble_A#3)
+    if (icon.startsWith('sheet_music_')) {
+      const parts = icon.split('_');
+      // parts: ['sheet', 'music', 'treble', 'A#3']
+      if (parts.length >= 4) {
+        const clef = parts[2]; // 'treble' or 'bass'
+        const noteName = parts.slice(3).join('_'); // 音名（'A#3'など）
+        // ファイル名では # を sharp に変換（Netlifyでは#を含むファイル名は使えない）
+        const safeNoteName = noteName.replace(/#/g, 'sharp');
+        // 画像パス: /notes_images/{clef}/{clef}_{noteName}.png
+        const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNoteName}.png`;
+        img.src = pngPath;
+        return null;
+      }
+    }
+    
+    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
     const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
     const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
     
@@ -800,7 +812,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   monsterIcon,
   onReady,
   onMonsterDefeated,
-  onShowMagicName,
   className,
   activeMonsters,
   imageTexturesRef
@@ -816,7 +827,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       width,
       height,
       onMonsterDefeated,
-      onShowMagicName,
       imageTexturesRef
     );
     rendererRef.current = renderer;
@@ -825,7 +835,7 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       renderer.destroy();
       rendererRef.current = null;
     };
-  }, [onReady, onMonsterDefeated, onShowMagicName, imageTexturesRef]);
+  }, [onReady, onMonsterDefeated, imageTexturesRef]);
 
   useEffect(() => {
     rendererRef.current?.resize(width, height);

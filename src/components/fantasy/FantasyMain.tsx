@@ -149,7 +149,8 @@ const FantasyMain: React.FC = () => {
             countInMeasures: (stage as any).count_in_measures,
             timeSignature: (stage as any).time_signature,
             noteIntervalBeats: (stage as any).note_interval_beats,
-            playRootOnCorrect: (stage as any).play_root_on_correct ?? true
+            playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
+            isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -195,7 +196,8 @@ const FantasyMain: React.FC = () => {
           countInMeasures: (stage as any).count_in_measures,
           timeSignature: (stage as any).time_signature,
           noteIntervalBeats: (stage as any).note_interval_beats,
-          playRootOnCorrect: (stage as any).play_root_on_correct ?? true
+          playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
+          isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -470,6 +472,8 @@ const FantasyMain: React.FC = () => {
         // ステージ設定のルート音
         playRootOnCorrect: (nextStageData as any).play_root_on_correct ?? true,
         tier: (nextStageData as any).stage_tier || 'basic',
+        // 楽譜モード
+        isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
       };
 
       setGameResult(null);

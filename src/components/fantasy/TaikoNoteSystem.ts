@@ -5,6 +5,142 @@
 
 import { ChordDefinition } from './FantasyGameEngine';
 
+// ===== 袋形式ランダムセレクター =====
+
+/**
+ * 袋形式（Bag Random / Shuffle Random）セレクター
+ * 全てのアイテムが均等に出現することを保証する
+ * 
+ * 動作原理：
+ * 1. 全アイテムを袋に入れてシャッフル
+ * 2. 袋から順番に取り出す
+ * 3. 袋が空になったら補充してシャッフル
+ * 
+ * これにより、短期間での偏りを防ぎ、全選択肢が均等に出現する
+ */
+export class BagRandomSelector<T> {
+  private bag: T[] = [];
+  private pool: T[];
+  private getKey: (item: T) => string;
+  private lastKey: string = '';
+
+  /**
+   * @param items 選択対象のアイテム配列
+   * @param getKey アイテムから一意のキーを取得する関数（重複回避に使用）
+   */
+  constructor(items: T[], getKey?: (item: T) => string) {
+    this.pool = [...items];
+    this.getKey = getKey || ((item: T) => String(item));
+    this.refillBag();
+  }
+
+  /**
+   * 袋を補充してシャッフル（Fisher-Yatesアルゴリズム）
+   */
+  private refillBag(): void {
+    this.bag = [...this.pool];
+    // Fisher-Yates シャッフル
+    for (let i = this.bag.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [this.bag[i], this.bag[j]] = [this.bag[j], this.bag[i]];
+    }
+  }
+
+  /**
+   * 次のアイテムを取得
+   * 直前と同じアイテムは可能な限り避ける
+   * @param avoidKey 避けたいアイテムのキー（省略時は直前のアイテムを避ける）
+   */
+  next(avoidKey?: string): T {
+    if (this.bag.length === 0) {
+      this.refillBag();
+    }
+
+    const keyToAvoid = avoidKey ?? this.lastKey;
+    
+    // 直前と同じアイテムを避ける
+    if (this.pool.length > 1 && this.bag.length > 0) {
+      const topKey = this.getKey(this.bag[this.bag.length - 1]);
+      if (topKey === keyToAvoid) {
+        // 袋の残りから別のアイテムを探す
+        for (let i = this.bag.length - 2; i >= 0; i--) {
+          if (this.getKey(this.bag[i]) !== keyToAvoid) {
+            // 見つかったアイテムを末尾と交換
+            [this.bag[i], this.bag[this.bag.length - 1]] = [this.bag[this.bag.length - 1], this.bag[i]];
+            break;
+          }
+        }
+      }
+    }
+
+    const item = this.bag.pop()!;
+    this.lastKey = this.getKey(item);
+    return item;
+  }
+
+  /**
+   * 同時に複数のアイテムを取得（敵の同時出現用）
+   * @param count 取得する数
+   * @param avoidDuplicates 重複を避けるか（コード種類が足りない場合は無視）
+   */
+  nextMultiple(count: number, avoidDuplicates: boolean = true): T[] {
+    const results: T[] = [];
+    const usedKeys = new Set<string>();
+    
+    for (let i = 0; i < count; i++) {
+      if (this.bag.length === 0) {
+        this.refillBag();
+      }
+      
+      let item: T | null = null;
+      
+      if (avoidDuplicates && usedKeys.size < this.pool.length) {
+        // 重複を避ける（可能な範囲で）
+        // 袋から未使用のアイテムを探す
+        for (let j = this.bag.length - 1; j >= 0; j--) {
+          const key = this.getKey(this.bag[j]);
+          if (!usedKeys.has(key)) {
+            // 見つかったアイテムを末尾と交換して取り出す
+            [this.bag[j], this.bag[this.bag.length - 1]] = [this.bag[this.bag.length - 1], this.bag[j]];
+            item = this.bag.pop()!;
+            break;
+          }
+        }
+        
+        // 袋内に未使用のアイテムがなければ補充
+        if (item === null) {
+          this.refillBag();
+          item = this.bag.pop()!;
+        }
+      } else {
+        // 重複を許可する場合（コード種類 < 同時出現数の場合など）
+        item = this.bag.pop()!;
+      }
+      
+      usedKeys.add(this.getKey(item));
+      results.push(item);
+      this.lastKey = this.getKey(item);
+    }
+    
+    return results;
+  }
+
+  /**
+   * 袋をリセット（新しいゲーム開始時などに使用）
+   */
+  reset(): void {
+    this.lastKey = '';
+    this.refillBag();
+  }
+
+  /**
+   * 残りのアイテム数を取得
+   */
+  get remaining(): number {
+    return this.bag.length;
+  }
+}
+
 // ノーツの型定義
 export interface TaikoNote {
   id: string;
@@ -165,7 +301,8 @@ export function generateBasicProgressionNotes(
 }
 
 /**
- * ランダムプログレッション用：各小節ごとにランダムでコードを決定（直前と同じコードは禁止）
+ * ランダムプログレッション用：袋形式ランダムでコードを決定
+ * 全コードが均等に出現することを保証する
  * @param chordPool 選択可能なコードのプール（allowedChords or chordProgression）
  * @param measureCount 総小節数
  * @param bpm BPM
@@ -191,25 +328,16 @@ export function generateRandomProgressionNotes(
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  const safeRandom = () => Math.floor(Math.random() * chordPool.length);
 
-  let lastChordId = '';
+  // 袋形式ランダムセレクターを使用
+  const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
+  const bagSelector = new BagRandomSelector(chordPool, specToId);
 
   // 各小節に対して intervalBeats おきに配置（1拍目から）
   for (let measure = 1; measure <= measureCount; measure++) {
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
-      // 直前と同じコードは避ける
-      let nextSpec = chordPool[safeRandom()];
-      const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
-      if (chordPool.length > 1) {
-        let guard = 0;
-        while (specToId(nextSpec) === lastChordId && guard < 10) {
-          nextSpec = chordPool[safeRandom()];
-          guard++;
-        }
-      }
-      lastChordId = specToId(nextSpec);
-
+      // 袋形式で次のコードを取得（直前と同じコードは自動的に避けられる）
+      const nextSpec = bagSelector.next();
       const chord = getChordDefinition(nextSpec);
       if (!chord) continue;
 
