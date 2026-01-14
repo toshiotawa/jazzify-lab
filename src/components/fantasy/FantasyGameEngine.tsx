@@ -1001,25 +1001,38 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // モンスター画像をプリロード（練習は無限のため、初回バッチのみ）
-    try {
-      const textureMap = imageTexturesRef.current;
-      textureMap.clear();
-      
-      // 楽譜モードの場合は楽譜画像をプリロード
-      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
-        const noteNames = stage.allowedChords.map(chord => 
-          typeof chord === 'string' ? chord : (chord as any).chord || chord
-        ).filter(Boolean);
-        await preloadSheetMusicImages(noteNames, textureMap);
-        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-      } else {
-        await preloadMonsterImages(monsterIds, textureMap);
-        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
+    // 🚀 パフォーマンス最適化: モンスター画像をバックグラウンドでプリロード（ゲーム開始をブロックしない）
+    const textureMap = imageTexturesRef.current;
+    // クリアせずに既存のキャッシュを活用
+    
+    // 非同期でバックグラウンド読み込み（awaitしない）
+    (async () => {
+      try {
+        // 楽譜モードの場合は楽譜画像をプリロード
+        if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+          const noteNames = stage.allowedChords.map(chord => 
+            typeof chord === 'string' ? chord : (chord as any).chord || chord
+          ).filter(Boolean);
+          await preloadSheetMusicImages(noteNames, textureMap);
+          devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
+        } else {
+          // 最初の数体だけ優先ロード
+          const priorityIds = monsterIds.slice(0, Math.min(4, monsterIds.length));
+          await preloadMonsterImages(priorityIds, textureMap);
+          devLog.debug('✅ 優先モンスター画像プリロード完了:', { count: priorityIds.length });
+          
+          // 残りをバックグラウンドで読み込み
+          if (monsterIds.length > 4) {
+            const remainingIds = monsterIds.slice(4);
+            preloadMonsterImages(remainingIds, textureMap).then(() => {
+              devLog.debug('✅ 残りモンスター画像プリロード完了:', { count: remainingIds.length });
+            }).catch(() => {});
+          }
+        }
+      } catch (error) {
+        devLog.debug('⚠️ 画像プリロード失敗（続行）:', error);
       }
-    } catch (error) {
-      devLog.error('❌ 画像プリロード失敗:', error);
-    }
+    })();
 
     // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼
     // single/progression_random モードで使用する袋形式セレクターを作成

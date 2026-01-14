@@ -224,28 +224,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // 初期化
-      controller.initialize().then(async () => {
+      // 🚀 パフォーマンス最適化: 初期化を並列化（ゲーム開始をブロックしない）
+      controller.initialize().then(() => {
         devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
         
-        // 🚀 パフォーマンス最適化: 動的インポートを削除、直接呼び出し
-        try {
-          // 音声システムを初期化
-          await initializeAudioSystem();
-          updateGlobalVolume(0.8); // デフォルト80%音量
-          devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
-          
-          // FantasySoundManagerの初期化（静的インポート済み）
-          await FantasySoundManager.init(
+        // 音声システムとFantasySoundManagerを並列初期化
+        Promise.all([
+          // 音声システム初期化
+          initializeAudioSystem().then(() => {
+            updateGlobalVolume(0.8);
+            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+          }),
+          // FantasySoundManagerの初期化（バックグラウンド、awaitしない）
+          FantasySoundManager.init(
             settings.soundEffectVolume ?? 0.8,
             settings.rootSoundVolume ?? 0.5,
             stage?.playRootOnCorrect !== false
-          );
-          FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-          devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-        } catch (error) {
+          ).then(() => {
+            FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+            devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+          })
+        ]).catch(error => {
           console.error('Audio system initialization failed:', error);
-        }
+        });
         
         // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
         // 接続処理は下のuseEffectに任せる。

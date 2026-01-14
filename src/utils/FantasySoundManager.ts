@@ -82,11 +82,12 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
-  private bassSampler: any | null = null;
+  // ベース音関連フィールド - 合成音を使用（高速起動）
+  private bassSynth: any | null = null;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
+  private bassInitialized = false; // 合成音は即座に初期化完了
 
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
@@ -161,34 +162,51 @@ export class FantasySoundManager {
 
     // ロード完了Promiseを保存
     this.loadedPromise = Promise.all(promises).then(async () => {
-      // ─ BassSynth ─ - globalSamplerを上書きしない独自のsampler
+      // ─ BassSynth ─ 合成音を使用（外部ファイル不要で高速起動）
       await this._initializeAudioSystem();
 
-      // 低遅延SE用 Web Audio セットアップ + デコード
-      await this._setupSeContextAndBuffers(baseUrl);
+      // 低遅延SE用 Web Audio セットアップ + デコード（バックグラウンド）
+      this._setupSeContextAndBuffers(baseUrl).catch(e => 
+        console.warn('[FantasySoundManager] SE buffer setup failed:', e)
+      );
 
+      // 🚀 合成音ベースシンセサイザー（Salamanderの代わり）
+      // ネットワーク不要で即座に使用可能
       const Tone = window.Tone as unknown as typeof import('tone');
-      this.bassSampler = new Tone.Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
-        },
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
-      }).toDestination();
-      try { await Tone.loaded(); } catch (e) { console.warn('[FantasySoundManager] Tone.loaded failed or timed out for bassSampler:', e); }
+      if (Tone) {
+        try {
+          // ベース音用のシンプルなシンセサイザー
+          // 太くて暖かみのある音色設定
+          this.bassSynth = new Tone.MonoSynth({
+            oscillator: {
+              type: 'triangle'  // 柔らかい波形
+            },
+            envelope: {
+              attack: 0.02,    // 素早いアタック
+              decay: 0.3,      // 自然な減衰
+              sustain: 0.4,    // 適度な持続
+              release: 0.8     // なめらかなリリース
+            },
+            filterEnvelope: {
+              attack: 0.01,
+              decay: 0.2,
+              sustain: 0.5,
+              release: 0.5,
+              baseFrequency: 200,
+              octaves: 2
+            }
+          }).toDestination();
+          this.bassInitialized = true;
+          console.debug('[FantasySoundManager] BassSynth (synthetic) initialized');
+        } catch (e) {
+          console.warn('[FantasySoundManager] BassSynth creation failed:', e);
+        }
+      }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
       this.isInited = true;
-      console.debug('[FantasySoundManager] init complete');
+      console.debug('[FantasySoundManager] init complete (fast mode)');
       // 初期化完了後の状態をログ出力
       Object.entries(this.audioMap).forEach(([key, entry]) => {
         console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
@@ -332,14 +350,16 @@ export class FantasySoundManager {
     }
   }
 
-  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド
+  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド（合成音で高速再生）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
-      await this.loadedPromise;
+      // 最大100msだけ待機（それ以上は諦めて続行）
+      const timeout = new Promise(res => setTimeout(res, 100));
+      await Promise.race([this.loadedPromise, timeout]);
     }
 
-    if (!this.bassEnabled || !this.bassSampler) return;
+    if (!this.bassEnabled || !this.bassSynth) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
     if (!Tone) return; // Tone.js未ロードの場合は早期リターン
@@ -353,19 +373,27 @@ export class FantasySoundManager {
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
-    this.bassSampler.triggerAttackRelease(
-      note,
-      '8n',
-      t,
-      this.bassVolume // velocity 相当
-    );
+    
+    // 合成音で再生（サンプラーより低遅延）
+    try {
+      this.bassSynth.triggerAttackRelease(
+        note,
+        '8n',
+        t
+      );
+    } catch (e) {
+      console.debug('[FantasySoundManager] Root note playback error:', e);
+    }
   }
 
   private _setRootVolume(v: number) {
-    this.bassVolume = v;
-    if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
-        v === 0 ? -Infinity : Math.log10(v) * 20;
+    // 合成音の音量を調整（サンプラーより音量が大きくなりやすいので補正）
+    // 0.5 → -6dB 程度の補正で自然な音量に
+    this.bassVolume = Math.min(1, v * 1.2); // 少し音量を上げる
+    if (this.bassSynth) {
+      // dB変換 + 補正（合成音は少し控えめに）
+      const dbValue = v === 0 ? -Infinity : Math.log10(v) * 20 - 3;
+      (this.bassSynth.volume as any).value = dbValue;
     }
   }
 
