@@ -14,7 +14,7 @@ import {
 } from '@/platform/supabaseFantasyStages';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
-import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, SINGLE_NOTE_ROOTS_SOLFEGE } from '@/utils/chord-templates';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -145,6 +145,7 @@ const formatInterval = (interval: string): string => {
 
 // コードクオリティからコード表記のサフィックスを取得
 const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'note': '', // 単音（サフィックスなし）
   'maj': '',
   'min': 'm',
   'aug': 'aug',
@@ -814,6 +815,7 @@ const FantasyStageManager: React.FC = () => {
                   {CLICK_ADD_CHORD_TYPES.map((chordType) => (
                     <div key={chordType.label} className="space-y-1">
                       <div className="text-xs text-gray-400">{chordType.label}</div>
+                      {/* 英語音名 */}
                       <div className="flex flex-wrap gap-1">
                         {CLICK_ADD_ROOTS.map((root) => {
                           const chordName = `${root}${chordType.suffix}`;
@@ -834,6 +836,27 @@ const FantasyStageManager: React.FC = () => {
                           );
                         })}
                       </div>
+                      {/* 単音の場合はカタカナドレミ版も表示 */}
+                      {chordType.isNote && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {SINGLE_NOTE_ROOTS_SOLFEGE.map((solfege) => {
+                            return (
+                              <button
+                                key={`${chordType.label}-solfege-${solfege}`}
+                                type="button"
+                                className="btn btn-xs btn-outline hover:btn-secondary"
+                                onClick={() => {
+                                  // カタカナ音名をそのまま保存（ゲーム内でカタカナ表示される）
+                                  const spec = { chord: solfege, inversion: 0, octave: 4, type: 'note' as const };
+                                  appendAllowedChord(spec as any);
+                                }}
+                              >
+                                {solfege}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
