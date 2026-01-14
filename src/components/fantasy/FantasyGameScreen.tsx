@@ -453,6 +453,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   const handleGameCompleteCallback = useCallback((result: 'clear' | 'gameover', finalState: FantasyGameState) => {
     const text = result === 'clear' ? 'Stage Clear' : 'Game Over';
+    
+    // ステージクリア時はBGMを即座に停止し、クリア効果音を再生
+    if (result === 'clear') {
+      bgmManager.stop();
+      FantasySoundManager.playStageClear();
+    }
+    
     setOverlay({ text });                 // ★★★ add
     setTimeout(() => {
       setOverlay(null);                   // オーバーレイを消す

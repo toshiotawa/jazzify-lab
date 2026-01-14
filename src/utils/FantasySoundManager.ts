@@ -58,7 +58,8 @@ export class FantasySoundManager {
     fire:          { base: new Audio(), ready: false },
     ice:           { base: new Audio(), ready: false },
     thunder:       { base: new Audio(), ready: false },
-    my_attack:     { base: new Audio(), ready: false }
+    my_attack:     { base: new Audio(), ready: false },
+    stage_clear:   { base: new Audio(), ready: false }
   };
 
   /** Web Audio (SE用) */
@@ -70,6 +71,7 @@ export class FantasySoundManager {
     ice: null,
     thunder: null,
     my_attack: null,
+    stage_clear: null,
   };
 
   /** マスターボリューム (0‑1) */
@@ -94,6 +96,7 @@ export class FantasySoundManager {
   public static playMagic(type: MagicSeType) { return this.instance._playMagic(type); }
   public static playEnemyAttack() { return this.instance._playSe('enemy_attack'); }
   public static playMyAttack() { return this.instance._playSe('my_attack'); }
+  public static playStageClear() { return this.instance._playSe('stage_clear'); }
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
@@ -152,7 +155,8 @@ export class FantasySoundManager {
       load('fire',          'fire.mp3'),
       load('ice',           'ice.mp3'),
       load('thunder',       'thunder.mp3'),
-      load('my_attack',     'my_attack.mp3')
+      load('my_attack',     'my_attack.mp3'),
+      load('stage_clear',   'stage_clear.mp3')
     ];
 
     // ロード完了Promiseを保存
@@ -434,6 +438,7 @@ export class FantasySoundManager {
         ['ice', 'ice.mp3'],
         ['thunder', 'thunder.mp3'],
         ['my_attack', 'my_attack.mp3'],
+        ['stage_clear', 'stage_clear.mp3'],
       ];
 
       await Promise.all(seFiles.map(async ([key, file]) => {
