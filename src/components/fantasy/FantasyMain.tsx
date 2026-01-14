@@ -291,7 +291,40 @@ const FantasyMain: React.FC = () => {
                 });
             } catch {}
           }
-          // 進捗の更新
+          // 進捗の更新（初クリア時のみ current_stage_number を進める）
+          if (result === 'clear' && isFirstTimeClear && currentStage.stageNumber) {
+            try {
+              const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
+              const tier = (currentStage as { tier?: string }).tier || 'basic';
+              const progressColumn = tier === 'advanced' 
+                ? 'current_stage_number_advanced' 
+                : 'current_stage_number_basic';
+              
+              // 現在の進捗を取得
+              const { data: currentProgress } = await supabase
+                .from('fantasy_user_progress')
+                .select('current_stage_number_basic, current_stage_number_advanced')
+                .eq('user_id', profile.id)
+                .maybeSingle();
+              
+              // 現在地より進んでいる場合のみ更新
+              const currentValue = tier === 'advanced'
+                ? (currentProgress?.current_stage_number_advanced || '1-1')
+                : (currentProgress?.current_stage_number_basic || '1-1');
+              
+              const [currR, currS] = currentValue.split('-').map(Number);
+              const [nextR, nextS] = nextStageNumber.split('-').map(Number);
+              const shouldUpdate = (nextR > currR) || (nextR === currR && nextS > currS);
+              
+              if (shouldUpdate) {
+                await supabase
+                  .from('fantasy_user_progress')
+                  .update({ [progressColumn]: nextStageNumber })
+                  .eq('user_id', profile.id);
+              }
+            } catch {}
+          }
+          // キャッシュのクリア
           if (result === 'clear') {
             try {
               const { clearCacheByPattern } = await import('@/platform/supabaseClient');
