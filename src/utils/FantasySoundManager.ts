@@ -82,9 +82,9 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
-  private bassSampler: any | null = null;
-  private bassVolume = 0.5; // デフォルト50%
+  // ベース音関連フィールド - 合成音を使用（Salamanderサンプルは読み込みが遅いため廃止）
+  private bassSynth: any | null = null;
+  private bassVolume = 0.7; // デフォルト70%（合成音は小さくなりがちなので大きめに）
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
 
@@ -168,22 +168,20 @@ export class FantasySoundManager {
       await this._setupSeContextAndBuffers(baseUrl);
 
       const Tone = window.Tone as unknown as typeof import('tone');
-      this.bassSampler = new Tone.Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
+      // 🚀 パフォーマンス最適化: Salamanderサンプルを合成音に置き換え
+      // 外部サーバーからの読み込みが不要になり、即座に利用可能
+      this.bassSynth = new Tone.Synth({
+        oscillator: {
+          type: 'triangle' // 柔らかいベース音に適した波形
         },
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
+        envelope: {
+          attack: 0.02,
+          decay: 0.3,
+          sustain: 0.4,
+          release: 0.8
+        }
       }).toDestination();
-      try { await Tone.loaded(); } catch (e) { console.warn('[FantasySoundManager] Tone.loaded failed or timed out for bassSampler:', e); }
+      // サンプル読み込み不要なので即座に初期化完了
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
@@ -332,14 +330,14 @@ export class FantasySoundManager {
     }
   }
 
-  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド
+  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド（合成音版）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
       await this.loadedPromise;
     }
 
-    if (!this.bassEnabled || !this.bassSampler) return;
+    if (!this.bassEnabled || !this.bassSynth) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
     if (!Tone) return; // Tone.js未ロードの場合は早期リターン
@@ -353,19 +351,24 @@ export class FantasySoundManager {
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
-    this.bassSampler.triggerAttackRelease(
+    // 合成音を再生（Synth.triggerAttackRelease）
+    this.bassSynth.triggerAttackRelease(
       note,
       '8n',
-      t,
-      this.bassVolume // velocity 相当
+      t
     );
   }
 
   private _setRootVolume(v: number) {
     this.bassVolume = v;
-    if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
-        v === 0 ? -Infinity : Math.log10(v) * 20;
+    if (this.bassSynth) {
+      // 合成音の音量を設定（dB単位）
+      // 0〜1の値を-60dB〜0dBに変換（0の場合は-Infinity）
+      // 音量が小さくなりすぎないよう、最低でも-24dBに設定
+      const minDb = -24;
+      const maxDb = 0;
+      const db = v === 0 ? -Infinity : minDb + (maxDb - minDb) * v;
+      (this.bassSynth.volume as any).value = db;
     }
   }
 
