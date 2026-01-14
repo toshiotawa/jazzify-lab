@@ -789,18 +789,9 @@ export class FantasyPIXIInstance {
       }
     }
     
-    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
-    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
+    // 🚀 パフォーマンス最適化: PNG直接読み込み（WebPファイルは存在しないため）
     const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
-    
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = webpPath;
-    };
-    testImg.onerror = () => {
-      img.src = pngPath;
-    };
-    testImg.src = webpPath;
+    img.src = pngPath;
     
     return null;
   }

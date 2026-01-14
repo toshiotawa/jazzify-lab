@@ -26,8 +26,7 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
-const MONSTER_IMAGE_EXTENSIONS = ['webp', 'png'];
-
+// 🚀 パフォーマンス最適化: PNG直接読み込み（WebPファイルは存在しないため）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -38,16 +37,8 @@ const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   });
 
 const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
-  const basePath = `${import.meta.env.BASE_URL}monster_icons/${icon}`;
-  for (const ext of MONSTER_IMAGE_EXTENSIONS) {
-    try {
-      const image = await loadImageAsset(`${basePath}.${ext}`);
-      return image;
-    } catch {
-      // try next extension
-    }
-  }
-  throw new Error(`Failed to load monster image for ${icon}`);
+  const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+  return loadImageAsset(pngPath);
 };
 
 export const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {

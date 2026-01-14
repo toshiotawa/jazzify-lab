@@ -82,15 +82,12 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
-  private bassSampler: any | null = null;
-  private bassSamplerLoading = false; // 🚀 遅延ロード用フラグ
-  private bassSamplerReady = false;   // 🚀 サンプラー準備完了フラグ
+  // ベース音関連フィールド - 🚀 シンセに変更（外部サーバー不要で即時再生）
+  private bassSynth: any | null = null;
+  private bassSynthReady = false;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
-  private _pendingBassVol = 0.5;     // 🚀 遅延ロード用のボリューム設定
-  private _pendingBassEnabled = true; // 🚀 遅延ロード用の有効設定
 
   // ─────────────────────────────────────────────
   // public static wrappers – 使いやすいように static 経由のエイリアスを用意
@@ -165,7 +162,7 @@ export class FantasySoundManager {
 
     // 🚀 パフォーマンス最適化: 初期化を高速化
     // 効果音のロードはバックグラウンドで完了を待つ
-    // Salamanderサンプルは遅延ロード（最初のplayRootNote呼び出し時）
+    // ルート音はシンセを使用（外部サーバー不要で即時再生）
     this.loadedPromise = Promise.all(promises).then(async () => {
       // ─ AudioSystem初期化 ─ 非ブロッキングで並列実行
       this._initializeAudioSystem().catch(e => 
@@ -177,13 +174,11 @@ export class FantasySoundManager {
         console.warn('[FantasySoundManager] SE buffer setup failed:', e)
       );
 
-      // 🚀 Salamanderサンプルは遅延ロード - 初期化時には読み込まない
-      // 最初のplayRootNote呼び出し時に初期化される
-      this._pendingBassVol = bassVol;
-      this._pendingBassEnabled = bassEnabled;
+      // 🚀 シンセサイザーを初期化（外部サーバー不要で即時利用可能）
+      this._initializeBassSynth(bassVol, bassEnabled);
 
       this.isInited = true;
-      console.debug('[FantasySoundManager] init complete (fast mode - bass sampler deferred)');
+      console.debug('[FantasySoundManager] init complete (fast mode - using synth for bass)');
     });
 
     return this.loadedPromise;
@@ -323,29 +318,17 @@ export class FantasySoundManager {
     }
   }
 
-  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド（遅延ロード対応）
+  // 🚀 パフォーマンス最適化: シンセサイザーを使用（外部サーバー不要で即時再生）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
       await this.loadedPromise;
     }
 
-    if (!this.bassEnabled) return;
+    if (!this.bassEnabled || !this.bassSynthReady || !this.bassSynth) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
     if (!Tone) return; // Tone.js未ロードの場合は早期リターン
-    
-    // 🚀 遅延ロード: サンプラーが未初期化の場合、バックグラウンドで初期化開始
-    if (!this.bassSamplerReady && !this.bassSamplerLoading) {
-      this.bassSamplerLoading = true;
-      this._initializeBassSampler().catch(e => 
-        console.warn('[FantasySoundManager] Bass sampler lazy load failed:', e)
-      );
-      return; // 初回は音を出さずにリターン（次回以降は再生可能に）
-    }
-    
-    // サンプラーが準備できていない場合は早期リターン
-    if (!this.bassSamplerReady || !this.bassSampler) return;
     
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
@@ -356,7 +339,7 @@ export class FantasySoundManager {
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
-    this.bassSampler.triggerAttackRelease(
+    this.bassSynth.triggerAttackRelease(
       note,
       '8n',
       t,
@@ -364,55 +347,49 @@ export class FantasySoundManager {
     );
   }
   
-  // 🚀 遅延ロード: Salamanderサンプラーの初期化
-  private async _initializeBassSampler(): Promise<void> {
+  // 🚀 シンセサイザーの初期化（外部サーバー不要で即時利用可能）
+  private _initializeBassSynth(bassVol: number, bassEnabled: boolean): void {
     try {
       const Tone = window.Tone as unknown as typeof import('tone');
       if (!Tone) {
-        console.warn('[FantasySoundManager] Tone.js not available for bass sampler');
+        console.warn('[FantasySoundManager] Tone.js not available for bass synth');
         return;
       }
       
-      this.bassSampler = new Tone.Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
+      // FMSynthでピアノ風のベル系サウンドを生成（外部サーバー不要）
+      this.bassSynth = new Tone.FMSynth({
+        harmonicity: 3,
+        modulationIndex: 10,
+        oscillator: { type: 'sine' },
+        envelope: {
+          attack: 0.01,
+          decay: 0.2,
+          sustain: 0.3,
+          release: 0.8
         },
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
+        modulation: { type: 'square' },
+        modulationEnvelope: {
+          attack: 0.01,
+          decay: 0.3,
+          sustain: 0.5,
+          release: 0.5
+        }
       }).toDestination();
       
-      // サンプルの読み込み完了を待つ
-      try { 
-        await Tone.loaded(); 
-      } catch (e) { 
-        console.warn('[FantasySoundManager] Tone.loaded failed for bassSampler:', e); 
-      }
+      this._setRootVolume(bassVol);
+      this._enableRootSound(bassEnabled);
       
-      // 保留中の設定を適用
-      this._setRootVolume(this._pendingBassVol);
-      this._enableRootSound(this._pendingBassEnabled);
-      
-      this.bassSamplerReady = true;
-      this.bassSamplerLoading = false;
-      console.debug('[FantasySoundManager] Bass sampler lazy loaded successfully');
+      this.bassSynthReady = true;
+      console.debug('[FantasySoundManager] Bass synth initialized (instant, no external server)');
     } catch (e) {
-      this.bassSamplerLoading = false;
-      console.error('[FantasySoundManager] Bass sampler initialization failed:', e);
+      console.error('[FantasySoundManager] Bass synth initialization failed:', e);
     }
   }
 
   private _setRootVolume(v: number) {
     this.bassVolume = v;
-    if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
+    if (this.bassSynth) {
+      (this.bassSynth.volume as any).value =
         v === 0 ? -Infinity : Math.log10(v) * 20;
     }
   }

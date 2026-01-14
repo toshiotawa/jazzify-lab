@@ -74,40 +74,25 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       global.Image = OriginalImage;
     });
 
-    it('should preload monster images using Image API', async () => {
+    // 🚀 パフォーマンス最適化: PNG直接読み込み（WebPフォールバック不要）
+    it('should preload monster images using PNG directly', async () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
 
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
-      expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
+      expect(MockImage.sources.length).toBe(3);
       const expectedPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.webp`)
+        (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(expectedPaths));
     });
 
-    it('should fall back to PNG when WebP load fails', async () => {
-      const failingWebp = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => `${import.meta.env.BASE_URL}monster_icons/${id}.webp`
-      );
-      failingWebp.forEach((src) => MockImage.failingSources.add(src));
-      const monsterIds = getStageMonsterIds(mockStage.enemyCount);
-      await preloadMonsterImages(monsterIds, new Map());
-
-      expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
-      const pngPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.png`)
-      );
-      expect(MockImage.sources).toEqual(expect.arrayContaining(pngPaths));
-    });
-
-    it('should handle complete failure of monster image loading', async () => {
+    it('should handle PNG load failure', async () => {
       ['monster_01', 'monster_02', 'monster_03'].forEach((id) => {
-        MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.webp`);
         MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.png`);
       });
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
-      await expect(preloadMonsterImages(monsterIds, new Map())).rejects.toBeInstanceOf(Error);
+      await expect(preloadMonsterImages(monsterIds, new Map())).rejects.toBeTruthy();
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
     });
 });
