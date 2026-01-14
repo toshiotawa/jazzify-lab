@@ -263,22 +263,10 @@ const FantasyMain: React.FC = () => {
         if (!isFreeOrGuest && profile && currentStage) {
           const { getSupabaseClient } = await import('@/platform/supabaseClient');
           const supabase = getSupabaseClient();
-          // 初クリア判定
-          let isFirstTimeClear = false;
-          if (result === 'clear') {
-            const { data: preClear } = await supabase
-              .from('fantasy_stage_clears')
-              .select('id')
-              .eq('user_id', profile.id)
-              .eq('stage_id', currentStage.id)
-              .eq('clear_type', 'clear')
-              .maybeSingle();
-            isFirstTimeClear = !preClear;
-          }
           // クリア記録保存（clear のみ）
           if (result === 'clear') {
             try {
-              await supabase
+              const { error: clearError } = await supabase
                 .from('fantasy_stage_clears')
                 .upsert({
                   user_id: profile.id,
@@ -288,11 +276,16 @@ const FantasyMain: React.FC = () => {
                   remaining_hp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
                   total_questions: totalQuestions,
                   correct_answers: correctAnswers
-                });
-            } catch {}
+                }, { onConflict: 'user_id,stage_id' });
+              if (clearError) {
+                devLog.error('クリア記録保存エラー:', clearError);
+              }
+            } catch (e) {
+              devLog.error('クリア記録保存例外:', e);
+            }
           }
-          // 進捗の更新（初クリア時のみ current_stage_number を進める）
-          if (result === 'clear' && isFirstTimeClear && currentStage.stageNumber) {
+          // 進捗の更新（クリア時に current_stage_number が遅れていたら進める）
+          if (result === 'clear' && currentStage.stageNumber) {
             try {
               const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
               const tier = (currentStage as { tier?: string }).tier || 'basic';
