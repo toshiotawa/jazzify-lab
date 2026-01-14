@@ -499,13 +499,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!gameState.isGameActive) return;
     if (isReady) return;
 
+    // single以外のモードで、BGMにカウント区間がない場合、自動で1小節分の無音カウントを追加
+    const isProgressionMode = stage.mode !== 'single';
+    const hasNoCountIn = (stage.countInMeasures ?? 0) === 0;
+    const autoCountIn = (isProgressionMode && hasNoCountIn) ? 1 : 0;
+
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
       stage.timeSignature || 4,
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
-      settings.bgmVolume ?? 0.7
+      settings.bgmVolume ?? 0.7,
+      autoCountIn  // 仮想カウント区間（初回のみ、ループ時はスキップ）
     );
 
     return () => bgmManager.stop();
