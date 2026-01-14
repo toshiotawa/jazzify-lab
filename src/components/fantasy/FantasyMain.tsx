@@ -296,16 +296,24 @@ const FantasyMain: React.FC = () => {
             try {
               const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
               const tier = (currentStage as { tier?: string }).tier || 'basic';
-              const progressColumn = tier === 'advanced' 
-                ? 'current_stage_number_advanced' 
-                : 'current_stage_number_basic';
+              
+              devLog.debug('🎮 ファンタジー進捗更新開始:', {
+                stageNumber: currentStage.stageNumber,
+                nextStageNumber,
+                tier,
+                userId: profile.id
+              });
               
               // 現在の進捗を取得
-              const { data: currentProgress } = await supabase
+              const { data: currentProgress, error: fetchError } = await supabase
                 .from('fantasy_user_progress')
                 .select('current_stage_number_basic, current_stage_number_advanced')
                 .eq('user_id', profile.id)
                 .maybeSingle();
+              
+              if (fetchError) {
+                devLog.error('進捗取得エラー:', fetchError);
+              }
               
               // 現在地より進んでいる場合のみ更新
               const currentValue = tier === 'advanced'
@@ -316,13 +324,34 @@ const FantasyMain: React.FC = () => {
               const [nextR, nextS] = nextStageNumber.split('-').map(Number);
               const shouldUpdate = (nextR > currR) || (nextR === currR && nextS > currS);
               
+              devLog.debug('🎮 進捗更新判定:', {
+                currentValue,
+                nextStageNumber,
+                shouldUpdate
+              });
+              
               if (shouldUpdate) {
-                await supabase
+                // upsertを使用してレコードがない場合も対応
+                const updateData = tier === 'advanced'
+                  ? { current_stage_number_advanced: nextStageNumber }
+                  : { current_stage_number_basic: nextStageNumber };
+                
+                const { error: updateError } = await supabase
                   .from('fantasy_user_progress')
-                  .update({ [progressColumn]: nextStageNumber })
-                  .eq('user_id', profile.id);
+                  .upsert({
+                    user_id: profile.id,
+                    ...updateData
+                  }, { onConflict: 'user_id' });
+                
+                if (updateError) {
+                  devLog.error('進捗更新エラー:', updateError);
+                } else {
+                  devLog.debug('✅ 進捗更新成功:', updateData);
+                }
               }
-            } catch {}
+            } catch (progressError) {
+              devLog.error('進捗更新処理エラー:', progressError);
+            }
           }
           // キャッシュのクリア
           if (result === 'clear') {
