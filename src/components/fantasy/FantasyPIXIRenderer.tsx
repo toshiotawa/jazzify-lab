@@ -235,7 +235,7 @@ export class FantasyPIXIInstance {
   ): void {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
-      visual.flashUntil = performance.now() + 250;
+      visual.flashUntil = performance.now() + 450; // 250ms + 200ms延長
       
       // ダメージポップアップを追加（モンスターの少し上から開始、より長く表示）
       this.damagePopups.push({
@@ -474,19 +474,30 @@ export class FantasyPIXIInstance {
         ctx.restore();
       }
       
-      // ヒット時の吹き出しアイコン（💥）
+      // ヒット時の音符エフェクト（🎵×2）
       if (monster.flashUntil > now) {
-        ctx.font = `${Math.floor(monsterSize * 0.35)}px sans-serif`;
+        ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const hitProgress = (monster.flashUntil - now) / 250;
+        const hitProgress = (monster.flashUntil - now) / 450; // 450msに延長
         ctx.globalAlpha = hitProgress;
+        
+        // 左側の音符
         ctx.save();
-        ctx.translate(monsterSize * 0.3, -monsterSize * 0.2);
-        const scale = 1 + (1 - hitProgress) * 0.5;
-        ctx.scale(scale, scale);
+        ctx.translate(-monsterSize * 0.35, -monsterSize * 0.3);
+        const scale1 = 1 + (1 - hitProgress) * 0.4;
+        ctx.scale(scale1, scale1);
         ctx.fillText(HIT_EMOJI, 0, 0);
         ctx.restore();
+        
+        // 右側の音符
+        ctx.save();
+        ctx.translate(monsterSize * 0.35, -monsterSize * 0.25);
+        const scale2 = 1 + (1 - hitProgress) * 0.5;
+        ctx.scale(scale2, scale2);
+        ctx.fillText(HIT_EMOJI, 0, 0);
+        ctx.restore();
+        
         ctx.globalAlpha = 1;
       }
       
