@@ -82,9 +82,9 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - globalSamplerを上書きしない独自のsampler
-  private bassSampler: any | null = null;
-  private bassVolume = 0.5; // デフォルト50%
+  // ベース音関連フィールド - 合成音を使用（外部ファイル読み込み不要で高速化）
+  private bassSynth: any | null = null;
+  private bassVolume = 0.7; // デフォルト70%（合成音は少し大きめに）
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
 
@@ -161,34 +161,42 @@ export class FantasySoundManager {
 
     // ロード完了Promiseを保存
     this.loadedPromise = Promise.all(promises).then(async () => {
-      // ─ BassSynth ─ - globalSamplerを上書きしない独自のsampler
+      // ─ BassSynth ─ 合成音を使用（外部ファイル読み込み不要で高速化）
       await this._initializeAudioSystem();
 
-      // 低遅延SE用 Web Audio セットアップ + デコード
-      await this._setupSeContextAndBuffers(baseUrl);
+      // 低遅延SE用 Web Audio セットアップ + デコード（バックグラウンドで非ブロッキング）
+      this._setupSeContextAndBuffers(baseUrl).catch(e => 
+        console.warn('[FantasySoundManager] SE buffer setup failed:', e)
+      );
 
       const Tone = window.Tone as unknown as typeof import('tone');
-      this.bassSampler = new Tone.Sampler({
-        urls: {
-          "A1": "A1.mp3",
-          "C2": "C2.mp3",
-          "D#2": "Ds2.mp3",
-          "F#2": "Fs2.mp3",
-          "A2": "A2.mp3",
-          "C3": "C3.mp3",
-          "D#3": "Ds3.mp3",
-          "F#3": "Fs3.mp3",
-          "A3": "A3.mp3",
-          "C4": "C4.mp3"
+      // 🚀 パフォーマンス改善: Salamanderサンプラーの代わりに合成音を使用
+      // 外部URL読み込みが不要なので即座に利用可能
+      this.bassSynth = new Tone.MonoSynth({
+        oscillator: {
+          type: 'triangle' // 柔らかいベース音
         },
-        baseUrl: "https://tonejs.github.io/audio/salamander/"
+        envelope: {
+          attack: 0.02,
+          decay: 0.3,
+          sustain: 0.4,
+          release: 0.8
+        },
+        filterEnvelope: {
+          attack: 0.01,
+          decay: 0.2,
+          sustain: 0.3,
+          release: 0.5,
+          baseFrequency: 200,
+          octaves: 2
+        }
       }).toDestination();
-      try { await Tone.loaded(); } catch (e) { console.warn('[FantasySoundManager] Tone.loaded failed or timed out for bassSampler:', e); }
+      // 合成音は外部ファイル読み込み不要なので await Tone.loaded() は不要
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
       this.isInited = true;
-      console.debug('[FantasySoundManager] init complete');
+      console.debug('[FantasySoundManager] init complete (using synth for bass)');
       // 初期化完了後の状態をログ出力
       Object.entries(this.audioMap).forEach(([key, entry]) => {
         console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
@@ -332,14 +340,14 @@ export class FantasySoundManager {
     }
   }
 
-  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド
+  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド（合成音使用で高速）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
       await this.loadedPromise;
     }
 
-    if (!this.bassEnabled || !this.bassSampler) return;
+    if (!this.bassEnabled || !this.bassSynth) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
     if (!Tone) return; // Tone.js未ロードの場合は早期リターン
@@ -353,19 +361,21 @@ export class FantasySoundManager {
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
-    this.bassSampler.triggerAttackRelease(
+    // 🚀 合成音でルート音を再生（外部ファイル不要で即座に再生可能）
+    this.bassSynth.triggerAttackRelease(
       note,
       '8n',
-      t,
-      this.bassVolume // velocity 相当
+      t
     );
   }
 
   private _setRootVolume(v: number) {
     this.bassVolume = v;
-    if (this.bassSampler) {
-      (this.bassSampler.volume as any).value =
-        v === 0 ? -Infinity : Math.log10(v) * 20;
+    if (this.bassSynth) {
+      // 合成音用の音量設定（dB変換）
+      // 0.7をデフォルトとして、-6dB程度に設定
+      (this.bassSynth.volume as any).value =
+        v === 0 ? -Infinity : Math.log10(v) * 20 + 3; // +3dBでやや大きめに
     }
   }
 
