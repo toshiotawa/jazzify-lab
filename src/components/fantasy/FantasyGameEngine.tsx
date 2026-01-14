@@ -26,8 +26,7 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
-const MONSTER_IMAGE_EXTENSIONS = ['webp', 'png'];
-
+// 🚀 パフォーマンス改善: 画像読み込みを最適化
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -37,17 +36,10 @@ const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
     img.src = src;
   });
 
+// 🚀 パフォーマンス改善: webp試行を削除（存在しないファイルへの404リクエストを回避）
 const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
-  const basePath = `${import.meta.env.BASE_URL}monster_icons/${icon}`;
-  for (const ext of MONSTER_IMAGE_EXTENSIONS) {
-    try {
-      const image = await loadImageAsset(`${basePath}.${ext}`);
-      return image;
-    } catch {
-      // try next extension
-    }
-  }
-  throw new Error(`Failed to load monster image for ${icon}`);
+  const basePath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+  return loadImageAsset(basePath);
 };
 
 export const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
@@ -1001,27 +993,44 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // 🚀 パフォーマンス改善: モンスター画像を非ブロッキングでプリロード
-    // ゲーム開始を待たせずにバックグラウンドでロード
+    // 🚀 パフォーマンス改善: 最初に表示する分だけ同期ロード、残りは非同期
     const textureMap = imageTexturesRef.current;
     textureMap.clear();
     
-    // 楽譜モードの場合は楽譜画像をプリロード（非ブロッキング）
+    // 楽譜モードの場合は楽譜画像をプリロード
     if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
       const noteNames = stage.allowedChords.map(chord => 
         typeof chord === 'string' ? chord : (chord as any).chord || chord
       ).filter(Boolean);
-      preloadSheetMusicImages(noteNames, textureMap).then(() => {
+      // 楽譜画像は数が少ないので全て同期ロード
+      try {
+        await preloadSheetMusicImages(noteNames, textureMap);
         devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-      }).catch(error => {
+      } catch (error) {
         devLog.error('❌ 楽譜画像プリロード失敗:', error);
-      });
+      }
     } else {
-      preloadMonsterImages(monsterIds, textureMap).then(() => {
-        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
-      }).catch(error => {
-        devLog.error('❌ モンスター画像プリロード失敗:', error);
-      });
+      // モンスター画像: 最初の数体だけ同期ロード（即座に表示するため）
+      const initialCount = Math.min(simultaneousCount + 2, monsterIds.length); // 初期表示+予備2体
+      const initialIds = monsterIds.slice(0, initialCount);
+      const remainingIds = monsterIds.slice(initialCount);
+      
+      // 最初の数体は同期ロード（ゲーム開始時に必要）
+      try {
+        await preloadMonsterImages(initialIds, textureMap);
+        devLog.debug('✅ 初期モンスター画像プリロード完了:', { count: initialIds.length });
+      } catch (error) {
+        devLog.error('❌ 初期モンスター画像プリロード失敗:', error);
+      }
+      
+      // 残りは非同期でバックグラウンドロード
+      if (remainingIds.length > 0) {
+        preloadMonsterImages(remainingIds, textureMap).then(() => {
+          devLog.debug('✅ 残りモンスター画像プリロード完了:', { count: remainingIds.length });
+        }).catch(error => {
+          devLog.error('❌ 残りモンスター画像プリロード失敗:', error);
+        });
+      }
     }
 
     // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼
