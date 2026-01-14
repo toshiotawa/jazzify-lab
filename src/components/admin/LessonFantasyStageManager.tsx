@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useCallback } from 'react';
 import { useForm, useFieldArray } from 'react-hook-form';
 import { useToast } from '@/stores/toastStore';
 import {
@@ -12,6 +12,7 @@ import {
   deleteFantasyStage,
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
+import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -111,6 +112,7 @@ const LessonFantasyStageManager: React.FC = () => {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [stages, setStages] = useState<DbFantasyStage[]>([]);
+  const [bgmAssets, setBgmAssets] = useState<FantasyBgmAsset[]>([]);
 
   const { register, handleSubmit, reset, watch, setValue, control } = useForm<StageFormValues>({
     defaultValues,
@@ -141,7 +143,23 @@ const LessonFantasyStageManager: React.FC = () => {
 
   useEffect(() => {
     fetchLessonOnlyFantasyStages().then(setStages).catch(() => {});
+    fetchFantasyBgmAssets().then(setBgmAssets).catch(() => {});
   }, []);
+
+  // BGMを選択した際にテンポ情報を自動入力
+  const handleBgmSelect = useCallback((bgmUrl: string) => {
+    setValue('bgm_url', bgmUrl);
+    // URLに一致するBGMアセットを探す
+    const matchedBgm = bgmAssets.find(b => b.mp3_url === bgmUrl);
+    if (matchedBgm) {
+      // テンポ情報がある場合は自動入力
+      if (matchedBgm.bpm) setValue('bpm', matchedBgm.bpm);
+      if (matchedBgm.time_signature) setValue('time_signature', matchedBgm.time_signature);
+      if (matchedBgm.measure_count) setValue('measure_count', matchedBgm.measure_count);
+      if (matchedBgm.count_in_measures) setValue('count_in_measures', matchedBgm.count_in_measures);
+      toast.success('BGMのテンポ情報を自動入力しました');
+    }
+  }, [bgmAssets, setValue, toast]);
 
   const loadStage = async (id: string) => {
     try {
@@ -216,10 +234,8 @@ const LessonFantasyStageManager: React.FC = () => {
       delete base.chord_progression;
       delete base.chord_progression_data;
       delete base.note_interval_beats;
-      delete base.measure_count;
-      delete base.time_signature;
-      delete base.count_in_measures;
-      delete base.bpm;
+      // singleモードでもBGMを使用する場合はテンポ設定を保持する
+      // bpm, measure_count, time_signature, count_in_measures は保持
     }
     if (v.mode === 'progression_order') {
       delete base.chord_progression_data;
@@ -427,37 +443,36 @@ const LessonFantasyStageManager: React.FC = () => {
               </Row>
             </Section>
 
-            {/* progression 共通（テンポ系） */}
-            {(mode === 'progression_order' || mode === 'progression_random' || mode === 'progression_timing') && (
-              <Section title="テンポ・譜割設定（リズム系モード）">
-                <Row>
+            {/* BGMテンポ設定（全モード共通） */}
+            <Section title="BGM・テンポ設定">
+              <p className="text-xs text-gray-400 mb-3">
+                BGMを使用する場合、テンポ情報を設定してください。BGMアセットにテンポが登録されている場合は自動取得できます。
+              </p>
+              <Row>
+                <div>
+                  <SmallLabel>BPM {mode !== 'single' && '*'}</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('bpm', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>拍子 {mode !== 'single' && '*'}</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('time_signature', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>小節数（曲の長さ）</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('measure_count', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>カウントイン小節数</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
+                </div>
+                {(mode === 'progression_order' || mode === 'progression_random') && (
                   <div>
-                    <SmallLabel>BPM *</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('bpm', { valueAsNumber: true })} />
+                    <SmallLabel>出題拍間隔（note_interval_beats）</SmallLabel>
+                    <input type="number" className="input input-bordered w-full" placeholder="省略時は拍子と同じ" {...register('note_interval_beats', { valueAsNumber: true })} />
                   </div>
-                  <div>
-                    <SmallLabel>拍子 *</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('time_signature', { valueAsNumber: true })} />
-                  </div>
-                  {(mode === 'progression_order' || mode === 'progression_random') && (
-                    <div>
-                      <SmallLabel>出題拍間隔（note_interval_beats）</SmallLabel>
-                      <input type="number" className="input input-bordered w-full" placeholder="省略時は拍子と同じ" {...register('note_interval_beats', { valueAsNumber: true })} />
-                    </div>
-                  )}
-                  {(mode === 'progression_order' || mode === 'progression_random') && (
-                    <div>
-                      <SmallLabel>小節数</SmallLabel>
-                      <input type="number" className="input input-bordered w-full" {...register('measure_count', { valueAsNumber: true })} />
-                    </div>
-                  )}
-                  <div>
-                    <SmallLabel>カウントイン小節数</SmallLabel>
-                    <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
-                  </div>
-                </Row>
-              </Section>
-            )}
+                )}
+              </Row>
+            </Section>
 
             {/* コード入力: allowed_chords */}
             <Section title="許可コード（single / random 用）">
@@ -676,16 +691,40 @@ const LessonFantasyStageManager: React.FC = () => {
             )}
 
             <Section title="BGM / メディア">
-              <Row>
+              <div className="space-y-4">
+                {/* BGMアセットから選択 */}
                 <div>
-                  <SmallLabel>BGM URL</SmallLabel>
-                  <input className="input input-bordered w-full" placeholder="FantasyBGMで取得したURLを貼り付け" {...register('bgm_url')} />
+                  <SmallLabel>BGMアセットから選択（テンポ情報自動入力）</SmallLabel>
+                  <select
+                    className="select select-bordered w-full"
+                    value={watch('bgm_url') || ''}
+                    onChange={(e) => handleBgmSelect(e.target.value)}
+                  >
+                    <option value="">-- 選択してください --</option>
+                    {bgmAssets.map(bgm => (
+                      <option key={bgm.id} value={bgm.mp3_url || ''}>
+                        {bgm.name}
+                        {bgm.bpm && ` (BPM: ${bgm.bpm})`}
+                        {bgm.time_signature && ` (${bgm.time_signature}/4)`}
+                        {bgm.measure_count && ` (${bgm.measure_count}小節)`}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-400 mt-1">
+                    BGMを選択すると、テンポ設定が自動入力されます
+                  </p>
                 </div>
-                <div>
-                  <SmallLabel>MP3 URL（予備）</SmallLabel>
-                  <input className="input input-bordered w-full" {...register('mp3_url')} />
-                </div>
-              </Row>
+                <Row>
+                  <div>
+                    <SmallLabel>BGM URL（直接入力）</SmallLabel>
+                    <input className="input input-bordered w-full" placeholder="FantasyBGMで取得したURLを貼り付け" {...register('bgm_url')} />
+                  </div>
+                  <div>
+                    <SmallLabel>MP3 URL（予備）</SmallLabel>
+                    <input className="input input-bordered w-full" {...register('mp3_url')} />
+                  </div>
+                </Row>
+              </div>
             </Section>
 
             <div className="flex items-center gap-3">
