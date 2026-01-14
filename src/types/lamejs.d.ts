@@ -1,26 +1,21 @@
 /**
- * lamejs MP3エンコーダーの型定義
+ * @breezystack/lamejs MP3エンコーダーの型定義
  */
-declare module 'lamejs' {
-  class Mp3Encoder {
+declare module '@breezystack/lamejs' {
+  export class Mp3Encoder {
     constructor(channels: number, sampleRate: number, bitrate: number);
-    encodeBuffer(left: Int16Array, right: Int16Array): Int8Array;
-    flush(): Int8Array;
+    encodeBuffer(left: Int16Array, right?: Int16Array): Uint8Array;
+    flush(): Uint8Array;
   }
 
-  interface WavHeader {
+  export interface WavHeaderResult {
     dataOffset: number;
     dataLen: number;
     channels: number;
     sampleRate: number;
   }
 
-  const lamejs: {
-    Mp3Encoder: typeof Mp3Encoder;
-    WavHeader: {
-      readHeader(dataView: DataView): WavHeader;
-    };
+  export const WavHeader: {
+    readHeader(dataView: DataView): WavHeaderResult;
   };
-
-  export default lamejs;
 }

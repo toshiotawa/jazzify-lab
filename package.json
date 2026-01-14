@@ -25,6 +25,7 @@
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",
+    "@breezystack/lamejs": "^1.2.7",
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
     "@fortawesome/free-solid-svg-icons": "^6.7.2",
     "@fortawesome/react-fontawesome": "^0.2.2",
@@ -35,7 +36,6 @@
     "clsx": "^2.1.1",
     "dompurify": "^3.2.6",
     "immer": "^10.1.1",
-    "lamejs": "^1.2.1",
     "lucide-react": "^0.525.0",
     "marked": "^16.0.0",
     "opensheetmusicdisplay": "^1.9.0",

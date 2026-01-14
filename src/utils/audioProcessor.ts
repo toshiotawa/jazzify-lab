@@ -5,7 +5,7 @@
  * - MP3への変換
  */
 
-import lamejs from 'lamejs';
+import { Mp3Encoder } from '@breezystack/lamejs';
 
 /**
  * クリック音を生成
@@ -142,7 +142,7 @@ export async function encodeToMp3(
   const samples = audioBuffer.length;
   
   // ステレオまたはモノラル
-  const encoder = new lamejs.Mp3Encoder(channels, sampleRate, bitrate);
+  const encoder = new Mp3Encoder(channels, sampleRate, bitrate);
   
   // チャンネルデータを取得
   const leftChannel = audioBuffer.getChannelData(0);
@@ -158,7 +158,7 @@ export async function encodeToMp3(
   }
   
   // エンコード
-  const mp3Data: Int8Array[] = [];
+  const mp3Data: Uint8Array[] = [];
   const blockSize = 1152; // lamejs推奨ブロックサイズ
   
   for (let i = 0; i < samples; i += blockSize) {
@@ -178,12 +178,12 @@ export async function encodeToMp3(
     mp3Data.push(remaining);
   }
   
-  // Int8ArrayをUint8Arrayに変換してBlobを作成
+  // Uint8Arrayを結合してBlobを作成
   const totalLength = mp3Data.reduce((acc, buf) => acc + buf.length, 0);
   const mp3Array = new Uint8Array(totalLength);
   let offset = 0;
   for (const buf of mp3Data) {
-    mp3Array.set(new Uint8Array(buf.buffer, buf.byteOffset, buf.length), offset);
+    mp3Array.set(buf, offset);
     offset += buf.length;
   }
   
