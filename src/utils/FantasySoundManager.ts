@@ -109,6 +109,19 @@ export class FantasySoundManager {
     this.instance._enableRootSound(enabled);
   }
   public static async unlock(): Promise<void> { return this.instance._unlock(); }
+  
+  /** 初期化完了を待つ（ゲーム開始前に呼び出し推奨） */
+  public static async ensureInitialized(): Promise<void> {
+    if (this.instance.isInited) return;
+    if (this.instance.loadedPromise) {
+      await this.instance.loadedPromise;
+    }
+  }
+  
+  /** 初期化済みかどうか */
+  public static get isReady(): boolean {
+    return this.instance.isInited;
+  }
 
   // ─────────────────────────────────────────────
   // private constructor – outsider cannot new

@@ -533,11 +533,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [stage]);
 
-  const startGame = useCallback((mode: FantasyPlayMode) => {
+  const startGame = useCallback(async (mode: FantasyPlayMode) => {
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
-    initializeGame(buildInitStage(), mode);
+    
+    // 🚀 パフォーマンス修正: 並列で初期化を待つ
+    await Promise.all([
+      // ゲームエンジン初期化（画像プリロード含む）
+      initializeGame(buildInitStage(), mode),
+      // FantasySoundManager初期化完了を確認（ルート音再生のため）
+      FantasySoundManager.ensureInitialized()
+    ]);
   }, [buildInitStage, initializeGame, onPlayModeChange]);
 
   // デイリーチャレンジ: タイムリミットで終了
