@@ -26,8 +26,10 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
-const MONSTER_IMAGE_EXTENSIONS = ['webp', 'png'];
+// 🚀 パフォーマンス最適化: グローバル画像キャッシュ（ステージ間で共有）
+const globalMonsterImageCache = new Map<string, HTMLImageElement>();
 
+// 🚀 パフォーマンス最適化: PNG直接読み込み（WebPファイルは存在しないため）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
     const img = new Image();
@@ -38,22 +40,24 @@ const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   });
 
 const loadMonsterImage = async (icon: string): Promise<HTMLImageElement> => {
-  const basePath = `${import.meta.env.BASE_URL}monster_icons/${icon}`;
-  for (const ext of MONSTER_IMAGE_EXTENSIONS) {
-    try {
-      const image = await loadImageAsset(`${basePath}.${ext}`);
-      return image;
-    } catch {
-      // try next extension
-    }
+  // グローバルキャッシュをチェック
+  if (globalMonsterImageCache.has(icon)) {
+    return globalMonsterImageCache.get(icon)!;
   }
-  throw new Error(`Failed to load monster image for ${icon}`);
+  const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
+  const img = await loadImageAsset(pngPath);
+  globalMonsterImageCache.set(icon, img);
+  return img;
 };
 
 export const preloadMonsterImages = async (monsterIds: string[], cache: Map<string, HTMLImageElement>): Promise<void> => {
   await Promise.all(
     monsterIds.map(async (id) => {
-      if (cache.has(id)) {
+      // グローバルキャッシュもチェック
+      if (cache.has(id) || globalMonsterImageCache.has(id)) {
+        if (globalMonsterImageCache.has(id)) {
+          cache.set(id, globalMonsterImageCache.get(id)!);
+        }
         return;
       }
       const image = await loadMonsterImage(id);
@@ -1001,24 +1005,23 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // モンスター画像をプリロード（練習は無限のため、初回バッチのみ）
-    try {
-      const textureMap = imageTexturesRef.current;
-      textureMap.clear();
-      
-      // 楽譜モードの場合は楽譜画像をプリロード
-      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
-        const noteNames = stage.allowedChords.map(chord => 
-          typeof chord === 'string' ? chord : (chord as any).chord || chord
-        ).filter(Boolean);
-        await preloadSheetMusicImages(noteNames, textureMap);
-        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-      } else {
-        await preloadMonsterImages(monsterIds, textureMap);
-        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
-      }
-    } catch (error) {
-      devLog.error('❌ 画像プリロード失敗:', error);
+    // 🚀 パフォーマンス最適化: モンスター画像を非ブロッキングでプリロード
+    // ゲーム開始を待たせずにバックグラウンドでロード
+    const textureMap = imageTexturesRef.current;
+    textureMap.clear();
+    
+    // 楽譜モードの場合は楽譜画像をプリロード
+    if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+      const noteNames = stage.allowedChords.map(chord => 
+        typeof chord === 'string' ? chord : (chord as any).chord || chord
+      ).filter(Boolean);
+      preloadSheetMusicImages(noteNames, textureMap)
+        .then(() => devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode }))
+        .catch(error => devLog.debug('⚠️ 楽譜画像プリロード失敗（ゲームは続行）:', error));
+    } else {
+      preloadMonsterImages(monsterIds, textureMap)
+        .then(() => devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode }))
+        .catch(error => devLog.debug('⚠️ モンスター画像プリロード失敗（ゲームは続行）:', error));
     }
 
     // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼

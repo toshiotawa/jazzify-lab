@@ -3,6 +3,9 @@ import type { MonsterState } from './FantasyGameEngine';
 import { cn } from '@/utils/cn';
 import { useEnemyStore } from '@/stores/enemyStore';
 
+// 🚀 パフォーマンス最適化: グローバル画像キャッシュ（レンダラー間で共有）
+const globalImageCache = new Map<string, HTMLImageElement>();
+
 interface FantasyPIXIRendererProps {
   width: number;
   height: number;
@@ -750,12 +753,19 @@ export class FantasyPIXIInstance {
   }
 
   private ensureImage(icon: string): HTMLImageElement | null {
+    // 🚀 パフォーマンス最適化: キャッシュ階層をチェック（ローカル → グローバル → imageTexturesRef）
     if (this.imageCache.has(icon)) {
       return this.imageCache.get(icon) ?? null;
+    }
+    if (globalImageCache.has(icon)) {
+      const image = globalImageCache.get(icon)!;
+      this.imageCache.set(icon, image);
+      return image;
     }
     if (this.imageTexturesRef?.current.has(icon)) {
       const image = this.imageTexturesRef.current.get(icon)!;
       this.imageCache.set(icon, image);
+      globalImageCache.set(icon, image);
       return image;
     }
     if (this.loadingImages.has(icon)) {
@@ -766,6 +776,7 @@ export class FantasyPIXIInstance {
     img.decoding = 'async';
     img.onload = () => {
       this.imageCache.set(icon, img);
+      globalImageCache.set(icon, img); // グローバルキャッシュにも保存
       this.loadingImages.delete(icon);
     };
     img.onerror = () => {
@@ -789,18 +800,9 @@ export class FantasyPIXIInstance {
       }
     }
     
-    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
-    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
+    // 🚀 パフォーマンス最適化: PNG直接読み込み（WebPファイルは存在しないため）
     const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
-    
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = webpPath;
-    };
-    testImg.onerror = () => {
-      img.src = pngPath;
-    };
-    testImg.src = webpPath;
+    img.src = pngPath;
     
     return null;
   }
