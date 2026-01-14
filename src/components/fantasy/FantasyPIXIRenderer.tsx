@@ -108,8 +108,9 @@ export class FantasyPIXIInstance {
 
   // 🚀 パフォーマンス最適化: レンダリング頻度制御
   private lastRenderTime = 0;
-  private readonly minRenderInterval = 16; // 16ms = 60FPS
+  private readonly minRenderInterval = 33; // 33ms = 30FPS（パフォーマンス重視）
   private needsRender = true; // 変更があった場合のみ true
+  private idleFrameCounter = 0; // アイドル時のフレームカウンター
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -328,10 +329,15 @@ export class FantasyPIXIInstance {
     
     const now = performance.now();
     
-    // 🚀 アニメーションがアクティブかどうかを判定
-    // モンスターが存在する場合はアイドルアニメーション（上下浮遊）のため常にアクティブ
-    const hasActiveAnimations = 
-      this.monsters.length > 0 || // モンスターが存在すればアイドルアニメーションが必要
+    // 🚀 最小フレーム間隔チェック（30FPS制限）
+    const elapsed = now - this.lastRenderTime;
+    if (elapsed < this.minRenderInterval) {
+      this.startLoop();
+      return;
+    }
+    
+    // 🚀 アクティブなアニメーションがあるかを判定
+    const hasHighPriorityAnimations = 
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.specialAttackEffect?.active ||
@@ -344,10 +350,16 @@ export class FantasyPIXIInstance {
         m.enraged
       );
     
-    // アニメーションがある場合のみ毎フレーム描画、そうでなければ必要な時のみ
-    if (hasActiveAnimations || this.needsRender) {
+    // アイドルアニメーション（浮遊）は6フレームに1回（約5FPS）で十分
+    this.idleFrameCounter++;
+    const shouldRenderIdle = this.idleFrameCounter % 6 === 0;
+    
+    // 優先度の高いアニメーションがある場合は毎フレーム、アイドルのみなら間引く
+    if (hasHighPriorityAnimations || this.needsRender || 
+        (this.monsters.length > 0 && shouldRenderIdle)) {
       this.drawFrame();
       this.needsRender = false;
+      this.lastRenderTime = now;
     }
     
     this.startLoop();
@@ -466,16 +478,19 @@ export class FantasyPIXIInstance {
       
       // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
       
-      // 怒り時の赤みがかった色合い
-      if (isEnraged) {
-        ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
-      }
-      
       // モンスター画像を描画（背景・枠なし）
       if (monster.image) {
         const imgW = monsterSize;
         const imgH = monsterSize;
         ctx.drawImage(monster.image, -imgW / 2, -imgH / 2, imgW, imgH);
+        
+        // 🚀 怒り時の赤みがかった色合い（filterを使わず軽量なオーバーレイで表現）
+        if (isEnraged) {
+          ctx.globalCompositeOperation = 'source-atop';
+          ctx.fillStyle = 'rgba(255, 80, 80, 0.25)';
+          ctx.fillRect(-imgW / 2, -imgH / 2, imgW, imgH);
+          ctx.globalCompositeOperation = 'source-over';
+        }
       } else {
         // ローディング中のプレースホルダー
         ctx.fillStyle = 'rgba(100, 100, 100, 0.3)';
@@ -484,16 +499,16 @@ export class FantasyPIXIInstance {
         ctx.fill();
       }
       
-      ctx.filter = 'none';
       ctx.globalAlpha = 1;
       
-      // 怒りアイコン（💢）を表示
+      // 怒りアイコン（💢）を表示（パフォーマンス最適化：パルスアニメーション簡略化）
       if (isEnraged) {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // アニメーション（パルス）
-        const pulse = 1 + Math.sin(now * 0.01) * 0.1;
+        // 🚀 簡易パルス（Math.sinを間引いて使用）
+        const pulseFrame = Math.floor(now / 100) % 10;
+        const pulse = 1 + (pulseFrame < 5 ? pulseFrame * 0.02 : (10 - pulseFrame) * 0.02);
         ctx.save();
         ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
         ctx.scale(pulse, pulse);
