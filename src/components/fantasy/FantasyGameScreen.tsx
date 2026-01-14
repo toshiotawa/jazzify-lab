@@ -119,6 +119,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const hasTimeUpFiredRef = useRef(false);
   const gameStateRef = useRef<FantasyGameState | null>(null);
   
+  // 🚀 初期化完了状態を追跡
+  const [isInitialized, setIsInitialized] = useState(false);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
+  
   // BGMManagerからタイミング情報を定期的に取得
   // 🚀 パフォーマンス最適化: 間隔を200msに
   useEffect(() => {
@@ -224,35 +228,40 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // 🚀 パフォーマンス最適化: 初期化を並列化（ゲーム開始をブロックしない）
-      controller.initialize().then(() => {
-        devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
-        
-        // 音声システムとFantasySoundManagerを並列初期化
-        Promise.all([
-          // 音声システム初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8);
-            devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
-          }),
-          // FantasySoundManagerの初期化（バックグラウンド、awaitしない）
-          FantasySoundManager.init(
-            settings.soundEffectVolume ?? 0.8,
-            settings.rootSoundVolume ?? 0.5,
-            stage?.playRootOnCorrect !== false
-          ).then(() => {
-            FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-            devLog.debug('🔊 ファンタジーモード効果音初期化完了');
-          })
-        ]).catch(error => {
+      // 🚀 初期化を開始し、完了を追跡
+      const initPromise = (async () => {
+        try {
+          await controller.initialize();
+          devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
+          
+          // 音声システムとFantasySoundManagerを並列初期化（両方完了を待つ）
+          await Promise.all([
+            // 音声システム初期化
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(0.8);
+              devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
+            }),
+            // FantasySoundManagerの初期化（完了を待つ）
+            FantasySoundManager.init(
+              settings.soundEffectVolume ?? 0.8,
+              settings.rootSoundVolume ?? 0.5,
+              stage?.playRootOnCorrect !== false
+            ).then(() => {
+              FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+              devLog.debug('🔊 ファンタジーモード効果音初期化完了');
+            })
+          ]);
+          
+          devLog.debug('✅ ファンタジーモード全初期化完了');
+          setIsInitialized(true);
+        } catch (error) {
           console.error('Audio system initialization failed:', error);
-        });
-        
-        // gameStoreのデバイスIDを使用するため、ローカルストレージからの読み込みは不要
-        // 接続処理は下のuseEffectに任せる。
-      }).catch(error => {
-        devLog.debug('❌ MIDI初期化エラー:', error);
-      });
+          // エラーでも初期化完了とする（ゲームは開始可能）
+          setIsInitialized(true);
+        }
+      })();
+      
+      initPromiseRef.current = initPromise;
     }
     
     // クリーンアップ
@@ -536,12 +545,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [stage]);
 
-  const startGame = useCallback((mode: FantasyPlayMode) => {
+  const startGame = useCallback(async (mode: FantasyPlayMode) => {
+    // 初期化が完了していない場合は待機
+    if (!isInitialized && initPromiseRef.current) {
+      devLog.debug('⏳ 初期化完了を待機中...');
+      await initPromiseRef.current;
+    }
+    
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
     initializeGame(buildInitStage(), mode);
-  }, [buildInitStage, initializeGame, onPlayModeChange]);
+  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
@@ -1150,12 +1165,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               {localizedStageDescription || (isEnglishCopy ? 'Description unavailable.' : '説明テキストを取得できませんでした')}
             </p>
           <div className="flex flex-col items-center gap-3">
+            {/* 初期化中のローディング表示 */}
+            {!isInitialized && (
+              <div className="text-sm text-gray-400 mb-2 animate-pulse">
+                {isEnglishCopy ? 'Loading...' : '読み込み中...'}
+              </div>
+            )}
             <button
               onClick={() => {
                 devLog.debug('🎮 ゲーム開始（挑戦）ボタンクリック');
                 startGame('challenge');
               }}
-              className="px-8 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 text-black font-bold text-xl rounded-lg shadow-lg transform hover:scale-105 transition-all"
+              disabled={!isInitialized}
+              className={cn(
+                "px-8 py-4 text-black font-bold text-xl rounded-lg shadow-lg transform transition-all",
+                isInitialized 
+                  ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 hover:scale-105"
+                  : "bg-gray-500 cursor-wait"
+              )}
             >
               {isDailyChallenge 
                 ? '🎯 挑戦する（2分）' 
@@ -1166,7 +1193,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
                 startGame('practice');
               }}
-              className="px-8 py-3 bg-white/10 hover:bg-white/20 text-white font-bold text-lg rounded-lg shadow-lg transform hover:scale-105 transition-all border border-white/20"
+              disabled={!isInitialized}
+              className={cn(
+                "px-8 py-3 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all border border-white/20",
+                isInitialized 
+                  ? "bg-white/10 hover:bg-white/20 hover:scale-105"
+                  : "bg-gray-700 cursor-wait"
+              )}
             >
               {isDailyChallenge 
                 ? '🎹 練習する（時間無制限）' 
