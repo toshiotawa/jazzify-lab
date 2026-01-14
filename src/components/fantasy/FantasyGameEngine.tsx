@@ -1001,24 +1001,23 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // モンスター画像をプリロード（練習は無限のため、初回バッチのみ）
-    try {
-      const textureMap = imageTexturesRef.current;
-      textureMap.clear();
-      
-      // 楽譜モードの場合は楽譜画像をプリロード
-      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
-        const noteNames = stage.allowedChords.map(chord => 
-          typeof chord === 'string' ? chord : (chord as any).chord || chord
-        ).filter(Boolean);
-        await preloadSheetMusicImages(noteNames, textureMap);
-        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-      } else {
-        await preloadMonsterImages(monsterIds, textureMap);
-        devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode });
-      }
-    } catch (error) {
-      devLog.error('❌ 画像プリロード失敗:', error);
+    // 🚀 パフォーマンス最適化: モンスター画像を非ブロッキングでプリロード
+    // ゲーム開始を待たせずにバックグラウンドでロード
+    const textureMap = imageTexturesRef.current;
+    textureMap.clear();
+    
+    // 楽譜モードの場合は楽譜画像をプリロード
+    if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+      const noteNames = stage.allowedChords.map(chord => 
+        typeof chord === 'string' ? chord : (chord as any).chord || chord
+      ).filter(Boolean);
+      preloadSheetMusicImages(noteNames, textureMap)
+        .then(() => devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode }))
+        .catch(error => devLog.debug('⚠️ 楽譜画像プリロード失敗（ゲームは続行）:', error));
+    } else {
+      preloadMonsterImages(monsterIds, textureMap)
+        .then(() => devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length, playMode }))
+        .catch(error => devLog.debug('⚠️ モンスター画像プリロード失敗（ゲームは続行）:', error));
     }
 
     // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼
