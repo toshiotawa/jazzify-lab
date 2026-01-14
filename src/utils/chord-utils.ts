@@ -4,7 +4,15 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
+import { 
+  CHORD_TEMPLATES, 
+  ChordQuality, 
+  FANTASY_CHORD_MAP, 
+  CHORD_ALIASES,
+  SOLFEGE_TO_NOTE_MAP,
+  solfegeToNoteName,
+  isSolfegeName
+} from './chord-templates';
 import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
@@ -224,3 +232,62 @@ export function semitonesBetween(from: string, to: string): number {
   
   return note2.midi - note1.midi;
 }
+
+/**
+ * 単音からMIDIノート番号を取得
+ * カタカナ音名（ドレミ）と英語音名（ABC）の両方をサポート
+ * @param noteName 音名（例: 'C', 'ド', 'レ♯', 'Eb'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns MIDIノート番号
+ */
+export function getSingleNoteMidi(noteName: string, octave: number = 4): number | null {
+  // カタカナ音名の場合は英語音名に変換
+  const englishNoteName = isSolfegeName(noteName) ? solfegeToNoteName(noteName) : noteName;
+  
+  const noteWithOctave = `${englishNoteName}${octave}`;
+  const parsed = parseNote(noteWithOctave);
+  
+  if (parsed && typeof parsed.midi === 'number') {
+    return parsed.midi;
+  }
+  
+  return null;
+}
+
+/**
+ * 単音を解決する（カタカナ・英語の両方をサポート）
+ * @param noteName 音名（例: 'C', 'ド', 'レ♯'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns 単音情報オブジェクト | null
+ */
+export function resolveSingleNote(
+  noteName: string,
+  octave: number = 4
+): { id: string; root: string; originalName: string; midi: number } | null {
+  // カタカナ音名の場合は英語音名に変換
+  const englishNoteName = isSolfegeName(noteName) ? solfegeToNoteName(noteName) : noteName;
+  
+  const midi = getSingleNoteMidi(englishNoteName, octave);
+  if (midi === null) {
+    return null;
+  }
+  
+  return {
+    id: noteName, // 元の入力を保持
+    root: englishNoteName,
+    originalName: noteName,
+    midi
+  };
+}
+
+/**
+ * 音名を正規化（カタカナを英語に変換）
+ * @param noteName 音名（カタカナまたは英語）
+ * @returns 英語音名
+ */
+export function normalizeNoteName(noteName: string): string {
+  return isSolfegeName(noteName) ? solfegeToNoteName(noteName) : noteName;
+}
+
+// エクスポート: カタカナ関連のユーティリティを再エクスポート
+export { SOLFEGE_TO_NOTE_MAP, solfegeToNoteName, isSolfegeName } from './chord-templates';

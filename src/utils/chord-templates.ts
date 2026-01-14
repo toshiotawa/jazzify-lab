@@ -7,7 +7,8 @@ export type ChordQuality =
   | 'maj' | 'min' | 'aug' | 'dim'
   | '7' | 'maj7' | 'm7' | 'mM7' | 'dim7' | 'aug7' | 'm7b5'
   | '6' | 'm6' | '9' | 'm9' | 'maj9' | '11' | 'm11' | '13' | 'm13'
-  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9';
+  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9'
+  | 'note'; // 単音用
 
 /**
  * 使用可能なルート音のリスト
@@ -33,6 +34,9 @@ export const VALID_ROOTS = [
  * 実音は transpose() で都度生成する
  */
 export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
+  // 単音
+  'note':   ['1P'],  // 単音（ルート音のみ）
+  
   // トライアド
   'maj':    ['1P', '3M', '5P'],
   'min':    ['1P', '3m', '5P'],
@@ -133,3 +137,82 @@ export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQua
   'C11': { root: 'C', quality: '11' },
   'C13': { root: 'C', quality: '13' }
 };
+
+/**
+ * カタカナ音名から英語音名へのマッピング
+ * 単音（type: note）入力時にカタカナドレミ表記をサポート
+ */
+export const SOLFEGE_TO_NOTE_MAP: Record<string, string> = {
+  // 基本音名（白鍵）
+  'ド': 'C',
+  'レ': 'D',
+  'ミ': 'E',
+  'ファ': 'F',
+  'ソ': 'G',
+  'ラ': 'A',
+  'シ': 'B',
+  
+  // シャープ系（♯記号）
+  'ド♯': 'C#',
+  'レ♯': 'D#',
+  'ファ♯': 'F#',
+  'ソ♯': 'G#',
+  'ラ♯': 'A#',
+  
+  // シャープ系（#記号 - ASCII入力対応）
+  'ド#': 'C#',
+  'レ#': 'D#',
+  'ファ#': 'F#',
+  'ソ#': 'G#',
+  'ラ#': 'A#',
+  
+  // フラット系（♭記号）
+  'レ♭': 'Db',
+  'ミ♭': 'Eb',
+  'ソ♭': 'Gb',
+  'ラ♭': 'Ab',
+  'シ♭': 'Bb',
+  
+  // フラット系（b記号 - ASCII入力対応）
+  'レb': 'Db',
+  'ミb': 'Eb',
+  'ソb': 'Gb',
+  'ラb': 'Ab',
+  'シb': 'Bb',
+};
+
+/**
+ * 単音用のルート音リスト（英語表記）
+ * 16種類の基本的な単音
+ */
+export const SINGLE_NOTE_ROOTS = [
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 
+  'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'Bb', 'B'
+] as const;
+
+/**
+ * 単音用のルート音リスト（カタカナ表記）
+ * 16種類の基本的な単音（ドレミ表記）
+ */
+export const SINGLE_NOTE_ROOTS_SOLFEGE = [
+  'ド', 'ド♯', 'レ♭', 'レ', 'レ♯', 'ミ♭', 'ミ', 'ファ',
+  'ファ♯', 'ソ♭', 'ソ', 'ソ♯', 'ラ♭', 'ラ', 'シ♭', 'シ'
+] as const;
+
+/**
+ * カタカナ音名を英語音名に変換
+ * @param solfegeName カタカナ音名（例: 'ド', 'レ♯', 'ミ♭'）
+ * @returns 英語音名（例: 'C', 'D#', 'Eb'）または元の値（変換不可の場合）
+ */
+export function solfegeToNoteName(solfegeName: string): string {
+  return SOLFEGE_TO_NOTE_MAP[solfegeName] || solfegeName;
+}
+
+/**
+ * 音名がカタカナ表記かどうかを判定
+ * @param noteName 音名
+ * @returns カタカナ表記の場合true
+ */
+export function isSolfegeName(noteName: string): boolean {
+  return noteName in SOLFEGE_TO_NOTE_MAP;
+}

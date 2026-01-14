@@ -145,6 +145,7 @@ const formatInterval = (interval: string): string => {
 
 // コードクオリティからコード表記のサフィックスを取得
 const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'note': '', // 単音（サフィックスなし）
   'maj': '',
   'min': 'm',
   'aug': 'aug',
