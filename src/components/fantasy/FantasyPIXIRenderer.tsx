@@ -47,14 +47,10 @@ interface MonsterVisual {
   x: number;
   y: number;
   flashUntil: number;
-  hitBounceUntil: number; // 攻撃成功時のバウンスアニメーション終了時刻
   defeated: boolean;
   defeatedAt?: number; // 撃破アニメ開始時刻
   enraged: boolean;
   enrageScale: number;
-  floatPhase: number; // 浮遊アニメーションの初期位相（ランダム）
-  floatAmplitude: number; // 浮遊アニメーションの振幅（ランダム）
-  floatSpeed: number; // 浮遊アニメーションの速度（ランダム）
   damagePopup?: DamagePopup;
 }
 
@@ -167,17 +163,12 @@ export class FantasyPIXIInstance {
         hpRatio: monster.currentHp / monster.maxHp,
         targetX,
         x: existing ? existing.x : targetX,
-        y: existing?.y ?? this.height * 0.5,
+        y: existing?.y ?? this.height * 0.45, // 固定Y位置
         flashUntil: existing?.flashUntil ?? 0,
-        hitBounceUntil: existing?.hitBounceUntil ?? 0, // バウンスアニメーション
         defeated: monster.currentHp <= 0,
         defeatedAt: existing?.defeatedAt,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
-        // 浮遊アニメーションのランダムパラメータ（既存値を維持）
-        floatPhase: existing?.floatPhase ?? Math.random() * Math.PI * 2,
-        floatAmplitude: existing?.floatAmplitude ?? 3 + Math.random() * 4, // 3〜7pxの範囲
-        floatSpeed: existing?.floatSpeed ?? 0.0015 + Math.random() * 0.001, // 速度に変化を持たせる
         damagePopup: existing?.damagePopup
       });
     });
@@ -245,7 +236,6 @@ export class FantasyPIXIInstance {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
       visual.flashUntil = performance.now() + 250;
-      visual.hitBounceUntil = performance.now() + 400; // バウンスアニメーション（400ms）
       
       // ダメージポップアップを追加（モンスターの少し上から開始、より長く表示）
       this.damagePopups.push({
@@ -328,20 +318,19 @@ export class FantasyPIXIInstance {
     
     const now = performance.now();
     
-    // 🚀 アニメーションがアクティブかどうかを判定
-    // モンスターが存在する場合はアイドルアニメーション（上下浮遊）のため常にアクティブ
+    // 🚀 パフォーマンス最適化: アクティブなアニメーションがある場合のみ描画
+    // 浮遊・バウンスアニメーションを削除したため、モンスターの存在だけでは描画しない
     const hasActiveAnimations = 
-      this.monsters.length > 0 || // モンスターが存在すればアイドルアニメーションが必要
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.specialAttackEffect?.active ||
       this.overlayText !== null ||
+      this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
       this.monsters.some(m => 
         m.flashUntil > now || 
-        m.hitBounceUntil > now || 
         (m.defeated && m.defeatedAt && now - m.defeatedAt < 450) ||
-        Math.abs(m.x - m.targetX) > 1 ||
-        m.enraged
+        Math.abs(m.x - m.targetX) > 1 || // 移動中
+        m.enraged // 怒り状態
       );
     
     // アニメーションがある場合のみ毎フレーム描画、そうでなければ必要な時のみ
@@ -398,15 +387,11 @@ export class FantasyPIXIInstance {
           hpRatio: 1,
           targetX: this.width / 2,
           x: this.width / 2,
-          y: this.height * 0.5,
+          y: this.height * 0.45, // 固定Y位置
           flashUntil: 0,
-          hitBounceUntil: 0,
           defeated: false,
           enraged: false,
           enrageScale: 1,
-          floatPhase: Math.random() * Math.PI * 2,
-          floatAmplitude: 3 + Math.random() * 4,
-          floatSpeed: 0.0015 + Math.random() * 0.001,
           damagePopup: undefined
         }
       ];
@@ -434,20 +419,8 @@ export class FantasyPIXIInstance {
       );
       const monsterSize = baseSize * monster.enrageScale;
       
-      // Y位置（中央より少し上）
-      const baseY = this.height * 0.45;
-      // アイドルアニメーション（上下の浮遊）- 各モンスターごとにランダムな位相・振幅・速度
-      const floatOffset = Math.sin(now * monster.floatSpeed + monster.floatPhase) * monster.floatAmplitude;
-      
-      // 攻撃成功時のバウンスアニメーション（上に跳ねる）
-      let bounceOffset = 0;
-      if (monster.hitBounceUntil > now) {
-        const bounceProgress = (monster.hitBounceUntil - now) / 400; // 0→1（終了→開始）
-        // イーズアウトバウンス: 最初に大きく上がって戻る
-        bounceOffset = -Math.sin(bounceProgress * Math.PI) * 25;
-      }
-      
-      monster.y = baseY + floatOffset + bounceOffset;
+      // Y位置（固定 - パフォーマンス改善のため浮遊・バウンスアニメーションを削除）
+      monster.y = this.height * 0.45;
       
       ctx.save();
       ctx.translate(monster.x, monster.y);

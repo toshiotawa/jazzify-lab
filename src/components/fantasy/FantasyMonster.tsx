@@ -3,7 +3,7 @@
  * モンスターの表示・アニメーション管理
  */
 
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
   faGhost,
@@ -127,25 +127,11 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
   size = 'medium',  // 'large' から 'medium' に変更
   className
 }) => {
-  const [isFloating, setIsFloating] = useState(false);
-
+  // 🚀 パフォーマンス改善: 浮遊アニメーションを削除（FPS60維持のため）
   
   const sizeConfig = SIZE_CONFIGS[size];
   const iconDef = MONSTER_ICONS[monsterIcon] || faGhost;
   const traits = MONSTER_TRAITS[monsterIcon] || MONSTER_TRAITS['ghost'];
-  
-
-  
-  // フローティングアニメーション（一部モンスターのアイドル状態）
-  useEffect(() => {
-    if (traits.specialEffect === 'float') {
-      const interval = setInterval(() => {
-        setIsFloating(prev => !prev);
-      }, 2000);
-      
-      return () => clearInterval(interval);
-    }
-  }, [traits.specialEffect]);
   
   // 敵ゲージのレンダリング
   const renderEnemyGauge = () => {
@@ -216,20 +202,10 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
           <FontAwesomeIcon
             icon={iconDef}
             className={cn(
-              "transition-all duration-300 select-none",
+              "select-none", // 🚀 パフォーマンス改善: 重いCSSアニメーションを削除（transition-allも削除）
               sizeConfig.monster,
               traits.color,
-              // 基本アニメーション
-              traits.specialEffect === 'float' && isFloating && "transform -translate-y-2",
-              traits.specialEffect === 'bounce' && "animate-bounce",
-              traits.specialEffect === 'pulse' && "animate-pulse",
-              traits.specialEffect === 'shake' && "animate-pulse",
-              traits.specialEffect === 'sparkle' && "animate-pulse",
-              traits.specialEffect === 'shine' && "animate-pulse",
-              traits.specialEffect === 'twinkle' && "animate-ping",
-              traits.specialEffect === 'sway' && "hover:animate-pulse",
-
-              // グロー効果
+              // グロー効果のみ維持
               traits.glowColor
             )}
           />
@@ -237,18 +213,7 @@ const FantasyMonster: React.FC<FantasyMonsterProps> = ({
         
 
         
-        {/* 特殊エフェクトオーバーレイ */}
-        {traits.specialEffect === 'sparkle' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-yellow-300 text-sm animate-ping opacity-50">✨</div>
-          </div>
-        )}
-        
-        {traits.specialEffect === 'shine' && (
-          <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-            <div className="text-white text-xs animate-pulse opacity-30">💫</div>
-          </div>
-        )}
+        {/* 🚀 パフォーマンス改善: 特殊エフェクトオーバーレイを削除（animate-ping/pulseがCPU負荷） */}
       </div>
       
       {/* 敵の行動ゲージ */}
