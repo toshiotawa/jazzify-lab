@@ -767,6 +767,7 @@ export class FantasyPIXIInstance {
     img.onload = () => {
       this.imageCache.set(icon, img);
       this.loadingImages.delete(icon);
+      this.requestRender(); // 画像読み込み完了時に再描画をリクエスト
     };
     img.onerror = () => {
       this.loadingImages.delete(icon);
@@ -789,18 +790,9 @@ export class FantasyPIXIInstance {
       }
     }
     
-    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
-    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
+    // 🚀 パフォーマンス改善: PNGを直接読み込み（webp試行を削除して404エラーを回避）
     const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
-    
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = webpPath;
-    };
-    testImg.onerror = () => {
-      img.src = pngPath;
-    };
-    testImg.src = webpPath;
+    img.src = pngPath;
     
     return null;
   }
