@@ -167,23 +167,32 @@ export class FantasySoundManager {
       // 低遅延SE用 Web Audio セットアップ + デコード
       await this._setupSeContextAndBuffers(baseUrl);
 
-      const Tone = window.Tone as unknown as typeof import('tone');
       // 🚀 パフォーマンス最適化: Salamanderサンプルを合成音に置き換え
       // 外部サーバーからの読み込みが不要になり、即座に利用可能
-      this.bassSynth = new Tone.Synth({
-        oscillator: {
-          type: 'triangle' // 柔らかいベース音に適した波形
-        },
-        envelope: {
-          attack: 0.02,
-          decay: 0.3,
-          sustain: 0.4,
-          release: 0.8
+      try {
+        const Tone = window.Tone as unknown as typeof import('tone');
+        if (Tone && Tone.Synth) {
+          this.bassSynth = new Tone.Synth({
+            oscillator: {
+              type: 'triangle' // 柔らかいベース音に適した波形
+            },
+            envelope: {
+              attack: 0.02,
+              decay: 0.3,
+              sustain: 0.4,
+              release: 0.8
+            }
+          }).toDestination();
+          // サンプル読み込み不要なので即座に初期化完了
+          this._setRootVolume(bassVol);
+          this._enableRootSound(bassEnabled);
+          console.debug('[FantasySoundManager] BassSynth initialized successfully');
+        } else {
+          console.warn('[FantasySoundManager] Tone.js not available, bass synth disabled');
         }
-      }).toDestination();
-      // サンプル読み込み不要なので即座に初期化完了
-      this._setRootVolume(bassVol);
-      this._enableRootSound(bassEnabled);
+      } catch (e) {
+        console.warn('[FantasySoundManager] Failed to initialize bass synth:', e);
+      }
 
       this.isInited = true;
       console.debug('[FantasySoundManager] init complete');
@@ -339,24 +348,29 @@ export class FantasySoundManager {
 
     if (!this.bassEnabled || !this.bassSynth) return;
     
-    const Tone = window.Tone as unknown as typeof import('tone');
-    if (!Tone) return; // Tone.js未ロードの場合は早期リターン
-    
-    const n = tonalNote(rootName + '2');        // C2 付近
-    if (n.midi == null) return;
-    
-    // Tone.js 例外対策：必ず前回より >0 の startTime
-    let t = Tone.now();
-    if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
-    this.lastRootStart = t;
-    
-    const note = Tone.Frequency(n.midi, 'midi').toNote();
-    // 合成音を再生（Synth.triggerAttackRelease）
-    this.bassSynth.triggerAttackRelease(
-      note,
-      '8n',
-      t
-    );
+    try {
+      const Tone = window.Tone as unknown as typeof import('tone');
+      if (!Tone) return; // Tone.js未ロードの場合は早期リターン
+      
+      const n = tonalNote(rootName + '2');        // C2 付近
+      if (n.midi == null) return;
+      
+      // Tone.js 例外対策：必ず前回より >0 の startTime
+      let t = Tone.now();
+      if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
+      this.lastRootStart = t;
+      
+      const note = Tone.Frequency(n.midi, 'midi').toNote();
+      // 合成音を再生（Synth.triggerAttackRelease）
+      this.bassSynth.triggerAttackRelease(
+        note,
+        '8n',
+        t
+      );
+    } catch (e) {
+      // エラーが発生してもゲームは継続
+      console.warn('[FantasySoundManager] Failed to play root note:', e);
+    }
   }
 
   private _setRootVolume(v: number) {
