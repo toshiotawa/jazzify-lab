@@ -8,26 +8,30 @@
 import { Mp3Encoder } from '@breezystack/lamejs';
 
 /**
- * クリック音を生成
- * @param audioContext AudioContext
+ * クリック音を生成（ウッドブロック風の柔らかい音）
  * @param sampleRate サンプルレート
  * @param duration 音の長さ（秒）
  * @param frequency 周波数（Hz）
+ * @param volume 音量（0-1）
  * @returns Float32Array
  */
 function generateClickSound(
   sampleRate: number,
-  duration: number = 0.05,
-  frequency: number = 1000
+  duration: number = 0.08,
+  frequency: number = 600,
+  volume: number = 0.3
 ): Float32Array {
   const samples = Math.floor(sampleRate * duration);
   const buffer = new Float32Array(samples);
   
   for (let i = 0; i < samples; i++) {
     const t = i / sampleRate;
-    // 短いサイン波 + エンベロープ
-    const envelope = Math.exp(-t * 40); // 急激な減衰
-    buffer[i] = Math.sin(2 * Math.PI * frequency * t) * envelope * 0.8;
+    // 柔らかい減衰エンベロープ
+    const envelope = Math.exp(-t * 25);
+    // 基音 + 軽い倍音で温かみを出す
+    const fundamental = Math.sin(2 * Math.PI * frequency * t);
+    const harmonic = Math.sin(2 * Math.PI * frequency * 2 * t) * 0.2;
+    buffer[i] = (fundamental + harmonic) * envelope * volume;
   }
   
   return buffer;
@@ -50,7 +54,8 @@ export function generateCountInAudio(
   const totalSamples = Math.floor(sampleRate * totalDuration);
   
   const buffer = new Float32Array(totalSamples);
-  const clickSound = generateClickSound(sampleRate, 0.05, 1200);
+  // 低めの周波数（600Hz）、控えめな音量（0.3）で柔らかいカウント音
+  const clickSound = generateClickSound(sampleRate, 0.08, 600, 0.3);
   
   for (let beat = 0; beat < beatCount; beat++) {
     const beatStartSample = Math.floor(beat * secondsPerBeat * sampleRate);
