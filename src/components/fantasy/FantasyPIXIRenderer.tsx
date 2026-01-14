@@ -750,23 +750,33 @@ export class FantasyPIXIInstance {
   }
 
   private ensureImage(icon: string): HTMLImageElement | null {
+    // 1. ローカルキャッシュを確認
     if (this.imageCache.has(icon)) {
       return this.imageCache.get(icon) ?? null;
     }
+    // 2. プリロードキャッシュを確認
     if (this.imageTexturesRef?.current.has(icon)) {
       const image = this.imageTexturesRef.current.get(icon)!;
       this.imageCache.set(icon, image);
       return image;
     }
+    // 3. 既に読み込み中なら待機
     if (this.loadingImages.has(icon)) {
       return null;
     }
+    
+    // 4. 新規読み込み開始
     this.loadingImages.add(icon);
     const img = new Image();
     img.decoding = 'async';
     img.onload = () => {
       this.imageCache.set(icon, img);
       this.loadingImages.delete(icon);
+      // プリロードキャッシュにも追加（他のインスタンスで再利用）
+      if (this.imageTexturesRef?.current) {
+        this.imageTexturesRef.current.set(icon, img);
+      }
+      this.requestRender();
     };
     img.onerror = () => {
       this.loadingImages.delete(icon);
@@ -780,27 +790,16 @@ export class FantasyPIXIInstance {
       if (parts.length >= 4) {
         const clef = parts[2]; // 'treble' or 'bass'
         const noteName = parts.slice(3).join('_'); // 音名（'A#3'など）
-        // ファイル名では # を sharp に変換（Netlifyでは#を含むファイル名は使えない）
+        // ファイル名では # を sharp に変換
         const safeNoteName = noteName.replace(/#/g, 'sharp');
-        // 画像パス: /notes_images/{clef}/{clef}_{noteName}.png
-        const pngPath = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNoteName}.png`;
-        img.src = pngPath;
+        img.src = `${import.meta.env.BASE_URL}notes_images/${clef}/${clef}_${safeNoteName}.png`;
         return null;
       }
     }
     
-    // 通常のモンスターアイコン: WebP優先、フォールバックでPNG
-    const webpPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.webp`;
-    const pngPath = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
-    
-    const testImg = new Image();
-    testImg.onload = () => {
-      img.src = webpPath;
-    };
-    testImg.onerror = () => {
-      img.src = pngPath;
-    };
-    testImg.src = webpPath;
+    // 🚀 パフォーマンス最適化: 直接PNGをロード（WebPフォールバックを削除）
+    // WebPファイルが存在しないため、WebPテストをスキップして高速化
+    img.src = `${import.meta.env.BASE_URL}monster_icons/${icon}.png`;
     
     return null;
   }
