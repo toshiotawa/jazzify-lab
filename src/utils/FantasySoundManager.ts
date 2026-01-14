@@ -337,11 +337,12 @@ export class FantasySoundManager {
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
+    // velocity は 1 固定（音量は volume.value で制御）
     this.bassSynth.triggerAttackRelease(
       note,
       '8n',
       t,
-      this.bassVolume // velocity 相当
+      1 // velocity は常に最大
     );
   }
   
@@ -355,23 +356,25 @@ export class FantasySoundManager {
       }
       
       // FMSynthでピアノ風のベル系サウンドを生成（外部サーバー不要）
+      // 音量を上げて聴こえやすく
       this.bassSynth = new Tone.FMSynth({
-        harmonicity: 3,
-        modulationIndex: 10,
+        harmonicity: 2,
+        modulationIndex: 8,
         oscillator: { type: 'sine' },
         envelope: {
+          attack: 0.005,
+          decay: 0.3,
+          sustain: 0.4,
+          release: 1.0
+        },
+        modulation: { type: 'triangle' },
+        modulationEnvelope: {
           attack: 0.01,
           decay: 0.2,
           sustain: 0.3,
-          release: 0.8
-        },
-        modulation: { type: 'square' },
-        modulationEnvelope: {
-          attack: 0.01,
-          decay: 0.3,
-          sustain: 0.5,
           release: 0.5
-        }
+        },
+        volume: 0 // デフォルト0dB（後で_setRootVolumeで調整）
       }).toDestination();
       
       this._setRootVolume(bassVol);
@@ -387,8 +390,9 @@ export class FantasySoundManager {
   private _setRootVolume(v: number) {
     this.bassVolume = v;
     if (this.bassSynth) {
+      // シンセの音量を設定（dB）- 音量を上げるため +6dB 補正
       (this.bassSynth.volume as any).value =
-        v === 0 ? -Infinity : Math.log10(v) * 20;
+        v === 0 ? -Infinity : Math.log10(v) * 20 + 6;
     }
   }
 
