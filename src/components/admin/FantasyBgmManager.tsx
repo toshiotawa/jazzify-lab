@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { addFantasyBgmAsset, fetchFantasyBgmAssets, deleteFantasyBgmAsset, updateFantasyBgmAsset, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { useToast } from '@/stores/toastStore';
+import { processAudioFile } from '@/utils/audioProcessor';
 
 interface BgmFormData {
   name: string;
@@ -11,18 +12,28 @@ interface BgmFormData {
   measure_count?: number | null;
   count_in_measures?: number | null;
   mp3File?: FileList;
+  convertToMp3?: boolean;
+  addCountIn?: boolean;
 }
 
 const FantasyBgmManager: React.FC = () => {
-  const { register, handleSubmit, reset, watch } = useForm<BgmFormData>();
+  const { register, handleSubmit, reset, watch } = useForm<BgmFormData>({
+    defaultValues: {
+      convertToMp3: true,
+      addCountIn: false,
+    }
+  });
   const [assets, setAssets] = useState<FantasyBgmAsset[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<string>('');
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editValues, setEditValues] = useState<Partial<FantasyBgmAsset>>({});
   const toast = useToast();
 
   const watchedFile = watch('mp3File');
+  const watchedAddCountIn = watch('addCountIn');
+  const watchedBpm = watch('bpm');
 
   const load = async () => {
     setLoading(true);
@@ -42,9 +53,9 @@ const FantasyBgmManager: React.FC = () => {
   }, []);
 
   const onSubmit = async (values: BgmFormData) => {
-    const file = values.mp3File?.[0];
+    let file = values.mp3File?.[0];
     if (!file) {
-      toast.error('MP3ファイルは必須です');
+      toast.error('音声ファイルは必須です');
       return;
     }
     if (!values.name?.trim()) {
@@ -52,8 +63,37 @@ const FantasyBgmManager: React.FC = () => {
       return;
     }
 
+    // カウント追加にはBPMが必要
+    if (values.addCountIn && (!values.bpm || values.bpm <= 0)) {
+      toast.error('カウント追加にはBPMの設定が必要です');
+      return;
+    }
+
     setUploading(true);
+    setUploadProgress('');
+    
     try {
+      // 音声処理（MP3変換・カウント追加）
+      if (values.convertToMp3 || values.addCountIn) {
+        setUploadProgress('音声を処理中...');
+        
+        const result = await processAudioFile(file, {
+          convertToMp3: values.convertToMp3 ?? false,
+          addCountIn: values.addCountIn ?? false,
+          bpm: values.bpm ?? undefined,
+          countBeats: 4, // 4拍固定
+          mp3Bitrate: 192,
+        });
+        
+        file = result.file;
+        
+        if (result.countInDuration) {
+          setUploadProgress(`カウント（${result.countInDuration.toFixed(2)}秒）を追加しました`);
+        }
+      }
+
+      setUploadProgress('アップロード中...');
+      
       await addFantasyBgmAsset({
         name: values.name.trim(),
         description: values.description,
@@ -62,13 +102,16 @@ const FantasyBgmManager: React.FC = () => {
         measure_count: values.measure_count ?? null,
         count_in_measures: values.count_in_measures ?? null,
       }, file);
+      
       toast.success('BGMを追加しました');
       reset();
+      setUploadProgress('');
       await load();
     } catch (e: unknown) {
       console.error(e);
       const errorMessage = e instanceof Error ? e.message : 'BGMの追加に失敗しました';
       toast.error(errorMessage);
+      setUploadProgress('');
     } finally {
       setUploading(false);
     }
@@ -164,17 +207,53 @@ const FantasyBgmManager: React.FC = () => {
         </div>
 
         <div>
-          <label className="block text-sm font-medium mb-1">MP3ファイル *</label>
-          <input type="file" accept=".mp3,audio/mpeg" className="file-input file-input-bordered w-full"
+          <label className="block text-sm font-medium mb-1">音声ファイル *</label>
+          <input type="file" accept=".mp3,.wav,.ogg,.m4a,audio/*" className="file-input file-input-bordered w-full"
                  {...register('mp3File', { required: true })} />
           {watchedFile?.[0] && (
             <p className="text-xs text-gray-400 mt-1">{watchedFile[0].name} ({formatFileSize(watchedFile[0].size)})</p>
           )}
         </div>
+
+        {/* 処理オプション */}
+        <div className="bg-slate-800/60 rounded-lg p-4 space-y-3">
+          <h4 className="font-semibold text-sm text-white">処理オプション</h4>
+          
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-primary checkbox-sm"
+              {...register('convertToMp3')}
+            />
+            <div>
+              <span className="text-sm text-white">MP3に変換</span>
+              <p className="text-xs text-gray-400">WAV/OGG等をMP3形式に変換してアップロード</p>
+            </div>
+          </label>
+          
+          <label className="flex items-center gap-3 cursor-pointer">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-primary checkbox-sm"
+              {...register('addCountIn')}
+            />
+            <div>
+              <span className="text-sm text-white">カウント追加（4拍）</span>
+              <p className="text-xs text-gray-400">曲の先頭に設定BPMで4拍分のカウント音を追加</p>
+            </div>
+          </label>
+          
+          {watchedAddCountIn && (!watchedBpm || watchedBpm <= 0) && (
+            <p className="text-xs text-amber-400">
+              ⚠️ カウント追加にはBPMの設定が必要です
+            </p>
+          )}
+        </div>
+
         <button type="submit" className="btn btn-primary w-full" disabled={uploading}>
           {uploading ? (
             <>
-              <span className="loading loading-spinner loading-sm" /> アップロード中...
+              <span className="loading loading-spinner loading-sm" /> {uploadProgress || 'アップロード中...'}
             </>
           ) : '追加'}
         </button>
