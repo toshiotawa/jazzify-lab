@@ -18,7 +18,8 @@ import {
   generateRandomProgressionNotes,
   parseChordProgressionData,
   parseSimpleProgressionText,
-  ChordSpec
+  ChordSpec,
+  BagRandomSelector
 } from './TaikoNoteSystem';
 import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
@@ -385,10 +386,12 @@ const createMonsterFromQueue = (
   previousChordId?: string,
   displayOpts?: DisplayOpts,
   stageMonsterIds?: string[],
-  sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' }
+  sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' },
+  bagSelector?: BagRandomSelector<ChordSpec> | null
 ): MonsterState => {
-  // コードを選択（空の場合はダミーコードを使用 - 太鼓モードでは後で taikoNotes から上書きされる）
-  const chord = selectUniqueRandomChord(allowedChords, previousChordId, displayOpts);
+  // コードを選択（袋形式セレクターがあれば使用、なければ従来方式）
+  // 空の場合はダミーコードを使用 - 太鼓モードでは後で taikoNotes から上書きされる
+  const chord = selectUniqueRandomChordWithBag(bagSelector ?? null, allowedChords, previousChordId, displayOpts);
   
   // コードが見つからない場合（progression_timing で allowedChords が空の場合など）
   // ダミーのコードを作成（後で taikoNotes から上書きされる）
@@ -470,13 +473,25 @@ const createPracticeQueueBatch = (count: number): number[] => {
 
 /**
  * 既に使用されているコードを除外してランダムにコードを選択
- * 修正版：ユーザーの要望に基づき、直前のコードを避けることを最優先とする
+ * 袋形式ランダムセレクターを使用するバージョン
+ * @param bagSelector 袋形式ランダムセレクター（外部から提供）
+ * @param allowedChords コードプール（bagSelectorがない場合のフォールバック用）
+ * @param previousChordId 直前のコードID（bagSelector使用時は自動で回避される）
+ * @param displayOpts 表示オプション
  */
-const selectUniqueRandomChord = (
+const selectUniqueRandomChordWithBag = (
+  bagSelector: BagRandomSelector<ChordSpec> | null,
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
+  if (bagSelector) {
+    // 袋形式ランダムセレクターを使用
+    const spec = bagSelector.next(previousChordId);
+    return getChordDefinition(spec, displayOpts);
+  }
+  
+  // フォールバック: 従来の方式
   let availableChords = allowedChords
     .map(spec => getChordDefinition(spec, displayOpts))
     .filter(Boolean) as ChordDefinition[];
@@ -488,6 +503,18 @@ const selectUniqueRandomChord = (
 
   const i = Math.floor(Math.random() * availableChords.length);
   return availableChords[i] ?? null;
+};
+
+/**
+ * 既に使用されているコードを除外してランダムにコードを選択 - 互換性維持用
+ * 注: 袋形式を使用する場合は selectUniqueRandomChordWithBag を使用してください
+ */
+const selectUniqueRandomChord = (
+  allowedChords: ChordSpec[],
+  previousChordId?: string,
+  displayOpts?: DisplayOpts
+): ChordDefinition | null => {
+  return selectUniqueRandomChordWithBag(null, allowedChords, previousChordId, displayOpts);
 };
 
 /**
@@ -567,12 +594,25 @@ const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefinition): nu
 
 /**
  * ランダムコード選択（allowedChordsから）
+ * 袋形式ランダムセレクターを使用するバージョン
+ * @param bagSelector 袋形式ランダムセレクター（外部から提供）
+ * @param allowedChords コードプール（bagSelectorがない場合のフォールバック用）
+ * @param previousChordId 直前のコードID（bagSelector使用時は自動で回避される）
+ * @param displayOpts 表示オプション
  */
-const selectRandomChord = (
+const selectRandomChordWithBag = (
+  bagSelector: BagRandomSelector<ChordSpec> | null,
   allowedChords: ChordSpec[],
   previousChordId?: string,
   displayOpts?: DisplayOpts
 ): ChordDefinition | null => {
+  if (bagSelector) {
+    // 袋形式ランダムセレクターを使用
+    const spec = bagSelector.next(previousChordId);
+    return getChordDefinition(spec, displayOpts);
+  }
+  
+  // フォールバック: 従来の方式
   let availableChords = allowedChords
     .map(spec => getChordDefinition(spec, displayOpts))
     .filter(Boolean) as ChordDefinition[];
@@ -588,6 +628,18 @@ const selectRandomChord = (
   
   const randomIndex = Math.floor(Math.random() * availableChords.length);
   return availableChords[randomIndex];
+};
+
+/**
+ * ランダムコード選択（allowedChordsから）- 互換性維持用
+ * 注: 袋形式を使用する場合は selectRandomChordWithBag を使用してください
+ */
+const selectRandomChord = (
+  allowedChords: ChordSpec[],
+  previousChordId?: string,
+  displayOpts?: DisplayOpts
+): ChordDefinition | null => {
+  return selectRandomChordWithBag(null, allowedChords, previousChordId, displayOpts);
 };
 
 /**
@@ -629,6 +681,8 @@ export const useFantasyGameEngine = ({
   const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(new Map());
   // 怒り状態の自動解除タイマーをモンスターIDごとに管理
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // 袋形式ランダムセレクター（コード選択の偏り防止）
+  const bagSelectorRef = useRef<BagRandomSelector<ChordSpec> | null>(null);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -967,7 +1021,24 @@ export const useFantasyGameEngine = ({
       devLog.error('❌ 画像プリロード失敗:', error);
     }
 
-    // ▼▼▼ 修正点1: モンスターキューをシャッフルする ▼▼▼
+    // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼
+    // single/progression_random モードで使用する袋形式セレクターを作成
+    const allowedChordsForBag = (stage.allowedChords && stage.allowedChords.length > 0) 
+      ? stage.allowedChords 
+      : (stage.chordProgression || []);
+    
+    if (allowedChordsForBag.length > 0) {
+      const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
+      bagSelectorRef.current = new BagRandomSelector(allowedChordsForBag, specToId);
+      devLog.debug('🎲 袋形式ランダムセレクター初期化:', { 
+        chordCount: allowedChordsForBag.length,
+        mode: stage.mode 
+      });
+    } else {
+      bagSelectorRef.current = null;
+    }
+
+    // ▼▼▼ モンスターキューをシャッフルする ▼▼▼
     // モンスターキューを作成（0からtotalEnemies-1までのインデックス）
     const monsterQueue = playMode === 'practice'
       ? createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE)
@@ -1008,7 +1079,8 @@ export const useFantasyGameEngine = ({
           lastChordId,
           displayOpts,
           monsterIds,
-          sheetMusicOpt
+          sheetMusicOpt,
+          bagSelectorRef.current
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -1070,16 +1142,23 @@ export const useFantasyGameEngine = ({
         case 'progression_order':
         default:
           // 基本版：小節の頭でコード出題（Measure 1 から）
-          if (stage.chordProgression) {
-            taikoNotes = generateBasicProgressionNotes(
-              stage.chordProgression as ChordSpec[],
-              stage.measureCount || 8,
-              stage.bpm || 120,
-              stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts),
-              0,
-              (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
-            );
+          // chordProgression が設定されていればそれを使用、なければ allowedChords を使用
+          {
+            const chordsForOrder = stage.chordProgression && stage.chordProgression.length > 0
+              ? stage.chordProgression
+              : (stage.allowedChords && stage.allowedChords.length > 0 ? stage.allowedChords : []);
+            
+            if (chordsForOrder.length > 0) {
+              taikoNotes = generateBasicProgressionNotes(
+                chordsForOrder as ChordSpec[],
+                stage.measureCount || 8,
+                stage.bpm || 120,
+                stage.timeSignature || 4,
+                (spec) => getChordDefinition(spec, displayOpts),
+                0,
+                (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
+              );
+            }
           }
           break;
       }
@@ -1179,8 +1258,9 @@ export const useFantasyGameEngine = ({
         const updatedMonsters = prevState.activeMonsters.map(monster => {
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
-            nextChord = selectRandomChord(
+            // ランダムモード：袋形式で前回と異なるコードを選択
+            nextChord = selectRandomChordWithBag(
+              bagSelectorRef.current,
               (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               monster.chordTarget?.id,
               displayOpts
@@ -1316,9 +1396,10 @@ export const useFantasyGameEngine = ({
           // 次の問題（ループ対応）
           let nextChord;
           if (prevState.currentStage?.mode === 'single') {
-            // ランダムモード：前回と異なるコードを選択
+            // ランダムモード：袋形式で前回と異なるコードを選択
             const previousChordId = prevState.currentChordTarget?.id;
-            nextChord = selectRandomChord(
+            nextChord = selectRandomChordWithBag(
+              bagSelectorRef.current,
               (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
               previousChordId,
               displayOpts
@@ -1746,7 +1827,8 @@ export const useFantasyGameEngine = ({
           }
           // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
           if (completedMonsters.some(cm => cm.id === monster.id)) {
-            const nextChord = selectRandomChord(
+            const nextChord = selectRandomChordWithBag(
+              bagSelectorRef.current,
               stateAfterAttack.currentStage!.allowedChords,
               monster.chordTarget.id,
               displayOpts
@@ -1824,7 +1906,8 @@ export const useFantasyGameEngine = ({
       // ★追加：次の問題もここで準備する
       let nextChord;
       if (prevState.currentStage?.mode === 'single') {
-        nextChord = selectRandomChord(
+        nextChord = selectRandomChordWithBag(
+          bagSelectorRef.current,
           (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : (prevState.currentStage.chordProgression || []),
           prevState.currentChordTarget?.id,
           displayOpts
@@ -1873,16 +1956,13 @@ export const useFantasyGameEngine = ({
     // ステージを抜けるたびにアイコン配列を初期化
     setStageMonsterIds([]);
     
+    // 袋セレクターをクリア
+    bagSelectorRef.current = null;
+    
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
       setEnemyGaugeTimer(null);
     }
-    
-    // if (inputTimeout) { // 削除
-    //   clearTimeout(inputTimeout); // 削除
-    // } // 削除
-    
-    // setInputBuffer([]); // 削除
   }, [enemyGaugeTimer]);
   
   // ステージ変更時の初期化
@@ -2008,7 +2088,8 @@ export const useFantasyGameEngine = ({
               undefined,
               displayOpts,
               stageMonsterIds,
-              sheetMusicOpt
+              sheetMusicOpt,
+              bagSelectorRef.current
             );
             remainingMonsters.push(newMonster);
           }
