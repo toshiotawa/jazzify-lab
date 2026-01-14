@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
-import { resolveChord } from '@/utils/chord-utils';
+import { resolveChord, solfegeToNoteName, isSolfegeName } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
@@ -237,18 +237,20 @@ interface FantasyGameEngineProps {
 const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDefinition | null => {
   // 単音指定のハンドリング
   if (typeof spec === 'object' && spec.type === 'note') {
-    const step = spec.chord; // 'G', 'F#' など
+    const originalName = spec.chord; // 'G', 'F#', 'ド', 'レ♯' など
+    // カタカナ音名の場合は英語に変換（MIDI取得用）
+    const englishName = isSolfegeName(originalName) ? solfegeToNoteName(originalName) : originalName;
     const octave = spec.octave ?? 4;
-    const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+    const parsed = parseNote(englishName.replace(/x/g, '##') + String(octave));
     const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
     if (!midi) return null;
     return {
-      id: step,
-      displayName: step,
+      id: originalName, // 元の名前を保持（カタカナまたは英語）
+      displayName: originalName, // 表示名も元のまま（カタカナならカタカナ表示）
       notes: [midi],
-      noteNames: [step],
+      noteNames: [originalName], // 表示用の音名も元のまま
       quality: 'maj', // ダミー（使用しない）
-      root: step
+      root: englishName // MIDI判定用は英語音名
     };
   }
 

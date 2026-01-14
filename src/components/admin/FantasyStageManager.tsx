@@ -14,7 +14,7 @@ import {
 } from '@/platform/supabaseFantasyStages';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
-import { CHORD_TEMPLATES, ChordQuality, SINGLE_NOTE_ROOTS_SOLFEGE, solfegeToNoteName } from '@/utils/chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, SINGLE_NOTE_ROOTS_SOLFEGE } from '@/utils/chord-templates';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -840,14 +840,14 @@ const FantasyStageManager: React.FC = () => {
                       {chordType.isNote && (
                         <div className="flex flex-wrap gap-1 mt-1">
                           {SINGLE_NOTE_ROOTS_SOLFEGE.map((solfege) => {
-                            const englishNote = solfegeToNoteName(solfege);
                             return (
                               <button
                                 key={`${chordType.label}-solfege-${solfege}`}
                                 type="button"
                                 className="btn btn-xs btn-outline hover:btn-secondary"
                                 onClick={() => {
-                                  const spec = { chord: englishNote, inversion: 0, octave: 4, type: 'note' as const };
+                                  // カタカナ音名をそのまま保存（ゲーム内でカタカナ表示される）
+                                  const spec = { chord: solfege, inversion: 0, octave: 4, type: 'note' as const };
                                   appendAllowedChord(spec as any);
                                 }}
                               >
