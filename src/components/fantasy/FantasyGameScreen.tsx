@@ -122,6 +122,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
+  // ゲーム初期化（画像プリロード）完了を追跡
+  const [isGameReady, setIsGameReady] = useState(false);
   
   // BGMManagerからタイミング情報を定期的に取得
   // 🚀 パフォーマンス最適化: 間隔を200msに
@@ -132,14 +134,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 変更があった場合のみ状態を更新（関数形式で比較）
       setCurrentBeat(prev => prev !== newBeat ? newBeat : prev);
       setCurrentMeasure(prev => prev !== newMeasure ? newMeasure : prev);
-      // Ready状態は2秒後に自動的に解除
-      if (isReady && readyStartTimeRef.current > 0 && performance.now() - readyStartTimeRef.current > 2000) {
+      // Ready状態は「2秒経過 AND 画像プリロード完了」で解除
+      const timeElapsed = readyStartTimeRef.current > 0 && performance.now() - readyStartTimeRef.current > 2000;
+      if (isReady && timeElapsed && isGameReady) {
         setIsReady(false);
       }
     }, 200); // 200ms間隔で更新（パフォーマンス改善）
     
     return () => clearInterval(interval);
-  }, [isReady]);
+  }, [isReady, isGameReady]);
   
   // ★★★ 修正箇所 ★★★
   // ローカルのuseStateからgameStoreに切り替え
@@ -555,7 +558,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
-    initializeGame(buildInitStage(), mode);
+    setIsGameReady(false); // リセット
+    
+    // 🚀 画像プリロードを含むゲーム初期化を待機
+    // Ready画面表示中にロードが完了する
+    await initializeGame(buildInitStage(), mode);
+    setIsGameReady(true); // 画像プリロード完了
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）');
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
 
   // デイリーチャレンジ: タイムリミットで終了
