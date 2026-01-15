@@ -113,6 +113,34 @@ class BGMManager {
     this.isPlaying = false
   }
   
+  /**
+   * ループを考慮した実際のオーディオ再生位置（秒）を取得
+   * Web Audio のループ機能使用時も正しい位置を返す
+   */
+  private _getNormalizedAudioTime(): number {
+    if (!this.isPlaying) return 0
+    
+    if (this.waContext && this.waBuffer) {
+      const rawTime = this.waContext.currentTime - this.waStartAt
+      const loopDuration = this.loopEnd - this.loopBegin
+      
+      // loopEnd を超えた場合（ループ後）は正規化
+      if (rawTime >= this.loopEnd && loopDuration > 0) {
+        const timeAfterLoopBegin = rawTime - this.loopBegin
+        const posInLoop = timeAfterLoopBegin % loopDuration
+        return this.loopBegin + posInLoop
+      }
+      
+      return rawTime
+    }
+    
+    if (this.audio) {
+      return this.audio.currentTime
+    }
+    
+    return 0
+  }
+  
   private handleEnded = () => {
     if (this.loopEnd > 0) {
       this.audio!.currentTime = this.loopBegin
@@ -122,15 +150,12 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
+   * ループ後も正しい時間を返すように正規化します。
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
-      if (this.waContext && this.waBuffer) {
-        // Web Audio 再生時間を計算
-        const t = this.waContext.currentTime - this.waStartAt
-        return t - this.loopBegin
-      }
-      if (this.audio) return this.audio.currentTime - this.loopBegin
+      const audioTime = this._getNormalizedAudioTime()
+      return audioTime - this.loopBegin
     }
     return 0
   }
@@ -148,15 +173,9 @@ class BGMManager {
   getCurrentBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      if (this.waContext && this.waBuffer) {
-        const audioTime = this.waContext.currentTime - this.waStartAt
-        const totalBeats = Math.floor(audioTime / secPerBeat)
-        return (totalBeats % this.timeSignature) + 1
-      }
-      if (this.audio) {
-        const totalBeats = Math.floor(this.audio.currentTime / secPerBeat)
-        return (totalBeats % this.timeSignature) + 1
-      }
+      const audioTime = this._getNormalizedAudioTime()
+      const totalBeats = Math.floor(audioTime / secPerBeat)
+      return (totalBeats % this.timeSignature) + 1
     }
     return 1
   }
@@ -165,13 +184,8 @@ class BGMManager {
   getCurrentBeatPosition(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      if (this.waContext && this.waBuffer) {
-        const audioTime = this.waContext.currentTime - this.waStartAt
-        return (audioTime / secPerBeat) % this.timeSignature
-      }
-      if (this.audio) {
-        return (this.audio.currentTime / secPerBeat) % this.timeSignature
-      }
+      const audioTime = this._getNormalizedAudioTime()
+      return (audioTime / secPerBeat) % this.timeSignature
     }
     return 0
   }
@@ -187,12 +201,7 @@ class BGMManager {
   getTimeToNextBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      let audioTime = 0
-      if (this.waContext && this.waBuffer) {
-        audioTime = this.waContext.currentTime - this.waStartAt
-      } else if (this.audio) {
-        audioTime = this.audio.currentTime
-      }
+      const audioTime = this._getNormalizedAudioTime()
       const nextBeatTime = Math.ceil(audioTime / secPerBeat) * secPerBeat
       return (nextBeatTime - audioTime) * 1000
     }
@@ -202,12 +211,7 @@ class BGMManager {
   /** 次のループまでの残り時間（ms） */
   getTimeToLoop(): number {
     if (!this.isPlaying) return Infinity
-    let currentTime = 0
-    if (this.waContext && this.waBuffer) {
-      currentTime = this.waContext.currentTime - this.waStartAt
-    } else if (this.audio) {
-      currentTime = this.audio.currentTime
-    }
+    const currentTime = this._getNormalizedAudioTime()
     const timeToEnd = this.loopEnd - currentTime
     return timeToEnd > 0 ? timeToEnd * 1000 : 0
   }
@@ -218,11 +222,9 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getIsCountIn(): boolean {
-    if (this.waContext && this.waBuffer) {
-      const t = this.waContext.currentTime - this.waStartAt
-      return t < this.loopBegin
-    }
-    return !!this.audio && this.audio.currentTime < this.loopBegin
+    if (!this.isPlaying) return false
+    const audioTime = this._getNormalizedAudioTime()
+    return audioTime < this.loopBegin
   }
 
   /** Measure 1 の開始へリセット */
