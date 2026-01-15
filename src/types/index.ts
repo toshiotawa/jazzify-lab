@@ -512,6 +512,9 @@ export interface ClearConditions {
 // ファンタジーモード関連の型定義
 export type FantasyStageUsageType = 'fantasy' | 'lesson' | 'both';
 
+// ファンタジーモードのランク（S/A/B/C/D）
+export type FantasyRank = 'S' | 'A' | 'B' | 'C' | 'D';
+
 export interface FantasyStage {
   id: string;
   stage_number: string | null;  // レッスン専用ステージではnull可
@@ -547,6 +550,27 @@ export interface FantasyStage {
   usage_type?: FantasyStageUsageType;
   // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
   is_sheet_music_mode?: boolean;
+  // 新規: 次ステージ開放に必要なクリア換算回数（Sランク=10回換算、それ以外=1回）
+  required_clears_for_next?: number;
+}
+
+// ファンタジーステージクリア記録
+export interface FantasyStageClear {
+  id: string;
+  user_id: string;
+  stage_id: string;
+  cleared_at: string;
+  score: number;
+  clear_type: 'clear' | 'gameover';
+  remaining_hp: number;
+  max_hp: number | null;
+  total_questions: number;
+  correct_answers: number;
+  // ランクシステム関連
+  rank?: FantasyRank | null;
+  best_rank?: FantasyRank | null;
+  total_clear_credit?: number;
+  clear_count?: number;
 }
 
 // ===== デイリーチャレンジ（日次記録） =====

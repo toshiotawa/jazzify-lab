@@ -11,7 +11,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
-import { LessonContext } from '@/types';
+import { LessonContext, FantasyRank } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
@@ -20,6 +20,14 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { 
+  calculateFantasyRank, 
+  getRankClearCredit, 
+  getRankColor, 
+  getRankBgColor,
+  getRankDisplayName,
+  getRemainingClearsForNextStage 
+} from '@/utils/fantasyRankCalculator';
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -37,6 +45,10 @@ interface GameResult {
   score: number;
   correctAnswers: number;
   totalQuestions: number;
+  playerHp: number;
+  maxHp: number;
+  rank: FantasyRank;
+  clearCredit: number;
 }
 
 const FantasyMain: React.FC = () => {
@@ -58,6 +70,10 @@ const FantasyMain: React.FC = () => {
   const retryButtonLabel = isEnglishCopy ? 'Retry' : '再挑戦';
   const backToSelectLabel = isEnglishCopy ? 'Stage select' : 'ステージ選択に戻る';
   const xpCalculatingText = isEnglishCopy ? 'Calculating XP...' : 'XP計算中...';
+  const rankLabel = isEnglishCopy ? 'Rank' : 'ランク';
+  const nextStageUnlockLabel = isEnglishCopy ? 'Next stage unlock' : '次ステージ開放まで';
+  const clearsRemainingLabel = isEnglishCopy ? 'clears remaining' : '回クリア';
+  const stageUnlockedLabel = isEnglishCopy ? 'Next stage unlocked!' : '次のステージが開放されました！';
   const [currentStage, setCurrentStage] = useState<FantasyStage | null>(null);
   const [gameResult, setGameResult] = useState<GameResult | null>(null);
   const [showResult, setShowResult] = useState(false);
@@ -66,6 +82,14 @@ const FantasyMain: React.FC = () => {
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
   const [isMissionMode, setIsMissionMode] = useState(false);
+  
+  // 次ステージ開放情報
+  const [nextStageUnlockInfo, setNextStageUnlockInfo] = useState<{
+    currentClearCredit: number;
+    requiredClears: number;
+    remainingClears: number;
+    isUnlocked: boolean;
+  } | null>(null);
   
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
@@ -226,20 +250,25 @@ const FantasyMain: React.FC = () => {
     maxHp: number
   ) => {
     setPendingAutoStart(false);
-    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions, playerHp, maxHp });
-    const gameResult: GameResult = { result, score, correctAnswers, totalQuestions };
-    setGameResult(gameResult);
+    
+    // ランクを計算
+    const rank = calculateFantasyRank(result, playerHp, maxHp);
+    const clearCredit = getRankClearCredit(rank, result);
+    
+    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions, playerHp, maxHp, rank, clearCredit });
+    const gameResultData: GameResult = { result, score, correctAnswers, totalQuestions, playerHp, maxHp, rank, clearCredit };
+    setGameResult(gameResultData);
     setShowResult(true);
     
     // レッスンモードの場合の処理
     if (isLessonMode && lessonContext) {
       if (result === 'clear') {
         try {
-          const achievedRank = lessonContext.clearConditions?.rank || 'B';
+          // レッスン用ファンタジーは計算したランクを使用
           await updateLessonRequirementProgress(
             lessonContext.lessonId,
             lessonContext.lessonSongId,
-            achievedRank,
+            rank, // 計算したランクを使用
             lessonContext.clearConditions,
             { sourceType: 'fantasy', lessonSongId: lessonContext.lessonSongId }
           );
@@ -267,27 +296,37 @@ const FantasyMain: React.FC = () => {
         if (!isFreeOrGuest && profile && currentStage) {
           const { getSupabaseClient } = await import('@/platform/supabaseClient');
           const supabase = getSupabaseClient();
-          // クリア記録保存（clear のみ）
-          if (result === 'clear') {
-            try {
-              const { error: clearError } = await supabase
-                .from('fantasy_stage_clears')
-                .upsert({
-                  user_id: profile.id,
-                  stage_id: currentStage.id,
-                  score: score,
-                  clear_type: result,
-                  remaining_hp: playerHp,
-                  max_hp: maxHp,
-                  total_questions: totalQuestions,
-                  correct_answers: correctAnswers
-                }, { onConflict: 'user_id,stage_id' });
-              if (clearError) {
-                devLog.error('クリア記録保存エラー:', clearError);
-              }
-            } catch (e) {
-              devLog.error('クリア記録保存例外:', e);
+          // クリア記録保存（RPC関数を使用）
+          try {
+            const { data: clearResult, error: clearError } = await supabase
+              .rpc('upsert_fantasy_stage_clear', {
+                p_user_id: profile.id,
+                p_stage_id: currentStage.id,
+                p_score: score,
+                p_clear_type: result,
+                p_remaining_hp: playerHp,
+                p_max_hp: maxHp,
+                p_total_questions: totalQuestions,
+                p_correct_answers: correctAnswers,
+                p_rank: rank
+              });
+            
+            if (clearError) {
+              devLog.error('クリア記録保存エラー:', clearError);
+            } else if (clearResult && clearResult.length > 0) {
+              const clearData = clearResult[0];
+              const requiredClears = (currentStage as any).required_clears_for_next ?? 5;
+              const remaining = getRemainingClearsForNextStage(clearData.total_clear_credit, requiredClears);
+              setNextStageUnlockInfo({
+                currentClearCredit: clearData.total_clear_credit,
+                requiredClears,
+                remainingClears: remaining,
+                isUnlocked: remaining === 0
+              });
+              devLog.debug('✅ クリア記録保存成功:', clearData);
             }
+          } catch (e) {
+            devLog.error('クリア記録保存例外:', e);
           }
           // 進捗の更新（クリア時に current_stage_number が遅れていたら進める）
           if (result === 'clear' && currentStage.stageNumber) {
@@ -575,11 +614,55 @@ const FantasyMain: React.FC = () => {
               {gameResult.result === 'clear' ? stageClearText : gameOverText}
             </h2>
           
+          {/* ランク表示 */}
+          <div className={`inline-block px-8 py-4 rounded-xl border-2 mb-6 ${getRankBgColor(gameResult.rank)}`}>
+            <div className="text-sm text-gray-300 mb-1">{rankLabel}</div>
+            <div className={`text-5xl font-bold ${getRankColor(gameResult.rank)}`}>
+              {gameResult.rank}
+            </div>
+            <div className={`text-sm mt-1 ${getRankColor(gameResult.rank)}`}>
+              {getRankDisplayName(gameResult.rank, isEnglishCopy)}
+            </div>
+          </div>
+          
           {/* 結果表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
               <div className="text-lg font-sans">
                 <div>{correctAnswersLabel}: <span className="text-green-300 font-bold text-2xl">{gameResult.correctAnswers}</span></div>
               </div>
+            
+            {/* 次ステージ開放情報 */}
+            {!isLessonMode && !isMissionMode && nextStageUnlockInfo && (
+              <div className="mt-4 pt-4 border-t border-gray-600">
+                {nextStageUnlockInfo.isUnlocked ? (
+                  <div className="text-yellow-400 font-bold text-lg">
+                    {stageUnlockedLabel}
+                  </div>
+                ) : (
+                  <div className="text-gray-300">
+                    <span className="text-sm">{nextStageUnlockLabel}:</span>
+                    <div className="text-xl font-bold text-blue-300">
+                      {isEnglishCopy 
+                        ? `${nextStageUnlockInfo.remainingClears} ${clearsRemainingLabel}`
+                        : `あと${nextStageUnlockInfo.remainingClears}${clearsRemainingLabel}`
+                      }
+                    </div>
+                    <div className="mt-2 bg-gray-700 rounded-full h-2 overflow-hidden">
+                      <div 
+                        className="bg-gradient-to-r from-blue-400 to-purple-400 h-full transition-all duration-500"
+                        style={{ width: `${Math.min(100, (nextStageUnlockInfo.currentClearCredit / nextStageUnlockInfo.requiredClears) * 100)}%` }}
+                      />
+                    </div>
+                    <div className="text-xs text-gray-400 mt-1">
+                      {nextStageUnlockInfo.currentClearCredit} / {nextStageUnlockInfo.requiredClears}
+                      {gameResult.rank === 'S' && (
+                        <span className="text-yellow-400 ml-2">(S{isEnglishCopy ? ' Rank = 10 clears!' : 'ランク = 10回分！'})</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
             
             {/* 経験値獲得 */}
             <div className="mt-4 pt-4 border-t border-gray-600 font-sans">

@@ -66,6 +66,8 @@ interface StageFormValues {
   stage_tier: 'basic' | 'advanced';
   // 楽譜モード
   is_sheet_music_mode: boolean;
+  // 次ステージ開放に必要なクリア換算回数
+  required_clears_for_next: number;
 }
 
 const defaultValues: StageFormValues = {
@@ -94,6 +96,7 @@ const defaultValues: StageFormValues = {
   mp3_url: '',
   stage_tier: 'basic',
   is_sheet_music_mode: false,
+  required_clears_for_next: 5,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -312,6 +315,7 @@ const FantasyStageManager: React.FC = () => {
         chord_progression_data: (s as any).chord_progression_data || [],
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
+        required_clears_for_next: (s as any).required_clears_for_next ?? 5,
       };
       reset(v);
     } catch (e: any) {
@@ -350,6 +354,7 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: v.stage_tier,
       usage_type: 'fantasy',  // ファンタジーモード専用
       is_sheet_music_mode: v.is_sheet_music_mode,
+      required_clears_for_next: v.required_clears_for_next,
     };
 
     // モードに応じた不要フィールドの削除
@@ -402,6 +407,7 @@ const FantasyStageManager: React.FC = () => {
       chord_progression_data: (s as DbFantasyStage & { chord_progression_data?: TimingRow[] }).chord_progression_data || [],
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
+      required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
     };
   }, []);
 
@@ -592,6 +598,11 @@ const FantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>最大ダメージ</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('max_damage', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>次ステージ開放必要回数</SmallLabel>
+                  <input type="number" className="input input-bordered w-full" placeholder="5" {...register('required_clears_for_next', { valueAsNumber: true })} />
+                  <p className="text-xs text-gray-400 mt-1">Sランク=10回換算</p>
                 </div>
               </Row>
             </Section>
