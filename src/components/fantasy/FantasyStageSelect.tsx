@@ -419,6 +419,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const unlocked = isStageUnlocked(stage);
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
+    // ノーダメージクリア判定: 残りHPがステージのmaxHpと同じ
+    const isNoDamageClear = isCleared && clearInfo.remainingHp === stage.maxHp;
     
     // グローバルインデックスを基にアイコン番号を計算（1-10の範囲）
     const globalIndex = getStageGlobalIndex(stage);
@@ -496,16 +498,23 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
         
         {/* 右側のアイコン */}
-        <div className="flex-shrink-0 self-center">
+        <div className="flex-shrink-0 self-center flex items-center gap-1">
           {!unlocked && (
             <div className="text-xl sm:text-2xl">
               <span>🔒</span>
             </div>
           )}
           {isCleared && (
-            <div className="text-yellow-400 text-xl sm:text-2xl">
-              ⭐
-            </div>
+            <>
+              {isNoDamageClear && (
+                <div className="text-xl sm:text-2xl" title={isEnglishCopy ? 'No Damage Clear!' : 'ノーダメージクリア！'}>
+                  🏅
+                </div>
+              )}
+              <div className="text-yellow-400 text-xl sm:text-2xl">
+                ⭐
+              </div>
+            </>
           )}
         </div>
       </div>
