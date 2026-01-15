@@ -250,8 +250,10 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
   if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
     // プレフィックスを除去して音名を取得（例: "treble_A#3" → "A#3"）
     const noteName = chordId.replace(/^(treble|bass)_/, '');
+    // "sharp" → "#", "flat" → "b" に正規化（ファイル名形式からの変換）
+    const normalizedNoteName = noteName.replace(/sharp/gi, '#').replace(/flat/gi, 'b');
     // 音名とオクターブを分離（例: "A#3" → step="A#", octave=3）
-    const match = noteName.match(/^([A-G][#b]?)(\d+)$/);
+    const match = normalizedNoteName.match(/^([A-G][#b]?)(\d+)$/);
     if (match) {
       const step = match[1];
       const octave = parseInt(match[2], 10);
@@ -259,8 +261,8 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
       const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
       if (midi) {
         return {
-          id: chordId, // 元のID（treble_A#3）を保持
-          displayName: noteName, // 表示用は音名のみ（A#3）
+          id: chordId, // 元のID（treble_A#3 または treble_Asharp3）を保持
+          displayName: normalizedNoteName, // 表示用は正規化された音名（A#3）
           notes: [midi],
           noteNames: [step],
           quality: 'maj', // ダミー
