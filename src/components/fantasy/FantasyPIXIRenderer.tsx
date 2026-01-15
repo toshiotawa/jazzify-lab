@@ -163,7 +163,7 @@ export class FantasyPIXIInstance {
         hpRatio: monster.currentHp / monster.maxHp,
         targetX,
         x: existing ? existing.x : targetX,
-        y: existing?.y ?? this.height * 0.45, // 固定Y位置
+        y: existing?.y ?? this.height * 0.45, // 基準Y位置（描画時に浮遊アニメーション適用）
         flashUntil: existing?.flashUntil ?? 0,
         defeated: monster.currentHp <= 0,
         defeatedAt: existing?.defeatedAt,
@@ -319,13 +319,13 @@ export class FantasyPIXIInstance {
     const now = performance.now();
     
     // 🚀 パフォーマンス最適化: アクティブなアニメーションがある場合のみ描画
-    // 浮遊・バウンスアニメーションを削除したため、モンスターの存在だけでは描画しない
     const hasActiveAnimations = 
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.specialAttackEffect?.active ||
       this.overlayText !== null ||
       this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
+      this.monsters.length > 0 || // モンスター存在時は浮遊アニメーション用に描画継続
       this.monsters.some(m => 
         m.flashUntil > now || 
         (m.defeated && m.defeatedAt && now - m.defeatedAt < 450) ||
@@ -387,7 +387,7 @@ export class FantasyPIXIInstance {
           hpRatio: 1,
           targetX: this.width / 2,
           x: this.width / 2,
-          y: this.height * 0.45, // 固定Y位置
+          y: this.height * 0.45, // 基準Y位置（描画時に浮遊アニメーション適用）
           flashUntil: 0,
           defeated: false,
           enraged: false,
@@ -419,8 +419,10 @@ export class FantasyPIXIInstance {
       );
       const monsterSize = baseSize * monster.enrageScale;
       
-      // Y位置（固定 - パフォーマンス改善のため浮遊・バウンスアニメーションを削除）
-      monster.y = this.height * 0.45;
+      // Y位置（軽量な浮遊アニメーション - sin波で5pxの上下動）
+      // 各モンスターに異なるオフセットを与えて動きをずらす
+      const floatOffset = Math.sin(now * 0.002 + monster.x * 0.01) * 5;
+      monster.y = this.height * 0.45 + floatOffset;
       
       ctx.save();
       ctx.translate(monster.x, monster.y);
