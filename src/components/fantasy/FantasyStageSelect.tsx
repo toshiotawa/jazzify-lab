@@ -15,9 +15,15 @@ import {
   getRankFromClearedStages as getRankFromClearedStagesUtil 
 } from '@/utils/fantasyRankConstants';
 import { useAuthStore } from '@/stores/authStore';
-import { LessonContext } from '@/types';
+import { LessonContext, FantasyRank } from '@/types';
 import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { 
+  getRankColor as getGameRankColor, 
+  getRankBgColor,
+  getRemainingClearsForNextStage,
+  isNextStageUnlocked 
+} from '@/utils/fantasyRankCalculator';
 
 // ===== 型定義 =====
 
@@ -43,6 +49,11 @@ interface FantasyStageClear {
   maxHp: number | null; // クリア時点のステージ最大HP（ノーダメージ判定用）
   totalQuestions: number;
   correctAnswers: number;
+  // ランクシステム関連
+  rank?: FantasyRank | null;
+  bestRank?: FantasyRank | null;
+  totalClearCredit?: number;
+  clearCount?: number;
 }
 
 interface FantasyStageSelectProps {
@@ -156,6 +167,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           // 楽譜モード
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+          // 次ステージ開放必要回数
+          required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
         }));
         
         setStages(convertedStages);
@@ -262,6 +275,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         // 追加: 正解時にルート音を鳴らす
         playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
         tier: (stage as any).stage_tier || 'basic',
+        // 次ステージ開放必要回数
+        required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
         // 楽譜モード
         isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
         sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
@@ -287,7 +302,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         remainingHp: clear.remaining_hp,
         maxHp: clear.max_hp ?? null,
         totalQuestions: clear.total_questions,
-        correctAnswers: clear.correct_answers
+        correctAnswers: clear.correct_answers,
+        // ランクシステム関連
+        rank: clear.rank as FantasyRank | null,
+        bestRank: clear.best_rank as FantasyRank | null,
+        totalClearCredit: clear.total_clear_credit ?? 0,
+        clearCount: clear.clear_count ?? 0
       }));
       
       setStages(convertedStages);
@@ -355,26 +375,50 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     
     if (!userProgress) return false;
 
-    /* 1) すでにクリア記録があれば無条件でアンロック */
+    // 最初のステージ（X-1）は常にアンロック
+    const [r, s] = stage.stageNumber.split('-').map(Number);
+    if (isNaN(r) || isNaN(s)) return false;
+    if (s === 1) return true;
+
+    /* 1) すでにクリア記録があれば無条件でアンロック（再挑戦可能） */
     const cleared = stageClears.some(
       c => c.stageId === stage.id && c.clearType === 'clear'
     );
     if (cleared) return true;
 
-    /* 2) progress に記録されている現在地より前ならアンロック（数値ランクのみ） */
+    /* 2) 前のステージのクリア換算回数が必要回数以上ならアンロック */
+    // 前のステージを特定
+    const prevStageNumber = s > 1 ? `${r}-${s - 1}` : null;
+    if (prevStageNumber) {
+      // 同じTierの前のステージを探す
+      const prevStage = stages.find(st => 
+        st.stageNumber === prevStageNumber && 
+        (st as any).tier === selectedTier
+      );
+      
+      if (prevStage) {
+        const prevClear = stageClears.find(c => c.stageId === prevStage.id);
+        const totalClearCredit = prevClear?.totalClearCredit ?? 0;
+        const requiredClears = (prevStage as any).required_clears_for_next ?? 
+                              (prevStage as any).requiredClearsForNext ?? 5;
+        
+        if (isNextStageUnlocked(totalClearCredit, requiredClears)) {
+          return true;
+        }
+      }
+    }
+
+    /* 3) 従来の互換性: progress に記録されている現在地より前ならアンロック */
     const currentStageForTier = selectedTier === 'advanced'
       ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
       : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
     const [currR, currS] = (currentStageForTier || '1-1').split('-').map(Number);
-    const [r, s] = stage.stageNumber.split('-').map(Number);
-    if (isNaN(r) || isNaN(s) || isNaN(currR) || isNaN(currS)) {
-      return false;
-    }
+    if (isNaN(currR) || isNaN(currS)) return false;
     if (r < currR) return true;
     if (r === currR && s <= currS) return true;
 
     return false;
-  }, [userProgress, stageClears, isFreeOrGuest, selectedTier]);
+  }, [userProgress, stageClears, isFreeOrGuest, selectedTier, stages]);
   
   // ステージのクリア状況を取得
   const getStageClearInfo = useCallback((stage: FantasyStage) => {
@@ -427,6 +471,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     // clearInfo.maxHp が存在する場合はそれを使用、ない場合は stage.maxHp にフォールバック
     const clearMaxHp = clearInfo?.maxHp ?? stage.maxHp;
     const isNoDamageClear = isCleared && clearInfo.remainingHp === clearMaxHp;
+    
+    // 最高ランク
+    const bestRank = clearInfo?.bestRank;
+    // クリア換算回数と次ステージ開放情報
+    const totalClearCredit = clearInfo?.totalClearCredit ?? 0;
+    const requiredClears = (stage as any).required_clears_for_next ?? 5;
+    const remainingClears = getRemainingClearsForNextStage(totalClearCredit, requiredClears);
+    const nextUnlocked = isNextStageUnlocked(totalClearCredit, requiredClears);
     
     // グローバルインデックスを基にアイコン番号を計算（1-10の範囲）
     const globalIndex = getStageGlobalIndex(stage);
@@ -503,29 +555,49 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </div>
         </div>
         
-        {/* 右側のアイコン */}
-        <div className="flex-shrink-0 self-center flex items-center gap-1">
+        {/* 右側のアイコンとランク */}
+        <div className="flex-shrink-0 self-center flex flex-col items-end gap-1">
           {!unlocked && (
             <div className="text-xl sm:text-2xl">
               <span>🔒</span>
             </div>
           )}
           {isCleared && (
-            <>
+            <div className="flex items-center gap-1">
               {isNoDamageClear && (
                 <div className="text-xl sm:text-2xl" title={isEnglishCopy ? 'No Damage Clear!' : 'ノーダメージクリア！'}>
                   🏅
                 </div>
               )}
+              {/* 最高ランク表示 */}
+              {bestRank && (
+                <div className={`text-xl sm:text-2xl font-bold ${getGameRankColor(bestRank)}`} title={isEnglishCopy ? `Best Rank: ${bestRank}` : `最高ランク: ${bestRank}`}>
+                  {bestRank}
+                </div>
+              )}
               <div className="text-yellow-400 text-xl sm:text-2xl">
                 ⭐
               </div>
-            </>
+            </div>
+          )}
+          {/* 次ステージ開放までの残り回数（クリア済みの場合のみ表示） */}
+          {unlocked && isCleared && !nextUnlocked && (
+            <div className="text-xs text-blue-300 whitespace-nowrap">
+              {isEnglishCopy 
+                ? `${remainingClears} more to unlock next`
+                : `次まであと${remainingClears}回`
+              }
+            </div>
+          )}
+          {unlocked && isCleared && nextUnlocked && (
+            <div className="text-xs text-green-400 whitespace-nowrap">
+              {isEnglishCopy ? '✓ Next unlocked' : '✓ 次開放済'}
+            </div>
           )}
         </div>
       </div>
     );
-  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex, isFreeOrGuest]);
+  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex, isFreeOrGuest, isEnglishCopy]);
   
   // ローディング画面
   if (loading) {

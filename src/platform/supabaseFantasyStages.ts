@@ -273,6 +273,8 @@ export interface UpsertFantasyStagePayload {
   usage_type?: FantasyStageUsageType;
   // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
   is_sheet_music_mode?: boolean;
+  // 次ステージ開放に必要なクリア換算回数（Sランク=10回換算、それ以外=1回）
+  required_clears_for_next?: number;
 }
 
 /**
@@ -395,4 +397,103 @@ export async function fetchFantasyClearedStageCounts(
     fetchFantasyClearedStageCountByTier(userId, 'advanced'),
   ]);
   return { basic, advanced, total: basic + advanced };
+}
+
+/**
+ * ファンタジーステージクリア記録を保存（RPC関数を使用）
+ * @returns クリア結果情報（best_rank, total_clear_credit, clear_count, is_new_best_rank）
+ */
+export interface UpsertFantasyStageClearResult {
+  id: string;
+  bestRank: string | null;
+  totalClearCredit: number;
+  clearCount: number;
+  isNewBestRank: boolean;
+}
+
+export async function upsertFantasyStageClear(
+  userId: string,
+  stageId: string,
+  score: number,
+  clearType: 'clear' | 'gameover',
+  remainingHp: number,
+  maxHp: number,
+  totalQuestions: number,
+  correctAnswers: number,
+  rank: string
+): Promise<UpsertFantasyStageClearResult | null> {
+  const supabase = getSupabaseClient();
+  
+  const { data, error } = await supabase.rpc('upsert_fantasy_stage_clear', {
+    p_user_id: userId,
+    p_stage_id: stageId,
+    p_score: score,
+    p_clear_type: clearType,
+    p_remaining_hp: remainingHp,
+    p_max_hp: maxHp,
+    p_total_questions: totalQuestions,
+    p_correct_answers: correctAnswers,
+    p_rank: rank
+  });
+
+  if (error) {
+    console.error('Error upserting fantasy stage clear:', error);
+    throw error;
+  }
+
+  if (data && data.length > 0) {
+    const result = data[0];
+    // キャッシュをクリア
+    clearCacheByPattern(new RegExp(`^fantasy_stage_clears`));
+    clearCacheByPattern(new RegExp(`^fantasy_user_progress:${userId}`));
+    
+    return {
+      id: result.id,
+      bestRank: result.best_rank,
+      totalClearCredit: result.total_clear_credit,
+      clearCount: result.clear_count,
+      isNewBestRank: result.is_new_best_rank
+    };
+  }
+
+  return null;
+}
+
+/**
+ * 次ステージの開放状況を確認
+ */
+export interface NextStageUnlockStatus {
+  currentClearCredit: number;
+  requiredClears: number;
+  isUnlocked: boolean;
+  remainingClears: number;
+}
+
+export async function getNextStageUnlockStatus(
+  userId: string,
+  stageId: string
+): Promise<NextStageUnlockStatus | null> {
+  const supabase = getSupabaseClient();
+  
+  const { data, error } = await supabase.rpc('get_next_stage_unlock_status', {
+    p_user_id: userId,
+    p_current_stage_id: stageId
+  });
+
+  if (error) {
+    console.error('Error getting next stage unlock status:', error);
+    return null;
+  }
+
+  if (data && data.length > 0) {
+    const result = data[0];
+    return {
+      currentClearCredit: result.current_clear_credit,
+      requiredClears: result.required_clears,
+      isUnlocked: result.is_unlocked,
+      remainingClears: result.remaining_clears
+    };
+  }
+
+  return null;
 }
