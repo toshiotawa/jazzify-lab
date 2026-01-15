@@ -125,8 +125,8 @@ const getNoteDisplayLabel = (note: string): string => {
   return note;
 };
 
-// クリック追加用のルート音リスト（16種類）
-const CLICK_ADD_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'Bb', 'B'] as const;
+// クリック追加用のルート音リスト（17種類）
+const CLICK_ADD_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'] as const;
 
 // インターバル表記を人間が読みやすい形式に変換
 const formatInterval = (interval: string): string => {
