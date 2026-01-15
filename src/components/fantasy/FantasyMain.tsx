@@ -276,6 +276,7 @@ const FantasyMain: React.FC = () => {
                   score: score,
                   clear_type: result,
                   remaining_hp: playerHp,
+                  max_hp: maxHp,
                   total_questions: totalQuestions,
                   correct_answers: correctAnswers
                 }, { onConflict: 'user_id,stage_id' });
