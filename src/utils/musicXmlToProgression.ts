@@ -30,10 +30,13 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
     return 1 + beatOffset;
   };
 
+  // divisions は最初の小節で定義され、以降の小節に継承される
+  let divisionsPerQuarter = 1;
+
   // 進行
   measures.forEach((measureEl) => {
     const bar = parseInt(measureEl.getAttribute('number') || '1', 10);
-    let divisionsPerQuarter = 1;
+    // divisions が定義されていれば更新（小節間で継承される）
     const attrDiv = measureEl.querySelector('attributes divisions');
     if (attrDiv && attrDiv.textContent) {
       const d = parseInt(attrDiv.textContent, 10);
