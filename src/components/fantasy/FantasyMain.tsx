@@ -37,6 +37,7 @@ interface GameResult {
   score: number;
   correctAnswers: number;
   totalQuestions: number;
+  missCount: number;
 }
 
 const FantasyMain: React.FC = () => {
@@ -48,6 +49,8 @@ const FantasyMain: React.FC = () => {
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
+  const missCountLabel = isEnglishCopy ? 'Miss count' : 'ミス数';
+  const gameOverAdviceText = isEnglishCopy ? 'Practice in Practice Mode before challenging again!' : '練習モードで重点的に練習してから挑戦！';
   const baseXpLabel = isEnglishCopy ? 'Base XP:' : '基本XP:';
   const rankBonusLabel = isEnglishCopy ? 'Membership bonus:' : 'ランクボーナス:';
   const earnedXpLabel = isEnglishCopy ? 'Earned:' : '獲得:';
@@ -152,6 +155,7 @@ const FantasyMain: React.FC = () => {
             playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+            maxMissCount: (stage as any).max_miss_count ?? null,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -223,17 +227,23 @@ const FantasyMain: React.FC = () => {
     correctAnswers: number, 
     totalQuestions: number,
     playerHp: number,
-    maxHp: number
+    maxHp: number,
+    missCount: number
   ) => {
     setPendingAutoStart(false);
-    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions, playerHp, maxHp });
-    const gameResult: GameResult = { result, score, correctAnswers, totalQuestions };
+    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions, playerHp, maxHp, missCount });
+    const gameResult: GameResult = { result, score, correctAnswers, totalQuestions, missCount };
     setGameResult(gameResult);
     setShowResult(true);
     
     // レッスンモードの場合の処理
     if (isLessonMode && lessonContext) {
-      if (result === 'clear') {
+      // ミス数条件のチェック
+      const maxMissCount = currentStage?.maxMissCount;
+      const missConditionMet = maxMissCount === null || maxMissCount === undefined || missCount <= maxMissCount;
+      
+      // クリア条件：ゲームクリア AND ミス数条件を満たしている
+      if (result === 'clear' && missConditionMet) {
         try {
           const achievedRank = lessonContext.clearConditions?.rank || 'B';
           await updateLessonRequirementProgress(
@@ -246,6 +256,9 @@ const FantasyMain: React.FC = () => {
         } catch (error) {
           console.error('レッスン課題進捗更新エラー:', error);
         }
+      } else if (result === 'clear' && !missConditionMet) {
+        // ゲームはクリアしたがミス数条件を満たしていない場合
+        devLog.debug('🎮 レッスンモード: ミス数条件を満たしていません', { missCount, maxMissCount });
       }
       return; // レッスンモードはここで終了
     }
@@ -567,18 +580,35 @@ const FantasyMain: React.FC = () => {
   // ゲーム結果画面
   if (showResult && gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-        <div className="text-white text-center max-w-md w-full">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="text-white text-center max-w-md w-full py-8">
           {/* 結果タイトル */}
             <h2 className="text-3xl font-bold mb-6 font-sans">
               {currentStage?.stageNumber}&nbsp;
               {gameResult.result === 'clear' ? stageClearText : gameOverText}
             </h2>
           
+          {/* ゲームオーバー時のアドバイス */}
+          {gameResult.result === 'gameover' && (
+            <div className="bg-yellow-500/20 border border-yellow-500/50 rounded-lg p-4 mb-6">
+              <p className="text-yellow-300 font-medium font-sans">{gameOverAdviceText}</p>
+            </div>
+          )}
+          
           {/* 結果表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
-              <div className="text-lg font-sans">
+              <div className="text-lg font-sans space-y-2">
                 <div>{correctAnswersLabel}: <span className="text-green-300 font-bold text-2xl">{gameResult.correctAnswers}</span></div>
+                <div>
+                  {missCountLabel}: <span className="text-red-300 font-bold text-2xl">{gameResult.missCount}</span>
+                  {/* レッスンモードでミス数条件がある場合は条件を表示 */}
+                  {isLessonMode && currentStage?.maxMissCount !== null && currentStage?.maxMissCount !== undefined && (
+                    <span className={`ml-2 text-sm ${gameResult.missCount <= currentStage.maxMissCount ? 'text-green-400' : 'text-red-400'}`}>
+                      / {currentStage.maxMissCount}{isEnglishCopy ? ' max' : '回以内'}
+                      {gameResult.missCount <= currentStage.maxMissCount ? ' ✓' : ' ✗'}
+                    </span>
+                  )}
+                </div>
               </div>
             
             {/* 経験値獲得 */}

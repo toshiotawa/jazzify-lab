@@ -183,7 +183,10 @@ const LPFantasyDemo: React.FC = () => {
     _result: 'clear' | 'gameover',
     _score: number,
     _correctAnswers: number,
-    _totalQuestions: number
+    _totalQuestions: number,
+    _playerHp: number,
+    _maxHp: number,
+    _missCount: number
   ) => {
     // ゲーム内で2秒後にこのコールバックが呼ばれるため、ここでは即時に全画面を終了
     closeDemo();

@@ -29,7 +29,7 @@ interface FantasyGameScreenProps {
   playMode: FantasyPlayMode;
   onPlayModeChange: (mode: FantasyPlayMode) => void;
   onSwitchToChallenge: () => void;
-  onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number, playerHp: number, maxHp: number) => void;
+  onGameComplete: (result: 'clear' | 'gameover', score: number, correctAnswers: number, totalQuestions: number, playerHp: number, maxHp: number, missCount: number) => void;
   onBackToStageSelect: () => void;
   noteNameLang?: DisplayOpts['lang'];     // 音名表示言語
   simpleNoteName?: boolean;                // 簡易表記
@@ -482,7 +482,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         finalState.correctAnswers,
         finalState.totalQuestions,
         finalState.playerHp,
-        stage.maxHp
+        stage.maxHp,
+        finalState.missCount
       );
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete, stage.maxHp]);
@@ -594,7 +595,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setOverlay(null);
           const s = gameStateRef.current;
           if (!s) return;
-          onGameCompleteRef.current('clear', s.score, s.correctAnswers, s.totalQuestions, s.playerHp, stage.maxHp);
+          onGameCompleteRef.current('clear', s.score, s.correctAnswers, s.totalQuestions, s.playerHp, stage.maxHp, s.missCount);
         }, 800);
       }
     };

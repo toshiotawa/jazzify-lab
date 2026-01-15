@@ -547,6 +547,8 @@ export interface FantasyStage {
   usage_type?: FantasyStageUsageType;
   // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
   is_sheet_music_mode?: boolean;
+  // クリア条件のミス数上限（NULLの場合は条件なし、レッスンモード用）
+  max_miss_count?: number | null;
 }
 
 // ===== デイリーチャレンジ（日次記録） =====
