@@ -17,20 +17,35 @@ interface FantasyStageSelectorProps {
    * - 'lesson': レッスンモード用ステージのみ（usage_type = 'lesson' or 'both'）
    */
   filterMode?: 'all' | 'fantasy' | 'lesson';
+  /**
+   * 外部から渡すステージリスト（楽観的更新用）
+   * 指定された場合は内部でのフェッチをスキップし、このリストを使用
+   */
+  externalStages?: FantasyStage[];
 }
 
 export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
   selectedStageId,
   onStageSelect,
-  filterMode = 'all'
+  filterMode = 'all',
+  externalStages
 }) => {
-  const [stages, setStages] = useState<FantasyStage[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [internalStages, setInternalStages] = useState<FantasyStage[]>([]);
+  const [loading, setLoading] = useState(!externalStages);
   const [searchTerm, setSearchTerm] = useState('');
   const [error, setError] = useState<string | null>(null);
   
-  // ステージ一覧の取得（filterModeに応じて取得関数を切り替え）
+  // 使用するステージリスト（外部から渡された場合はそちらを優先）
+  const stages = externalStages ?? internalStages;
+  
+  // ステージ一覧の取得（externalStagesが渡されていない場合のみ）
   useEffect(() => {
+    // 外部からステージリストが渡されている場合はフェッチをスキップ
+    if (externalStages) {
+      setLoading(false);
+      return;
+    }
+    
     const fetchFn = filterMode === 'lesson' 
       ? fetchLessonFantasyStages 
       : filterMode === 'fantasy'
@@ -38,13 +53,13 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
         : fetchFantasyStages;
         
     fetchFn()
-      .then(setStages)
+      .then(setInternalStages)
       .catch((err) => {
         console.error('Failed to fetch fantasy stages:', err);
         setError('ファンタジーステージの取得に失敗しました');
       })
       .finally(() => setLoading(false));
-  }, [filterMode]);
+  }, [filterMode, externalStages]);
   
   // 検索フィルタリング（nullセーフ）
   const filteredStages = useMemo(() => {
