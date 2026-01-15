@@ -219,10 +219,12 @@ const FantasyMain: React.FC = () => {
     result: 'clear' | 'gameover', 
     score: number, 
     correctAnswers: number, 
-    totalQuestions: number
+    totalQuestions: number,
+    playerHp: number,
+    maxHp: number
   ) => {
     setPendingAutoStart(false);
-    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions });
+    devLog.debug('🎮 ファンタジーモード: ゲーム完了', { result, score, correctAnswers, totalQuestions, playerHp, maxHp });
     const gameResult: GameResult = { result, score, correctAnswers, totalQuestions };
     setGameResult(gameResult);
     setShowResult(true);
@@ -273,7 +275,8 @@ const FantasyMain: React.FC = () => {
                   stage_id: currentStage.id,
                   score: score,
                   clear_type: result,
-                  remaining_hp: Math.max(1, 5 - (totalQuestions - correctAnswers)),
+                  remaining_hp: playerHp,
+                  max_hp: maxHp,
                   total_questions: totalQuestions,
                   correct_answers: correctAnswers
                 }, { onConflict: 'user_id,stage_id' });

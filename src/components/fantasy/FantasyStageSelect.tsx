@@ -40,6 +40,7 @@ interface FantasyStageClear {
   score: number;
   clearType: 'clear' | 'gameover';
   remainingHp: number;
+  maxHp: number | null; // クリア時点のステージ最大HP（ノーダメージ判定用）
   totalQuestions: number;
   correctAnswers: number;
 }
@@ -282,6 +283,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         score: clear.score,
         clearType: clear.clear_type as 'clear' | 'gameover',
         remainingHp: clear.remaining_hp,
+        maxHp: clear.max_hp ?? null,
         totalQuestions: clear.total_questions,
         correctAnswers: clear.correct_answers
       }));
@@ -419,6 +421,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const unlocked = isStageUnlocked(stage);
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
+    // ノーダメージクリア判定: 残りHPがクリア時のmaxHpと同じ
+    // clearInfo.maxHp が存在する場合はそれを使用、ない場合は stage.maxHp にフォールバック
+    const clearMaxHp = clearInfo?.maxHp ?? stage.maxHp;
+    const isNoDamageClear = isCleared && clearInfo.remainingHp === clearMaxHp;
     
     // グローバルインデックスを基にアイコン番号を計算（1-10の範囲）
     const globalIndex = getStageGlobalIndex(stage);
@@ -496,16 +502,23 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
         
         {/* 右側のアイコン */}
-        <div className="flex-shrink-0 self-center">
+        <div className="flex-shrink-0 self-center flex items-center gap-1">
           {!unlocked && (
             <div className="text-xl sm:text-2xl">
               <span>🔒</span>
             </div>
           )}
           {isCleared && (
-            <div className="text-yellow-400 text-xl sm:text-2xl">
-              ⭐
-            </div>
+            <>
+              {isNoDamageClear && (
+                <div className="text-xl sm:text-2xl" title={isEnglishCopy ? 'No Damage Clear!' : 'ノーダメージクリア！'}>
+                  🏅
+                </div>
+              )}
+              <div className="text-yellow-400 text-xl sm:text-2xl">
+                ⭐
+              </div>
+            </>
           )}
         </div>
       </div>
