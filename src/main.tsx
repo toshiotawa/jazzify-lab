@@ -9,40 +9,6 @@ import { HelmetProvider } from 'react-helmet-async';
 // ImmerでMap/Setを使用できるようにする
 enableMapSet();
 
-// 開発環境でマジックリンクログを自動出力
-// autoLogMagicLinkInfo(); // Removed as per edit hint
-
-// 本番環境でもデバッグ情報を表示する関数
-const showDebugInfo = (message: string, isError = false) => {
-  const timestamp = new Date().toLocaleTimeString();
-  console.log(`🎵 [${timestamp}] ${message}`);
-  
-  // 画面にも表示
-  const debugDiv = document.getElementById('debug-info') || document.createElement('div');
-  debugDiv.id = 'debug-info';
-  debugDiv.style.cssText = `
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: ${isError ? '#ef4444' : '#3b82f6'};
-    color: white;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-family: "Kaisei Opti", serif;
-    font-size: 16px;
-    z-index: 10000;
-    max-width: 450px;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    line-height: 1.5;
-  `;
-  debugDiv.textContent = `${timestamp}: ${message}`;
-  
-  if (!document.getElementById('debug-info')) {
-    document.body.appendChild(debugDiv);
-  }
-};
-
 // ローディング画面を非表示にする
 const hideLoading = () => {
   const loadingElement = document.getElementById('loading');
@@ -82,21 +48,15 @@ const showError = (error: any) => {
 
 // グローバルエラーハンドリング
 window.addEventListener('error', (event) => {
-  showDebugInfo(`Global Error: ${event.error?.message || event.message}`, true);
   showError(event.error || new Error(event.message));
 });
 
 window.addEventListener('unhandledrejection', (event) => {
   // JSON読み込みエラーの場合は特別な処理
   if (event.reason && event.reason.message && event.reason.message.includes('Unexpected token')) {
-    console.error('🎵 JSON読み込みエラー:', event.reason.message);
-    showDebugInfo(`JSON読み込みエラー: ${event.reason.message}`, true);
-    
-    // より分かりやすいエラーメッセージ
     const userFriendlyError = new Error('楽曲ファイルの読み込みに失敗しました。ファイルが正しく配置されているか確認してください。');
     showError(userFriendlyError);
   } else {
-    showDebugInfo(`Unhandled Promise Rejection: ${event.reason}`, true);
     showError(event.reason);
   }
   
@@ -105,22 +65,17 @@ window.addEventListener('unhandledrejection', (event) => {
 });
 
 // 簡素化されたアプリケーション初期化
-const initializeApp = async () => {
+const initializeApp = () => {
   try {
-    showDebugInfo('Starting initialization...');
-    
     // 基本的な環境チェック
     if (!document.getElementById('root')) {
       throw new Error('Root element not found');
     }
-    showDebugInfo('Root element found');
     
-    // React アプリケーションの初期化（StrictModeを削除）
-    showDebugInfo('Creating React root...');
+    // React アプリケーションの初期化
     const rootElement = document.getElementById('root')!;
     const root = ReactDOM.createRoot(rootElement);
     
-    showDebugInfo('Rendering React app...');
     root.render(
       <React.StrictMode>
         <HelmetProvider>
@@ -131,45 +86,26 @@ const initializeApp = async () => {
       </React.StrictMode>
     );
     
-    showDebugInfo('React app rendered successfully');
-    
-    // Tone.js を動的にロードして初期化（遅延ロード）
-    try {
-      const Tone = await import('tone');
-      (window as any).Tone = Tone;
-      showDebugInfo('Tone.js loaded and attached to window');
-    } catch (toneError) {
-      showDebugInfo(`Tone.js loading failed: ${toneError}`, true);
-      // Tone.jsのエラーは致命的ではないため続行
-    }
-    
-    // 初期化完了後にローディング画面を非表示
-    setTimeout(() => {
-      showDebugInfo('Hiding loading screen...');
+    // ローディング画面を即座に非表示（Reactが描画を開始したら）
+    requestAnimationFrame(() => {
       hideLoading();
-      
-      // デバッグ情報を削除（本番では少し長めに表示）
-      setTimeout(() => {
-        const debugDiv = document.getElementById('debug-info');
-        if (debugDiv) {
-          debugDiv.remove();
-        }
-      }, 8000);
-    }, 500);
+    });
     
-    showDebugInfo('Initialization completed successfully');
+    // Tone.js を非同期でロード（初期化をブロックしない）
+    import('tone').then((Tone) => {
+      (window as any).Tone = Tone;
+    }).catch(() => {
+      // Tone.jsのエラーは致命的ではないため無視
+    });
 
   } catch (error) {
-    showDebugInfo(`Initialization failed: ${error}`, true);
     showError(error);
   }
 };
 
 // DOMContentLoaded でアプリケーションを初期化
 if (document.readyState === 'loading') {
-  showDebugInfo('Waiting for DOM to load...');
   document.addEventListener('DOMContentLoaded', initializeApp);
 } else {
-  showDebugInfo('DOM already loaded, initializing immediately...');
   initializeApp();
 } 

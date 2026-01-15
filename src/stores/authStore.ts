@@ -77,23 +77,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     init: async () => {
       const supabase = getSupabaseClient();
       
-      console.group('🔐 認証初期化開始');
-      console.log('🌐 現在のURL:', typeof location !== 'undefined' ? location.href : 'N/A');
-      console.groupEnd();
-      
       set(state => {
         state.loading = true;
       });
       
       const { data: { session } } = await supabase.auth.getSession();
-      
-      console.log('🔑 セッション取得結果:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        sessionCreated: session ? '存在します' : 'なし',
-        sessionExpires: session ? '存在します' : 'なし'
-      });
       
       set(state => {
         state.session = session ?? null;
@@ -111,10 +99,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       // セッションがある場合はプロフィールも取得（非ブロッキングで開始）
       if (session?.user) {
-        console.log('🔍 init: プロフィール取得開始');
-        get().fetchProfile().catch(error => {
-          console.error('❌ プロフィール取得エラー:', error);
-        });
+        get().fetchProfile().catch(() => {});
       }
 
       // BroadcastChannel でタブ間認証同期
@@ -143,8 +128,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             });
           }
         };
-      } catch (error) {
-        console.warn('BroadcastChannel not supported, falling back to localStorage events');
+      } catch {
         // フォールバック: localStorage イベント
         window.addEventListener('storage', (e) => {
           if (e.key === 'supabase-auth') {
@@ -166,8 +150,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   state.profile = null;
                 });
               }
-            } catch (error) {
-              console.error('Error parsing auth storage event:', error);
+            } catch {
+              // Error parsing auth storage event - ignore
             }
           }
         });
@@ -176,14 +160,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       // auth 状態変化監視
       supabase.auth.onAuthStateChange(async (event, session) => {
         const previousUser = get().user;
-        
-        console.group('🔄 認証状態変化');
-        console.log('📝 イベント:', event);
-        console.log('👤 前のユーザー:', previousUser?.id);
-        console.log('👤 新しいユーザー:', session?.user?.id);
-        console.log('📧 ユーザーメール:', session?.user?.email);
-        console.log('🔑 セッション存在:', !!session);
-        console.groupEnd();
         
         set(state => {
           state.session = session ?? null;
@@ -198,16 +174,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           }
         });
         
-        // ✅ 自タブでもプロフィールを取得する
+        // 自タブでもプロフィールを取得する
         if (
           (event === 'SIGNED_IN'        && session?.user) ||
           (event === 'INITIAL_SESSION'  && session?.user) ||
           (event === 'TOKEN_REFRESHED'  && session?.user)
         ) {
-          console.log('✅ プロフィール取得開始');
-          get().fetchProfile().catch(error => {
-            console.error('❌ プロフィール取得エラー:', error);
-          });
+          get().fetchProfile().catch(() => {});
         }
 
         // メールアドレス変更完了の検出とStripe同期
@@ -216,8 +189,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           const newEmail = session.user.email;
           
           if (oldEmail && newEmail && oldEmail !== newEmail) {
-            console.log('Email change detected, syncing with Stripe...', { oldEmail, newEmail });
-            
             // Stripe Customer emailを同期
             try {
               const response = await fetch('/.netlify/functions/updateCustomerEmail', {
@@ -230,9 +201,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               });
 
               if (response.ok) {
-                const result = await response.json();
-                console.log('Stripe email sync successful:', result);
-                
                 // プロフィール情報を再取得してUIに反映
                 await get().fetchProfile();
                 
@@ -245,8 +213,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   };
                 });
               } else {
-                console.error('Failed to sync email with Stripe:', await response.text());
-                
                 // 警告状態をセット
                 set(state => {
                   state.emailChangeStatus = {
@@ -256,9 +222,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
                   };
                 });
               }
-            } catch (error) {
-              console.error('Error syncing email with Stripe:', error);
-              
+            } catch {
               // ネットワークエラー等の警告状態をセット
               set(state => {
                 state.emailChangeStatus = {
@@ -279,15 +243,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           try {
             localStorage.setItem('supabase-auth', JSON.stringify({ event, session }));
             localStorage.removeItem('supabase-auth'); // 即座に削除してイベントをトリガー
-          } catch (error) {
-            console.warn('localStorage not available for auth sync');
+          } catch {
+            // localStorage not available for auth sync - ignore
           }
         }
       });
 
       if (session?.user) {
-        await get().fetchProfile();
-
+        // プロフィール取得（非ブロッキング - 別途fetchProfile()が呼ばれている）
         // Realtime: 自分の profiles 行が更新されたら即時反映
         try {
           const supabase = getSupabaseClient();
@@ -302,8 +265,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             },
           );
           channel.subscribe();
-        } catch (e) {
-          console.warn('Failed to subscribe profile realtime', e);
+        } catch {
+          // Realtime subscription failed - non-critical
         }
       }
     },
@@ -319,8 +282,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
 
       try {
-        console.log('🔐 OTP送信モード');
-        
         const { error } = await supabase.auth.signInWithOtp({
           email,
           options: {
@@ -331,8 +292,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         if (error) {
           // サインアップ無効エラーの特別処理
           if (error.message.includes('Signups not allowed') || error.message.includes('signups not allowed')) {
-            console.warn('⚠️ サインアップが無効です。ログインモードで再試行します。');
-            
             // ログインモードで再試行
             const { error: loginError } = await supabase.auth.signInWithOtp({
               email,
@@ -342,16 +301,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             });
 
             if (loginError) {
-              console.error('❌ ログインモード再試行失敗:', loginError);
               throw new Error(`ログインに失敗しました: ${loginError.message}`);
             }
           } else {
-            console.error('❌ OTP送信失敗:', error);
             throw error;
           }
         }
-
-        console.log('✅ OTP送信成功');
 
         set(state => {
           state.loading = false;
@@ -359,7 +314,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
 
       } catch (error) {
-        console.error('❌ OTP送信処理エラー:', error);
         
         let errorMessage = 'OTP送信に失敗しました';
         
@@ -418,7 +372,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
 
       } catch (error) {
-        console.error('OTP検証エラー:', error);
         let errorMessage = 'OTP検証に失敗しました';
         
         if (error instanceof Error) {
@@ -478,11 +431,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       const supabase = getSupabaseClient();
       const { user } = get();
       if (!user) {
-        console.log('❌ fetchProfile: ユーザーが存在しません');
         return;
       }
-      
-      console.log('🔍 fetchProfile: プロフィール取得開始', { userId: user.id, userEmail: user.email });
       
       try {
         const cacheKey = `profile:${user.id}`;
@@ -499,8 +449,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             .maybeSingle(),
           1000 * 60 * 5
         );
-        
-        console.log('📊 fetchProfile: 取得結果', { data, error, hasData: !!data, hasError: !!error });
         
         set(state => {
           state.hasProfile = !!data && !error;
@@ -539,21 +487,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
         // プロフィール取得成功後、ユーザー統計も並行で取得
         if (data && !error) {
-          console.log('✅ fetchProfile: プロフィール取得成功', { nickname: data.nickname, rank: data.rank });
           const { fetchStats } = useUserStatsStore.getState();
-          fetchStats(user.id).catch(console.error); // エラーは無視（統計は重要ではない）
-        } else if (error) {
-          console.log('❌ fetchProfile: プロフィール取得エラー', { error });
-        } else {
-          console.log('⚠️ fetchProfile: プロフィールが見つかりません（新規ユーザー）');
+          fetchStats(user.id).catch(() => {}); // エラーは無視（統計は重要ではない）
         }
       } catch (err) {
-        console.error('Profile fetch error:', err);
-        
         // ネットワークエラーや一時的なエラーの場合は hasProfile を変更しない
         const errorMessage = err instanceof Error ? err.message : String(err);
         if (errorMessage.includes('network') || errorMessage.includes('timeout') || errorMessage.includes('fetch') || errorMessage.includes('fetchProfile timeout')) {
-          console.log('🌐 fetchProfile: ネットワークエラー', { errorMessage });
           set(state => {
             state.error = '一時的なネットワークエラーです。しばらくしてから再試行してください。';
           });
@@ -561,16 +501,10 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
         
         // その他のエラーの場合のみ hasProfile を false にする
-        console.log('💥 fetchProfile: 致命的エラー', { errorMessage });
         set(state => {
           state.hasProfile = false;
           state.profile = null;
           state.error = 'プロフィールの取得に失敗しました';
-        });
-      } finally {
-        // fetchProfile はUI全体のloadingをブロックしない
-        set(state => {
-          // state.loading はここでは触らない
         });
       }
     },
@@ -641,7 +575,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         });
         
       } catch (error) {
-        console.error('Profile creation error:', error);
         set(state => { 
           state.loading = false;
           state.error = (error instanceof Error ? error.message : String(error)) || 'プロフィールの作成に失敗しました';
@@ -693,7 +626,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         };
 
       } catch (error) {
-        console.error('Email update error:', error);
         const errorMessage = error instanceof Error ? error.message : 'メールアドレスの更新に失敗しました';
         set(state => {
           state.loading = false;
