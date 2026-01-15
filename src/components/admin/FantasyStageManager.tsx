@@ -12,6 +12,7 @@ import {
   deleteFantasyStage,
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
+import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
@@ -372,6 +373,38 @@ const FantasyStageManager: React.FC = () => {
     return base;
   };
 
+  // サーバーレスポンスをフォーム値に変換するヘルパー
+  const serverResponseToFormValues = useCallback((s: DbFantasyStage): StageFormValues => {
+    return {
+      id: s.id,
+      stage_number: s.stage_number ?? '',
+      name: s.name,
+      description: s.description || '',
+      mode: (s.mode as AdminStageMode) || 'single',
+      max_hp: s.max_hp,
+      enemy_gauge_seconds: s.enemy_gauge_seconds,
+      enemy_count: s.enemy_count,
+      enemy_hp: s.enemy_hp,
+      min_damage: s.min_damage,
+      max_damage: s.max_damage,
+      simultaneous_monster_count: s.simultaneous_monster_count || 1,
+      show_guide: !!s.show_guide,
+      play_root_on_correct: (s as DbFantasyStage & { play_root_on_correct?: boolean }).play_root_on_correct ?? true,
+      bpm: (s as DbFantasyStage & { bpm?: number }).bpm || 120,
+      measure_count: (s as DbFantasyStage & { measure_count?: number }).measure_count || 8,
+      time_signature: (s as DbFantasyStage & { time_signature?: number }).time_signature || 4,
+      count_in_measures: (s as DbFantasyStage & { count_in_measures?: number }).count_in_measures || 0,
+      bgm_url: (s as DbFantasyStage & { bgm_url?: string }).bgm_url || (s as DbFantasyStage & { mp3_url?: string }).mp3_url || '',
+      mp3_url: (s as DbFantasyStage & { mp3_url?: string }).mp3_url || '',
+      note_interval_beats: (s as DbFantasyStage & { note_interval_beats?: number | null }).note_interval_beats ?? null,
+      allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
+      chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as StageFormValues['chord_progression'],
+      chord_progression_data: (s as DbFantasyStage & { chord_progression_data?: TimingRow[] }).chord_progression_data || [],
+      stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
+      is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
+    };
+  }, []);
+
   const onSubmit = async (v: StageFormValues) => {
     try {
       setLoading(true);
@@ -392,18 +425,40 @@ const FantasyStageManager: React.FC = () => {
 
       const payload = toPayload(v);
       if (v.id) {
+        // 更新: 楽観的更新を実装
         const updated = await updateFantasyStage(v.id, payload);
+        
+        // キャッシュをクリア（次回のフェッチで正しいデータを取得）
+        clearCacheByPattern(/fantasy_stages/);
+        
+        // サーバーレスポンスを使ってフォームを楽観的に更新（再フェッチしない）
+        const formValues = serverResponseToFormValues(updated);
+        reset(formValues);
+        
+        // ステージリストも楽観的に更新
+        setStages(prev => prev.map(s => s.id === updated.id ? updated : s));
+        
         toast.success('ステージを更新しました');
-        await loadStage(updated.id);
       } else {
+        // 新規作成: 楽観的更新を実装
         const created = await createFantasyStage(payload);
+        
+        // キャッシュをクリア
+        clearCacheByPattern(/fantasy_stages/);
+        
+        // サーバーレスポンスを使ってフォームを楽観的に更新
+        const formValues = serverResponseToFormValues(created);
+        reset(formValues);
+        setSelectedStageId(created.id);
+        
+        // ステージリストに追加
+        setStages(prev => [created, ...prev]);
+        
         toast.success('ステージを作成しました');
-        setStages(prev => [created as any, ...prev]);
-        await loadStage(created.id);
       }
-    } catch (e: any) {
-      console.error(e);
-      toast.error(e?.message || '保存に失敗しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '保存に失敗しました';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -415,13 +470,19 @@ const FantasyStageManager: React.FC = () => {
     try {
       setLoading(true);
       await deleteFantasyStage(selectedStageId);
-      toast.success('削除しました');
+      
+      // キャッシュをクリア
+      clearCacheByPattern(/fantasy_stages/);
+      
+      // 楽観的に削除（サーバーから再フェッチしない）
+      setStages(prev => prev.filter(s => s.id !== selectedStageId));
       setSelectedStageId(null);
       reset(defaultValues);
-      const refreshed = await fetchFantasyModeStages();
-      setStages(refreshed);
-    } catch (e: any) {
-      toast.error(e?.message || '削除に失敗しました');
+      
+      toast.success('削除しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '削除に失敗しました';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -451,6 +512,7 @@ const FantasyStageManager: React.FC = () => {
               <FantasyStageSelector
                 selectedStageId={selectedStageId}
                 onStageSelect={(id) => loadStage(id)}
+                externalStages={stages}
               />
             </div>
             <button className="btn btn-sm btn-outline w-full" onClick={() => { setSelectedStageId(null); reset(defaultValues); }}>新規ステージ</button>
