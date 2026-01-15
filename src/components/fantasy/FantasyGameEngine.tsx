@@ -143,6 +143,8 @@ export interface FantasyStage {
   isSheetMusicMode?: boolean;
   // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
   sheetMusicClef?: 'treble' | 'bass';
+  // クリア条件のミス数上限（nullの場合は条件なし、レッスンモード用）
+  maxMissCount?: number | null;
 }
 
 export interface MonsterState {
@@ -170,6 +172,7 @@ export interface FantasyGameState {
   score: number;
   totalQuestions: number;
   correctAnswers: number;
+  missCount: number; // ミス数（攻撃を受けた回数）
   isGameActive: boolean;
   isGameOver: boolean;
   gameResult: 'clear' | 'gameover' | null;
@@ -688,6 +691,7 @@ export const useFantasyGameEngine = ({
     score: 0,
     totalQuestions: 0,
     correctAnswers: 0,
+    missCount: 0,
     isGameActive: false,
     isGameOver: false,
     gameResult: null,
@@ -1197,6 +1201,7 @@ export const useFantasyGameEngine = ({
       score: 0,
       totalQuestions: totalQuestions,
       correctAnswers: 0,
+      missCount: 0,
       isGameActive: true,
       isGameOver: false,
       gameResult: null,
@@ -1342,11 +1347,13 @@ export const useFantasyGameEngine = ({
       }
 
       const newHp = Math.max(0, prevState.playerHp - 1); // 確実に1減らす
+      const newMissCount = prevState.missCount + 1; // ミス数をインクリメント
       
       devLog.debug('💥 敵の攻撃！HP更新:', {
         oldHp: prevState.playerHp,
         newHp: newHp,
         damage: 1,
+        missCount: newMissCount,
         attackingMonsterId: attackingMonsterId || prevState.activeMonsters?.[0]?.id
       });
       
@@ -1356,6 +1363,7 @@ export const useFantasyGameEngine = ({
         const finalState = {
           ...prevState,
           playerHp: 0,
+          missCount: newMissCount,
           isGameActive: false,
           isGameOver: true,
           gameResult: 'gameover' as const,
@@ -1381,6 +1389,7 @@ export const useFantasyGameEngine = ({
             const finalState = {
               ...prevState,
               playerHp: newHp,
+              missCount: newMissCount,
               playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
               isGameActive: false,
               isGameOver: true,
@@ -1410,6 +1419,7 @@ export const useFantasyGameEngine = ({
               const nextState = {
                 ...prevState,
                 playerHp: newHp,
+                missCount: newMissCount,
                 playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
                 enemyGauge: 0,
                 activeMonsters: updatedMonsters
@@ -1436,6 +1446,7 @@ export const useFantasyGameEngine = ({
             const nextState = {
               ...prevState,
               playerHp: newHp,
+              missCount: newMissCount,
               playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
               currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
               currentChordTarget: nextChord,
@@ -1615,12 +1626,14 @@ export const useFantasyGameEngine = ({
           // HP減少とゲームオーバー判定（練習モードではスキップ）
           const newHp = isPracticeMode ? prevState.playerHp : Math.max(0, prevState.playerHp - 1);
           const newSp = isPracticeMode ? prevState.playerSp : 0; // 練習モードではSPもリセットしない
+          const newMissCount = isPracticeMode ? prevState.missCount : prevState.missCount + 1; // ミス数インクリメント
           const isGameOver = !isPracticeMode && newHp <= 0;
           
           if (isGameOver) {
             const finalState = {
               ...prevState,
               playerHp: 0,
+              missCount: newMissCount,
               isGameActive: false,
               isGameOver: true,
               gameResult: 'gameover' as const,
@@ -1647,6 +1660,7 @@ export const useFantasyGameEngine = ({
             return {
               ...prevState,
               playerHp: newHp,
+              missCount: newMissCount,
               playerSp: newSp,
               awaitingLoopStart: true,
               // 視覚的なコード切り替えのみ行う
@@ -1667,6 +1681,7 @@ export const useFantasyGameEngine = ({
           return {
             ...prevState,
             playerHp: newHp,
+            missCount: newMissCount,
             playerSp: newSp,
             currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({

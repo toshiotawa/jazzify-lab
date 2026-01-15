@@ -174,7 +174,7 @@ const DailyChallengeMain: React.FC = () => {
       onBackToStageSelect={() => {
         window.location.hash = '#dashboard';
       }}
-      onGameComplete={async (_result, _score, correctAnswers) => {
+      onGameComplete={async (_result, _score, correctAnswers, _totalQuestions, _playerHp, _maxHp, _missCount) => {
         const score = correctAnswers;
         // 練習モードの場合はスコアを保存しない、スタートボタン画面に戻す
         if (isPracticeMode) {

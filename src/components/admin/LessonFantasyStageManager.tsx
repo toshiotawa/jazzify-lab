@@ -58,6 +58,8 @@ interface StageFormValues {
   allowed_chords: any[];
   chord_progression: any[];
   chord_progression_data: TimingRow[];
+  // クリア条件のミス数上限（レッスンモード用）
+  max_miss_count?: number | null;
 }
 
 const defaultValues: StageFormValues = {
@@ -83,6 +85,7 @@ const defaultValues: StageFormValues = {
   chord_progression_data: [],
   bgm_url: '',
   mp3_url: '',
+  max_miss_count: null,
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -190,6 +193,7 @@ const LessonFantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
+        max_miss_count: (s as any).max_miss_count ?? null,
       };
       reset(v);
     } catch (e: any) {
@@ -227,6 +231,7 @@ const LessonFantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: 'basic',  // レッスン専用は常にbasic
       usage_type: 'lesson',  // レッスン専用
+      max_miss_count: v.max_miss_count ?? null,  // ミス数上限（nullは条件なし）
     };
 
     // モードに応じた不要フィールドの削除
@@ -439,6 +444,28 @@ const LessonFantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>最大ダメージ</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('max_damage', { valueAsNumber: true })} />
+                </div>
+              </Row>
+            </Section>
+
+            <Section title="クリア条件">
+              <p className="text-xs text-gray-400 mb-3">
+                レッスンクリア条件としてミス数の上限を設定できます。空欄の場合はミス数を条件に含めません。
+              </p>
+              <Row>
+                <div>
+                  <SmallLabel>ミス数上限（空欄=条件なし）</SmallLabel>
+                  <input 
+                    type="number" 
+                    className="input input-bordered w-full" 
+                    placeholder="例: 3" 
+                    {...register('max_miss_count', { 
+                      setValueAs: (v) => v === '' || v === null || v === undefined ? null : parseInt(v, 10)
+                    })} 
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    設定すると「ミス○回以内」がクリア条件に追加されます
+                  </p>
                 </div>
               </Row>
             </Section>
