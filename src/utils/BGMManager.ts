@@ -235,6 +235,14 @@ class BGMManager {
     const audioTime = this._getNormalizedAudioTime()
     return audioTime < this.loopBegin
   }
+  
+  /**
+   * BGMが再生中かつ有効な時間を返せる状態かどうか
+   * ミス判定などの時間依存処理を行う前にチェックする
+   */
+  isReadyForTiming(): boolean {
+    return this.isPlaying && (this.waBuffer !== null || this.audio !== null)
+  }
 
   /** Measure 1 の開始へリセット */
   resetToStart() {
