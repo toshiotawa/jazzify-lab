@@ -116,6 +116,10 @@ class BGMManager {
   /**
    * ループを考慮した実際のオーディオ再生位置（秒）を取得
    * Web Audio のループ機能使用時も正しい位置を返す
+   * 
+   * 改善点:
+   * - loopBegin以降は常にループ範囲内に正規化（Web Audio内部ループとの同期ズレを解消）
+   * - 浮動小数点誤差の蓄積を防ぐため、常に正規化を適用
    */
   private _getNormalizedAudioTime(): number {
     if (!this.isPlaying) return 0
@@ -124,14 +128,19 @@ class BGMManager {
       const rawTime = this.waContext.currentTime - this.waStartAt
       const loopDuration = this.loopEnd - this.loopBegin
       
-      // loopEnd を超えた場合（ループ後）は正規化
-      if (rawTime >= this.loopEnd && loopDuration > 0) {
-        const timeAfterLoopBegin = rawTime - this.loopBegin
-        const posInLoop = timeAfterLoopBegin % loopDuration
-        return this.loopBegin + posInLoop
+      // loopDurationが無効な場合はそのまま返す
+      if (loopDuration <= 0) return rawTime
+      
+      // カウントイン中（loopBegin未満）はそのまま返す
+      if (rawTime < this.loopBegin) {
+        return rawTime
       }
       
-      return rawTime
+      // loopBegin以降は常にループ範囲内に正規化
+      // これにより、Web Audio内部ループとJavaScript計算の同期ズレを最小化
+      const timeAfterLoopBegin = rawTime - this.loopBegin
+      const posInLoop = timeAfterLoopBegin % loopDuration
+      return this.loopBegin + posInLoop
     }
     
     if (this.audio) {

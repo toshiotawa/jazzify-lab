@@ -1513,28 +1513,36 @@ export const useFantasyGameEngine = ({
         const justLooped = normalizedTime + 1e-6 < lastNorm;
         
         if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
+          // 次ループ突入時: ノーツとインデックスをリセット
           const resetNotes = prevState.taikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
           }));
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
+          // ループ時は常にcurrentNoteIndexを現在時間に最も近いノーツにリセット
+          // これにより、Web Audio内部ループとの同期ズレを解消
+          let newNoteIndex = 0;
           
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
-            }));
+          // 現在時間より後にヒットすべき最初のノーツを探す
+          for (let i = 0; i < resetNotes.length; i++) {
+            if (resetNotes[i].hitTime > normalizedTime - 0.15) {
+              newNoteIndex = i;
+              break;
+            }
           }
+          
+          // モンスターのコード表示を更新
+          const firstNote = resetNotes[newNoteIndex] || resetNotes[0];
+          const secondNoteIndex = newNoteIndex + 1 < resetNotes.length ? newNoteIndex + 1 : 0;
+          const secondNote = resetNotes[secondNoteIndex] || resetNotes[0];
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: firstNote.chord,
+            nextChord: secondNote.chord
+          }));
           
           return {
             ...prevState,
