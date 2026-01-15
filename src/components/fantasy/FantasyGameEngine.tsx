@@ -1583,11 +1583,13 @@ export const useFantasyGameEngine = ({
             hitTime: currentNote.hitTime.toFixed(3)
           });
 
+          // 練習モードの場合はHP減少をスキップ（無限HP）
+          const isPracticeMode = prevState.playMode === 'practice';
+          
           // 敵の攻撃を発動（先頭モンスターを指定）
-          // ※練習モードでは updateEnemyGauge 自体が動かないため、ここに到達しない
-          const attackerId = prevState.activeMonsters?.[0]?.id;
           // 練習モードでは攻撃演出（怒りなど）をスキップ
-          if (attackerId && prevState.playMode !== 'practice') {
+          const attackerId = prevState.activeMonsters?.[0]?.id;
+          if (attackerId && !isPracticeMode) {
             const { setEnrage } = useEnemyStore.getState();
             const timers = enrageTimersRef.current;
             const oldTimer = timers.get(attackerId);
@@ -1600,9 +1602,10 @@ export const useFantasyGameEngine = ({
             timers.set(attackerId, t);
           }
           
-          // HP減少とゲームオーバー判定を直接行う（非同期呼び出しによる状態競合を防ぐ）
-          const newHp = Math.max(0, prevState.playerHp - 1);
-          const isGameOver = newHp <= 0;
+          // HP減少とゲームオーバー判定（練習モードではスキップ）
+          const newHp = isPracticeMode ? prevState.playerHp : Math.max(0, prevState.playerHp - 1);
+          const newSp = isPracticeMode ? prevState.playerSp : 0; // 練習モードではSPもリセットしない
+          const isGameOver = !isPracticeMode && newHp <= 0;
           
           if (isGameOver) {
             const finalState = {
@@ -1634,7 +1637,7 @@ export const useFantasyGameEngine = ({
             return {
               ...prevState,
               playerHp: newHp,
-              playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
+              playerSp: newSp,
               awaitingLoopStart: true,
               // 視覚的なコード切り替えのみ行う
               activeMonsters: prevState.activeMonsters.map(m => ({
@@ -1654,7 +1657,7 @@ export const useFantasyGameEngine = ({
           return {
             ...prevState,
             playerHp: newHp,
-            playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
+            playerSp: newSp,
             currentNoteIndex: nextIndex,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
