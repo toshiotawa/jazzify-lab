@@ -494,6 +494,43 @@ const FantasyStageManager: React.FC = () => {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!selectedStageId) return;
+    if (!confirm('このステージを複製しますか？')) return;
+    try {
+      setLoading(true);
+      const currentValues = watch();
+      
+      // IDを削除し、名前とステージ番号を変更して複製
+      const duplicatePayload = toPayload({
+        ...currentValues,
+        id: undefined,
+        stage_number: currentValues.stage_number ? `${currentValues.stage_number}-copy` : '',
+        name: `${currentValues.name}（コピー）`,
+      });
+      
+      const created = await createFantasyStage(duplicatePayload);
+      
+      // キャッシュをクリア
+      clearCacheByPattern(/fantasy_stages/);
+      
+      // サーバーレスポンスを使ってフォームを更新
+      const formValues = serverResponseToFormValues(created);
+      reset(formValues);
+      setSelectedStageId(created.id);
+      
+      // ステージリストに追加
+      setStages(prev => [created, ...prev]);
+      
+      toast.success('ステージを複製しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '複製に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const quickAddAllowed = (text: string) => {
     const items = parseQuickChordInput(text);
     if (!items.length) return;
@@ -1117,7 +1154,10 @@ const FantasyStageManager: React.FC = () => {
             <div className="flex items-center gap-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '保存中...' : '保存'}</button>
               {selectedStageId && (
-                <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                <>
+                  <button type="button" className="btn btn-info" onClick={handleDuplicate} disabled={loading}>複製</button>
+                  <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                </>
               )}
             </div>
 

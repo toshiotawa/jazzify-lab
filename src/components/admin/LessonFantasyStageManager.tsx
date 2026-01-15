@@ -300,8 +300,40 @@ const LessonFantasyStageManager: React.FC = () => {
       reset(defaultValues);
       const refreshed = await fetchLessonOnlyFantasyStages();
       setStages(refreshed);
-    } catch (e: any) {
-      toast.error(e?.message || '削除に失敗しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '削除に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!selectedStageId) return;
+    if (!confirm('この課題を複製しますか？')) return;
+    try {
+      setLoading(true);
+      const currentValues = watch();
+      
+      // IDを削除し、名前を変更して複製
+      const duplicatePayload = toPayload({
+        ...currentValues,
+        id: undefined,
+        name: `${currentValues.name}（コピー）`,
+      });
+      
+      const created = await createFantasyStage(duplicatePayload);
+      toast.success('課題を複製しました');
+      
+      // 新しく作成されたステージを選択状態にして読み込み
+      await loadStage(created.id);
+      
+      // リスト更新
+      const refreshed = await fetchLessonOnlyFantasyStages();
+      setStages(refreshed);
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '複製に失敗しました';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -730,7 +762,10 @@ const LessonFantasyStageManager: React.FC = () => {
             <div className="flex items-center gap-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '保存中...' : '保存'}</button>
               {selectedStageId && (
-                <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                <>
+                  <button type="button" className="btn btn-info" onClick={handleDuplicate} disabled={loading}>複製</button>
+                  <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                </>
               )}
             </div>
 
