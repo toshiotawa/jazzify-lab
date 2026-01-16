@@ -375,10 +375,31 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     
     if (!userProgress) return false;
 
-    // 最初のステージ（X-1）は常にアンロック
     const [r, s] = stage.stageNumber.split('-').map(Number);
     if (isNaN(r) || isNaN(s)) return false;
-    if (s === 1) return true;
+
+    // 最初のランク最初のステージ（1-1）は常にアンロック
+    if (r === 1 && s === 1) return true;
+
+    // X-1 (X > 1) ステージの場合: 前のランクの10がクリア済みかチェック
+    if (s === 1 && r > 1) {
+      // 前のランクの最後のステージ（(r-1)-10）を探す
+      const prevRankLastStageNumber = `${r - 1}-10`;
+      const prevRankLastStage = stages.find(st => 
+        st.stageNumber === prevRankLastStageNumber && 
+        (st as any).tier === selectedTier
+      );
+      
+      if (prevRankLastStage) {
+        const prevRankClear = stageClears.find(c => c.stageId === prevRankLastStage.id && c.clearType === 'clear');
+        // 前ランクの最後をクリアしていなければアンロックしない
+        if (!prevRankClear) return false;
+        // クリアしていればこのX-1をアンロック
+        return true;
+      }
+      // 前ランクの最後のステージが存在しない場合はアンロックしない
+      return false;
+    }
 
     /* 1) すでにクリア記録があれば無条件でアンロック（再挑戦可能） */
     const cleared = stageClears.some(
@@ -467,10 +488,6 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const unlocked = isStageUnlocked(stage);
     const clearInfo = getStageClearInfo(stage);
     const isCleared = clearInfo && clearInfo.clearType === 'clear';
-    // ノーダメージクリア判定: 残りHPがクリア時のmaxHpと同じ
-    // clearInfo.maxHp が存在する場合はそれを使用、ない場合は stage.maxHp にフォールバック
-    const clearMaxHp = clearInfo?.maxHp ?? stage.maxHp;
-    const isNoDamageClear = isCleared && clearInfo.remainingHp === clearMaxHp;
     
     // 最高ランク
     const bestRank = clearInfo?.bestRank;
@@ -564,34 +581,26 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}
           {isCleared && (
             <div className="flex items-center gap-1">
-              {isNoDamageClear && (
-                <div className="text-xl sm:text-2xl" title={isEnglishCopy ? 'No Damage Clear!' : 'ノーダメージクリア！'}>
-                  🏅
-                </div>
-              )}
               {/* 最高ランク表示 */}
               {bestRank && (
                 <div className={`text-xl sm:text-2xl font-bold ${getGameRankColor(bestRank)}`} title={isEnglishCopy ? `Best Rank: ${bestRank}` : `最高ランク: ${bestRank}`}>
                   {bestRank}
                 </div>
               )}
-              <div className="text-yellow-400 text-xl sm:text-2xl">
-                ⭐
-              </div>
             </div>
           )}
           {/* 次ステージ開放までの残り回数（クリア済みの場合のみ表示） */}
           {unlocked && isCleared && !nextUnlocked && (
             <div className="text-xs text-blue-300 whitespace-nowrap">
               {isEnglishCopy 
-                ? `${remainingClears} more to unlock next`
-                : `次まであと${remainingClears}回`
+                ? `Clears needed: ${remainingClears} more`
+                : `必要クリア回数：あと${remainingClears}回`
               }
             </div>
           )}
           {unlocked && isCleared && nextUnlocked && (
             <div className="text-xs text-green-400 whitespace-nowrap">
-              {isEnglishCopy ? '✓ Next unlocked' : '✓ 次開放済'}
+              {isEnglishCopy ? 'Clears needed: 0 more' : '必要クリア回数：あと0回'}
             </div>
           )}
         </div>
