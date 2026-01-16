@@ -549,12 +549,12 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         
         {/* コンテンツ部分 */}
         <div className="min-w-0 flex-grow">
-          {/* ステージ名 */}
+          {/* ステージ名 - ロックされていても表示 */}
           <div className={cn(
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
             )}>
-              {unlocked ? getLocalizedFantasyStageName(stage, profile?.rank) : "???"}
+              {getLocalizedFantasyStageName(stage, profile?.rank)}
           </div>
           
           {/* モードタグ */}
@@ -569,15 +569,19 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </div>
           )}
           
-          {/* 説明文 */}
+          {/* 説明文 - ロックされていても表示 */}
           <div className={cn(
             "text-xs sm:text-sm leading-relaxed break-words",
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
-              {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
-                isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
-                  ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
-                  : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
+              {getLocalizedFantasyStageDescription(stage, profile?.rank)}
+              {!unlocked && (
+                <span className="block mt-1 text-orange-400/80">
+                  {isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
+                    ? (isEnglishCopy ? '(Available on the Standard plan or higher)' : '（スタンダードプラン以上で利用可能）') 
+                    : (isEnglishCopy ? '(Clear the previous stage to unlock)' : '（前のステージをクリアすると解放）')
+                  }
+                </span>
               )}
           </div>
         </div>
