@@ -381,7 +381,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     // 最初のランク最初のステージ（1-1）は常にアンロック
     if (r === 1 && s === 1) return true;
 
-    // X-1 (X > 1) ステージの場合: 前のランクの10がクリア済みかチェック
+    // X-1 (X > 1) ステージの場合: 前のランクの最後のステージの必要クリア回数をチェック
     if (s === 1 && r > 1) {
       // 前のランクの最後のステージ（(r-1)-10）を探す
       const prevRankLastStageNumber = `${r - 1}-10`;
@@ -394,8 +394,18 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         const prevRankClear = stageClears.find(c => c.stageId === prevRankLastStage.id && c.clearType === 'clear');
         // 前ランクの最後をクリアしていなければアンロックしない
         if (!prevRankClear) return false;
-        // クリアしていればこのX-1をアンロック
-        return true;
+        
+        // 必要クリア回数をチェック（ランクをまたぐ場合も同様）
+        const totalClearCredit = prevRankClear?.totalClearCredit ?? 0;
+        const requiredClears = (prevRankLastStage as any).required_clears_for_next ?? 
+                              (prevRankLastStage as any).requiredClearsForNext ?? 5;
+        
+        // 必要クリア回数を満たしていればアンロック
+        if (isNextStageUnlocked(totalClearCredit, requiredClears)) {
+          return true;
+        }
+        // 必要クリア回数を満たしていなければアンロックしない
+        return false;
       }
       // 前ランクの最後のステージが存在しない場合はアンロックしない
       return false;
