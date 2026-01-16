@@ -494,6 +494,69 @@ const FantasyStageManager: React.FC = () => {
     }
   };
 
+  const handleDuplicate = async () => {
+    if (!selectedStageId) return;
+    try {
+      setLoading(true);
+      
+      // 現在選択されているステージを取得
+      const currentStage = await fetchFantasyStageById(selectedStageId);
+      
+      // 複製用のペイロードを作成（IDを除外）
+      const duplicatePayload: UpsertFantasyStagePayload = {
+        // IDは新規生成されるので含めない
+        stage_number: currentStage.stage_number ? `${currentStage.stage_number}_copy` : '',
+        name: `${currentStage.name} (複製)`,
+        description: currentStage.description || '',
+        mode: (currentStage.mode as UpsertFantasyStagePayload['mode']) || 'single',
+        max_hp: currentStage.max_hp,
+        enemy_gauge_seconds: currentStage.enemy_gauge_seconds,
+        enemy_count: currentStage.enemy_count,
+        enemy_hp: currentStage.enemy_hp,
+        min_damage: currentStage.min_damage,
+        max_damage: currentStage.max_damage,
+        simultaneous_monster_count: currentStage.simultaneous_monster_count || 1,
+        show_guide: !!currentStage.show_guide,
+        play_root_on_correct: (currentStage as DbFantasyStage & { play_root_on_correct?: boolean }).play_root_on_correct ?? true,
+        bpm: (currentStage as DbFantasyStage & { bpm?: number }).bpm,
+        measure_count: (currentStage as DbFantasyStage & { measure_count?: number }).measure_count,
+        time_signature: (currentStage as DbFantasyStage & { time_signature?: number }).time_signature,
+        count_in_measures: (currentStage as DbFantasyStage & { count_in_measures?: number }).count_in_measures,
+        bgm_url: (currentStage as DbFantasyStage & { bgm_url?: string | null }).bgm_url || null,
+        mp3_url: (currentStage as DbFantasyStage & { mp3_url?: string | null }).mp3_url || null,
+        allowed_chords: Array.isArray(currentStage.allowed_chords) ? currentStage.allowed_chords : [],
+        chord_progression: Array.isArray(currentStage.chord_progression) ? currentStage.chord_progression : [],
+        chord_progression_data: (currentStage as DbFantasyStage & { chord_progression_data?: TimingRow[] }).chord_progression_data || [],
+        note_interval_beats: (currentStage as DbFantasyStage & { note_interval_beats?: number | null }).note_interval_beats ?? null,
+        stage_tier: (currentStage as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
+        usage_type: 'fantasy',
+        is_sheet_music_mode: !!(currentStage as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
+        required_clears_for_next: (currentStage as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
+      };
+      
+      // 新規ステージを作成
+      const created = await createFantasyStage(duplicatePayload);
+      
+      // キャッシュをクリア
+      clearCacheByPattern(/fantasy_stages/);
+      
+      // サーバーレスポンスを使ってフォームを更新
+      const formValues = serverResponseToFormValues(created);
+      reset(formValues);
+      setSelectedStageId(created.id);
+      
+      // ステージリストに追加
+      setStages(prev => [created, ...prev]);
+      
+      toast.success('ステージを複製しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '複製に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const quickAddAllowed = (text: string) => {
     const items = parseQuickChordInput(text);
     if (!items.length) return;
@@ -1117,7 +1180,10 @@ const FantasyStageManager: React.FC = () => {
             <div className="flex items-center gap-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '保存中...' : '保存'}</button>
               {selectedStageId && (
-                <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={handleDuplicate} disabled={loading}>複製</button>
+                  <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                </>
               )}
             </div>
 

@@ -300,8 +300,66 @@ const LessonFantasyStageManager: React.FC = () => {
       reset(defaultValues);
       const refreshed = await fetchLessonOnlyFantasyStages();
       setStages(refreshed);
-    } catch (e: any) {
-      toast.error(e?.message || '削除に失敗しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '削除に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleDuplicate = async () => {
+    if (!selectedStageId) return;
+    try {
+      setLoading(true);
+      
+      // 現在選択されているステージを取得
+      const currentStage = await fetchFantasyStageById(selectedStageId);
+      
+      // 複製用のペイロードを作成（IDを除外）
+      const duplicatePayload: UpsertFantasyStagePayload = {
+        // IDは新規生成されるので含めない
+        stage_number: null,  // レッスン専用ステージはステージ番号なし
+        name: `${currentStage.name} (複製)`,
+        description: currentStage.description || '',
+        mode: (currentStage.mode as UpsertFantasyStagePayload['mode']) || 'single',
+        max_hp: currentStage.max_hp,
+        enemy_gauge_seconds: currentStage.enemy_gauge_seconds,
+        enemy_count: currentStage.enemy_count,
+        enemy_hp: currentStage.enemy_hp,
+        min_damage: currentStage.min_damage,
+        max_damage: currentStage.max_damage,
+        simultaneous_monster_count: currentStage.simultaneous_monster_count || 1,
+        show_guide: !!currentStage.show_guide,
+        play_root_on_correct: (currentStage as DbFantasyStage & { play_root_on_correct?: boolean }).play_root_on_correct ?? true,
+        bpm: (currentStage as DbFantasyStage & { bpm?: number }).bpm,
+        measure_count: (currentStage as DbFantasyStage & { measure_count?: number }).measure_count,
+        time_signature: (currentStage as DbFantasyStage & { time_signature?: number }).time_signature,
+        count_in_measures: (currentStage as DbFantasyStage & { count_in_measures?: number }).count_in_measures,
+        bgm_url: (currentStage as DbFantasyStage & { bgm_url?: string | null }).bgm_url || null,
+        mp3_url: (currentStage as DbFantasyStage & { mp3_url?: string | null }).mp3_url || null,
+        allowed_chords: Array.isArray(currentStage.allowed_chords) ? currentStage.allowed_chords : [],
+        chord_progression: Array.isArray(currentStage.chord_progression) ? currentStage.chord_progression : [],
+        chord_progression_data: (currentStage as DbFantasyStage & { chord_progression_data?: TimingRow[] }).chord_progression_data || [],
+        note_interval_beats: (currentStage as DbFantasyStage & { note_interval_beats?: number | null }).note_interval_beats ?? null,
+        stage_tier: 'basic',  // レッスン専用は常にbasic
+        usage_type: 'lesson',  // レッスン専用
+      };
+      
+      // 新規ステージを作成
+      const created = await createFantasyStage(duplicatePayload);
+      
+      // ステージリストを更新
+      const refreshed = await fetchLessonOnlyFantasyStages();
+      setStages(refreshed);
+      
+      // 複製されたステージを選択
+      await loadStage(created.id);
+      
+      toast.success('課題を複製しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '複製に失敗しました';
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }
@@ -730,7 +788,10 @@ const LessonFantasyStageManager: React.FC = () => {
             <div className="flex items-center gap-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '保存中...' : '保存'}</button>
               {selectedStageId && (
-                <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={handleDuplicate} disabled={loading}>複製</button>
+                  <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                </>
               )}
             </div>
 
