@@ -25,7 +25,6 @@ import {
   getRankClearCredit, 
   getRankColor, 
   getRankBgColor,
-  getRankDisplayName,
   getRemainingClearsForNextStage 
 } from '@/utils/fantasyRankCalculator';
 
@@ -606,8 +605,8 @@ const FantasyMain: React.FC = () => {
   // ゲーム結果画面
   if (showResult && gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
-        <div className="text-white text-center max-w-md w-full">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 overflow-y-auto">
+        <div className="text-white text-center max-w-md w-full my-auto py-6">
           {/* 結果タイトル */}
             <h2 className="text-3xl font-bold mb-6 font-sans">
               {currentStage?.stageNumber}&nbsp;
@@ -619,9 +618,6 @@ const FantasyMain: React.FC = () => {
             <div className="text-sm text-gray-300 mb-1">{rankLabel}</div>
             <div className={`text-5xl font-bold ${getRankColor(gameResult.rank)}`}>
               {gameResult.rank}
-            </div>
-            <div className={`text-sm mt-1 ${getRankColor(gameResult.rank)}`}>
-              {getRankDisplayName(gameResult.rank, isEnglishCopy)}
             </div>
           </div>
           
