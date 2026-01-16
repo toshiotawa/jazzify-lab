@@ -631,6 +631,15 @@ const LessonPage: React.FC = () => {
                                               </div>
                                             </div>
                                           )}
+
+                                          {/* 説明文 - ロックされていても表示 */}
+                                          {lesson.description && (
+                                            <p className={`text-xs sm:text-sm line-clamp-2 ${
+                                              unlocked ? 'text-gray-300' : 'text-gray-500'
+                                            }`}>
+                                              {lesson.description}
+                                            </p>
+                                          )}
                                         </div>
                                       </div>
                                     );
