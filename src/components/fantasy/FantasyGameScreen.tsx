@@ -514,13 +514,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!gameState.isGameActive) return;
     if (isReady) return;
 
+    // 低速練習モードの場合、speedMultiplierを適用
+    const playbackRate = stage.speedMultiplier ?? 1.0;
+
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
       stage.timeSignature || 4,
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
-      settings.bgmVolume ?? 0.7
+      settings.bgmVolume ?? 0.7,
+      playbackRate
     );
 
     return () => bgmManager.stop();
@@ -1172,9 +1176,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <h2 className="text-3xl font-bold mb-4">
               {localizedStageName ?? (isEnglishCopy ? 'Title unavailable' : 'タイトル取得失敗')}
             </h2>
-            <p className="text-gray-200 mb-8">
+            <p className="text-gray-200 mb-4">
               {localizedStageDescription || (isEnglishCopy ? 'Description unavailable.' : '説明テキストを取得できませんでした')}
             </p>
+            {/* 低速モード表示 */}
+            {stage.speedMultiplier && stage.speedMultiplier < 1.0 && (
+              <div className="mb-6 px-4 py-2 bg-yellow-600/30 border border-yellow-500 rounded-lg inline-block">
+                <span className="text-yellow-300 font-bold text-lg">
+                  🐢 {isEnglishCopy ? 'Practice Mode' : '練習モード'}: {Math.round(stage.speedMultiplier * 100)}%
+                </span>
+                <p className="text-yellow-200 text-sm mt-1">
+                  {isEnglishCopy 
+                    ? 'Music and notes will play at reduced speed'
+                    : '音楽とノーツがゆっくり再生されます'}
+                </p>
+              </div>
+            )}
           <div className="flex flex-col items-center gap-3">
             {/* 初期化中のローディング表示 */}
             {!isInitialized && (
@@ -1283,6 +1300,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="flex items-center space-x-4">
               <div className="text-sm font-bold">
                 Stage {stage.stageNumber}
+                {/* 低速モード表示 */}
+                {stage.speedMultiplier && stage.speedMultiplier < 1.0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-yellow-600 rounded text-xs">
+                    {Math.round(stage.speedMultiplier * 100)}%
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-300">
                 モンスター数: {playMode === 'practice'

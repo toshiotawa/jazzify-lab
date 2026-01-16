@@ -56,8 +56,11 @@ interface FantasyStageClear {
   clearCount?: number;
 }
 
+// 低速モードの選択肢
+export type SpeedOption = 1.0 | 0.75 | 0.5;
+
 interface FantasyStageSelectProps {
-  onStageSelect: (stage: FantasyStage) => void;
+  onStageSelect: (stage: FantasyStage, speedMultiplier?: SpeedOption) => void;
   onBackToMenu: () => void;
   lessonContext?: LessonContext | null;
 }
@@ -100,6 +103,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const [error, setError] = useState<string | null>(null);
   const [selectedRank, setSelectedRank] = useState<string>('1');
   const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced'>('basic');
+  
+  // 速度選択モーダル用の状態
+  const [speedSelectStage, setSpeedSelectStage] = useState<FantasyStage | null>(null);
+  const isSpeedSelectOpen = speedSelectStage !== null;
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -462,8 +469,33 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     if (!isStageUnlocked(stage)) return;
     
     devLog.debug('🎮 ステージ選択:', stage.stageNumber);
+    
+    // progressionモードの場合は速度選択モーダルを表示
+    const isProgressionMode = stage.mode.startsWith('progression');
+    if (isProgressionMode) {
+      setSpeedSelectStage(stage);
+      return;
+    }
+    
+    // singleモードの場合はそのまま選択
     onStageSelect(stage);
   }, [isStageUnlocked, onStageSelect]);
+  
+  // 速度を選択してステージを開始
+  const handleSpeedSelect = useCallback((speed: SpeedOption) => {
+    if (!speedSelectStage) return;
+    
+    devLog.debug('🎮 速度選択:', { stage: speedSelectStage.stageNumber, speed });
+    
+    // speedMultiplierを設定してステージを選択
+    onStageSelect(speedSelectStage, speed);
+    setSpeedSelectStage(null);
+  }, [speedSelectStage, onStageSelect]);
+  
+  // 速度選択モーダルを閉じる
+  const handleCloseSpeedSelect = useCallback(() => {
+    setSpeedSelectStage(null);
+  }, []);
   
   // 全ステージのグローバルインデックスを計算
   const getStageGlobalIndex = useCallback((stage: FantasyStage) => {
@@ -797,6 +829,65 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <p>🎹 正しいコードを演奏してモンスターを倒そう！</p>
         <p className="text-[11px] sm:text-xs mt-1">構成音が全て含まれていれば正解です（順番・オクターブ不問）</p>
       </div>
+      
+      {/* 速度選択モーダル（progressionモード用） */}
+      {isSpeedSelectOpen && speedSelectStage && (
+        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
+          <div className="bg-gradient-to-b from-indigo-800 to-purple-900 rounded-xl p-6 max-w-md w-full shadow-2xl border border-purple-500">
+            <h3 className="text-xl font-bold text-white mb-2 text-center">
+              {isEnglishCopy ? 'Select Speed' : '練習速度を選択'}
+            </h3>
+            <p className="text-gray-300 text-sm text-center mb-6">
+              {isEnglishCopy 
+                ? 'Slow down the music and notes for practice.' 
+                : '音楽とノーツの速度をゆっくりにして練習できます。'}
+            </p>
+            
+            <div className="space-y-3">
+              {/* 通常速度（100%） */}
+              <button
+                onClick={() => handleSpeedSelect(1.0)}
+                className="w-full px-6 py-4 bg-gradient-to-r from-green-500 to-green-600 hover:from-green-400 hover:to-green-500 rounded-lg font-bold text-white transition-all transform hover:scale-[1.02] shadow-lg"
+              >
+                <div className="text-lg">🎵 {isEnglishCopy ? 'Normal Speed (100%)' : '通常速度（100%）'}</div>
+                <div className="text-xs text-green-100 mt-1">
+                  {isEnglishCopy ? 'Original tempo' : 'オリジナルテンポ'}
+                </div>
+              </button>
+              
+              {/* 75%速度 */}
+              <button
+                onClick={() => handleSpeedSelect(0.75)}
+                className="w-full px-6 py-4 bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 rounded-lg font-bold text-white transition-all transform hover:scale-[1.02] shadow-lg"
+              >
+                <div className="text-lg">🐢 {isEnglishCopy ? 'Slow (75%)' : 'ゆっくり（75%）'}</div>
+                <div className="text-xs text-yellow-100 mt-1">
+                  {isEnglishCopy ? 'Recommended for practice' : '練習におすすめ'}
+                </div>
+              </button>
+              
+              {/* 50%速度 */}
+              <button
+                onClick={() => handleSpeedSelect(0.5)}
+                className="w-full px-6 py-4 bg-gradient-to-r from-blue-500 to-indigo-500 hover:from-blue-400 hover:to-indigo-400 rounded-lg font-bold text-white transition-all transform hover:scale-[1.02] shadow-lg"
+              >
+                <div className="text-lg">🐌 {isEnglishCopy ? 'Very Slow (50%)' : 'とてもゆっくり（50%）'}</div>
+                <div className="text-xs text-blue-100 mt-1">
+                  {isEnglishCopy ? 'For beginners' : '初心者向け'}
+                </div>
+              </button>
+            </div>
+            
+            {/* 閉じるボタン */}
+            <button
+              onClick={handleCloseSpeedSelect}
+              className="w-full mt-4 px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium text-white transition-colors"
+            >
+              {isEnglishCopy ? 'Cancel' : 'キャンセル'}
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
