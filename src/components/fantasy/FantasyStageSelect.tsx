@@ -589,8 +589,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               )}
             </div>
           )}
-          {/* 次ステージ開放までの残り回数（クリア済みの場合のみ表示） */}
-          {unlocked && isCleared && !nextUnlocked && (
+          {/* 次ステージ開放までの残り回数（アンロック済みのステージで表示） */}
+          {unlocked && !nextUnlocked && (
             <div className="text-xs text-blue-300 whitespace-nowrap">
               {isEnglishCopy 
                 ? `Clears needed: ${remainingClears} more`
@@ -598,7 +598,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               }
             </div>
           )}
-          {unlocked && isCleared && nextUnlocked && (
+          {unlocked && nextUnlocked && (
             <div className="text-xs text-green-400 whitespace-nowrap">
               {isEnglishCopy ? 'Clears needed: 0 more' : '必要クリア回数：あと0回'}
             </div>
