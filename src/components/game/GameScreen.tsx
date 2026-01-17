@@ -180,7 +180,9 @@ const GameScreen: React.FC = () => {
             artist: song.artist || '',
             duration: duration,
             audioFile: song.audio_url || '',
-            musicXmlFile: song.xml_url || null
+            musicXmlFile: song.xml_url || null,
+            hide_sheet_music: song.hide_sheet_music ?? false,
+            use_rhythm_notation: song.use_rhythm_notation ?? false
           }, mapped);
           
           // 曲のロード完了後に画面遷移を行う
@@ -371,7 +373,9 @@ const GameScreen: React.FC = () => {
             artist: song.artist || '',
             duration: duration,
             audioFile: song.audio_url || '',
-            musicXmlFile: song.xml_url || null
+            musicXmlFile: song.xml_url || null,
+            hide_sheet_music: song.hide_sheet_music ?? false,
+            use_rhythm_notation: song.use_rhythm_notation ?? false
           }, mapped);
           
           // 画面遷移
@@ -753,7 +757,9 @@ const SongSelectionScreen: React.FC = () => {
                       audioFile: song.audio_url || '',
                       notesFile: song.json_url || '',
                       musicXmlFile: song.xml_url || '',
-                      genreCategory: 'database'
+                      genreCategory: 'database',
+                      hide_sheet_music: song.hide_sheet_music ?? false,
+                      use_rhythm_notation: song.use_rhythm_notation ?? false
                     };
                     
                     // 曲をロード（非同期処理）

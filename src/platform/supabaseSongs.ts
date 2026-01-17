@@ -14,10 +14,14 @@ export interface Song {
   audio_url?: string;
   xml_url?: string;
   json_url?: string;
-    min_rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+  min_rank: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   is_public: boolean;
   usage_type: SongUsageType;
   created_by: string;
+  /** MusicXMLがあっても譜面を表示しない */
+  hide_sheet_music?: boolean;
+  /** リズム譜モード - 符頭の高さを一定にして表示 */
+  use_rhythm_notation?: boolean;
 }
 
 export interface SongFiles {

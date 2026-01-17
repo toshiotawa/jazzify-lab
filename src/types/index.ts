@@ -104,6 +104,10 @@ export interface SongMetadata {
   genreCategory: string;
   previewStart?: number; // プレビュー開始時間
   tags?: string[];
+  /** MusicXMLがあっても譜面を表示しない */
+  hide_sheet_music?: boolean;
+  /** リズム譜モード - 符頭の高さを一定にして表示 */
+  use_rhythm_notation?: boolean;
 }
 
 export interface Song {
@@ -121,6 +125,10 @@ export interface Song {
   tags?: string[];
   json_url?: string;
   usage_type?: 'general' | 'lesson';
+  /** MusicXMLがあっても譜面を表示しない */
+  hide_sheet_music?: boolean;
+  /** リズム譜モード - 符頭の高さを一定にして表示 */
+  use_rhythm_notation?: boolean;
 }
 
 // ===== ゲーム設定 =====
