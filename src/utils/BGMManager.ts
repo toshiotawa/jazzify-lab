@@ -267,6 +267,13 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
+    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
+    // AudioBufferSourceNodeにはpreservesPitchがないため
+    if (this.playbackRate !== 1.0) {
+      this._playHtmlAudio(url, volume)
+      return
+    }
+
     if (!this.waContext) {
       this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
     }
@@ -322,6 +329,7 @@ class BGMManager {
     this.audio.preload = 'auto'
     this.audio.volume = Math.max(0, Math.min(1, volume))
     this.audio.playbackRate = this.playbackRate // 再生速度を設定
+    this.audio.preservesPitch = true // 速度変更時にピッチを保持
 
     // 初回再生は0秒から（カウントインを含む）
     this.audio.currentTime = 0
