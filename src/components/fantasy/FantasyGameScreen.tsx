@@ -24,7 +24,6 @@ import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import type { TranspositionAmount, RepeatKeyChange, UserTranspositionSettings } from '@/types';
-import { SEMITONES_TO_KEY } from '@/types';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -140,14 +139,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            (stage as any).transposition_practice_enabled !== false;
   }, [stage.mode, (stage as any).transposition_practice_enabled]);
   
-  // 現在のキー表示（基準キー + ユーザー設定）
-  const currentKeyDisplay = useMemo(() => {
-    const baseTransposition = (stage as any).base_key_transposition ?? 0;
-    const totalTransposition = baseTransposition + userTranspositionSettings.keyChange;
-    // 12で正規化（-6〜+6の範囲を0〜11に変換）
-    const normalizedIndex = ((totalTransposition % 12) + 12) % 12;
-    return SEMITONES_TO_KEY[normalizedIndex];
-  }, [(stage as any).base_key_transposition, userTranspositionSettings.keyChange]);
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -610,6 +601,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
+    
+    // 移調設定を取得（gameStateから）
+    const detuneSemitones = gameState.transpositionContext?.totalTransposition ?? 0;
 
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -618,11 +612,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
-      playbackRate
+      playbackRate,
+      detuneSemitones // 音程変更を渡す
     );
 
     return () => bgmManager.stop();
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  
+  // リピートごとのキー変更時にBGMのdetuneを更新
+  useEffect(() => {
+    if (!gameState.isGameActive) return;
+    const detune = gameState.transpositionContext?.totalTransposition ?? 0;
+    bgmManager.setDetune(detune);
+  }, [gameState.isGameActive, gameState.transpositionContext?.totalTransposition]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -644,6 +646,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const baseTransposition = (stage as any).base_key_transposition ?? 0;
     const userKeyChange = transpositionSettings?.keyChange ?? 0;
     const totalTransposition = baseTransposition + userKeyChange;
+    const repeatKeyChange = transpositionSettings?.repeatKeyChange ?? 'off';
+    
+    devLog.debug('🎼 移調設定構築:', {
+      baseTransposition,
+      userKeyChange,
+      totalTransposition,
+      repeatKeyChange,
+      stageBaseKey: (stage as any).base_key_transposition
+    });
     
     return {
       ...stage,
@@ -651,7 +662,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats,
       // 移調設定を追加（ゲームエンジン用）
       _totalTransposition: totalTransposition,
-      _repeatKeyChange: transpositionSettings?.repeatKeyChange ?? 'off',
+      _repeatKeyChange: repeatKeyChange,
     } as FantasyStage & { _totalTransposition: number; _repeatKeyChange: RepeatKeyChange };
   }, [stage]);
 
@@ -1447,9 +1458,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                         <option value={5}>+5</option>
                         <option value={6}>+6</option>
                       </select>
-                      <span className="text-xs text-yellow-300">
-                        ({isEnglishCopy ? 'Key:' : 'キー:'} {currentKeyDisplay})
-                      </span>
                     </div>
                     
                     {/* リピートごとのキー変更 */}

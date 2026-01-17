@@ -210,6 +210,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // タイムマッピングを作成
       createTimeMapping();
       
+      // スクロール位置をリセット（移調変更時のスクロール位置ずれを防止）
+      lastScrollXRef.current = 0;
+      if (scoreWrapperRef.current) {
+        scoreWrapperRef.current.style.transform = 'translateX(0px)';
+      }
+      
       devLog.debug('✅ ファンタジー楽譜OSMD初期化完了', { transposition });
       
     } catch (err) {
