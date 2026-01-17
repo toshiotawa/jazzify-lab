@@ -214,6 +214,14 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
  */
 export const stopNote = (note: number): void => {
   try {
+    // 🎹 GM音源のノートを停止
+    if (FantasySoundManager.isGMReady()) {
+      FantasySoundManager.stopGMNote(note);
+      activeNotes.delete(note.toString());
+      return;
+    }
+
+    // フォールバック: Tone.js Sampler
     if (!globalSampler) {
       console.warn('⚠️ Audio system not initialized');
       return;

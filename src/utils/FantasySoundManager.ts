@@ -94,6 +94,8 @@ export class FantasySoundManager {
   private gmAudioContext: AudioContext | null = null;
   // ミックスバランス（0.0 = アコースティックのみ、1.0 = エレクトリックのみ、0.5 = 半々）
   private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
+  // アクティブなノート（停止用に追跡）
+  private activeGMNotes: Map<number, { acoustic?: any; electric?: any }> = new Map();
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -437,8 +439,8 @@ export class FantasySoundManager {
         }
         
         const currentTime = this.gmAudioContext.currentTime;
-        // 音量を大きめに設定（3.0倍でブースト）
-        const volumeBoost = 3.0;
+        // 音量を大きめに設定（5.0倍でブースト）
+        const volumeBoost = 5.0;
         const baseGain = this.bassVolume * volumeBoost;
         const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
         const electricGain = baseGain * this.gmMixBalance;
@@ -501,40 +503,59 @@ export class FantasySoundManager {
         await this.gmAudioContext.resume();
       }
       
+      // 既に再生中のノートがあれば停止
+      this._stopGMNote(midiNote);
+      
       const currentTime = this.gmAudioContext.currentTime;
-      // 音量を大きめに設定（3.0倍でブースト）
-      const volumeBoost = 3.0;
+      // 音量を大きめに設定（5.0倍でブースト）
+      const volumeBoost = 5.0;
       const baseGain = velocity * volumeBoost;
       // ミックス時は両方の音を重ねるので、合計が baseGain になるように
       const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);  // アコースティックは常に強め
       const electricGain = baseGain * this.gmMixBalance;
       
+      const activeNodes: { acoustic?: any; electric?: any } = {};
+      
       // アコースティックピアノを再生
       if (acousticGain > 0) {
-        this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+        activeNodes.acoustic = this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
-          duration: 2.0  // 長めのdurationで自然な減衰
+          duration: 10.0  // 長めのduration（手動停止するため）
         });
       }
       
       // エレクトリックピアノを再生（ミックス）
       if (this.gmElectricPiano && electricGain > 0) {
-        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+        activeNodes.electric = this.gmElectricPiano.play(midiNote.toString(), currentTime, {
           gain: electricGain,
-          duration: 1.5
+          duration: 10.0
         });
       }
+      
+      // アクティブなノートとして追跡
+      this.activeGMNotes.set(midiNote, activeNodes);
     } catch (e) {
       console.debug('[FantasySoundManager] GM note playback error:', e);
     }
   }
 
-  // GM音源のノートを停止（soundfont-playerは自然減衰するため基本的に不要）
+  // GM音源のノートを停止
   private _stopGMNote(midiNote: number) {
-    // soundfont-playerは個別のノート停止をサポートしていないため、
-    // 自然減衰に任せる（durationパラメータで制御）
-    // 将来的に必要であれば、アクティブなノードを追跡して停止する実装を追加
-    void midiNote; // unused parameter
+    const activeNodes = this.activeGMNotes.get(midiNote);
+    if (activeNodes) {
+      try {
+        // soundfont-playerのノードを停止
+        if (activeNodes.acoustic && typeof activeNodes.acoustic.stop === 'function') {
+          activeNodes.acoustic.stop();
+        }
+        if (activeNodes.electric && typeof activeNodes.electric.stop === 'function') {
+          activeNodes.electric.stop();
+        }
+      } catch (e) {
+        // 停止に失敗しても無視
+      }
+      this.activeGMNotes.delete(midiNote);
+    }
   }
 
   // GM音源（Acoustic + Electric Piano）の読み込み
