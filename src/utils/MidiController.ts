@@ -12,6 +12,7 @@ import type {
   ToneStatic,
   MidiControllerOptions
 } from '@/types';
+import { FantasySoundManager } from './FantasySoundManager';
 
 // ToneSamplerインターフェースを拡張
 interface ToneSampler {
@@ -163,6 +164,16 @@ export const initializeAudioSystem = async (): Promise<void> => {
  */
 export const playNote = async (note: number, velocity: number = 127): Promise<void> => {
   try {
+    const normalizedVelocity = velocity / 127; // 0〜1 に正規化
+
+    // 🎹 GM音源を優先使用（高品質なピアノ音）
+    if (FantasySoundManager.isGMReady()) {
+      FantasySoundManager.playGMNote(note, normalizedVelocity);
+      activeNotes.add(note.toString());
+      return;
+    }
+
+    // フォールバック: Tone.js Sampler
     // 音声システム初期化チェック
     if (!audioSystemInitialized || !globalSampler) {
       await initializeAudioSystem();
@@ -175,7 +186,6 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
     }
     
     const noteName = (window as any).Tone.Frequency(note, "midi").toNote();
-    const normalizedVelocity = velocity / 127; // 0〜1 に正規化
 
     // 既に持続中のノートは解放キューから除外（再打鍵扱い）
     sustainedNotes.delete(noteName);
@@ -204,6 +214,14 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
  */
 export const stopNote = (note: number): void => {
   try {
+    // 🎹 GM音源のノートを停止
+    if (FantasySoundManager.isGMReady()) {
+      FantasySoundManager.stopGMNote(note);
+      activeNotes.delete(note.toString());
+      return;
+    }
+
+    // フォールバック: Tone.js Sampler
     if (!globalSampler) {
       console.warn('⚠️ Audio system not initialized');
       return;
@@ -238,6 +256,10 @@ export const stopNote = (note: number): void => {
  */
 export const updateGlobalVolume = (volume: number): void => {
   try {
+    // GM音源のピアノ音量を更新
+    FantasySoundManager.setGMPianoVolume(volume);
+    
+    // フォールバック用: Tone.js Samplerの音量も更新
     // 0-1 の範囲を -40dB から 0dB にマッピング
     const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
 

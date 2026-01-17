@@ -417,6 +417,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
   const handleChordCorrect = useCallback(async (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
+    // デバッグ用: 正解コールバックが呼ばれたことを確認
+    console.log('🎯 handleChordCorrect called:', { 
+      chordRoot: chord.root, 
+      displayName: chord.displayName,
+      playRootOnCorrect: stage?.playRootOnCorrect 
+    });
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
     if (fantasyPixiInstance) {
@@ -430,6 +436,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     // 🚀 パフォーマンス最適化: ルート音を同期的に再生（動的インポート不要）
     const allowRootSound = stage?.playRootOnCorrect !== false;
+    console.log('🎵 allowRootSound:', allowRootSound);
     if (allowRootSound) {
       // スラッシュコード対応: 分母があればそれをルートとして鳴らす
       const id = chord.id || chord.displayName || chord.root;
@@ -438,9 +445,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const parts = id.split('/');
         if (parts[1]) bassToPlay = parts[1];
       }
+      console.log('🎵 About to play root note:', bassToPlay);
       // fire-and-forget で呼び出し（await せずにラグを防止）
       FantasySoundManager.playRootNote(bassToPlay).catch(e => 
-        devLog.debug('Failed to play root note:', e)
+        console.error('Failed to play root note:', e)
       );
     }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
