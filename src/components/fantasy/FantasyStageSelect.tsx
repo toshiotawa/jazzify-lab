@@ -169,6 +169,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
           // 次ステージ開放必要回数
           required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
+          // MusicXML関連
+          musicXmlUrl: (stage as any).music_xml_url || undefined,
+          useMusicXmlNotes: !!(stage as any).use_music_xml_notes,
         }));
         
         setStages(convertedStages);
@@ -280,6 +283,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         // 楽譜モード
         isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
         sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+        // MusicXML関連
+        musicXmlUrl: (stage as any).music_xml_url || undefined,
+        useMusicXmlNotes: !!(stage as any).use_music_xml_notes,
       }));
       
       const convertedProgress: FantasyUserProgress = {

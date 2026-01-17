@@ -4,12 +4,27 @@ import { note as parseNote } from 'tonal';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
+ * 
+ * モード1（従来互換）: useMusicXmlNotes = false
  * - chord: 歌詞(lyric)からコード名を取得（基本ルール）
- * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
+ * - octave/inversion: 同時発音ノーツの最低音から推定
  * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
  * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
+ * 
+ * モード2（MusicXML直接）: useMusicXmlNotes = true
+ * - 同時発音のノーツを全て1つの和音として扱う
+ * - notes: MIDIノート番号の配列（正解判定に使用）
+ * - noteNames: 表示用の音名配列（オクターブなし）
+ * - chord: 構成音を連結した表示名（例: "C-E-G"）
+ * - text: <harmony> からオーバーレイ表示用テキストを取得
+ * 
+ * @param xmlText MusicXML文字列
+ * @param useMusicXmlNotes true: MusicXMLのノーツを直接使用 / false: 従来のlyricベース
  */
-export function convertMusicXmlToProgressionData(xmlText: string): ChordProgressionDataItem[] {
+export function convertMusicXmlToProgressionData(
+  xmlText: string,
+  useMusicXmlNotes: boolean = false
+): ChordProgressionDataItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const measures = Array.from(doc.querySelectorAll('measure'));
@@ -93,7 +108,7 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
           }
         }
 
-        // 最低音（ベース）を推定
+        // 全ての構成音を取得（MIDI番号と音名）
         const pitches = group
           .map((g) => {
             const p = g.querySelector('pitch');
@@ -111,45 +126,67 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
 
         const bass = pitches[0] || null;
 
-        // inversion 推定
-        let inversion: number | null = null;
-        if (chordText) {
-          const parsed = parseChordName(chordText);
-          if (parsed && bass) {
-            const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
-            // ルート,3rd,5th,... の音名を pitch class で比較
-            const toPc = (name: string): number => {
-              const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
-              return typeof midi === 'number' ? (midi % 12) : 0;
-            };
-            const bassPc = bass.midi % 12;
-            const pcs = chordNotes.map(toPc);
-            const idx = pcs.findIndex((pc) => pc === bassPc);
-            inversion = idx >= 0 ? idx : 0;
-          }
-        }
+        if (useMusicXmlNotes) {
+          // モード2: MusicXMLのノーツを直接使用
+          if (pitches.length > 0) {
+            // 構成音のMIDI番号配列
+            const midiNotes = pitches.map(p => p.midi);
+            // 表示用の音名配列（オクターブなし、重複除去）
+            const uniqueNoteNames = [...new Set(pitches.map(p => p.step))];
+            // 表示用のコード名（音名を連結）
+            const displayChordName = uniqueNoteNames.join('-');
 
-        // 出力アイテムを作成
-        if (chordText) {
-          result.push({
-            bar,
-            beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: chordText,
-            inversion: inversion ?? 0,
-            octave: bass ? bass.octave : 4
-          });
-        } else {
-          // 単音扱い（lyric なし）
-          const single = bass ? bass : pitches[0] || null;
-          if (single) {
             result.push({
               bar,
               beats: toBeats(currentPos, divisionsPerQuarter),
-              chord: single.step, // 音名のみ（例: 'G', 'F#'）
-              octave: single.octave,
-              inversion: 0,
-              type: 'note'
-            } as any);
+              chord: displayChordName,
+              octave: bass ? bass.octave : 4,
+              notes: midiNotes,
+              noteNames: uniqueNoteNames
+            });
+          }
+        } else {
+          // モード1: 従来互換（lyricベース）
+          // inversion 推定
+          let inversion: number | null = null;
+          if (chordText) {
+            const parsed = parseChordName(chordText);
+            if (parsed && bass) {
+              const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
+              // ルート,3rd,5th,... の音名を pitch class で比較
+              const toPc = (name: string): number => {
+                const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
+                return typeof midi === 'number' ? (midi % 12) : 0;
+              };
+              const bassPc = bass.midi % 12;
+              const pcs = chordNotes.map(toPc);
+              const invIdx = pcs.findIndex((pc) => pc === bassPc);
+              inversion = invIdx >= 0 ? invIdx : 0;
+            }
+          }
+
+          // 出力アイテムを作成
+          if (chordText) {
+            result.push({
+              bar,
+              beats: toBeats(currentPos, divisionsPerQuarter),
+              chord: chordText,
+              inversion: inversion ?? 0,
+              octave: bass ? bass.octave : 4
+            });
+          } else {
+            // 単音扱い（lyric なし）
+            const single = bass ? bass : pitches[0] || null;
+            if (single) {
+              result.push({
+                bar,
+                beats: toBeats(currentPos, divisionsPerQuarter),
+                chord: single.step, // 音名のみ（例: 'G', 'F#'）
+                octave: single.octave,
+                inversion: 0,
+                type: 'note'
+              } as ChordProgressionDataItem);
+            }
           }
         }
 

@@ -68,6 +68,9 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // MusicXML関連（progression_timing用）
+  music_xml_url?: string | null;
+  use_music_xml_notes: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -97,6 +100,8 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  music_xml_url: '',
+  use_music_xml_notes: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -316,6 +321,8 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        music_xml_url: (s as any).music_xml_url || '',
+        use_music_xml_notes: !!(s as any).use_music_xml_notes,
       };
       reset(v);
     } catch (e: any) {
@@ -355,6 +362,8 @@ const FantasyStageManager: React.FC = () => {
       usage_type: 'fantasy',  // ファンタジーモード専用
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
+      music_xml_url: v.music_xml_url || null,
+      use_music_xml_notes: v.use_music_xml_notes,
     };
 
     // モードに応じた不要フィールドの削除
@@ -408,6 +417,8 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
+      music_xml_url: (s as DbFantasyStage & { music_xml_url?: string | null }).music_xml_url || '',
+      use_music_xml_notes: !!(s as DbFantasyStage & { use_music_xml_notes?: boolean }).use_music_xml_notes,
     };
   }, []);
 
@@ -991,6 +1002,35 @@ const FantasyStageManager: React.FC = () => {
             {mode === 'progression_timing' && (
               <Section title="カスタム配置（小節・拍）">
                 <div className="space-y-2">
+                  {/* MusicXML URL と直接ノーツ使用設定 */}
+                  <div className="bg-base-200 p-3 rounded-lg space-y-2 mb-4">
+                    <SmallLabel>楽譜表示 & MusicXMLノーツ直接使用</SmallLabel>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="text-xs text-gray-500">MusicXML URL（楽譜表示用）</label>
+                        <input
+                          type="text"
+                          className="input input-bordered input-sm w-full"
+                          placeholder="/path/to/music.xml"
+                          {...register('music_xml_url')}
+                        />
+                      </div>
+                      <div className="flex items-center gap-4">
+                        <label className="cursor-pointer flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            className="toggle toggle-primary toggle-sm"
+                            {...register('use_music_xml_notes')}
+                          />
+                          <span className="text-xs">MusicXMLノーツ直接使用</span>
+                        </label>
+                      </div>
+                    </div>
+                    <p className="text-xs text-gray-500">
+                      「MusicXMLノーツ直接使用」をONにすると、MusicXMLの同時発音ノーツを正解判定に使用します。
+                      例: 1拍目にC-E-Gがある場合、3音全ての入力で正解となります。
+                    </p>
+                  </div>
                   {/* MusicXML アップロード→JSON 変換 */}
                   <div className="flex items-center gap-2">
                     <input
@@ -1004,7 +1044,9 @@ const FantasyStageManager: React.FC = () => {
                         try {
                           const text = await f.text();
                           const mod = await import('@/utils/musicXmlToProgression');
-                          const items = mod.convertMusicXmlToProgressionData(text);
+                          // use_music_xml_notesがONの場合は同時発音ノーツを生成
+                          const useMusicXmlNotes = watch('use_music_xml_notes');
+                          const items = mod.convertMusicXmlToProgressionData(text, useMusicXmlNotes);
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
                           toast.success('MusicXML から progression を読み込みました');

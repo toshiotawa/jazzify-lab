@@ -177,6 +177,16 @@ export interface ChordProgressionDataItem {
   text?: string;
   /** 歌詞が無い単音ノーツ等から生成する単音指定（省略時はコード扱い） */
   type?: 'note';
+  /**
+   * MusicXMLから直接取得した構成音のMIDI番号配列。
+   * progression_timingモードでMusicXMLの同時発音を正解判定に使用。
+   */
+  notes?: number[];
+  /**
+   * 表示用の音名配列（オクターブなし）。
+   * notesが指定された場合に使用。
+   */
+  noteNames?: string[];
 }
 
 // タイミング判定の結果
@@ -376,6 +386,12 @@ export function parseChordProgressionData(
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
   
+  // MIDI番号から音名への変換テーブル
+  const midiToNoteName = (midi: number): string => {
+    const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+    return noteNames[midi % 12];
+  };
+  
   // 最大小節数を取得
   const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
@@ -383,13 +399,34 @@ export function parseChordProgressionData(
     // 演奏用ノーツは chord が空/N.C. のものは無視（テキスト専用）
     .filter(item => item.chord && item.chord.trim() !== '' && item.chord.toUpperCase() !== 'N.C.')
     .forEach((item, index) => {
-    const spec: ChordSpec = {
-      chord: item.chord,
-      inversion: item.inversion ?? undefined,
-      octave: item.octave ?? undefined,
-      type: item.type === 'note' ? 'note' : undefined
-    };
-    const chord = getChordDefinition(spec);
+    let chord: ChordDefinition | null = null;
+    
+    // notes配列が存在する場合は直接ChordDefinitionを作成
+    if (item.notes && item.notes.length > 0) {
+      // 表示用の音名を取得または生成
+      const noteNames = item.noteNames ?? item.notes.map(midiToNoteName);
+      // 表示名は noteNames を連結
+      const displayName = noteNames.join('-');
+      
+      chord = {
+        id: `musicxml_${item.bar}_${item.beats}_${index}`,
+        displayName,
+        notes: item.notes,
+        noteNames,
+        quality: 'musicxml', // MusicXML由来を示す
+        root: noteNames[0] ?? 'C'
+      };
+    } else {
+      // 従来のコード解析を使用
+      const spec: ChordSpec = {
+        chord: item.chord,
+        inversion: item.inversion ?? undefined,
+        octave: item.octave ?? undefined,
+        type: item.type === 'note' ? 'note' : undefined
+      };
+      chord = getChordDefinition(spec);
+    }
+    
     if (chord) {
       // Measure 1 開始を0秒として計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
