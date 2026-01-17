@@ -93,8 +93,10 @@ export async function fetchLessonOnlyFantasyStages(): Promise<FantasyStage[]> {
 /**
  * 特定のファンタジーステージを取得
  */
-export async function fetchFantasyStageById(stageId: string): Promise<FantasyStage> {
+export async function fetchFantasyStageById(stageId: string, options?: { skipCache?: boolean }): Promise<FantasyStage> {
   const supabase = getSupabaseClient();
+  const ttl = options?.skipCache ? 0 : 1000 * 60 * 5;
+
   const { data, error } = await fetchWithCache(
     `fantasy_stages:by_id:${stageId}`,
     async () => await supabase
@@ -102,7 +104,7 @@ export async function fetchFantasyStageById(stageId: string): Promise<FantasySta
       .select('*')
       .eq('id', stageId)
       .single(),
-    1000 * 60 * 5
+    ttl
   );
     
   if (error) {

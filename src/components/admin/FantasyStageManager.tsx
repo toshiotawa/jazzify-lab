@@ -290,7 +290,8 @@ const FantasyStageManager: React.FC = () => {
   const loadStage = async (id: string) => {
     try {
       setLoading(true);
-      const s = await fetchFantasyStageById(id);
+      // 管理画面では常に最新データを取得（キャッシュ回避）
+      const s = await fetchFantasyStageById(id, { skipCache: true });
       setSelectedStageId(id);
       const v: StageFormValues = {
         id: s.id,
@@ -320,6 +321,7 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        music_xml: s.music_xml || null,
       };
       reset(v);
     } catch (e: any) {
@@ -413,7 +415,7 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
-      music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
+        music_xml: s.music_xml || null,
     };
   }, []);
 
