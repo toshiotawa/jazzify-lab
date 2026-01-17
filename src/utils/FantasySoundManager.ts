@@ -178,30 +178,34 @@ export class FantasySoundManager {
       // Phase 2: バックグラウンドでSalamanderサンプラーを読み込み
       const Tone = window.Tone as unknown as typeof import('tone');
       if (Tone) {
-        // Phase 1: 合成音シンセサイザー（フォールバック用）
+        // Phase 1: ピアノ風合成音シンセサイザー（FM合成）
         try {
-          // ピアノに近い音色設定（三角波 + フィルターエンベロープ）
-          this.bassSynth = new Tone.MonoSynth({
+          // FM合成でピアノに近い音色を実現
+          // ピアノは打弦楽器のため、素早いアタックと自然な減衰が特徴
+          this.bassSynth = new (Tone as any).FMSynth({
+            harmonicity: 3,           // 倍音の関係（ピアノらしさに重要）
+            modulationIndex: 10,      // FM変調の深さ
             oscillator: {
-              type: 'triangle'  // 柔らかい波形
+              type: 'sine'            // キャリア波形
             },
             envelope: {
-              attack: 0.02,    // 素早いアタック
-              decay: 0.3,      // 自然な減衰
-              sustain: 0.4,    // 適度な持続
-              release: 0.8     // なめらかなリリース
+              attack: 0.001,          // 非常に素早いアタック（打鍵感）
+              decay: 0.5,             // 自然な減衰
+              sustain: 0.1,           // 低いサステイン（ピアノらしさ）
+              release: 1.2            // 長めのリリース（残響感）
             },
-            filterEnvelope: {
-              attack: 0.01,
+            modulation: {
+              type: 'square'          // モジュレーター波形（倍音を豊かに）
+            },
+            modulationEnvelope: {
+              attack: 0.002,
               decay: 0.2,
-              sustain: 0.5,
-              release: 0.5,
-              baseFrequency: 200,
-              octaves: 2
+              sustain: 0.2,
+              release: 0.5
             }
           }).toDestination();
           this.bassInitialized = true;
-          console.debug('[FantasySoundManager] BassSynth (synthetic fallback) initialized');
+          console.debug('[FantasySoundManager] BassSynth (FM Piano) initialized');
         } catch (e) {
           console.warn('[FantasySoundManager] BassSynth creation failed:', e);
         }
@@ -384,11 +388,11 @@ export class FantasySoundManager {
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
     
-    // 🔊 合成音で再生（低遅延・安定）
+    // 🔊 FM合成ピアノ音で再生（低遅延・安定）
     try {
       this.bassSynth.triggerAttackRelease(
         note,
-        '8n',
+        '4n',   // ピアノらしい長さ
         t
       );
     } catch (e) {
