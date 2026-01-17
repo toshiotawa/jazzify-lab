@@ -1512,39 +1512,60 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
+        // BGMが再生準備完了していない場合はスキップ（タイミング同期のため）
+        if (!bgmManager.isReadyForTiming()) {
+          return prevState;
+        }
+        
         const currentTime = bgmManager.getCurrentMusicTime();
         const stage = prevState.currentStage;
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
+        // カウントイン中はスキップ（ミス判定もループ検出も行わない）
+        if (currentTime < 0) {
+          return prevState;
+        }
+        
         // ループ境界検出
-        const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+        // currentTimeは既にgetCurrentMusicTime()で正規化されているため、
+        // 追加の正規化は不要（0〜loopDurationの範囲）
+        const normalizedTime = currentTime;
         const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
-        const justLooped = normalizedTime + 1e-6 < lastNorm;
+        // ループ検出：時間が大きく巻き戻った場合のみ（小さな変動は無視）
+        const justLooped = lastNorm > loopDuration * 0.8 && normalizedTime < loopDuration * 0.2;
         
         if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
+          // 次ループ突入時: ノーツとインデックスをリセット
           const resetNotes = prevState.taikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
           }));
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
+          // ループ時は常にcurrentNoteIndexを現在時間に最も近いノーツにリセット
+          // これにより、Web Audio内部ループとの同期ズレを解消
+          let newNoteIndex = 0;
           
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
-            }));
+          // 現在時間より後にヒットすべき最初のノーツを探す
+          for (let i = 0; i < resetNotes.length; i++) {
+            if (resetNotes[i].hitTime > normalizedTime - 0.15) {
+              newNoteIndex = i;
+              break;
+            }
           }
+          
+          // モンスターのコード表示を更新
+          const firstNote = resetNotes[newNoteIndex] || resetNotes[0];
+          const secondNoteIndex = newNoteIndex + 1 < resetNotes.length ? newNoteIndex + 1 : 0;
+          const secondNote = resetNotes[secondNoteIndex] || resetNotes[0];
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: firstNote.chord,
+            nextChord: secondNote.chord
+          }));
           
           return {
             ...prevState,
@@ -1568,19 +1589,15 @@ export const useFantasyGameEngine = ({
         if (!currentNote) return { ...prevState, lastNormalizedTime: normalizedTime };
         
         // 現在の音楽時間とノーツのヒット時間の差を計算
+        // 単純な差を使用（currentTimeは既に0〜loopDurationの範囲に正規化されている）
         let timeDiff = currentTime - currentNote.hitTime;
         
-        // ループを考慮した時間差の調整
-        while (timeDiff > loopDuration / 2) {
+        // ループ境界を考慮した時間差の調整
+        // 時間差が大きすぎる場合（ループ境界をまたいでいる場合）のみ調整
+        if (timeDiff > loopDuration / 2) {
           timeDiff -= loopDuration;
-        }
-        while (timeDiff < -loopDuration / 2) {
+        } else if (timeDiff < -loopDuration / 2) {
           timeDiff += loopDuration;
-        }
-        
-        // カウントイン中はミス判定しない
-        if (currentTime < 0) {
-          return { ...prevState, lastNormalizedTime: normalizedTime };
         }
         
         // ミス判定：+150ms以上経過した場合
