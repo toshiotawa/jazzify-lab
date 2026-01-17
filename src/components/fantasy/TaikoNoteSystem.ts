@@ -4,6 +4,7 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
+import { note as parseNote } from 'tonal';
 
 // ===== 袋形式ランダムセレクター =====
 
@@ -167,7 +168,7 @@ export type ChordSpec =
 export interface ChordProgressionDataItem {
   bar: number; // 小節番号（1始まり）
   beats: number; // 拍番号（1始まり、小数可）
-  chord: string; // コード名
+  chord: string; // コード名（単音の場合は音名、複数音の場合は結合文字列 例: "CEG"）
   inversion?: number | null; // 追加: 転回形（0=基本形）
   octave?: number | null; // 追加: 最低音のオクターブ
   /**
@@ -177,6 +178,12 @@ export interface ChordProgressionDataItem {
   text?: string;
   /** 歌詞が無い単音ノーツ等から生成する単音指定（省略時はコード扱い） */
   type?: 'note';
+  /**
+   * 同タイミングの複数ノーツをまとめた場合の個別音名配列
+   * 例: ["C", "E", "G"] - 低い順にソート済み
+   * Progression_Timing用：縦配置表示やガイドに使用
+   */
+  notes?: string[];
 }
 
 // タイミング判定の結果
@@ -383,6 +390,25 @@ export function parseChordProgressionData(
     // 演奏用ノーツは chord が空/N.C. のものは無視（テキスト専用）
     .filter(item => item.chord && item.chord.trim() !== '' && item.chord.toUpperCase() !== 'N.C.')
     .forEach((item, index) => {
+    // 新方式: notes配列がある場合は複数音として処理
+    if (item.notes && item.notes.length > 0) {
+      const chord = buildChordFromNotes(item.notes, item.octave ?? 4);
+      if (chord) {
+        const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        notes.push({
+          id: `note_${item.bar}_${item.beats}_${index}`,
+          chord,
+          hitTime,
+          measure: item.bar,
+          beat: item.beats,
+          isHit: false,
+          isMissed: false
+        });
+      }
+      return;
+    }
+    
+    // 従来方式: chordフィールドを使用
     const spec: ChordSpec = {
       chord: item.chord,
       inversion: item.inversion ?? undefined,
@@ -410,6 +436,45 @@ export function parseChordProgressionData(
   notes.sort((a, b) => a.hitTime - b.hitTime);
   
   return notes;
+}
+
+/**
+ * 音名配列からChordDefinitionを構築
+ * Progression_Timing用：同タイミングの複数ノーツを1つのコードとして扱う
+ */
+function buildChordFromNotes(noteNames: string[], baseOctave: number): ChordDefinition | null {
+  if (noteNames.length === 0) return null;
+  
+  const midiNotes: number[] = [];
+  const cleanNoteNames: string[] = [];
+  
+  for (const noteName of noteNames) {
+    // 音名からMIDI番号を計算
+    const cleanName = noteName.replace(/\d+$/, ''); // オクターブ除去
+    cleanNoteNames.push(cleanName);
+    
+    const parsed = parseNote(cleanName.replace(/x/g, '##') + String(baseOctave));
+    if (parsed && typeof parsed.midi === 'number') {
+      midiNotes.push(parsed.midi);
+    }
+  }
+  
+  if (midiNotes.length === 0) return null;
+  
+  // 昇順にソート
+  midiNotes.sort((a, b) => a - b);
+  
+  // 表示名を生成（例: "C E G" または "C"）
+  const displayName = cleanNoteNames.join(' ');
+  
+  return {
+    id: displayName.replace(/\s+/g, ''),
+    displayName,
+    notes: midiNotes,
+    noteNames: cleanNoteNames,
+    quality: 'custom', // 複数音の組み合わせ
+    root: cleanNoteNames[0] || 'C'
+  };
 }
 
 /**

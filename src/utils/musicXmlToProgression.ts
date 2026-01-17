@@ -8,8 +8,14 @@ import { note as parseNote } from 'tonal';
  * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
  * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
  * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
+ * 
+ * groupSimultaneousNotes: true の場合、同タイミングの複数ノーツを1つのエントリにまとめる
+ * （Progression_Timing用：同時に鳴る音を1つの正解ノーツとして扱う）
  */
-export function convertMusicXmlToProgressionData(xmlText: string): ChordProgressionDataItem[] {
+export function convertMusicXmlToProgressionData(
+  xmlText: string, 
+  options?: { groupSimultaneousNotes?: boolean }
+): ChordProgressionDataItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const measures = Array.from(doc.querySelectorAll('measure'));
@@ -168,6 +174,112 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
 
   // 時間順にソート
   result.sort((a, b) => a.bar === b.bar ? a.beats - b.beats : a.bar - b.bar);
+  
+  // groupSimultaneousNotes が有効な場合、同タイミングのノーツをまとめる
+  if (options?.groupSimultaneousNotes) {
+    return groupSimultaneousNotesInResult(result);
+  }
+  
   return result;
+}
+
+/**
+ * 同タイミングの複数ノーツを1つのエントリにまとめる
+ * - 同じ bar と beats を持つノーツをグループ化
+ * - notes配列に全ての音名を格納
+ * - chordは複数音の場合は空文字列を設定（表示には notesを使用）
+ */
+function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): ChordProgressionDataItem[] {
+  const grouped: ChordProgressionDataItem[] = [];
+  const map = new Map<string, ChordProgressionDataItem[]>();
+  
+  // 同じタイミングのノーツをグループ化
+  for (const item of items) {
+    // N.C.やテキストのみのアイテムはそのまま追加
+    if (!item.chord || item.chord.toUpperCase() === 'N.C.' || item.chord.trim() === '') {
+      grouped.push(item);
+      continue;
+    }
+    
+    const key = `${item.bar}_${item.beats}`;
+    const existing = map.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      map.set(key, [item]);
+    }
+  }
+  
+  // グループ化されたノーツを処理
+  for (const [_, items] of map) {
+    if (items.length === 1) {
+      // 単一ノーツはそのまま
+      grouped.push(items[0]);
+    } else {
+      // 複数ノーツをまとめる
+      const firstItem = items[0];
+      const allNotes: string[] = [];
+      let lowestOctave = 9;
+      let lowestMidi = Infinity;
+      let harmonyText: string | undefined;
+      
+      for (const item of items) {
+        // textが設定されているアイテムからHarmonyテキストを取得
+        if (item.text && !harmonyText) {
+          harmonyText = item.text;
+        }
+        
+        // コード名から音名を抽出
+        if (item.chord) {
+          // 単音の場合（type: 'note'）はそのまま使用
+          if ((item as any).type === 'note') {
+            allNotes.push(item.chord);
+            // オクターブを抽出
+            const match = item.chord.match(/([A-G][#b]?)(\d+)?/);
+            if (match) {
+              const oct = match[2] ? parseInt(match[2], 10) : (item.octave ?? 4);
+              if (oct < lowestOctave) {
+                lowestOctave = oct;
+              }
+              const noteParsed = parseNote(match[1] + String(oct));
+              if (noteParsed && typeof noteParsed.midi === 'number' && noteParsed.midi < lowestMidi) {
+                lowestMidi = noteParsed.midi;
+              }
+            }
+          } else {
+            // コードの場合は構成音を追加（ここでは単音として扱う）
+            allNotes.push(item.chord);
+            if (item.octave && item.octave < lowestOctave) {
+              lowestOctave = item.octave;
+            }
+          }
+        }
+      }
+      
+      // 音名を低い順にソート
+      allNotes.sort((a, b) => {
+        const aParsed = parseNote(a.replace(/\d+$/, '') + '4');
+        const bParsed = parseNote(b.replace(/\d+$/, '') + '4');
+        const aMidi = aParsed?.midi ?? 0;
+        const bMidi = bParsed?.midi ?? 0;
+        return aMidi - bMidi;
+      });
+      
+      grouped.push({
+        bar: firstItem.bar,
+        beats: firstItem.beats,
+        chord: allNotes.join(''), // 例: "CEG"
+        octave: lowestOctave < 9 ? lowestOctave : 4,
+        inversion: 0,
+        text: harmonyText,
+        // 新規フィールド: 個別の音名配列
+        notes: allNotes
+      } as ChordProgressionDataItem & { notes?: string[] });
+    }
+  }
+  
+  // 再度時間順にソート
+  grouped.sort((a, b) => a.bar === b.bar ? a.beats - b.beats : a.bar - b.bar);
+  return grouped;
 }
 

@@ -11,7 +11,8 @@ import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, type FantasyPlayMode } from './FantasyGameEngine';
-import { TaikoNote } from './TaikoNoteSystem';
+import { TaikoNote, ChordProgressionDataItem } from './TaikoNoteSystem';
+import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -194,6 +195,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   // BGM再生は gameState が確定してから制御（下でuseEffectを定義）
+  
+  // ★★★ 楽譜表示エリアの高さ（Progression_Timing用） ★★★
+  const [sheetMusicHeight, setSheetMusicHeight] = useState<number>(80);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -508,6 +512,53 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
     isReady
   });
+
+  // Progression_Timing用の楽譜表示フラグ
+  const showSheetMusicForTiming = useMemo(() => {
+    return stage.mode === 'progression_timing' && gameState.isTaikoMode && gameState.taikoNotes.length > 0;
+  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length]);
+  
+  // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
+  const harmonyMarkers = useMemo(() => {
+    if (!showSheetMusicForTiming) return [];
+    
+    const stageData = stage as any;
+    const progressionData = stageData.chordProgressionData;
+    if (!Array.isArray(progressionData)) return [];
+    
+    const secPerBeat = 60 / (stage.bpm || 120);
+    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
+    
+    return progressionData
+      .filter((item: ChordProgressionDataItem) => item && typeof item.text === 'string' && item.text.trim() !== '')
+      .map((item: ChordProgressionDataItem) => ({
+        time: (item.bar - 1) * secPerMeasure + ((item.beats ?? 1) - 1) * secPerBeat,
+        text: item.text as string
+      }))
+      .sort((a: { time: number }, b: { time: number }) => a.time - b.time);
+  }, [showSheetMusicForTiming, stage]);
+  
+  // 楽譜表示エリアの高さを画面サイズに応じて調整
+  useEffect(() => {
+    if (!showSheetMusicForTiming) return;
+    
+    const updateSheetHeight = () => {
+      const vh = window.innerHeight;
+      const vw = window.innerWidth;
+      const isLandscape = vw > vh;
+      const isMobile = vw < 900;
+      
+      if (isMobile && isLandscape) {
+        setSheetMusicHeight(Math.min(70, Math.max(50, Math.floor(vh * 0.12))));
+      } else {
+        setSheetMusicHeight(Math.min(100, Math.max(70, Math.floor(vh * 0.12))));
+      }
+    };
+    
+    updateSheetHeight();
+    window.addEventListener('resize', updateSheetHeight);
+    return () => window.removeEventListener('resize', updateSheetHeight);
+  }, [showSheetMusicForTiming]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   useEffect(() => {
@@ -851,7 +902,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
-        const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+        const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
@@ -859,7 +910,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ id: note.id, chord: note.chord.displayName, x });
+            notesToDisplay.push({ 
+              id: note.id, 
+              chord: note.chord.displayName, 
+              x,
+              noteNames: note.chord.noteNames 
+            });
             if (notesToDisplay.length >= maxPreCountNotes) break;
           }
         }
@@ -869,7 +925,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       
       // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number}> = [];
+      const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
       
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
@@ -899,7 +955,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             notesToDisplay.push({
               id: note.id,
               chord: note.chord.displayName,
-              x
+              x,
+              noteNames: note.chord.noteNames
             });
           }
         });
@@ -937,7 +994,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           notesToDisplay.push({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
-            x
+            x,
+            noteNames: note.chord.noteNames
           });
         }
       }
@@ -1545,6 +1603,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="absolute right-2 bottom-2 z-50
                     pointer-events-none bg-black/40 rounded px-2 py-1">
           {renderSpGauge(gameState.playerSp)}
+        </div>
+      )}
+      
+      {/* ===== 楽譜表示エリア（Progression_Timing用） ===== */}
+      {showSheetMusicForTiming && (
+        <div 
+          className="mx-2 mb-1 rounded-lg overflow-hidden flex-shrink-0"
+          style={{ height: `${sheetMusicHeight}px` }}
+        >
+          <FantasySheetMusicDisplay
+            width={monsterAreaWidth || window.innerWidth - 16}
+            height={sheetMusicHeight}
+            taikoNotes={gameState.taikoNotes}
+            currentNoteIndex={gameState.currentNoteIndex}
+            bpm={stage.bpm || 120}
+            timeSignature={stage.timeSignature || 4}
+            measureCount={stage.measureCount || 8}
+            harmonyMarkers={harmonyMarkers}
+            className="w-full h-full"
+          />
         </div>
       )}
       

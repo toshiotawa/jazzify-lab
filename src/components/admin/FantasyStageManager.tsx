@@ -1004,10 +1004,11 @@ const FantasyStageManager: React.FC = () => {
                         try {
                           const text = await f.text();
                           const mod = await import('@/utils/musicXmlToProgression');
-                          const items = mod.convertMusicXmlToProgressionData(text);
+                          // 同タイミングのノーツをまとめて1つのノーツとして扱う
+                          const items = mod.convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
-                          toast.success('MusicXML から progression を読み込みました');
+                          toast.success('MusicXML から progression を読み込みました（同時ノーツをグループ化）');
                         } catch (err: any) {
                           console.error(err);
                           toast.error('MusicXML の読み込みに失敗しました');
