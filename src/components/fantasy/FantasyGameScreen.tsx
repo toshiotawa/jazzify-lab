@@ -905,16 +905,39 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
     const loopDuration = (stage.measureCount || 8) * secPerMeasure;
 
-    // Overlay markers from chord_progression_data.text (Harmony)
-    const overlayMarkers: Array<{ time: number; text: string }> = Array.isArray((stage as any).chordProgressionData)
-      ? ((stage as any).chordProgressionData as Array<any>)
-          .filter((it) => it && typeof it.text === 'string' && it.text.trim() !== '')
-          .map((it) => ({
-            time: (it.bar - 1) * secPerMeasure + ((it.beats ?? 1) - 1) * secPerBeat,
-            text: it.text as string
-          }))
-          .sort((a, b) => a.time - b.time)
-      : [];
+    // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
+    // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
+    const overlayMarkers: Array<{ time: number; text: string }> = (() => {
+      if (!Array.isArray((stage as any).chordProgressionData)) return [];
+      
+      const data = (stage as any).chordProgressionData as Array<any>;
+      const markers: Array<{ time: number; text: string }> = [];
+      let lastLyricDisplay: string | null = null;
+      
+      // 時間順にソートしてから処理
+      const sortedData = [...data].sort((a, b) => {
+        const timeA = (a.bar - 1) * secPerMeasure + ((a.beats ?? 1) - 1) * secPerBeat;
+        const timeB = (b.bar - 1) * secPerMeasure + ((b.beats ?? 1) - 1) * secPerBeat;
+        return timeA - timeB;
+      });
+      
+      for (const it of sortedData) {
+        if (!it) continue;
+        const time = (it.bar - 1) * secPerMeasure + ((it.beats ?? 1) - 1) * secPerBeat;
+        
+        // lyricDisplayが変化した場合のみマーカーを追加
+        if (it.lyricDisplay && it.lyricDisplay !== lastLyricDisplay) {
+          markers.push({ time, text: it.lyricDisplay });
+          lastLyricDisplay = it.lyricDisplay;
+        }
+        // lyricDisplayがなくtextがある場合（Harmony）はtextを使用
+        else if (!it.lyricDisplay && typeof it.text === 'string' && it.text.trim() !== '') {
+          markers.push({ time, text: it.text });
+        }
+      }
+      
+      return markers;
+    })();
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御

@@ -4,19 +4,21 @@ import { note as parseNote } from 'tonal';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
- * - chord: 歌詞(lyric)からコード名を取得（基本ルール）
- * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
- * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
- * - lyricDisplay: 歌詞が見つかった場合、次の歌詞が出現するまで継続して同じ値を設定
- *   （太鼓ノーツの上に表示される音名として使用）
- * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
+ * 
+ * 重要な概念:
+ * - chord/notes: 実際の音符情報（MusicXMLのpitch要素から取得、正解判定に使用）
+ * - lyricDisplay: 歌詞(lyric)から取得した表示用テキスト（太鼓ノーツのラベルに使用）
+ *   → 歌詞が見つかった位置から次の歌詞が出現するまで継続
+ * - text: <harmony>要素から取得したコードシンボル（オーバーレイ表示用のみ、太鼓ノーツには影響しない）
  * 
  * groupSimultaneousNotes: true の場合、同タイミングの複数ノーツを1つのエントリにまとめる
  * （Progression_Timing用：同時に鳴る音を1つの正解ノーツとして扱う）
+ * 
+ * skipHarmony: true の場合、<harmony>要素を無視する（オーバーレイテキストを生成しない）
  */
 export function convertMusicXmlToProgressionData(
   xmlText: string, 
-  options?: { groupSimultaneousNotes?: boolean }
+  options?: { groupSimultaneousNotes?: boolean; skipHarmony?: boolean }
 ): ChordProgressionDataItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -62,12 +64,16 @@ export function convertMusicXmlToProgressionData(
       const el = elements[idx] as Element;
 
       if (el.tagName === 'harmony') {
-        // Overlay テキスト用に text を作る
+        // Overlay テキスト用に text を作る（オプション）
+        // 注: progression_timing モードでは歌詞(lyric)を優先するため、
+        // harmony要素はオーバーレイ表示用のみに使用し、lyricDisplayには影響しない
         const rootStep = el.querySelector('root root-step')?.textContent || '';
         const rootAlter = parseInt(el.querySelector('root root-alter')?.textContent || '0', 10);
         const kindTextAttr = el.querySelector('kind')?.getAttribute('text') || '';
         const rootName = stepAlterToName(rootStep, rootAlter);
         const display = `${rootName}${kindTextAttr}`.trim();
+        // harmonyからはオーバーレイテキストのみを生成（太鼓ノーツには影響しない）
+        // lyricDisplayは更新しない
         result.push({
           bar,
           beats: toBeats(currentPos, divisionsPerQuarter),
