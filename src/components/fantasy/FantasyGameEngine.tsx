@@ -143,6 +143,8 @@ export interface FantasyStage {
   isSheetMusicMode?: boolean;
   // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
   sheetMusicClef?: 'treble' | 'bass';
+  // Progression_Timing用: 元のMusicXMLデータ（OSMD表示用）
+  musicXml?: string;
 }
 
 export interface MonsterState {

@@ -62,6 +62,8 @@ interface StageFormValues {
   allowed_chords: any[]; // string or {chord,inversion,octave}
   chord_progression: any[]; // for order
   chord_progression_data: TimingRow[]; // for timing
+  // MusicXML（OSMD楽譜表示用）
+  music_xml?: string | null;
   // 新規: ステージ種別
   stage_tier: 'basic' | 'advanced';
   // 楽譜モード
@@ -92,6 +94,7 @@ const defaultValues: StageFormValues = {
   allowed_chords: [],
   chord_progression: [],
   chord_progression_data: [],
+  music_xml: null,
   bgm_url: '',
   mp3_url: '',
   stage_tier: 'basic',
@@ -355,6 +358,7 @@ const FantasyStageManager: React.FC = () => {
       usage_type: 'fantasy',  // ファンタジーモード専用
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
+      music_xml: v.music_xml || null,
     };
 
     // モードに応じた不要フィールドの削除
@@ -408,6 +412,7 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
+      music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
     };
   }, []);
 
@@ -1008,6 +1013,8 @@ const FantasyStageManager: React.FC = () => {
                           const items = mod.convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
+                          // 元のMusicXMLも保存（OSMD楽譜表示用）
+                          setValue('music_xml', text);
                           toast.success('MusicXML から progression を読み込みました（同時ノーツをグループ化）');
                         } catch (err: any) {
                           console.error(err);

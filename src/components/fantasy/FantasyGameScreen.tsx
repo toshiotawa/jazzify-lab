@@ -514,9 +514,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
 
   // Progression_Timing用の楽譜表示フラグ
+  // musicXmlが存在する場合のみOSMD楽譜を表示
   const showSheetMusicForTiming = useMemo(() => {
-    return stage.mode === 'progression_timing' && gameState.isTaikoMode && gameState.taikoNotes.length > 0;
-  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length]);
+    return stage.mode === 'progression_timing' && 
+           gameState.isTaikoMode && 
+           gameState.taikoNotes.length > 0 &&
+           !!stage.musicXml;
+  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
   
   // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
   const harmonyMarkers = useMemo(() => {
@@ -1615,8 +1619,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <FantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
-            taikoNotes={gameState.taikoNotes}
-            currentNoteIndex={gameState.currentNoteIndex}
+            musicXml={stage.musicXml || ''}
             bpm={stage.bpm || 120}
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}
