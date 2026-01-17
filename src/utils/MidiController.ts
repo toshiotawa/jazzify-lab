@@ -256,6 +256,10 @@ export const stopNote = (note: number): void => {
  */
 export const updateGlobalVolume = (volume: number): void => {
   try {
+    // GM音源のピアノ音量を更新
+    FantasySoundManager.setGMPianoVolume(volume);
+    
+    // フォールバック用: Tone.js Samplerの音量も更新
     // 0-1 の範囲を -40dB から 0dB にマッピング
     const volumeDb = volume === 0 ? -Infinity : Math.log10(volume) * 20;
 

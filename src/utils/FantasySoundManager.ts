@@ -131,6 +131,11 @@ export class FantasySoundManager {
   public static isGMReady(): boolean {
     return this.instance.gmPianoReady && this.instance.gmAcousticPiano !== null;
   }
+  
+  // GM音源のピアノ音量を設定（0-1）
+  public static setGMPianoVolume(volume: number) {
+    this.instance._setGMPianoVolume(volume);
+  }
   public static setRootVolume(v: number) {
     this.instance._setRootVolume(v);
   }
@@ -507,9 +512,9 @@ export class FantasySoundManager {
       this._stopGMNote(midiNote);
       
       const currentTime = this.gmAudioContext.currentTime;
-      // 音量を大きめに設定（5.0倍でブースト）
+      // 音量を大きめに設定（5.0倍でブースト）+ ピアノ音量設定を反映
       const volumeBoost = 5.0;
-      const baseGain = velocity * volumeBoost;
+      const baseGain = velocity * volumeBoost * this.gmPianoVolume;
       // ミックス時は両方の音を重ねるので、合計が baseGain になるように
       const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);  // アコースティックは常に強め
       const electricGain = baseGain * this.gmMixBalance;
@@ -556,6 +561,14 @@ export class FantasySoundManager {
       }
       this.activeGMNotes.delete(midiNote);
     }
+  }
+
+  // GM音源のピアノ音量を内部的に保持
+  private gmPianoVolume = 1.0;
+
+  // GM音源のピアノ音量を設定（0-1）
+  private _setGMPianoVolume(volume: number) {
+    this.gmPianoVolume = Math.max(0, Math.min(1, volume));
   }
 
   // GM音源（Acoustic + Electric Piano）の読み込み
