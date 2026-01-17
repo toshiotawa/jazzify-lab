@@ -13,6 +13,7 @@ import {
   UpsertFantasyStagePayload,
 } from '@/platform/supabaseFantasyStages';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
+import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -677,9 +678,8 @@ const LessonFantasyStageManager: React.FC = () => {
                         if (!f) return;
                         try {
                           const text = await f.text();
-                          const mod = await import('@/utils/musicXmlToProgression');
                           // 同タイミングのノーツをまとめて1つのノーツとして扱う
-                          const items = mod.convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
+                          const items = convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
                           // 元のMusicXMLも保存（OSMD楽譜表示用）
