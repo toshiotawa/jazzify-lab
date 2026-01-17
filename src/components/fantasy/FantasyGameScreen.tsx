@@ -134,9 +134,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
   
   // 移調練習が有効かどうか（ステージ設定から取得）
+  // progression_timingモードであれば移調練習を有効にする（管理画面で明示的にfalseに設定されていない限り）
   const isTranspositionPracticeEnabled = useMemo(() => {
     return stage.mode === 'progression_timing' && 
-           (stage as any).transposition_practice_enabled === true;
+           (stage as any).transposition_practice_enabled !== false;
   }, [stage.mode, (stage as any).transposition_practice_enabled]);
   
   // 現在のキー表示（基準キー + ユーザー設定）
