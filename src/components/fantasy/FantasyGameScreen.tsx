@@ -1341,7 +1341,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 </div>
                 
                 {/* 移調設定（enable_transposition && progression_timingモードの場合のみ表示） */}
-                {stage.enableTransposition && stage.mode === 'progression_timing' && (
+                {(stage.enableTransposition || (stage as any).enable_transposition) && stage.mode === 'progression_timing' && (
                   <div className="w-full bg-gray-800/60 rounded-lg p-3 space-y-3 border border-purple-500/30">
                     <div className="text-sm text-purple-300 font-medium">
                       🎵 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
@@ -1387,7 +1387,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 100%）');
-                    const transposeSettings = stage.enableTransposition && stage.mode === 'progression_timing'
+                    const transposeSettings = (stage.enableTransposition || (stage as any).enable_transposition) && stage.mode === 'progression_timing'
                       ? { initialTranspose: selectedTranspose, repeatTransposeOption: selectedRepeatTranspose }
                       : undefined;
                     startGame('practice', 1.0, transposeSettings);
@@ -1407,7 +1407,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 75%）');
-                    const transposeSettings = stage.enableTransposition && stage.mode === 'progression_timing'
+                    const transposeSettings = (stage.enableTransposition || (stage as any).enable_transposition) && stage.mode === 'progression_timing'
                       ? { initialTranspose: selectedTranspose, repeatTransposeOption: selectedRepeatTranspose }
                       : undefined;
                     startGame('practice', 0.75, transposeSettings);
@@ -1427,7 +1427,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 50%）');
-                    const transposeSettings = stage.enableTransposition && stage.mode === 'progression_timing'
+                    const transposeSettings = (stage.enableTransposition || (stage as any).enable_transposition) && stage.mode === 'progression_timing'
                       ? { initialTranspose: selectedTranspose, repeatTransposeOption: selectedRepeatTranspose }
                       : undefined;
                     startGame('practice', 0.5, transposeSettings);
