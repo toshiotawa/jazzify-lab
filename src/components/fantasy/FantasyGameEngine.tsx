@@ -143,6 +143,8 @@ export interface FantasyStage {
   isSheetMusicMode?: boolean;
   // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
   sheetMusicClef?: 'treble' | 'bass';
+  // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
+  speedMultiplier?: number;
 }
 
 export interface MonsterState {

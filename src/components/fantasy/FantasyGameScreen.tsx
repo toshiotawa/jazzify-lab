@@ -119,6 +119,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const hasTimeUpFiredRef = useRef(false);
   const gameStateRef = useRef<FantasyGameState | null>(null);
   
+  // 低速練習モード用の状態（progressionモードでのみ使用）
+  const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
+  
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
@@ -514,17 +517,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!gameState.isGameActive) return;
     if (isReady) return;
 
+    // 低速練習モードの場合、選択した速度を適用
+    const playbackRate = selectedSpeedMultiplier;
+
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
       stage.timeSignature || 4,
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
-      settings.bgmVolume ?? 0.7
+      settings.bgmVolume ?? 0.7,
+      playbackRate
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume]);
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -550,12 +557,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [stage]);
 
-  const startGame = useCallback(async (mode: FantasyPlayMode) => {
+  const startGame = useCallback(async (mode: FantasyPlayMode, speedMultiplier: number = 1.0) => {
     // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {
       devLog.debug('⏳ 初期化完了を待機中...');
       await initPromiseRef.current;
     }
+    
+    // 速度を設定
+    setSelectedSpeedMultiplier(speedMultiplier);
     
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
@@ -564,9 +574,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // 🚀 画像プリロードを含むゲーム初期化を待機
     // Ready画面表示中にロードが完了する
-    await initializeGame(buildInitStage(), mode);
+    // 速度倍率を含むステージを作成
+    const stageWithSpeed = speedMultiplier !== 1.0 
+      ? { ...buildInitStage(), speedMultiplier }
+      : buildInitStage();
+    await initializeGame(stageWithSpeed, mode);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）');
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
 
   // デイリーチャレンジ: タイムリミットで終了
@@ -1165,14 +1179,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       hasOverlay: !!overlay
     });
     
+    // progressionモードかどうかを判定
+    const isProgressionMode = stage.mode.startsWith('progression');
+    
     return (
       <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen">
-        <div className="text-white text-center">
+        <div className="text-white text-center max-w-md px-4">
           <div className="text-6xl mb-6">🎮</div>
             <h2 className="text-3xl font-bold mb-4">
               {localizedStageName ?? (isEnglishCopy ? 'Title unavailable' : 'タイトル取得失敗')}
             </h2>
-            <p className="text-gray-200 mb-8">
+            <p className="text-gray-200 mb-6">
               {localizedStageDescription || (isEnglishCopy ? 'Description unavailable.' : '説明テキストを取得できませんでした')}
             </p>
           <div className="flex flex-col items-center gap-3">
@@ -1182,14 +1199,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {isEnglishCopy ? 'Loading...' : '読み込み中...'}
               </div>
             )}
+            
+            {/* 挑戦ボタン */}
             <button
               onClick={() => {
                 devLog.debug('🎮 ゲーム開始（挑戦）ボタンクリック');
-                startGame('challenge');
+                startGame('challenge', 1.0);
               }}
               disabled={!isInitialized}
               className={cn(
-                "px-8 py-4 text-black font-bold text-xl rounded-lg shadow-lg transform transition-all",
+                "w-full px-8 py-4 text-black font-bold text-xl rounded-lg shadow-lg transform transition-all",
                 isInitialized 
                   ? "bg-gradient-to-r from-yellow-500 to-orange-500 hover:from-yellow-400 hover:to-orange-400 hover:scale-105"
                   : "bg-gray-500 cursor-wait"
@@ -1199,23 +1218,84 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 ? '🎯 挑戦する（2分）' 
                 : (isEnglishCopy ? 'Challenge' : '挑戦')}
             </button>
-            <button
-              onClick={() => {
-                devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
-                startGame('practice');
-              }}
-              disabled={!isInitialized}
-              className={cn(
-                "px-8 py-3 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all border border-white/20",
-                isInitialized 
-                  ? "bg-white/10 hover:bg-white/20 hover:scale-105"
-                  : "bg-gray-700 cursor-wait"
-              )}
-            >
-              {isDailyChallenge 
-                ? '🎹 練習する（時間無制限）' 
-                : (isEnglishCopy ? 'Practice' : '練習する')}
-            </button>
+            
+            {/* 練習ボタン - progressionモードの場合は速度選択付き */}
+            {isProgressionMode ? (
+              <div className="w-full space-y-2">
+                <div className="text-sm text-gray-400 mt-2">
+                  {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
+                </div>
+                {/* 通常速度で練習 */}
+                <button
+                  onClick={() => {
+                    devLog.debug('🎮 ゲーム開始（練習 100%）');
+                    startGame('practice', 1.0);
+                  }}
+                  disabled={!isInitialized}
+                  className={cn(
+                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
+                    isInitialized 
+                      ? "bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
+                      : "bg-gray-700 cursor-wait border-gray-600"
+                  )}
+                >
+                  <span className="text-white">🎵 {isEnglishCopy ? 'Normal (100%)' : '通常速度（100%）'}</span>
+                </button>
+                
+                {/* 75%速度で練習 */}
+                <button
+                  onClick={() => {
+                    devLog.debug('🎮 ゲーム開始（練習 75%）');
+                    startGame('practice', 0.75);
+                  }}
+                  disabled={!isInitialized}
+                  className={cn(
+                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
+                    isInitialized 
+                      ? "bg-yellow-600/80 hover:bg-yellow-500 border-yellow-400/50 hover:scale-[1.02]"
+                      : "bg-gray-700 cursor-wait border-gray-600"
+                  )}
+                >
+                  <span className="text-white">🐢 {isEnglishCopy ? 'Slow (75%)' : 'ゆっくり（75%）'}</span>
+                </button>
+                
+                {/* 50%速度で練習 */}
+                <button
+                  onClick={() => {
+                    devLog.debug('🎮 ゲーム開始（練習 50%）');
+                    startGame('practice', 0.5);
+                  }}
+                  disabled={!isInitialized}
+                  className={cn(
+                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
+                    isInitialized 
+                      ? "bg-blue-600/80 hover:bg-blue-500 border-blue-400/50 hover:scale-[1.02]"
+                      : "bg-gray-700 cursor-wait border-gray-600"
+                  )}
+                >
+                  <span className="text-white">🐌 {isEnglishCopy ? 'Very Slow (50%)' : 'とてもゆっくり（50%）'}</span>
+                </button>
+              </div>
+            ) : (
+              /* singleモードの場合は従来の練習ボタン */
+              <button
+                onClick={() => {
+                  devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
+                  startGame('practice', 1.0);
+                }}
+                disabled={!isInitialized}
+                className={cn(
+                  "w-full px-8 py-3 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all border border-white/20",
+                  isInitialized 
+                    ? "bg-white/10 hover:bg-white/20 hover:scale-105"
+                    : "bg-gray-700 cursor-wait"
+                )}
+              >
+                {isDailyChallenge 
+                  ? '🎹 練習する（時間無制限）' 
+                  : (isEnglishCopy ? 'Practice' : '練習する')}
+              </button>
+            )}
           </div>
           
           {/* デバッグ情報 */}
@@ -1283,6 +1363,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <div className="flex items-center space-x-4">
               <div className="text-sm font-bold">
                 Stage {stage.stageNumber}
+                {/* 低速モード表示 */}
+                {selectedSpeedMultiplier < 1.0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-yellow-600 rounded text-xs">
+                    {Math.round(selectedSpeedMultiplier * 100)}%
+                  </span>
+                )}
               </div>
               <div className="text-xs text-gray-300">
                 モンスター数: {playMode === 'practice'

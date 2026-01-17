@@ -15,6 +15,7 @@ class BGMManager {
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
+  private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -29,7 +30,8 @@ class BGMManager {
     timeSig: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
+    volume = 0.7,
+    playbackRate = 1.0
   ) {
     if (!url) return
     
@@ -41,6 +43,7 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
+    this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -122,14 +125,18 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
+   * 再生速度に関わらず、音楽的な位置（小節・拍）が正しく返される
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
-        const t = this.waContext.currentTime - this.waStartAt
-        return t - this.loopBegin
+        // playbackRateを考慮した音楽的な時間を計算
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        return musicTime - this.loopBegin
       }
+      // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) return this.audio.currentTime - this.loopBegin
     }
     return 0
@@ -149,8 +156,9 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
       if (this.waContext && this.waBuffer) {
-        const audioTime = this.waContext.currentTime - this.waStartAt
-        const totalBeats = Math.floor(audioTime / secPerBeat)
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        const totalBeats = Math.floor(musicTime / secPerBeat)
         return (totalBeats % this.timeSignature) + 1
       }
       if (this.audio) {
@@ -166,8 +174,9 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
       if (this.waContext && this.waBuffer) {
-        const audioTime = this.waContext.currentTime - this.waStartAt
-        return (audioTime / secPerBeat) % this.timeSignature
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        return (musicTime / secPerBeat) % this.timeSignature
       }
       if (this.audio) {
         return (this.audio.currentTime / secPerBeat) % this.timeSignature
@@ -183,33 +192,38 @@ class BGMManager {
     return this.loopBegin + (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat
   }
   
-  /** 次の拍までの残り時間（ms） */
+  /** 次の拍までの残り時間（ms）- 実時間での残り */
   getTimeToNextBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      let audioTime = 0
+      let musicTime = 0
       if (this.waContext && this.waBuffer) {
-        audioTime = this.waContext.currentTime - this.waStartAt
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        musicTime = elapsedRealTime * this.playbackRate
       } else if (this.audio) {
-        audioTime = this.audio.currentTime
+        musicTime = this.audio.currentTime
       }
-      const nextBeatTime = Math.ceil(audioTime / secPerBeat) * secPerBeat
-      return (nextBeatTime - audioTime) * 1000
+      const nextBeatTime = Math.ceil(musicTime / secPerBeat) * secPerBeat
+      const musicTimeDiff = nextBeatTime - musicTime
+      // 音楽時間の差を実時間に変換
+      return (musicTimeDiff / this.playbackRate) * 1000
     }
     return 0
   }
   
-  /** 次のループまでの残り時間（ms） */
+  /** 次のループまでの残り時間（ms）- 実時間での残り */
   getTimeToLoop(): number {
     if (!this.isPlaying) return Infinity
-    let currentTime = 0
+    let musicTime = 0
     if (this.waContext && this.waBuffer) {
-      currentTime = this.waContext.currentTime - this.waStartAt
+      const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+      musicTime = elapsedRealTime * this.playbackRate
     } else if (this.audio) {
-      currentTime = this.audio.currentTime
+      musicTime = this.audio.currentTime
     }
-    const timeToEnd = this.loopEnd - currentTime
-    return timeToEnd > 0 ? timeToEnd * 1000 : 0
+    const musicTimeToEnd = this.loopEnd - musicTime
+    // 音楽時間の差を実時間に変換
+    return musicTimeToEnd > 0 ? (musicTimeToEnd / this.playbackRate) * 1000 : 0
   }
   
   getIsPlaying(): boolean { return this.isPlaying }
@@ -217,10 +231,12 @@ class BGMManager {
   getTimeSignature(): number { return this.timeSignature }
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
+  getPlaybackRate(): number { return this.playbackRate }
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
-      const t = this.waContext.currentTime - this.waStartAt
-      return t < this.loopBegin
+      const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+      const musicTime = elapsedRealTime * this.playbackRate
+      return musicTime < this.loopBegin
     }
     return !!this.audio && this.audio.currentTime < this.loopBegin
   }
@@ -284,13 +300,16 @@ class BGMManager {
     src.loop = true
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
+    src.playbackRate.value = this.playbackRate // 再生速度を設定
     src.connect(this.waGain!)
 
     // 再生
     const when = 0
     const offset = offsetSec
     src.start(when, offset)
-    this.waStartAt = this.waContext.currentTime - offset
+    // offsetSec（音楽的な時間）をrealtime（実時間）に変換
+    // 音楽時間 = 実時間 * playbackRate → 実時間 = 音楽時間 / playbackRate
+    this.waStartAt = this.waContext.currentTime - offset / this.playbackRate
 
     // 参照保持
     this.waSource = src
@@ -302,6 +321,7 @@ class BGMManager {
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
     this.audio.volume = Math.max(0, Math.min(1, volume))
+    this.audio.playbackRate = this.playbackRate // 再生速度を設定
 
     // 初回再生は0秒から（カウントインを含む）
     this.audio.currentTime = 0
