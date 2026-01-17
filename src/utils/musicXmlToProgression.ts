@@ -124,59 +124,33 @@ export function convertMusicXmlToProgressionData(
 
         const bass = pitches[0] || null;
 
-        // inversion 推定（歌詞がある場合のみ）
-        let inversion: number | null = null;
-        if (currentLyricDisplay) {
-          const parsed = parseChordName(currentLyricDisplay);
-          if (parsed && bass) {
-            const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
-            // ルート,3rd,5th,... の音名を pitch class で比較
-            const toPc = (name: string): number => {
-              const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
-              return typeof midi === 'number' ? (midi % 12) : 0;
-            };
-            const bassPc = bass.midi % 12;
-            const pcs = chordNotes.map(toPc);
-            const idx = pcs.findIndex((pc) => pc === bassPc);
-            inversion = idx >= 0 ? idx : 0;
-          }
-        }
-
         // 出力アイテムを作成
-        // 歌詞がある場合（現在アクティブな歌詞がある場合）、lyricDisplayを設定
-        if (currentLyricDisplay) {
-          // 歌詞がある場合は、歌詞をchordとして使用し、lyricDisplayにも設定
-          result.push({
-            bar,
-            beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: currentLyricDisplay,
-            inversion: inversion ?? 0,
-            octave: bass ? bass.octave : 4,
-            lyricDisplay: currentLyricDisplay
-          });
-        } else if (pitches.length > 1) {
-          // 複数音（和音として扱う）- 歌詞なし
+        // 実際の音符情報をchord/notesに設定し、lyricDisplayは表示用のみ
+        if (pitches.length > 1) {
+          // 複数音（和音として扱う）
           const noteNames = pitches.map(p => p.step);
           result.push({
             bar,
             beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: noteNames.join(''), // 例: "CEG"
+            chord: noteNames.join(''), // 例: "CEG" - 実際の音符
             octave: bass ? bass.octave : 4,
             inversion: 0,
-            notes: noteNames, // 個別の音名配列
-            type: 'chord'
+            notes: noteNames, // 個別の音名配列（正解判定用）
+            type: 'chord',
+            lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
           } as ChordProgressionDataItem);
         } else {
-          // 単音扱い - 歌詞なし
+          // 単音扱い
           const single = bass ? bass : pitches[0] || null;
           if (single) {
             result.push({
               bar,
               beats: toBeats(currentPos, divisionsPerQuarter),
-              chord: single.step, // 音名のみ（例: 'G', 'F#'）
+              chord: single.step, // 音名のみ（例: 'G', 'F#'）- 実際の音符
               octave: single.octave,
               inversion: 0,
-              type: 'note'
+              type: 'note',
+              lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
             } as ChordProgressionDataItem);
           }
         }
