@@ -1,4 +1,5 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
+import * as Tone from 'tone'
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
@@ -16,7 +17,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
-  private detuneCents = 0 // 音程変更（セント単位、100セント=1半音）
+  private transposeSemitones = 0 // 移調量（半音単位）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -24,6 +25,9 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
+  
+  // Tone.js PitchShift
+  private pitchShift: Tone.PitchShift | null = null
 
   play(
     url: string,
@@ -33,7 +37,7 @@ class BGMManager {
     countIn: number,
     volume = 0.7,
     playbackRate = 1.0,
-    detuneSemitones = 0 // 音程変更（半音単位、±12の範囲）
+    transposeSemitones = 0 // 移調量（半音単位、±12の範囲）
   ) {
     if (!url) return
     
@@ -46,7 +50,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
-    this.detuneCents = Math.max(-1200, Math.min(1200, detuneSemitones * 100)) // 半音→セント変換（±12半音制限）
+    this.transposeSemitones = Math.max(-12, Math.min(12, transposeSemitones)) // ±12半音に制限
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -91,20 +95,23 @@ class BGMManager {
           }
           this.audio.removeEventListener?.('ended', this.handleEnded)
           this.audio.removeEventListener?.('error', this.handleError)
-        } catch {}
-        try { this.audio.pause?.() } catch {}
-        try { this.audio.currentTime = 0 } catch {}
-        try { (this.audio as any).src = '' } catch {}
-        try { (this.audio as any).load?.() } catch {}
+        } catch { /* ignore */ }
+        try { this.audio.pause?.() } catch { /* ignore */ }
+        try { this.audio.currentTime = 0 } catch { /* ignore */ }
+        try { (this.audio as unknown as { src: string }).src = '' } catch { /* ignore */ }
+        try { (this.audio as unknown as { load?: () => void }).load?.() } catch { /* ignore */ }
       }
 
       // Web Audio cleanup
-      try { this.waSource?.stop?.() } catch {}
-      try { this.waSource?.disconnect?.() } catch {}
+      try { this.waSource?.stop?.() } catch { /* ignore */ }
+      try { this.waSource?.disconnect?.() } catch { /* ignore */ }
       this.waSource = null
       this.waBuffer = null
-      try { this.waGain?.disconnect?.() } catch {}
+      try { this.waGain?.disconnect?.() } catch { /* ignore */ }
       this.waGain = null
+      
+      // Tone.js PitchShift cleanup
+      this._disposePitchShift()
     } catch (e) {
       console.warn('BGMManager.stop safe stop failed:', e)
     } finally {
@@ -122,7 +129,7 @@ class BGMManager {
   private handleEnded = () => {
     if (this.loopEnd > 0) {
       this.audio!.currentTime = this.loopBegin
-      this.audio!.play().catch(() => {})
+      this.audio!.play().catch(() => { /* ignore */ })
     }
   }
   
@@ -235,24 +242,59 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
-  getDetuneCents(): number { return this.detuneCents }
-  getDetuneSemitones(): number { return this.detuneCents / 100 }
+  getTransposeSemitones(): number { return this.transposeSemitones }
+
+  /**
+   * 再生速度を変更した際の音程補正を計算
+   * playbackRateを変更すると音程も変わるため、その分を補正する
+   */
+  private _getEffectivePitchShift(): number {
+    const safeSpeed = Math.max(this.playbackRate, 0.0001)
+    // 速度変更による音程変化を補正
+    const speedSemitoneOffset = Math.log2(safeSpeed) * 12
+    return this.transposeSemitones - speedSemitoneOffset
+  }
+  
+  /**
+   * PitchShiftノードを破棄
+   */
+  private _disposePitchShift() {
+    if (this.pitchShift) {
+      try {
+        this.pitchShift.disconnect()
+      } catch { /* ignore */ }
+      try {
+        this.pitchShift.dispose()
+      } catch (error) {
+        console.warn('PitchShift dispose failed', error)
+      }
+      this.pitchShift = null
+    }
+  }
 
   /**
    * 再生中の音程を変更（半音単位）
    * リピートごとのキー変更などに使用
    */
   setDetune(semitones: number) {
-    this.detuneCents = Math.max(-1200, Math.min(1200, semitones * 100))
-    if (this.waSource) {
+    this.transposeSemitones = Math.max(-12, Math.min(12, semitones))
+    
+    if (this.pitchShift) {
       try {
-        this.waSource.detune.setValueAtTime(this.detuneCents, this.waContext?.currentTime ?? 0)
-        console.log('🎼 BGM音程変更:', { semitones, cents: this.detuneCents })
+        const effectivePitch = this._getEffectivePitchShift()
+        const ps = this.pitchShift as unknown as { pitch: number }
+        ps.pitch = effectivePitch
+        console.log('🎼 BGM音程変更 (PitchShift):', { 
+          semitones, 
+          effectivePitch,
+          playbackRate: this.playbackRate
+        })
       } catch (e) {
-        console.warn('BGM detune設定エラー:', e)
+        console.warn('BGM PitchShift設定エラー:', e)
       }
     }
   }
+  
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -276,7 +318,7 @@ class BGMManager {
       if (this.audio) {
         this.audio.currentTime = this.loopBegin
         if (this.audio.paused) {
-          void this.audio.play().catch(() => {})
+          void this.audio.play().catch(() => { /* ignore */ })
         }
         console.log('🔄 BGMをMeasure 1の開始へリセット')
       }
@@ -289,7 +331,7 @@ class BGMManager {
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
     if (!this.waContext) {
-      this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      this.waContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ latencyHint: 'interactive' })
     }
     if (!this.waGain) {
       this.waGain = this.waContext.createGain()
@@ -303,27 +345,27 @@ class BGMManager {
     this.waBuffer = buf
 
     // ループポイントを設定（サンプル精度）
-    this._startWaSourceAt(0)
+    await this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { 
+    console.log('🎵 BGM再生開始 (WebAudio + Tone.js PitchShift):', { 
       url, 
       bpm: this.bpm, 
       loopBegin: this.loopBegin, 
       loopEnd: this.loopEnd, 
       countIn: this.countInMeasures, 
       playbackRate: this.playbackRate,
-      detuneCents: this.detuneCents,
-      detuneSemitones: this.detuneCents / 100
+      transposeSemitones: this.transposeSemitones,
+      effectivePitch: this._getEffectivePitchShift()
     })
   }
 
-  private _startWaSourceAt(offsetSec: number) {
+  private async _startWaSourceAt(offsetSec: number) {
     if (!this.waContext || !this.waBuffer) return
     // 既存ソース破棄
     if (this.waSource) {
-      try { this.waSource.stop() } catch {}
-      try { this.waSource.disconnect() } catch {}
+      try { this.waSource.stop() } catch { /* ignore */ }
+      try { this.waSource.disconnect() } catch { /* ignore */ }
     }
     const src = this.waContext.createBufferSource()
     src.buffer = this.waBuffer
@@ -331,8 +373,55 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
-    src.detune.value = this.detuneCents // 音程変更を設定
-    src.connect(this.waGain!)
+    
+    // PitchShiftを使用するかどうかを判定
+    const pitchShiftAmount = this._getEffectivePitchShift()
+    const shouldUsePitchShift = Math.abs(pitchShiftAmount) > 0.001
+
+    if (shouldUsePitchShift) {
+      // Tone.jsを初期化
+      try {
+        await Tone.start()
+      } catch (err) {
+        console.warn('Tone.start failed:', err)
+      }
+      
+      // Tone.jsのコンテキストを同期
+      try {
+        const toneCtx = Tone.getContext() as unknown as { rawContext: AudioContext | null }
+        toneCtx.rawContext = this.waContext
+      } catch (err) {
+        console.warn('Tone context assignment failed:', err)
+      }
+      
+      // PitchShiftノードを作成または更新
+      if (!this.pitchShift) {
+        this.pitchShift = new Tone.PitchShift({ pitch: pitchShiftAmount })
+      } else {
+        const ps = this.pitchShift as unknown as { pitch: number }
+        ps.pitch = pitchShiftAmount
+      }
+      
+      // 接続: Source -> PitchShift -> GainNode
+      try {
+        this.pitchShift.disconnect()
+      } catch { /* ignore */ }
+      
+      const psConnect = this.pitchShift as unknown as { connect: (node: GainNode) => void }
+      psConnect.connect(this.waGain!)
+      
+      try {
+        Tone.connect(src, this.pitchShift)
+      } catch (err) {
+        console.error('Tone.connect failed:', err)
+        // フォールバック: 直接接続
+        src.connect(this.waGain!)
+      }
+    } else {
+      // PitchShiftが不要な場合は直接接続
+      this._disposePitchShift()
+      src.connect(this.waGain!)
+    }
 
     // 再生
     const when = 0
@@ -391,9 +480,9 @@ class BGMManager {
           this.audio.currentTime = this.loopBegin
           // 再生が止まっていたら再開
           if (this.audio.paused) {
-            void this.audio.play().catch(() => {})
+            void this.audio.play().catch(() => { /* ignore */ })
           }
-        } catch (e) {
+        } catch {
           // noop
         }
       }
@@ -406,7 +495,7 @@ class BGMManager {
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log('🎵 BGM再生開始:', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+          console.log('🎵 BGM再生開始 (HTMLAudio - PitchShift未対応):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
         })
         .catch((error) => {
           console.warn('BGM playback failed:', error)

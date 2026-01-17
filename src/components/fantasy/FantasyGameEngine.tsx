@@ -1582,21 +1582,25 @@ export const useFantasyGameEngine = ({
           let newTranspositionContext = prevState.transpositionContext;
           let notesToUse = prevState.taikoNotesOriginal;
           
-          if (prevState.transpositionContext && prevState.transpositionContext.repeatKeyChange !== 'off') {
-            // 新しい移調コンテキストを作成
+          // 移調コンテキストが存在する場合、移調を適用
+          if (prevState.transpositionContext) {
             const baseTransposition = (prevState.currentStage as any)?._totalTransposition ?? 0;
-            newTranspositionContext = createTranspositionContext(
-              baseTransposition,
-              0,
-              prevState.transpositionContext.repeatKeyChange,
-              newLoopCycle
-            );
             
-            // リピートごとの移調量を計算して適用
-            const totalTransposition = newTranspositionContext.totalTransposition;
+            if (prevState.transpositionContext.repeatKeyChange !== 'off') {
+              // リピートごとのキー変更が有効な場合、新しい移調コンテキストを作成
+              newTranspositionContext = createTranspositionContext(
+                baseTransposition,
+                0,
+                prevState.transpositionContext.repeatKeyChange,
+                newLoopCycle
+              );
+            }
+            
+            // 移調量を計算して適用（repeatKeyChangeがoffの場合も含む）
+            const totalTransposition = newTranspositionContext?.totalTransposition ?? baseTransposition;
             if (totalTransposition !== 0) {
               notesToUse = transposeTaikoNotes(prevState.taikoNotesOriginal, totalTransposition);
-              devLog.debug('🎼 リピートごとのキー変更:', {
+              devLog.debug('🎼 ループ時の移調適用:', {
                 loopCycle: newLoopCycle,
                 repeatKeyChange: prevState.transpositionContext.repeatKeyChange,
                 totalTransposition,
