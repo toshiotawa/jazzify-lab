@@ -4,17 +4,21 @@ import { note as parseNote } from 'tonal';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
- * - chord: 歌詞(lyric)からコード名を取得（基本ルール）
- * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
- * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
- * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
+ * 
+ * 重要な概念:
+ * - chord/notes: 実際の音符情報（MusicXMLのpitch要素から取得、正解判定に使用）
+ * - lyricDisplay: 歌詞(lyric)から取得した表示用テキスト（太鼓ノーツのラベルに使用）
+ *   → 歌詞が見つかった位置から次の歌詞が出現するまで継続
+ * - text: <harmony>要素から取得したコードシンボル（オーバーレイ表示用のみ、太鼓ノーツには影響しない）
  * 
  * groupSimultaneousNotes: true の場合、同タイミングの複数ノーツを1つのエントリにまとめる
  * （Progression_Timing用：同時に鳴る音を1つの正解ノーツとして扱う）
+ * 
+ * skipHarmony: true の場合、<harmony>要素を無視する（オーバーレイテキストを生成しない）
  */
 export function convertMusicXmlToProgressionData(
   xmlText: string, 
-  options?: { groupSimultaneousNotes?: boolean }
+  options?: { groupSimultaneousNotes?: boolean; skipHarmony?: boolean }
 ): ChordProgressionDataItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
@@ -38,6 +42,9 @@ export function convertMusicXmlToProgressionData(
 
   // divisions は最初の小節で定義され、以降の小節に継承される
   let divisionsPerQuarter = 1;
+  
+  // 歌詞の継続表示用：一度見つかった歌詞は次の歌詞が出現するまで継続
+  let currentLyricDisplay: string | null = null;
 
   // 進行
   measures.forEach((measureEl) => {
@@ -57,12 +64,16 @@ export function convertMusicXmlToProgressionData(
       const el = elements[idx] as Element;
 
       if (el.tagName === 'harmony') {
-        // Overlay テキスト用に text を作る
+        // Overlay テキスト用に text を作る（オプション）
+        // 注: progression_timing モードでは歌詞(lyric)を優先するため、
+        // harmony要素はオーバーレイ表示用のみに使用し、lyricDisplayには影響しない
         const rootStep = el.querySelector('root root-step')?.textContent || '';
         const rootAlter = parseInt(el.querySelector('root root-alter')?.textContent || '0', 10);
         const kindTextAttr = el.querySelector('kind')?.getAttribute('text') || '';
         const rootName = stepAlterToName(rootStep, rootAlter);
         const display = `${rootName}${kindTextAttr}`.trim();
+        // harmonyからはオーバーレイテキストのみを生成（太鼓ノーツには影響しない）
+        // lyricDisplayは更新しない
         result.push({
           bar,
           beats: toBeats(currentPos, divisionsPerQuarter),
@@ -90,11 +101,13 @@ export function convertMusicXmlToProgressionData(
         }
 
         // 歌詞からコード名を取得（グループ内を走査）
-        let chordText: string | null = null;
+        // 新しい歌詞が見つかった場合、currentLyricDisplayを更新
+        let foundNewLyric = false;
         for (const g of group) {
           const lyricText = g.querySelector('lyric text')?.textContent?.trim();
           if (lyricText) {
-            chordText = lyricText;
+            currentLyricDisplay = lyricText;
+            foundNewLyric = true;
             break;
           }
         }
@@ -117,45 +130,21 @@ export function convertMusicXmlToProgressionData(
 
         const bass = pitches[0] || null;
 
-        // inversion 推定
-        let inversion: number | null = null;
-        if (chordText) {
-          const parsed = parseChordName(chordText);
-          if (parsed && bass) {
-            const chordNotes = buildChordNotes(parsed.root, parsed.quality, bass.octave);
-            // ルート,3rd,5th,... の音名を pitch class で比較
-            const toPc = (name: string): number => {
-              const midi = parseNote(name.replace(/x/g, '##') + String(bass.octave))?.midi;
-              return typeof midi === 'number' ? (midi % 12) : 0;
-            };
-            const bassPc = bass.midi % 12;
-            const pcs = chordNotes.map(toPc);
-            const idx = pcs.findIndex((pc) => pc === bassPc);
-            inversion = idx >= 0 ? idx : 0;
-          }
-        }
-
         // 出力アイテムを作成
-        if (chordText) {
-          result.push({
-            bar,
-            beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: chordText,
-            inversion: inversion ?? 0,
-            octave: bass ? bass.octave : 4
-          });
-        } else if (pitches.length > 1) {
+        // 実際の音符情報をchord/notesに設定し、lyricDisplayは表示用のみ
+        if (pitches.length > 1) {
           // 複数音（和音として扱う）
           const noteNames = pitches.map(p => p.step);
           result.push({
             bar,
             beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: noteNames.join(''), // 例: "CEG"
+            chord: noteNames.join(''), // 例: "CEG" - 実際の音符
             octave: bass ? bass.octave : 4,
             inversion: 0,
-            notes: noteNames, // 個別の音名配列
-            type: 'chord'
-          } as any);
+            notes: noteNames, // 個別の音名配列（正解判定用）
+            type: 'chord',
+            lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
+          } as ChordProgressionDataItem);
         } else {
           // 単音扱い
           const single = bass ? bass : pitches[0] || null;
@@ -163,11 +152,12 @@ export function convertMusicXmlToProgressionData(
             result.push({
               bar,
               beats: toBeats(currentPos, divisionsPerQuarter),
-              chord: single.step, // 音名のみ（例: 'G', 'F#'）
+              chord: single.step, // 音名のみ（例: 'G', 'F#'）- 実際の音符
               octave: single.octave,
               inversion: 0,
-              type: 'note'
-            } as any);
+              type: 'note',
+              lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
+            } as ChordProgressionDataItem);
           }
         }
 
@@ -248,11 +238,17 @@ function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): Chor
       let lowestOctave = 9;
       let lowestMidi = Infinity;
       let itemText: string | undefined = harmonyText;
+      let itemLyricDisplay: string | undefined = undefined;
       
       for (const item of noteItems) {
         // textが設定されているアイテムからテキストを取得
         if (item.text && !itemText) {
           itemText = item.text;
+        }
+        
+        // lyricDisplayを取得（最初に見つかったものを使用）
+        if (item.lyricDisplay && !itemLyricDisplay) {
+          itemLyricDisplay = item.lyricDisplay;
         }
         
         // コード名から音名を抽出
@@ -304,7 +300,9 @@ function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): Chor
         inversion: 0,
         text: itemText,
         // 新規フィールド: 個別の音名配列
-        notes: allNotes
+        notes: allNotes,
+        // 歌詞表示用テキスト（継続表示）
+        lyricDisplay: itemLyricDisplay
       } as ChordProgressionDataItem & { notes?: string[] });
     }
   }

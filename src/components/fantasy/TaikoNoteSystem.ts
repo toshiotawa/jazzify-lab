@@ -177,13 +177,20 @@ export interface ChordProgressionDataItem {
    */
   text?: string;
   /** 歌詞が無い単音ノーツ等から生成する単音指定（省略時はコード扱い） */
-  type?: 'note';
+  type?: 'note' | 'chord';
   /**
    * 同タイミングの複数ノーツをまとめた場合の個別音名配列
    * 例: ["C", "E", "G"] - 低い順にソート済み
    * Progression_Timing用：縦配置表示やガイドに使用
    */
   notes?: string[];
+  /**
+   * 歌詞から取得した表示用テキスト
+   * MusicXMLの歌詞(lyric)から取得し、次の歌詞が出現するまで継続
+   * 例: "C", "Dm7", "G7" など
+   * 太鼓ノーツの上に表示される音名として使用
+   */
+  lyricDisplay?: string;
 }
 
 // タイミング判定の結果
@@ -392,7 +399,7 @@ export function parseChordProgressionData(
     .forEach((item, index) => {
     // 新方式: notes配列がある場合は複数音として処理
     if (item.notes && item.notes.length > 0) {
-      const chord = buildChordFromNotes(item.notes, item.octave ?? 4);
+      const chord = buildChordFromNotes(item.notes, item.octave ?? 4, item.lyricDisplay);
       if (chord) {
         const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
         notes.push({
@@ -420,9 +427,16 @@ export function parseChordProgressionData(
       // Measure 1 開始を0秒として計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
+      // lyricDisplayがある場合は、displayNameとnoteNamesを上書き
+      const finalChord = item.lyricDisplay ? {
+        ...chord,
+        displayName: item.lyricDisplay,
+        noteNames: [item.lyricDisplay] // 太鼓ノーツ上の表示用（単一の歌詞テキスト）
+      } : chord;
+      
       notes.push({
         id: `note_${item.bar}_${item.beats}_${index}`,
-        chord,
+        chord: finalChord,
         hitTime,
         measure: item.bar,
         beat: item.beats,
@@ -441,8 +455,11 @@ export function parseChordProgressionData(
 /**
  * 音名配列からChordDefinitionを構築
  * Progression_Timing用：同タイミングの複数ノーツを1つのコードとして扱う
+ * @param noteNames 音名配列
+ * @param baseOctave ベースオクターブ
+ * @param lyricDisplay 歌詞表示用テキスト（設定されている場合、displayNameとnoteNamesに使用）
  */
-function buildChordFromNotes(noteNames: string[], baseOctave: number): ChordDefinition | null {
+function buildChordFromNotes(noteNames: string[], baseOctave: number, lyricDisplay?: string): ChordDefinition | null {
   if (noteNames.length === 0) return null;
   
   const midiNotes: number[] = [];
@@ -464,14 +481,16 @@ function buildChordFromNotes(noteNames: string[], baseOctave: number): ChordDefi
   // 昇順にソート
   midiNotes.sort((a, b) => a - b);
   
-  // 表示名を生成（例: "C E G" または "C"）
-  const displayName = cleanNoteNames.join(' ');
+  // lyricDisplayがある場合はそれを使用、なければ音名を結合
+  const displayName = lyricDisplay || cleanNoteNames.join(' ');
+  // 太鼓ノーツ上の表示用（lyricDisplayがあれば単一テキスト、なければ個別音名）
+  const displayNoteNames = lyricDisplay ? [lyricDisplay] : cleanNoteNames;
   
   return {
     id: displayName.replace(/\s+/g, ''),
     displayName,
     notes: midiNotes,
-    noteNames: cleanNoteNames,
+    noteNames: displayNoteNames,
     quality: 'custom', // 複数音の組み合わせ
     root: cleanNoteNames[0] || 'C'
   };
