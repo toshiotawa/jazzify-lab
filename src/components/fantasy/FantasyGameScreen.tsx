@@ -530,18 +530,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     isReady
   });
 
+  const transposedMusicXml = useMemo(() => {
+    if (!currentStage?.musicXml) return null;
+    if (gameState.transpose === 0) return currentStage.musicXml;
+    const { transposeMusicXml } = require('@/utils/musicXmlTransposer');
+    return transposeMusicXml(currentStage.musicXml, gameState.transpose);
+  }, [currentStage?.musicXml, gameState.transpose]);
+
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
   const showSheetMusicForTiming = useMemo(() => {
     return stage.mode === 'progression_timing' && 
            gameState.isTaikoMode && 
            gameState.taikoNotes.length > 0 &&
-           !!stage.musicXml;
-  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
+           !!transposedMusicXml;
+  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, transposedMusicXml]);
   
   // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
   const harmonyMarkers = useMemo(() => {
     if (!showSheetMusicForTiming) return [];
+    // ... (rest unchanged)
     
     const stageData = stage as any;
     const progressionData = stageData.chordProgressionData;
@@ -1782,7 +1790,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <FantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
-            musicXml={stage.musicXml || ''}
+            musicXml={transposedMusicXml || ''}
             bpm={stage.bpm || 120}
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}
