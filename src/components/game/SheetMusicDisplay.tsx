@@ -50,14 +50,18 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings } = useGameSelector((s) => ({
+  const { currentTime, isPlaying, notes, musicXml, settings, currentSong } = useGameSelector((s) => ({
     currentTime: s.currentTime,
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
     settings: s.settings, // 簡易表示設定を取得
+    currentSong: s.currentSong, // 楽曲固有の設定を取得
   }));
-  const shouldRenderSheet = settings.showSheetMusic;
+  // 楽曲の hide_sheet_music が true の場合、ユーザー設定に関係なく楽譜を非表示
+  const shouldRenderSheet = settings.showSheetMusic && !currentSong?.hide_sheet_music;
+  // リズム譜モード: 楽曲の use_rhythm_notation フラグを取得
+  const useRhythmNotation = currentSong?.use_rhythm_notation ?? false;
   const updateWrapperWidth = useCallback(() => {
     if (!shouldRenderSheet) {
       return;
@@ -245,10 +249,11 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
         simpleDisplayMode: settings.simpleDisplayMode,
         noteNameStyle: settings.noteNameStyle,
-        chordsOnly: settings.sheetMusicChordsOnly
+        chordsOnly: settings.sheetMusicChordsOnly,
+        useRhythmNotation: useRhythmNotation // リズム譜モードを追加
       });
       
-      log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}`);
+      log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}, リズム譜: ${useRhythmNotation ? 'ON' : 'OFF'}`);
       
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
         const options: IOSMDOptions = {
@@ -330,7 +335,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       settings.sheetMusicChordsOnly,
         settings.transpose,
           createTimeMapping,
-          updateWrapperWidth
+          updateWrapperWidth,
+        useRhythmNotation // リズム譜モードを依存関係に追加
     ]); // 簡易表示設定とトランスポーズを依存関係に追加
 
     useEffect(() => {

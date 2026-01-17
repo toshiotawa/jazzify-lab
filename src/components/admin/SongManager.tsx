@@ -11,6 +11,10 @@ interface SongFormData {
   audioFile?: FileList;
   xmlFile?: FileList;
   jsonFile?: FileList;
+  /** MusicXMLがあっても譜面を表示しない */
+  hide_sheet_music?: boolean;
+  /** リズム譜モード - 符頭の高さを一定にして表示 */
+  use_rhythm_notation?: boolean;
 }
 
 const SongManager: React.FC = () => {
@@ -83,6 +87,8 @@ const SongManager: React.FC = () => {
         artist: values.artist,
         min_rank: values.min_rank,
         usage_type: activeFormTab,
+        hide_sheet_music: values.hide_sheet_music ?? false,
+        use_rhythm_notation: values.use_rhythm_notation ?? false,
       }, files);
 
       console.log('アップロード成功:', result);
@@ -166,6 +172,33 @@ const SongManager: React.FC = () => {
             <option value="platinum">プラチナ</option>
             <option value="black">ブラック</option>
           </select>
+        </div>
+
+        {/* 楽譜表示オプション */}
+        <div className="divider">楽譜表示オプション</div>
+
+        <div className="form-control">
+          <label className="label cursor-pointer justify-start gap-3">
+            <input 
+              type="checkbox" 
+              className="checkbox checkbox-primary" 
+              {...register('hide_sheet_music')}
+            />
+            <span className="label-text">譜面を表示しない</span>
+            <span className="text-xs text-gray-400">（MusicXMLがあっても楽譜非表示）</span>
+          </label>
+        </div>
+
+        <div className="form-control">
+          <label className="label cursor-pointer justify-start gap-3">
+            <input 
+              type="checkbox" 
+              className="checkbox checkbox-primary" 
+              {...register('use_rhythm_notation')}
+            />
+            <span className="label-text">リズム譜モード</span>
+            <span className="text-xs text-gray-400">（符頭の高さを一定にして表示）</span>
+          </label>
         </div>
 
         {/* ファイルアップロード */}
@@ -259,10 +292,12 @@ const SongManager: React.FC = () => {
                     {s.artist && `${s.artist} • `}
                     {s.min_rank}
                   </p>
-                  <div className="flex gap-2 mt-1">
+                  <div className="flex gap-2 mt-1 flex-wrap">
                     {s.json_url && <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">JSON</span>}
                     {s.audio_url && <span className="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">MP3</span>}
                     {s.xml_url && <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded">XML</span>}
+                    {s.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
+                    {s.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
                   </div>
                 </div>
                 <button className="btn btn-xs btn-error ml-2 flex-shrink-0" onClick={async () => {

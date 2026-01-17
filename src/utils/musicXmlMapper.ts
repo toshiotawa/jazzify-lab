@@ -671,6 +671,8 @@ export function simplifyMusicXmlForDisplay(
     simpleDisplayMode: boolean;
     noteNameStyle: 'off' | 'abc' | 'solfege';
     chordsOnly?: boolean;
+    /** リズム譜モード - 符頭の高さを一定にして表示 */
+    useRhythmNotation?: boolean;
   }
 ): string {
   try {
@@ -687,6 +689,11 @@ export function simplifyMusicXmlForDisplay(
     
     // コードネームは互換性のため残す（将来的に削除予定）
     simplifyChordNames(doc, settings);
+
+    // リズム譜モード: 符頭の高さを一定にする
+    if (settings.useRhythmNotation) {
+      convertToRhythmNotation(doc);
+    }
 
     // コードのみ表示の場合、全てのnote要素を非表示に
     if (settings.chordsOnly) {
@@ -1009,4 +1016,51 @@ function getAccidentalText(alter: number): string | null {
 }
 
 // 小節時間情報推定関数を公開（他でも使用可能に）
-export { estimateMeasureTimeInfo }; 
+export { estimateMeasureTimeInfo };
+
+/**
+ * リズム譜変換: 全ての音符の高さを一定にする
+ * 符頭の高さを統一して表示し、リズムのみを視覚化
+ * @param doc MusicXMLのDOMDocument
+ */
+function convertToRhythmNotation(doc: Document): void {
+  // リズム譜で使用する標準ピッチ（B4 = 第3線上）
+  const RHYTHM_PITCH = {
+    step: 'B',
+    octave: '4',
+    alter: null as number | null  // 臨時記号なし
+  };
+
+  const noteElements = doc.querySelectorAll('note');
+  
+  noteElements.forEach((note) => {
+    const pitch = note.querySelector('pitch');
+    if (!pitch) return; // 休符の場合はスキップ
+
+    // ステップを更新（音名）
+    const stepElement = pitch.querySelector('step');
+    if (stepElement) {
+      stepElement.textContent = RHYTHM_PITCH.step;
+    }
+
+    // オクターブを更新
+    const octaveElement = pitch.querySelector('octave');
+    if (octaveElement) {
+      octaveElement.textContent = RHYTHM_PITCH.octave;
+    }
+
+    // 臨時記号（alter）を削除
+    const alterElement = pitch.querySelector('alter');
+    if (alterElement) {
+      alterElement.remove();
+    }
+
+    // 表示用の臨時記号（accidental）も削除
+    const accidentalElement = note.querySelector('accidental');
+    if (accidentalElement) {
+      accidentalElement.remove();
+    }
+  });
+
+  console.log(`🎵 リズム譜変換完了: ${noteElements.length}ノーツを統一ピッチ(${RHYTHM_PITCH.step}${RHYTHM_PITCH.octave})に変換`);
+} 
