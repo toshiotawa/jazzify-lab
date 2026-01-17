@@ -437,8 +437,11 @@ export class FantasySoundManager {
         }
         
         const currentTime = this.gmAudioContext.currentTime;
-        const acousticGain = this.bassVolume * (1 - this.gmMixBalance);
-        const electricGain = this.bassVolume * this.gmMixBalance;
+        // 音量を大きめに設定（3.0倍でブースト）
+        const volumeBoost = 3.0;
+        const baseGain = this.bassVolume * volumeBoost;
+        const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
+        const electricGain = baseGain * this.gmMixBalance;
         
         // アコースティックピアノを再生
         if (acousticGain > 0) {
@@ -499,8 +502,11 @@ export class FantasySoundManager {
       }
       
       const currentTime = this.gmAudioContext.currentTime;
-      const baseGain = velocity * this.bassVolume;
-      const acousticGain = baseGain * (1 - this.gmMixBalance);
+      // 音量を大きめに設定（3.0倍でブースト）
+      const volumeBoost = 3.0;
+      const baseGain = velocity * volumeBoost;
+      // ミックス時は両方の音を重ねるので、合計が baseGain になるように
+      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);  // アコースティックは常に強め
       const electricGain = baseGain * this.gmMixBalance;
       
       // アコースティックピアノを再生
