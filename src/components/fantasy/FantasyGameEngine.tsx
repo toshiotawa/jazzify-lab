@@ -19,8 +19,12 @@ import {
   parseChordProgressionData,
   parseSimpleProgressionText,
   ChordSpec,
-  BagRandomSelector
+  BagRandomSelector,
+  transposeTaikoNotes,
+  transposeChordProgressionData,
+  handleRepeatTranspose,
 } from './TaikoNoteSystem';
+import { type KeyChangeOption } from '@/utils/transposeUtils';
 import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
@@ -204,12 +208,15 @@ export interface FantasyGameState {
   isCompleting: boolean;
   // 太鼓の達人モード用
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
-  taikoNotes: any[]; // 太鼓の達人用のノーツ配列
+  taikoNotes: any[]; // 太鼓の達人用のノーツ配列（移調適用後）
   currentNoteIndex: number; // 現在判定中のノーツインデックス
   // ループ管理フィールド
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  // 移調練習機能用
+  baseTaikoNotes: any[]; // 基準キーのノーツ配列（移調計算の基準）
+  currentTransposeSemitones: number; // 現在の移調量（半音数）
 }
 
 interface FantasyGameEngineProps {
@@ -725,7 +732,10 @@ export const useFantasyGameEngine = ({
     currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
     taikoLoopCycle: 0,
     lastNormalizedTime: 0,
-    awaitingLoopStart: false
+    awaitingLoopStart: false,
+    // 移調練習機能用
+    baseTaikoNotes: [],
+    currentTransposeSemitones: 0,
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -1116,6 +1126,8 @@ export const useFantasyGameEngine = ({
       stage.mode === 'progression_random' ||
       stage.mode === 'progression_timing';
     let taikoNotes: TaikoNote[] = [];
+    let baseTaikoNotes: TaikoNote[] = [];
+    let initialTransposeSemitones = 0;
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
@@ -1180,6 +1192,24 @@ export const useFantasyGameEngine = ({
           break;
       }
       
+      // 基準ノーツを保存（リピート時の移調計算用）
+      baseTaikoNotes = [...taikoNotes.map(note => ({ ...note, chord: { ...note.chord } }))];
+      
+      // 初期移調量を取得
+      initialTransposeSemitones = (stage.transposePracticeEnabled && stage.transposeSemitones) 
+        ? stage.transposeSemitones 
+        : 0;
+      
+      // 移調を適用（練習モードかつ移調練習が有効な場合）
+      if (initialTransposeSemitones !== 0) {
+        devLog.debug('🎼 初期移調を適用:', {
+          semitones: initialTransposeSemitones,
+          baseKey: stage.baseKey,
+          noteCount: taikoNotes.length
+        });
+        taikoNotes = transposeTaikoNotes(taikoNotes, initialTransposeSemitones);
+      }
+      
       // ループ対応：最初のノーツの情報を設定
       if (taikoNotes.length > 0) {
         // 最初のモンスターのコードを設定（M2から開始）
@@ -1194,7 +1224,9 @@ export const useFantasyGameEngine = ({
         noteCount: taikoNotes.length,
         firstNote: taikoNotes[0],
         lastNote: taikoNotes[taikoNotes.length - 1],
-        notes: taikoNotes.map(n => ({ measure: n.measure, hitTime: n.hitTime }))
+        notes: taikoNotes.map(n => ({ measure: n.measure, hitTime: n.hitTime })),
+        transposeSemitones: stage.transposeSemitones || 0,
+        transposeOnRepeat: stage.transposeOnRepeat || 'OFF'
       });
     }
 
@@ -1234,7 +1266,10 @@ export const useFantasyGameEngine = ({
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
       lastNormalizedTime: 0,
-      awaitingLoopStart: false
+      awaitingLoopStart: false,
+      // 移調練習機能用
+      baseTaikoNotes,
+      currentTransposeSemitones: initialTransposeSemitones,
     };
 
     setGameState(newState);
@@ -1249,7 +1284,9 @@ export const useFantasyGameEngine = ({
       enemyHp,
       totalQuestions,
       simultaneousCount,
-      activeMonsters: activeMonsters.length
+      activeMonsters: activeMonsters.length,
+      transposeSemitones: isTaikoMode ? initialTransposeSemitones : 0,
+      transposeOnRepeat: stage.transposeOnRepeat || 'OFF'
     });
   }, [onGameStateChange]);
   
@@ -1535,7 +1572,7 @@ export const useFantasyGameEngine = ({
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
+          let resetNotes = prevState.taikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
@@ -1543,9 +1580,37 @@ export const useFantasyGameEngine = ({
           
           let newNoteIndex = prevState.currentNoteIndex;
           let refreshedMonsters = prevState.activeMonsters;
+          let newTransposeSemitones = prevState.currentTransposeSemitones;
           
           if (prevState.awaitingLoopStart) {
             newNoteIndex = 0;
+            
+            // リピート時の移調を適用（transposeOnRepeatが設定されている場合）
+            const transposeOnRepeat = stage?.transposeOnRepeat as KeyChangeOption | undefined;
+            if (transposeOnRepeat && transposeOnRepeat !== 'OFF' && prevState.baseTaikoNotes.length > 0) {
+              // 基準ノーツから新しい移調を計算して適用
+              const { notes: transposedNotes, newSemitones } = handleRepeatTranspose(
+                prevState.baseTaikoNotes,
+                prevState.currentTransposeSemitones,
+                transposeOnRepeat
+              );
+              
+              // 移調後のノーツでリセット
+              resetNotes = transposedNotes.map(note => ({
+                ...note,
+                isHit: false,
+                isMissed: false
+              }));
+              newTransposeSemitones = newSemitones;
+              
+              devLog.debug('🎼 リピート時移調を適用:', {
+                previousSemitones: prevState.currentTransposeSemitones,
+                newSemitones,
+                transposeOnRepeat,
+                loopCycle: (prevState.taikoLoopCycle ?? 0) + 1
+              });
+            }
+            
             const firstNote = resetNotes[0];
             const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
             refreshedMonsters = prevState.activeMonsters.map(m => ({
@@ -1564,7 +1629,8 @@ export const useFantasyGameEngine = ({
             awaitingLoopStart: false,
             taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            currentTransposeSemitones: newTransposeSemitones
           };
         }
         

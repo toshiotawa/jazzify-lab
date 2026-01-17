@@ -5,6 +5,13 @@
 
 import { ChordDefinition } from './FantasyGameEngine';
 import { note as parseNote } from 'tonal';
+import {
+  transposeChordName,
+  transposeNoteName,
+  transposeMidiNotes,
+  type KeyChangeOption,
+  getNextTransposeSemitones,
+} from '@/utils/transposeUtils';
 
 // ===== 袋形式ランダムセレクター =====
 
@@ -704,4 +711,137 @@ export function getVisibleNotesOptimized(
   }
   
   return visibleNotes;
+}
+
+// ===== 移調関連関数 =====
+
+/**
+ * ChordDefinitionを移調する
+ * @param chord 元のコード定義
+ * @param semitones 半音数（-6〜+6）
+ * @returns 移調後のコード定義
+ */
+export function transposeChordDefinition(
+  chord: ChordDefinition,
+  semitones: number
+): ChordDefinition {
+  if (semitones === 0) return chord;
+  
+  return {
+    ...chord,
+    id: transposeChordName(chord.id, semitones),
+    displayName: transposeChordName(chord.displayName, semitones),
+    notes: transposeMidiNotes(chord.notes, semitones),
+    noteNames: chord.noteNames.map(name => transposeNoteName(name, semitones)),
+    root: transposeNoteName(chord.root, semitones),
+  };
+}
+
+/**
+ * TaikoNoteを移調する
+ * @param note 元のノート
+ * @param semitones 半音数（-6〜+6）
+ * @returns 移調後のノート
+ */
+export function transposeTaikoNote(
+  note: TaikoNote,
+  semitones: number
+): TaikoNote {
+  if (semitones === 0) return note;
+  
+  return {
+    ...note,
+    chord: transposeChordDefinition(note.chord, semitones),
+  };
+}
+
+/**
+ * TaikoNote配列全体を移調する
+ * @param notes ノート配列
+ * @param semitones 半音数（-6〜+6）
+ * @returns 移調後のノート配列
+ */
+export function transposeTaikoNotes(
+  notes: TaikoNote[],
+  semitones: number
+): TaikoNote[] {
+  if (semitones === 0) return notes;
+  
+  return notes.map(note => transposeTaikoNote(note, semitones));
+}
+
+/**
+ * リピート時の移調処理
+ * 現在の移調量と設定に基づいて新しい移調量を計算し、ノーツを移調する
+ * @param notes 元のノート配列（基準キーでの定義）
+ * @param currentSemitones 現在の移調量
+ * @param transposeOnRepeat リピート時の移調設定
+ * @returns { notes: 移調後のノート配列, newSemitones: 新しい移調量 }
+ */
+export function handleRepeatTranspose(
+  notes: TaikoNote[],
+  currentSemitones: number,
+  transposeOnRepeat: KeyChangeOption
+): { notes: TaikoNote[]; newSemitones: number } {
+  // 新しい移調量を計算
+  const newSemitones = getNextTransposeSemitones(currentSemitones, transposeOnRepeat);
+  
+  // 移調を適用
+  const transposedNotes = transposeTaikoNotes(notes, newSemitones);
+  
+  return {
+    notes: transposedNotes,
+    newSemitones,
+  };
+}
+
+/**
+ * ChordProgressionDataItemを移調する
+ * @param item 元のアイテム
+ * @param semitones 半音数
+ * @returns 移調後のアイテム
+ */
+export function transposeChordProgressionDataItem(
+  item: ChordProgressionDataItem,
+  semitones: number
+): ChordProgressionDataItem {
+  if (semitones === 0) return item;
+  
+  const transposed = { ...item };
+  
+  // コード名を移調
+  if (transposed.chord) {
+    transposed.chord = transposeChordName(transposed.chord, semitones);
+  }
+  
+  // notes配列を移調
+  if (transposed.notes && Array.isArray(transposed.notes)) {
+    transposed.notes = transposed.notes.map(note => transposeNoteName(note, semitones));
+  }
+  
+  // lyricDisplayを移調（音名の場合のみ）
+  if (transposed.lyricDisplay) {
+    // 音名パターンにマッチするかチェック
+    const isNote = /^[A-G][#bx]*\d*$/.test(transposed.lyricDisplay);
+    if (isNote) {
+      transposed.lyricDisplay = transposeNoteName(transposed.lyricDisplay, semitones);
+    }
+  }
+  
+  return transposed;
+}
+
+/**
+ * ChordProgressionData配列全体を移調する
+ * @param data プログレッションデータ配列
+ * @param semitones 半音数
+ * @returns 移調後のデータ配列
+ */
+export function transposeChordProgressionData(
+  data: ChordProgressionDataItem[],
+  semitones: number
+): ChordProgressionDataItem[] {
+  if (semitones === 0) return data;
+  
+  return data.map(item => transposeChordProgressionDataItem(item, semitones));
 }
