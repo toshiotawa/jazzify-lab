@@ -32,6 +32,7 @@
 
 // 追加 import
 import { note as tonalNote } from 'tonal';
+import Soundfont from 'soundfont-player';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
 
@@ -82,11 +83,14 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - ピアノサンプラー + 合成音フォールバック
+  // ベース音関連フィールド - GM音源 + 合成音フォールバック
   private bassSynth: any | null = null;           // 合成音（フォールバック用）
-  private pianoSampler: any | null = null;        // Salamander Piano サンプラー
-  private pianoSamplerReady = false;              // サンプラー読み込み完了フラグ
+  private pianoSampler: any | null = null;        // Salamander Piano サンプラー（Tone.js）
+  private pianoSamplerReady = false;              // Tone.jsサンプラー読み込み完了フラグ
   private usePianoSampler = true;                 // ピアノサンプラーを優先使用
+  private gmPiano: Soundfont.Player | null = null;  // GM音源ピアノ
+  private gmPianoReady = false;                   // GM音源読み込み完了フラグ
+  private gmAudioContext: AudioContext | null = null;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -211,11 +215,17 @@ export class FantasySoundManager {
         }
 
         // Phase 2: Salamander Piano サンプラー（バックグラウンド読み込み）
-        // 3つの基準音（C2, C3, C4）から全音域を補間
+        // 6つの基準音（C2-C7）から全音域を補間
         this._loadPianoSampler(Tone, baseUrl).catch(e => {
           console.debug('[FantasySoundManager] Piano sampler load skipped:', e);
         });
       }
+
+      // Phase 3: GM音源ピアノ（soundfont-player）をバックグラウンドで読み込み
+      // CDNから必要な音だけオンデマンドで取得（軽量・高品質）
+      this._loadGMPiano().catch(e => {
+        console.debug('[FantasySoundManager] GM Piano load skipped:', e);
+      });
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
@@ -364,7 +374,7 @@ export class FantasySoundManager {
     }
   }
 
-  // 🔊 ルート音再生（合成音を使用 - ファンタジーモード用）
+  // 🎹 ルート音再生（GM音源優先、合成音フォールバック）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
@@ -373,30 +383,72 @@ export class FantasySoundManager {
       await Promise.race([this.loadedPromise, timeout]);
     }
 
-    if (!this.bassEnabled || !this.bassSynth) return;
-    
-    const Tone = window.Tone as unknown as typeof import('tone');
-    if (!Tone) return; // Tone.js未ロードの場合は早期リターン
+    if (!this.bassEnabled) return;
     
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // Tone.js 例外対策：必ず前回より >0 の startTime
+    // 🎹 GM音源優先（リアルなピアノ音）
+    if (this.gmPianoReady && this.gmPiano && this.gmAudioContext) {
+      try {
+        // GM音源で再生（MIDIノート番号を使用）
+        this.gmPiano.play(n.midi.toString(), this.gmAudioContext.currentTime, {
+          gain: this.bassVolume,
+          duration: 1.0  // 1秒間再生
+        });
+        return; // GM音源再生成功
+      } catch (e) {
+        console.debug('[FantasySoundManager] GM Piano playback failed, trying synth:', e);
+      }
+    }
+    
+    // 🔊 合成音フォールバック（GM音源未準備時）
+    if (!this.bassSynth) return;
+    
+    const Tone = window.Tone as unknown as typeof import('tone');
+    if (!Tone) return;
+    
     let t = Tone.now();
     if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
     this.lastRootStart = t;
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
     
-    // 🔊 FM合成ピアノ音で再生（低遅延・安定）
     try {
       this.bassSynth.triggerAttackRelease(
         note,
-        '4n',   // ピアノらしい長さ
+        '4n',
         t
       );
     } catch (e) {
       console.debug('[FantasySoundManager] Root note playback error:', e);
+    }
+  }
+
+  // GM音源（Acoustic Grand Piano）の読み込み
+  private async _loadGMPiano(): Promise<void> {
+    try {
+      // AudioContextを作成または再利用
+      if (!this.gmAudioContext) {
+        this.gmAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+      }
+      
+      // GM音源のAcoustic Grand Pianoを読み込み
+      // CDN: https://gleitz.github.io/midi-js-soundfonts/
+      this.gmPiano = await Soundfont.instrument(
+        this.gmAudioContext,
+        'acoustic_grand_piano',
+        {
+          soundfont: 'MusyngKite',  // 高品質なSoundFont
+          format: 'mp3',            // MP3形式（軽量）
+        }
+      );
+      
+      this.gmPianoReady = true;
+      console.debug('[FantasySoundManager] 🎹 GM Piano (Acoustic Grand Piano) loaded');
+    } catch (e) {
+      console.debug('[FantasySoundManager] GM Piano load error:', e);
+      this.gmPianoReady = false;
     }
   }
 
