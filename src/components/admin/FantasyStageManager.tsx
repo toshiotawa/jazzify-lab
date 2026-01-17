@@ -16,6 +16,7 @@ import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
+import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -1072,17 +1073,16 @@ const FantasyStageManager: React.FC = () => {
                         if (!f) return;
                         try {
                           const text = await f.text();
-                          const mod = await import('@/utils/musicXmlToProgression');
                           // 同タイミングのノーツをまとめて1つのノーツとして扱う
-                          const items = mod.convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
+                          const items = convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
                           // 元のMusicXMLも保存（OSMD楽譜表示用）
                           setValue('music_xml', text);
                           toast.success('MusicXML から progression を読み込みました（同時ノーツをグループ化）');
-                        } catch (err: any) {
-                          console.error(err);
-                          toast.error('MusicXML の読み込みに失敗しました');
+                        } catch (err: unknown) {
+                          const errorMessage = err instanceof Error ? err.message : 'MusicXML の読み込みに失敗しました';
+                          toast.error(errorMessage);
                         }
                       }}
                     />
