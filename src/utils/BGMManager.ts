@@ -395,8 +395,13 @@ class BGMManager {
       }
       
       // PitchShiftノードを作成または更新
+      // windowSizeを小さくして遅延を最小化（デフォルト0.1秒→0.03秒）
       if (!this.pitchShift) {
-        this.pitchShift = new Tone.PitchShift({ pitch: pitchShiftAmount })
+        this.pitchShift = new Tone.PitchShift({ 
+          pitch: pitchShiftAmount,
+          windowSize: 0.03,  // 小さいほど遅延が少ない（品質とのトレードオフ）
+          delayTime: 0       // 追加の遅延なし
+        })
       } else {
         const ps = this.pitchShift as unknown as { pitch: number }
         ps.pitch = pitchShiftAmount
