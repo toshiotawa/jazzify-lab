@@ -145,6 +145,8 @@ export interface FantasyStage {
   sheetMusicClef?: 'treble' | 'bass';
   // Progression_Timing用: 元のMusicXMLデータ（OSMD表示用）
   musicXml?: string;
+  // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
+  speedMultiplier?: number;
 }
 
 export interface MonsterState {
