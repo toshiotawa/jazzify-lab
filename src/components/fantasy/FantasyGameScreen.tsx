@@ -125,6 +125,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
   
+  // 移調練習用の状態
+  const [selectedTranspose, setSelectedTranspose] = useState<number>(0);
+  const [selectedAutoKeyChange, setSelectedAutoKeyChange] = useState<'off' | '+1' | '+5'>('off');
+
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
@@ -624,7 +628,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [stage]);
 
-  const startGame = useCallback(async (mode: FantasyPlayMode, speedMultiplier: number = 1.0) => {
+  const startGame = useCallback(async (
+    mode: FantasyPlayMode, 
+    speedMultiplier: number = 1.0,
+    initialTranspose: number = 0,
+    autoKeyChange: 'off' | '+1' | '+5' = 'off'
+  ) => {
     // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {
       devLog.debug('⏳ 初期化完了を待機中...');
@@ -645,9 +654,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const stageWithSpeed = speedMultiplier !== 1.0 
       ? { ...buildInitStage(), speedMultiplier }
       : buildInitStage();
-    await initializeGame(stageWithSpeed, mode);
+    await initializeGame(stageWithSpeed, mode, initialTranspose, autoKeyChange);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier, initialTranspose, autoKeyChange });
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
 
   // デイリーチャレンジ: タイムリミットで終了
@@ -1322,11 +1331,51 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>
+
+                {/* 移調設定エリア (練習モードのみ) */}
+                <div className="bg-gray-800/80 p-3 rounded-lg border border-gray-700 mb-2">
+                  <div className="flex flex-col gap-3">
+                    {/* キー変更 */}
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-gray-300">
+                        {isEnglishCopy ? 'Key Change' : 'キー変更'} (±6)
+                      </label>
+                      <select
+                        value={selectedTranspose}
+                        onChange={(e) => setSelectedTranspose(Number(e.target.value))}
+                        className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm w-24 text-center"
+                      >
+                        {Array.from({ length: 13 }, (_, i) => i - 6).map((val) => (
+                          <option key={val} value={val}>
+                            {val > 0 ? `+${val}` : val}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* 自動移調 */}
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-gray-300">
+                        {isEnglishCopy ? 'Loop Transpose' : 'リピート移調'}
+                      </label>
+                      <select
+                        value={selectedAutoKeyChange}
+                        onChange={(e) => setSelectedAutoKeyChange(e.target.value as 'off' | '+1' | '+5')}
+                        className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm w-24 text-center"
+                      >
+                        <option value="off">OFF</option>
+                        <option value="+1">+1</option>
+                        <option value="+5">+5</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 通常速度で練習 */}
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 100%）');
-                    startGame('practice', 1.0);
+                    startGame('practice', 1.0, selectedTranspose, selectedAutoKeyChange);
                   }}
                   disabled={!isInitialized}
                   className={cn(
@@ -1343,7 +1392,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 75%）');
-                    startGame('practice', 0.75);
+                    startGame('practice', 0.75, selectedTranspose, selectedAutoKeyChange);
                   }}
                   disabled={!isInitialized}
                   className={cn(
@@ -1360,7 +1409,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <button
                   onClick={() => {
                     devLog.debug('🎮 ゲーム開始（練習 50%）');
-                    startGame('practice', 0.5);
+                    startGame('practice', 0.5, selectedTranspose, selectedAutoKeyChange);
                   }}
                   disabled={!isInitialized}
                   className={cn(
@@ -1375,23 +1424,48 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               </div>
             ) : (
               /* singleモードの場合は従来の練習ボタン */
-              <button
-                onClick={() => {
-                  devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
-                  startGame('practice', 1.0);
-                }}
-                disabled={!isInitialized}
-                className={cn(
-                  "w-full px-8 py-3 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all border border-white/20",
-                  isInitialized 
-                    ? "bg-white/10 hover:bg-white/20 hover:scale-105"
-                    : "bg-gray-700 cursor-wait"
-                )}
-              >
-                {isDailyChallenge 
-                  ? '🎹 練習する（時間無制限）' 
-                  : (isEnglishCopy ? 'Practice' : '練習する')}
-              </button>
+              <div className="w-full space-y-2">
+                {/* 移調設定エリア (Singleモードでも表示) */}
+                <div className="bg-gray-800/80 p-3 rounded-lg border border-gray-700 mb-2">
+                  <div className="flex flex-col gap-3">
+                    {/* キー変更 */}
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-bold text-gray-300">
+                        {isEnglishCopy ? 'Key Change' : 'キー変更'} (±6)
+                      </label>
+                      <select
+                        value={selectedTranspose}
+                        onChange={(e) => setSelectedTranspose(Number(e.target.value))}
+                        className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm w-24 text-center"
+                      >
+                        {Array.from({ length: 13 }, (_, i) => i - 6).map((val) => (
+                          <option key={val} value={val}>
+                            {val > 0 ? `+${val}` : val}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <button
+                  onClick={() => {
+                    devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
+                    startGame('practice', 1.0, selectedTranspose, 'off'); // Singleモードは自動移調なし
+                  }}
+                  disabled={!isInitialized}
+                  className={cn(
+                    "w-full px-8 py-3 text-white font-bold text-lg rounded-lg shadow-lg transform transition-all border border-white/20",
+                    isInitialized 
+                      ? "bg-white/10 hover:bg-white/20 hover:scale-105"
+                      : "bg-gray-700 cursor-wait"
+                  )}
+                >
+                  {isDailyChallenge 
+                    ? '🎹 練習する（時間無制限）' 
+                    : (isEnglishCopy ? 'Practice' : '練習する')}
+                </button>
+              </div>
             )}
           </div>
           
