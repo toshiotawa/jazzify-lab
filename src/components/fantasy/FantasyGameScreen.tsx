@@ -531,11 +531,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   });
 
   const transposedMusicXml = useMemo(() => {
-    if (!currentStage?.musicXml) return null;
-    if (gameState.transpose === 0) return currentStage.musicXml;
+    if (!stage.musicXml) return null;
+    if (gameState.transpose === 0) return stage.musicXml;
     const { transposeMusicXml } = require('@/utils/musicXmlTransposer');
-    return transposeMusicXml(currentStage.musicXml, gameState.transpose);
-  }, [currentStage?.musicXml, gameState.transpose]);
+    return transposeMusicXml(stage.musicXml, gameState.transpose);
+  }, [stage.musicXml, gameState.transpose]);
 
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
