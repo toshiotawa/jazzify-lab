@@ -224,11 +224,17 @@ export class FantasySoundManager {
         });
       }
 
-      // Phase 3: GM音源ピアノ（soundfont-player）をバックグラウンドで読み込み
+      // Phase 3: GM音源ピアノ（soundfont-player）を読み込み
       // CDNから必要な音だけオンデマンドで取得（軽量・高品質）
-      this._loadGMPiano().catch(e => {
+      // 読み込み完了を待つ（最大8秒）
+      try {
+        await Promise.race([
+          this._loadGMPiano(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('GM Piano load timeout')), 8000))
+        ]);
+      } catch (e) {
         console.debug('[FantasySoundManager] GM Piano load skipped:', e);
-      });
+      }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
@@ -381,8 +387,8 @@ export class FantasySoundManager {
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
-      // 最大100msだけ待機（それ以上は諦めて続行）
-      const timeout = new Promise(res => setTimeout(res, 100));
+      // 最大500msだけ待機（GM音源読み込みを待つ）
+      const timeout = new Promise(res => setTimeout(res, 500));
       await Promise.race([this.loadedPromise, timeout]);
     }
 
@@ -391,15 +397,30 @@ export class FantasySoundManager {
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
+    // デバッグ: GM音源の状態を出力
+    console.debug('[FantasySoundManager] playRootNote:', {
+      rootName,
+      midi: n.midi,
+      gmPianoReady: this.gmPianoReady,
+      gmAcousticPiano: !!this.gmAcousticPiano,
+      gmElectricPiano: !!this.gmElectricPiano,
+      gmAudioContextState: this.gmAudioContext?.state
+    });
+    
     // 🎹 GM音源優先（アコースティック + エレクトリックピアノのミックス）
-    if (this.gmPianoReady && this.gmAudioContext) {
+    if (this.gmPianoReady && this.gmAudioContext && this.gmAcousticPiano) {
       try {
+        // AudioContextがsuspended状態ならresumeする
+        if (this.gmAudioContext.state === 'suspended') {
+          await this.gmAudioContext.resume();
+        }
+        
         const currentTime = this.gmAudioContext.currentTime;
         const acousticGain = this.bassVolume * (1 - this.gmMixBalance);
         const electricGain = this.bassVolume * this.gmMixBalance;
         
         // アコースティックピアノを再生
-        if (this.gmAcousticPiano && acousticGain > 0) {
+        if (acousticGain > 0) {
           this.gmAcousticPiano.play(n.midi.toString(), currentTime, {
             gain: acousticGain,
             duration: 1.2
@@ -546,6 +567,11 @@ export class FantasySoundManager {
 
       if (this.seAudioContext.state !== 'running') {
         await this.seAudioContext.resume();
+      }
+
+      // GM音源用のAudioContextもresumeする
+      if (this.gmAudioContext && this.gmAudioContext.state !== 'running') {
+        await this.gmAudioContext.resume();
       }
 
       // iOS Safari 向け: 無音バッファを短く再生して完全に解放
