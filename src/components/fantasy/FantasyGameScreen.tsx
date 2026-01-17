@@ -1341,6 +1341,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 </div>
                 
                 {/* 移調設定（enable_transposition && progression_timingモードの場合のみ表示） */}
+                {/* デバッグ: 移調設定の確認（一時的に表示） */}
+                <div className="text-xs text-yellow-400 mb-2 p-2 bg-black/50 rounded">
+                  🔍 DEBUG: enableTransposition={String(stage.enableTransposition)}, 
+                  enable_transposition={String((stage as any).enable_transposition)}, 
+                  mode={stage.mode}
+                </div>
                 {(stage.enableTransposition || (stage as any).enable_transposition) && stage.mode === 'progression_timing' && (
                   <div className="w-full bg-gray-800/60 rounded-lg p-3 space-y-3 border border-purple-500/30">
                     <div className="text-sm text-purple-300 font-medium">
