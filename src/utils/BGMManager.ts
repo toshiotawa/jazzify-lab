@@ -16,6 +16,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private pitchSemitones = 0 // ピッチシフト量（半音単位、正=上、負=下）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -31,7 +32,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    pitchSemitones = 0
   ) {
     if (!url) return
     
@@ -44,6 +46,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.pitchSemitones = pitchSemitones // ピッチシフト量を保存
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -232,6 +235,29 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
+  getPitchSemitones(): number { return this.pitchSemitones }
+  
+  /**
+   * ピッチを変更する（再生中でも変更可能）
+   * @param semitones 半音数（正=上、負=下、例: 2 = 全音上げ）
+   */
+  setPitch(semitones: number) {
+    this.pitchSemitones = semitones
+    
+    // Web Audioの場合、再生中にdetuneを変更
+    if (this.waSource) {
+      try {
+        this.waSource.detune.value = semitones * 100
+        console.log(`🎵 BGMピッチ変更: ${semitones}半音 (${semitones * 100}セント)`)
+      } catch (e) {
+        console.warn('BGM detune change failed:', e)
+      }
+    }
+    
+    // HTMLAudioの場合はピッチ変更はサポートされない（preservesPitchが効いているため）
+    // 次回のplay()呼び出しで反映される
+  }
+  
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -308,6 +334,13 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
+    
+    // ピッチシフト（detune）を設定（半音 = 100セント）
+    // detuneは再生速度を変えずにピッチのみを変更できる
+    if (this.pitchSemitones !== 0) {
+      src.detune.value = this.pitchSemitones * 100
+    }
+    
     src.connect(this.waGain!)
 
     // 再生

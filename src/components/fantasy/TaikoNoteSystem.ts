@@ -705,3 +705,23 @@ export function getVisibleNotesOptimized(
   
   return visibleNotes;
 }
+
+// ===== 移調関連のエクスポート =====
+// transposer.tsから移調関連の関数をre-export
+export {
+  transposeNoteName,
+  transposeMidiNote,
+  transposeChordDefinition,
+  transposeChordName,
+  transposeTaikoNote,
+  transposeTaikoNotes,
+  transposeProgressionDataItem,
+  getValidTranspositions,
+  calculateRepeatTransposition,
+  semitonesToCents,
+  AVAILABLE_KEYS,
+  type AvailableKey,
+  type RepeatTransposeOption,
+  type TransposeSettings,
+  DEFAULT_TRANSPOSE_SETTINGS
+} from '@/utils/transposer';
