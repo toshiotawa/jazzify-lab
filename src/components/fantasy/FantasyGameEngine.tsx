@@ -19,8 +19,14 @@ import {
   parseChordProgressionData,
   parseSimpleProgressionText,
   ChordSpec,
-  BagRandomSelector
+  BagRandomSelector,
+  transposeTaikoNotes,
+  transposeChordProgressionData,
+  createTranspositionContext,
+  calculateRepeatTransposition,
+  TranspositionContext
 } from './TaikoNoteSystem';
+import type { RepeatKeyChange } from '@/types';
 import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
@@ -147,6 +153,9 @@ export interface FantasyStage {
   musicXml?: string;
   // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
   speedMultiplier?: number;
+  // 移調設定（ゲームエンジン内部用）
+  _totalTransposition?: number; // 総移調量（baseKeyTransposition + userKeyChange）
+  _repeatKeyChange?: RepeatKeyChange; // リピートごとのキー変更設定
 }
 
 export interface MonsterState {
@@ -197,12 +206,15 @@ export interface FantasyGameState {
   isCompleting: boolean;
   // 太鼓の達人モード用
   isTaikoMode: boolean; // 太鼓の達人モードかどうか
-  taikoNotes: any[]; // 太鼓の達人用のノーツ配列
+  taikoNotes: any[]; // 太鼓の達人用のノーツ配列（移調済み）
+  taikoNotesOriginal: any[]; // 太鼓の達人用のノーツ配列（移調前）
   currentNoteIndex: number; // 現在判定中のノーツインデックス
   // ループ管理フィールド
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  // 移調コンテキスト
+  transpositionContext: TranspositionContext | null;
 }
 
 interface FantasyGameEngineProps {
@@ -715,10 +727,13 @@ export const useFantasyGameEngine = ({
     // 太鼓の達人モード用
     isTaikoMode: false,
     taikoNotes: [],
+    taikoNotesOriginal: [],
     currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
     taikoLoopCycle: 0,
     lastNormalizedTime: 0,
-    awaitingLoopStart: false
+    awaitingLoopStart: false,
+    // 移調コンテキスト
+    transpositionContext: null
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -1190,6 +1205,36 @@ export const useFantasyGameEngine = ({
         notes: taikoNotes.map(n => ({ measure: n.measure, hitTime: n.hitTime }))
       });
     }
+    
+    // ===== 移調処理 =====
+    const totalTransposition = (stage as any)._totalTransposition ?? 0;
+    const repeatKeyChange: RepeatKeyChange = (stage as any)._repeatKeyChange ?? 'off';
+    
+    // 移調コンテキストを作成
+    const transpositionContext = totalTransposition !== 0 || repeatKeyChange !== 'off'
+      ? createTranspositionContext(totalTransposition, 0, repeatKeyChange, 0)
+      : null;
+    
+    // 移調前のノーツを保存
+    const taikoNotesOriginal = [...taikoNotes];
+    
+    // 移調が必要な場合、ノーツを移調
+    if (transpositionContext && transpositionContext.totalTransposition !== 0) {
+      taikoNotes = transposeTaikoNotes(taikoNotes, transpositionContext.totalTransposition);
+      
+      // モンスターのコードも移調
+      if (activeMonsters.length > 0 && taikoNotes.length > 0) {
+        activeMonsters[0].chordTarget = taikoNotes[0].chord;
+        activeMonsters[0].nextChord = taikoNotes.length > 1 ? taikoNotes[1].chord : taikoNotes[0].chord;
+      }
+      
+      devLog.debug('🎼 移調適用:', {
+        totalTransposition: transpositionContext.totalTransposition,
+        repeatKeyChange,
+        firstChordBefore: taikoNotesOriginal[0]?.chord?.displayName,
+        firstChordAfter: taikoNotes[0]?.chord?.displayName
+      });
+    }
 
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -1224,10 +1269,13 @@ export const useFantasyGameEngine = ({
       // 太鼓の達人モード用
       isTaikoMode,
       taikoNotes,
+      taikoNotesOriginal,
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
       lastNormalizedTime: 0,
-      awaitingLoopStart: false
+      awaitingLoopStart: false,
+      // 移調コンテキスト
+      transpositionContext
     };
 
     setGameState(newState);
@@ -1528,7 +1576,37 @@ export const useFantasyGameEngine = ({
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
+          const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          
+          // ===== リピートごとのキー変更処理 =====
+          let newTranspositionContext = prevState.transpositionContext;
+          let notesToUse = prevState.taikoNotesOriginal;
+          
+          if (prevState.transpositionContext && prevState.transpositionContext.repeatKeyChange !== 'off') {
+            // 新しい移調コンテキストを作成
+            const baseTransposition = (prevState.currentStage as any)?._totalTransposition ?? 0;
+            newTranspositionContext = createTranspositionContext(
+              baseTransposition,
+              0,
+              prevState.transpositionContext.repeatKeyChange,
+              newLoopCycle
+            );
+            
+            // リピートごとの移調量を計算して適用
+            const totalTransposition = newTranspositionContext.totalTransposition;
+            if (totalTransposition !== 0) {
+              notesToUse = transposeTaikoNotes(prevState.taikoNotesOriginal, totalTransposition);
+              devLog.debug('🎼 リピートごとのキー変更:', {
+                loopCycle: newLoopCycle,
+                repeatKeyChange: prevState.transpositionContext.repeatKeyChange,
+                totalTransposition,
+                firstChordBefore: prevState.taikoNotesOriginal[0]?.chord?.displayName,
+                firstChordAfter: notesToUse[0]?.chord?.displayName
+              });
+            }
+          }
+          
+          const resetNotes = notesToUse.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
@@ -1555,9 +1633,10 @@ export const useFantasyGameEngine = ({
             taikoNotes: resetNotes,
             currentNoteIndex: newNoteIndex,
             awaitingLoopStart: false,
-            taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
+            taikoLoopCycle: newLoopCycle,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            transpositionContext: newTranspositionContext
           };
         }
         

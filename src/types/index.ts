@@ -562,6 +562,9 @@ export interface FantasyStage {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string;
+  // 移調設定
+  base_key_transposition?: number; // 基準キーの移調量（半音単位、±6）
+  transposition_practice_enabled?: boolean; // 移調練習機能の有効/無効
 }
 
 // ファンタジーステージクリア記録
@@ -710,3 +713,99 @@ export interface RankingEntry {
   updated_at: string;
   twitter_handle?: string;
 }
+
+// ===== ファンタジーモード移調機能 =====
+
+/**
+ * 移調可能なキー（12種類）
+ * F#, C#メジャーなどの異名同音は除外し、フラット系で統一
+ */
+export type TranspositionKey = 'C' | 'Db' | 'D' | 'Eb' | 'E' | 'F' | 'Gb' | 'G' | 'Ab' | 'A' | 'Bb' | 'B';
+
+/**
+ * 移調量（半音単位、±6の範囲）
+ */
+export type TranspositionAmount = -6 | -5 | -4 | -3 | -2 | -1 | 0 | 1 | 2 | 3 | 4 | 5 | 6;
+
+/**
+ * リピートごとのキー変更設定
+ */
+export type RepeatKeyChange = 'off' | '+1' | '+5';
+
+/**
+ * 管理画面で設定する移調設定（ステージに保存）
+ */
+export interface StageTranspositionSettings {
+  /** 基準キーの移調量（半音単位、±6）- 素材からの移調 */
+  baseKeyTransposition: TranspositionAmount;
+  /** 移調練習機能を有効にするか */
+  transpositionPracticeEnabled: boolean;
+}
+
+/**
+ * ユーザーがステージ開始前に選択する移調設定（練習モードのみ）
+ */
+export interface UserTranspositionSettings {
+  /** キー変更量（半音単位、±6）- 基準キーからの移調 */
+  keyChange: TranspositionAmount;
+  /** リピートごとのキー変更（OFF, +1, +5） */
+  repeatKeyChange: RepeatKeyChange;
+}
+
+/**
+ * 移調に必要な情報を統合したインターフェース
+ */
+export interface TranspositionContext {
+  /** 現在の総移調量（baseKeyTransposition + keyChange） */
+  totalTransposition: number;
+  /** 現在のループ回数（0始まり） */
+  currentLoop: number;
+  /** リピートごとのキー変更設定 */
+  repeatKeyChange: RepeatKeyChange;
+  /** 次のループでの移調量 */
+  nextLoopTransposition: number;
+}
+
+/**
+ * キー名から半音数へのマッピング（Cを0とする）
+ */
+export const KEY_TO_SEMITONES: Record<TranspositionKey, number> = {
+  'C': 0,
+  'Db': 1,
+  'D': 2,
+  'Eb': 3,
+  'E': 4,
+  'F': 5,
+  'Gb': 6,
+  'G': 7,
+  'Ab': 8,
+  'A': 9,
+  'Bb': 10,
+  'B': 11
+};
+
+/**
+ * 半音数からキー名へのマッピング
+ */
+export const SEMITONES_TO_KEY: TranspositionKey[] = [
+  'C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'
+];
+
+/**
+ * 移調量のラベル（UI表示用）
+ */
+export const TRANSPOSITION_LABELS: Record<TranspositionAmount, string> = {
+  '-6': '-6 (Gb/F#)',
+  '-5': '-5 (G)',
+  '-4': '-4 (Ab)',
+  '-3': '-3 (A)',
+  '-2': '-2 (Bb)',
+  '-1': '-1 (B)',
+  '0': '±0 (C)',
+  '1': '+1 (Db)',
+  '2': '+2 (D)',
+  '3': '+3 (Eb)',
+  '4': '+4 (E)',
+  '5': '+5 (F)',
+  '6': '+6 (Gb/F#)'
+};
