@@ -71,6 +71,8 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 移調練習機能
+  enable_transposition: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -101,6 +103,7 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  enable_transposition: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -362,6 +365,7 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      enable_transposition: v.enable_transposition,
     };
 
     // モードに応じた不要フィールドの削除
@@ -415,7 +419,8 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
-        music_xml: s.music_xml || null,
+      music_xml: s.music_xml || null,
+      enable_transposition: !!(s as DbFantasyStage & { enable_transposition?: boolean }).enable_transposition,
     };
   }, []);
 
@@ -626,6 +631,10 @@ const FantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>ガイド表示</SmallLabel>
                   <input type="checkbox" className="toggle toggle-primary" {...register('show_guide')} />
+                </div>
+                <div>
+                  <SmallLabel>移調練習機能（練習モード）</SmallLabel>
+                  <input type="checkbox" className="toggle toggle-secondary" {...register('enable_transposition')} />
                 </div>
                 <div>
                   <SmallLabel>正解時にルート音を鳴らす</SmallLabel>
