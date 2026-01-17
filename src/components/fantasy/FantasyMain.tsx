@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback, useEffect } from 'react';
-import FantasyStageSelect, { type SpeedOption } from './FantasyStageSelect';
+import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
 import { useAuthStore } from '@/stores/authStore';
@@ -230,14 +230,9 @@ const FantasyMain: React.FC = () => {
     }
   }, []);
 
-  // ステージ選択ハンドラ（speedMultiplierはprogresssionモード用）
-  const handleStageSelect = useCallback((stage: FantasyStage, speedMultiplier?: SpeedOption) => {
-    // speedMultiplierが指定されていたらステージに設定
-    const stageWithSpeed: FantasyStage = speedMultiplier && speedMultiplier !== 1.0
-      ? { ...stage, speedMultiplier }
-      : stage;
-    
-    setCurrentStage(stageWithSpeed);
+  // ステージ選択ハンドラ
+  const handleStageSelect = useCallback((stage: FantasyStage) => {
+    setCurrentStage(stage);
     setGameResult(null);
     setShowResult(false);
     setPlayMode('challenge');
