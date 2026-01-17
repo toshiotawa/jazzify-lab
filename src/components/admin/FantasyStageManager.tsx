@@ -16,6 +16,7 @@ import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
+import { VALID_TRANSPOSITION_KEYS, TRANSPOSITION_OFFSETS, type TranspositionKey, type TranspositionOffset, calculateTransposedKey } from '@/utils/fantasyTransposition';
 
 // モード型
 type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
@@ -70,6 +71,9 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 移調設定
+  base_key: TranspositionKey;
+  enable_transposition_practice: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -100,6 +104,8 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  base_key: 'C',
+  enable_transposition_practice: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -319,6 +325,8 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        base_key: ((s as any).base_key as TranspositionKey) || 'C',
+        enable_transposition_practice: !!(s as any).enable_transposition_practice,
       };
       reset(v);
     } catch (e: any) {
@@ -359,6 +367,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      base_key: v.base_key || 'C',
+      enable_transposition_practice: v.enable_transposition_practice || false,
     };
 
     // モードに応じた不要フィールドの削除
@@ -413,6 +423,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
       music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
+      base_key: ((s as DbFantasyStage & { base_key?: string }).base_key as TranspositionKey) || 'C',
+      enable_transposition_practice: !!(s as DbFantasyStage & { enable_transposition_practice?: boolean }).enable_transposition_practice,
     };
   }, []);
 
@@ -1145,6 +1157,68 @@ const FantasyStageManager: React.FC = () => {
                     </table>
                   </div>
                   <button type="button" className="btn btn-sm" onClick={() => appendTiming({ bar: 1, beats: 1, chord: 'C', inversion: 0, octave: 4 })}>行を追加</button>
+                </div>
+              </Section>
+            )}
+
+            {/* 移調設定（progression_timing用） */}
+            {mode === 'progression_timing' && (
+              <Section title="移調設定">
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-400">
+                    Timingモードで移調機能を使用するための設定です。練習モードでユーザーがキーを変更できるようになります。
+                  </p>
+                  
+                  <Row>
+                    <div>
+                      <SmallLabel>基準キー</SmallLabel>
+                      <select className="select select-bordered w-full" {...register('base_key')}>
+                        {VALID_TRANSPOSITION_KEYS.map(key => (
+                          <option key={key} value={key}>{key}</option>
+                        ))}
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">この楽曲の元のキーを指定します</p>
+                    </div>
+                    <div>
+                      <SmallLabel>移調練習機能を有効にする</SmallLabel>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input type="checkbox" className="toggle toggle-primary" {...register('enable_transposition_practice')} />
+                        <span className="text-sm text-gray-300">
+                          {watch('enable_transposition_practice') ? '有効' : '無効'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        有効にすると、練習モードでユーザーがキーを変更できます
+                      </p>
+                    </div>
+                  </Row>
+                  
+                  {/* 移調プレビュー */}
+                  {watch('enable_transposition_practice') && (
+                    <div className="bg-slate-900/50 rounded-lg p-3 mt-3">
+                      <SmallLabel>移調プレビュー（基準キー: {watch('base_key')}）</SmallLabel>
+                      <div className="flex flex-wrap gap-2 mt-2">
+                        {TRANSPOSITION_OFFSETS.map(offset => {
+                          const baseKey = watch('base_key') as TranspositionKey;
+                          const targetKey = calculateTransposedKey(baseKey, offset);
+                          const sign = offset > 0 ? '+' : '';
+                          const isBase = offset === 0;
+                          return (
+                            <span 
+                              key={offset}
+                              className={`px-2 py-1 rounded text-xs ${
+                                isBase 
+                                  ? 'bg-blue-500 text-white font-bold' 
+                                  : 'bg-slate-700 text-gray-300'
+                              }`}
+                            >
+                              {targetKey}{isBase ? '（基準）' : `（${sign}${offset}）`}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Section>
             )}

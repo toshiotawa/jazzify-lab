@@ -171,6 +171,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
           // MusicXML（OSMD楽譜表示用）
           musicXml: (stage as any).music_xml,
+          // 移調設定
+          baseKey: (stage as any).base_key || 'C',
+          enableTranspositionPractice: !!(stage as any).enable_transposition_practice,
         }));
         
         setStages(convertedStages);
@@ -284,6 +287,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
         // MusicXML（OSMD楽譜表示用）
         musicXml: (stage as any).music_xml,
+        // 移調設定
+        baseKey: (stage as any).base_key || 'C',
+        enableTranspositionPractice: !!(stage as any).enable_transposition_practice,
       }));
       
       const convertedProgress: FantasyUserProgress = {

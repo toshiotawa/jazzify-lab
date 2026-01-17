@@ -277,6 +277,9 @@ export interface UpsertFantasyStagePayload {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // 移調設定
+  base_key?: string; // 基準キー（C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B）
+  enable_transposition_practice?: boolean; // 移調練習機能を有効にするか
 }
 
 /**
