@@ -197,7 +197,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // BGM再生は gameState が確定してから制御（下でuseEffectを定義）
   
   // ★★★ 楽譜表示エリアの高さ（Progression_Timing用） ★★★
-  const [sheetMusicHeight, setSheetMusicHeight] = useState<number>(140);
+  const [sheetMusicHeight, setSheetMusicHeight] = useState<number>(180);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -554,10 +554,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       if (isMobile && isLandscape) {
         // モバイル横向き: 高さを少し抑える
-        setSheetMusicHeight(Math.min(100, Math.max(80, Math.floor(vh * 0.18))));
+        setSheetMusicHeight(Math.min(140, Math.max(100, Math.floor(vh * 0.22))));
       } else {
-        // PC/タブレット: 高さを確保（調号・拍子記号表示のため）
-        setSheetMusicHeight(Math.min(160, Math.max(120, Math.floor(vh * 0.2))));
+        // PC/タブレット: 高さを大きく確保（調号・拍子記号・音符表示のため）
+        setSheetMusicHeight(Math.min(220, Math.max(160, Math.floor(vh * 0.28))));
       }
     };
     
@@ -1625,6 +1625,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             bpm={stage.bpm || 120}
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}
+            countInMeasures={stage.countInMeasures || 0}
             harmonyMarkers={harmonyMarkers}
             className="w-full h-full"
           />

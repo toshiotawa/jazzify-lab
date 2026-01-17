@@ -17,6 +17,8 @@ interface FantasySheetMusicDisplayProps {
   bpm: number;
   timeSignature: number;
   measureCount: number;
+  /** カウントイン小節数（スクロール計算で考慮） */
+  countInMeasures?: number;
   /** Harmonyデータ（chord_progression_dataのtext付きアイテム）*/
   harmonyMarkers?: Array<{ time: number; text: string }>;
   className?: string;
@@ -39,6 +41,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   bpm,
   timeSignature,
   measureCount,
+  countInMeasures = 0,
   harmonyMarkers = [],
   className
 }) => {
@@ -60,8 +63,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     const secPerBeat = 60 / (bpm || 120);
     const secPerMeasure = secPerBeat * (timeSignature || 4);
     const loopDuration = (measureCount || 8) * secPerMeasure;
-    return { secPerBeat, secPerMeasure, loopDuration };
-  }, [bpm, timeSignature, measureCount]);
+    const countInDuration = (countInMeasures || 0) * secPerMeasure;
+    return { secPerBeat, secPerMeasure, loopDuration, countInDuration };
+  }, [bpm, timeSignature, measureCount, countInMeasures]);
   
   // タイムマッピングを作成
   const createTimeMapping = useCallback(() => {
@@ -137,7 +141,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       }
       
       // OSMDオプション設定
-      // 調号と拍子記号はOSMDがデフォルトで表示
+      // 白背景、黒い音符・記号
       const options: IOSMDOptions = {
         autoResize: false,
         backend: 'canvas',
@@ -148,12 +152,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         drawingParameters: 'compacttight',
         renderSingleHorizontalStaffline: true,
         pageFormat: 'Endless',
-        pageBackgroundColor: 'transparent',
-        defaultColorNotehead: '#ffffff',
-        defaultColorStem: '#ffffff',
-        defaultColorRest: '#94a3b8',
-        defaultColorLabel: '#fbbf24',
-        defaultColorTitle: '#ffffff',
+        pageBackgroundColor: '#ffffff',
+        defaultColorNotehead: '#000000',
+        defaultColorStem: '#000000',
+        defaultColorRest: '#333333',
+        defaultColorLabel: '#000000',
+        defaultColorTitle: '#000000',
       };
       
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
@@ -210,7 +214,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       return;
     }
     
-    const { loopDuration } = loopInfo;
+    const { loopDuration, countInDuration } = loopInfo;
     let lastNormalizedTime = -1;
     
     const updateScroll = () => {
@@ -222,8 +226,21 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
+      // カウントイン中は楽譜を先頭位置に保持
+      if (currentTime < countInDuration) {
+        if (scoreWrapperRef.current) {
+          scoreWrapperRef.current.style.transform = `translateX(0px)`;
+        }
+        lastScrollXRef.current = 0;
+        animationFrameRef.current = requestAnimationFrame(updateScroll);
+        return;
+      }
+      
+      // カウントイン後の実際の再生時間
+      const effectiveTime = currentTime - countInDuration;
+      
       // 正規化された時間（ループ考慮）
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+      const normalizedTime = ((effectiveTime % loopDuration) + loopDuration) % loopDuration;
       const currentTimeMs = normalizedTime * 1000;
       
       // ループ検出（時間が巻き戻った場合）
@@ -349,7 +366,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   if (!musicXml) {
     return (
       <div 
-        className={cn('flex items-center justify-center bg-slate-900/80 text-gray-400 text-sm', className)}
+        className={cn('flex items-center justify-center bg-white text-gray-500 text-sm', className)}
         style={{ width, height }}
       >
         楽譜データがありません
@@ -359,7 +376,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   
   return (
     <div 
-      className={cn('relative overflow-hidden bg-slate-900/90 rounded', className)}
+      className={cn('relative overflow-hidden bg-white rounded', className)}
       style={{ width, height }}
     >
       {/* プレイヘッド（赤い縦線） */}
@@ -377,14 +394,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         className="h-full overflow-hidden"
       >
         {isLoading && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-30">
-            <div className="text-white text-sm">楽譜を読み込み中...</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-30">
+            <div className="text-gray-600 text-sm">楽譜を読み込み中...</div>
           </div>
         )}
         
         {error && (
-          <div className="absolute inset-0 flex items-center justify-center bg-slate-900/80 z-30">
-            <div className="text-red-400 text-sm">{error}</div>
+          <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-30">
+            <div className="text-red-600 text-sm">{error}</div>
           </div>
         )}
         

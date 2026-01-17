@@ -192,36 +192,36 @@
     height: 0 !important;
   }
   
-  /* ファンタジーモード用楽譜表示スタイル */
+  /* ファンタジーモード用楽譜表示スタイル（白背景、黒音符） */
   .fantasy-sheet-music canvas,
   .fantasy-sheet-music svg {
-    background: transparent !important;
+    background: #ffffff !important;
   }
   
-  /* OSMDの五線譜の色を白に変更 */
+  /* OSMDの五線譜の色を黒に変更 */
   .fantasy-sheet-music .vf-stave line,
   .fantasy-sheet-music .vf-staff line {
-    stroke: #ffffff !important;
+    stroke: #000000 !important;
   }
   
-  /* OSMDの音符を白色に */
+  /* OSMDの音符を黒色に */
   .fantasy-sheet-music .vf-notehead path,
   .fantasy-sheet-music .vf-stem path,
   .fantasy-sheet-music .vf-beam path,
   .fantasy-sheet-music .vf-flag path {
-    fill: #ffffff !important;
-    stroke: #ffffff !important;
+    fill: #000000 !important;
+    stroke: #000000 !important;
   }
   
-  /* OSMDの休符をグレーに */
+  /* OSMDの休符を濃いグレーに */
   .fantasy-sheet-music .vf-rest path {
-    fill: #94a3b8 !important;
+    fill: #333333 !important;
   }
   
-  /* OSMDのコード名を黄色に */
+  /* OSMDのコード名を黒に */
   .fantasy-sheet-music .vf-chordname text,
   .fantasy-sheet-music .vf-annotation text {
-    fill: #fbbf24 !important;
+    fill: #000000 !important;
   }
   
   .custom-sheet-scrollbar::-webkit-scrollbar-button:single-button {

@@ -199,53 +199,72 @@ export function convertMusicXmlToProgressionData(
  * 同タイミングの複数ノーツを1つのエントリにまとめる
  * - 同じ bar と beats を持つノーツをグループ化
  * - notes配列に全ての音名を格納
- * - chordは複数音の場合は空文字列を設定（表示には notesを使用）
+ * - N.C.（harmony）と同じタイミングのノートがある場合、ノートにtextをマージ
  */
 function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): ChordProgressionDataItem[] {
   const grouped: ChordProgressionDataItem[] = [];
-  const map = new Map<string, ChordProgressionDataItem[]>();
+  const noteMap = new Map<string, ChordProgressionDataItem[]>();
+  const harmonyMap = new Map<string, ChordProgressionDataItem>();
   
   // 同じタイミングのノーツをグループ化
   for (const item of items) {
-    // N.C.やテキストのみのアイテムはそのまま追加
+    const key = `${item.bar}_${item.beats}`;
+    
+    // N.C.やテキストのみのアイテム（harmony）は別途保存
     if (!item.chord || item.chord.toUpperCase() === 'N.C.' || item.chord.trim() === '') {
-      grouped.push(item);
+      // 同じタイミングにharmonyが複数ある場合は最初のものを使用
+      if (!harmonyMap.has(key)) {
+        harmonyMap.set(key, item);
+      }
       continue;
     }
     
-    const key = `${item.bar}_${item.beats}`;
-    const existing = map.get(key);
+    // ノートはnoteMapに追加
+    const existing = noteMap.get(key);
     if (existing) {
       existing.push(item);
     } else {
-      map.set(key, [item]);
+      noteMap.set(key, [item]);
     }
   }
   
   // グループ化されたノーツを処理
-  for (const [_, items] of map) {
-    if (items.length === 1) {
-      // 単一ノーツはそのまま
-      grouped.push(items[0]);
+  for (const [key, noteItems] of noteMap) {
+    // 同じタイミングのharmonyからtextを取得
+    const harmony = harmonyMap.get(key);
+    const harmonyText = harmony?.text;
+    
+    if (noteItems.length === 1) {
+      // 単一ノーツ: harmonyのtextをマージ
+      const note = { ...noteItems[0] };
+      if (harmonyText && !note.text) {
+        note.text = harmonyText;
+      }
+      grouped.push(note);
     } else {
       // 複数ノーツをまとめる
-      const firstItem = items[0];
+      const firstItem = noteItems[0];
       const allNotes: string[] = [];
       let lowestOctave = 9;
       let lowestMidi = Infinity;
-      let harmonyText: string | undefined;
+      let itemText: string | undefined = harmonyText;
       
-      for (const item of items) {
-        // textが設定されているアイテムからHarmonyテキストを取得
-        if (item.text && !harmonyText) {
-          harmonyText = item.text;
+      for (const item of noteItems) {
+        // textが設定されているアイテムからテキストを取得
+        if (item.text && !itemText) {
+          itemText = item.text;
         }
         
         // コード名から音名を抽出
         if (item.chord) {
-          // 単音の場合（type: 'note'）はそのまま使用
-          if ((item as any).type === 'note') {
-            allNotes.push(item.chord);
+          // 単音の場合（type: 'note' or 'chord'）はそのまま使用
+          if ((item as any).type === 'note' || (item as any).type === 'chord') {
+            // notes配列がある場合はそれを使用
+            if ((item as any).notes && Array.isArray((item as any).notes)) {
+              allNotes.push(...(item as any).notes);
+            } else {
+              allNotes.push(item.chord);
+            }
             // オクターブを抽出
             const match = item.chord.match(/([A-G][#b]?)(\d+)?/);
             if (match) {
@@ -259,7 +278,7 @@ function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): Chor
               }
             }
           } else {
-            // コードの場合は構成音を追加（ここでは単音として扱う）
+            // コードの場合
             allNotes.push(item.chord);
             if (item.octave && item.octave < lowestOctave) {
               lowestOctave = item.octave;
@@ -283,10 +302,17 @@ function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): Chor
         chord: allNotes.join(''), // 例: "CEG"
         octave: lowestOctave < 9 ? lowestOctave : 4,
         inversion: 0,
-        text: harmonyText,
+        text: itemText,
         // 新規フィールド: 個別の音名配列
         notes: allNotes
       } as ChordProgressionDataItem & { notes?: string[] });
+    }
+  }
+  
+  // ノートがないタイミングのharmonyのみを追加（テキスト表示用）
+  for (const [key, harmony] of harmonyMap) {
+    if (!noteMap.has(key)) {
+      grouped.push(harmony);
     }
   }
   
