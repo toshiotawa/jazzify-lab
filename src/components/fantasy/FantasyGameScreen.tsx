@@ -661,8 +661,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 移調設定を渡す
     await initializeGame(stageWithSpeed, mode, selectedTranspose, selectedRepeatTransposition);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
-  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier, transpose: selectedTranspose });
+  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, selectedTranspose, selectedRepeatTransposition]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
