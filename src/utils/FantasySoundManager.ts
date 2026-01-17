@@ -114,6 +114,21 @@ export class FantasySoundManager {
     console.log('[FantasySoundManager] 🎵 playRootNote called:', rootName);
     return this.instance._playRootNote(rootName);
   }
+  
+  // GM音源でMIDIノートを再生（ピアノ演奏用）
+  public static playGMNote(midiNote: number, velocity: number = 1.0) {
+    return this.instance._playGMNote(midiNote, velocity);
+  }
+  
+  // GM音源のノートを停止
+  public static stopGMNote(midiNote: number) {
+    return this.instance._stopGMNote(midiNote);
+  }
+  
+  // GM音源が利用可能かどうか
+  public static isGMReady(): boolean {
+    return this.instance.gmPianoReady && this.instance.gmAcousticPiano !== null;
+  }
   public static setRootVolume(v: number) {
     this.instance._setRootVolume(v);
   }
@@ -468,6 +483,52 @@ export class FantasySoundManager {
     } catch (e) {
       console.debug('[FantasySoundManager] Root note playback error:', e);
     }
+  }
+
+  // GM音源でMIDIノートを再生（ピアノ演奏用）
+  private async _playGMNote(midiNote: number, velocity: number = 1.0) {
+    // GM音源が準備できていない場合は何もしない
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) {
+      return;
+    }
+    
+    try {
+      // AudioContextがsuspended状態ならresumeする
+      if (this.gmAudioContext.state === 'suspended') {
+        await this.gmAudioContext.resume();
+      }
+      
+      const currentTime = this.gmAudioContext.currentTime;
+      const baseGain = velocity * this.bassVolume;
+      const acousticGain = baseGain * (1 - this.gmMixBalance);
+      const electricGain = baseGain * this.gmMixBalance;
+      
+      // アコースティックピアノを再生
+      if (acousticGain > 0) {
+        this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+          gain: acousticGain,
+          duration: 2.0  // 長めのdurationで自然な減衰
+        });
+      }
+      
+      // エレクトリックピアノを再生（ミックス）
+      if (this.gmElectricPiano && electricGain > 0) {
+        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+          gain: electricGain,
+          duration: 1.5
+        });
+      }
+    } catch (e) {
+      console.debug('[FantasySoundManager] GM note playback error:', e);
+    }
+  }
+
+  // GM音源のノートを停止（soundfont-playerは自然減衰するため基本的に不要）
+  private _stopGMNote(midiNote: number) {
+    // soundfont-playerは個別のノート停止をサポートしていないため、
+    // 自然減衰に任せる（durationパラメータで制御）
+    // 将来的に必要であれば、アクティブなノードを追跡して停止する実装を追加
+    void midiNote; // unused parameter
   }
 
   // GM音源（Acoustic + Electric Piano）の読み込み
