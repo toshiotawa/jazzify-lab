@@ -144,8 +144,20 @@ export function convertMusicXmlToProgressionData(
             inversion: inversion ?? 0,
             octave: bass ? bass.octave : 4
           });
+        } else if (pitches.length > 1) {
+          // 複数音（和音として扱う）
+          const noteNames = pitches.map(p => p.step);
+          result.push({
+            bar,
+            beats: toBeats(currentPos, divisionsPerQuarter),
+            chord: noteNames.join(''), // 例: "CEG"
+            octave: bass ? bass.octave : 4,
+            inversion: 0,
+            notes: noteNames, // 個別の音名配列
+            type: 'chord'
+          } as any);
         } else {
-          // 単音扱い（lyric なし）
+          // 単音扱い
           const single = bass ? bass : pitches[0] || null;
           if (single) {
             result.push({
