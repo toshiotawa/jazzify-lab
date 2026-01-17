@@ -275,6 +275,9 @@ export interface UpsertFantasyStagePayload {
   is_sheet_music_mode?: boolean;
   // 次ステージ開放に必要なクリア換算回数（Sランク=10回換算、それ以外=1回）
   required_clears_for_next?: number;
+  // MusicXML関連（progression_timing用）
+  music_xml_url?: string | null;
+  use_music_xml_notes?: boolean;
 }
 
 /**
