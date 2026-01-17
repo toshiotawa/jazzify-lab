@@ -4,7 +4,8 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, Note, Interval } from 'tonal';
+import type { RepeatKeyChange } from '@/types';
 
 // ===== 袋形式ランダムセレクター =====
 
@@ -704,4 +705,228 @@ export function getVisibleNotesOptimized(
   }
   
   return visibleNotes;
+}
+
+// ===== 移調機能 =====
+
+/**
+ * 許可されたキー（異名同音を統一）
+ * F#, C#などは使用せず、フラット系で統一
+ */
+const ALLOWED_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+
+/**
+ * 異名同音を統一する（シャープ系をフラット系に変換）
+ * @param noteName 音名（例: "C#", "F#"）
+ * @returns 統一された音名（例: "Db", "Gb"）
+ */
+export function normalizeNoteName(noteName: string): string {
+  const enharmonicMap: Record<string, string> = {
+    'C#': 'Db',
+    'D#': 'Eb',
+    'F#': 'Gb',
+    'G#': 'Ab',
+    'A#': 'Bb',
+    // ダブルシャープ/フラットの処理
+    'Cx': 'D',
+    'Dx': 'E',
+    'Fx': 'G',
+    'Gx': 'A',
+    'Ax': 'B',
+    'Dbb': 'C',
+    'Ebb': 'D',
+    'Fbb': 'Eb',
+    'Gbb': 'F',
+    'Abb': 'G',
+    'Bbb': 'A',
+    'Cbb': 'Bb',
+  };
+  
+  // オクターブを分離
+  const match = noteName.match(/^([A-G][#bx]*)(\d*)$/);
+  if (!match) return noteName;
+  
+  const [, pitch, octave] = match;
+  const normalizedPitch = enharmonicMap[pitch] ?? pitch;
+  
+  return octave ? `${normalizedPitch}${octave}` : normalizedPitch;
+}
+
+/**
+ * 音名を移調する
+ * @param noteName 音名（例: "C", "C4", "Dm7"）
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後の音名
+ */
+export function transposeNoteName(noteName: string, semitones: number): string {
+  if (semitones === 0) return noteName;
+  
+  // オクターブ付きの音名を処理
+  const match = noteName.match(/^([A-G][#b]?)(\d*)$/);
+  if (match) {
+    const [, pitch, octave] = match;
+    const transposed = Note.transpose(pitch, Interval.fromSemitones(semitones));
+    const normalized = normalizeNoteName(transposed);
+    return octave ? `${normalized}${octave}` : normalized;
+  }
+  
+  // コード名の場合はルート音のみ移調
+  const chordMatch = noteName.match(/^([A-G][#b]?)(.*)$/);
+  if (chordMatch) {
+    const [, root, suffix] = chordMatch;
+    const transposedRoot = Note.transpose(root, Interval.fromSemitones(semitones));
+    const normalizedRoot = normalizeNoteName(transposedRoot);
+    return `${normalizedRoot}${suffix}`;
+  }
+  
+  return noteName;
+}
+
+/**
+ * MIDI番号を移調する
+ * @param midiNote MIDI番号
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後のMIDI番号
+ */
+export function transposeMidiNote(midiNote: number, semitones: number): number {
+  return midiNote + semitones;
+}
+
+/**
+ * ChordDefinitionを移調する
+ * @param chord コード定義
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後のコード定義
+ */
+export function transposeChordDefinition(
+  chord: ChordDefinition,
+  semitones: number
+): ChordDefinition {
+  if (semitones === 0) return chord;
+  
+  return {
+    ...chord,
+    id: transposeNoteName(chord.id, semitones),
+    displayName: transposeNoteName(chord.displayName, semitones),
+    notes: chord.notes.map(n => transposeMidiNote(n, semitones)),
+    noteNames: chord.noteNames.map(n => transposeNoteName(n, semitones)),
+    root: transposeNoteName(chord.root, semitones)
+  };
+}
+
+/**
+ * TaikoNoteを移調する
+ * @param note 太鼓ノーツ
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後のノーツ
+ */
+export function transposeTaikoNote(note: TaikoNote, semitones: number): TaikoNote {
+  if (semitones === 0) return note;
+  
+  return {
+    ...note,
+    chord: transposeChordDefinition(note.chord, semitones)
+  };
+}
+
+/**
+ * TaikoNote配列を移調する
+ * @param notes ノーツ配列
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後のノーツ配列
+ */
+export function transposeTaikoNotes(notes: TaikoNote[], semitones: number): TaikoNote[] {
+  if (semitones === 0) return notes;
+  return notes.map(note => transposeTaikoNote(note, semitones));
+}
+
+/**
+ * ChordProgressionDataItemを移調する
+ * @param item 進行データアイテム
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後のアイテム
+ */
+export function transposeChordProgressionDataItem(
+  item: ChordProgressionDataItem,
+  semitones: number
+): ChordProgressionDataItem {
+  if (semitones === 0) return item;
+  
+  return {
+    ...item,
+    chord: transposeNoteName(item.chord, semitones),
+    notes: item.notes?.map(n => transposeNoteName(n, semitones)),
+    text: item.text ? transposeNoteName(item.text, semitones) : item.text,
+    lyricDisplay: item.lyricDisplay ? transposeNoteName(item.lyricDisplay, semitones) : item.lyricDisplay
+  };
+}
+
+/**
+ * ChordProgressionData配列を移調する
+ * @param data 進行データ配列
+ * @param semitones 移調量（半音単位）
+ * @returns 移調後の配列
+ */
+export function transposeChordProgressionData(
+  data: ChordProgressionDataItem[],
+  semitones: number
+): ChordProgressionDataItem[] {
+  if (semitones === 0) return data;
+  return data.map(item => transposeChordProgressionDataItem(item, semitones));
+}
+
+/**
+ * リピートごとのキー変更量を計算する
+ * @param repeatKeyChange リピートごとのキー変更設定
+ * @param loopCount 現在のループ回数（0始まり）
+ * @returns 追加の移調量（半音単位）
+ */
+export function calculateRepeatTransposition(
+  repeatKeyChange: RepeatKeyChange,
+  loopCount: number
+): number {
+  if (repeatKeyChange === 'off' || loopCount === 0) return 0;
+  
+  const changePerLoop = repeatKeyChange === '+1' ? 1 : 5;
+  return changePerLoop * loopCount;
+}
+
+/**
+ * 移調コンテキストを作成する
+ * @param baseTransposition 基準キーの移調量
+ * @param userKeyChange ユーザーが選択したキー変更量
+ * @param repeatKeyChange リピートごとのキー変更設定
+ * @param currentLoop 現在のループ回数
+ * @returns 移調コンテキスト
+ */
+export interface TranspositionContext {
+  totalTransposition: number;
+  currentLoop: number;
+  repeatKeyChange: RepeatKeyChange;
+  nextLoopTransposition: number;
+}
+
+export function createTranspositionContext(
+  baseTransposition: number,
+  userKeyChange: number,
+  repeatKeyChange: RepeatKeyChange,
+  currentLoop: number
+): TranspositionContext {
+  const repeatTransposition = calculateRepeatTransposition(repeatKeyChange, currentLoop);
+  const totalTransposition = baseTransposition + userKeyChange + repeatTransposition;
+  
+  // 12半音で正規化（オクターブを維持しつつキーを正規化）
+  const normalizedTransposition = ((totalTransposition % 12) + 12) % 12;
+  
+  // 次のループでの移調量を計算
+  const nextRepeatTransposition = calculateRepeatTransposition(repeatKeyChange, currentLoop + 1);
+  const nextTotalTransposition = baseTransposition + userKeyChange + nextRepeatTransposition;
+  const normalizedNextTransposition = ((nextTotalTransposition % 12) + 12) % 12;
+  
+  return {
+    totalTransposition: normalizedTransposition,
+    currentLoop,
+    repeatKeyChange,
+    nextLoopTransposition: normalizedNextTransposition
+  };
 }

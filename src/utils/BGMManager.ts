@@ -16,6 +16,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private transposeSemitones = 0 // 移調量（半音単位）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -31,7 +32,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    transposeSemitones = 0 // 移調量（半音単位、±12の範囲）
   ) {
     if (!url) return
     
@@ -44,6 +46,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.transposeSemitones = Math.max(-12, Math.min(12, transposeSemitones)) // ±12半音に制限
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -88,19 +91,19 @@ class BGMManager {
           }
           this.audio.removeEventListener?.('ended', this.handleEnded)
           this.audio.removeEventListener?.('error', this.handleError)
-        } catch {}
-        try { this.audio.pause?.() } catch {}
-        try { this.audio.currentTime = 0 } catch {}
-        try { (this.audio as any).src = '' } catch {}
-        try { (this.audio as any).load?.() } catch {}
+        } catch { /* ignore */ }
+        try { this.audio.pause?.() } catch { /* ignore */ }
+        try { this.audio.currentTime = 0 } catch { /* ignore */ }
+        try { (this.audio as unknown as { src: string }).src = '' } catch { /* ignore */ }
+        try { (this.audio as unknown as { load?: () => void }).load?.() } catch { /* ignore */ }
       }
 
       // Web Audio cleanup
-      try { this.waSource?.stop?.() } catch {}
-      try { this.waSource?.disconnect?.() } catch {}
+      try { this.waSource?.stop?.() } catch { /* ignore */ }
+      try { this.waSource?.disconnect?.() } catch { /* ignore */ }
       this.waSource = null
       this.waBuffer = null
-      try { this.waGain?.disconnect?.() } catch {}
+      try { this.waGain?.disconnect?.() } catch { /* ignore */ }
       this.waGain = null
     } catch (e) {
       console.warn('BGMManager.stop safe stop failed:', e)
@@ -119,7 +122,7 @@ class BGMManager {
   private handleEnded = () => {
     if (this.loopEnd > 0) {
       this.audio!.currentTime = this.loopBegin
-      this.audio!.play().catch(() => {})
+      this.audio!.play().catch(() => { /* ignore */ })
     }
   }
   
@@ -232,6 +235,48 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
+  getTransposeSemitones(): number { return this.transposeSemitones }
+
+  /**
+   * 再生速度を変更した際の音程補正を計算（セント単位）
+   * playbackRateを変更すると音程も変わるため、detuneでその分を補正する
+   * 
+   * 例: playbackRate = 0.5 の場合、音程は1オクターブ下がる（-1200セント）
+   *     これを補正するために detune = +1200 セントを設定
+   *     さらに transposeSemitones の分を加算
+   */
+  private _getEffectiveDetuneCents(): number {
+    const safeSpeed = Math.max(this.playbackRate, 0.0001)
+    // 速度変更による音程変化を計算（セント単位）
+    // playbackRate = 2 → 音程 +1200セント（1オクターブ上）
+    // playbackRate = 0.5 → 音程 -1200セント（1オクターブ下）
+    const speedCentsOffset = Math.log2(safeSpeed) * 1200
+    // 移調量（セント単位）+ 速度補正の逆数
+    return (this.transposeSemitones * 100) - speedCentsOffset
+  }
+
+  /**
+   * 再生中の音程を変更（半音単位）
+   * リピートごとのキー変更などに使用
+   */
+  setDetune(semitones: number) {
+    this.transposeSemitones = Math.max(-12, Math.min(12, semitones))
+    
+    if (this.waSource) {
+      try {
+        const detuneCents = this._getEffectiveDetuneCents()
+        this.waSource.detune.setValueAtTime(detuneCents, this.waContext?.currentTime ?? 0)
+        console.log('🎼 BGM音程変更 (detune):', { 
+          semitones, 
+          detuneCents,
+          playbackRate: this.playbackRate
+        })
+      } catch (e) {
+        console.warn('BGM detune設定エラー:', e)
+      }
+    }
+  }
+  
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -255,7 +300,7 @@ class BGMManager {
       if (this.audio) {
         this.audio.currentTime = this.loopBegin
         if (this.audio.paused) {
-          void this.audio.play().catch(() => {})
+          void this.audio.play().catch(() => { /* ignore */ })
         }
         console.log('🔄 BGMをMeasure 1の開始へリセット')
       }
@@ -268,7 +313,7 @@ class BGMManager {
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
     if (!this.waContext) {
-      this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      this.waContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)({ latencyHint: 'interactive' })
     }
     if (!this.waGain) {
       this.waGain = this.waContext.createGain()
@@ -285,15 +330,26 @@ class BGMManager {
     this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    
+    const detuneCents = this._getEffectiveDetuneCents()
+    console.log('🎵 BGM再生開始 (WebAudio + detune):', { 
+      url, 
+      bpm: this.bpm, 
+      loopBegin: this.loopBegin, 
+      loopEnd: this.loopEnd, 
+      countIn: this.countInMeasures, 
+      playbackRate: this.playbackRate,
+      transposeSemitones: this.transposeSemitones,
+      detuneCents
+    })
   }
 
   private _startWaSourceAt(offsetSec: number) {
     if (!this.waContext || !this.waBuffer) return
     // 既存ソース破棄
     if (this.waSource) {
-      try { this.waSource.stop() } catch {}
-      try { this.waSource.disconnect() } catch {}
+      try { this.waSource.stop() } catch { /* ignore */ }
+      try { this.waSource.disconnect() } catch { /* ignore */ }
     }
     const src = this.waContext.createBufferSource()
     src.buffer = this.waBuffer
@@ -301,6 +357,13 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
+    
+    // detuneを使用して音程を変更（速度は変わらない）
+    // playbackRateによる音程変化も補正
+    const detuneCents = this._getEffectiveDetuneCents()
+    src.detune.value = detuneCents
+    
+    // GainNodeに接続
     src.connect(this.waGain!)
 
     // 再生
@@ -360,9 +423,9 @@ class BGMManager {
           this.audio.currentTime = this.loopBegin
           // 再生が止まっていたら再開
           if (this.audio.paused) {
-            void this.audio.play().catch(() => {})
+            void this.audio.play().catch(() => { /* ignore */ })
           }
-        } catch (e) {
+        } catch {
           // noop
         }
       }
@@ -375,7 +438,7 @@ class BGMManager {
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log('🎵 BGM再生開始:', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+          console.log('🎵 BGM再生開始 (HTMLAudio - detune未対応):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
         })
         .catch((error) => {
           console.warn('BGM playback failed:', error)

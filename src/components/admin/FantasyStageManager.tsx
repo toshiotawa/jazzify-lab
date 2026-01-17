@@ -71,6 +71,9 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 移調設定
+  base_key_transposition: number; // 基準キーの移調量（半音単位、±6）
+  transposition_practice_enabled: boolean; // 移調練習機能の有効/無効
 }
 
 const defaultValues: StageFormValues = {
@@ -101,6 +104,8 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  base_key_transposition: 0,
+  transposition_practice_enabled: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -320,6 +325,8 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        base_key_transposition: (s as any).base_key_transposition ?? 0,
+        transposition_practice_enabled: !!(s as any).transposition_practice_enabled,
       };
       reset(v);
     } catch (e: any) {
@@ -360,6 +367,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      base_key_transposition: v.base_key_transposition ?? 0,
+      transposition_practice_enabled: v.transposition_practice_enabled ?? false,
     };
 
     // モードに応じた不要フィールドの削除
@@ -414,6 +423,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
       music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
+      base_key_transposition: (s as DbFantasyStage & { base_key_transposition?: number }).base_key_transposition ?? 0,
+      transposition_practice_enabled: !!(s as DbFantasyStage & { transposition_practice_enabled?: boolean }).transposition_practice_enabled,
     };
   }, []);
 
@@ -539,6 +550,8 @@ const FantasyStageManager: React.FC = () => {
         is_sheet_music_mode: currentValues.is_sheet_music_mode,
         required_clears_for_next: currentValues.required_clears_for_next,
         music_xml: currentValues.music_xml || null,
+        base_key_transposition: currentValues.base_key_transposition ?? 0,
+        transposition_practice_enabled: currentValues.transposition_practice_enabled ?? false,
       };
       
       // 新規ステージとして作成
@@ -1145,6 +1158,60 @@ const FantasyStageManager: React.FC = () => {
                     </table>
                   </div>
                   <button type="button" className="btn btn-sm" onClick={() => appendTiming({ bar: 1, beats: 1, chord: 'C', inversion: 0, octave: 4 })}>行を追加</button>
+                </div>
+              </Section>
+            )}
+
+            {/* 移調設定（Timingモード用） */}
+            {mode === 'progression_timing' && (
+              <Section title="移調設定">
+                <div className="space-y-4">
+                  <p className="text-xs text-gray-400">
+                    移調機能を使用すると、譜面・太鼓ノーツ・音源を全て移調して出題できます。
+                    例：キーCで作成した素材を+2すると、キーDで出題されます。
+                  </p>
+                  <Row>
+                    <div>
+                      <SmallLabel>基準キー移調量（半音）</SmallLabel>
+                      <select 
+                        className="select select-bordered w-full"
+                        {...register('base_key_transposition', { valueAsNumber: true })}
+                      >
+                        <option value={-6}>-6 (Gb/F#)</option>
+                        <option value={-5}>-5 (G→Db)</option>
+                        <option value={-4}>-4 (Ab)</option>
+                        <option value={-3}>-3 (A→Eb)</option>
+                        <option value={-2}>-2 (Bb)</option>
+                        <option value={-1}>-1 (B→F)</option>
+                        <option value={0}>±0 (C) ※デフォルト</option>
+                        <option value={1}>+1 (Db)</option>
+                        <option value={2}>+2 (D)</option>
+                        <option value={3}>+3 (Eb)</option>
+                        <option value={4}>+4 (E)</option>
+                        <option value={5}>+5 (F)</option>
+                        <option value={6}>+6 (Gb/F#)</option>
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">
+                        素材のキーから移調する量。例: 素材キーC、移調+2 → 出題キーD
+                      </p>
+                    </div>
+                    <div>
+                      <SmallLabel>移調練習機能</SmallLabel>
+                      <div className="flex items-center gap-2 mt-2">
+                        <input 
+                          type="checkbox" 
+                          className="toggle toggle-primary" 
+                          {...register('transposition_practice_enabled')} 
+                        />
+                        <span className="text-sm text-gray-300">
+                          {watch('transposition_practice_enabled') ? '有効' : '無効'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        有効にすると、ユーザーが練習モードで移調設定を選択できます
+                      </p>
+                    </div>
+                  </Row>
                 </div>
               </Section>
             )}
