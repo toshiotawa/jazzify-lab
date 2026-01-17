@@ -63,9 +63,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     const secPerBeat = 60 / (bpm || 120);
     const secPerMeasure = secPerBeat * (timeSignature || 4);
     const loopDuration = (measureCount || 8) * secPerMeasure;
-    const countInDuration = (countInMeasures || 0) * secPerMeasure;
-    return { secPerBeat, secPerMeasure, loopDuration, countInDuration };
-  }, [bpm, timeSignature, measureCount, countInMeasures]);
+    return { secPerBeat, secPerMeasure, loopDuration };
+  }, [bpm, timeSignature, measureCount]);
   
   // タイムマッピングを作成
   const createTimeMapping = useCallback(() => {
@@ -214,10 +213,11 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       return;
     }
     
-    const { loopDuration, countInDuration } = loopInfo;
+    const { loopDuration } = loopInfo;
     let lastNormalizedTime = -1;
     
     const updateScroll = () => {
+      // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
       const currentTime = bgmManager.getCurrentMusicTime();
       const mapping = timeMappingRef.current;
       
@@ -226,8 +226,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
-      // カウントイン中は楽譜を先頭位置に保持
-      if (currentTime < countInDuration) {
+      // カウントイン中（負の値）は楽譜を先頭位置に保持
+      if (currentTime < 0) {
         if (scoreWrapperRef.current) {
           scoreWrapperRef.current.style.transform = `translateX(0px)`;
         }
@@ -236,11 +236,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
-      // カウントイン後の実際の再生時間
-      const effectiveTime = currentTime - countInDuration;
-      
-      // 正規化された時間（ループ考慮）
-      const normalizedTime = ((effectiveTime % loopDuration) + loopDuration) % loopDuration;
+      // 正規化された時間（ループ考慮）- currentTimeは既にM1開始=0基準
+      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       const currentTimeMs = normalizedTime * 1000;
       
       // ループ検出（時間が巻き戻った場合）
