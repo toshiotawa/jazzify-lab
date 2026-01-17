@@ -23,10 +23,6 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
-  // MediaElementAudioSourceNode用（ピッチ保持対応）
-  private waMediaSource: MediaElementAudioSourceNode | null = null
-  private waAudio: HTMLAudioElement | null = null
-  private useMediaElement = false // MediaElement経由の再生かどうか
 
   play(
     url: string,
@@ -104,19 +100,6 @@ class BGMManager {
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null
       this.waBuffer = null
-      
-      // MediaElementAudioSourceNode cleanup
-      try { this.waMediaSource?.disconnect?.() } catch {}
-      this.waMediaSource = null
-      if (this.waAudio) {
-        try { this.waAudio.pause?.() } catch {}
-        try { this.waAudio.currentTime = 0 } catch {}
-        try { (this.waAudio as HTMLAudioElement).src = '' } catch {}
-        try { (this.waAudio as HTMLAudioElement).load?.() } catch {}
-      }
-      this.waAudio = null
-      this.useMediaElement = false
-      
       try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
     } catch (e) {
@@ -146,10 +129,6 @@ class BGMManager {
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
-      // MediaElement経由のWeb Audio再生
-      if (this.useMediaElement && this.waAudio) {
-        return this.waAudio.currentTime - this.loopBegin
-      }
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
         // playbackRateを考慮した音楽的な時間を計算
@@ -176,11 +155,6 @@ class BGMManager {
   getCurrentBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      // MediaElement経由のWeb Audio再生
-      if (this.useMediaElement && this.waAudio) {
-        const totalBeats = Math.floor(this.waAudio.currentTime / secPerBeat)
-        return (totalBeats % this.timeSignature) + 1
-      }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
@@ -199,10 +173,6 @@ class BGMManager {
   getCurrentBeatPosition(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      // MediaElement経由のWeb Audio再生
-      if (this.useMediaElement && this.waAudio) {
-        return (this.waAudio.currentTime / secPerBeat) % this.timeSignature
-      }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
@@ -227,10 +197,7 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
       let musicTime = 0
-      // MediaElement経由のWeb Audio再生
-      if (this.useMediaElement && this.waAudio) {
-        musicTime = this.waAudio.currentTime
-      } else if (this.waContext && this.waBuffer) {
+      if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         musicTime = elapsedRealTime * this.playbackRate
       } else if (this.audio) {
@@ -248,10 +215,7 @@ class BGMManager {
   getTimeToLoop(): number {
     if (!this.isPlaying) return Infinity
     let musicTime = 0
-    // MediaElement経由のWeb Audio再生
-    if (this.useMediaElement && this.waAudio) {
-      musicTime = this.waAudio.currentTime
-    } else if (this.waContext && this.waBuffer) {
+    if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
       musicTime = elapsedRealTime * this.playbackRate
     } else if (this.audio) {
@@ -269,10 +233,6 @@ class BGMManager {
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
   getIsCountIn(): boolean {
-    // MediaElement経由のWeb Audio再生
-    if (this.useMediaElement && this.waAudio) {
-      return this.waAudio.currentTime < this.loopBegin
-    }
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
       const musicTime = elapsedRealTime * this.playbackRate
@@ -285,15 +245,6 @@ class BGMManager {
   resetToStart() {
     if (!this.isPlaying) return
     try {
-      // MediaElement経由のWeb Audio再生
-      if (this.useMediaElement && this.waAudio) {
-        this.waAudio.currentTime = this.loopBegin
-        if (this.waAudio.paused) {
-          void this.waAudio.play().catch(() => {})
-        }
-        console.log('🔄 BGMをMeasure 1の開始へリセット (MediaElement)')
-        return
-      }
       if (this.waContext && this.waBuffer && this.waSource) {
         // 再生成して正確に先頭へ
         this.waSource.stop()
@@ -316,6 +267,13 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
+    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
+    // AudioBufferSourceNodeにはpreservesPitchがないため
+    if (this.playbackRate !== 1.0) {
+      this._playHtmlAudio(url, volume)
+      return
+    }
+
     if (!this.waContext) {
       this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
     }
@@ -324,12 +282,6 @@ class BGMManager {
       this.waGain.connect(this.waContext.destination)
     }
     this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.waContext.currentTime)
-
-    // 再生速度が1.0でない場合はMediaElementを使用（ピッチ保持のため）
-    if (this.playbackRate !== 1.0) {
-      await this._playWebAudioWithMediaElement(url, volume)
-      return
-    }
 
     const resp = await fetch(url)
     const arr = await resp.arrayBuffer()
@@ -341,57 +293,6 @@ class BGMManager {
     this.isPlaying = true
     this.startTime = performance.now()
     console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
-  }
-
-  // MediaElement経由のWeb Audio再生（ピッチ保持対応）
-  private async _playWebAudioWithMediaElement(url: string, volume: number): Promise<void> {
-    this.useMediaElement = true
-    
-    // HTMLAudioElementを作成
-    this.waAudio = new Audio(url)
-    this.waAudio.preload = 'auto'
-    this.waAudio.playbackRate = this.playbackRate
-    this.waAudio.preservesPitch = true // ピッチを保持
-    this.waAudio.currentTime = 0
-    
-    // MediaElementAudioSourceNodeを作成してWeb Audioに接続
-    this.waMediaSource = this.waContext!.createMediaElementSource(this.waAudio)
-    this.waMediaSource.connect(this.waGain!)
-    
-    // 音量はGainNodeで制御（HTMLAudioElementのvolumeは1.0のまま）
-    this.waAudio.volume = 1.0
-    this.waGain!.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.waContext!.currentTime)
-    
-    // ループ監視を設定
-    this.loopCheckIntervalId = window.setInterval(() => {
-      if (!this.waAudio || !this.isPlaying) return
-      const now = this.waAudio.currentTime
-      const epsilon = 0.02
-      if (now >= this.loopEnd - epsilon) {
-        try {
-          this.waAudio.currentTime = this.loopBegin
-          if (this.waAudio.paused) {
-            void this.waAudio.play().catch(() => {})
-          }
-        } catch {
-          // noop
-        }
-      }
-    }, 25)
-    
-    // 再生開始
-    this.startTime = performance.now()
-    this.waStartAt = this.waContext!.currentTime
-    this.isPlaying = true
-    
-    try {
-      await this.waAudio.play()
-      console.log('🎵 BGM再生開始 (WebAudio+MediaElement, preservesPitch):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, playbackRate: this.playbackRate })
-    } catch (error) {
-      console.warn('WebAudio+MediaElement playback failed:', error)
-      this.isPlaying = false
-      throw error
-    }
   }
 
   private _startWaSourceAt(offsetSec: number) {
