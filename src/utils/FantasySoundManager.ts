@@ -111,6 +111,7 @@ export class FantasySoundManager {
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
+    console.log('[FantasySoundManager] 🎵 playRootNote called:', rootName);
     return this.instance._playRootNote(rootName);
   }
   public static setRootVolume(v: number) {
@@ -239,7 +240,10 @@ export class FantasySoundManager {
       this._enableRootSound(bassEnabled);
 
       this.isInited = true;
-      console.debug('[FantasySoundManager] init complete (fast mode)');
+      console.log('[FantasySoundManager] ✅ init complete', {
+        gmPianoReady: this.gmPianoReady,
+        bassInitialized: this.bassInitialized
+      });
       // 初期化完了後の状態をログ出力
       Object.entries(this.audioMap).forEach(([key, entry]) => {
         console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
@@ -397,14 +401,16 @@ export class FantasySoundManager {
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // デバッグ: GM音源の状態を出力
-    console.debug('[FantasySoundManager] playRootNote:', {
+    // デバッグ: GM音源の状態を出力（console.logで確実に表示）
+    console.log('[FantasySoundManager] 🎹 _playRootNote state:', {
       rootName,
       midi: n.midi,
       gmPianoReady: this.gmPianoReady,
       gmAcousticPiano: !!this.gmAcousticPiano,
       gmElectricPiano: !!this.gmElectricPiano,
-      gmAudioContextState: this.gmAudioContext?.state
+      gmAudioContextState: this.gmAudioContext?.state,
+      bassEnabled: this.bassEnabled,
+      isInited: this.isInited
     });
     
     // 🎹 GM音源優先（アコースティック + エレクトリックピアノのミックス）
@@ -498,7 +504,7 @@ export class FantasySoundManager {
       this.gmElectricPiano = electric;
       this.gmPianoReady = true;
       
-      console.debug('[FantasySoundManager] 🎹 GM Piano Mix loaded (Acoustic 60% + Electric 40%)');
+      console.log('[FantasySoundManager] 🎹 GM Piano Mix loaded (Acoustic 60% + Electric 40%)');
     } catch (e) {
       console.debug('[FantasySoundManager] GM Piano load error:', e);
       this.gmPianoReady = false;
