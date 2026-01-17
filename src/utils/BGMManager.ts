@@ -1,5 +1,4 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
-import * as Tone from 'tone'
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
@@ -25,9 +24,6 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
-  
-  // Tone.js PitchShift
-  private pitchShift: Tone.PitchShift | null = null
 
   play(
     url: string,
@@ -109,9 +105,6 @@ class BGMManager {
       this.waBuffer = null
       try { this.waGain?.disconnect?.() } catch { /* ignore */ }
       this.waGain = null
-      
-      // Tone.js PitchShift cleanup
-      this._disposePitchShift()
     } catch (e) {
       console.warn('BGMManager.stop safe stop failed:', e)
     } finally {
@@ -245,31 +238,21 @@ class BGMManager {
   getTransposeSemitones(): number { return this.transposeSemitones }
 
   /**
-   * 再生速度を変更した際の音程補正を計算
-   * playbackRateを変更すると音程も変わるため、その分を補正する
+   * 再生速度を変更した際の音程補正を計算（セント単位）
+   * playbackRateを変更すると音程も変わるため、detuneでその分を補正する
+   * 
+   * 例: playbackRate = 0.5 の場合、音程は1オクターブ下がる（-1200セント）
+   *     これを補正するために detune = +1200 セントを設定
+   *     さらに transposeSemitones の分を加算
    */
-  private _getEffectivePitchShift(): number {
+  private _getEffectiveDetuneCents(): number {
     const safeSpeed = Math.max(this.playbackRate, 0.0001)
-    // 速度変更による音程変化を補正
-    const speedSemitoneOffset = Math.log2(safeSpeed) * 12
-    return this.transposeSemitones - speedSemitoneOffset
-  }
-  
-  /**
-   * PitchShiftノードを破棄
-   */
-  private _disposePitchShift() {
-    if (this.pitchShift) {
-      try {
-        this.pitchShift.disconnect()
-      } catch { /* ignore */ }
-      try {
-        this.pitchShift.dispose()
-      } catch (error) {
-        console.warn('PitchShift dispose failed', error)
-      }
-      this.pitchShift = null
-    }
+    // 速度変更による音程変化を計算（セント単位）
+    // playbackRate = 2 → 音程 +1200セント（1オクターブ上）
+    // playbackRate = 0.5 → 音程 -1200セント（1オクターブ下）
+    const speedCentsOffset = Math.log2(safeSpeed) * 1200
+    // 移調量（セント単位）+ 速度補正の逆数
+    return (this.transposeSemitones * 100) - speedCentsOffset
   }
 
   /**
@@ -279,18 +262,17 @@ class BGMManager {
   setDetune(semitones: number) {
     this.transposeSemitones = Math.max(-12, Math.min(12, semitones))
     
-    if (this.pitchShift) {
+    if (this.waSource) {
       try {
-        const effectivePitch = this._getEffectivePitchShift()
-        const ps = this.pitchShift as unknown as { pitch: number }
-        ps.pitch = effectivePitch
-        console.log('🎼 BGM音程変更 (PitchShift):', { 
+        const detuneCents = this._getEffectiveDetuneCents()
+        this.waSource.detune.setValueAtTime(detuneCents, this.waContext?.currentTime ?? 0)
+        console.log('🎼 BGM音程変更 (detune):', { 
           semitones, 
-          effectivePitch,
+          detuneCents,
           playbackRate: this.playbackRate
         })
       } catch (e) {
-        console.warn('BGM PitchShift設定エラー:', e)
+        console.warn('BGM detune設定エラー:', e)
       }
     }
   }
@@ -345,10 +327,12 @@ class BGMManager {
     this.waBuffer = buf
 
     // ループポイントを設定（サンプル精度）
-    await this._startWaSourceAt(0)
+    this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio + Tone.js PitchShift):', { 
+    
+    const detuneCents = this._getEffectiveDetuneCents()
+    console.log('🎵 BGM再生開始 (WebAudio + detune):', { 
       url, 
       bpm: this.bpm, 
       loopBegin: this.loopBegin, 
@@ -356,11 +340,11 @@ class BGMManager {
       countIn: this.countInMeasures, 
       playbackRate: this.playbackRate,
       transposeSemitones: this.transposeSemitones,
-      effectivePitch: this._getEffectivePitchShift()
+      detuneCents
     })
   }
 
-  private async _startWaSourceAt(offsetSec: number) {
+  private _startWaSourceAt(offsetSec: number) {
     if (!this.waContext || !this.waBuffer) return
     // 既存ソース破棄
     if (this.waSource) {
@@ -374,59 +358,13 @@ class BGMManager {
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
     
-    // PitchShiftを使用するかどうかを判定
-    const pitchShiftAmount = this._getEffectivePitchShift()
-    const shouldUsePitchShift = Math.abs(pitchShiftAmount) > 0.001
-
-    if (shouldUsePitchShift) {
-      // Tone.jsを初期化
-      try {
-        await Tone.start()
-      } catch (err) {
-        console.warn('Tone.start failed:', err)
-      }
-      
-      // Tone.jsのコンテキストを同期
-      try {
-        const toneCtx = Tone.getContext() as unknown as { rawContext: AudioContext | null }
-        toneCtx.rawContext = this.waContext
-      } catch (err) {
-        console.warn('Tone context assignment failed:', err)
-      }
-      
-      // PitchShiftノードを作成または更新
-      // windowSizeを小さくして遅延を最小化（デフォルト0.1秒→0.03秒）
-      if (!this.pitchShift) {
-        this.pitchShift = new Tone.PitchShift({ 
-          pitch: pitchShiftAmount,
-          windowSize: 0.03,  // 小さいほど遅延が少ない（品質とのトレードオフ）
-          delayTime: 0       // 追加の遅延なし
-        })
-      } else {
-        const ps = this.pitchShift as unknown as { pitch: number }
-        ps.pitch = pitchShiftAmount
-      }
-      
-      // 接続: Source -> PitchShift -> GainNode
-      try {
-        this.pitchShift.disconnect()
-      } catch { /* ignore */ }
-      
-      const psConnect = this.pitchShift as unknown as { connect: (node: GainNode) => void }
-      psConnect.connect(this.waGain!)
-      
-      try {
-        Tone.connect(src, this.pitchShift)
-      } catch (err) {
-        console.error('Tone.connect failed:', err)
-        // フォールバック: 直接接続
-        src.connect(this.waGain!)
-      }
-    } else {
-      // PitchShiftが不要な場合は直接接続
-      this._disposePitchShift()
-      src.connect(this.waGain!)
-    }
+    // detuneを使用して音程を変更（速度は変わらない）
+    // playbackRateによる音程変化も補正
+    const detuneCents = this._getEffectiveDetuneCents()
+    src.detune.value = detuneCents
+    
+    // GainNodeに接続
+    src.connect(this.waGain!)
 
     // 再生
     const when = 0
@@ -500,7 +438,7 @@ class BGMManager {
     if (playPromise !== undefined) {
       playPromise
         .then(() => {
-          console.log('🎵 BGM再生開始 (HTMLAudio - PitchShift未対応):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+          console.log('🎵 BGM再生開始 (HTMLAudio - detune未対応):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
         })
         .catch((error) => {
           console.warn('BGM playback failed:', error)
