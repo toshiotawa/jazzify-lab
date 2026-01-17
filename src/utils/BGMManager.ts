@@ -15,6 +15,12 @@ class BGMManager {
   private nextLoopTime = 0
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
+  
+  // 仮想カウント機能: BGMにカウント区間がない場合でも初回のみ無音カウントを追加
+  private autoCountInMeasures = 0
+  private autoCountStartTime = 0  // 仮想カウント開始時刻（performance.now）
+  private isInAutoCountPhase = false  // 仮想カウント中かどうか
+  private autoCountTimeoutId: number | null = null
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -29,7 +35,8 @@ class BGMManager {
     timeSig: number,
     measureCount: number,
     countIn: number,
-    volume = 0.7
+    volume = 0.7,
+    autoCountIn = 0  // 仮想カウント区間（初回のみ、ループ時はスキップ）
   ) {
     if (!url) return
     
@@ -41,12 +48,42 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
+    this.autoCountInMeasures = Math.max(0, Math.floor(autoCountIn || 0))
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
     this.loopBegin = this.countInMeasures * secPerMeas
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
+    
+    // 仮想カウント区間がある場合（BGMにカウント区間がないが、ゲームとしてカウント時間を設ける）
+    if (this.autoCountInMeasures > 0) {
+      this.isInAutoCountPhase = true
+      this.autoCountStartTime = performance.now()
+      this.isPlaying = true
+      this.startTime = performance.now()
+      
+      const autoCountDuration = this.autoCountInMeasures * secPerMeas * 1000  // ミリ秒
+      console.log('🎵 仮想カウント開始:', { 
+        autoCountIn: this.autoCountInMeasures, 
+        duration: autoCountDuration / 1000,
+        secPerMeas
+      })
+      
+      // 仮想カウント終了後にBGM再生開始
+      this.autoCountTimeoutId = window.setTimeout(() => {
+        this.isInAutoCountPhase = false
+        this.autoCountTimeoutId = null
+        
+        // BGMを曲頭から再生（ループ時はloopBeginからになる）
+        this._playWebAudio(url, volume).catch(err => {
+          console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
+          this._playHtmlAudio(url, volume)
+        })
+      }, autoCountDuration)
+      
+      return
+    }
 
     // Web Audio 経路でシームレスループを試みる
     this._playWebAudio(url, volume).catch(err => {
@@ -67,6 +104,7 @@ class BGMManager {
   stop() {
     this.isPlaying = false
     this.loopScheduled = false
+    this.isInAutoCountPhase = false
 
     try {
       if (this.loopTimeoutId !== null) {
@@ -76,6 +114,11 @@ class BGMManager {
       if (this.loopCheckIntervalId !== null) {
         clearInterval(this.loopCheckIntervalId)
         this.loopCheckIntervalId = null
+      }
+      // 仮想カウントタイマーのクリア
+      if (this.autoCountTimeoutId !== null) {
+        clearTimeout(this.autoCountTimeoutId)
+        this.autoCountTimeoutId = null
       }
 
       if (this.audio) {
@@ -104,6 +147,7 @@ class BGMManager {
     } finally {
       this.timeUpdateHandler = null
       this.audio = null
+      this.autoCountInMeasures = 0
       console.log('🔇 BGM停止・クリーンアップ完了')
     }
   }
@@ -122,9 +166,19 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
+   * 仮想カウント中も負の値を返す。
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
+      // 仮想カウント中の処理
+      if (this.isInAutoCountPhase) {
+        const secPerMeas = (60 / this.bpm) * this.timeSignature
+        const autoCountDuration = this.autoCountInMeasures * secPerMeas
+        const elapsed = (performance.now() - this.autoCountStartTime) / 1000
+        // 仮想カウント中は負の値を返す（Measure 1の開始が0）
+        return elapsed - autoCountDuration
+      }
+      
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
         const t = this.waContext.currentTime - this.waStartAt
@@ -217,13 +271,18 @@ class BGMManager {
   getTimeSignature(): number { return this.timeSignature }
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
+  getAutoCountInMeasures(): number { return this.autoCountInMeasures }
   getIsCountIn(): boolean {
+    // 仮想カウント中もtrue
+    if (this.isInAutoCountPhase) return true
+    
     if (this.waContext && this.waBuffer) {
       const t = this.waContext.currentTime - this.waStartAt
       return t < this.loopBegin
     }
     return !!this.audio && this.audio.currentTime < this.loopBegin
   }
+  getIsInAutoCountPhase(): boolean { return this.isInAutoCountPhase }
 
   /** Measure 1 の開始へリセット */
   resetToStart() {
