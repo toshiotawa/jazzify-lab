@@ -137,6 +137,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       }
       
       // OSMDオプション設定
+      // 調号と拍子記号はOSMDがデフォルトで表示
       const options: IOSMDOptions = {
         autoResize: false,
         backend: 'canvas',
@@ -152,7 +153,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         defaultColorStem: '#ffffff',
         defaultColorRest: '#94a3b8',
         defaultColorLabel: '#fbbf24',
-        defaultColorTitle: '#ffffff'
+        defaultColorTitle: '#ffffff',
       };
       
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
@@ -203,13 +204,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
   }, [loadAndRenderSheet, musicXml]);
   
-  // 再生位置に同期してスクロール
+  // 再生位置に同期してスクロール（ループ対応）
   useEffect(() => {
-    if (!scoreWrapperRef.current || timeMappingRef.current.length === 0) {
+    if (!scoreWrapperRef.current) {
       return;
     }
     
     const { loopDuration } = loopInfo;
+    let lastNormalizedTime = -1;
     
     const updateScroll = () => {
       const currentTime = bgmManager.getCurrentMusicTime();
@@ -224,8 +226,13 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       const currentTimeMs = normalizedTime * 1000;
       
+      // ループ検出（時間が巻き戻った場合）
+      const isLoopReset = lastNormalizedTime > 0 && normalizedTime < lastNormalizedTime - 0.5;
+      lastNormalizedTime = normalizedTime;
+      
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
+      const loopDurationMs = loopDuration * 1000;
       
       for (let i = 0; i < mapping.length - 1; i++) {
         if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
@@ -236,15 +243,41 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       }
       
-      // 最後のエントリ以降の場合
+      // 最後のエントリ以降の場合（ループ終端に向かって補間）
       if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
-        xPosition = mapping[mapping.length - 1].xPosition;
+        const lastEntry = mapping[mapping.length - 1];
+        const firstEntry = mapping[0];
+        // 最後の小節から楽譜終端まで進行
+        const remainingTime = loopDurationMs - lastEntry.timeMs;
+        if (remainingTime > 0) {
+          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
+          // 楽譜の終端位置を推定（最後の小節幅分追加）
+          const estimatedEndX = lastEntry.xPosition + (mapping.length > 1 
+            ? (mapping[mapping.length - 1].xPosition - mapping[mapping.length - 2].xPosition)
+            : 100);
+          xPosition = lastEntry.xPosition + t * (estimatedEndX - lastEntry.xPosition);
+        } else {
+          xPosition = lastEntry.xPosition;
+        }
       }
       
       const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
       
-      // 変化がある場合のみ更新
-      if (Math.abs(scrollX - lastScrollXRef.current) > 1) {
+      // ループリセット時は即座にスクロール位置をリセット
+      if (isLoopReset) {
+        if (scoreWrapperRef.current) {
+          scoreWrapperRef.current.style.transition = 'none';
+          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+          // 次フレームでtransitionを復活
+          requestAnimationFrame(() => {
+            if (scoreWrapperRef.current) {
+              scoreWrapperRef.current.style.transition = '';
+            }
+          });
+        }
+        lastScrollXRef.current = scrollX;
+      } else if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
+        // 通常のスクロール更新
         if (scoreWrapperRef.current) {
           scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
         }
