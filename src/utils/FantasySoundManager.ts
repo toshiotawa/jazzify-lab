@@ -88,9 +88,12 @@ export class FantasySoundManager {
   private pianoSampler: any | null = null;        // Salamander Piano サンプラー（Tone.js）
   private pianoSamplerReady = false;              // Tone.jsサンプラー読み込み完了フラグ
   private usePianoSampler = true;                 // ピアノサンプラーを優先使用
-  private gmPiano: Soundfont.Player | null = null;  // GM音源ピアノ
-  private gmPianoReady = false;                   // GM音源読み込み完了フラグ
+  private gmAcousticPiano: Soundfont.Player | null = null;  // GM音源アコースティックピアノ
+  private gmElectricPiano: Soundfont.Player | null = null;  // GM音源エレクトリックピアノ
+  private gmPianoReady = false;                             // GM音源読み込み完了フラグ
   private gmAudioContext: AudioContext | null = null;
+  // ミックスバランス（0.0 = アコースティックのみ、1.0 = エレクトリックのみ、0.5 = 半々）
+  private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -388,14 +391,29 @@ export class FantasySoundManager {
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // 🎹 GM音源優先（リアルなピアノ音）
-    if (this.gmPianoReady && this.gmPiano && this.gmAudioContext) {
+    // 🎹 GM音源優先（アコースティック + エレクトリックピアノのミックス）
+    if (this.gmPianoReady && this.gmAudioContext) {
       try {
-        // GM音源で再生（MIDIノート番号を使用）
-        this.gmPiano.play(n.midi.toString(), this.gmAudioContext.currentTime, {
-          gain: this.bassVolume,
-          duration: 1.0  // 1秒間再生
-        });
+        const currentTime = this.gmAudioContext.currentTime;
+        const acousticGain = this.bassVolume * (1 - this.gmMixBalance);
+        const electricGain = this.bassVolume * this.gmMixBalance;
+        
+        // アコースティックピアノを再生
+        if (this.gmAcousticPiano && acousticGain > 0) {
+          this.gmAcousticPiano.play(n.midi.toString(), currentTime, {
+            gain: acousticGain,
+            duration: 1.2
+          });
+        }
+        
+        // エレクトリックピアノを再生（ミックス）
+        if (this.gmElectricPiano && electricGain > 0) {
+          this.gmElectricPiano.play(n.midi.toString(), currentTime, {
+            gain: electricGain,
+            duration: 1.0
+          });
+        }
+        
         return; // GM音源再生成功
       } catch (e) {
         console.debug('[FantasySoundManager] GM Piano playback failed, trying synth:', e);
@@ -425,7 +443,7 @@ export class FantasySoundManager {
     }
   }
 
-  // GM音源（Acoustic Grand Piano）の読み込み
+  // GM音源（Acoustic + Electric Piano）の読み込み
   private async _loadGMPiano(): Promise<void> {
     try {
       // AudioContextを作成または再利用
@@ -433,19 +451,33 @@ export class FantasySoundManager {
         this.gmAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
       
-      // GM音源のAcoustic Grand Pianoを読み込み
       // CDN: https://gleitz.github.io/midi-js-soundfonts/
-      this.gmPiano = await Soundfont.instrument(
-        this.gmAudioContext,
-        'acoustic_grand_piano',
-        {
-          soundfont: 'MusyngKite',  // 高品質なSoundFont
-          format: 'mp3',            // MP3形式（軽量）
-        }
-      );
+      const soundfontOptions = {
+        soundfont: 'MusyngKite' as const,  // 高品質なSoundFont
+        format: 'mp3' as const,            // MP3形式（軽量）
+      };
       
+      // 両方の音源を並列で読み込み
+      const [acoustic, electric] = await Promise.all([
+        // Acoustic Grand Piano (Program 0)
+        Soundfont.instrument(
+          this.gmAudioContext,
+          'acoustic_grand_piano',
+          soundfontOptions
+        ),
+        // Electric Piano 1 - Rhodes系 (Program 4)
+        Soundfont.instrument(
+          this.gmAudioContext,
+          'electric_piano_1',
+          soundfontOptions
+        )
+      ]);
+      
+      this.gmAcousticPiano = acoustic;
+      this.gmElectricPiano = electric;
       this.gmPianoReady = true;
-      console.debug('[FantasySoundManager] 🎹 GM Piano (Acoustic Grand Piano) loaded');
+      
+      console.debug('[FantasySoundManager] 🎹 GM Piano Mix loaded (Acoustic 60% + Electric 40%)');
     } catch (e) {
       console.debug('[FantasySoundManager] GM Piano load error:', e);
       this.gmPianoReady = false;
