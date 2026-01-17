@@ -10,7 +10,7 @@ import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobal
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, type FantasyPlayMode } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, type FantasyPlayMode, type TranspositionSettings } from './FantasyGameEngine';
 import { TaikoNote, ChordProgressionDataItem } from './TaikoNoteSystem';
 import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -124,6 +124,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
+  // 移調設定（練習モード用）
+  const [transpositionSettings, setTranspositionSettings] = useState<TranspositionSettings>({ startKey: 0, repeatKeyChange: 'off' });
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -645,10 +647,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const stageWithSpeed = speedMultiplier !== 1.0 
       ? { ...buildInitStage(), speedMultiplier }
       : buildInitStage();
-    await initializeGame(stageWithSpeed, mode);
+    
+    // 移調設定を渡す（練習モードのみ有効）
+    const tSettings = mode === 'practice' ? transpositionSettings : { startKey: 0, repeatKeyChange: 'off' as const };
+    
+    await initializeGame(stageWithSpeed, mode, tSettings);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
-  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier, tSettings });
+  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, transpositionSettings]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
@@ -1319,6 +1325,45 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* 練習ボタン - progressionモードの場合は速度選択付き */}
             {isProgressionMode ? (
               <div className="w-full space-y-2">
+                {/* 移調設定（練習モードかつ有効な場合のみ） */}
+                {stage.enable_transposition && (
+                  <div className="bg-gray-800 p-3 rounded-lg border border-gray-700 mb-2">
+                    <div className="text-sm text-gray-300 font-bold mb-2">🎹 {isEnglishCopy ? 'Transposition Settings' : '移調設定'}</div>
+                    
+                    <div className="grid grid-cols-2 gap-2">
+                      {/* 開始キー設定 */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">{isEnglishCopy ? 'Start Key' : '開始キー'}</label>
+                        <select 
+                          className="w-full bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:outline-none focus:border-yellow-500"
+                          value={transpositionSettings.startKey}
+                          onChange={(e) => setTranspositionSettings(prev => ({ ...prev, startKey: parseInt(e.target.value) }))}
+                        >
+                          {Array.from({ length: 13 }, (_, i) => i - 6).map(key => (
+                            <option key={key} value={key}>
+                              {key > 0 ? `+${key}` : key}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* 自動移調設定 */}
+                      <div>
+                        <label className="block text-xs text-gray-400 mb-1">{isEnglishCopy ? 'Auto Change' : 'ループ毎変更'}</label>
+                        <select 
+                          className="w-full bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:outline-none focus:border-yellow-500"
+                          value={transpositionSettings.repeatKeyChange}
+                          onChange={(e) => setTranspositionSettings(prev => ({ ...prev, repeatKeyChange: e.target.value as any }))}
+                        >
+                          <option value="off">OFF</option>
+                          <option value="plus1">+1 (半音)</option>
+                          <option value="plus5">+5 (4度)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>
@@ -1464,6 +1509,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {selectedSpeedMultiplier < 1.0 && (
                   <span className="ml-2 px-2 py-0.5 bg-yellow-600 rounded text-xs">
                     {Math.round(selectedSpeedMultiplier * 100)}%
+                  </span>
+                )}
+                {/* 移調表示 */}
+                {gameState.currentTranspose !== 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-blue-600 rounded text-xs">
+                    Key {gameState.currentTranspose > 0 ? '+' : ''}{gameState.currentTranspose}
                   </span>
                 )}
               </div>
