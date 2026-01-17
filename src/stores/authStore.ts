@@ -285,10 +285,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         }
       });
 
+      // Realtime: 自分の profiles 行が更新されたら即時反映
       if (session?.user) {
-        await get().fetchProfile();
-
-        // Realtime: 自分の profiles 行が更新されたら即時反映
         try {
           const supabase = getSupabaseClient();
           const channel = supabase.channel('realtime-profile-self');

@@ -43,14 +43,15 @@ const showDebugInfo = (message: string, isError = false) => {
   }
 };
 
-// ローディング画面を非表示にする
+// ローディング画面を非表示にする（高速化）
 const hideLoading = () => {
   const loadingElement = document.getElementById('loading');
   if (loadingElement) {
     loadingElement.style.opacity = '0';
+    loadingElement.style.transition = 'opacity 150ms ease-out';
     setTimeout(() => {
       loadingElement.style.display = 'none';
-    }, 300);
+    }, 150);
   }
 };
 
@@ -104,23 +105,18 @@ window.addEventListener('unhandledrejection', (event) => {
   event.preventDefault();
 });
 
-// 簡素化されたアプリケーション初期化
+// 簡素化されたアプリケーション初期化（高速化版）
 const initializeApp = async () => {
   try {
-    showDebugInfo('Starting initialization...');
-    
     // 基本的な環境チェック
-    if (!document.getElementById('root')) {
+    const rootElement = document.getElementById('root');
+    if (!rootElement) {
       throw new Error('Root element not found');
     }
-    showDebugInfo('Root element found');
     
-    // React アプリケーションの初期化（StrictModeを削除）
-    showDebugInfo('Creating React root...');
-    const rootElement = document.getElementById('root')!;
+    // React アプリケーションの即座レンダリング
     const root = ReactDOM.createRoot(rootElement);
     
-    showDebugInfo('Rendering React app...');
     root.render(
       <React.StrictMode>
         <HelmetProvider>
@@ -131,33 +127,30 @@ const initializeApp = async () => {
       </React.StrictMode>
     );
     
-    showDebugInfo('React app rendered successfully');
-    
-    // Tone.js を動的にロードして初期化（遅延ロード）
-    try {
-      const Tone = await import('tone');
-      (window as any).Tone = Tone;
-      showDebugInfo('Tone.js loaded and attached to window');
-    } catch (toneError) {
-      showDebugInfo(`Tone.js loading failed: ${toneError}`, true);
-      // Tone.jsのエラーは致命的ではないため続行
+    // ローディング画面を即座に非表示（Reactがレンダリングを開始したため）
+    // requestIdleCallbackで低優先度で実行
+    if ('requestIdleCallback' in window) {
+      (window as Window & { requestIdleCallback: (cb: () => void) => void }).requestIdleCallback(() => {
+        hideLoading();
+      });
+    } else {
+      // フォールバック: 次のフレームで実行
+      requestAnimationFrame(() => {
+        hideLoading();
+      });
     }
     
-    // 初期化完了後にローディング画面を非表示
-    setTimeout(() => {
-      showDebugInfo('Hiding loading screen...');
-      hideLoading();
-      
-      // デバッグ情報を削除（本番では少し長めに表示）
-      setTimeout(() => {
-        const debugDiv = document.getElementById('debug-info');
-        if (debugDiv) {
-          debugDiv.remove();
-        }
-      }, 8000);
-    }, 500);
-    
-    showDebugInfo('Initialization completed successfully');
+    // Tone.js を非同期でロード（UIブロッキングなし）
+    import('tone').then((ToneModule) => {
+      // グローバルにToneを公開（レガシー互換性のため）
+      Object.defineProperty(window, 'Tone', {
+        value: ToneModule,
+        writable: false,
+        configurable: false,
+      });
+    }).catch((toneError) => {
+      console.warn('Tone.js loading failed:', toneError);
+    });
 
   } catch (error) {
     showDebugInfo(`Initialization failed: ${error}`, true);
