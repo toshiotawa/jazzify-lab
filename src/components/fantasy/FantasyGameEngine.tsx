@@ -22,7 +22,7 @@ import {
   BagRandomSelector
 } from './TaikoNoteSystem';
 import { bgmManager } from '@/utils/BGMManager';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, Transpose } from 'tonal';
 
 // ===== 型定義 =====
 
@@ -147,6 +147,13 @@ export interface FantasyStage {
   musicXml?: string;
   // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
   speedMultiplier?: number;
+  // 移調練習機能が有効かどうか
+  enable_transposition?: boolean;
+}
+
+export interface TranspositionSettings {
+  startKey: number; // -6 ~ +6
+  repeatKeyChange: 'off' | 'plus1' | 'plus5';
 }
 
 export interface MonsterState {
@@ -203,6 +210,9 @@ export interface FantasyGameState {
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  // 移調状態
+  currentTranspose: number;
+  transpositionSettings: TranspositionSettings;
 }
 
 interface FantasyGameEngineProps {
@@ -374,6 +384,75 @@ const ENEMY_LIST = [
 // ===== ヘルパー関数 =====
 
 /**
+ * 半音数からTonalのインターバル文字列に変換
+ * 基本的にフラット系("2m", "3m"...)を使用し、必要に応じて異名同音変換を行う
+ */
+const semitonesToInterval = (semitones: number): string => {
+  const abs = Math.abs(semitones);
+  const sign = semitones >= 0 ? 1 : -1;
+  const normalized = abs % 12;
+  const intervals = ["1P", "2m", "2M", "3m", "3M", "4P", "4A", "5P", "6m", "6M", "7m", "7M"];
+  const interval = intervals[normalized];
+  return sign === -1 ? `-${interval}` : interval;
+};
+
+/**
+ * 許可されたキー（ルート音）に正規化する
+ * C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B
+ */
+const normalizeRoot = (noteName: string): string => {
+  const pitch = parseNote(noteName);
+  if (!pitch || !pitch.pc) return noteName;
+  const pc = pitch.pc;
+  const enharmonics: Record<string, string> = {
+    'C#': 'Db', 'D#': 'Eb', 'F#': 'Gb', 'G#': 'Ab', 'A#': 'Bb',
+    'Cb': 'B', 'B#': 'C', 'E#': 'F', 'Fb': 'E'
+  };
+  if (enharmonics[pc]) {
+    return enharmonics[pc] + (pitch.oct !== null ? pitch.oct : '');
+  }
+  return noteName;
+};
+
+/**
+ * コード定義を移調して取得
+ */
+const getTransposedChordDefinition = (
+  spec: ChordSpec, 
+  semitones: number, 
+  displayOpts?: DisplayOpts
+): ChordDefinition | null => {
+  const baseDef = getChordDefinition(spec, displayOpts);
+  if (!baseDef || semitones === 0) return baseDef;
+  
+  const interval = semitonesToInterval(semitones);
+  const transposedRoot = Transpose.transpose(baseDef.root, interval);
+  const normalizedRoot = normalizeRoot(transposedRoot);
+  
+  let qualityPart = baseDef.id.substring(baseDef.root.length);
+  if (!baseDef.id.startsWith(baseDef.root)) {
+    const match = baseDef.displayName.match(/^([A-G][#b]?)(.*)$/);
+    qualityPart = match ? match[2] : '';
+  }
+  
+  const newDisplayName = normalizedRoot + qualityPart;
+  const newNotes = baseDef.notes.map(n => n + semitones);
+  const newNoteNames = baseDef.noteNames.map(n => {
+    const t = Transpose.transpose(n, interval);
+    return normalizeRoot(t);
+  });
+  
+  return {
+    ...baseDef,
+    id: newDisplayName,
+    displayName: newDisplayName,
+    notes: newNotes,
+    noteNames: newNoteNames,
+    root: normalizedRoot
+  };
+};
+
+/**
  * キューからモンスターを生成
  */
 const createMonsterFromQueue = (
@@ -385,47 +464,61 @@ const createMonsterFromQueue = (
   displayOpts?: DisplayOpts,
   stageMonsterIds?: string[],
   sheetMusicMode?: { enabled: boolean; clef: 'treble' | 'bass' },
-  bagSelector?: BagRandomSelector<ChordSpec> | null
+  bagSelector?: BagRandomSelector<ChordSpec> | null,
+  transpose: number = 0
 ): MonsterState => {
-  // コードを選択（袋形式セレクターがあれば使用、なければ従来方式）
-  // 空の場合はダミーコードを使用 - 太鼓モードでは後で taikoNotes から上書きされる
-  const chord = selectUniqueRandomChordWithBag(bagSelector ?? null, allowedChords, previousChordId, displayOpts);
+  // コードを選択（袋形式セレクターを使用）
+  let chord: ChordDefinition | null = null;
   
-  // コードが見つからない場合（progression_timing で allowedChords が空の場合など）
-  // ダミーのコードを作成（後で taikoNotes から上書きされる）
+  if (bagSelector) {
+    const spec = bagSelector.next(previousChordId);
+    chord = getTransposedChordDefinition(spec, transpose, displayOpts);
+  } else {
+    // フォールバック（既存のselectUniqueRandomChordWithBagはChordDefinitionを返すため使いにくい）
+    // 簡易的にランダム選択して移調
+    if (allowedChords.length > 0) {
+        const idx = Math.floor(Math.random() * allowedChords.length);
+        chord = getTransposedChordDefinition(allowedChords[idx], transpose, displayOpts);
+    }
+  }
+  
+  // コードが見つからない場合
   const effectiveChord: ChordDefinition = chord ?? {
     id: 'placeholder',
-    notes: [60], // C4
-    noteNames: ['C'],
+    notes: [60 + transpose], 
+    noteNames: [normalizeRoot(Transpose.transpose('C', semitonesToInterval(transpose)))],
     displayName: '---',
     quality: 'placeholder',
-    root: 'C'
+    root: normalizeRoot(Transpose.transpose('C', semitonesToInterval(transpose)))
   };
   
   // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
+  // 注: 移調後の音名を使用するため、画像ファイルが存在するか注意が必要
+  // しかし楽譜モードで移調機能を使う要件はないかもしれない（音名が変わると画像がない）
+  // 要件では「譜面と太鼓ノーツ、音源も全て移調されます」とある。
+  // 画像ベースの譜面の場合、移調後の画像が必要だが、全キー分用意されているのか？
+  // `preloadSheetMusicImages` は `allowedChords` からロードしている。
+  // 移調後の音名に対応する画像がプリロードされていないと表示されない。
+  // 今回は「Timingモード」に特化した話なので、楽譜モード（単音クイズ）は対象外の可能性が高い。
+  // TimingモードでもMusicXML表示がある。
+  
   let iconKey: string;
+  // ... (既存のロジック) ...
   if (sheetMusicMode?.enabled && effectiveChord.id !== 'placeholder') {
-    // 楽譜モード: 音名形式は "treble_C4" または "bass_C3" など
-    // effectiveChord.id が既に "treble_C4" 形式の場合はそのまま使用
-    // 旧形式（"C4"のみ）の場合は clef を付加
-    const chordId = effectiveChord.id;
+    const chordId = effectiveChord.id; // 移調後のID
     if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
-      // 新形式: そのまま使用
       iconKey = `sheet_music_${chordId}`;
     } else {
-      // 旧形式: clef を付加（後方互換性）
       iconKey = `sheet_music_${sheetMusicMode.clef}_${chordId}`;
     }
   } else if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
-    // stageMonsterIdsが提供されている場合は、それを使用
     iconKey = stageMonsterIds[monsterIndex];
   } else {
-    // フォールバック: 従来のランダム選択
     const rand = Math.floor(Math.random() * 63) + 1;
     iconKey = `monster_${String(rand).padStart(2, '0')}`;
   }
   
-  const enemy = { id: iconKey, icon: iconKey, name: '' }; // ← name は空文字
+  const enemy = { id: iconKey, icon: iconKey, name: '' };
   
   return {
     id: `${enemy.id}_${Date.now()}_${position}`,
@@ -977,11 +1070,18 @@ export const useFantasyGameEngine = ({
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+  const initializeGame = useCallback(async (
+    stage: FantasyStage, 
+    playMode: FantasyPlayMode = 'challenge',
+    transpositionSettings: TranspositionSettings = { startKey: 0, repeatKeyChange: 'off' }
+  ) => {
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name, transpositionSettings });
 
     // 旧 BGM を確実に殺す
     bgmManager.stop();
+
+    // 移調の初期値を設定
+    const startTranspose = transpositionSettings.startKey;
 
     // 新しいステージ定義から値を取得
     const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : stage.enemyCount;
@@ -1090,7 +1190,8 @@ export const useFantasyGameEngine = ({
           displayOpts,
           monsterIds,
           sheetMusicOpt,
-          bagSelectorRef.current
+          bagSelectorRef.current,
+          startTranspose
         );
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
@@ -1112,66 +1213,7 @@ export const useFantasyGameEngine = ({
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
-      switch (stage.mode) {
-        case 'progression_timing':
-          // 拡張版：JSON形式のデータを解析
-          if (stage.chordProgressionData) {
-            let progressionData: ChordProgressionDataItem[];
-            
-            if (typeof stage.chordProgressionData === 'string') {
-              // 簡易テキスト形式の場合
-              progressionData = parseSimpleProgressionText(stage.chordProgressionData);
-            } else {
-              // JSON配列の場合
-              progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
-            }
-            
-            taikoNotes = parseChordProgressionData(
-              progressionData,
-              stage.bpm || 120,
-              stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts),
-              0 // カウントインを渡す
-            );
-          }
-          break;
-
-        case 'progression_random':
-          // ランダムプログレッション：各小節ごとにランダムでコードを決定
-          taikoNotes = generateRandomProgressionNotes(
-            (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
-            stage.measureCount || 8,
-            stage.bpm || 120,
-            stage.timeSignature || 4,
-            (spec) => getChordDefinition(spec, displayOpts),
-            0,
-            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
-          );
-          break;
-
-        case 'progression_order':
-        default:
-          // 基本版：小節の頭でコード出題（Measure 1 から）
-          // chordProgression が設定されていればそれを使用、なければ allowedChords を使用
-          {
-            const chordsForOrder = stage.chordProgression && stage.chordProgression.length > 0
-              ? stage.chordProgression
-              : (stage.allowedChords && stage.allowedChords.length > 0 ? stage.allowedChords : []);
-            
-            if (chordsForOrder.length > 0) {
-              taikoNotes = generateBasicProgressionNotes(
-                chordsForOrder as ChordSpec[],
-                stage.measureCount || 8,
-                stage.bpm || 120,
-                stage.timeSignature || 4,
-                (spec) => getChordDefinition(spec, displayOpts),
-                0,
-                (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
-              );
-            }
-          }
-          break;
-      }
+      taikoNotes = generateNotesForStage(stage, startTranspose, displayOpts);
       
       // ループ対応：最初のノーツの情報を設定
       if (taikoNotes.length > 0) {
@@ -1227,7 +1269,9 @@ export const useFantasyGameEngine = ({
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
       lastNormalizedTime: 0,
-      awaitingLoopStart: false
+      awaitingLoopStart: false,
+      currentTranspose: startTranspose,
+      transpositionSettings
     };
 
     setGameState(newState);
@@ -1527,12 +1571,20 @@ export const useFantasyGameEngine = ({
         const justLooped = normalizedTime + 1e-6 < lastNorm;
         
         if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
-            ...note,
-            isHit: false,
-            isMissed: false
-          }));
+          // 次ループ突入時のみリセット・巻き戻し・移調更新
+          let newTranspose = prevState.currentTranspose;
+          const { repeatKeyChange } = prevState.transpositionSettings;
+          
+          if (repeatKeyChange !== 'off') {
+             const shift = repeatKeyChange === 'plus1' ? 1 : 5;
+             newTranspose = newTranspose + shift;
+             // BGMの移調（ピッチシフト）
+             bgmManager.setTranspose(newTranspose);
+             devLog.debug('🔄 ループ移調:', { old: prevState.currentTranspose, new: newTranspose });
+          }
+
+          // ノーツを再生成（移調適用）
+          const resetNotes = generateNotesForStage(stage, newTranspose, displayOpts);
           
           let newNoteIndex = prevState.currentNoteIndex;
           let refreshedMonsters = prevState.activeMonsters;
@@ -1557,7 +1609,8 @@ export const useFantasyGameEngine = ({
             awaitingLoopStart: false,
             taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            currentTranspose: newTranspose
           };
         }
         

@@ -16,6 +16,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private detune = 0 // ピッチシフト（セント単位、100セント=1半音）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -31,7 +32,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    transpose = 0 // 移調（半音単位）
   ) {
     if (!url) return
     
@@ -43,7 +45,8 @@ class BGMManager {
     this.timeSignature = timeSig
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
-    this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate))
+    this.detune = transpose * 100 // 半音をセントに変換
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -56,6 +59,18 @@ class BGMManager {
       console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
       this._playHtmlAudio(url, volume)
     })
+  }
+
+  /**
+   * ピッチ（移調）を動的に変更する
+   * @param transpose 半音単位（±12など）
+   */
+  setTranspose(transpose: number) {
+    this.detune = transpose * 100;
+    if (this.waSource && this.waSource.detune) {
+      // 現在再生中のソースに即時適用
+      this.waSource.detune.value = this.detune;
+    }
   }
 
   setVolume(v: number) {
@@ -308,6 +323,9 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
+    if (src.detune) {
+      src.detune.value = this.detune // ピッチシフトを設定
+    }
     src.connect(this.waGain!)
 
     // 再生
