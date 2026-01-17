@@ -71,6 +71,9 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 移調練習機能
+  transpose_practice_enabled: boolean;
+  base_key: string;
 }
 
 const defaultValues: StageFormValues = {
@@ -101,6 +104,8 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  transpose_practice_enabled: false,
+  base_key: 'C',
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -320,6 +325,8 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        transpose_practice_enabled: !!(s as any).transpose_practice_enabled,
+        base_key: (s as any).base_key || 'C',
       };
       reset(v);
     } catch (e: any) {
@@ -360,6 +367,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      transpose_practice_enabled: v.transpose_practice_enabled,
+      base_key: v.base_key || 'C',
     };
 
     // モードに応じた不要フィールドの削除
@@ -414,6 +423,8 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
       music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
+      transpose_practice_enabled: !!(s as DbFantasyStage & { transpose_practice_enabled?: boolean }).transpose_practice_enabled,
+      base_key: (s as DbFantasyStage & { base_key?: string }).base_key || 'C',
     };
   }, []);
 
@@ -539,6 +550,8 @@ const FantasyStageManager: React.FC = () => {
         is_sheet_music_mode: currentValues.is_sheet_music_mode,
         required_clears_for_next: currentValues.required_clears_for_next,
         music_xml: currentValues.music_xml || null,
+        transpose_practice_enabled: currentValues.transpose_practice_enabled,
+        base_key: currentValues.base_key || 'C',
       };
       
       // 新規ステージとして作成
@@ -1053,6 +1066,45 @@ const FantasyStageManager: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              </Section>
+            )}
+
+            {/* 移調練習設定（progression_timing用） */}
+            {mode === 'progression_timing' && (
+              <Section title="移調練習設定">
+                <div className="space-y-4">
+                  <div className="flex items-center gap-4">
+                    <SmallLabel>移調練習機能を有効にする</SmallLabel>
+                    <input type="checkbox" className="toggle toggle-primary" {...register('transpose_practice_enabled')} />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    有効にすると、練習モードでユーザーがキーを変更できます。
+                    譜面、太鼓ノーツ、音源がすべて移調されます。
+                  </p>
+                  
+                  {watch('transpose_practice_enabled') && (
+                    <div>
+                      <SmallLabel>基準キー</SmallLabel>
+                      <select className="select select-bordered w-40" {...register('base_key')}>
+                        <option value="C">C</option>
+                        <option value="Db">Db</option>
+                        <option value="D">D</option>
+                        <option value="Eb">Eb</option>
+                        <option value="E">E</option>
+                        <option value="F">F</option>
+                        <option value="Gb">Gb</option>
+                        <option value="G">G</option>
+                        <option value="Ab">Ab</option>
+                        <option value="A">A</option>
+                        <option value="Bb">Bb</option>
+                        <option value="B">B</option>
+                      </select>
+                      <p className="text-xs text-gray-400 mt-1">
+                        この曲の元のキーを設定してください。ユーザーは±6の範囲で移調できます。
+                      </p>
+                    </div>
+                  )}
                 </div>
               </Section>
             )}

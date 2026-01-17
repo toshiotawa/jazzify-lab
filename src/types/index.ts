@@ -562,6 +562,9 @@ export interface FantasyStage {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string;
+  // 移調練習機能
+  transpose_practice_enabled?: boolean;
+  base_key?: string; // 基準キー（C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B）
 }
 
 // ファンタジーステージクリア記録

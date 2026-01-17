@@ -277,6 +277,9 @@ export interface UpsertFantasyStagePayload {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // 移調練習機能
+  transpose_practice_enabled?: boolean;
+  base_key?: string;
 }
 
 /**
