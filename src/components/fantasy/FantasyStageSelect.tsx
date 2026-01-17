@@ -284,6 +284,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
         // MusicXML（OSMD楽譜表示用）
         musicXml: (stage as any).music_xml,
+        enableTransposition: !!(stage as any).enable_transposition,
       }));
       
       const convertedProgress: FantasyUserProgress = {

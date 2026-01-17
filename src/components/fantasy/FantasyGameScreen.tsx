@@ -1327,7 +1327,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <div className="w-full space-y-2">
                 
                 {/* 移調練習機能（有効な場合のみ表示） */}
-                {stage.enable_transposition && (
+                {stage.enableTransposition && (
                   <div className="bg-gray-800/80 p-3 rounded-lg border border-gray-600 space-y-2 mb-2">
                     <div className="text-sm font-bold text-yellow-300">移調練習設定</div>
                     <div className="grid grid-cols-2 gap-2">
