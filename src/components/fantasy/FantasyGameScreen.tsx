@@ -31,6 +31,7 @@ import {
   getKeyFromSemitones,
   formatTransposeSemitones,
 } from '@/utils/transposeUtils';
+import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -546,6 +547,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            gameState.taikoNotes.length > 0 &&
            !!stage.musicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
+  
+  // 移調練習時の楽譜を移調する
+  // gameState.currentTransposeSemitonesはリピート時に更新される
+  const transposedMusicXml = useMemo(() => {
+    if (!stage.musicXml) return '';
+    const currentSemitones = gameState.currentTransposeSemitones || 0;
+    if (currentSemitones === 0) return stage.musicXml;
+    
+    devLog.debug('🎼 楽譜を移調:', { semitones: currentSemitones });
+    return transposeMusicXml(stage.musicXml, currentSemitones);
+  }, [stage.musicXml, gameState.currentTransposeSemitones]);
   
   // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
   const harmonyMarkers = useMemo(() => {
@@ -1830,7 +1842,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <FantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
-            musicXml={stage.musicXml || ''}
+            musicXml={transposedMusicXml}
             bpm={stage.bpm || 120}
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}
