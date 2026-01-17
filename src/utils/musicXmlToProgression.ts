@@ -8,8 +8,14 @@ import { note as parseNote } from 'tonal';
  * - octave/inversion: 同時発音ノーツの最低音から推定（なければデフォルト octave=4, inversion=0）
  * - text: <harmony> の表記をそのまま格納（オーバーレイ表示用）
  * - 単音ノーツで lyric が無い場合は、単音として { type: 'note', chord: 'G' } のように出力
+ * 
+ * groupSimultaneousNotes: true の場合、同タイミングの複数ノーツを1つのエントリにまとめる
+ * （Progression_Timing用：同時に鳴る音を1つの正解ノーツとして扱う）
  */
-export function convertMusicXmlToProgressionData(xmlText: string): ChordProgressionDataItem[] {
+export function convertMusicXmlToProgressionData(
+  xmlText: string, 
+  options?: { groupSimultaneousNotes?: boolean }
+): ChordProgressionDataItem[] {
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlText, 'application/xml');
   const measures = Array.from(doc.querySelectorAll('measure'));
@@ -138,8 +144,20 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
             inversion: inversion ?? 0,
             octave: bass ? bass.octave : 4
           });
+        } else if (pitches.length > 1) {
+          // 複数音（和音として扱う）
+          const noteNames = pitches.map(p => p.step);
+          result.push({
+            bar,
+            beats: toBeats(currentPos, divisionsPerQuarter),
+            chord: noteNames.join(''), // 例: "CEG"
+            octave: bass ? bass.octave : 4,
+            inversion: 0,
+            notes: noteNames, // 個別の音名配列
+            type: 'chord'
+          } as any);
         } else {
-          // 単音扱い（lyric なし）
+          // 単音扱い
           const single = bass ? bass : pitches[0] || null;
           if (single) {
             result.push({
@@ -168,6 +186,138 @@ export function convertMusicXmlToProgressionData(xmlText: string): ChordProgress
 
   // 時間順にソート
   result.sort((a, b) => a.bar === b.bar ? a.beats - b.beats : a.bar - b.bar);
+  
+  // groupSimultaneousNotes が有効な場合、同タイミングのノーツをまとめる
+  if (options?.groupSimultaneousNotes) {
+    return groupSimultaneousNotesInResult(result);
+  }
+  
   return result;
+}
+
+/**
+ * 同タイミングの複数ノーツを1つのエントリにまとめる
+ * - 同じ bar と beats を持つノーツをグループ化
+ * - notes配列に全ての音名を格納
+ * - N.C.（harmony）と同じタイミングのノートがある場合、ノートにtextをマージ
+ */
+function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): ChordProgressionDataItem[] {
+  const grouped: ChordProgressionDataItem[] = [];
+  const noteMap = new Map<string, ChordProgressionDataItem[]>();
+  const harmonyMap = new Map<string, ChordProgressionDataItem>();
+  
+  // 同じタイミングのノーツをグループ化
+  for (const item of items) {
+    const key = `${item.bar}_${item.beats}`;
+    
+    // N.C.やテキストのみのアイテム（harmony）は別途保存
+    if (!item.chord || item.chord.toUpperCase() === 'N.C.' || item.chord.trim() === '') {
+      // 同じタイミングにharmonyが複数ある場合は最初のものを使用
+      if (!harmonyMap.has(key)) {
+        harmonyMap.set(key, item);
+      }
+      continue;
+    }
+    
+    // ノートはnoteMapに追加
+    const existing = noteMap.get(key);
+    if (existing) {
+      existing.push(item);
+    } else {
+      noteMap.set(key, [item]);
+    }
+  }
+  
+  // グループ化されたノーツを処理
+  for (const [key, noteItems] of noteMap) {
+    // 同じタイミングのharmonyからtextを取得
+    const harmony = harmonyMap.get(key);
+    const harmonyText = harmony?.text;
+    
+    if (noteItems.length === 1) {
+      // 単一ノーツ: harmonyのtextをマージ
+      const note = { ...noteItems[0] };
+      if (harmonyText && !note.text) {
+        note.text = harmonyText;
+      }
+      grouped.push(note);
+    } else {
+      // 複数ノーツをまとめる
+      const firstItem = noteItems[0];
+      const allNotes: string[] = [];
+      let lowestOctave = 9;
+      let lowestMidi = Infinity;
+      let itemText: string | undefined = harmonyText;
+      
+      for (const item of noteItems) {
+        // textが設定されているアイテムからテキストを取得
+        if (item.text && !itemText) {
+          itemText = item.text;
+        }
+        
+        // コード名から音名を抽出
+        if (item.chord) {
+          // 単音の場合（type: 'note' or 'chord'）はそのまま使用
+          if ((item as any).type === 'note' || (item as any).type === 'chord') {
+            // notes配列がある場合はそれを使用
+            if ((item as any).notes && Array.isArray((item as any).notes)) {
+              allNotes.push(...(item as any).notes);
+            } else {
+              allNotes.push(item.chord);
+            }
+            // オクターブを抽出
+            const match = item.chord.match(/([A-G][#b]?)(\d+)?/);
+            if (match) {
+              const oct = match[2] ? parseInt(match[2], 10) : (item.octave ?? 4);
+              if (oct < lowestOctave) {
+                lowestOctave = oct;
+              }
+              const noteParsed = parseNote(match[1] + String(oct));
+              if (noteParsed && typeof noteParsed.midi === 'number' && noteParsed.midi < lowestMidi) {
+                lowestMidi = noteParsed.midi;
+              }
+            }
+          } else {
+            // コードの場合
+            allNotes.push(item.chord);
+            if (item.octave && item.octave < lowestOctave) {
+              lowestOctave = item.octave;
+            }
+          }
+        }
+      }
+      
+      // 音名を低い順にソート
+      allNotes.sort((a, b) => {
+        const aParsed = parseNote(a.replace(/\d+$/, '') + '4');
+        const bParsed = parseNote(b.replace(/\d+$/, '') + '4');
+        const aMidi = aParsed?.midi ?? 0;
+        const bMidi = bParsed?.midi ?? 0;
+        return aMidi - bMidi;
+      });
+      
+      grouped.push({
+        bar: firstItem.bar,
+        beats: firstItem.beats,
+        chord: allNotes.join(''), // 例: "CEG"
+        octave: lowestOctave < 9 ? lowestOctave : 4,
+        inversion: 0,
+        text: itemText,
+        // 新規フィールド: 個別の音名配列
+        notes: allNotes
+      } as ChordProgressionDataItem & { notes?: string[] });
+    }
+  }
+  
+  // ノートがないタイミングのharmonyのみを追加（テキスト表示用）
+  for (const [key, harmony] of harmonyMap) {
+    if (!noteMap.has(key)) {
+      grouped.push(harmony);
+    }
+  }
+  
+  // 再度時間順にソート
+  grouped.sort((a, b) => a.bar === b.bar ? a.beats - b.beats : a.bar - b.bar);
+  return grouped;
 }
 

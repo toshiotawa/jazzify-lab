@@ -19,6 +19,8 @@ interface TaikoDisplayNote {
   id: string;
   chord: string;
   x: number;
+  /** 複数音の場合の個別音名配列（下から順に表示）*/
+  noteNames?: string[];
 }
 
 interface ParticleEffect {
@@ -547,17 +549,33 @@ export class FantasyPIXIInstance {
       ctx.lineWidth = 3;
       ctx.stroke();
       
-      // コード名（ノーツの上にバッジとして表示）- フォントを大きく
-      const badgePadding = 12;
-      ctx.font = 'bold 24px "Inter", sans-serif';
-      const textWidth = ctx.measureText(note.chord).width;
-      const badgeWidth = textWidth + badgePadding * 2;
-      const badgeHeight = 36;
+      // 音名表示（ノーツの上に縦配置で表示）
+      // noteNamesがある場合は縦に並べる、なければchordをスペースで分割
+      const displayNotes = note.noteNames || (note.chord ? note.chord.split(/\s+/).filter(n => n) : []);
+      const noteCount = displayNotes.length;
+      
+      if (noteCount === 0) return;
+      
+      const fontSize = noteCount > 3 ? 16 : noteCount > 2 ? 18 : 22;
+      const lineHeight = fontSize + 4;
+      const badgePadding = 8;
+      
+      ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
+      
+      // 最大テキスト幅を計算
+      let maxTextWidth = 0;
+      for (const noteName of displayNotes) {
+        const tw = ctx.measureText(noteName).width;
+        if (tw > maxTextWidth) maxTextWidth = tw;
+      }
+      
+      const badgeWidth = maxTextWidth + badgePadding * 2;
+      const badgeHeight = noteCount * lineHeight + badgePadding * 2;
       const badgeX = note.x - badgeWidth / 2;
-      const badgeY = judgePos.y - radius - badgeHeight - 12;
+      const badgeY = judgePos.y - radius - badgeHeight - 8;
       
       // バッジ背景
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.8)';
+      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
       ctx.beginPath();
       ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 6);
       ctx.fill();
@@ -570,11 +588,18 @@ export class FantasyPIXIInstance {
       ctx.closePath();
       ctx.fill();
       
-      // コード名テキスト
+      // 音名を縦に配置（下から上へ、つまり配列の先頭が最下部）
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      ctx.fillText(note.chord, note.x, badgeY + badgeHeight / 2);
+      
+      // displayNotesは低い音から順なので、下から上に配置
+      for (let i = 0; i < noteCount; i++) {
+        const noteName = displayNotes[i];
+        // 最下部から上へ配置（i=0が最下部）
+        const textY = badgeY + badgeHeight - badgePadding - (i + 0.5) * lineHeight;
+        ctx.fillText(noteName, note.x, textY);
+      }
     });
   }
 

@@ -192,6 +192,38 @@
     height: 0 !important;
   }
   
+  /* ファンタジーモード用楽譜表示スタイル（白背景、黒音符） */
+  .fantasy-sheet-music canvas,
+  .fantasy-sheet-music svg {
+    background: #ffffff !important;
+  }
+  
+  /* OSMDの五線譜の色を黒に変更 */
+  .fantasy-sheet-music .vf-stave line,
+  .fantasy-sheet-music .vf-staff line {
+    stroke: #000000 !important;
+  }
+  
+  /* OSMDの音符を黒色に */
+  .fantasy-sheet-music .vf-notehead path,
+  .fantasy-sheet-music .vf-stem path,
+  .fantasy-sheet-music .vf-beam path,
+  .fantasy-sheet-music .vf-flag path {
+    fill: #000000 !important;
+    stroke: #000000 !important;
+  }
+  
+  /* OSMDの休符を濃いグレーに */
+  .fantasy-sheet-music .vf-rest path {
+    fill: #333333 !important;
+  }
+  
+  /* OSMDのコード名を黒に */
+  .fantasy-sheet-music .vf-chordname text,
+  .fantasy-sheet-music .vf-annotation text {
+    fill: #000000 !important;
+  }
+  
   .custom-sheet-scrollbar::-webkit-scrollbar-button:single-button {
     display: none !important;
     width: 0 !important;

@@ -58,6 +58,8 @@ interface StageFormValues {
   allowed_chords: any[];
   chord_progression: any[];
   chord_progression_data: TimingRow[];
+  // MusicXML（OSMD楽譜表示用）
+  music_xml?: string | null;
 }
 
 const defaultValues: StageFormValues = {
@@ -81,6 +83,7 @@ const defaultValues: StageFormValues = {
   allowed_chords: [],
   chord_progression: [],
   chord_progression_data: [],
+  music_xml: null,
   bgm_url: '',
   mp3_url: '',
 };
@@ -227,6 +230,7 @@ const LessonFantasyStageManager: React.FC = () => {
       note_interval_beats: v.note_interval_beats ?? null,
       stage_tier: 'basic',  // レッスン専用は常にbasic
       usage_type: 'lesson',  // レッスン専用
+      music_xml: v.music_xml || null,
     };
 
     // モードに応じた不要フィールドの削除
@@ -617,10 +621,13 @@ const LessonFantasyStageManager: React.FC = () => {
                         try {
                           const text = await f.text();
                           const mod = await import('@/utils/musicXmlToProgression');
-                          const items = mod.convertMusicXmlToProgressionData(text);
+                          // 同タイミングのノーツをまとめて1つのノーツとして扱う
+                          const items = mod.convertMusicXmlToProgressionData(text, { groupSimultaneousNotes: true });
                           replaceTiming(items as any);
                           setValue('chord_progression_data', items as any);
-                          toast.success('MusicXML から progression を読み込みました');
+                          // 元のMusicXMLも保存（OSMD楽譜表示用）
+                          setValue('music_xml', text);
+                          toast.success('MusicXML から progression を読み込みました（同時ノーツをグループ化）');
                         } catch (err: any) {
                           console.error(err);
                           toast.error('MusicXML の読み込みに失敗しました');

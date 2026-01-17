@@ -175,6 +175,7 @@ const FantasyMain: React.FC = () => {
             playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+            musicXml: (stage as any).music_xml,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -223,6 +224,7 @@ const FantasyMain: React.FC = () => {
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+          musicXml: (stage as any).music_xml,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));

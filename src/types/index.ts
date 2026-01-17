@@ -552,6 +552,8 @@ export interface FantasyStage {
   is_sheet_music_mode?: boolean;
   // 新規: 次ステージ開放に必要なクリア換算回数（Sランク=10回換算、それ以外=1回）
   required_clears_for_next?: number;
+  // MusicXML（OSMD楽譜表示用）
+  music_xml?: string;
 }
 
 // ファンタジーステージクリア記録
