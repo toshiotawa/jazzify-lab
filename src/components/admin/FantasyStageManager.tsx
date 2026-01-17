@@ -499,6 +499,70 @@ const FantasyStageManager: React.FC = () => {
     }
   };
 
+  // 複製機能
+  const handleDuplicate = async () => {
+    if (!selectedStageId) return;
+    
+    try {
+      setLoading(true);
+      const currentValues = watch();
+      
+      // IDを除外して複製用のデータを作成
+      const duplicatePayload: UpsertFantasyStagePayload = {
+        // IDは除外（新規作成として扱う）
+        stage_number: currentValues.stage_number ? `${currentValues.stage_number}_copy` : '',
+        name: `${currentValues.name}（複製）`,
+        description: currentValues.description,
+        mode: currentValues.mode,
+        max_hp: currentValues.max_hp,
+        enemy_gauge_seconds: currentValues.enemy_gauge_seconds,
+        enemy_count: currentValues.enemy_count,
+        enemy_hp: currentValues.enemy_hp,
+        min_damage: currentValues.min_damage,
+        max_damage: currentValues.max_damage,
+        simultaneous_monster_count: currentValues.simultaneous_monster_count,
+        show_guide: currentValues.show_guide,
+        play_root_on_correct: currentValues.play_root_on_correct,
+        bpm: currentValues.bpm,
+        measure_count: currentValues.measure_count,
+        time_signature: currentValues.time_signature,
+        count_in_measures: currentValues.count_in_measures,
+        bgm_url: currentValues.bgm_url || null,
+        mp3_url: currentValues.mp3_url || null,
+        allowed_chords: currentValues.allowed_chords,
+        chord_progression: currentValues.chord_progression,
+        chord_progression_data: currentValues.chord_progression_data,
+        note_interval_beats: currentValues.note_interval_beats ?? null,
+        stage_tier: currentValues.stage_tier,
+        usage_type: 'fantasy',
+        is_sheet_music_mode: currentValues.is_sheet_music_mode,
+        required_clears_for_next: currentValues.required_clears_for_next,
+        music_xml: currentValues.music_xml || null,
+      };
+      
+      // 新規ステージとして作成
+      const created = await createFantasyStage(duplicatePayload);
+      
+      // キャッシュをクリア
+      clearCacheByPattern(/fantasy_stages/);
+      
+      // サーバーレスポンスを使ってフォームを更新
+      const formValues = serverResponseToFormValues(created);
+      reset(formValues);
+      setSelectedStageId(created.id);
+      
+      // ステージリストに追加
+      setStages(prev => [created, ...prev]);
+      
+      toast.success('ステージを複製しました');
+    } catch (e: unknown) {
+      const errorMessage = e instanceof Error ? e.message : '複製に失敗しました';
+      toast.error(errorMessage);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const quickAddAllowed = (text: string) => {
     const items = parseQuickChordInput(text);
     if (!items.length) return;
@@ -1125,7 +1189,10 @@ const FantasyStageManager: React.FC = () => {
             <div className="flex items-center gap-3">
               <button type="submit" className="btn btn-primary" disabled={loading}>{loading ? '保存中...' : '保存'}</button>
               {selectedStageId && (
-                <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                <>
+                  <button type="button" className="btn btn-secondary" onClick={handleDuplicate} disabled={loading}>複製</button>
+                  <button type="button" className="btn btn-error" onClick={handleDelete} disabled={loading}>削除</button>
+                </>
               )}
             </div>
 
