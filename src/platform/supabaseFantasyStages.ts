@@ -279,6 +279,8 @@ export interface UpsertFantasyStagePayload {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // 移調練習機能の有効/無効（Timingモード用）
+  enable_transposition?: boolean;
 }
 
 /**
@@ -292,6 +294,10 @@ export async function createFantasyStage(payload: UpsertFantasyStagePayload): Pr
     .select('*')
     .single();
   if (error) throw error;
+  
+  // 新規ステージ作成後、関連するキャッシュをクリア
+  clearCacheByPattern('fantasy_stages');
+  
   return data as FantasyStage;
 }
 
@@ -307,6 +313,10 @@ export async function updateFantasyStage(id: string, payload: Partial<UpsertFant
     .select('*')
     .single();
   if (error) throw error;
+  
+  // ステージ更新後、関連するキャッシュをクリア
+  clearCacheByPattern('fantasy_stages');
+  
   return data as FantasyStage;
 }
 
@@ -320,6 +330,9 @@ export async function deleteFantasyStage(id: string): Promise<void> {
     .delete()
     .eq('id', id);
   if (error) throw error;
+  
+  // ステージ削除後、関連するキャッシュをクリア
+  clearCacheByPattern('fantasy_stages');
 }
 
 /**

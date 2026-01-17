@@ -178,6 +178,7 @@ const FantasyMain: React.FC = () => {
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
             musicXml: (stage as any).music_xml,
+            enableTransposition: !!(stage as any).enable_transposition,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -227,6 +228,7 @@ const FantasyMain: React.FC = () => {
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
           musicXml: (stage as any).music_xml,
+          enableTransposition: !!(stage as any).enable_transposition,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
