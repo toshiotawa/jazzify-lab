@@ -82,8 +82,11 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
 
   // ─────────────────────────────────────────────
-  // ベース音関連フィールド - 合成音を使用（高速起動）
-  private bassSynth: any | null = null;
+  // ベース音関連フィールド - ピアノサンプラー + 合成音フォールバック
+  private bassSynth: any | null = null;           // 合成音（フォールバック用）
+  private pianoSampler: any | null = null;        // Salamander Piano サンプラー
+  private pianoSamplerReady = false;              // サンプラー読み込み完了フラグ
+  private usePianoSampler = true;                 // ピアノサンプラーを優先使用
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -170,13 +173,14 @@ export class FantasySoundManager {
         console.warn('[FantasySoundManager] SE buffer setup failed:', e)
       );
 
-      // 🚀 合成音ベースシンセサイザー（Salamanderの代わり）
-      // ネットワーク不要で即座に使用可能
+      // 🎹 ピアノ音源システム（ハイブリッド）
+      // Phase 1: 合成音で即座に利用可能（フォールバック）
+      // Phase 2: バックグラウンドでSalamanderサンプラーを読み込み
       const Tone = window.Tone as unknown as typeof import('tone');
       if (Tone) {
+        // Phase 1: 合成音シンセサイザー（フォールバック用）
         try {
-          // ベース音用のシンプルなシンセサイザー
-          // 太くて暖かみのある音色設定
+          // ピアノに近い音色設定（三角波 + フィルターエンベロープ）
           this.bassSynth = new Tone.MonoSynth({
             oscillator: {
               type: 'triangle'  // 柔らかい波形
@@ -197,10 +201,16 @@ export class FantasySoundManager {
             }
           }).toDestination();
           this.bassInitialized = true;
-          console.debug('[FantasySoundManager] BassSynth (synthetic) initialized');
+          console.debug('[FantasySoundManager] BassSynth (synthetic fallback) initialized');
         } catch (e) {
           console.warn('[FantasySoundManager] BassSynth creation failed:', e);
         }
+
+        // Phase 2: Salamander Piano サンプラー（バックグラウンド読み込み）
+        // 3つの基準音（C2, C3, C4）から全音域を補間
+        this._loadPianoSampler(Tone, baseUrl).catch(e => {
+          console.debug('[FantasySoundManager] Piano sampler load skipped:', e);
+        });
       }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
@@ -350,7 +360,7 @@ export class FantasySoundManager {
     }
   }
 
-  // 🚀 パフォーマンス最適化: ベース音関連のprivateメソッド（合成音で高速再生）
+  // 🎹 ピアノ音再生（サンプラー優先、合成音フォールバック）
   private async _playRootNote(rootName: string) {
     // 初期化完了済みの場合は待機をスキップ（高速化）
     if (!this.isInited && this.loadedPromise) {
@@ -359,7 +369,7 @@ export class FantasySoundManager {
       await Promise.race([this.loadedPromise, timeout]);
     }
 
-    if (!this.bassEnabled || !this.bassSynth) return;
+    if (!this.bassEnabled) return;
     
     const Tone = window.Tone as unknown as typeof import('tone');
     if (!Tone) return; // Tone.js未ロードの場合は早期リターン
@@ -374,7 +384,23 @@ export class FantasySoundManager {
     
     const note = Tone.Frequency(n.midi, 'midi').toNote();
     
-    // 合成音で再生（サンプラーより低遅延）
+    // 🎹 ピアノサンプラー優先（リアルなピアノ音）
+    if (this.usePianoSampler && this.pianoSamplerReady && this.pianoSampler) {
+      try {
+        this.pianoSampler.triggerAttackRelease(
+          note,
+          '4n',  // サンプラーは少し長めに再生
+          t
+        );
+        return; // サンプラー再生成功
+      } catch (e) {
+        console.debug('[FantasySoundManager] Piano sampler playback failed, trying synth:', e);
+      }
+    }
+    
+    // 🔊 合成音フォールバック（サンプラー未準備時）
+    if (!this.bassSynth) return;
+    
     try {
       this.bassSynth.triggerAttackRelease(
         note,
@@ -387,14 +413,21 @@ export class FantasySoundManager {
   }
 
   private _setRootVolume(v: number) {
-    // 合成音の音量を調整（サンプラーより音量が大きくなりやすいので補正）
-    // 0.5 → -6dB 程度の補正で自然な音量に
-    this.bassVolume = Math.min(1, v * 1.2); // 少し音量を上げる
+    this.bassVolume = v;
+    
+    // 合成音の音量を調整
     if (this.bassSynth) {
       // dB変換 + 補正（合成音は少し控えめに）
       const dbValue = v === 0 ? -Infinity : Math.log10(v) * 20 - 3;
-      (this.bassSynth.volume as any).value = dbValue;
+      try {
+        (this.bassSynth.volume as any).value = dbValue;
+      } catch (e) {
+        console.debug('[FantasySoundManager] Synth volume set error:', e);
+      }
     }
+    
+    // ピアノサンプラーの音量も同期
+    this._syncPianoSamplerVolume();
   }
 
   private _enableRootSound(enabled: boolean) {
@@ -446,6 +479,70 @@ export class FantasySoundManager {
       } catch {}
     } catch (e) {
       console.warn('[FantasySoundManager] unlock failed:', e);
+    }
+  }
+
+  // ─────────────────────────────────────────────
+  // Piano Sampler setup (Salamander Grand Piano)
+  private async _loadPianoSampler(Tone: typeof import('tone'), baseUrl: string): Promise<void> {
+    return new Promise((resolve, reject) => {
+      try {
+        const pianoPath = `${baseUrl}sounds/piano/`;
+        
+        // Tone.Sampler: 3つの基準音から全音域を自動補間
+        // C2, C3, C4 の3サンプルで約260KB（軽量）
+        const sampler = new (Tone as any).Sampler({
+          urls: {
+            C2: 'C2.mp3',
+            C3: 'C3.mp3',
+            C4: 'C4.mp3',
+          },
+          baseUrl: pianoPath,
+          onload: () => {
+            this.pianoSampler = sampler;
+            this.pianoSamplerReady = true;
+            // 音量を合成音と同じレベルに設定
+            this._syncPianoSamplerVolume();
+            console.debug('[FantasySoundManager] 🎹 Salamander Piano sampler loaded (3 samples, ~260KB)');
+            resolve();
+          },
+          onerror: (err: Error) => {
+            console.debug('[FantasySoundManager] Piano sampler load error, using synthetic fallback:', err.message);
+            this.usePianoSampler = false;
+            reject(err);
+          },
+          // 音質とパフォーマンスのバランス設定
+          attack: 0,           // 即座にアタック
+          release: 0.5,        // 適度なリリース
+        }).toDestination();
+        
+        // タイムアウト設定（5秒で合成音にフォールバック）
+        setTimeout(() => {
+          if (!this.pianoSamplerReady) {
+            console.debug('[FantasySoundManager] Piano sampler timeout, using synthetic fallback');
+            this.usePianoSampler = false;
+            reject(new Error('Piano sampler load timeout'));
+          }
+        }, 5000);
+        
+      } catch (e) {
+        console.debug('[FantasySoundManager] Piano sampler setup error:', e);
+        this.usePianoSampler = false;
+        reject(e);
+      }
+    });
+  }
+
+  // ピアノサンプラーの音量を同期
+  private _syncPianoSamplerVolume(): void {
+    if (this.pianoSampler) {
+      // dB変換（合成音と同じロジック）
+      const dbValue = this.bassVolume === 0 ? -Infinity : Math.log10(this.bassVolume) * 20;
+      try {
+        (this.pianoSampler.volume as any).value = dbValue;
+      } catch (e) {
+        console.debug('[FantasySoundManager] Piano sampler volume sync error:', e);
+      }
     }
   }
 
