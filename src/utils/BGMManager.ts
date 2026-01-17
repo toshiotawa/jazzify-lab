@@ -16,6 +16,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private pitchSemitones = 0 // ピッチシフト（半音単位、-12〜+12）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -232,6 +233,30 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
+  getPitchSemitones(): number { return this.pitchSemitones }
+
+  /**
+   * ピッチを変更（移調用）
+   * @param semitones 半音数（-12〜+12）
+   */
+  setPitch(semitones: number) {
+    // -12〜+12の範囲に制限
+    this.pitchSemitones = Math.max(-12, Math.min(12, semitones))
+    
+    // Web Audio経由で再生中の場合、detuneを更新
+    if (this.waSource) {
+      // 1半音 = 100セント
+      this.waSource.detune.value = this.pitchSemitones * 100
+      console.log('🎼 BGMピッチ変更:', { semitones: this.pitchSemitones, cents: this.pitchSemitones * 100 })
+    }
+    
+    // HTMLAudio経由の場合はピッチ変更不可（preservesPitchが有効なため）
+    // 注意: HTMLAudioではpreservesPitchをfalseにしてplaybackRateで対応する必要があるが、
+    // それだとテンポも変わってしまうため、移調機能はWebAudio経由でのみ完全にサポート
+    if (this.audio && !this.waSource) {
+      console.warn('⚠️ HTMLAudio経由の場合、ピッチシフトは限定的です')
+    }
+  }
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -308,6 +333,7 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
+    src.detune.value = this.pitchSemitones * 100 // ピッチシフト（1半音=100セント）
     src.connect(this.waGain!)
 
     // 再生

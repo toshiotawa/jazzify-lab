@@ -23,6 +23,14 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasy
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import {
+  TranspositionSettings,
+  DEFAULT_TRANSPOSITION_SETTINGS,
+  generateTransposeOptions,
+  REPEAT_TRANSPOSE_OPTIONS,
+  getKeyNameFromTranspose,
+  formatTransposeDisplay
+} from '@/utils/fantasyTransposition';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -124,6 +132,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
+  
+  // 移調練習モード用の状態（progression_timingモードでのみ使用）
+  const [transpositionSettings, setTranspositionSettings] = useState<TranspositionSettings>(DEFAULT_TRANSPOSITION_SETTINGS);
+  const [currentTranspose, setCurrentTranspose] = useState<number>(0); // 現在の移調量（リピート後の値）
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -596,9 +608,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       settings.bgmVolume ?? 0.7,
       playbackRate
     );
+    
+    // 移調練習モードの場合、初期ピッチを設定
+    if (gameState.currentTranspose !== 0) {
+      bgmManager.setPitch(gameState.currentTranspose);
+      devLog.debug('🎼 BGM初期ピッチ設定:', { semitones: gameState.currentTranspose });
+    }
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTranspose]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -616,13 +634,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameStateRef.current = gameState;
   }, [gameState]);
 
-  const buildInitStage = useCallback((): FantasyStage => {
-    return {
+  const buildInitStage = useCallback((includeTransposition: boolean = false): FantasyStage => {
+    const baseStage = {
       ...stage,
       // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
       noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats,
+      // 移調練習機能の有効フラグをマップ
+      transpositionPracticeEnabled: (stage as any).transposition_practice_enabled ?? false,
     };
-  }, [stage]);
+    
+    // 練習モードで移調設定を含める場合
+    if (includeTransposition && baseStage.transpositionPracticeEnabled) {
+      return {
+        ...baseStage,
+        transpositionSettings: transpositionSettings
+      };
+    }
+    
+    return baseStage;
+  }, [stage, transpositionSettings]);
 
   const startGame = useCallback(async (mode: FantasyPlayMode, speedMultiplier: number = 1.0) => {
     // 初期化が完了していない場合は待機
@@ -634,6 +664,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 速度を設定
     setSelectedSpeedMultiplier(speedMultiplier);
     
+    // 移調設定をリセット（初期値から開始）
+    setCurrentTranspose(transpositionSettings.initialTranspose);
+    
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
@@ -641,14 +674,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // 🚀 画像プリロードを含むゲーム初期化を待機
     // Ready画面表示中にロードが完了する
-    // 速度倍率を含むステージを作成
-    const stageWithSpeed = speedMultiplier !== 1.0 
-      ? { ...buildInitStage(), speedMultiplier }
-      : buildInitStage();
-    await initializeGame(stageWithSpeed, mode);
+    // 速度倍率と移調設定を含むステージを作成（練習モードの場合）
+    const includeTransposition = mode === 'practice';
+    const baseStage = buildInitStage(includeTransposition);
+    const stageWithSettings = speedMultiplier !== 1.0 
+      ? { ...baseStage, speedMultiplier }
+      : baseStage;
+    await initializeGame(stageWithSettings, mode);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
-  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { 
+      speedMultiplier, 
+      transpositionEnabled: includeTransposition && (stage as any).transposition_practice_enabled,
+      initialTranspose: transpositionSettings.initialTranspose
+    });
+  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, transpositionSettings, stage]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
@@ -1322,10 +1361,68 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>
+                
+                {/* 移調練習設定（progression_timingで有効な場合のみ表示） */}
+                {stage.mode === 'progression_timing' && (stage as any).transposition_practice_enabled && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 space-y-2 border border-purple-500/30">
+                    <div className="text-sm text-purple-300 font-medium">
+                      🎼 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
+                    </div>
+                    
+                    {/* キー変更ドロップダウン */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-20">
+                        {isEnglishCopy ? 'Start Key' : '開始キー'}
+                      </span>
+                      <select
+                        value={transpositionSettings.initialTranspose}
+                        onChange={(e) => setTranspositionSettings(prev => ({
+                          ...prev,
+                          initialTranspose: parseInt(e.target.value, 10)
+                        }))}
+                        className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      >
+                        {generateTransposeOptions().map(opt => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label} ({getKeyNameFromTranspose(opt.value)})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {/* リピートごとの移調設定 */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs text-gray-400 w-20">
+                        {isEnglishCopy ? 'Per Repeat' : 'リピート毎'}
+                      </span>
+                      <select
+                        value={transpositionSettings.repeatTranspose}
+                        onChange={(e) => setTranspositionSettings(prev => ({
+                          ...prev,
+                          repeatTranspose: parseInt(e.target.value, 10) as 0 | 1 | 5
+                        }))}
+                        className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:border-purple-500 focus:outline-none"
+                      >
+                        {REPEAT_TRANSPOSE_OPTIONS.map(opt => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+                    
+                    {transpositionSettings.repeatTranspose !== 0 && (
+                      <p className="text-xs text-purple-300/70">
+                        {isEnglishCopy 
+                          ? `Key changes by ${formatTransposeDisplay(transpositionSettings.repeatTranspose)} on each repeat`
+                          : `リピートごとに${formatTransposeDisplay(transpositionSettings.repeatTranspose)}半音移調します`}
+                      </p>
+                    )}
+                  </div>
+                )}
+                
                 {/* 通常速度で練習 */}
                 <button
                   onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 100%）');
+                    devLog.debug('🎮 ゲーム開始（練習 100%）', { transpositionSettings });
                     startGame('practice', 1.0);
                   }}
                   disabled={!isInitialized}
@@ -1342,7 +1439,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {/* 75%速度で練習 */}
                 <button
                   onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 75%）');
+                    devLog.debug('🎮 ゲーム開始（練習 75%）', { transpositionSettings });
                     startGame('practice', 0.75);
                   }}
                   disabled={!isInitialized}
@@ -1359,7 +1456,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {/* 50%速度で練習 */}
                 <button
                   onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 50%）');
+                    devLog.debug('🎮 ゲーム開始（練習 50%）', { transpositionSettings });
                     startGame('practice', 0.5);
                   }}
                   disabled={!isInitialized}
@@ -1464,6 +1561,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {selectedSpeedMultiplier < 1.0 && (
                   <span className="ml-2 px-2 py-0.5 bg-yellow-600 rounded text-xs">
                     {Math.round(selectedSpeedMultiplier * 100)}%
+                  </span>
+                )}
+                {/* 移調表示（練習モードで移調が有効な場合） */}
+                {gameState.transpositionSettings && gameState.currentTranspose !== 0 && (
+                  <span className="ml-2 px-2 py-0.5 bg-purple-600 rounded text-xs">
+                    Key: {getKeyNameFromTranspose(gameState.currentTranspose)} ({formatTransposeDisplay(gameState.currentTranspose)})
                   </span>
                 )}
               </div>
