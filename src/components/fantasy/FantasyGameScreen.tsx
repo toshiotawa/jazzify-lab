@@ -15,6 +15,8 @@ import { TaikoNote } from './TaikoNoteSystem';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
+import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
+import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
@@ -124,6 +126,48 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const initPromiseRef = useRef<Promise<void> | null>(null);
   // ゲーム初期化（画像プリロード）完了を追跡
   const [isGameReady, setIsGameReady] = useState(false);
+  
+  // MusicXML楽譜表示用の状態
+  const [musicXml, setMusicXml] = useState<string | null>(null);
+  const [isLoadingMusicXml, setIsLoadingMusicXml] = useState(false);
+  
+  // MusicXMLの読み込み（progression_timing + musicXmlUrl が設定されている場合）
+  useEffect(() => {
+    const loadMusicXml = async () => {
+      if (!stage.musicXmlUrl || stage.mode !== 'progression_timing') {
+        setMusicXml(null);
+        return;
+      }
+      
+      setIsLoadingMusicXml(true);
+      try {
+        const response = await fetch(stage.musicXmlUrl);
+        if (!response.ok) {
+          throw new Error(`MusicXML読み込み失敗: ${response.status}`);
+        }
+        const xmlText = await response.text();
+        setMusicXml(xmlText);
+        devLog.debug('✅ MusicXML読み込み完了:', stage.musicXmlUrl);
+      } catch (error) {
+        devLog.debug('❌ MusicXML読み込みエラー:', error);
+        setMusicXml(null);
+      } finally {
+        setIsLoadingMusicXml(false);
+      }
+    };
+    
+    loadMusicXml();
+  }, [stage.musicXmlUrl, stage.mode]);
+  
+  // 楽譜表示の有効/無効を判定
+  const shouldShowSheetMusic = useMemo(() => {
+    return (
+      stage.mode === 'progression_timing' &&
+      stage.showSheetMusic &&
+      musicXml !== null &&
+      !isLoadingMusicXml
+    );
+  }, [stage.mode, stage.showSheetMusic, musicXml, isLoadingMusicXml]);
   
   // BGMManagerからタイミング情報を定期的に取得
   // 🚀 パフォーマンス最適化: 間隔を200msに
@@ -543,12 +587,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [gameState]);
 
   const buildInitStage = useCallback((): FantasyStage => {
+    let finalChordProgressionData = stage.chordProgressionData;
+    
+    // useMusicXmlNotesが有効でMusicXMLが読み込まれている場合、
+    // MusicXMLから同時発音のノーツを含むchordProgressionDataを生成
+    if (stage.useMusicXmlNotes && musicXml && stage.mode === 'progression_timing') {
+      try {
+        const progressionData = convertMusicXmlToProgressionData(musicXml, true);
+        devLog.debug('✅ MusicXMLから chordProgressionData を生成:', {
+          noteCount: progressionData.length,
+          firstNote: progressionData[0],
+          useMusicXmlNotes: true
+        });
+        finalChordProgressionData = progressionData;
+      } catch (error) {
+        devLog.debug('⚠️ MusicXML変換エラー、元のデータを使用:', error);
+      }
+    }
+    
     return {
       ...stage,
       // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
       noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats,
+      // MusicXMLから生成したchordProgressionDataを使用（useMusicXmlNotesが有効な場合）
+      chordProgressionData: finalChordProgressionData,
     };
-  }, [stage]);
+  }, [stage, musicXml]);
 
   const startGame = useCallback(async (mode: FantasyPlayMode) => {
     // 初期化が完了していない場合は待機
@@ -1545,6 +1609,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="absolute right-2 bottom-2 z-50
                     pointer-events-none bg-black/40 rounded px-2 py-1">
           {renderSpGauge(gameState.playerSp)}
+        </div>
+      )}
+      
+      {/* ===== 楽譜表示エリア（progression_timing + showSheetMusic の場合のみ） ===== */}
+      {shouldShowSheetMusic && musicXml && (
+        <div className="mx-2 mb-1 flex-shrink-0">
+          <FantasySheetMusicDisplay
+            musicXml={musicXml}
+            height={80}
+            isGameActive={gameState.isGameActive && !isReady}
+            className="w-full"
+          />
         </div>
       )}
       

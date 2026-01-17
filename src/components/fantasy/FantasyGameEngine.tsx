@@ -143,6 +143,10 @@ export interface FantasyStage {
   isSheetMusicMode?: boolean;
   // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
   sheetMusicClef?: 'treble' | 'bass';
+  // MusicXMLファイルのURL（progression_timing用楽譜表示）
+  musicXmlUrl?: string;
+  // MusicXMLノーツ直接使用モード（同時発音を正解判定に使用）
+  useMusicXmlNotes?: boolean;
 }
 
 export interface MonsterState {
