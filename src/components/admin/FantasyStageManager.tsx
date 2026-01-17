@@ -71,6 +71,8 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 移調練習機能の有効/無効
+  transposition_practice_enabled: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -101,6 +103,7 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  transposition_practice_enabled: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -320,6 +323,7 @@ const FantasyStageManager: React.FC = () => {
         stage_tier: (s as any).stage_tier || 'basic',
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
+        transposition_practice_enabled: !!(s as any).transposition_practice_enabled,
       };
       reset(v);
     } catch (e: any) {
@@ -360,6 +364,7 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      transposition_practice_enabled: v.transposition_practice_enabled,
     };
 
     // モードに応じた不要フィールドの削除
@@ -414,6 +419,7 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
       music_xml: (s as DbFantasyStage & { music_xml?: string }).music_xml || null,
+      transposition_practice_enabled: !!(s as DbFantasyStage & { transposition_practice_enabled?: boolean }).transposition_practice_enabled,
     };
   }, []);
 
@@ -539,6 +545,7 @@ const FantasyStageManager: React.FC = () => {
         is_sheet_music_mode: currentValues.is_sheet_music_mode,
         required_clears_for_next: currentValues.required_clears_for_next,
         music_xml: currentValues.music_xml || null,
+        transposition_practice_enabled: currentValues.transposition_practice_enabled,
       };
       
       // 新規ステージとして作成
@@ -1053,6 +1060,22 @@ const FantasyStageManager: React.FC = () => {
                       </div>
                     ))}
                   </div>
+                </div>
+              </Section>
+            )}
+
+            {/* progression_timing 用: 移調練習機能 */}
+            {mode === 'progression_timing' && (
+              <Section title="移調練習設定">
+                <div className="space-y-3">
+                  <div className="flex items-center gap-4">
+                    <SmallLabel>移調練習機能を有効にする</SmallLabel>
+                    <input type="checkbox" className="toggle toggle-primary" {...register('transposition_practice_enabled')} />
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    有効にすると、練習モードで移調設定が表示されます。<br />
+                    ユーザーは±6半音の範囲でキーを変更でき、リピートごとにキーを自動変更することもできます。
+                  </p>
                 </div>
               </Section>
             )}
