@@ -27,6 +27,7 @@ import { FantasySoundManager } from '@/utils/FantasySoundManager';
 interface FantasyGameScreenProps {
   stage: FantasyStage;
   autoStart?: boolean;        // ★ 追加
+  autoStartSpeedMultiplier?: number; // ★ 追加: 自動開始時の速度倍率（progressionモード用）
   playMode: FantasyPlayMode;
   onPlayModeChange: (mode: FantasyPlayMode) => void;
   onSwitchToChallenge: () => void;
@@ -51,6 +52,7 @@ interface FantasyGameScreenProps {
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   autoStart = false, // ★ 追加
+  autoStartSpeedMultiplier = 1.0, // ★ 追加: 自動開始時の速度倍率
   playMode,
   onPlayModeChange,
   onSwitchToChallenge,
@@ -1227,12 +1229,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, []);
   
-  // ★ マウント時 autoStart なら即開始
+  // ★ マウント時 autoStart なら即開始（速度倍率を考慮）
   useEffect(() => {
     if (autoStart) {
-      startGame(playMode);
+      startGame(playMode, autoStartSpeedMultiplier);
     }
-  }, [autoStart, playMode, startGame]);
+  }, [autoStart, playMode, autoStartSpeedMultiplier, startGame]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
