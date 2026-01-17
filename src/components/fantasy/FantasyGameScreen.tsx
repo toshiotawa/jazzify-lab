@@ -23,6 +23,21 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasy
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+// 移調ユーティリティ
+import { 
+  VALID_TRANSPOSITION_KEYS, 
+  TRANSPOSITION_OFFSETS,
+  REPEAT_KEY_CHANGE_MODES,
+  type TranspositionKey, 
+  type TranspositionOffset,
+  type RepeatKeyChangeMode,
+  type TranspositionSettings,
+  DEFAULT_TRANSPOSITION_SETTINGS,
+  calculateTransposedKey,
+  generateKeyOptions,
+  getCurrentPlayKey,
+  getTranspositionSemitones
+} from '@/utils/fantasyTransposition';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -124,6 +139,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
+  
+  // 移調練習用の状態
+  const [transpositionKeyOffset, setTranspositionKeyOffset] = useState<TranspositionOffset>(0);
+  const [repeatKeyChangeMode, setRepeatKeyChangeMode] = useState<RepeatKeyChangeMode>('off');
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -534,6 +553,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            gameState.taikoNotes.length > 0 &&
            !!stage.musicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
+  
+  // 移調練習機能が有効かどうか
+  const isTranspositionEnabled = useMemo(() => {
+    return stage.mode === 'progression_timing' && stage.enableTranspositionPractice === true;
+  }, [stage.mode, stage.enableTranspositionPractice]);
+  
+  // 基準キー
+  const baseKey = useMemo(() => {
+    return (stage.baseKey as TranspositionKey) || 'C';
+  }, [stage.baseKey]);
+  
+  // 現在の演奏キーを計算
+  const currentPlayKey = useMemo(() => {
+    if (!isTranspositionEnabled) return baseKey;
+    return calculateTransposedKey(baseKey, transpositionKeyOffset);
+  }, [isTranspositionEnabled, baseKey, transpositionKeyOffset]);
+  
+  // キー選択用のオプションを生成
+  const keyOptions = useMemo(() => {
+    return generateKeyOptions(baseKey);
+  }, [baseKey]);
   
   // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
   const harmonyMarkers = useMemo(() => {
@@ -1292,6 +1332,52 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 ? '🎯 挑戦する（2分）' 
                 : (isEnglishCopy ? 'Challenge' : '挑戦')}
             </button>
+            
+            {/* 移調設定（練習モード用、progression_timingで移調機能が有効な場合のみ表示） */}
+            {isTranspositionEnabled && (
+              <div className="w-full bg-slate-800/60 rounded-lg p-4 border border-slate-700 space-y-3">
+                <div className="text-sm text-gray-300 font-medium">
+                  🎼 {isEnglishCopy ? 'Transposition Settings (Practice Only)' : '移調設定（練習モードのみ）'}
+                </div>
+                
+                {/* キー変更ドロップダウン */}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    {isEnglishCopy ? 'Key Change' : 'キー変更'}
+                  </label>
+                  <select
+                    value={transpositionKeyOffset}
+                    onChange={(e) => setTranspositionKeyOffset(Number(e.target.value) as TranspositionOffset)}
+                    className="w-full bg-slate-700 text-white border border-slate-600 rounded px-3 py-2 text-sm"
+                  >
+                    {keyOptions.map(opt => (
+                      <option key={opt.offset} value={opt.offset}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                  <div className="text-xs text-blue-300 mt-1">
+                    {isEnglishCopy ? 'Current Key:' : '演奏キー:'} <span className="font-bold">{currentPlayKey}</span>
+                  </div>
+                </div>
+                
+                {/* リピートごとのキー変更 */}
+                <div>
+                  <label className="block text-xs text-gray-400 mb-1">
+                    {isEnglishCopy ? 'Key Change per Repeat' : 'リピートごとにキー変更'}
+                  </label>
+                  <select
+                    value={repeatKeyChangeMode}
+                    onChange={(e) => setRepeatKeyChangeMode(e.target.value as RepeatKeyChangeMode)}
+                    className="w-full bg-slate-700 text-white border border-slate-600 rounded px-3 py-2 text-sm"
+                  >
+                    <option value="off">{isEnglishCopy ? 'OFF' : 'OFF'}</option>
+                    <option value="+1">{isEnglishCopy ? '+1 (half step up)' : '+1（半音ずつ上昇）'}</option>
+                    <option value="+5">{isEnglishCopy ? '+5 (4th up)' : '+5（4度ずつ上昇）'}</option>
+                  </select>
+                </div>
+              </div>
+            )}
             
             {/* 練習ボタン - progressionモードの場合は速度選択付き */}
             {isProgressionMode ? (

@@ -147,6 +147,9 @@ export interface FantasyStage {
   musicXml?: string;
   // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
   speedMultiplier?: number;
+  // 移調設定
+  baseKey?: string; // 基準キー（C, Db, D, Eb, E, F, Gb, G, Ab, A, Bb, B）
+  enableTranspositionPractice?: boolean; // 移調練習機能を有効にするか
 }
 
 export interface MonsterState {
