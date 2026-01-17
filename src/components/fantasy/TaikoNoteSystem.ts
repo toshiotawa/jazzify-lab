@@ -4,7 +4,49 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, Note, Interval, Chord } from 'tonal';
+import { resolveChord } from '@/utils/chord-utils';
+import { toDisplayName, type DisplayOpts } from '@/utils/display-note';
+
+// Helper: Transpose note name
+const transposeNoteName = (noteName: string, semitones: number): string => {
+  if (semitones === 0) return noteName;
+  
+  // Handle treble/bass prefixes
+  if (noteName.startsWith('treble_') || noteName.startsWith('bass_')) {
+    const parts = noteName.split('_');
+    const prefix = parts[0] + '_';
+    const core = parts[1];
+    // Normalize sharp/flat
+    const normalized = core.replace(/sharp/gi, '#').replace(/flat/gi, 'b');
+    const tr = Note.transpose(normalized, Interval.fromSemitones(semitones));
+    const simple = Note.simplify(tr);
+    return prefix + simple;
+  }
+  
+  const tr = Note.transpose(noteName, Interval.fromSemitones(semitones));
+  return Note.simplify(tr);
+};
+
+// Helper: Transpose chord name (string)
+const transposeChordName = (chordName: string, semitones: number): string => {
+  if (semitones === 0) return chordName;
+  
+  // Use tonal to identify tonic
+  const c = Chord.get(chordName);
+  if (!c.empty && c.tonic) {
+    const trTonic = Note.transpose(c.tonic, Interval.fromSemitones(semitones));
+    const simpleTonic = Note.simplify(trTonic);
+    // Reconstruct: Replace tonic at start of string
+    // This assumes the chord name starts with tonic.
+    if (chordName.startsWith(c.tonic)) {
+      return simpleTonic + chordName.slice(c.tonic.length);
+    }
+  }
+  
+  // Fallback: try as note
+  return transposeNoteName(chordName, semitones);
+};
 
 // ===== 袋形式ランダムセレクター =====
 
@@ -238,24 +280,146 @@ export function judgeTimingWindow(
   };
 }
 
+// ===== コード定義取得（移調対応） =====
+
+export const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts, transpose: number = 0): ChordDefinition | null => {
+  // 単音指定のハンドリング
+  if (typeof spec === 'object' && spec.type === 'note') {
+    const step = transposeNoteName(spec.chord, transpose); // Transpose note name
+    const octave = spec.octave ?? 4;
+    // Calculate new MIDI with transpose (Note.transpose handles octave shift implicitly if we include it, but here we construct)
+    const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+    const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
+    if (!midi) return null;
+    return {
+      id: step,
+      displayName: step,
+      notes: [midi], // Transposition handled by note name change
+      noteNames: [step],
+      quality: 'maj', // ダミー（使用しない）
+      root: step
+    };
+  }
+
+  const rawChordId = typeof spec === 'string' ? spec : spec.chord;
+  const chordId = transposeChordName(rawChordId, transpose); // Transpose chord ID (root)
+  
+  // 楽譜モードの音名形式をハンドリング（treble_C4, bass_A3 など）
+  if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+    // プレフィックスを除去して音名を取得（例: "treble_A#3" → "A#3"）
+    const noteName = chordId.replace(/^(treble|bass)_/, '');
+    // "sharp" → "#", "flat" → "b" に正規化（ファイル名形式からの変換）
+    const normalizedNoteName = noteName.replace(/sharp/gi, '#').replace(/flat/gi, 'b');
+    // 音名とオクターブを分離（例: "A#3" → step="A#", octave=3）
+    const match = normalizedNoteName.match(/^([A-G][#b]?)(\d+)$/);
+    if (match) {
+      const step = match[1];
+      const octave = parseInt(match[2], 10);
+      const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
+      const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
+      if (midi) {
+        return {
+          id: chordId, // 元のID（treble_A#3 または treble_Asharp3）を保持
+          displayName: normalizedNoteName, // 表示用は正規化された音名（A#3）
+          notes: [midi],
+          noteNames: [step],
+          quality: 'maj', // ダミー
+          root: step
+        };
+      }
+    }
+    // パースに失敗した場合は警告を出さずにnullを返す
+    return null;
+  }
+  
+  // Resolve chord with transposed name
+  const resolved = resolveChord(chordId, 4, displayOpts);
+  if (!resolved) {
+    console.warn(`⚠️ 未定義のファンタジーコード: ${chordId}`);
+    return null;
+  }
+
+  // 'Fx' のような 'x' を tonal の '##' に戻す
+  const toTonalName = (n: string) => n.replace(/x/g, '##');
+
+  // inversion / octave を受け取り（未指定なら null）
+  const maybeInversion = typeof spec === 'object' ? (spec.inversion ?? null) : null;
+  const maybeOctave = typeof spec === 'object' ? (spec.octave ?? null) : null;
+
+  let midiNotes: number[];
+  let noteNamesForDisplay: string[];
+
+  // 明示的にinversionが指定されている場合のみ転回形を適用
+  if (maybeInversion !== null && maybeInversion > 0) {
+    const baseNames = resolved.notes; // 例: ['A','C','E']
+    const N = baseNames.length;
+    const inv = Math.max(0, Math.min(N - 1, maybeInversion));
+    const rotated = [...baseNames.slice(inv), ...baseNames.slice(0, inv)];
+    const bassOct = (maybeOctave ?? 4);
+
+    let prevMidi = -Infinity;
+    midiNotes = rotated.map((name) => {
+      let oct = bassOct;
+      let parsed = parseNote(toTonalName(name) + String(oct));
+      if (!parsed || typeof parsed.midi !== 'number') {
+        parsed = parseNote(toTonalName(name) + '4');
+      }
+      let midi = (parsed && typeof parsed.midi === 'number') ? parsed.midi : 60;
+      while (midi <= prevMidi) {
+        oct += 1;
+        const n2 = parseNote(toTonalName(name) + String(oct));
+        if (n2 && typeof n2.midi === 'number') midi = n2.midi; else break;
+      }
+      prevMidi = midi;
+      return midi;
+    });
+    noteNamesForDisplay = rotated; // オクターブ無し
+  } else {
+    // 基本形: ルートポジションをオクターブ基準で表示用に構築
+    const bassOct = (maybeOctave ?? 4);
+    let prevMidi = -Infinity;
+    midiNotes = resolved.notes.map((n) => {
+      let oct = bassOct;
+      let parsed = parseNote(toTonalName(n) + String(oct));
+      if (!parsed || typeof parsed.midi !== 'number') {
+        parsed = parseNote(toTonalName(n) + '4');
+      }
+      let midi = (parsed && typeof parsed.midi === 'number') ? parsed.midi : 60;
+      // 音が前の音より低い場合はオクターブを上げる（基本形でも昇順に配置）
+      while (midi <= prevMidi) {
+        oct += 1;
+        const n2 = parseNote(toTonalName(n) + String(oct));
+        if (n2 && typeof n2.midi === 'number') midi = n2.midi; else break;
+      }
+      prevMidi = midi;
+      return midi;
+    });
+    noteNamesForDisplay = resolved.notes;
+  }
+
+  return {
+    id: chordId,
+    displayName: resolved.displayName,
+    notes: midiNotes,
+    noteNames: noteNamesForDisplay,
+    quality: resolved.quality,
+    root: resolved.root
+  };
+};
+
 /**
  * 基本版progression用：小節の頭(Beat 1)でコードを配置
  * カウントインを考慮して正しいタイミングを計算
- * @param chordProgression コード進行配列
- * @param measureCount 総小節数
- * @param bpm BPM
- * @param timeSignature 拍子
- * @param getChordDefinition コード定義取得関数
- * @param countInMeasures カウントイン小節数
  */
 export function generateBasicProgressionNotes(
   chordProgression: ChordSpec[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
+  getChordDefinitionFn: (spec: ChordSpec, transpose: number) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  transpose: number = 0
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -288,7 +452,7 @@ export function generateBasicProgressionNotes(
   for (let measure = 1; measure <= measureCount; measure++) {
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
       const spec = chordProgression[noteIndex % chordProgression.length];
-      const chord = getChordDefinition(spec);
+      const chord = getChordDefinitionFn(spec, transpose);
       if (!chord) {
         noteIndex++;
         continue;
@@ -316,22 +480,16 @@ export function generateBasicProgressionNotes(
 
 /**
  * ランダムプログレッション用：袋形式ランダムでコードを決定
- * 全コードが均等に出現することを保証する
- * @param chordPool 選択可能なコードのプール（allowedChords or chordProgression）
- * @param measureCount 総小節数
- * @param bpm BPM
- * @param timeSignature 拍子
- * @param getChordDefinition コード定義取得関数
- * @param countInMeasures カウントイン小節数
  */
 export function generateRandomProgressionNotes(
   chordPool: ChordSpec[],
   measureCount: number,
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
+  getChordDefinitionFn: (spec: ChordSpec, transpose: number) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  transpose: number = 0
 ): TaikoNote[] {
   if (chordPool.length === 0) return [];
 
@@ -352,7 +510,7 @@ export function generateRandomProgressionNotes(
     for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
       // 袋形式で次のコードを取得（直前と同じコードは自動的に避けられる）
       const nextSpec = bagSelector.next();
-      const chord = getChordDefinition(nextSpec);
+      const chord = getChordDefinitionFn(nextSpec, transpose);
       if (!chord) continue;
 
       notes.push({
@@ -372,26 +530,18 @@ export function generateRandomProgressionNotes(
 
 /**
  * 拡張版progression用：chord_progression_dataのJSONを解析
- * カウントインを考慮
- * @param progressionData JSON配列
- * @param bpm BPM
- * @param timeSignature 拍子
- * @param getChordDefinition コード定義取得関数
- * @param countInMeasures カウントイン小節数
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
-  getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
-  countInMeasures: number = 0
+  getChordDefinitionFn: (spec: ChordSpec, transpose: number) => ChordDefinition | null,
+  countInMeasures: number = 0,
+  transpose: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
   const secPerMeasure = secPerBeat * timeSignature;
-  
-  // 最大小節数を取得
-  const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
   
   progressionData
     // 演奏用ノーツは chord が空/N.C. のものは無視（テキスト専用）
@@ -399,7 +549,7 @@ export function parseChordProgressionData(
     .forEach((item, index) => {
     // 新方式: notes配列がある場合は複数音として処理
     if (item.notes && item.notes.length > 0) {
-      const chord = buildChordFromNotes(item.notes, item.octave ?? 4, item.lyricDisplay);
+      const chord = buildChordFromNotes(item.notes, item.octave ?? 4, item.lyricDisplay, transpose);
       if (chord) {
         const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
         notes.push({
@@ -422,16 +572,34 @@ export function parseChordProgressionData(
       octave: item.octave ?? undefined,
       type: item.type === 'note' ? 'note' : undefined
     };
-    const chord = getChordDefinition(spec);
+    const chord = getChordDefinitionFn(spec, transpose);
     if (chord) {
       // Measure 1 開始を0秒として計算
       const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       // lyricDisplayがある場合は、displayNameとnoteNamesを上書き
-      const finalChord = item.lyricDisplay ? {
+      // Note: chord definition already has transposed names, but lyricDisplay is custom text.
+      // If lyricDisplay is purely text (like "Intro"), we keep it.
+      // If it's a chord name (like "CM7"), user might expect it to transpose?
+      // Since it's from "lyric" field in MusicXML, it might be arbitrary.
+      // If we want to transpose lyricDisplay, we need to parse it.
+      // For now, keep lyricDisplay as is OR attempt to transpose if it looks like a chord?
+      // User requirement: "Score and Taiko notes ... are all transposed".
+      // If lyricDisplay shows "C", it should become "D" if +2.
+      let displayOverride = item.lyricDisplay;
+      if (displayOverride && transpose !== 0) {
+         // Attempt to transpose lyricDisplay if it looks like a note/chord
+         // This is risky if lyric is "Intro".
+         // Simple check: is it a valid note/chord?
+         // We can try to transpose it.
+         const tr = transposeChordName(displayOverride, transpose);
+         if (tr) displayOverride = tr;
+      }
+
+      const finalChord = displayOverride ? {
         ...chord,
-        displayName: item.lyricDisplay,
-        noteNames: [item.lyricDisplay] // 太鼓ノーツ上の表示用（単一の歌詞テキスト）
+        displayName: displayOverride,
+        noteNames: [displayOverride] // 太鼓ノーツ上の表示用（単一の歌詞テキスト）
       } : chord;
       
       notes.push({
@@ -455,11 +623,8 @@ export function parseChordProgressionData(
 /**
  * 音名配列からChordDefinitionを構築
  * Progression_Timing用：同タイミングの複数ノーツを1つのコードとして扱う
- * @param noteNames 音名配列
- * @param baseOctave ベースオクターブ
- * @param lyricDisplay 歌詞表示用テキスト（設定されている場合、displayNameとnoteNamesに使用）
  */
-function buildChordFromNotes(noteNames: string[], baseOctave: number, lyricDisplay?: string): ChordDefinition | null {
+function buildChordFromNotes(noteNames: string[], baseOctave: number, lyricDisplay?: string, transpose: number = 0): ChordDefinition | null {
   if (noteNames.length === 0) return null;
   
   const midiNotes: number[] = [];
@@ -468,9 +633,12 @@ function buildChordFromNotes(noteNames: string[], baseOctave: number, lyricDispl
   for (const noteName of noteNames) {
     // 音名からMIDI番号を計算
     const cleanName = noteName.replace(/\d+$/, ''); // オクターブ除去
-    cleanNoteNames.push(cleanName);
     
-    const parsed = parseNote(cleanName.replace(/x/g, '##') + String(baseOctave));
+    // Transpose note name
+    const trName = transposeNoteName(cleanName, transpose);
+    cleanNoteNames.push(trName);
+    
+    const parsed = parseNote(trName.replace(/x/g, '##') + String(baseOctave));
     if (parsed && typeof parsed.midi === 'number') {
       midiNotes.push(parsed.midi);
     }
@@ -481,10 +649,16 @@ function buildChordFromNotes(noteNames: string[], baseOctave: number, lyricDispl
   // 昇順にソート
   midiNotes.sort((a, b) => a - b);
   
+  // Transpose lyricDisplay if exists
+  let displayOverride = lyricDisplay;
+  if (displayOverride && transpose !== 0) {
+      displayOverride = transposeChordName(displayOverride, transpose);
+  }
+
   // lyricDisplayがある場合はそれを使用、なければ音名を結合
-  const displayName = lyricDisplay || cleanNoteNames.join(' ');
+  const displayName = displayOverride || cleanNoteNames.join(' ');
   // 太鼓ノーツ上の表示用（lyricDisplayがあれば単一テキスト、なければ個別音名）
-  const displayNoteNames = lyricDisplay ? [lyricDisplay] : cleanNoteNames;
+  const displayNoteNames = displayOverride ? [displayOverride] : cleanNoteNames;
   
   return {
     id: displayName.replace(/\s+/g, ''),

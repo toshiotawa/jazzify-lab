@@ -562,6 +562,8 @@ export interface FantasyStage {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string;
+  // 移調練習機能（練習モードで選択可能か）
+  enable_transposition?: boolean;
 }
 
 // ファンタジーステージクリア記録

@@ -1,5 +1,7 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
 
+import * as Tone from 'tone';
+
 class BGMManager {
   private audio: HTMLAudioElement | null = null
   private loopBegin = 0
@@ -23,6 +25,17 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
+  
+  // Transposition
+  private transpose = 0;
+  private pitchShiftNode: Tone.PitchShift | null = null;
+
+  setTranspose(semitones: number) {
+    this.transpose = semitones;
+    if (this.pitchShiftNode) {
+      this.pitchShiftNode.pitch = semitones;
+    }
+  }
 
   play(
     url: string,
@@ -31,7 +44,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    transpose = 0
   ) {
     if (!url) return
     
@@ -44,6 +58,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.transpose = transpose;
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -100,6 +115,13 @@ class BGMManager {
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null
       this.waBuffer = null
+      
+      // Tone cleanup
+      if (this.pitchShiftNode) {
+        try { this.pitchShiftNode.dispose(); } catch {}
+        this.pitchShiftNode = null;
+      }
+      
       try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
     } catch (e) {
@@ -268,8 +290,8 @@ class BGMManager {
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
     // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
-    // AudioBufferSourceNodeにはpreservesPitchがないため
-    if (this.playbackRate !== 1.0) {
+    // ただし、移調が指定されている場合はTone.PitchShiftを使うためWeb Audioを強制
+    if (this.playbackRate !== 1.0 && this.transpose === 0) {
       this._playHtmlAudio(url, volume)
       return
     }
@@ -292,7 +314,7 @@ class BGMManager {
     this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, transpose: this.transpose })
   }
 
   private _startWaSourceAt(offsetSec: number) {
@@ -308,7 +330,37 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
-    src.connect(this.waGain!)
+    
+    // Tone.PitchShift のセットアップ
+    if (this.transpose !== 0 || this.pitchShiftNode) {
+        // Tone.contextをこのコンテキストに設定（必要があれば）
+        // Tone.setContext(this.waContext); // Tone v14.7.77ではsetContextはグローバル
+        // 安全のため、Tone.Contextラッパーを使用せず、native connectionを試みるか、
+        // Tone.jsの機能を使って接続する。
+        
+        // Tone.jsのPitchShiftを作成
+        if (!this.pitchShiftNode) {
+            this.pitchShiftNode = new Tone.PitchShift({
+                pitch: this.transpose,
+                windowSize: 0.1,
+                delayTime: 0,
+                feedback: 0
+            });
+        } else {
+            this.pitchShiftNode.pitch = this.transpose;
+        }
+        
+        // PitchShiftNodeはTone.AudioNodeなので、native nodeからは直接接続できない場合がある
+        // Tone.connect(src, this.pitchShiftNode) を使用
+        Tone.connect(src, this.pitchShiftNode);
+        
+        // PitchShiftNode -> waGain (Native)
+        // Tone nodes can connect to native nodes
+        this.pitchShiftNode.connect(this.waGain!);
+    } else {
+        // 直接接続
+        src.connect(this.waGain!)
+    }
 
     // 再生
     const when = 0

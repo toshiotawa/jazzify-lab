@@ -125,6 +125,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
   
+  // 移調練習機能用の状態
+  const [selectedTranspose, setSelectedTranspose] = useState<number>(0);
+  const [selectedRepeatTransposition, setSelectedRepeatTransposition] = useState<'off' | 'up1' | 'up5'>('off');
+  
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
@@ -594,7 +598,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
-      playbackRate
+      playbackRate,
+      gameState.transpose
     );
 
     return () => bgmManager.stop();
@@ -645,7 +650,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const stageWithSpeed = speedMultiplier !== 1.0 
       ? { ...buildInitStage(), speedMultiplier }
       : buildInitStage();
-    await initializeGame(stageWithSpeed, mode);
+    // 移調設定を渡す
+    await initializeGame(stageWithSpeed, mode, selectedTranspose, selectedRepeatTransposition);
     setIsGameReady(true); // 画像プリロード完了
     devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
@@ -1319,6 +1325,42 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* 練習ボタン - progressionモードの場合は速度選択付き */}
             {isProgressionMode ? (
               <div className="w-full space-y-2">
+                
+                {/* 移調練習機能（有効な場合のみ表示） */}
+                {stage.enable_transposition && (
+                  <div className="bg-gray-800/80 p-3 rounded-lg border border-gray-600 space-y-2 mb-2">
+                    <div className="text-sm font-bold text-yellow-300">移調練習設定</div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">開始キー</label>
+                        <select 
+                          className="select select-bordered select-xs w-full bg-gray-700 text-white"
+                          value={selectedTranspose}
+                          onChange={(e) => setSelectedTranspose(parseInt(e.target.value))}
+                        >
+                          {Array.from({ length: 13 }, (_, i) => i - 6).map(val => (
+                            <option key={val} value={val}>
+                              {val === 0 ? '±0' : (val > 0 ? `+${val}` : val)}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div>
+                        <label className="text-xs text-gray-400 block mb-1">リピート移調</label>
+                        <select 
+                          className="select select-bordered select-xs w-full bg-gray-700 text-white"
+                          value={selectedRepeatTransposition}
+                          onChange={(e) => setSelectedRepeatTransposition(e.target.value as any)}
+                        >
+                          <option value="off">OFF</option>
+                          <option value="up1">+1 (半音)</option>
+                          <option value="up5">+5 (4度)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>

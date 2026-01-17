@@ -203,6 +203,9 @@ export interface FantasyGameState {
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  // 移調機能
+  transpose: number;
+  repeatTransposition: 'off' | 'up1' | 'up5';
 }
 
 interface FantasyGameEngineProps {
@@ -660,6 +663,65 @@ const getCurrentEnemy = (enemyIndex: number) => {
   return ENEMY_LIST[0]; // フォールバック
 };
 
+// ===== ノーツ生成ヘルパー =====
+const generateNotesForStage = (stage: FantasyStage, displayOpts: DisplayOpts, transpose: number): TaikoNote[] => {
+  switch (stage.mode) {
+    case 'progression_timing':
+      if (stage.chordProgressionData) {
+        let progressionData: ChordProgressionDataItem[];
+        if (typeof stage.chordProgressionData === 'string') {
+          progressionData = parseSimpleProgressionText(stage.chordProgressionData);
+        } else {
+          progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
+        }
+        return parseChordProgressionData(
+          progressionData,
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          (spec, t) => getChordDefinition(spec, displayOpts, t),
+          0,
+          transpose
+        );
+      }
+      break;
+
+    case 'progression_random':
+      return generateRandomProgressionNotes(
+        (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
+        stage.measureCount || 8,
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        (spec, t) => getChordDefinition(spec, displayOpts, t),
+        0,
+        ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4),
+        transpose
+      );
+
+    case 'progression_order':
+    default:
+      {
+        const chordsForOrder = stage.chordProgression && stage.chordProgression.length > 0
+          ? stage.chordProgression
+          : (stage.allowedChords && stage.allowedChords.length > 0 ? stage.allowedChords : []);
+        
+        if (chordsForOrder.length > 0) {
+          return generateBasicProgressionNotes(
+            chordsForOrder as ChordSpec[],
+            stage.measureCount || 8,
+            stage.bpm || 120,
+            stage.timeSignature || 4,
+            (spec, t) => getChordDefinition(spec, displayOpts, t),
+            0,
+            (stage as any).noteIntervalBeats || (stage.timeSignature || 4),
+            transpose
+          );
+        }
+      }
+      break;
+  }
+  return [];
+};
+
 // ===== メインコンポーネント =====
 
 export const useFantasyGameEngine = ({
@@ -977,8 +1039,13 @@ export const useFantasyGameEngine = ({
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+  const initializeGame = useCallback(async (
+    stage: FantasyStage, 
+    playMode: FantasyPlayMode = 'challenge',
+    transpose: number = 0,
+    repeatTransposition: 'off' | 'up1' | 'up5' = 'off'
+  ) => {
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name, transpose, repeatTransposition });
 
     // 旧 BGM を確実に殺す
     bgmManager.stop();
@@ -1112,66 +1179,7 @@ export const useFantasyGameEngine = ({
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
-      switch (stage.mode) {
-        case 'progression_timing':
-          // 拡張版：JSON形式のデータを解析
-          if (stage.chordProgressionData) {
-            let progressionData: ChordProgressionDataItem[];
-            
-            if (typeof stage.chordProgressionData === 'string') {
-              // 簡易テキスト形式の場合
-              progressionData = parseSimpleProgressionText(stage.chordProgressionData);
-            } else {
-              // JSON配列の場合
-              progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
-            }
-            
-            taikoNotes = parseChordProgressionData(
-              progressionData,
-              stage.bpm || 120,
-              stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts),
-              0 // カウントインを渡す
-            );
-          }
-          break;
-
-        case 'progression_random':
-          // ランダムプログレッション：各小節ごとにランダムでコードを決定
-          taikoNotes = generateRandomProgressionNotes(
-            (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : (stage.chordProgression || []),
-            stage.measureCount || 8,
-            stage.bpm || 120,
-            stage.timeSignature || 4,
-            (spec) => getChordDefinition(spec, displayOpts),
-            0,
-            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
-          );
-          break;
-
-        case 'progression_order':
-        default:
-          // 基本版：小節の頭でコード出題（Measure 1 から）
-          // chordProgression が設定されていればそれを使用、なければ allowedChords を使用
-          {
-            const chordsForOrder = stage.chordProgression && stage.chordProgression.length > 0
-              ? stage.chordProgression
-              : (stage.allowedChords && stage.allowedChords.length > 0 ? stage.allowedChords : []);
-            
-            if (chordsForOrder.length > 0) {
-              taikoNotes = generateBasicProgressionNotes(
-                chordsForOrder as ChordSpec[],
-                stage.measureCount || 8,
-                stage.bpm || 120,
-                stage.timeSignature || 4,
-                (spec) => getChordDefinition(spec, displayOpts),
-                0,
-                (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
-              );
-            }
-          }
-          break;
-      }
+      taikoNotes = generateNotesForStage(stage, displayOpts, transpose);
       
       // ループ対応：最初のノーツの情報を設定
       if (taikoNotes.length > 0) {
@@ -1227,7 +1235,9 @@ export const useFantasyGameEngine = ({
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
       lastNormalizedTime: 0,
-      awaitingLoopStart: false
+      awaitingLoopStart: false,
+      transpose,
+      repeatTransposition
     };
 
     setGameState(newState);
@@ -1527,37 +1537,53 @@ export const useFantasyGameEngine = ({
         const justLooped = normalizedTime + 1e-6 < lastNorm;
         
         if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
-            ...note,
-            isHit: false,
-            isMissed: false
-          }));
+          // Check repeatTransposition and update transposition
+          let currentTranspose = prevState.transpose;
+          if (prevState.repeatTransposition === 'up1') {
+             currentTranspose += 1;
+             if (currentTranspose > 6) currentTranspose -= 12;
+          } else if (prevState.repeatTransposition === 'up5') {
+             currentTranspose += 5;
+             while (currentTranspose > 6) currentTranspose -= 12;
+          }
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
+          let nextTaikoNotes = prevState.taikoNotes;
+          if (currentTranspose !== prevState.transpose) {
+             // Regenerate notes with new transposition
+             nextTaikoNotes = generateNotesForStage(stage, displayOpts, currentTranspose);
+             bgmManager.setTranspose(currentTranspose);
+          } else {
+             // Reset existing notes if no transposition change
+             nextTaikoNotes = nextTaikoNotes.map(note => ({
+               ...note,
+               isHit: false,
+               isMissed: false
+             }));
+          }
           
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
+          const newNoteIndex = 0;
+          
+          // モンスターのターゲット更新
+          const firstNote = nextTaikoNotes[0];
+          const secondNote = nextTaikoNotes.length > 1 ? nextTaikoNotes[1] : nextTaikoNotes[0];
+          
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
               gauge: 0,
               chordTarget: firstNote.chord,
               nextChord: secondNote.chord
-            }));
-          }
+          }));
           
           return {
             ...prevState,
-            taikoNotes: resetNotes,
+            taikoNotes: nextTaikoNotes,
             currentNoteIndex: newNoteIndex,
             awaitingLoopStart: false,
             taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            transpose: currentTranspose
           };
         }
         
