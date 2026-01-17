@@ -1576,11 +1576,33 @@ export const useFantasyGameEngine = ({
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
+          let resetNotes = prevState.taikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
           }));
+          
+          const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          
+          // ▼▼▼ リピートごとのキー変更処理 ▼▼▼
+          // 練習モード + 移調有効 + リピートキー変更が有効な場合のみ
+          if (
+            prevState.playMode === 'practice' &&
+            stage.enableTranspositionPractice &&
+            prevState.repeatKeyChangeMode !== 'off' &&
+            newLoopCycle > 0
+          ) {
+            const repeatIncrement = prevState.repeatKeyChangeMode === '+1' ? 1 : 5;
+            // 前のループからの差分（毎ループ同じ量だけ移調）
+            resetNotes = transposeTaikoNotes(resetNotes, repeatIncrement);
+            devLog.debug('🎹 リピートキー変更適用:', {
+              loopCycle: newLoopCycle,
+              repeatMode: prevState.repeatKeyChangeMode,
+              semitones: repeatIncrement,
+              noteCount: resetNotes.length
+            });
+          }
+          // ▲▲▲ リピートごとのキー変更処理ここまで ▲▲▲
           
           let newNoteIndex = prevState.currentNoteIndex;
           let refreshedMonsters = prevState.activeMonsters;
@@ -1603,7 +1625,7 @@ export const useFantasyGameEngine = ({
             taikoNotes: resetNotes,
             currentNoteIndex: newNoteIndex,
             awaitingLoopStart: false,
-            taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
+            taikoLoopCycle: newLoopCycle,
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters
           };
