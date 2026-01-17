@@ -542,7 +542,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+    isReady,
+    transpositionKeyOffset: transpositionKeyOffset,
+    repeatKeyChangeMode: repeatKeyChangeMode
   });
 
   // Progression_Timing用の楽譜表示フラグ

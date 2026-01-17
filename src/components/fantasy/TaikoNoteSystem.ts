@@ -4,7 +4,8 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, transpose as tonalTranspose, Interval } from 'tonal';
+import { transposeChord, transposeMidiNotes, transposeNote as transposeNoteName } from '@/utils/fantasyTransposition';
 
 // ===== 袋形式ランダムセレクター =====
 
@@ -685,4 +686,55 @@ export function getVisibleNotesOptimized(
   }
   
   return visibleNotes;
+}
+
+// ===== 移調機能 =====
+
+/**
+ * ChordDefinitionを移調する
+ * @param chord 元のコード定義
+ * @param semitones 移調する半音数
+ * @returns 移調後のコード定義
+ */
+export function transposeChordDefinition(chord: ChordDefinition, semitones: number): ChordDefinition {
+  if (semitones === 0) return chord;
+  
+  // MIDIノートを移調
+  const transposedMidiNotes = transposeMidiNotes(chord.notes, semitones);
+  
+  // 音名を移調
+  const transposedNoteNames = chord.noteNames.map(name => transposeNoteName(name, semitones));
+  
+  // ルートを移調
+  const transposedRoot = transposeNoteName(chord.root, semitones);
+  
+  // 表示名を移調（コード名の場合）
+  const transposedDisplayName = transposeChord(chord.displayName, semitones);
+  
+  // IDを移調
+  const transposedId = transposeChord(chord.id, semitones);
+  
+  return {
+    ...chord,
+    id: transposedId,
+    displayName: transposedDisplayName,
+    notes: transposedMidiNotes,
+    noteNames: transposedNoteNames,
+    root: transposedRoot
+  };
+}
+
+/**
+ * TaikoNote配列を移調する
+ * @param notes 元のノーツ配列
+ * @param semitones 移調する半音数
+ * @returns 移調後のノーツ配列
+ */
+export function transposeTaikoNotes(notes: TaikoNote[], semitones: number): TaikoNote[] {
+  if (semitones === 0) return notes;
+  
+  return notes.map(note => ({
+    ...note,
+    chord: transposeChordDefinition(note.chord, semitones)
+  }));
 }
