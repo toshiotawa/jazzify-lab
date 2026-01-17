@@ -306,7 +306,16 @@ class BGMManager {
     this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    console.log('🎵 BGM再生開始 (WebAudio):', { 
+      url, 
+      bpm: this.bpm, 
+      loopBegin: this.loopBegin, 
+      loopEnd: this.loopEnd, 
+      countIn: this.countInMeasures, 
+      playbackRate: this.playbackRate,
+      detuneCents: this.detuneCents,
+      detuneSemitones: this.detuneCents / 100
+    })
   }
 
   private _startWaSourceAt(offsetSec: number) {

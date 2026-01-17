@@ -132,6 +132,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     repeatKeyChange: 'off'
   });
   
+  // 楽譜用の移調量（ゲーム開始時に固定、リピートごとのキー変更では更新しない）
+  const [sheetMusicTransposition, setSheetMusicTransposition] = useState<number>(0);
+  
   // 移調練習が有効かどうか（ステージ設定から取得）
   // progression_timingモードであれば移調練習を有効にする（管理画面で明示的にfalseに設定されていない限り）
   const isTranspositionPracticeEnabled = useMemo(() => {
@@ -620,11 +623,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // リピートごとのキー変更時にBGMのdetuneを更新
+  // ループサイクル1以降（リピート時）のみ適用（初期detuneはBGM再生時に設定済み）
   useEffect(() => {
     if (!gameState.isGameActive) return;
+    // ループサイクル0（初回）は何もしない（BGM再生時にすでに設定済み）
+    if ((gameState.taikoLoopCycle ?? 0) < 1) return;
     const detune = gameState.transpositionContext?.totalTransposition ?? 0;
     bgmManager.setDetune(detune);
-  }, [gameState.isGameActive, gameState.transpositionContext?.totalTransposition]);
+    devLog.debug('🎼 リピート時BGM detune更新:', { loopCycle: gameState.taikoLoopCycle, detune });
+  }, [gameState.isGameActive, gameState.taikoLoopCycle, gameState.transpositionContext?.totalTransposition]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -693,6 +700,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       ...buildInitStage(effectiveTranspositionSettings),
       ...(speedMultiplier !== 1.0 ? { speedMultiplier } : {})
     };
+    
+    // 楽譜用の移調量を設定（ゲーム開始時に固定）
+    const baseTransposition = (stage as any).base_key_transposition ?? 0;
+    const userKeyChange = effectiveTranspositionSettings?.keyChange ?? 0;
+    setSheetMusicTransposition(baseTransposition + userKeyChange);
+    
     await initializeGame(stageWithSettings, mode);
     setIsGameReady(true); // 画像プリロード完了
     devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { 
@@ -1860,7 +1873,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             measureCount={stage.measureCount || 8}
             countInMeasures={stage.countInMeasures || 0}
             harmonyMarkers={harmonyMarkers}
-            transposition={gameState.transpositionContext?.totalTransposition ?? 0}
+            transposition={sheetMusicTransposition}
             className="w-full h-full"
           />
         </div>

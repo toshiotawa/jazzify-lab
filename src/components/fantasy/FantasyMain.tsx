@@ -178,6 +178,9 @@ const FantasyMain: React.FC = () => {
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
             musicXml: (stage as any).music_xml,
+            // 移調設定
+            base_key_transposition: (stage as any).base_key_transposition ?? 0,
+            transposition_practice_enabled: !!(stage as any).transposition_practice_enabled,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -227,6 +230,9 @@ const FantasyMain: React.FC = () => {
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
           musicXml: (stage as any).music_xml,
+          // 移調設定
+          base_key_transposition: (stage as any).base_key_transposition ?? 0,
+          transposition_practice_enabled: !!(stage as any).transposition_practice_enabled,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -582,6 +588,10 @@ const FantasyMain: React.FC = () => {
         // 楽譜モード
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
         sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
+        musicXml: (nextStageData as any).music_xml,
+        // 移調設定
+        base_key_transposition: (nextStageData as any).base_key_transposition ?? 0,
+        transposition_practice_enabled: !!(nextStageData as any).transposition_practice_enabled,
       };
 
       setGameResult(null);
