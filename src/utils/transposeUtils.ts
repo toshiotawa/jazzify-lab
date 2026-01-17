@@ -195,16 +195,18 @@ export function getNextTransposeSemitones(currentSemitones: number, option: KeyC
   switch (option) {
     case 'OFF':
       return currentSemitones;
-    case '+1':
+    case '+1': {
       // +6まで行ったら-6に戻る
       let next1 = currentSemitones + 1;
       if (next1 > 6) next1 = -5;
       return next1;
-    case '+5':
+    }
+    case '+5': {
       // 5度圏で移動
       let next5 = currentSemitones + 5;
       if (next5 > 6) next5 -= 12;
       return next5;
+    }
     default:
       return currentSemitones;
   }
