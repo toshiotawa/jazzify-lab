@@ -23,6 +23,7 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasy
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { transposeMusicXml } from '@/utils/musicXmlTransposer'; // 追加
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -533,7 +534,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const transposedMusicXml = useMemo(() => {
     if (!stage.musicXml) return null;
     if (gameState.transpose === 0) return stage.musicXml;
-    const { transposeMusicXml } = require('@/utils/musicXmlTransposer');
     return transposeMusicXml(stage.musicXml, gameState.transpose);
   }, [stage.musicXml, gameState.transpose]);
 
