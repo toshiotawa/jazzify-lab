@@ -551,8 +551,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           {stage.stageNumber}
         </div>
         
-        {/* コンテンツ部分 */}
-        <div className="min-w-0 flex-grow">
+        {/* コンテンツ部分 - 最小幅を設定して要素が細くなりすぎないようにする */}
+        <div className="flex-grow min-w-[120px] sm:min-w-[200px]">
           {/* ステージ名 */}
           <div className={cn(
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
@@ -573,9 +573,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </div>
           )}
           
-          {/* 説明文 */}
+          {/* 説明文 - スマホでの縦伸びを防ぐため行数制限を追加 */}
           <div className={cn(
-            "text-xs sm:text-sm leading-relaxed break-words",
+            "text-xs sm:text-sm leading-relaxed break-words line-clamp-2 sm:line-clamp-3",
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
               {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (

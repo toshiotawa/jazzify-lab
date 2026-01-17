@@ -95,6 +95,8 @@ const FantasyMain: React.FC = () => {
   const [gameKey, setGameKey] = useState(0); 
   // 再挑戦時の自動開始フラグ
   const [pendingAutoStart, setPendingAutoStart] = useState(false);
+  // 再挑戦時の速度倍率（progressionモード用）
+  const [pendingSpeedMultiplier, setPendingSpeedMultiplier] = useState<number>(1.0);
   // ▲▲▲ ここまで ▲▲▲
   
   // 経験値情報を保存するための state を追加
@@ -500,6 +502,7 @@ const FantasyMain: React.FC = () => {
     }
     setCurrentStage(null);
     setGameResult(null);
+    setPlayMode('challenge'); // 挑戦/練習モードをリセット
   }, [isMissionMode]);
   
   // ★ 追加: 次のステージに待機画面で遷移
@@ -721,22 +724,72 @@ const FantasyMain: React.FC = () => {
                   setShowResult(false);
                   setGameKey(prevKey => prevKey + 1);
                   setPendingAutoStart(true);
+                  setPendingSpeedMultiplier(1.0); // 再挑戦は通常速度
                 }}
                 className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
               >
                 {retryButtonLabel}
               </button>
-              <button
-                onClick={() => {
-                  setPlayMode('practice');
-                  setShowResult(false);
-                  setGameKey(prevKey => prevKey + 1);
-                  setPendingAutoStart(true);
-                }}
-                className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors font-sans border border-white/20"
-              >
-                {isEnglishCopy ? 'Practice' : '練習する'}
-              </button>
+              {/* 練習ボタン - progressionモードの場合は速度選択付き */}
+              {currentStage?.mode?.startsWith('progression') ? (
+                <div className="w-full space-y-2">
+                  <div className="text-sm text-gray-400 mt-2">
+                    {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
+                  </div>
+                  {/* 通常速度で練習 */}
+                  <button
+                    onClick={() => {
+                      setPlayMode('practice');
+                      setShowResult(false);
+                      setGameKey(prevKey => prevKey + 1);
+                      setPendingAutoStart(true);
+                      setPendingSpeedMultiplier(1.0);
+                    }}
+                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
+                  >
+                    <span className="text-white">🎵 {isEnglishCopy ? 'Normal (100%)' : '通常速度（100%）'}</span>
+                  </button>
+                  {/* 75%速度で練習 */}
+                  <button
+                    onClick={() => {
+                      setPlayMode('practice');
+                      setShowResult(false);
+                      setGameKey(prevKey => prevKey + 1);
+                      setPendingAutoStart(true);
+                      setPendingSpeedMultiplier(0.75);
+                    }}
+                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-yellow-600/80 hover:bg-yellow-500 border-yellow-400/50 hover:scale-[1.02]"
+                  >
+                    <span className="text-white">🐢 {isEnglishCopy ? 'Slow (75%)' : 'ゆっくり（75%）'}</span>
+                  </button>
+                  {/* 50%速度で練習 */}
+                  <button
+                    onClick={() => {
+                      setPlayMode('practice');
+                      setShowResult(false);
+                      setGameKey(prevKey => prevKey + 1);
+                      setPendingAutoStart(true);
+                      setPendingSpeedMultiplier(0.5);
+                    }}
+                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-blue-600/80 hover:bg-blue-500 border-blue-400/50 hover:scale-[1.02]"
+                  >
+                    <span className="text-white">🐌 {isEnglishCopy ? 'Very Slow (50%)' : 'とてもゆっくり（50%）'}</span>
+                  </button>
+                </div>
+              ) : (
+                /* singleモードの場合は従来の練習ボタン */
+                <button
+                  onClick={() => {
+                    setPlayMode('practice');
+                    setShowResult(false);
+                    setGameKey(prevKey => prevKey + 1);
+                    setPendingAutoStart(true);
+                  }}
+                  className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors font-sans border border-white/20"
+                >
+                  {isEnglishCopy ? 'Practice' : '練習する'}
+                </button>
+              )}
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
                 <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
@@ -760,12 +813,14 @@ const FantasyMain: React.FC = () => {
         // ▲▲▲ ここまで ▲▲▲
         stage={currentStage}
         autoStart={pendingAutoStart}   // ★
+        autoStartSpeedMultiplier={pendingSpeedMultiplier} // ★ 速度倍率を渡す
         playMode={playMode}
         onPlayModeChange={setPlayMode}
         onSwitchToChallenge={() => {
           setPlayMode('challenge');
           setGameKey(prevKey => prevKey + 1);
           setPendingAutoStart(true);
+          setPendingSpeedMultiplier(1.0); // 挑戦モードは通常速度
         }}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
