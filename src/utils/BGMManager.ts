@@ -1,4 +1,5 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
+import * as Tone from 'tone';
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
@@ -16,6 +17,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private transpose = 0 // 移調（半音単位）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -23,6 +25,8 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
+  // Tone.js nodes
+  private pitchShift: Tone.PitchShift | null = null
 
   play(
     url: string,
@@ -31,7 +35,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    transpose = 0
   ) {
     if (!url) return
     
@@ -44,6 +49,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.transpose = transpose
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -64,6 +70,36 @@ class BGMManager {
     }
     if (this.waGain && this.waContext) {
       this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, v)), this.waContext.currentTime)
+    }
+  }
+
+  setTranspose(semitones: number) {
+    this.transpose = semitones;
+    
+    // Web Audio 再生中なら更新
+    if (this.waContext && this.isPlaying && this.waBuffer) {
+      const safeSpeed = Math.max(this.playbackRate, 0.0001);
+      const speedSemitoneOffset = Math.log2(safeSpeed) * 12;
+      const effectivePitch = this.transpose - speedSemitoneOffset;
+      const shouldUsePitchShift = Math.abs(effectivePitch) > 0.001;
+      
+      // PitchShiftノードが既にあり、かつ今後も必要なら値更新のみ
+      if (this.pitchShift && shouldUsePitchShift) {
+        this.pitchShift.pitch = effectivePitch;
+      } else {
+        // ノード構成が変わる場合（なし→あり、あり→なし）は再構築
+        // 現在の再生位置（実時間）から音楽的時間を逆算
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt;
+        const musicTime = elapsedRealTime * this.playbackRate; // これまでの再生分
+        
+        // _startWaSourceAt は offsetSec (先頭からの秒数) を受け取る
+        // musicTime は再生開始時(offset=0)からの経過時間なので、
+        // 実際には start 時に指定した offset も考慮する必要があるが、
+        // waStartAt は 「offset=0で開始したと仮定した時の開始時刻」 になっているので
+        // 単純に musicTime を渡せば良いはず
+        
+        this._startWaSourceAt(musicTime);
+      }
     }
   }
 
@@ -100,6 +136,13 @@ class BGMManager {
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null
       this.waBuffer = null
+      
+      // Tone cleanup
+      if (this.pitchShift) {
+        try { this.pitchShift.dispose() } catch {}
+        this.pitchShift = null
+      }
+
       try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
     } catch (e) {
@@ -267,13 +310,16 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
-    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
-    // AudioBufferSourceNodeにはpreservesPitchがないため
-    if (this.playbackRate !== 1.0) {
-      this._playHtmlAudio(url, volume)
-      return
-    }
-
+    // 再生速度が1.0でない場合はHTMLAudioを使用... していたが、
+    // 移調がある場合はWeb Audio必須。
+    // ピッチシフト（Tone.js）を使う場合もWeb Audio必須。
+    // playbackRate !== 1.0 のみで transpose === 0 なら HTMLAudio でも良いが、
+    // 統一的に Web Audio で処理する方が安全（Tone.js ピッチシフトで速度補正もできるため）
+    
+    // HTMLAudioフォールバック条件: 
+    // - transpose === 0 かつ playbackRate !== 1.0 (既存ロジック維持の場合)
+    // ただし今回は移調機能追加のため、可能な限り Web Audio を使う
+    
     if (!this.waContext) {
       this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
     }
@@ -289,13 +335,13 @@ class BGMManager {
     this.waBuffer = buf
 
     // ループポイントを設定（サンプル精度）
-    this._startWaSourceAt(0)
+    await this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, transpose: this.transpose })
   }
 
-  private _startWaSourceAt(offsetSec: number) {
+  private async _startWaSourceAt(offsetSec: number) {
     if (!this.waContext || !this.waBuffer) return
     // 既存ソース破棄
     if (this.waSource) {
@@ -308,7 +354,49 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
-    src.connect(this.waGain!)
+    
+    // ピッチシフト計算
+    const safeSpeed = Math.max(this.playbackRate, 0.0001);
+    const speedSemitoneOffset = Math.log2(safeSpeed) * 12;
+    const effectivePitch = this.transpose - speedSemitoneOffset;
+    const shouldUsePitchShift = Math.abs(effectivePitch) > 0.001;
+
+    if (shouldUsePitchShift) {
+      try {
+        await Tone.start();
+        if ((Tone as any).setContext) {
+          (Tone as any).setContext(this.waContext);
+        }
+        
+        if (!this.pitchShift) {
+          this.pitchShift = new Tone.PitchShift({ pitch: effectivePitch });
+        } else {
+          this.pitchShift.pitch = effectivePitch;
+        }
+        
+        // PitchShift -> Gain
+        try { this.pitchShift.disconnect() } catch {}
+        this.pitchShift.connect(this.waGain!)
+        
+        // Source -> PitchShift
+        try {
+            Tone.connect(src, this.pitchShift);
+        } catch(e) {
+            console.warn('Tone.connect failed, direct connect', e);
+            src.connect(this.waGain!)
+        }
+      } catch (err) {
+        console.warn('Tone setup failed', err);
+        src.connect(this.waGain!)
+      }
+    } else {
+      // PitchShift不要
+      if (this.pitchShift) {
+        try { this.pitchShift.dispose() } catch {}
+        this.pitchShift = null;
+      }
+      src.connect(this.waGain!)
+    }
 
     // 再生
     const when = 0
