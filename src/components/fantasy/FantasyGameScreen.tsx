@@ -125,6 +125,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
   
+  // 移調設定（練習モード用）
+  const [transposeKey, setTransposeKey] = useState(0);
+  const [transposeRepeat, setTransposeRepeat] = useState<'off' | '+1' | '+5'>('off');
+  
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
@@ -523,7 +527,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+    isReady,
+    transpose: transposeKey,
+    transposeRepeat: transposeRepeat
   });
 
   // Progression_Timing用の楽譜表示フラグ
@@ -1319,6 +1325,45 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* 練習ボタン - progressionモードの場合は速度選択付き */}
             {isProgressionMode ? (
               <div className="w-full space-y-2">
+                
+                {/* 移調練習設定（練習モード用） */}
+                <div className="bg-gray-800/80 p-3 rounded-lg border border-gray-700 mb-2">
+                  <div className="text-sm font-bold text-gray-300 mb-2 border-b border-gray-600 pb-1 flex justify-between items-center">
+                    <span>移調練習設定</span>
+                    <span className="text-[10px] text-gray-500 font-normal">Timingモードのみ</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    {/* 開始キー */}
+                    <div className="flex flex-col">
+                      <label className="text-xs text-gray-400 mb-1">開始キー</label>
+                      <select 
+                        value={transposeKey}
+                        onChange={(e) => setTransposeKey(Number(e.target.value))}
+                        className="bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:outline-none focus:border-blue-500"
+                      >
+                        {Array.from({ length: 13 }, (_, i) => i - 6).map(val => (
+                          <option key={val} value={val}>
+                            {val > 0 ? `+${val}` : val}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    {/* リピート移調 */}
+                    <div className="flex flex-col">
+                      <label className="text-xs text-gray-400 mb-1">リピート移調</label>
+                      <select 
+                        value={transposeRepeat}
+                        onChange={(e) => setTransposeRepeat(e.target.value as any)}
+                        className="bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600 focus:outline-none focus:border-blue-500"
+                      >
+                        <option value="off">OFF</option>
+                        <option value="+1">+1 (半音)</option>
+                        <option value="+5">+5 (4度)</option>
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>

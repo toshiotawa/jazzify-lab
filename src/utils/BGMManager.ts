@@ -1,5 +1,7 @@
 /* HTMLAudio ベースの簡易 BGM ルーパー */
 
+import * as Tone from 'tone';
+
 class BGMManager {
   private audio: HTMLAudioElement | null = null
   private loopBegin = 0
@@ -16,6 +18,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private transpose = 0 // 移調（半音単位: -6 〜 +6）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -23,6 +26,7 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
+  private waPitchShift: Tone.PitchShift | null = null // Tone.js PitchShift
 
   play(
     url: string,
@@ -31,7 +35,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    transpose = 0 // 追加
   ) {
     if (!url) return
     
@@ -44,7 +49,8 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
-    
+    this.transpose = transpose
+
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
@@ -52,8 +58,10 @@ class BGMManager {
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
 
     // Web Audio 経路でシームレスループを試みる
+    // 移調がある場合や速度変更がある場合はWebAudioを使う
     this._playWebAudio(url, volume).catch(err => {
       console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
+      // フォールバックでは移調は無視される可能性がある（playbackRateでの速度変化のみ）
       this._playHtmlAudio(url, volume)
     })
   }
@@ -65,6 +73,23 @@ class BGMManager {
     if (this.waGain && this.waContext) {
       this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, v)), this.waContext.currentTime)
     }
+  }
+
+  setTranspose(val: number) {
+    this.transpose = val;
+    this._updatePitchShift();
+  }
+  
+  // ピッチシフト値を更新（再生速度によるピッチ変化を補正 + 移調）
+  private _updatePitchShift() {
+    if (!this.waPitchShift) return;
+    
+    // 速度によるピッチ変化（半音）
+    const speedSemitoneOffset = Math.log2(this.playbackRate) * 12;
+    // 最終的なピッチシフト量 = 目的の移調 - 速度による変化
+    const effectivePitch = this.transpose - speedSemitoneOffset;
+    
+    this.waPitchShift.pitch = effectivePitch;
   }
 
   stop() {
@@ -100,6 +125,13 @@ class BGMManager {
       try { this.waSource?.disconnect?.() } catch {}
       this.waSource = null
       this.waBuffer = null
+      
+      // PitchShift cleanup
+      if (this.waPitchShift) {
+        try { this.waPitchShift.dispose() } catch {}
+        this.waPitchShift = null
+      }
+
       try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
     } catch (e) {
@@ -267,21 +299,40 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
-    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
-    // AudioBufferSourceNodeにはpreservesPitchがないため
-    if (this.playbackRate !== 1.0) {
-      this._playHtmlAudio(url, volume)
-      return
-    }
-
+    // AudioContextの準備
     if (!this.waContext) {
       this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
     }
+    
+    // Tone.jsのコンテキスト同期
+    if ((Tone as any).setContext) {
+      (Tone as any).setContext(this.waContext);
+    }
+    await Tone.start();
+
+    // GainNode作成
     if (!this.waGain) {
       this.waGain = this.waContext.createGain()
       this.waGain.connect(this.waContext.destination)
     }
     this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.waContext.currentTime)
+
+    // PitchShift作成
+    if (!this.waPitchShift) {
+        this.waPitchShift = new Tone.PitchShift({
+            pitch: 0,
+            windowSize: 0.1, // レイテンシ低減のため
+        });
+        // Toneのノードは直接WebAudioのノードに接続できない場合があるため、Tone.connectを使うか
+        // PitchShiftの内部outputノードをGainに接続する
+        // Tone.js v14では toDestination() や connect() が使える
+        try {
+            (this.waPitchShift as any).connect(this.waGain);
+        } catch (e) {
+            console.warn('PitchShift connection failed:', e);
+        }
+    }
+    this._updatePitchShift(); // 初期設定
 
     const resp = await fetch(url)
     const arr = await resp.arrayBuffer()
@@ -292,7 +343,7 @@ class BGMManager {
     this._startWaSourceAt(0)
     this.isPlaying = true
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, rate: this.playbackRate, transpose: this.transpose })
   }
 
   private _startWaSourceAt(offsetSec: number) {
@@ -308,7 +359,24 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
-    src.connect(this.waGain!)
+    
+    // PitchShift経由でGainへ接続
+    if (this.waPitchShift) {
+        // Tone.jsのPitchShiftに接続
+        // SourceNode -> Tone.PitchShift -> GainNode
+        try {
+            // Tone.connect(src, this.waPitchShift) は型定義によってはエラーになるので
+            // PitchShift自体がAudioNodeのように振る舞うか、inputプロパティを持つ
+            // Tone.js v14ではToneAudioNodeはAudioNodeと互換性を持たせる努力をしているが
+            // ここでは安全策として、Tone.connectを使うか、anyキャストで接続を試みる
+            Tone.connect(src, this.waPitchShift);
+        } catch (e) {
+            console.warn('PitchShift source connection failed, fallback to direct gain:', e);
+            src.connect(this.waGain!);
+        }
+    } else {
+        src.connect(this.waGain!)
+    }
 
     // 再生
     const when = 0
@@ -330,6 +398,11 @@ class BGMManager {
     this.audio.volume = Math.max(0, Math.min(1, volume))
     this.audio.playbackRate = this.playbackRate // 再生速度を設定
     this.audio.preservesPitch = true // 速度変更時にピッチを保持
+    
+    // HTML Audioでは移調（ピッチシフト）はサポートしない（標準機能にないため）
+    if (this.transpose !== 0) {
+        console.warn('⚠️ HTML Audio fallback does not support pitch shifting (transpose ignored).');
+    }
 
     // 初回再生は0秒から（カウントインを含む）
     this.audio.currentTime = 0
