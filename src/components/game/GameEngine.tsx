@@ -733,14 +733,21 @@ const playFromOffset = useCallback(
       return unsubscribe;
     }, [hasAudioTrack, currentSongDuration, isPlaying]);
   
-// 再生状態同期
+// playFromOffsetをrefで保持して、依存配列から外す（transpose変更時の意図しない再生開始を防ぐ）
+const playFromOffsetRef = useRef(playFromOffset);
+useEffect(() => {
+  playFromOffsetRef.current = playFromOffset;
+}, [playFromOffset]);
+
+// 再生状態同期 - isPlayingの変更のみで発火するように修正
+// 🐛 Fix: playFromOffsetを依存配列から外すことで、transpose変更時の音楽複製問題を解決
 useEffect(() => {
   if (!gameEngine) {
     return;
   }
 
   if (isPlaying) {
-    void playFromOffset(currentTimeRef.current);
+    void playFromOffsetRef.current(currentTimeRef.current);
   } else {
     stopCurrentBufferSource();
     gameEngine.pause();
@@ -748,7 +755,8 @@ useEffect(() => {
     const timelineTime = getTimelineTime();
     updateTime(timelineTime);
   }
-}, [gameEngine, getTimelineTime, isPlaying, playFromOffset, stopCurrentBufferSource, updateTime]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [gameEngine, isPlaying, stopCurrentBufferSource]);
 
 useEffect(() => {
   return () => {
@@ -827,6 +835,7 @@ useEffect(() => {
   }, [applyPitchCompensationIfNeeded]);
   
   // シーク機能（音声あり/なし両対応）
+  // 🐛 Fix: playFromOffsetを依存配列から外すことで、transpose変更時の意図しないシーク処理を防ぐ
   useEffect(() => {
     if (!gameEngine) {
       return;
@@ -846,7 +855,7 @@ useEffect(() => {
     const syncMediaPosition = (targetTime: number) => {
       const { value: safeTime, clamped } = clampTime(targetTime);
       if (isPlayingRef.current) {
-        void playFromOffset(safeTime);
+        void playFromOffsetRef.current(safeTime);
         return;
       }
       if (audioContextRef.current) {
@@ -871,7 +880,7 @@ useEffect(() => {
       const timeDiff = Math.abs(timelineTime - safeTime);
 
       if (timeDiff > MEDIA_DRIFT_THRESHOLD) {
-        void playFromOffset(safeTime);
+        void playFromOffsetRef.current(safeTime);
       }
     };
 
@@ -882,7 +891,8 @@ useEffect(() => {
     );
 
     return unsubscribe;
-  }, [currentSongDuration, gameEngine, getTimelineTime, playFromOffset, updateTime]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentSongDuration, gameEngine, getTimelineTime, updateTime]);
   
   // MIDIController管理用のRef
   const midiControllerRef = useRef<any>(null);

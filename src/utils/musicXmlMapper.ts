@@ -822,10 +822,43 @@ function simplifyAccidentals(doc: Document, settings: { noteNameStyle: 'off' | '
 }
 
 /**
- * 臨時記号の最小限の簡易化（互換性のため）
- * ダブルシャープ・ダブルフラットのみ処理
+ * 臨時記号の簡易化（簡易表示モード用）
+ * ダブルシャープ・ダブルフラット、および理論的異名同音（B#, E#, Cb, Fb）を処理
+ * オクターブ境界を跨ぐケースを正しく処理
  */
 function simplifyAccidentalsMinimal(doc: Document): void {
+  // 臨時記号の簡易化マッピング
+  // キー: step + alter値, 値: { step, alter, octaveAdjustment }
+  const accidentalSimplifyMap: Record<string, { step: string; alter: number; octaveAdjust: number }> = {
+    // === 理論的異名同音（シングルシャープ・フラット） ===
+    // B# → C (オクターブ上がる)
+    'B1': { step: 'C', alter: 0, octaveAdjust: 1 },
+    // E# → F (オクターブそのまま)
+    'E1': { step: 'F', alter: 0, octaveAdjust: 0 },
+    // Cb → B (オクターブ下がる)
+    'C-1': { step: 'B', alter: 0, octaveAdjust: -1 },
+    // Fb → E (オクターブそのまま)
+    'F-1': { step: 'E', alter: 0, octaveAdjust: 0 },
+    
+    // === ダブルシャープ（alter = 2） ===
+    'A2': { step: 'B', alter: 0, octaveAdjust: 0 },    // Ax → B
+    'B2': { step: 'C', alter: 1, octaveAdjust: 1 },    // Bx → C# (オクターブ上がる)
+    'C2': { step: 'D', alter: 0, octaveAdjust: 0 },    // Cx → D
+    'D2': { step: 'E', alter: 0, octaveAdjust: 0 },    // Dx → E
+    'E2': { step: 'F', alter: 1, octaveAdjust: 0 },    // Ex → F#
+    'F2': { step: 'G', alter: 0, octaveAdjust: 0 },    // Fx → G
+    'G2': { step: 'A', alter: 0, octaveAdjust: 0 },    // Gx → A
+    
+    // === ダブルフラット（alter = -2） ===
+    'A-2': { step: 'G', alter: 0, octaveAdjust: 0 },   // Abb → G
+    'B-2': { step: 'A', alter: 0, octaveAdjust: 0 },   // Bbb → A
+    'C-2': { step: 'B', alter: -1, octaveAdjust: -1 }, // Cbb → Bb (オクターブ下がる)
+    'D-2': { step: 'C', alter: 0, octaveAdjust: 0 },   // Dbb → C
+    'E-2': { step: 'D', alter: 0, octaveAdjust: 0 },   // Ebb → D
+    'F-2': { step: 'E', alter: -1, octaveAdjust: 0 },  // Fbb → Eb
+    'G-2': { step: 'F', alter: 0, octaveAdjust: 0 },   // Gbb → F
+  };
+  
   const notes = doc.querySelectorAll('note');
   
   notes.forEach(note => {
@@ -833,35 +866,50 @@ function simplifyAccidentalsMinimal(doc: Document): void {
     if (!alterElement) return;
     
     const alter = parseInt(alterElement.textContent || '0');
+    if (alter === 0) return;
     
-    // ダブルシャープ・ダブルフラットのみ処理
-    if (Math.abs(alter) > 1) {
-      const stepElement = note.querySelector('pitch step');
-      const octaveElement = note.querySelector('pitch octave');
+    const stepElement = note.querySelector('pitch step');
+    const octaveElement = note.querySelector('pitch octave');
+    
+    if (!stepElement || !octaveElement) return;
+    
+    const step = stepElement.textContent || '';
+    const octave = parseInt(octaveElement.textContent || '4');
+    
+    // マッピングを使用して簡易化
+    const mapKey = `${step}${alter}`;
+    const simplified = accidentalSimplifyMap[mapKey];
+    
+    if (simplified) {
+      stepElement.textContent = simplified.step;
       
-      if (!stepElement || !octaveElement) return;
+      // alter値を更新（0の場合はalter要素を削除）
+      if (simplified.alter === 0) {
+        alterElement.remove();
+      } else {
+        alterElement.textContent = simplified.alter.toString();
+      }
       
-      const step = stepElement.textContent || '';
-      const octave = parseInt(octaveElement.textContent || '4');
+      // オクターブ調整
+      const newOctave = octave + simplified.octaveAdjust;
+      octaveElement.textContent = newOctave.toString();
       
-      // tonal.jsを使って簡易化
-      const currentNote = `${step}${alter > 0 ? 'x'.repeat(alter/2) : 'b'.repeat(-alter/2)}${octave}`;
-      const simpleNote = parseNote(currentNote);
-      
-      if (simpleNote && !simpleNote.empty) {
-        // Note.enharmonic()を使用
-        const enharmonicName = Note.enharmonic(simpleNote.name);
-        if (enharmonicName && enharmonicName !== simpleNote.name) {
-          const enharmonicNote = parseNote(enharmonicName + octave);
-          if (enharmonicNote && !enharmonicNote.empty) {
-            stepElement.textContent = enharmonicNote.letter;
-            alterElement.textContent = enharmonicNote.alt.toString();
-            if (enharmonicNote.oct !== undefined && enharmonicNote.oct !== octave) {
-              octaveElement.textContent = enharmonicNote.oct.toString();
-            }
-          }
+      // 臨時記号の表示要素（accidental）も更新
+      const accidentalElement = note.querySelector('accidental');
+      if (accidentalElement) {
+        if (simplified.alter === 0) {
+          accidentalElement.remove();
+        } else if (simplified.alter === 1) {
+          accidentalElement.textContent = 'sharp';
+        } else if (simplified.alter === -1) {
+          accidentalElement.textContent = 'flat';
         }
       }
+      
+      // ログ出力
+      const originalAcc = alter === 2 ? 'x' : alter === 1 ? '#' : alter === -1 ? 'b' : 'bb';
+      const newAcc = simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : '';
+      console.log(`🎼 臨時記号簡易化: ${step}${originalAcc}${octave} → ${simplified.step}${newAcc}${newOctave}`);
     }
   });
 }
