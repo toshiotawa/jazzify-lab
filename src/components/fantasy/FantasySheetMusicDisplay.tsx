@@ -321,8 +321,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, [sheetImageCache, transposeOffset, nextTransposeOffset]);
   
   // 再生位置に同期してスクロール
-  // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
-  // スクロールは単純に時刻→X位置の変換のみ
+  // 時間ベースの一定速度スクロール方式
+  // 各キーで調号の幅が異なるため、小節線位置ではなく時間に基づいてスクロール
   useEffect(() => {
     if (!scoreWrapperRef.current || !isInitialized) {
       return;
@@ -334,10 +334,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
       // ループ後は0〜loopDurationに正規化されている
       const currentTime = bgmManager.getCurrentMusicTime();
-      const mapping = timeMappingRef.current;
       const sheetWidth = sheetWidthRef.current;
       
-      if (mapping.length === 0 || sheetWidth <= 0) {
+      if (sheetWidth <= 0 || loopDuration <= 0) {
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
@@ -352,35 +351,11 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
-      // 正規化された時刻をミリ秒に変換
-      const currentTimeMs = currentTime * 1000;
-      const loopDurationMs = loopDuration * 1000;
-      
-      // 現在時刻に対応するX位置を補間で計算
-      let xPosition = 0;
-      
-      for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
-          // 線形補間
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
-          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
-          break;
-        }
-      }
-      
-      // 最後のエントリ以降の場合（ループ終端に向かって補間）
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
-        const lastEntry = mapping[mapping.length - 1];
-        // 最後の小節から楽譜終端まで進行
-        const remainingTime = loopDurationMs - lastEntry.timeMs;
-        if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
-          // 楽譜の終端位置（sheetWidthを使用）
-          xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
-        } else {
-          xPosition = lastEntry.xPosition;
-        }
-      }
+      // 時間ベースの一定速度スクロール
+      // 楽譜の幅全体をloopDurationで進むようにスクロール
+      // これにより、各キーで調号の幅が異なっていても一定速度でスクロール
+      const progress = currentTime / loopDuration; // 0.0 ~ 1.0
+      const xPosition = progress * sheetWidth;
       
       // スクロール位置を計算（プレイヘッド位置を考慮）
       const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
@@ -418,31 +393,30 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, []);
   
   // Harmonyマーカーの位置を計算
+  // 時間ベースの一定速度方式（スクロールと同じ計算方法）
   const harmonyMarkerPositions = useMemo(() => {
-    if (harmonyMarkers.length === 0 || timeMappingRef.current.length === 0) {
+    if (harmonyMarkers.length === 0) {
       return [];
     }
     
-    const mapping = timeMappingRef.current;
+    const { loopDuration } = loopInfo;
+    const sheetWidth = sheetWidthRef.current;
+    
+    if (sheetWidth <= 0 || loopDuration <= 0) {
+      return [];
+    }
+    
     const positions: Array<{ text: string; xPosition: number }> = [];
     
     for (const marker of harmonyMarkers) {
-      const timeMs = marker.time * 1000;
-      let xPosition = 0;
-      
-      for (let i = 0; i < mapping.length - 1; i++) {
-        if (timeMs >= mapping[i].timeMs && timeMs < mapping[i + 1].timeMs) {
-          const t = (timeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
-          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
-          break;
-        }
-      }
-      
+      // 時間ベースの一定速度でX位置を計算
+      const progress = marker.time / loopDuration; // 0.0 ~ 1.0
+      const xPosition = progress * sheetWidth;
       positions.push({ text: marker.text, xPosition });
     }
     
     return positions;
-  }, [harmonyMarkers]);
+  }, [harmonyMarkers, loopInfo]);
   
   // Harmonyマーカーのレンダリング（1つの楽譜分）
   const renderHarmonyMarkers = useCallback((offset: number, keyPrefix: string) => {
