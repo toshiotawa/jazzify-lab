@@ -16,6 +16,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private pitchSemitones = 0 // ピッチシフト（半音単位、-12 to +12）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -31,7 +32,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    pitchSemitones = 0
   ) {
     if (!url) return
     
@@ -44,6 +46,7 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.pitchSemitones = Math.max(-12, Math.min(12, pitchSemitones)) // ピッチシフトを-12〜+12に制限
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -232,6 +235,34 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
+  getPitchSemitones(): number { return this.pitchSemitones }
+  
+  /**
+   * ピッチシフトを動的に変更
+   * リピートごとの移調変更に使用
+   * @param semitones 半音単位（-12 to +12）
+   */
+  setPitchSemitones(semitones: number): void {
+    this.pitchSemitones = Math.max(-12, Math.min(12, semitones))
+    
+    // Web Audio再生中なら即座に反映
+    if (this.waSource) {
+      try {
+        this.waSource.detune.setValueAtTime(
+          this.pitchSemitones * 100, 
+          this.waContext!.currentTime
+        )
+        console.log(`🎼 BGMピッチ変更: ${semitones}半音`)
+      } catch (e) {
+        console.warn('BGMピッチ変更エラー:', e)
+      }
+    }
+    // HTMLAudioの場合はピッチ変更不可（警告のみ）
+    else if (this.audio && this.pitchSemitones !== 0) {
+      console.warn('⚠️ HTMLAudioモードではピッチ変更がサポートされていません')
+    }
+  }
+  
   getIsCountIn(): boolean {
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -267,9 +298,9 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
-    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
-    // AudioBufferSourceNodeにはpreservesPitchがないため
-    if (this.playbackRate !== 1.0) {
+    // 再生速度が1.0でない場合、ピッチシフトがない場合のみHTMLAudioを使用（ピッチ保持のため）
+    // ピッチシフトがある場合はWeb Audioを使用（detuneでピッチ変更）
+    if (this.playbackRate !== 1.0 && this.pitchSemitones === 0) {
       this._playHtmlAudio(url, volume)
       return
     }
@@ -308,6 +339,10 @@ class BGMManager {
     src.loopStart = this.loopBegin
     src.loopEnd = this.loopEnd
     src.playbackRate.value = this.playbackRate // 再生速度を設定
+    // ピッチシフト（半音単位をcent単位に変換: 1半音 = 100cent）
+    if (this.pitchSemitones !== 0) {
+      src.detune.value = this.pitchSemitones * 100
+    }
     src.connect(this.waGain!)
 
     // 再生
