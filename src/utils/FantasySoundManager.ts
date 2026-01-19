@@ -409,20 +409,19 @@ export class FantasySoundManager {
   }
 
   // 🎸 ルート音再生（Web Audio API直接使用 - クリック音完全防止）
-  // 🚀 パフォーマンス最適化: Tone.jsを回避し、Web Audio APIで直接制御
-  // 🚀 クリック音防止: exponentialRampでスムーズなフェードイン/フェードアウト
-  private async _playRootNote(rootName: string) {
-    // 初期化が完了していない場合は無視（待機しない）
+  // 🚀 パフォーマンス最適化: setTimeout不使用、Web Audio APIスケジューリングのみ
+  // 🚀 クリック音防止: linearRampでスムーズなフェードイン/フェードアウト
+  private _playRootNote(rootName: string) {
+    // 初期化が完了していない場合は無視
     if (!this.isInited || !this.bassEnabled) return;
     
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // Web Audio APIコンテキストを取得または作成
+    // Web Audio APIコンテキストを取得または作成（初回のみ）
     if (!this.rootAudioContext) {
       try {
         this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
-        // マスターゲインノード
         this.rootMasterGain = this.rootAudioContext.createGain();
         this.rootMasterGain.connect(this.rootAudioContext.destination);
         this._syncRootBassVolume();
@@ -434,86 +433,58 @@ export class FantasySoundManager {
     const ctx = this.rootAudioContext;
     if (!ctx || !this.rootMasterGain) return;
     
-    // AudioContextがsuspended状態ならresumeする（非ブロッキング）
+    // AudioContextがsuspended状態ならresumeする（非ブロッキング、待機しない）
     if (ctx.state === 'suspended') {
       ctx.resume().catch(() => {});
     }
     
     const now = ctx.currentTime;
-    const frequency = 440 * Math.pow(2, (n.midi - 69) / 12); // MIDIノートから周波数に変換
+    const frequency = 440 * Math.pow(2, (n.midi - 69) / 12);
     
-    // 🚀 前のノートをフェードアウト（クリック音防止）
+    // 🚀 前のオシレーターはWeb Audio APIのstop()でスケジュール停止（setTimeoutなし）
+    // onended イベントで自動クリーンアップされる
     if (this.activeRootOscillator && this.activeRootGain) {
       try {
-        const fadeOutTime = 0.03; // 30msでフェードアウト
-        this.activeRootGain.gain.setValueAtTime(this.activeRootGain.gain.value, now);
-        this.activeRootGain.gain.exponentialRampToValueAtTime(0.0001, now + fadeOutTime);
-        // 古いオシレーターを停止予約
-        const oldOsc = this.activeRootOscillator;
-        const oldGain = this.activeRootGain;
-        setTimeout(() => {
-          try {
-            oldOsc.stop();
-            oldOsc.disconnect();
-            oldGain.disconnect();
-          } catch { /* 既に停止済み */ }
-        }, fadeOutTime * 1000 + 10);
-      } catch { /* エラーは無視 */ }
+        // 30ms後に停止をスケジュール（フェードアウト完了後）
+        this.activeRootGain.gain.linearRampToValueAtTime(0, now + 0.03);
+        this.activeRootOscillator.stop(now + 0.035);
+      } catch { /* 既に停止済み */ }
     }
     
     try {
       // 新しいオシレーターを作成
       const osc = ctx.createOscillator();
-      osc.type = 'triangle'; // 三角波でベースの柔らかい音色
-      osc.frequency.setValueAtTime(frequency, now);
+      osc.type = 'triangle';
+      osc.frequency.value = frequency;
       
-      // 個別のゲインノード（エンベロープ制御用）
+      // 個別のゲインノード
       const gainNode = ctx.createGain();
-      gainNode.gain.setValueAtTime(0.0001, now); // 開始時は無音（クリック防止）
+      gainNode.gain.value = 0;
       
-      // 接続: Oscillator -> GainNode -> MasterGain -> Destination
       osc.connect(gainNode);
       gainNode.connect(this.rootMasterGain);
       
-      // エンベロープ設定
-      const attackTime = 0.015;   // 15msフェードイン（クリック音防止）
-      const decayTime = 0.1;      // 100msディケイ
-      const sustainLevel = 0.3;   // サステインレベル
-      const releaseStart = 0.25;  // 250ms後からリリース開始
-      const releaseTime = 0.15;   // 150msリリース
+      // エンベロープ（すべてスケジュール済み、メインスレッド負荷なし）
+      const totalDuration = 0.4; // 400ms
+      gainNode.gain.linearRampToValueAtTime(1.0, now + 0.01);      // 10ms attack
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.12);      // 110ms後にdecay
+      gainNode.gain.linearRampToValueAtTime(0, now + totalDuration); // 400ms後にfade out完了
       
-      // Attack: 無音から最大音量へ
-      gainNode.gain.exponentialRampToValueAtTime(1.0, now + attackTime);
-      // Decay: 最大音量からサステインレベルへ
-      gainNode.gain.exponentialRampToValueAtTime(sustainLevel, now + attackTime + decayTime);
-      // Release: サステインレベルから無音へ
-      gainNode.gain.setValueAtTime(sustainLevel, now + releaseStart);
-      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + releaseStart + releaseTime);
-      
-      // オシレーター開始・停止
       osc.start(now);
-      osc.stop(now + releaseStart + releaseTime + 0.05);
+      osc.stop(now + totalDuration + 0.01);
       
-      // 停止後にクリーンアップ
+      // onendedでクリーンアップ（Web Audioスレッドで実行、メインスレッド負荷なし）
       osc.onended = () => {
         try {
           osc.disconnect();
           gainNode.disconnect();
-        } catch { /* 既にdisconnect済み */ }
-        // アクティブなオシレーターが自分自身なら解除
-        if (this.activeRootOscillator === osc) {
-          this.activeRootOscillator = null;
-          this.activeRootGain = null;
-        }
+        } catch { /* ignore */ }
       };
       
-      // アクティブなオシレーターとして記録
       this.activeRootOscillator = osc;
       this.activeRootGain = gainNode;
       
-    } catch {
-      // エラーは無視（UIをブロックしない）
-    }
+    } catch { /* ignore */ }
   }
   
   // 🎸 ルート音用 Web Audio API リソース
@@ -742,7 +713,15 @@ export class FantasySoundManager {
         await this.gmAudioContext.resume();
       }
 
-      // ルート音用のAudioContextもresumeする
+      // ルート音用のAudioContextを事前作成（初回 playRootNote のブロッキングを防止）
+      if (!this.rootAudioContext) {
+        try {
+          this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+          this.rootMasterGain = this.rootAudioContext.createGain();
+          this.rootMasterGain.connect(this.rootAudioContext.destination);
+          this._syncRootBassVolume();
+        } catch { /* ignore */ }
+      }
       if (this.rootAudioContext && this.rootAudioContext.state !== 'running') {
         await this.rootAudioContext.resume();
       }
