@@ -2,6 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import type { MonsterState } from './FantasyGameEngine';
 import { cn } from '@/utils/cn';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { bgmManager } from '@/utils/BGMManager';
 
 interface FantasyPIXIRendererProps {
   width: number;
@@ -21,6 +22,22 @@ interface TaikoDisplayNote {
   x: number;
   /** 複数音の場合の個別音名配列（下から順に表示）*/
   noteNames?: string[];
+}
+
+// 太鼓ノーツの生データ型（外部から受け取る）
+interface TaikoNoteRawData {
+  id: string;
+  hitTime: number;
+  isHit: boolean;
+  chordDisplayName: string;
+  noteNames: string[];
+}
+
+// 太鼓ノーツ計算に必要な設定
+interface TaikoConfig {
+  loopDuration: number;
+  lookAheadTime: number;
+  noteSpeed: number;
 }
 
 interface ParticleEffect {
@@ -108,6 +125,17 @@ export class FantasyPIXIInstance {
   private lastRenderTime = 0;
   private readonly minRenderInterval = 16; // 16ms = 60FPS
   private needsRender = true; // 変更があった場合のみ true
+
+  // 🚀 太鼓ノーツ計算用データ（Reactから独立）
+  private taikoRawNotes: TaikoNoteRawData[] = [];
+  private taikoCurrentNoteIndex = 0;
+  private taikoAwaitingLoopStart = false;
+  private taikoConfig: TaikoConfig = {
+    loopDuration: 16, // デフォルト値
+    lookAheadTime: 4,
+    noteSpeed: 200
+  };
+  private taikoOverlayMarkers: Array<{ time: number; text: string }> = [];
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -209,6 +237,40 @@ export class FantasyPIXIInstance {
   updateTaikoNotes(notes: TaikoDisplayNote[]): void {
     this.taikoNotes = notes;
     this.requestRender();
+  }
+
+  /**
+   * 🚀 太鼓ノーツの生データを設定（Reactから独立した計算用）
+   * renderLoop内で位置計算を行うため、Reactの再レンダリングに影響されない
+   */
+  setTaikoNotesData(
+    notes: TaikoNoteRawData[],
+    currentNoteIndex: number,
+    awaitingLoopStart: boolean,
+    config: TaikoConfig,
+    overlayMarkers: Array<{ time: number; text: string }>
+  ): void {
+    this.taikoRawNotes = notes;
+    this.taikoCurrentNoteIndex = currentNoteIndex;
+    this.taikoAwaitingLoopStart = awaitingLoopStart;
+    this.taikoConfig = config;
+    this.taikoOverlayMarkers = overlayMarkers;
+    // 描画はrenderLoopが継続的に行うため、requestRenderは不要
+  }
+
+  /**
+   * 太鼓ノーツのインデックスと状態を更新（軽量な更新用）
+   */
+  updateTaikoNotesState(
+    currentNoteIndex: number,
+    awaitingLoopStart: boolean,
+    updatedNotes?: TaikoNoteRawData[]
+  ): void {
+    this.taikoCurrentNoteIndex = currentNoteIndex;
+    this.taikoAwaitingLoopStart = awaitingLoopStart;
+    if (updatedNotes) {
+      this.taikoRawNotes = updatedNotes;
+    }
   }
 
   getJudgeLinePosition(): { x: number; y: number } {
@@ -320,6 +382,11 @@ export class FantasyPIXIInstance {
     
     const now = performance.now();
     
+    // 🚀 太鼓モードの場合、内部で位置計算（Reactから完全に独立）
+    if (this.taikoMode && this.taikoRawNotes.length > 0) {
+      this.calculateTaikoNotesPositions();
+    }
+    
     // 🚀 パフォーマンス最適化: アクティブなアニメーションがある場合のみ描画
     const hasActiveAnimations = 
       this.effects.length > 0 ||
@@ -327,6 +394,7 @@ export class FantasyPIXIInstance {
       this.specialAttackEffect?.active ||
       this.overlayText !== null ||
       this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
+      this.taikoRawNotes.length > 0 || // 生データがある場合も描画継続
       this.monsters.length > 0 || // モンスター存在時は浮遊アニメーション用に描画継続
       this.monsters.some(m => 
         m.flashUntil > now || 
@@ -343,6 +411,122 @@ export class FantasyPIXIInstance {
     
     this.startLoop();
   };
+
+  /**
+   * 🚀 太鼓ノーツの位置計算（renderLoop内で実行、Reactから独立）
+   */
+  private calculateTaikoNotesPositions(): void {
+    const currentTime = bgmManager.getCurrentMusicTime();
+    const judgeLinePos = this.getJudgeLinePosition();
+    const { loopDuration, lookAheadTime, noteSpeed } = this.taikoConfig;
+    const currentNoteIndex = this.taikoCurrentNoteIndex;
+    const isAwaitingLoop = this.taikoAwaitingLoopStart;
+    
+    const notesToDisplay: TaikoDisplayNote[] = [];
+    
+    // カウントイン中は複数ノーツを先行表示
+    if (currentTime < 0) {
+      const maxPreCountNotes = 6;
+      for (let i = 0; i < this.taikoRawNotes.length; i++) {
+        const note = this.taikoRawNotes[i];
+        const timeUntilHit = note.hitTime - currentTime;
+        if (timeUntilHit > lookAheadTime) break;
+        if (timeUntilHit >= -0.5) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chordDisplayName,
+            x,
+            noteNames: note.noteNames
+          });
+          if (notesToDisplay.length >= maxPreCountNotes) break;
+        }
+      }
+      this.taikoNotes = notesToDisplay;
+      this.updateOverlayTextFromMarkers(0);
+      return;
+    }
+    
+    // 現在の時間をループ内0..Tへ正規化
+    const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+    
+    // 通常のノーツ（現在ループのみ表示）
+    if (!isAwaitingLoop) {
+      this.taikoRawNotes.forEach((note, index) => {
+        if (note.isHit) return;
+        if (index < currentNoteIndex) return;
+        
+        const timeUntilHit = note.hitTime - normalizedTime;
+        const lowerBound = -0.35;
+        
+        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chordDisplayName,
+            x,
+            noteNames: note.noteNames
+          });
+        }
+      });
+    }
+    
+    // 次ループのプレビュー表示
+    const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+    const timeToLoop = loopDuration - normalizedTime;
+    const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
+    
+    if (shouldShowNextLoopPreview && this.taikoRawNotes.length > 0) {
+      for (let i = 0; i < this.taikoRawNotes.length; i++) {
+        const note = this.taikoRawNotes[i];
+        if (displayedBaseIds.has(note.id)) continue;
+        
+        const virtualHitTime = note.hitTime + loopDuration;
+        const timeUntilHit = virtualHitTime - normalizedTime;
+        
+        if (timeUntilHit <= 0) continue;
+        if (timeUntilHit > lookAheadTime) break;
+        
+        const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+        notesToDisplay.push({
+          id: `${note.id}_loop`,
+          chord: note.chordDisplayName,
+          x,
+          noteNames: note.noteNames
+        });
+      }
+    }
+    
+    this.taikoNotes = notesToDisplay;
+    this.updateOverlayTextFromMarkers(normalizedTime);
+  }
+
+  /**
+   * オーバーレイテキストをマーカーから更新
+   */
+  private updateOverlayTextFromMarkers(normalizedTime: number): void {
+    if (this.taikoOverlayMarkers.length === 0) {
+      this.overlayText = null;
+      return;
+    }
+    
+    let label = this.taikoOverlayMarkers[this.taikoOverlayMarkers.length - 1].text;
+    for (let i = 0; i < this.taikoOverlayMarkers.length; i++) {
+      const cur = this.taikoOverlayMarkers[i];
+      const next = this.taikoOverlayMarkers[i + 1];
+      if (normalizedTime >= cur.time && (!next || normalizedTime < next.time)) {
+        label = cur.text;
+        break;
+      }
+      if (normalizedTime < this.taikoOverlayMarkers[0].time) {
+        label = this.taikoOverlayMarkers[this.taikoOverlayMarkers.length - 1].text;
+      }
+    }
+    
+    if (label) {
+      this.overlayText = { value: label, until: performance.now() + 1000 };
+    }
+  }
 
   private requestRender(): void {
     this.needsRender = true;
