@@ -436,6 +436,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
     devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
     
+    // 敵を攻撃した時に攻撃音を再生（敵の攻撃音と同じ音）
+    FantasySoundManager.playEnemyAttack();
+    
     if (fantasyPixiInstance) {
       fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
       // 太鼓progressionモード時は判定ライン上に小さなヒットエフェクトを表示
