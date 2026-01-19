@@ -610,8 +610,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           })
         } as React.CSSProperties}
         >
-          {/* 楽譜コンテナ - 上部に余白を追加 */}
-          <div className="relative h-full pt-8 pb-4">
+          {/* 楽譜コンテナ - 中央揃えに変更 */}
+          <div className="relative h-full flex flex-col justify-center">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
                 <div className="text-black">楽譜を読み込み中...</div>
@@ -646,7 +646,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             >
               <div 
                 ref={containerRef} 
-                className="h-full flex items-center"
+                className="h-full flex items-center justify-start"
+                style={{
+                  // 🔧 修正: 五線譜を常に縦方向の中央に配置
+                  // OSMDが生成するcanvas/svgの高さに関係なく、中央揃えを維持
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'flex-start'
+                }}
               />
             </div>
           </div>

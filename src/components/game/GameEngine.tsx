@@ -734,13 +734,31 @@ const playFromOffset = useCallback(
     }, [hasAudioTrack, currentSongDuration, isPlaying]);
   
 // 再生状態同期
+// 🔧 修正: isPlayingの実際の変化のみを検出し、playFromOffsetの再生成による不要な再実行を防止
+const prevIsPlayingRef = useRef(isPlaying);
+const playFromOffsetRef = useRef(playFromOffset);
+
+// playFromOffsetの参照を常に最新に保つ
+useEffect(() => {
+  playFromOffsetRef.current = playFromOffset;
+}, [playFromOffset]);
+
 useEffect(() => {
   if (!gameEngine) {
     return;
   }
 
+  // isPlayingが実際に変化した場合のみ処理
+  const wasPlaying = prevIsPlayingRef.current;
+  prevIsPlayingRef.current = isPlaying;
+
+  if (isPlaying === wasPlaying) {
+    // isPlayingが変化していない場合は何もしない（依存配列の他の要素の変化による再実行を無視）
+    return;
+  }
+
   if (isPlaying) {
-    void playFromOffset(currentTimeRef.current);
+    void playFromOffsetRef.current(currentTimeRef.current);
   } else {
     stopCurrentBufferSource();
     gameEngine.pause();
@@ -748,7 +766,7 @@ useEffect(() => {
     const timelineTime = getTimelineTime();
     updateTime(timelineTime);
   }
-}, [gameEngine, getTimelineTime, isPlaying, playFromOffset, stopCurrentBufferSource, updateTime]);
+}, [gameEngine, getTimelineTime, isPlaying, stopCurrentBufferSource, updateTime]);
 
 useEffect(() => {
   return () => {
