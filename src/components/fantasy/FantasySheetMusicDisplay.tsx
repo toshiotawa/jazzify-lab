@@ -320,6 +320,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     return sheetImageCache[nextOffset] || null;
   }, [sheetImageCache, transposeOffset, nextTransposeOffset]);
   
+  // 前回のループサイクルを追跡（ループ境界検出用）
+  const lastLoopCycleRef = useRef<number>(-1);
+  
   // 再生位置に同期してスクロール
   // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
   // スクロールは単純に時刻→X位置の変換のみ
@@ -348,33 +351,55 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           scoreWrapperRef.current.style.transform = `translateX(0px)`;
         }
         lastScrollXRef.current = 0;
+        lastLoopCycleRef.current = -1; // ループサイクルをリセット
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
       
-      // 正規化された時刻をミリ秒に変換
-      const currentTimeMs = currentTime * 1000;
+      // 正規化された時刻をミリ秒に変換（0〜loopDuration範囲内）
+      // currentTimeは既に正規化されているので、そのまま使用
+      const normalizedTimeMs = currentTime * 1000;
       const loopDurationMs = loopDuration * 1000;
+      
+      // ループ境界検出（時間が急に減少した場合）
+      // 注: getCurrentMusicTime()は既にループを考慮して正規化されているため、
+      // 時間の急減少（例: 15秒→0秒）でループを検出
+      const currentLoopCycle = Math.floor(currentTime / loopDuration);
+      if (lastLoopCycleRef.current >= 0 && currentTime < loopDuration * 0.1 && lastScrollXRef.current > sheetWidth * 0.8) {
+        // ループ境界を超えた直後：スクロール位置を先頭にリセット
+        if (scoreWrapperRef.current) {
+          scoreWrapperRef.current.style.transform = `translateX(0px)`;
+        }
+        lastScrollXRef.current = 0;
+        devLog.debug('🔄 楽譜スクロール: ループ境界リセット', { currentTime, lastScrollX: lastScrollXRef.current });
+      }
+      lastLoopCycleRef.current = currentLoopCycle;
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
       
+      // タイムマッピングから位置を補間
       for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
+        if (normalizedTimeMs >= mapping[i].timeMs && normalizedTimeMs < mapping[i + 1].timeMs) {
           // 線形補間
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          const t = (normalizedTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
           xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
           break;
         }
       }
       
+      // 最初のエントリより前の場合（ループ直後など）
+      if (normalizedTimeMs < mapping[0].timeMs) {
+        // 最初の小節の位置を使用
+        xPosition = mapping[0].xPosition;
+      }
       // 最後のエントリ以降の場合（ループ終端に向かって補間）
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+      else if (normalizedTimeMs >= mapping[mapping.length - 1].timeMs) {
         const lastEntry = mapping[mapping.length - 1];
         // 最後の小節から楽譜終端まで進行
         const remainingTime = loopDurationMs - lastEntry.timeMs;
         if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
+          const t = Math.min(1, (normalizedTimeMs - lastEntry.timeMs) / remainingTime);
           // 楽譜の終端位置（sheetWidthを使用）
           xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
         } else {
