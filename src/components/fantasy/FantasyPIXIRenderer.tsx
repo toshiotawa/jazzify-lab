@@ -1,7 +1,9 @@
 import React, { useEffect, useRef } from 'react';
 import type { MonsterState } from './FantasyGameEngine';
+import type { TaikoNote } from './TaikoNoteSystem';
 import { cn } from '@/utils/cn';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { bgmManager } from '@/utils/BGMManager';
 
 interface FantasyPIXIRendererProps {
   width: number;
@@ -21,6 +23,22 @@ interface TaikoDisplayNote {
   x: number;
   /** 複数音の場合の個別音名配列（下から順に表示）*/
   noteNames?: string[];
+}
+
+/** 太鼓ノーツ位置計算用の設定 */
+interface TaikoNoteConfig {
+  notes: TaikoNote[];
+  bpm: number;
+  timeSignature: number;
+  measureCount: number;
+  lookAheadTime: number;
+  noteSpeed: number;
+  /** 現在のノートインデックス（refで外部から更新） */
+  currentNoteIndexRef: { current: number };
+  /** ループ待機中フラグ（refで外部から更新） */
+  awaitingLoopStartRef: { current: boolean };
+  /** オーバーレイマーカー */
+  overlayMarkers?: Array<{ time: number; text: string }>;
 }
 
 interface ParticleEffect {
@@ -108,6 +126,9 @@ export class FantasyPIXIInstance {
   private lastRenderTime = 0;
   private readonly minRenderInterval = 16; // 16ms = 60FPS
   private needsRender = true; // 変更があった場合のみ true
+  
+  // 🚀 太鼓ノーツ位置計算用（Reactの状態更新から独立）
+  private taikoNoteConfig: TaikoNoteConfig | null = null;
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -209,6 +230,15 @@ export class FantasyPIXIInstance {
   updateTaikoNotes(notes: TaikoDisplayNote[]): void {
     this.taikoNotes = notes;
     this.requestRender();
+  }
+  
+  /**
+   * 🚀 太鼓ノーツ位置計算用の設定を更新
+   * この設定を使ってrenderLoop内で位置をリアルタイム計算する
+   * Reactの状態更新から完全に独立してノーツを描画できる
+   */
+  setTaikoNoteConfig(config: TaikoNoteConfig | null): void {
+    this.taikoNoteConfig = config;
   }
 
   getJudgeLinePosition(): { x: number; y: number } {
@@ -320,6 +350,11 @@ export class FantasyPIXIInstance {
     
     const now = performance.now();
     
+    // 🚀 太鼓ノーツの位置をリアルタイム計算（Reactの状態更新から独立）
+    if (this.taikoMode && this.taikoNoteConfig) {
+      this.calculateTaikoNotePositions();
+    }
+    
     // 🚀 パフォーマンス最適化: アクティブなアニメーションがある場合のみ描画
     const hasActiveAnimations = 
       this.effects.length > 0 ||
@@ -327,6 +362,7 @@ export class FantasyPIXIInstance {
       this.specialAttackEffect?.active ||
       this.overlayText !== null ||
       this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
+      this.taikoNoteConfig !== null || // 太鼓ノーツ設定がある場合
       this.monsters.length > 0 || // モンスター存在時は浮遊アニメーション用に描画継続
       this.monsters.some(m => 
         m.flashUntil > now || 
@@ -346,6 +382,125 @@ export class FantasyPIXIInstance {
 
   private requestRender(): void {
     this.needsRender = true;
+  }
+  
+  /**
+   * 🚀 太鼓ノーツの位置をリアルタイム計算
+   * BGMManagerから直接時間を取得し、Reactの状態更新から完全に独立
+   */
+  private calculateTaikoNotePositions(): void {
+    const config = this.taikoNoteConfig;
+    if (!config || config.notes.length === 0) {
+      this.taikoNotes = [];
+      return;
+    }
+    
+    const currentTime = bgmManager.getCurrentMusicTime();
+    const judgeLinePos = this.getJudgeLinePosition();
+    const { notes, bpm, timeSignature, measureCount, lookAheadTime, noteSpeed, currentNoteIndexRef, awaitingLoopStartRef, overlayMarkers } = config;
+    
+    // ループ情報を計算
+    const secPerBeat = 60 / bpm;
+    const secPerMeasure = secPerBeat * timeSignature;
+    const loopDuration = measureCount * secPerMeasure;
+    
+    // 現在の時間をループ内0..Tへ正規化
+    const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+    
+    const notesToDisplay: TaikoDisplayNote[] = [];
+    const currentNoteIndex = currentNoteIndexRef.current;
+    const isAwaitingLoop = awaitingLoopStartRef.current;
+    
+    // カウントイン中は複数ノーツを先行表示
+    if (currentTime < 0) {
+      const maxPreCountNotes = 6;
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        const timeUntilHit = note.hitTime - currentTime;
+        if (timeUntilHit > lookAheadTime) break;
+        if (timeUntilHit >= -0.5) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({ 
+            id: note.id, 
+            chord: note.chord.displayName, 
+            x,
+            noteNames: note.chord.noteNames 
+          });
+          if (notesToDisplay.length >= maxPreCountNotes) break;
+        }
+      }
+      this.taikoNotes = notesToDisplay;
+      
+      // オーバーレイテキストはカウントイン中は表示しない
+      this.overlayText = null;
+      return;
+    }
+    
+    // 通常のノーツ（現在ループのみ表示）
+    if (!isAwaitingLoop) {
+      notes.forEach((note, index) => {
+        if (note.isHit) return;
+        if (index < currentNoteIndex) return;
+        
+        const timeUntilHit = note.hitTime - normalizedTime;
+        const lowerBound = -0.35;
+        
+        if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          notesToDisplay.push({
+            id: note.id,
+            chord: note.chord.displayName,
+            x,
+            noteNames: note.chord.noteNames
+          });
+        }
+      });
+    }
+    
+    // 次ループのプレビュー表示
+    const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
+    const timeToLoop = loopDuration - normalizedTime;
+    const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
+    
+    if (shouldShowNextLoopPreview && notes.length > 0) {
+      for (let i = 0; i < notes.length; i++) {
+        const note = notes[i];
+        if (displayedBaseIds.has(note.id)) continue;
+        
+        const virtualHitTime = note.hitTime + loopDuration;
+        const timeUntilHit = virtualHitTime - normalizedTime;
+        
+        if (timeUntilHit <= 0) continue;
+        if (timeUntilHit > lookAheadTime) break;
+        
+        const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+        notesToDisplay.push({
+          id: `${note.id}_loop`,
+          chord: note.chord.displayName,
+          x,
+          noteNames: note.chord.noteNames
+        });
+      }
+    }
+    
+    this.taikoNotes = notesToDisplay;
+    
+    // オーバーレイテキスト（Harmony由来の text を拍に紐付け、次の text まで持続）
+    if (overlayMarkers && overlayMarkers.length > 0) {
+      let label = overlayMarkers[overlayMarkers.length - 1].text;
+      for (let i = 0; i < overlayMarkers.length; i++) {
+        const cur = overlayMarkers[i];
+        const next = overlayMarkers[i + 1];
+        if (normalizedTime >= cur.time && (!next || normalizedTime < next.time)) {
+          label = cur.text;
+          break;
+        }
+        if (normalizedTime < overlayMarkers[0].time) {
+          label = overlayMarkers[overlayMarkers.length - 1].text;
+        }
+      }
+      this.overlayText = label ? { value: label, until: Infinity } : null;
+    }
   }
 
   private drawFrame(): void {
