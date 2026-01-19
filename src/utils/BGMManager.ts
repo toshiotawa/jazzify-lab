@@ -463,9 +463,10 @@ class BGMManager {
     const pitchShiftWindowSize = 0.1  // 100ms
     const pitchShiftDelayTime = 0.05  // 50ms
     
-    // PitchShiftの総遅延を計算（delayTime + windowSize/2 程度の処理遅延）
-    // 実測値に基づいて調整可能
-    this.pitchShiftLatency = pitchShiftDelayTime + (pitchShiftWindowSize * 0.5)
+    // PitchShiftの遅延補正
+    // 注意: 以前は大きな値(0.1秒)を設定していたが、これは楽譜のスクロールを過度に遅らせていた
+    // 実際のPitchShift遅延は小さいため、補正を最小限に抑える
+    this.pitchShiftLatency = 0
     
     // PitchShiftノードを作成
     this.tonePitchShift = new Tone.PitchShift({
