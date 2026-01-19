@@ -251,12 +251,20 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, [loadAndRenderSheet, transposedMusicXml]);
   
   // 再生位置に同期してスクロール（無限スクロール対応）
+  // 
+  // 無限スクロールの仕組み：
+  // - 2つの同じ楽譜を横に並べる（1つ目 + クローン）
+  // - 絶対時間から線形にスクロール位置を計算
+  // - ループごとに楽譜幅を加算（奇数ループは1→2、偶数ループは2→1を使用）
+  // - スクロール位置が2つの楽譜幅を超えそうになったら、sheetWidth分引いてリセット
+  // - 視覚的には同じ内容なのでジャンプは見えない
   useEffect(() => {
     if (!scoreWrapperRef.current) {
       return;
     }
     
     const { loopDuration } = loopInfo;
+    let prevLoopCount = -1;
     
     const updateScroll = () => {
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
@@ -264,7 +272,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       const mapping = timeMappingRef.current;
       const sheetWidth = sheetWidthRef.current;
       
-      if (mapping.length === 0) {
+      if (mapping.length === 0 || sheetWidth <= 0) {
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
@@ -275,12 +283,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           scoreWrapperRef.current.style.transform = `translateX(0px)`;
         }
         lastScrollXRef.current = 0;
+        prevLoopCount = -1;
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
       
-      // ループを考慮しない絶対時間から位置を計算
-      // 無限スクロールでは、時間の正規化をせず、継続的にスクロール
+      // ループカウントと正規化時間を計算
       const loopCount = Math.floor(currentTime / loopDuration);
       const normalizedTime = currentTime - (loopCount * loopDuration);
       const currentTimeMs = normalizedTime * 1000;
@@ -306,26 +314,45 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         if (remainingTime > 0) {
           const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
           // 楽譜の終端位置（sheetWidthを使用）
-          const endX = sheetWidth > 0 ? sheetWidth : lastEntry.xPosition + 100;
-          xPosition = lastEntry.xPosition + t * (endX - lastEntry.xPosition);
+          xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
         } else {
           xPosition = lastEntry.xPosition;
         }
       }
       
-      // 無限スクロール：ループカウントに基づいてオフセットを追加
-      // ループごとに楽譜幅分だけ右にシフト（2つの楽譜を交互に表示）
-      const loopOffset = (loopCount % 2) * sheetWidth;
-      const absoluteScrollX = xPosition + loopOffset;
+      // 無限スクロール：奇数ループでは2つ目の楽譜を使用
+      const isOddLoop = loopCount % 2 === 1;
+      const loopOffset = isOddLoop ? sheetWidth : 0;
       
-      // スクロール位置（プレイヘッド位置を考慮）
-      const scrollX = Math.max(0, absoluteScrollX - PLAYHEAD_POSITION_PX);
+      // スクロール位置を計算
+      const scrollX = Math.max(0, xPosition + loopOffset - PLAYHEAD_POSITION_PX);
       
-      // 偶数ループ終了時に位置をリセット（シームレスなループ）
-      // スクロール位置が2つ分の楽譜幅を超えそうになったら、最初にリセット
-      if (scrollX > sheetWidth * 2 - PLAYHEAD_POSITION_PX * 2) {
-        // リセットせず、継続（クローンがあるので見た目は連続）
+      // 偶数ループから奇数ループへの遷移検出（シームレス遷移）
+      // 奇数ループから偶数ループへの遷移時は、スクロール位置をリセット
+      if (prevLoopCount >= 0 && loopCount !== prevLoopCount) {
+        const wasOddLoop = prevLoopCount % 2 === 1;
+        const nowEvenLoop = loopCount % 2 === 0;
+        
+        if (wasOddLoop && nowEvenLoop) {
+          // 2つ目の楽譜終端から1つ目の楽譜開始へ
+          // transitionを無効化してシームレスにリセット
+          if (scoreWrapperRef.current) {
+            scoreWrapperRef.current.style.transition = 'none';
+            scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+            // 次フレームでtransitionを復活
+            requestAnimationFrame(() => {
+              if (scoreWrapperRef.current) {
+                scoreWrapperRef.current.style.transition = '';
+              }
+            });
+          }
+          lastScrollXRef.current = scrollX;
+          prevLoopCount = loopCount;
+          animationFrameRef.current = requestAnimationFrame(updateScroll);
+          return;
+        }
       }
+      prevLoopCount = loopCount;
       
       // スムーズなスクロール更新
       if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
