@@ -492,6 +492,9 @@ class BGMManager {
 
   // ─────────────────────────────────────────────
   // Tone.js PitchShift 実装（iOS対応）
+  // 
+  // 重要: Tone.js Playerのビルトインloop機能はPitchShiftと組み合わせると
+  // 正しく動作しない場合があるため、手動でループを管理する
   private async _playTonePitchShift(url: string, volume: number): Promise<void> {
     // Tone.jsを動的インポート
     const Tone = await import('tone')
@@ -517,29 +520,24 @@ class BGMManager {
     }).toDestination()
     
     // ボリューム調整（PitchShiftの前に挿入）
-    const gainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
+    const toneGainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
     
     // ループカウントをリセット
     this.toneLoopCount = 0
     this.lastToneNormalizedTime = -1
     
-    // Playerを作成（ループ対応）
-    // 重要: loopStart/loopEnd はコンストラクタで設定し、
-    // onload後に再度確認することでループ設定を確実にする
+    // Gainノードへの参照を保存（ループ時の再接続用）
+    ;(this as any)._toneGainNode = toneGainNode
+    
+    // Playerを作成
+    // 重要: ビルトインloopはPitchShiftと組み合わせると正しく動作しないため、
+    // loop: falseで作成し、手動でループを管理する
     this.tonePlayer = new Tone.Player({
       url: url,
-      loop: true,
-      loopStart: this.loopBegin,
-      loopEnd: this.loopEnd,
+      loop: false, // 手動ループを使用するため無効化
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
-        
-        // ループポイントを再確認（Tone.jsの一部バージョンではロード後に再設定が必要）
-        if (this.tonePlayer) {
-          this.tonePlayer.loopStart = this.loopBegin
-          this.tonePlayer.loopEnd = this.loopEnd
-        }
         
         // 再生開始時刻を先に記録（start()呼び出し前に）
         const startTime = Tone.now()
@@ -550,22 +548,89 @@ class BGMManager {
         // waStartAtにPitchShiftの遅延を加算して補正
         // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
         this.waStartAt = startTime + this.pitchShiftLatency
-        console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
+        
+        // 手動ループ監視を開始
+        this._startToneLoopMonitor(Tone)
+        
+        console.log('🎵 BGM再生開始 (Tone.js PitchShift + 手動ループ):', { 
           url, 
           bpm: this.bpm, 
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
           loopEnd: this.loopEnd,
-          loopStartSet: this.tonePlayer.loopStart,
-          loopEndSet: this.tonePlayer.loopEnd,
           pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
-          note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`,
+          note: `手動ループ: loopEnd到達時にloopBeginへシーク`,
           loopDuration: (this.loopEnd - this.loopBegin).toFixed(3)
         })
       }
-    }).connect(gainNode)
+    }).connect(toneGainNode)
+  }
+  
+  /**
+   * Tone.js Player用の手動ループ監視
+   * loopEndに到達したらloopBeginにシークする
+   */
+  private _startToneLoopMonitor(Tone: typeof import('tone')): void {
+    // 既存の監視を停止
+    if (this.toneLoopCheckIntervalId !== null) {
+      clearInterval(this.toneLoopCheckIntervalId)
+      this.toneLoopCheckIntervalId = null
+    }
     
-    // Tone.jsのTransportを使用しない（シンプルなPlayer.loopを使用）
+    const loopDuration = this.loopEnd - this.loopBegin
+    if (loopDuration <= 0) return
+    
+    // 25ms間隔でループポイントをチェック
+    this.toneLoopCheckIntervalId = window.setInterval(() => {
+      if (!this.isPlaying || !this.tonePlayer) {
+        return
+      }
+      
+      try {
+        // 現在の再生位置を計算
+        const elapsedRealTime = Tone.now() - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        
+        // loopEndに近づいたら（50ms手前で）ループ処理を実行
+        const loopThreshold = 0.05 // 50ms
+        if (musicTime >= this.loopEnd - loopThreshold) {
+          this._performToneLoop(Tone)
+        }
+      } catch (e) {
+        // エラーは無視（再生停止時など）
+      }
+    }, 25)
+  }
+  
+  /**
+   * Tone.js Playerのループを実行
+   * 現在のPlayerを停止し、loopBeginから新しいPlayerを開始
+   */
+  private _performToneLoop(Tone: typeof import('tone')): void {
+    if (!this.tonePlayer || !this.isPlaying) return
+    
+    try {
+      // 現在のPlayerを停止
+      this.tonePlayer.stop()
+      
+      const now = Tone.now()
+      
+      // loopBeginから再生開始
+      this.tonePlayer.start(now, this.loopBegin)
+      
+      // waStartAtを調整して、getCurrentMusicTime()が正しくloopBegin相当の値を返すようにする
+      // 計算: rawMusicTime = (now - waStartAt) * playbackRate = loopBegin
+      // よって: waStartAt = now - (loopBegin / playbackRate)
+      // 
+      // 注意: pitchShiftLatencyは最初の再生開始時のみ適用
+      // ループ時はオーディオパイプラインが既に温まっているため不要
+      this.waStartAt = now - (this.loopBegin / this.playbackRate)
+      
+      this.toneLoopCount++
+      console.log(`🔄 Tone.js 手動ループ実行 (${this.toneLoopCount}回目): loopBegin=${this.loopBegin.toFixed(2)}秒から再開`)
+    } catch (e) {
+      console.warn('Tone.js ループ処理エラー:', e)
+    }
   }
   
   // ─────────────────────────────────────────────
