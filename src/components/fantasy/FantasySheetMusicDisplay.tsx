@@ -2,6 +2,10 @@
  * ファンタジーモード用楽譜表示コンポーネント
  * OSMDを使用してMusicXMLを正確に表示
  * Progression_Timing用の横スクロール形式楽譜
+ * 
+ * 無限スクロール対応：
+ * - 楽譜を2つ並べて配置（オリジナル + クローン）
+ * - ループ時にシームレスにスクロール
  */
 
 import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
@@ -58,9 +62,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   const lastScrollXRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   
+  // 無限スクロール用：楽譜の実際の幅
+  const sheetWidthRef = useRef<number>(0);
+  
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [wrapperWidth, setWrapperWidth] = useState<number>(width * 3);
+  // クローンした楽譜画像（無限スクロール用）
+  const [clonedSheetImage, setClonedSheetImage] = useState<string | null>(null);
   
   // ループ情報を計算
   const loopInfo = useMemo(() => {
@@ -202,14 +211,29 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       }
       
-      // ラッパー幅を更新
+      // 楽譜の実際の幅を取得
       const measuredWidth = containerRef.current.scrollWidth || width * 2;
-      setWrapperWidth(measuredWidth + WRAPPER_SCROLL_PADDING_PX);
+      sheetWidthRef.current = measuredWidth;
+      
+      // ラッパー幅を更新（2つ分の楽譜 + パディング）
+      setWrapperWidth(measuredWidth * 2 + WRAPPER_SCROLL_PADDING_PX);
       
       // タイムマッピングを作成
       createTimeMapping();
       
-      devLog.debug('✅ ファンタジー楽譜OSMD初期化完了');
+      // 無限スクロール用：canvasの内容を画像としてクローン
+      const canvas = containerRef.current.querySelector('canvas');
+      if (canvas) {
+        try {
+          const dataUrl = canvas.toDataURL('image/png');
+          setClonedSheetImage(dataUrl);
+          devLog.debug('✅ 楽譜画像クローン作成完了');
+        } catch (err) {
+          devLog.debug('⚠️ canvas画像クローン失敗:', err);
+        }
+      }
+      
+      devLog.debug('✅ ファンタジー楽譜OSMD初期化完了（無限スクロール対応）');
       
     } catch (err) {
       devLog.debug('❌ 楽譜読み込みエラー:', err);
@@ -226,19 +250,19 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
   }, [loadAndRenderSheet, transposedMusicXml]);
   
-  // 再生位置に同期してスクロール（ループ対応）
+  // 再生位置に同期してスクロール（無限スクロール対応）
   useEffect(() => {
     if (!scoreWrapperRef.current) {
       return;
     }
     
     const { loopDuration } = loopInfo;
-    let lastNormalizedTime = -1;
     
     const updateScroll = () => {
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
       const currentTime = bgmManager.getCurrentMusicTime();
       const mapping = timeMappingRef.current;
+      const sheetWidth = sheetWidthRef.current;
       
       if (mapping.length === 0) {
         animationFrameRef.current = requestAnimationFrame(updateScroll);
@@ -255,17 +279,15 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
-      // 正規化された時間（ループ考慮）- currentTimeは既にM1開始=0基準
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+      // ループを考慮しない絶対時間から位置を計算
+      // 無限スクロールでは、時間の正規化をせず、継続的にスクロール
+      const loopCount = Math.floor(currentTime / loopDuration);
+      const normalizedTime = currentTime - (loopCount * loopDuration);
       const currentTimeMs = normalizedTime * 1000;
-      
-      // ループ検出（時間が巻き戻った場合）
-      const isLoopReset = lastNormalizedTime > 0 && normalizedTime < lastNormalizedTime - 0.5;
-      lastNormalizedTime = normalizedTime;
+      const loopDurationMs = loopDuration * 1000;
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
-      const loopDurationMs = loopDuration * 1000;
       
       for (let i = 0; i < mapping.length - 1; i++) {
         if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
@@ -279,38 +301,34 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // 最後のエントリ以降の場合（ループ終端に向かって補間）
       if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
         const lastEntry = mapping[mapping.length - 1];
-        const firstEntry = mapping[0];
         // 最後の小節から楽譜終端まで進行
         const remainingTime = loopDurationMs - lastEntry.timeMs;
         if (remainingTime > 0) {
           const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
-          // 楽譜の終端位置を推定（最後の小節幅分追加）
-          const estimatedEndX = lastEntry.xPosition + (mapping.length > 1 
-            ? (mapping[mapping.length - 1].xPosition - mapping[mapping.length - 2].xPosition)
-            : 100);
-          xPosition = lastEntry.xPosition + t * (estimatedEndX - lastEntry.xPosition);
+          // 楽譜の終端位置（sheetWidthを使用）
+          const endX = sheetWidth > 0 ? sheetWidth : lastEntry.xPosition + 100;
+          xPosition = lastEntry.xPosition + t * (endX - lastEntry.xPosition);
         } else {
           xPosition = lastEntry.xPosition;
         }
       }
       
-      const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
+      // 無限スクロール：ループカウントに基づいてオフセットを追加
+      // ループごとに楽譜幅分だけ右にシフト（2つの楽譜を交互に表示）
+      const loopOffset = (loopCount % 2) * sheetWidth;
+      const absoluteScrollX = xPosition + loopOffset;
       
-      // ループリセット時は即座にスクロール位置をリセット
-      if (isLoopReset) {
-        if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transition = 'none';
-          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-          // 次フレームでtransitionを復活
-          requestAnimationFrame(() => {
-            if (scoreWrapperRef.current) {
-              scoreWrapperRef.current.style.transition = '';
-            }
-          });
-        }
-        lastScrollXRef.current = scrollX;
-      } else if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
-        // 通常のスクロール更新
+      // スクロール位置（プレイヘッド位置を考慮）
+      const scrollX = Math.max(0, absoluteScrollX - PLAYHEAD_POSITION_PX);
+      
+      // 偶数ループ終了時に位置をリセット（シームレスなループ）
+      // スクロール位置が2つ分の楽譜幅を超えそうになったら、最初にリセット
+      if (scrollX > sheetWidth * 2 - PLAYHEAD_POSITION_PX * 2) {
+        // リセットせず、継続（クローンがあるので見た目は連続）
+      }
+      
+      // スムーズなスクロール更新
+      if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
         if (scoreWrapperRef.current) {
           scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
         }
@@ -341,43 +359,45 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     };
   }, []);
   
-  // Harmonyマーカーのオーバーレイ表示
-  const HarmonyOverlay = useMemo(() => {
+  // Harmonyマーカーの位置を計算（無限スクロール対応）
+  const harmonyMarkerPositions = useMemo(() => {
     if (harmonyMarkers.length === 0 || timeMappingRef.current.length === 0) {
-      return null;
+      return [];
     }
     
-    const { loopDuration } = loopInfo;
+    const mapping = timeMappingRef.current;
+    const positions: Array<{ text: string; xPosition: number }> = [];
     
-    return (
-      <div className="absolute top-0 left-0 w-full h-8 pointer-events-none z-10">
-        {harmonyMarkers.map((marker, index) => {
-          // マーカーの時間に対応するX位置を計算
-          const timeMs = marker.time * 1000;
-          const mapping = timeMappingRef.current;
-          let xPosition = 0;
-          
-          for (let i = 0; i < mapping.length - 1; i++) {
-            if (timeMs >= mapping[i].timeMs && timeMs < mapping[i + 1].timeMs) {
-              const t = (timeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
-              xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
-              break;
-            }
-          }
-          
-          return (
-            <span
-              key={index}
-              className="absolute text-yellow-400 font-bold text-sm whitespace-nowrap"
-              style={{ left: `${xPosition}px`, top: '4px' }}
-            >
-              {marker.text}
-            </span>
-          );
-        })}
-      </div>
-    );
-  }, [harmonyMarkers, loopInfo]);
+    for (const marker of harmonyMarkers) {
+      const timeMs = marker.time * 1000;
+      let xPosition = 0;
+      
+      for (let i = 0; i < mapping.length - 1; i++) {
+        if (timeMs >= mapping[i].timeMs && timeMs < mapping[i + 1].timeMs) {
+          const t = (timeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
+          break;
+        }
+      }
+      
+      positions.push({ text: marker.text, xPosition });
+    }
+    
+    return positions;
+  }, [harmonyMarkers]);
+  
+  // Harmonyマーカーのレンダリング（1つの楽譜分）
+  const renderHarmonyMarkers = useCallback((offset: number, keyPrefix: string) => {
+    return harmonyMarkerPositions.map((marker, index) => (
+      <span
+        key={`${keyPrefix}-${index}`}
+        className="absolute text-yellow-400 font-bold text-sm whitespace-nowrap drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
+        style={{ left: `${marker.xPosition + offset}px`, top: '4px' }}
+      >
+        {marker.text}
+      </span>
+    ));
+  }, [harmonyMarkerPositions]);
   
   if (!musicXml) {
     return (
@@ -401,9 +421,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         style={{ left: `${PLAYHEAD_POSITION_PX}px` }}
       />
       
-      {/* Harmonyオーバーレイ */}
-      {HarmonyOverlay}
-      
       {/* スクロールコンテナ */}
       <div 
         ref={scrollContainerRef}
@@ -421,24 +438,54 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           </div>
         )}
         
-        {/* 楽譜ラッパー */}
+        {/* 楽譜ラッパー（無限スクロール用に2つの楽譜を並べる） */}
         <div 
           ref={scoreWrapperRef}
-          className="h-full"
+          className="h-full flex relative"
           style={{ 
             width: `${wrapperWidth}px`,
             willChange: 'transform'
           }}
         >
-          {/* OSMDレンダリング用コンテナ */}
+          {/* Harmonyマーカーオーバーレイ（楽譜と一緒にスクロール） */}
+          {harmonyMarkerPositions.length > 0 && (
+            <div className="absolute top-0 left-0 h-8 pointer-events-none z-10" style={{ width: `${wrapperWidth}px` }}>
+              {/* 1つ目の楽譜用マーカー */}
+              {renderHarmonyMarkers(0, 'first')}
+              {/* 2つ目の楽譜用マーカー */}
+              {sheetWidthRef.current > 0 && renderHarmonyMarkers(sheetWidthRef.current, 'second')}
+            </div>
+          )}
+          
+          {/* OSMDレンダリング用コンテナ（1つ目の楽譜） */}
           <div 
             ref={containerRef}
-            className="h-full flex items-center fantasy-sheet-music"
+            className="h-full flex items-center fantasy-sheet-music flex-shrink-0"
             style={{
               // OSMDのデフォルトスタイルを上書き
               ['--osmd-background' as string]: 'transparent'
             }}
           />
+          
+          {/* クローンした楽譜画像（2つ目の楽譜 - 無限スクロール用） */}
+          {clonedSheetImage && (
+            <div 
+              className="h-full flex items-center flex-shrink-0"
+              style={{ 
+                width: sheetWidthRef.current > 0 ? `${sheetWidthRef.current}px` : 'auto'
+              }}
+            >
+              <img 
+                src={clonedSheetImage} 
+                alt="" 
+                className="h-full object-contain"
+                style={{ 
+                  imageRendering: 'auto',
+                  pointerEvents: 'none'
+                }}
+              />
+            </div>
+          )}
         </div>
       </div>
     </div>
