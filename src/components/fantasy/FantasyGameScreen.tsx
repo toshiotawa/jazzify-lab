@@ -954,16 +954,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const taikoNotesRef = useRef(gameState.taikoNotes);
   const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
   const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
+  // 🚀 追加: ステージ情報もrefに保存（アニメーションループの再起動を防ぐ）
+  const currentStageRef = useRef(gameState.currentStage);
   
-  // taikoNotes/currentNoteIndex/awaitingLoopStartが変更されたらrefを更新（アニメーションループはそのまま継続）
+  // taikoNotes/currentNoteIndex/awaitingLoopStart/currentStageが変更されたらrefを更新（アニメーションループはそのまま継続）
   useEffect(() => {
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
+    currentStageRef.current = gameState.currentStage;
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.currentStage]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
+  // 依存配列からgameState.currentStageを除外し、refを使用することで正解時のノーツ停止を防ぐ
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
     // 初期化時にノーツがない場合もループは開始（後からノーツが追加される可能性があるため）
@@ -972,8 +976,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     let lastUpdateTime = 0;
     const updateInterval = 1000 / 60; // 60fps
     
-    // ループ情報を事前計算
-    const stageData = gameState.currentStage;
+    // 🚀 パフォーマンス最適化: refから最新のstage情報を取得（依存配列から除外するため）
+    const stageData = currentStageRef.current;
     if (!stageData) return;
     const secPerBeat = 60 / (stageData.bpm || 120);
     const secPerMeasure = secPerBeat * (stageData.timeSignature || 4);
@@ -1180,9 +1184,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-    // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
+    // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStart/currentStageを依存配列から除外
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない
-  }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage]);
+    // これにより正解時のsetGameState呼び出しでノーツの動きが止まることを防ぐ
+  }, [gameState.isTaikoMode, fantasyPixiInstance]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
