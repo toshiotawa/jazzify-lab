@@ -5,8 +5,8 @@
 
 type LogLevel = 'silent' | 'error' | 'warn' | 'info' | 'debug';
 
-// プロダクション環境でもログを有効化（デバッグ用）
-let currentLevel: LogLevel = 'debug';  // import.meta.env.PROD ? 'silent' : 'debug';
+// プロダクション環境では全ログを無効化
+let currentLevel: LogLevel = import.meta.env.PROD ? 'silent' : 'debug';
 
 /**
  * ログレベルを動的に変更（プロダクションでは無効）

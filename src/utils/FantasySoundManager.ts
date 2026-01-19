@@ -161,13 +161,10 @@ export class FantasySoundManager {
     // 事前ロード – ユーザー操作後の初回呼び出しが推奨（Autoplay 制限対策）
     const baseUrl = import.meta.env.BASE_URL || '/';
     const path = (file: string) => `${baseUrl}sounds/${file}`;
-    
-    console.debug('[FantasySoundManager] Loading sounds with baseUrl:', baseUrl);
 
-    const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res, rej) => {
+    const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res, _rej) => {
       const a = this.audioMap[key].base;
       const fullPath = path(file);
-      console.debug(`[FantasySoundManager] Loading ${key}: ${fullPath}`);
       a.src = fullPath;
       a.preload = 'auto';
       a.load();
@@ -176,8 +173,7 @@ export class FantasySoundManager {
         this.audioMap[key].ready = true;
         res();
       });
-      a.addEventListener('error', (e) => {
-        console.warn(`[FantasySoundManager] failed to load ${file}`, e);
+      a.addEventListener('error', () => {
         // エラーでも resolve – 再生時にフォールバック
         res();
       });
@@ -198,9 +194,9 @@ export class FantasySoundManager {
       await this._initializeAudioSystem();
 
       // 低遅延SE用 Web Audio セットアップ + デコード（バックグラウンド）
-      this._setupSeContextAndBuffers(baseUrl).catch(e => 
-        console.warn('[FantasySoundManager] SE buffer setup failed:', e)
-      );
+      this._setupSeContextAndBuffers(baseUrl).catch(() => {
+        // SE buffer setup failed - ignored
+      });
 
       // 🎹 ピアノ音源システム（ハイブリッド）
       // Phase 1: 合成音で即座に利用可能（フォールバック）
@@ -234,15 +230,14 @@ export class FantasySoundManager {
             }
           }).toDestination();
           this.bassInitialized = true;
-          console.debug('[FantasySoundManager] BassSynth (FM Piano) initialized');
-        } catch (e) {
-          console.warn('[FantasySoundManager] BassSynth creation failed:', e);
+        } catch {
+          // BassSynth creation failed - ignored
         }
 
         // Phase 2: Salamander Piano サンプラー（バックグラウンド読み込み）
         // 6つの基準音（C2-C7）から全音域を補間
-        this._loadPianoSampler(Tone, baseUrl).catch(e => {
-          console.debug('[FantasySoundManager] Piano sampler load skipped:', e);
+        this._loadPianoSampler(Tone, baseUrl).catch(() => {
+          // Piano sampler load skipped
         });
       }
 
@@ -254,21 +249,13 @@ export class FantasySoundManager {
           this._loadGMPiano(),
           new Promise((_, reject) => setTimeout(() => reject(new Error('GM Piano load timeout')), 8000))
         ]);
-      } catch (e) {
-        console.debug('[FantasySoundManager] GM Piano load skipped:', e);
+      } catch {
+        // GM Piano load skipped
       }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
       this.isInited = true;
-      console.log('[FantasySoundManager] ✅ init complete', {
-        gmPianoReady: this.gmPianoReady,
-        bassInitialized: this.bassInitialized
-      });
-      // 初期化完了後の状態をログ出力
-      Object.entries(this.audioMap).forEach(([key, entry]) => {
-        console.debug(`[FantasySoundManager] ${key}: ready=${entry.ready}`);
-      });
     });
 
     return this.loadedPromise;
@@ -284,8 +271,8 @@ export class FantasySoundManager {
             try {
               Tone = await import('tone');
               (window as any).Tone = Tone;
-            } catch (e) {
-              console.warn('[FantasySoundManager] Failed to dynamic import tone:', e);
+            } catch {
+              // Failed to dynamic import tone - ignored
             }
           }
           Tone = (window as any).Tone;
@@ -305,14 +292,14 @@ export class FantasySoundManager {
               if ((Tone as any).context?.state !== 'running') {
                 await (Tone as any).context.resume();
               }
-            } catch (e) {
-              console.warn('[FantasySoundManager] Tone context optimization failed:', e);
+            } catch {
+              // Tone context optimization failed - ignored
             }
           }
           resolve();
-        } catch (error) {
-          console.warn('[FantasySoundManager] Audio system initialization failed:', error);
-          resolve(); // エラーでも続行
+        } catch {
+          // Audio system initialization failed - continue anyway
+          resolve();
         }
       };
       initializeAudioSystem();
@@ -332,16 +319,12 @@ export class FantasySoundManager {
     }
   }
 
-  private _playMagic(type: MagicSeType) {
-    // magic type -> key mapping is 1:1
-    console.debug(`[FantasySoundManager] playMagic called with type: ${type}`);
+  private _playMagic(_type: MagicSeType) {
     // 魔法タイプに関わらず、常にmy_attackを再生
     this._playSe('my_attack');
   }
 
   private _playSe(key: keyof typeof this.audioMap) {
-    console.debug(`[FantasySoundManager] _playSe called with key: ${key}`);
-
     // 低遅延: Web Audio での即時再生（フォールバックあり）
     if (this.seAudioContext && this.seBuffers[key]) {
       try {
@@ -357,31 +340,21 @@ export class FantasySoundManager {
           try { src.disconnect(); } catch {}
         });
         return;
-      } catch (e) {
-        console.warn('[FantasySoundManager] WebAudio SE playback failed. Falling back to HTMLAudio.', e);
+      } catch {
+        // WebAudio再生失敗、HTMLAudioにフォールバック
       }
     }
     
     const entry = this.audioMap[key];
     if (!entry) {
-      console.warn(`[FantasySoundManager] Audio entry not found for key: ${key}`);
       return;
     }
 
     const base = entry.base;
     if (!entry.ready) {
       // 未ロード or 失敗時は何もしない（ユーザー体験阻害しない）
-      console.warn(`[FantasySoundManager] Audio not ready for key: ${key}`);
-      console.warn(`[FantasySoundManager] Audio state:`, {
-        src: base.src,
-        readyState: base.readyState,
-        networkState: base.networkState,
-        error: base.error
-      });
       return;
     }
-
-    console.debug(`[FantasySoundManager] Playing sound (fallback): ${key} at volume: ${this._volume}`);
 
     // 同時再生のため cloneNode()
     const node = base.cloneNode() as HTMLAudioElement;
@@ -392,19 +365,9 @@ export class FantasySoundManager {
     });
     const playPromise = node.play();
     if (playPromise !== undefined) {
-      playPromise
-        .then(() => {
-          console.debug(`[FantasySoundManager] Successfully played ${key}`);
-        })
-        .catch((error) => {
-          console.warn(`[FantasySoundManager] Failed to play ${key}:`, error);
-          console.warn(`[FantasySoundManager] Audio state:`, {
-            src: node.src,
-            readyState: node.readyState,
-            networkState: node.networkState,
-            error: node.error
-          });
-        });
+      playPromise.catch(() => {
+        // 再生失敗は無視
+      });
     }
   }
 
@@ -566,8 +529,8 @@ export class FantasySoundManager {
       
       // アクティブなノートとして追跡
       this.activeGMNotes.set(midiNote, activeNodes);
-    } catch (e) {
-      console.debug('[FantasySoundManager] GM note playback error:', e);
+    } catch {
+      // GM note playback error - ignore
     }
   }
 
@@ -633,10 +596,8 @@ export class FantasySoundManager {
       this.gmAcousticPiano = acoustic;
       this.gmElectricPiano = electric;
       this.gmPianoReady = true;
-      
-      console.log('[FantasySoundManager] 🎹 GM Piano Mix loaded (Acoustic 60% + Electric 40%)');
-    } catch (e) {
-      console.debug('[FantasySoundManager] GM Piano load error:', e);
+    } catch {
+      // GM Piano load error - ignored
       this.gmPianoReady = false;
     }
   }
@@ -648,7 +609,6 @@ export class FantasySoundManager {
 
   private async _playPianoNote(noteName: string, duration: string = '4n') {
     if (!this.pianoSamplerReady || !this.pianoSampler) {
-      console.debug('[FantasySoundManager] Piano sampler not ready');
       return;
     }
     
@@ -661,8 +621,8 @@ export class FantasySoundManager {
     
     try {
       this.pianoSampler.triggerAttackRelease(noteName, duration, t);
-    } catch (e) {
-      console.debug('[FantasySoundManager] Piano note playback error:', e);
+    } catch {
+      // Piano note playback error - ignored
     }
   }
 
@@ -675,8 +635,8 @@ export class FantasySoundManager {
       const dbValue = v === 0 ? -Infinity : Math.log10(v) * 20 - 3;
       try {
         (this.bassSynth.volume as any).value = dbValue;
-      } catch (e) {
-        console.debug('[FantasySoundManager] Synth volume set error:', e);
+      } catch {
+        // Synth volume set error - ignored
       }
     }
     
@@ -752,8 +712,8 @@ export class FantasySoundManager {
           }
         });
       } catch {}
-    } catch (e) {
-      console.warn('[FantasySoundManager] unlock failed:', e);
+    } catch {
+      // unlock failed - ignored
     }
   }
 
@@ -781,11 +741,9 @@ export class FantasySoundManager {
             this.pianoSamplerReady = true;
             // 音量を合成音と同じレベルに設定
             this._syncPianoSamplerVolume();
-            console.debug('[FantasySoundManager] 🎹 Salamander Piano sampler loaded (6 samples, ~380KB)');
             resolve();
           },
           onerror: (err: Error) => {
-            console.debug('[FantasySoundManager] Piano sampler load error, using synthetic fallback:', err.message);
             this.usePianoSampler = false;
             reject(err);
           },
@@ -797,14 +755,12 @@ export class FantasySoundManager {
         // タイムアウト設定（5秒で合成音にフォールバック）
         setTimeout(() => {
           if (!this.pianoSamplerReady) {
-            console.debug('[FantasySoundManager] Piano sampler timeout, using synthetic fallback');
             this.usePianoSampler = false;
             reject(new Error('Piano sampler load timeout'));
           }
         }, 5000);
         
       } catch (e) {
-        console.debug('[FantasySoundManager] Piano sampler setup error:', e);
         this.usePianoSampler = false;
         reject(e);
       }
@@ -818,8 +774,8 @@ export class FantasySoundManager {
       const dbValue = this.bassVolume === 0 ? -Infinity : Math.log10(this.bassVolume) * 20;
       try {
         (this.pianoSampler.volume as any).value = dbValue;
-      } catch (e) {
-        console.debug('[FantasySoundManager] Piano sampler volume sync error:', e);
+      } catch {
+        // Piano sampler volume sync error - ignored
       }
     }
   }
@@ -851,12 +807,12 @@ export class FantasySoundManager {
           const arr = await resp.arrayBuffer();
           const buf = await this.seAudioContext!.decodeAudioData(arr.slice(0));
           this.seBuffers[key] = buf;
-        } catch (e) {
-          console.warn(`[FantasySoundManager] Failed to decode SE buffer: ${key}`, e);
+        } catch {
+          // Failed to decode SE buffer - ignored
         }
       }));
-    } catch (e) {
-      console.warn('[FantasySoundManager] SE AudioContext setup failed:', e);
+    } catch {
+      // SE AudioContext setup failed - ignored
     }
   }
 }
