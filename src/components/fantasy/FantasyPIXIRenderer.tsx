@@ -273,6 +273,38 @@ export class FantasyPIXIInstance {
     }
   }
 
+  /**
+   * 🚀 太鼓ノーツの状態を直接更新（Reactを経由せず、アニメーションに影響しない）
+   * 正解時にこのメソッドを呼び出して、PIXI内部の状態を即座に更新する
+   */
+  advanceTaikoNote(newNoteIndex: number, awaitingLoopStart: boolean, hitNoteId?: string): void {
+    this.taikoCurrentNoteIndex = newNoteIndex;
+    this.taikoAwaitingLoopStart = awaitingLoopStart;
+    
+    // ヒットしたノーツにフラグを立てる
+    if (hitNoteId) {
+      const noteIndex = this.taikoRawNotes.findIndex(n => n.id === hitNoteId);
+      if (noteIndex >= 0) {
+        this.taikoRawNotes[noteIndex] = {
+          ...this.taikoRawNotes[noteIndex],
+          isHit: true
+        };
+      }
+    }
+  }
+
+  /**
+   * 🚀 ループリセット時の処理（全ノーツのisHitフラグをリセット）
+   */
+  resetTaikoNotesForLoop(): void {
+    this.taikoRawNotes = this.taikoRawNotes.map(note => ({
+      ...note,
+      isHit: false
+    }));
+    this.taikoCurrentNoteIndex = 0;
+    this.taikoAwaitingLoopStart = false;
+  }
+
   getJudgeLinePosition(): { x: number; y: number } {
     return {
       x: this.width * 0.15,

@@ -508,6 +508,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete, stage.maxHp]);
   
+  // 🚀 パフォーマンス最適化: PIXIインスタンスへの参照をrefで保持（常に最新を参照）
+  const fantasyPixiInstanceRef = useRef<FantasyPIXIInstance | null>(null);
+  fantasyPixiInstanceRef.current = fantasyPixiInstance;
+
+  // 🚀 パフォーマンス最適化: 太鼓ノーツヒット時にPIXI状態を直接更新するコールバック
+  // refを使用して常に最新のPIXIインスタンスを参照
+  const handleTaikoNoteHit = useCallback((newNoteIndex: number, awaitingLoopStart: boolean, hitNoteId?: string) => {
+    if (fantasyPixiInstanceRef.current) {
+      fantasyPixiInstanceRef.current.advanceTaikoNote(newNoteIndex, awaitingLoopStart, hitNoteId);
+    }
+  }, []);
+
+  // 🚀 パフォーマンス最適化: ループリセット時のコールバック
+  const handleTaikoLoopReset = useCallback(() => {
+    if (fantasyPixiInstanceRef.current) {
+      fantasyPixiInstanceRef.current.resetTaikoNotesForLoop();
+    }
+  }, []);
+
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -527,7 +546,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+    isReady,
+    onTaikoNoteHit: handleTaikoNoteHit,
+    onTaikoLoopReset: handleTaikoLoopReset
   });
 
   // Progression_Timing用の楽譜表示フラグ
