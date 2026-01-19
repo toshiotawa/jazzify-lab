@@ -230,6 +230,10 @@ interface FantasyGameEngineProps {
   onEnemyAttack: (attackingMonsterId?: string) => void;
   // ★ 追加: Ready フェーズ中フラグ
   isReady?: boolean;
+  // 🚀 パフォーマンス最適化: 太鼓ノーツヒット時にPIXI状態を直接更新するコールバック
+  onTaikoNoteHit?: (newNoteIndex: number, awaitingLoopStart: boolean, hitNoteId?: string) => void;
+  // 🚀 パフォーマンス最適化: ループリセット時のコールバック
+  onTaikoLoopReset?: () => void;
 }
 
 // ===== コード定義データ =====
@@ -683,7 +687,9 @@ export const useFantasyGameEngine = ({
   onGameComplete,
   onEnemyAttack,
   displayOpts = { lang: 'en', simple: false },
-  isReady = false
+  isReady = false,
+  onTaikoNoteHit,
+  onTaikoLoopReset
 }: FantasyGameEngineProps & { displayOpts?: DisplayOpts }) => {
   
   // ステージで使用するモンスターIDを保持
@@ -694,6 +700,8 @@ export const useFantasyGameEngine = ({
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // 袋形式ランダムセレクター（コード選択の偏り防止）
   const bagSelectorRef = useRef<BagRandomSelector<ChordSpec> | null>(null);
+  // 🚀 パフォーマンス最適化: 現在のgameStateをrefで追跡（setGameState外からアクセス用）
+  const gameStateRef = useRef<FantasyGameState | null>(null);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -738,10 +746,36 @@ export const useFantasyGameEngine = ({
     originalTaikoNotes: []
   });
   
+  // 🚀 パフォーマンス最適化: gameStateRefを同期（常に最新の状態を参照可能にする）
+  gameStateRef.current = gameState;
+  
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // 太鼓の達人モードの入力処理
-  const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+  // コールバック情報を別途返すために、戻り値を拡張
+  interface TaikoModeInputResult {
+    newState: FantasyGameState;
+    callbackInfo?: {
+      chord: ChordDefinition;
+      isSpecial: boolean;
+      damageDealt: number;
+      defeated: boolean;
+      monsterId: string;
+    };
+    gameCompleteInfo?: {
+      result: 'clear' | 'gameover';
+      finalState: FantasyGameState;
+    };
+    // 🚀 パフォーマンス最適化: PIXI状態を直接更新するための情報
+    taikoStateUpdate?: {
+      newNoteIndex: number;
+      awaitingLoopStart: boolean;
+      hitNoteId?: string;
+      isLoopReset?: boolean;
+    };
+  }
+  
+  const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): TaikoModeInputResult => {
     const currentTime = bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
@@ -801,7 +835,7 @@ export const useFantasyGameEngine = ({
 
     const chosen = candidates[0];
     if (!chosen) {
-      return prevState; // ウィンドウ外 or 構成音外
+      return { newState: prevState }; // ウィンドウ外 or 構成音外
     }
 
     const chosenNote = chosen.n;
@@ -818,7 +852,7 @@ export const useFantasyGameEngine = ({
 
     // 現在のモンスターの正解済み音を更新
     const currentMonster = prevState.activeMonsters[0];
-    if (!currentMonster) return prevState;
+    if (!currentMonster) return { newState: prevState };
 
     const targetNotesMod12: number[] = Array.from(new Set<number>(chosenNote.chord.notes.map((n: number) => n % 12)));
     const newCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
@@ -864,8 +898,14 @@ export const useFantasyGameEngine = ({
       const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
       const isDefeated = newHp === 0;
 
-      // コールバック呼び出し（handleChordCorrect内で遅延処理）
-      onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
+      // コールバック情報を準備（setGameState外で呼び出すため）
+      const callbackInfo = {
+        chord: chosenNote.chord,
+        isSpecial: isSpecialAttack,
+        damageDealt: actualDamage,
+        defeated: isDefeated,
+        monsterId: currentMonster.id
+      };
 
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
@@ -929,50 +969,92 @@ export const useFantasyGameEngine = ({
             taikoNotes: updatedTaikoNotes,
             awaitingLoopStart: false
           };
-          onGameComplete('clear', finalState);
-          return finalState;
+          return { 
+            newState: finalState,
+            callbackInfo,
+            gameCompleteInfo: { result: 'clear', finalState },
+            // 🚀 パフォーマンス最適化: PIXI状態更新情報
+            taikoStateUpdate: {
+              newNoteIndex: nextIndexByChosen,
+              awaitingLoopStart: false,
+              hitNoteId: chosenNote.id,
+              isLoopReset: wasAwaitingLoop
+            }
+          };
         }
 
         // 撃破済みモンスターはそのままactiveMontersに残す（200ms後にuseEffectで補充）
+        const defeatedNewNoteIndex = isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen;
+        const defeatedAwaitingLoop = isLastNoteByChosen ? true : false;
         return {
-          ...prevState,
-          activeMonsters: monstersWithDefeat,
-          playerSp: newSp,
-          // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
-          // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
-          currentNoteIndex: isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen,
-          taikoNotes: updatedTaikoNotes,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated,
-          // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          newState: {
+            ...prevState,
+            activeMonsters: monstersWithDefeat,
+            playerSp: newSp,
+            // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
+            // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
+            currentNoteIndex: defeatedNewNoteIndex,
+            taikoNotes: updatedTaikoNotes,
+            correctAnswers: prevState.correctAnswers + 1,
+            score: prevState.score + 100 * actualDamage,
+            enemiesDefeated: newEnemiesDefeated,
+            // 末尾ノーツをヒットした場合は次ループ開始待ち
+            awaitingLoopStart: defeatedAwaitingLoop
+          },
+          callbackInfo,
+          // 🚀 パフォーマンス最適化: PIXI状態更新情報
+          taikoStateUpdate: {
+            newNoteIndex: defeatedNewNoteIndex,
+            awaitingLoopStart: defeatedAwaitingLoop,
+            hitNoteId: chosenNote.id,
+            isLoopReset: wasAwaitingLoop
+          }
         };
       }
 
       // 末尾ノーツをヒットした場合は次ループ開始待ち
       if (isLastNoteByChosen) {
         return {
-          ...prevState,
-          activeMonsters: updatedMonsters,
-          playerSp: newSp,
-          taikoNotes: updatedTaikoNotes,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          newState: {
+            ...prevState,
+            activeMonsters: updatedMonsters,
+            playerSp: newSp,
+            taikoNotes: updatedTaikoNotes,
+            correctAnswers: prevState.correctAnswers + 1,
+            score: prevState.score + 100 * actualDamage,
+            awaitingLoopStart: true
+          },
+          callbackInfo,
+          // 🚀 パフォーマンス最適化: PIXI状態更新情報
+          taikoStateUpdate: {
+            newNoteIndex: prevState.currentNoteIndex,
+            awaitingLoopStart: true,
+            hitNoteId: chosenNote.id,
+            isLoopReset: wasAwaitingLoop
+          }
         };
       }
 
       return {
-        ...prevState,
-        activeMonsters: updatedMonsters,
-        playerSp: newSp,
-        // ヒットしたノーツの次へ進める
-        currentNoteIndex: nextIndexByChosen,
-        taikoNotes: updatedTaikoNotes,
-        correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage,
-        awaitingLoopStart: false
+        newState: {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          // ヒットしたノーツの次へ進める
+          currentNoteIndex: nextIndexByChosen,
+          taikoNotes: updatedTaikoNotes,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          awaitingLoopStart: false
+        },
+        callbackInfo,
+        // 🚀 パフォーマンス最適化: PIXI状態更新情報
+        taikoStateUpdate: {
+          newNoteIndex: nextIndexByChosen,
+          awaitingLoopStart: false,
+          hitNoteId: chosenNote.id,
+          isLoopReset: wasAwaitingLoop
+        }
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -987,11 +1069,13 @@ export const useFantasyGameEngine = ({
       });
 
       return {
-        ...prevState,
-        activeMonsters: updatedMonsters
+        newState: {
+          ...prevState,
+          activeMonsters: updatedMonsters
+        }
       };
     }
-  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
+  }, [displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
@@ -1863,19 +1947,76 @@ export const useFantasyGameEngine = ({
   }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, gameState.playMode]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
+  // コールバックを状態更新の外で呼び出すための参照
+  const pendingCallbackRef = useRef<{
+    callbackInfo?: {
+      chord: ChordDefinition;
+      isSpecial: boolean;
+      damageDealt: number;
+      defeated: boolean;
+      monsterId: string;
+    };
+    gameCompleteInfo?: {
+      result: 'clear' | 'gameover';
+      finalState: FantasyGameState;
+    };
+  } | null>(null);
+  
   const handleNoteInput = useCallback((note: number) => {
-    // updater関数の中でロジックを実行するように変更
+    // 🚀 パフォーマンス最適化: 太鼓モードの場合はPIXI状態を先に更新
+    const currentState = gameStateRef.current;
+    if (!currentState) return;
+    
+    // ゲームがアクティブでない場合は何もしない
+    if (!currentState.isGameActive || currentState.isWaitingForNextMonster) {
+      return;
+    }
+
+    devLog.debug('🎹 ノート入力受信:', { note, noteMod12: note % 12 });
+    
+    // 太鼓の達人モードの場合は専用の処理を行う
+    if (currentState.isTaikoMode && currentState.taikoNotes.length > 0) {
+      const result = handleTaikoModeInput(currentState, note);
+      
+      // 🚀 パフォーマンス最適化: PIXI状態を先に更新（Reactの再レンダリングより前）
+      if (result.taikoStateUpdate) {
+        const { newNoteIndex, awaitingLoopStart, hitNoteId, isLoopReset } = result.taikoStateUpdate;
+        if (isLoopReset && onTaikoLoopReset) {
+          onTaikoLoopReset();
+        }
+        if (onTaikoNoteHit) {
+          onTaikoNoteHit(newNoteIndex, awaitingLoopStart, hitNoteId);
+        }
+      }
+      
+      // Reactの状態を更新（PIXI更新後なのでカクつかない）
+      setGameState(result.newState);
+      
+      // コールバックを非同期で呼び出す
+      if (result.callbackInfo || result.gameCompleteInfo) {
+        setTimeout(() => {
+          if (result.callbackInfo) {
+            onChordCorrect(
+              result.callbackInfo.chord,
+              result.callbackInfo.isSpecial,
+              result.callbackInfo.damageDealt,
+              result.callbackInfo.defeated,
+              result.callbackInfo.monsterId
+            );
+          }
+          if (result.gameCompleteInfo) {
+            onGameComplete(result.gameCompleteInfo.result, result.gameCompleteInfo.finalState);
+          }
+        }, 0);
+      }
+      return;
+    }
+
+    // 通常モードはupdater関数内で処理
     setGameState(prevState => {
-      // ゲームがアクティブでない場合は何もしない
+      // ゲームがアクティブでない場合は何もしない（二重チェック）
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
-      }
-
-      devLog.debug('🎹 ノート入力受信 (in updater):', { note, noteMod12: note % 12 });
-      
-      // 太鼓の達人モードの場合は専用の処理を行う
-      if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note);
       }
 
       const noteMod12 = note % 12;
@@ -1991,7 +2132,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
+  }, [handleTaikoModeInput, onChordCorrect, onGameComplete, onGameStateChange, onTaikoNoteHit, onTaikoLoopReset, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {

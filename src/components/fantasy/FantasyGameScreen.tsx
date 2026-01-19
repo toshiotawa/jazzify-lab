@@ -427,34 +427,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
-  // 🚀 パフォーマンス最適化: 全処理をrequestAnimationFrameで次フレームに遅延
-  // これによりReactのsetStateバッチ更新と分離され、ノーツアニメーションがブレなくなる
+  // 🚀 パフォーマンス最適化: PIXI処理は同期実行、音声処理のみ遅延
+  // requestAnimationFrameを使うとアニメーションループと競合するため使用しない
   const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
-    // 🚀 全処理を次フレームに遅延（現在のフレームのレンダリングを妨げない）
-    requestAnimationFrame(() => {
-      devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
-      
-      // PIXI視覚フィードバック
-      if (fantasyPixiInstance) {
-        fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
-        if (isTaikoModeRef.current) {
-          const pos = fantasyPixiInstance.getJudgeLinePosition();
-          fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
-        }
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
+    
+    // PIXI視覚フィードバック（同期実行 - 軽量なので問題なし）
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
+      if (isTaikoModeRef.current) {
+        const pos = fantasyPixiInstance.getJudgeLinePosition();
+        fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
       }
+    }
 
-      // ルート音再生
-      const allowRootSound = stage?.playRootOnCorrect !== false;
-      if (allowRootSound) {
-        const id = chord.id || chord.displayName || chord.root;
-        let bassToPlay = chord.root;
-        if (typeof id === 'string' && id.includes('/')) {
-          const parts = id.split('/');
-          if (parts[1]) bassToPlay = parts[1];
-        }
-        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+    // ルート音再生（マクロタスクで遅延 - メインスレッドをブロックしない）
+    const allowRootSound = stage?.playRootOnCorrect !== false;
+    if (allowRootSound) {
+      const id = chord.id || chord.displayName || chord.root;
+      let bassToPlay = chord.root;
+      if (typeof id === 'string' && id.includes('/')) {
+        const parts = id.split('/');
+        if (parts[1]) bassToPlay = parts[1];
       }
-    });
+      // setTimeout(0)でマクロタスクキューに追加し、現在のフレーム処理を妨げない
+      setTimeout(() => {
+        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+      }, 0);
+    }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   
@@ -508,6 +508,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete, stage.maxHp]);
   
+  // 🚀 パフォーマンス最適化: PIXIインスタンスへの参照をrefで保持（常に最新を参照）
+  const fantasyPixiInstanceRef = useRef<FantasyPIXIInstance | null>(null);
+  fantasyPixiInstanceRef.current = fantasyPixiInstance;
+
+  // 🚀 パフォーマンス最適化: 太鼓ノーツヒット時にPIXI状態を直接更新するコールバック
+  // refを使用して常に最新のPIXIインスタンスを参照
+  const handleTaikoNoteHit = useCallback((newNoteIndex: number, awaitingLoopStart: boolean, hitNoteId?: string) => {
+    if (fantasyPixiInstanceRef.current) {
+      fantasyPixiInstanceRef.current.advanceTaikoNote(newNoteIndex, awaitingLoopStart, hitNoteId);
+    }
+  }, []);
+
+  // 🚀 パフォーマンス最適化: ループリセット時のコールバック
+  const handleTaikoLoopReset = useCallback(() => {
+    if (fantasyPixiInstanceRef.current) {
+      fantasyPixiInstanceRef.current.resetTaikoNotesForLoop();
+    }
+  }, []);
+
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
   const {
@@ -527,7 +546,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     onGameComplete: handleGameCompleteCallback,
     onEnemyAttack: handleEnemyAttack,
     displayOpts: { lang: 'en', simple: false }, // コードネーム表示は常に英語、簡易表記OFF
-    isReady
+    isReady,
+    onTaikoNoteHit: handleTaikoNoteHit,
+    onTaikoLoopReset: handleTaikoLoopReset
   });
 
   // Progression_Timing用の楽譜表示フラグ
@@ -950,37 +971,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
-  // 🚀 パフォーマンス最適化: 太鼓ノーツ更新用のrefを追加（useEffectの依存配列から除外するため）
-  const taikoNotesRef = useRef(gameState.taikoNotes);
-  const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
-  const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
+  // 🚀 パフォーマンス最適化: 太鼓ノーツの計算をFantasyPIXIRendererの内部ループに移動
+  // Reactの再レンダリングから完全に独立させ、カクつきを防止
   
-  // taikoNotes/currentNoteIndex/awaitingLoopStartが変更されたらrefを更新（アニメーションループはそのまま継続）
+  // 太鼓ノーツのデータをPIXIレンダラーに渡す（初回設定）
   useEffect(() => {
-    taikoNotesRef.current = gameState.taikoNotes;
-    currentNoteIndexRef.current = gameState.currentNoteIndex;
-    awaitingLoopStartRef.current = gameState.awaitingLoopStart;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
-
-  // 太鼓の達人モードのノーツ表示更新（最適化版）
-  // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
-  useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
-    // 初期化時にノーツがない場合もループは開始（後からノーツが追加される可能性があるため）
+    if (!fantasyPixiInstance || !gameState.isTaikoMode || !gameState.currentStage) return;
     
-    let animationId: number;
-    let lastUpdateTime = 0;
-    const updateInterval = 1000 / 60; // 60fps
-    
-    // ループ情報を事前計算
     const stageData = gameState.currentStage;
-    if (!stageData) return;
     const secPerBeat = 60 / (stageData.bpm || 120);
     const secPerMeasure = secPerBeat * (stageData.timeSignature || 4);
     const loopDuration = (stageData.measureCount || 8) * secPerMeasure;
-
-    // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
-    // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
+    
+    // Overlay markers を計算
     const overlayMarkers: Array<{ time: number; text: string }> = (() => {
       if (!Array.isArray((stage as any).chordProgressionData)) return [];
       
@@ -988,7 +991,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const markers: Array<{ time: number; text: string }> = [];
       let lastLyricDisplay: string | null = null;
       
-      // 時間順にソートしてから処理
       const sortedData = [...data].sort((a, b) => {
         const timeA = (a.bar - 1) * secPerMeasure + ((a.beats ?? 1) - 1) * secPerBeat;
         const timeB = (b.bar - 1) * secPerMeasure + ((b.beats ?? 1) - 1) * secPerBeat;
@@ -999,13 +1001,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         if (!it) continue;
         const time = (it.bar - 1) * secPerMeasure + ((it.beats ?? 1) - 1) * secPerBeat;
         
-        // lyricDisplayが変化した場合のみマーカーを追加
         if (it.lyricDisplay && it.lyricDisplay !== lastLyricDisplay) {
           markers.push({ time, text: it.lyricDisplay });
           lastLyricDisplay = it.lyricDisplay;
-        }
-        // lyricDisplayがなくtextがある場合（Harmony）はtextを使用
-        else if (!it.lyricDisplay && typeof it.text === 'string' && it.text.trim() !== '') {
+        } else if (!it.lyricDisplay && typeof it.text === 'string' && it.text.trim() !== '') {
           markers.push({ time, text: it.text });
         }
       }
@@ -1013,176 +1012,51 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return markers;
     })();
     
-    const updateTaikoNotes = (timestamp: number) => {
-      // フレームレート制御
-      if (timestamp - lastUpdateTime < updateInterval) {
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      lastUpdateTime = timestamp;
-      
-      // 🚀 パフォーマンス最適化: refから最新の値を取得（useEffectの再起動なしに最新値を参照）
-      const taikoNotes = taikoNotesRef.current;
-      const currentNoteIndex = currentNoteIndexRef.current;
-      const isAwaitingLoop = awaitingLoopStartRef.current;
-      
-      // ノーツがない場合は何も表示せずに次フレームへ
-      if (taikoNotes.length === 0) {
-        fantasyPixiInstance.updateTaikoNotes([]);
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      
-      const currentTime = bgmManager.getCurrentMusicTime();
-      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
-      const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
-      
-      // カウントイン中は複数ノーツを先行表示
-      if (currentTime < 0) {
-        // デバッグログ: カウントイン中の時間情報（1秒に1回程度）
-        if (Math.floor(timestamp / 1000) !== Math.floor((timestamp - updateInterval) / 1000)) {
-          devLog.debug('🕐 カウントイン中の時間同期:', {
-            currentTime: currentTime.toFixed(3),
-            isCountIn: true,
-            firstNoteHitTime: taikoNotes[0]?.hitTime.toFixed(3),
-            timeUntilFirstNote: taikoNotes[0] ? (taikoNotes[0].hitTime - currentTime).toFixed(3) : 'N/A'
-          });
-        }
-        
-        const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
-        const maxPreCountNotes = 6;
-        for (let i = 0; i < taikoNotes.length; i++) {
-          const note = taikoNotes[i];
-          const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
-          if (timeUntilHit > lookAheadTime) break;
-          if (timeUntilHit >= -0.5) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ 
-              id: note.id, 
-              chord: note.chord.displayName, 
-              x,
-              noteNames: note.chord.noteNames 
-            });
-            if (notesToDisplay.length >= maxPreCountNotes) break;
-          }
-        }
-        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      
-      // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
-      
-      // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-      
-      // 通常のノーツ（現在ループのみ表示）
-      if (!isAwaitingLoop) {
-        taikoNotes.forEach((note, index) => {
-          // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
-          if (note.isHit) return;
-
-          // 既にこのループで消化済みのインデックスは表示しない（復活防止）
-          if (index < currentNoteIndex) return;
-
-          // 現在ループ基準の時間差
-          const timeUntilHit = note.hitTime - normalizedTime;
-
-          // 判定ライン左側も少しだけ表示
-          const lowerBound = -0.35;
-
-          // 表示範囲内のノーツ（現在ループのみ）
-          if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({
-              id: note.id,
-              chord: note.chord.displayName,
-              x,
-              noteNames: note.chord.noteNames
-            });
-          }
-        });
-      }
-      
-      // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
-      const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
-      
-      // 次ループのプレビュー表示
-      // ループ境界までの時間を計算
-      const timeToLoop = loopDuration - normalizedTime;
-      
-      // 次ループのノーツを先読み表示する条件:
-      // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
-      // 2. ループ境界が近い（lookAheadTime以内）
-      const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
-      
-      if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
-        for (let i = 0; i < taikoNotes.length; i++) {
-          const note = taikoNotes[i];
-
-          // すでに通常ノーツで表示しているものは重複させない
-          if (displayedBaseIds.has(note.id)) continue;
-
-          // 次ループの仮想的なヒット時間を計算
-          const virtualHitTime = note.hitTime + loopDuration;
-          const timeUntilHit = virtualHitTime - normalizedTime;
-
-          // 現在より過去とみなせるものは描画しない
-          if (timeUntilHit <= 0) continue;
-          // lookAheadTime先までを表示（プレビュー範囲を拡大）
-          if (timeUntilHit > lookAheadTime) break;
-
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
-            id: `${note.id}_loop`,
-            chord: note.chord.displayName,
-            x,
-            noteNames: note.chord.noteNames
-          });
-        }
-      }
-      
-      // PIXIレンダラーに更新を送信
-      fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
-
-      // オーバーレイテキスト（Harmony由来の text を拍に紐付け、次の text まで持続）
-      if (overlayMarkers.length > 0) {
-        const t = normalizedTime;
-        // 現在の text を探索（wrap対応）
-        let label = overlayMarkers[overlayMarkers.length - 1].text; // デフォルトは最後（wrap）
-        for (let i = 0; i < overlayMarkers.length; i++) {
-          const cur = overlayMarkers[i];
-          const next = overlayMarkers[i + 1];
-          if (t >= cur.time && (!next || t < next.time)) {
-            label = cur.text;
-            break;
-          }
-          if (t < overlayMarkers[0].time) {
-            // ループ開始〜最初の text までは最後の text を継続
-            label = overlayMarkers[overlayMarkers.length - 1].text;
-          }
-        }
-        fantasyPixiInstance.updateOverlayText(label || null);
-      } else {
-        fantasyPixiInstance.updateOverlayText(null);
-      }
-      
-      animationId = requestAnimationFrame(updateTaikoNotes);
-    };
+    // 太鼓ノーツを生データ形式に変換
+    const rawNotes = gameState.taikoNotes.map(note => ({
+      id: note.id,
+      hitTime: note.hitTime,
+      isHit: note.isHit,
+      chordDisplayName: note.chord.displayName,
+      noteNames: note.chord.noteNames
+    }));
     
-    // 初回実行
-    animationId = requestAnimationFrame(updateTaikoNotes);
+    // PIXIレンダラーに初期データを設定
+    fantasyPixiInstance.setTaikoNotesData(
+      rawNotes,
+      gameState.currentNoteIndex,
+      gameState.awaitingLoopStart,
+      { loopDuration, lookAheadTime: 4, noteSpeed: 200 },
+      overlayMarkers
+    );
     
-    return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
-    };
-    // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
-    // これらはrefで参照するため、変更時にアニメーションループが再起動されない
-  }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage]);
+    devLog.debug('🎵 太鼓ノーツデータをPIXIレンダラーに設定:', {
+      noteCount: rawNotes.length,
+      loopDuration: loopDuration.toFixed(2),
+      currentNoteIndex: gameState.currentNoteIndex
+    });
+  }, [fantasyPixiInstance, gameState.isTaikoMode, gameState.currentStage, stage]);
+  
+  // 太鼓ノーツの状態が変更されたらPIXIレンダラーを更新（軽量な更新）
+  useEffect(() => {
+    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    
+    // 太鼓ノーツを生データ形式に変換
+    const rawNotes = gameState.taikoNotes.map(note => ({
+      id: note.id,
+      hitTime: note.hitTime,
+      isHit: note.isHit,
+      chordDisplayName: note.chord.displayName,
+      noteNames: note.chord.noteNames
+    }));
+    
+    // PIXIレンダラーの状態を更新（位置計算はPIXI側のrenderLoopで行う）
+    fantasyPixiInstance.updateTaikoNotesState(
+      gameState.currentNoteIndex,
+      gameState.awaitingLoopStart,
+      rawNotes
+    );
+  }, [fantasyPixiInstance, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
