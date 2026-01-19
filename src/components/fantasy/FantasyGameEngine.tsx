@@ -741,7 +741,23 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // 太鼓の達人モードの入力処理
-  const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
+  // コールバック情報を別途返すために、戻り値を拡張
+  interface TaikoModeInputResult {
+    newState: FantasyGameState;
+    callbackInfo?: {
+      chord: ChordDefinition;
+      isSpecial: boolean;
+      damageDealt: number;
+      defeated: boolean;
+      monsterId: string;
+    };
+    gameCompleteInfo?: {
+      result: 'clear' | 'gameover';
+      finalState: FantasyGameState;
+    };
+  }
+  
+  const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): TaikoModeInputResult => {
     const currentTime = bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
@@ -801,7 +817,7 @@ export const useFantasyGameEngine = ({
 
     const chosen = candidates[0];
     if (!chosen) {
-      return prevState; // ウィンドウ外 or 構成音外
+      return { newState: prevState }; // ウィンドウ外 or 構成音外
     }
 
     const chosenNote = chosen.n;
@@ -818,7 +834,7 @@ export const useFantasyGameEngine = ({
 
     // 現在のモンスターの正解済み音を更新
     const currentMonster = prevState.activeMonsters[0];
-    if (!currentMonster) return prevState;
+    if (!currentMonster) return { newState: prevState };
 
     const targetNotesMod12: number[] = Array.from(new Set<number>(chosenNote.chord.notes.map((n: number) => n % 12)));
     const newCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
@@ -864,8 +880,14 @@ export const useFantasyGameEngine = ({
       const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
       const isDefeated = newHp === 0;
 
-      // コールバック呼び出し（handleChordCorrect内で遅延処理）
-      onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
+      // コールバック情報を準備（setGameState外で呼び出すため）
+      const callbackInfo = {
+        chord: chosenNote.chord,
+        isSpecial: isSpecialAttack,
+        damageDealt: actualDamage,
+        defeated: isDefeated,
+        monsterId: currentMonster.id
+      };
 
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
@@ -929,50 +951,62 @@ export const useFantasyGameEngine = ({
             taikoNotes: updatedTaikoNotes,
             awaitingLoopStart: false
           };
-          onGameComplete('clear', finalState);
-          return finalState;
+          return { 
+            newState: finalState,
+            callbackInfo,
+            gameCompleteInfo: { result: 'clear', finalState }
+          };
         }
 
         // 撃破済みモンスターはそのままactiveMontersに残す（200ms後にuseEffectで補充）
         return {
-          ...prevState,
-          activeMonsters: monstersWithDefeat,
-          playerSp: newSp,
-          // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
-          // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
-          currentNoteIndex: isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen,
-          taikoNotes: updatedTaikoNotes,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 100 * actualDamage,
-          enemiesDefeated: newEnemiesDefeated,
-          // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          newState: {
+            ...prevState,
+            activeMonsters: monstersWithDefeat,
+            playerSp: newSp,
+            // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
+            // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
+            currentNoteIndex: isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen,
+            taikoNotes: updatedTaikoNotes,
+            correctAnswers: prevState.correctAnswers + 1,
+            score: prevState.score + 100 * actualDamage,
+            enemiesDefeated: newEnemiesDefeated,
+            // 末尾ノーツをヒットした場合は次ループ開始待ち
+            awaitingLoopStart: isLastNoteByChosen ? true : false
+          },
+          callbackInfo
         };
       }
 
       // 末尾ノーツをヒットした場合は次ループ開始待ち
       if (isLastNoteByChosen) {
         return {
-          ...prevState,
-          activeMonsters: updatedMonsters,
-          playerSp: newSp,
-          taikoNotes: updatedTaikoNotes,
-          correctAnswers: prevState.correctAnswers + 1,
-          score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          newState: {
+            ...prevState,
+            activeMonsters: updatedMonsters,
+            playerSp: newSp,
+            taikoNotes: updatedTaikoNotes,
+            correctAnswers: prevState.correctAnswers + 1,
+            score: prevState.score + 100 * actualDamage,
+            awaitingLoopStart: true
+          },
+          callbackInfo
         };
       }
 
       return {
-        ...prevState,
-        activeMonsters: updatedMonsters,
-        playerSp: newSp,
-        // ヒットしたノーツの次へ進める
-        currentNoteIndex: nextIndexByChosen,
-        taikoNotes: updatedTaikoNotes,
-        correctAnswers: prevState.correctAnswers + 1,
-        score: prevState.score + 100 * actualDamage,
-        awaitingLoopStart: false
+        newState: {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          // ヒットしたノーツの次へ進める
+          currentNoteIndex: nextIndexByChosen,
+          taikoNotes: updatedTaikoNotes,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          awaitingLoopStart: false
+        },
+        callbackInfo
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -987,11 +1021,13 @@ export const useFantasyGameEngine = ({
       });
 
       return {
-        ...prevState,
-        activeMonsters: updatedMonsters
+        newState: {
+          ...prevState,
+          activeMonsters: updatedMonsters
+        }
       };
     }
-  }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
+  }, [displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
   const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
@@ -1863,6 +1899,21 @@ export const useFantasyGameEngine = ({
   }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, gameState.playMode]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
+  // コールバックを状態更新の外で呼び出すための参照
+  const pendingCallbackRef = useRef<{
+    callbackInfo?: {
+      chord: ChordDefinition;
+      isSpecial: boolean;
+      damageDealt: number;
+      defeated: boolean;
+      monsterId: string;
+    };
+    gameCompleteInfo?: {
+      result: 'clear' | 'gameover';
+      finalState: FantasyGameState;
+    };
+  } | null>(null);
+  
   const handleNoteInput = useCallback((note: number) => {
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
@@ -1875,7 +1926,34 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用の処理を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note);
+        const result = handleTaikoModeInput(prevState, note);
+        // コールバック情報を保存（状態更新後に呼び出すため）
+        if (result.callbackInfo || result.gameCompleteInfo) {
+          pendingCallbackRef.current = {
+            callbackInfo: result.callbackInfo,
+            gameCompleteInfo: result.gameCompleteInfo
+          };
+          // 状態更新後にコールバックを非同期で呼び出す
+          queueMicrotask(() => {
+            const pending = pendingCallbackRef.current;
+            if (!pending) return;
+            pendingCallbackRef.current = null;
+            
+            if (pending.callbackInfo) {
+              onChordCorrect(
+                pending.callbackInfo.chord,
+                pending.callbackInfo.isSpecial,
+                pending.callbackInfo.damageDealt,
+                pending.callbackInfo.defeated,
+                pending.callbackInfo.monsterId
+              );
+            }
+            if (pending.gameCompleteInfo) {
+              onGameComplete(pending.gameCompleteInfo.result, pending.gameCompleteInfo.finalState);
+            }
+          });
+        }
+        return result.newState;
       }
 
       const noteMod12 = note % 12;
