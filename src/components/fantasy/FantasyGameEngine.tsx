@@ -710,7 +710,7 @@ export const useFantasyGameEngine = ({
     taikoNotes: [],
     currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
     taikoLoopCycle: 0,
-    lastNormalizedTime: 0,
+    lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
     awaitingLoopStart: false,
     // 移調練習用
     transposeSettings: null,
@@ -1254,7 +1254,7 @@ export const useFantasyGameEngine = ({
       taikoNotes,
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
-      lastNormalizedTime: 0,
+      lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
       awaitingLoopStart: false,
       // 移調練習用
       transposeSettings,
@@ -1537,10 +1537,18 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // ループ境界検出
+        // カウントイン中はループ境界検出をスキップ
+        // カウントインから本編への移行時に誤検出を防ぐ
+        if (currentTime < 0) {
+          return prevState; // カウントイン中は何もしない
+        }
+        
+        // ループ境界検出（本編開始後のみ）
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-        const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
-        const justLooped = normalizedTime + 1e-6 < lastNorm;
+        const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
+        
+        // lastNormが-1（未初期化）の場合はループ境界として扱わない
+        const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm;
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し

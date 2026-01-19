@@ -7,7 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
-import { RepeatKeyChange, getKeyFromOffset } from './TaikoNoteSystem';
+import { RepeatKeyChange } from './TaikoNoteSystem';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -60,10 +60,10 @@ const ResultPracticeSettings: React.FC<ResultPracticeSettingsProps> = ({
             🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
           </div>
           
-          {/* キー変更ドロップダウン */}
+          {/* 移調量ドロップダウン */}
           <div className="flex items-center gap-2">
             <label className="text-xs text-gray-300 min-w-[80px]">
-              {isEnglishCopy ? 'Start Key' : '開始キー'}:
+              {isEnglishCopy ? 'Transpose' : '移調'}:
             </label>
             <select
               value={transposeKeyOffset}
@@ -72,7 +72,7 @@ const ResultPracticeSettings: React.FC<ResultPracticeSettingsProps> = ({
             >
               {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
                 <option key={offset} value={offset}>
-                  {offset > 0 ? `+${offset}` : offset} ({getKeyFromOffset('C', offset)})
+                  {offset > 0 ? `+${offset}` : offset === 0 ? '0' : String(offset)}
                 </option>
               ))}
             </select>
