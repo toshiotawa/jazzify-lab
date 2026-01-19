@@ -320,11 +320,34 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           lastScrollXRef.current = 0;
       
       // 🔧 修正: 五線譜を縦方向の中央に配置
-      // OSMDが生成したcanvas/svg要素にスタイルを適用
+      // OSMDのBoundingBoxから楽譜の実際の位置を取得して中央配置を計算
       const renderSurfaceForCenter = containerRef.current?.querySelector('svg, canvas');
-      if (renderSurfaceForCenter) {
-        (renderSurfaceForCenter as HTMLElement).style.display = 'block';
-        (renderSurfaceForCenter as HTMLElement).style.margin = 'auto 0';
+      const graphicSheet = osmdRef.current?.GraphicSheet;
+      const scrollContainerEl = scrollContainerRef.current;
+      
+      if (renderSurfaceForCenter && graphicSheet && scrollContainerEl) {
+        const bbox = (graphicSheet as any).BoundingBox;
+        const containerHeight = scrollContainerEl.clientHeight;
+        
+        if (bbox && containerHeight > 0) {
+          // BoundingBoxのy座標と高さから楽譜の実際の位置を取得
+          const staffY = bbox.y * scaleFactorRef.current;
+          const staffHeight = bbox.height * scaleFactorRef.current;
+          
+          // 楽譜を中央に配置するためのオフセットを計算
+          // (コンテナの高さ - 楽譜の高さ) / 2 - 楽譜の現在のY位置
+          const centerOffset = (containerHeight - staffHeight) / 2 - staffY;
+          
+          // canvas/svgにtransformを適用して中央配置
+          (renderSurfaceForCenter as HTMLElement).style.transform = `translateY(${centerOffset}px)`;
+          
+          log.info(`✅ OSMD centered: containerHeight=${containerHeight}, staffY=${staffY.toFixed(1)}, staffHeight=${staffHeight.toFixed(1)}, offset=${centerOffset.toFixed(1)}`);
+        } else {
+          // フォールバック: シンプルなmargin中央揃え
+          (renderSurfaceForCenter as HTMLElement).style.display = 'block';
+          (renderSurfaceForCenter as HTMLElement).style.margin = 'auto 0';
+          log.warn('⚠️ Could not calculate center offset, using fallback margin');
+        }
       }
       
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
@@ -642,7 +665,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             <div 
               ref={scoreWrapperRef}
               className={cn(
-                "h-full flex items-center",
+                "h-full",
                 // 停止中は手動スクロール時の移動を滑らかにする
                 !isPlaying ? "transition-transform duration-100 ease-out" : ""
               )}
@@ -654,11 +677,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             >
               <div 
                 ref={containerRef} 
-                className="osmd-container"
-                style={{
-                  // 🔧 修正: 五線譜を常に縦方向の中央に配置
-                  width: '100%'
-                }}
+                className="osmd-container h-full overflow-visible"
               />
             </div>
           </div>
