@@ -92,6 +92,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, [bpm, timeSignature, measureCount]);
   
   // タイムマッピングを作成
+  // 注意：複数のスタッフラインがある場合、最初のスタッフラインのみを使用
   const createTimeMapping = useCallback(() => {
     if (!osmdRef.current) {
       return;
@@ -107,26 +108,36 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     const { secPerMeasure } = loopInfo;
     let measureIndex = 0;
     let firstMeasureX: number | null = null;
+    const processedMeasureXs = new Set<number>(); // 重複防止用
     
-    // 小節ごとのX座標を取得
+    // 小節ごとのX座標を取得（最初のスタッフラインのみ）
     for (const page of graphicSheet.MusicPages) {
       for (const system of page.MusicSystems) {
-        for (const staffLine of system.StaffLines) {
-          for (const measure of staffLine.Measures) {
-            const measureX = (measure as any)?.PositionAndShape?.AbsolutePosition?.x;
-            if (typeof measureX === 'number') {
-              if (firstMeasureX === null) {
-                firstMeasureX = measureX;
-              }
-              
-              // 小節の開始時間を計算
-              const timeMs = measureIndex * secPerMeasure * 1000;
-              mapping.push({
-                timeMs,
-                xPosition: measureX * scaleFactorRef.current
-              });
-              measureIndex++;
+        // 最初のスタッフラインのみ処理（大譜表の重複カウント防止）
+        const staffLine = system.StaffLines?.[0];
+        if (!staffLine) continue;
+        
+        for (const measure of staffLine.Measures) {
+          const measureX = (measure as any)?.PositionAndShape?.AbsolutePosition?.x;
+          if (typeof measureX === 'number') {
+            // 同じX座標の小節は重複としてスキップ
+            const roundedX = Math.round(measureX * 1000); // 精度のため1000倍
+            if (processedMeasureXs.has(roundedX)) {
+              continue;
             }
+            processedMeasureXs.add(roundedX);
+            
+            if (firstMeasureX === null) {
+              firstMeasureX = measureX;
+            }
+            
+            // 小節の開始時間を計算（M1=0ms）
+            const timeMs = measureIndex * secPerMeasure * 1000;
+            mapping.push({
+              timeMs,
+              xPosition: measureX * scaleFactorRef.current
+            });
+            measureIndex++;
           }
         }
       }
@@ -143,8 +154,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     timeMappingRef.current = mapping;
-    devLog.debug('✅ タイムマッピング作成完了:', { entries: mapping.length });
-  }, [loopInfo]);
+    devLog.debug('✅ タイムマッピング作成完了:', { 
+      entries: mapping.length, 
+      expectedMeasures: measureCount,
+      loopDuration: loopInfo.loopDuration.toFixed(2) + 's'
+    });
+  }, [loopInfo, measureCount]);
   
   // 単一キーの楽譜をレンダリングして画像を取得
   const renderSheetForOffset = useCallback(async (
@@ -328,7 +343,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       return;
     }
     
-    const { loopDuration } = loopInfo;
+    // propsからの計算値（フォールバック用）
+    const { loopDuration: propsLoopDuration } = loopInfo;
     
     const updateScroll = () => {
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
@@ -352,33 +368,52 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
+      // BGMManagerから実際のloopDurationを取得（オーディオファイル長による調整後）
+      // BGMManagerが再生中でない場合はpropsからの値を使用
+      const actualLoopDuration = bgmManager.getIsPlaying() 
+        ? bgmManager.getLoopDuration() 
+        : propsLoopDuration;
+      
       // 正規化された時刻をミリ秒に変換
+      // currentTimeは0〜loopDurationの範囲に正規化されている
       const currentTimeMs = currentTime * 1000;
-      const loopDurationMs = loopDuration * 1000;
+      const loopDurationMs = actualLoopDuration * 1000;
+      
+      // ループ境界を超えた場合の処理（念のため再正規化）
+      const normalizedTimeMs = (loopDurationMs > 0 && currentTimeMs >= loopDurationMs)
+        ? currentTimeMs % loopDurationMs 
+        : currentTimeMs;
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
+      let foundMapping = false;
       
       for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
+        if (normalizedTimeMs >= mapping[i].timeMs && normalizedTimeMs < mapping[i + 1].timeMs) {
           // 線形補間
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          const t = (normalizedTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
           xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
+          foundMapping = true;
           break;
         }
       }
       
-      // 最後のエントリ以降の場合（ループ終端に向かって補間）
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+      // マッピングが見つからなかった場合（最後のエントリ以降）
+      if (!foundMapping && mapping.length > 0) {
         const lastEntry = mapping[mapping.length - 1];
-        // 最後の小節から楽譜終端まで進行
-        const remainingTime = loopDurationMs - lastEntry.timeMs;
-        if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
-          // 楽譜の終端位置（sheetWidthを使用）
-          xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
-        } else {
-          xPosition = lastEntry.xPosition;
+        if (normalizedTimeMs >= lastEntry.timeMs) {
+          // 最後の小節から楽譜終端まで進行
+          const remainingTime = loopDurationMs - lastEntry.timeMs;
+          if (remainingTime > 0) {
+            const t = Math.min(1, (normalizedTimeMs - lastEntry.timeMs) / remainingTime);
+            // 楽譜の終端位置（sheetWidthを使用）
+            xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
+          } else {
+            xPosition = lastEntry.xPosition;
+          }
+        } else if (normalizedTimeMs < mapping[0].timeMs) {
+          // 最初の小節より前（通常はありえないが、念のため）
+          xPosition = mapping[0].xPosition;
         }
       }
       
