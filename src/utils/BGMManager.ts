@@ -493,17 +493,15 @@ class BGMManager {
     // ボリューム調整（PitchShiftの前に挿入）
     const gainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
     
-    // Playerを作成（ネイティブループを使用、loopStart/loopEndでカウントイン除外）
+    // Playerを作成
+    // 重要: ネイティブループ(loop:true)はloopStart/loopEndを無視してファイル先頭に戻るため
+    // loop:falseにして完全にカスタムループ制御を行う
     this.tonePlayer = new Tone.Player({
       url: url,
-      loop: true,  // ネイティブループを有効化
+      loop: false,  // ネイティブループを無効化（カスタムループを使用）
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
-        
-        // ロード後にループポイントを設定（重要：onload内で設定）
-        this.tonePlayer.loopStart = this.loopBegin
-        this.tonePlayer.loopEnd = this.loopEnd
         
         // 再生開始時刻を先に記録（start()呼び出し前に）
         const startTime = Tone.now()
@@ -518,7 +516,8 @@ class BGMManager {
         // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
         this.waStartAt = startTime + this.pitchShiftLatency
         
-        // カスタムループ監視を開始（ネイティブループのバックアップ）
+        // カスタムループ監視を開始
+        // loopEnd到達時にloopBeginから新しい再生を開始（カウントインをスキップ）
         this._startToneLoopMonitor()
         
         console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
@@ -527,10 +526,8 @@ class BGMManager {
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
           loopEnd: this.loopEnd,
-          loopStartSet: this.tonePlayer.loopStart,
-          loopEndSet: this.tonePlayer.loopEnd,
           pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
-          note: `ネイティブループ: loopStart=${this.loopBegin.toFixed(2)}s, loopEnd=${this.loopEnd.toFixed(2)}s`
+          note: `カスタムループ: loopEnd(${this.loopEnd.toFixed(2)}s)到達時にloopBegin(${this.loopBegin.toFixed(2)}s)から新規再生開始`
         })
       }
     }).connect(gainNode)
@@ -538,7 +535,7 @@ class BGMManager {
   
   /**
    * Tone.js Player用のカスタムループ監視
-   * ネイティブループのバックアップとして、seek()を使用してループを制御
+   * loopEnd到達時にloopBeginから新しい再生を開始（カウントインをスキップ）
    */
   private _startToneLoopMonitor(): void {
     // 既存の監視を停止
@@ -550,7 +547,7 @@ class BGMManager {
     const Tone = this.toneModule
     if (!Tone) return
     
-    // 25msごとにループ位置をチェック
+    // 20msごとにループ位置をチェック
     this.toneLoopIntervalId = window.setInterval(() => {
       if (!this.isPlaying || !this.tonePlayer || !this.useTonePitchShift) {
         return
@@ -562,46 +559,42 @@ class BGMManager {
         const elapsedSinceSeek = (now - this.toneSeekTime) * this.playbackRate
         const currentBufferPosition = this.toneCurrentOffset + elapsedSinceSeek
         
-        // loopEndに近づいたらloopStartへシーク
-        // ネイティブループが機能しない場合のバックアップ
-        const epsilon = 0.05 // 50ms
+        // loopEndに近づいたらloopBeginから新しい再生を開始
+        // 重要: カウントインをスキップしてloopBegin（本編開始位置）から再生
+        const epsilon = 0.04 // 40ms早めに検出
         if (currentBufferPosition >= this.loopEnd - epsilon) {
-          // seek()を使用して位置を変更（stop/startより安定）
-          const seekPosition = this.loopBegin
+          console.log('🔄 ループ検出:', {
+            currentPosition: currentBufferPosition.toFixed(3),
+            loopEnd: this.loopEnd.toFixed(3),
+            loopBegin: this.loopBegin.toFixed(3)
+          })
           
+          // 現在の再生を停止
           try {
-            // Tone.js Playerのseek()は再生中に呼び出し可能
-            this.tonePlayer.seek(seekPosition)
-            
-            // 追跡用の変数を更新
-            this.toneCurrentOffset = seekPosition
-            this.toneSeekTime = Tone.now()
-            
-            // waStartAtを更新（getCurrentMusicTime()用）
-            // シーク後、getCurrentMusicTime()が loopBegin - loopBegin = 0 を返すように
-            this.waStartAt = this.toneSeekTime + this.pitchShiftLatency - (seekPosition / this.playbackRate)
-            
-            console.log('🔄 Tone.js seek()実行:', {
-              previousPosition: currentBufferPosition.toFixed(3),
-              newPosition: seekPosition.toFixed(3),
-              loopDuration: (this.loopEnd - this.loopBegin).toFixed(3)
-            })
-          } catch (seekError) {
-            // seek()が失敗した場合はstop/startにフォールバック
-            console.warn('⚠️ seek()失敗、stop/startにフォールバック:', seekError)
             this.tonePlayer.stop()
-            const newStartTime = Tone.now()
-            this.tonePlayer.start(newStartTime, seekPosition)
-            this.toneCurrentOffset = seekPosition
-            this.toneSeekTime = newStartTime
-            this.waStartAt = newStartTime + this.pitchShiftLatency - (seekPosition / this.playbackRate)
+          } catch {
+            // 既に停止している場合は無視
           }
+          
+          // loopBeginから新しい再生を開始
+          // 重要: 第2引数がオフセット（開始位置）= loopBegin（カウントイン後）
+          const newStartTime = Tone.now()
+          this.tonePlayer.start(newStartTime, this.loopBegin)
+          
+          // 追跡用の変数を更新
+          this.toneCurrentOffset = this.loopBegin
+          this.toneSeekTime = newStartTime
+          
+          console.log('🔄 ループ実行: loopBeginから再生開始', {
+            newOffset: this.loopBegin.toFixed(3),
+            loopDuration: (this.loopEnd - this.loopBegin).toFixed(3)
+          })
         }
       } catch (e) {
         // エラーは無視（再生停止時など）
         console.warn('⚠️ ループ監視エラー:', e)
       }
-    }, 25)
+    }, 20)
   }
   
   // ─────────────────────────────────────────────
