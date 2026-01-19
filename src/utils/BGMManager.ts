@@ -45,7 +45,8 @@ class BGMManager {
     countIn: number,
     volume = 0.7,
     playbackRate = 1.0,
-    pitchShift = 0 // 半音単位のピッチシフト（-12 ~ +12）
+    pitchShift = 0, // 半音単位のピッチシフト（-12 ~ +12）
+    forcePitchShift = false
   ) {
     if (!url) return
     
@@ -84,7 +85,8 @@ class BGMManager {
     })
 
     // ピッチシフトが必要な場合はTone.jsを使用
-    if (this.pitchShift !== 0) {
+    const shouldUseTonePitchShift = this.pitchShift !== 0 || forcePitchShift
+    if (shouldUseTonePitchShift) {
       this.useTonePitchShift = true
       this._playTonePitchShift(url, volume).catch(err => {
         console.warn('Tone.js PitchShift failed, fallback to WebAudio:', err)

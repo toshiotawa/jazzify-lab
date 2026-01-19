@@ -50,6 +50,12 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicalMeasure {
     staffEntries: GraphicalStaffEntry[];
+    PositionAndShape?: {
+      AbsolutePosition?: {
+        x: number;
+        y?: number;
+      };
+    };
   }
 
   export interface GraphicalStaffLine {
@@ -66,6 +72,10 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicSheet {
     MusicPages: MusicPage[];
+    BoundingBox?: {
+      width: number;
+      height?: number;
+    };
   }
 
   export interface MusicSheet {
