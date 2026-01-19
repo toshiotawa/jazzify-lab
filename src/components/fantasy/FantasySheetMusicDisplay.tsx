@@ -57,6 +57,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const lastScrollXRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
+  // ループ検出用: 前回の正規化時間を保持
+  const lastNormalizedTimeRef = useRef<number>(-1);
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -233,7 +235,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     const { loopDuration } = loopInfo;
-    let lastNormalizedTime = -1;
+    // useEffect開始時にrefをリセット（曲変更などで再初期化された場合）
+    lastNormalizedTimeRef.current = -1;
     
     const updateScroll = () => {
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
@@ -251,17 +254,22 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           scoreWrapperRef.current.style.transform = `translateX(0px)`;
         }
         lastScrollXRef.current = 0;
+        lastNormalizedTimeRef.current = -1; // カウントイン中はリセット
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
       
       // 正規化された時間（ループ考慮）- currentTimeは既にM1開始=0基準
+      // bgmManager.getCurrentMusicTime()は既にループを考慮して0〜loopDurationの値を返すが、
+      // 念のため再度正規化して安全性を確保
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       const currentTimeMs = normalizedTime * 1000;
       
-      // ループ検出（時間が巻き戻った場合）
-      const isLoopReset = lastNormalizedTime > 0 && normalizedTime < lastNormalizedTime - 0.5;
-      lastNormalizedTime = normalizedTime;
+      // ループ検出（時間が大きく巻き戻った場合）
+      // loopDuration * 0.5 以上の巻き戻りをループとして検出
+      const lastNormTime = lastNormalizedTimeRef.current;
+      const isLoopReset = lastNormTime > loopDuration * 0.5 && normalizedTime < loopDuration * 0.3;
+      lastNormalizedTimeRef.current = normalizedTime;
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
@@ -279,7 +287,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // 最後のエントリ以降の場合（ループ終端に向かって補間）
       if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
         const lastEntry = mapping[mapping.length - 1];
-        const firstEntry = mapping[0];
         // 最後の小節から楽譜終端まで進行
         const remainingTime = loopDurationMs - lastEntry.timeMs;
         if (remainingTime > 0) {
