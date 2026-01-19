@@ -1568,14 +1568,19 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // ループ境界検出
-        const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-        const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
-        const justLooped = normalizedTime + 1e-6 < lastNorm;
+        // BGMManagerのループカウントを使用してループを検出（二重トリガー防止）
+        const bgmLoopCount = bgmManager.getLoopCount();
+        const justLooped = bgmLoopCount > prevState.taikoLoopCycle;
+        
+        // 現在の位置を記録（カウントイン中は負の値）
+        const normalizedTime = currentTime >= 0 
+          ? currentTime % loopDuration 
+          : currentTime;
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
-          const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          // BGMManagerのループカウントを使用
+          const newLoopCycle = bgmLoopCount;
           
           // リピートごとの移調を適用（移調設定がある場合）
           let transposedNotes = prevState.originalTaikoNotes.length > 0 
