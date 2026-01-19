@@ -148,44 +148,69 @@ export class FantasyPIXIInstance {
 
   setActiveMonsters(monsters: MonsterState[]): void {
     const now = performance.now();
-    const existingById = new Map(this.monsters.map((m) => [m.id, m] as const));
+    const existingById = new Map(this.monsters.map((m) => [m.id, m]));
     const sorted = [...monsters].sort((a, b) => a.position.localeCompare(b.position));
     const count = sorted.length || 1;
     const spacing = this.width / (count + 1);
-    const visuals: MonsterVisual[] = [];
+    
+    const nextMonsters: MonsterVisual[] = [];
+    const processedIds = new Set<string>();
+
     sorted.forEach((monster, index) => {
-      const existing = existingById.get(monster.id);
-      const image = this.ensureImage(monster.icon);
       const targetX = spacing * (index + 1);
       const isEnraged = this.enragedState[monster.id] || false;
-      visuals.push({
-        id: monster.id,
-        icon: monster.icon,
-        image,
-        hpRatio: monster.currentHp / monster.maxHp,
-        targetX,
-        x: existing ? existing.x : targetX,
-        y: existing?.y ?? this.height * 0.45, // 基準Y位置（描画時に浮遊アニメーション適用）
-        flashUntil: existing?.flashUntil ?? 0,
-        defeated: monster.currentHp <= 0,
-        defeatedAt: existing?.defeatedAt,
-        enraged: isEnraged,
-        enrageScale: existing?.enrageScale ?? 1,
-        damagePopup: existing?.damagePopup
-      });
+      
+      let visual = existingById.get(monster.id);
+      
+      if (visual) {
+        // 既存オブジェクトを更新（GC抑制）
+        visual.hpRatio = monster.currentHp / monster.maxHp;
+        visual.targetX = targetX;
+        // visual.x はアニメーションで現在値を保持するため上書きしない
+        // visual.y も同様（浮遊アニメーション）
+        visual.defeated = monster.currentHp <= 0;
+        // defeatedAt はイベントドリブンで設定されるため、ここでのリセットは避ける
+        visual.enraged = isEnraged;
+        
+        if (visual.icon !== monster.icon) {
+          visual.icon = monster.icon;
+          visual.image = this.ensureImage(monster.icon);
+        }
+      } else {
+        // 新規作成
+        visual = {
+          id: monster.id,
+          icon: monster.icon,
+          image: this.ensureImage(monster.icon),
+          hpRatio: monster.currentHp / monster.maxHp,
+          targetX,
+          x: existingById.has(monster.id) ? existingById.get(monster.id)!.x : targetX,
+          y: existingById.has(monster.id) ? existingById.get(monster.id)!.y : this.height * 0.45,
+          flashUntil: 0,
+          defeated: monster.currentHp <= 0,
+          defeatedAt: undefined,
+          enraged: isEnraged,
+          enrageScale: 1,
+          damagePopup: undefined
+        };
+      }
+      
+      nextMonsters.push(visual);
+      processedIds.add(monster.id);
     });
 
     // 既に倒された（または倒されつつある）モンスターを少しの間保持してフェードアウトさせる
     const FADE_MS = 450;
-    for (const prev of this.monsters) {
-      const stillAliveInNext = visuals.some((v) => v.id === prev.id);
-      if (stillAliveInNext) continue;
-      if (!prev.defeated || !prev.defeatedAt) continue;
-      if (now - prev.defeatedAt > FADE_MS) continue;
-      visuals.push(prev);
-    }
+    this.monsters.forEach(prev => {
+      if (processedIds.has(prev.id)) return; // 既に処理済み
+      
+      // 撃破されていて、かつフェードアウト期間内なら残す
+      if (prev.defeated && prev.defeatedAt && (now - prev.defeatedAt <= FADE_MS)) {
+         nextMonsters.push(prev);
+      }
+    });
 
-    this.monsters = visuals;
+    this.monsters = nextMonsters;
     this.requestRender();
   }
 
@@ -816,7 +841,7 @@ export class FantasyPIXIInstance {
   }
 }
 
-export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
+export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = React.memo(({
   width,
   height,
   monsterIcon,
@@ -867,6 +892,6 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
       className={cn('block w-full h-full', className)}
     />
   );
-};
+});
 
 export default FantasyPIXIRenderer;

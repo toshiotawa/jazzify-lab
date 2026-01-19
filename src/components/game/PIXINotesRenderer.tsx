@@ -1112,7 +1112,7 @@ export class PIXINotesRendererInstance {
   }
 }
 
-export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
+export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = React.memo(({
   width,
   height,
   onReady,
@@ -1146,6 +1146,6 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
       className={cn('block touch-none select-none', className)}
     />
   );
-};
+});
 
 export default PIXINotesRenderer;
