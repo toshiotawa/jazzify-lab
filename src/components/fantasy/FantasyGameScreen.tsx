@@ -553,7 +553,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => window.removeEventListener('resize', updateSheetHeight);
   }, [showSheetMusicForTiming]);
 
+  // ゲーム開始時の初期移調オフセットを保持（BGM再起動防止用）
+  const initialTransposeOffsetRef = useRef<number>(0);
+  
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 注: 依存配列からcurrentTransposeOffsetを除外し、ループ時のBGM再起動を防止
+  // ピッチシフトの動的変更は別のuseEffectで処理
   useEffect(() => {
     if (!gameState.isGameActive) return;
     if (isReady) return;
@@ -561,13 +566,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
-    
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    // 初回のピッチシフトを保存（BGM再生用）
+    // ループ時の移調オフセット変更はsetPitchShift()で対応
+    initialTransposeOffsetRef.current = gameState.transposeSettings?.keyOffset || 0;
+    const pitchShift = initialTransposeOffsetRef.current;
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -581,7 +583,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
+    // 注意: gameState.currentTransposeOffset は意図的に除外（ループ時のBGM再起動を防止）
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // リピート時のキー変更でBGMのピッチシフトを更新
   useEffect(() => {
