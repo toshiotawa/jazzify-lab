@@ -710,7 +710,7 @@ export const useFantasyGameEngine = ({
     taikoNotes: [],
     currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
     taikoLoopCycle: 0,
-    lastNormalizedTime: 0,
+    lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
     awaitingLoopStart: false,
     // 移調練習用
     transposeSettings: null,
@@ -1254,7 +1254,7 @@ export const useFantasyGameEngine = ({
       taikoNotes,
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
-      lastNormalizedTime: 0,
+      lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
       awaitingLoopStart: false,
       // 移調練習用
       transposeSettings,
@@ -1537,14 +1537,37 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // ループ境界検出
+        // カウントイン中はループ境界検出をスキップ
+        // カウントインから本編への移行時に誤検出を防ぐ
+        if (currentTime < 0) {
+          return prevState; // カウントイン中は何もしない
+        }
+        
+        // ループ境界検出（本編開始後のみ）
+        // 注: currentTimeはgetCurrentMusicTime()から取得され、既に0〜loopDurationに正規化されている
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-        const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
-        const justLooped = normalizedTime + 1e-6 < lastNorm;
+        const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
+        
+        // lastNormが-1（未初期化）の場合はループ境界として扱わない
+        // ループ境界検出: normalizedTimeがlastNormより小さくなった場合
+        // 二重処理防止: lastNorm - normalizedTimeがloopDurationの半分より大きい場合のみ（真のループ境界）
+        const loopTimeDiff = lastNorm - normalizedTime;
+        const isSignificantJump = loopTimeDiff > loopDuration * 0.5; // 半分以上の戻りがあれば真のループ境界
+        const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm && isSignificantJump;
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          
+          console.log('🔄 ループ境界検出:', {
+            newLoopCycle,
+            normalizedTime: normalizedTime.toFixed(3),
+            lastNorm: lastNorm.toFixed(3),
+            loopTimeDiff: loopTimeDiff.toFixed(3),
+            hasTransposeSettings: !!prevState.transposeSettings,
+            originalNotesCount: prevState.originalTaikoNotes.length,
+            prevTransposeOffset: prevState.currentTransposeOffset
+          });
           
           // リピートごとの移調を適用（移調設定がある場合）
           let transposedNotes = prevState.originalTaikoNotes.length > 0 
@@ -1559,6 +1582,13 @@ export const useFantasyGameEngine = ({
               newLoopCycle,
               prevState.transposeSettings.repeatKeyChange
             );
+            
+            console.log('🎹 移調オフセット計算:', {
+              keyOffset: prevState.transposeSettings.keyOffset,
+              repeatKeyChange: prevState.transposeSettings.repeatKeyChange,
+              newLoopCycle,
+              newTransposeOffset
+            });
             
             // 移調を適用
             if (newTransposeOffset !== 0) {

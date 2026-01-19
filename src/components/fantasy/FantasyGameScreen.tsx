@@ -16,8 +16,8 @@ import {
   ChordProgressionDataItem,
   TransposeSettings,
   RepeatKeyChange,
-  getKeyFromOffset,
-  TRANSPOSE_KEYS
+  transposeTaikoNotes,
+  calculateTransposeOffset
 } from './TaikoNoteSystem';
 import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -879,13 +879,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const taikoNotesRef = useRef(gameState.taikoNotes);
   const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
   const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
+  // 移調設定用のref
+  const transposeSettingsRef = useRef(gameState.transposeSettings);
+  const originalTaikoNotesRef = useRef(gameState.originalTaikoNotes);
+  const currentTransposeOffsetRef = useRef(gameState.currentTransposeOffset);
+  const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
   
-  // taikoNotes/currentNoteIndex/awaitingLoopStartが変更されたらrefを更新（アニメーションループはそのまま継続）
+  // taikoNotes/currentNoteIndex/awaitingLoopStart/移調設定が変更されたらrefを更新（アニメーションループはそのまま継続）
   useEffect(() => {
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
+    transposeSettingsRef.current = gameState.transposeSettings;
+    originalTaikoNotesRef.current = gameState.originalTaikoNotes;
+    currentTransposeOffsetRef.current = gameState.currentTransposeOffset;
+    taikoLoopCycleRef.current = gameState.taikoLoopCycle;
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
@@ -1034,11 +1043,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
       
       if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
-        for (let i = 0; i < taikoNotes.length; i++) {
-          const note = taikoNotes[i];
+        // 移調設定がある場合、次のリピートサイクルの移調オフセットを計算
+        const transposeSettings = transposeSettingsRef.current;
+        const originalNotes = originalTaikoNotesRef.current;
+        const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
+        
+        // 次のループで使用するノーツを決定
+        let nextLoopNotes = taikoNotes;
+        if (transposeSettings && originalNotes.length > 0) {
+          // 次のリピートサイクルの移調オフセットを計算
+          const nextLoopCycle = currentLoopCycle + 1;
+          const nextTransposeOffset = calculateTransposeOffset(
+            transposeSettings.keyOffset,
+            nextLoopCycle,
+            transposeSettings.repeatKeyChange
+          );
+          // 元のノーツに次の移調を適用
+          nextLoopNotes = transposeTaikoNotes(originalNotes, nextTransposeOffset);
+        }
+        
+        for (let i = 0; i < nextLoopNotes.length; i++) {
+          const note = nextLoopNotes[i];
+          const baseNote = taikoNotes[i]; // 元のノーツのIDでチェック
 
           // すでに通常ノーツで表示しているものは重複させない
-          if (displayedBaseIds.has(note.id)) continue;
+          if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
 
           // 次ループの仮想的なヒット時間を計算
           const virtualHitTime = note.hitTime + loopDuration;
@@ -1327,10 +1356,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
                     </div>
                     
-                    {/* キー変更ドロップダウン */}
+                    {/* 移調量ドロップダウン */}
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-gray-300 min-w-[80px]">
-                        {isEnglishCopy ? 'Start Key' : '開始キー'}:
+                        {isEnglishCopy ? 'Transpose' : '移調'}:
                       </label>
                       <select
                         value={transposeKeyOffset}
@@ -1339,7 +1368,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       >
                         {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
                           <option key={offset} value={offset}>
-                            {offset > 0 ? `+${offset}` : offset} ({getKeyFromOffset('C', offset)})
+                            {offset > 0 ? `+${offset}` : offset === 0 ? '0' : String(offset)}
                           </option>
                         ))}
                       </select>
@@ -1488,10 +1517,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     {Math.round(selectedSpeedMultiplier * 100)}%
                   </span>
                 )}
-                {/* 移調キー表示（progression_timingモードかつ移調設定がある場合） */}
-                {gameState.transposeSettings && gameState.currentTransposeOffset !== 0 && (
+                {/* 移調量表示（progression_timingモードかつ移調設定がある場合） */}
+                {gameState.transposeSettings && (
                   <span className="ml-2 px-2 py-0.5 bg-purple-600 rounded text-xs">
-                    Key: {getKeyFromOffset('C', gameState.currentTransposeOffset)}
+                    {gameState.currentTransposeOffset > 0 ? `+${gameState.currentTransposeOffset}` : gameState.currentTransposeOffset === 0 ? '0' : String(gameState.currentTransposeOffset)}
                   </span>
                 )}
               </div>
@@ -1775,6 +1804,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             countInMeasures={stage.countInMeasures || 0}
             harmonyMarkers={harmonyMarkers}
             transposeOffset={gameState.currentTransposeOffset || 0}
+            nextTransposeOffset={
+              // 移調設定がある場合、次のループの移調オフセットを計算
+              gameState.transposeSettings
+                ? calculateTransposeOffset(
+                    gameState.transposeSettings.keyOffset,
+                    (gameState.taikoLoopCycle ?? 0) + 1,
+                    gameState.transposeSettings.repeatKeyChange
+                  )
+                : undefined
+            }
             className="w-full h-full"
           />
         </div>

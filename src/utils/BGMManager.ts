@@ -477,11 +477,14 @@ class BGMManager {
     this.tonePlayer = new Tone.Player({
       url: url,
       loop: true,
-      loopStart: this.loopBegin,
-      loopEnd: this.loopEnd,
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
+        
+        // ループポイントをロード後に明示的に設定（Tone.jsの仕様対応）
+        this.tonePlayer.loopStart = this.loopBegin
+        this.tonePlayer.loopEnd = this.loopEnd
+        
         // 再生開始時刻を先に記録（start()呼び出し前に）
         const startTime = Tone.now()
         // 再生開始
@@ -497,6 +500,8 @@ class BGMManager {
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
           loopEnd: this.loopEnd,
+          loopStartSet: this.tonePlayer.loopStart,
+          loopEndSet: this.tonePlayer.loopEnd,
           pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
           note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`
         })
