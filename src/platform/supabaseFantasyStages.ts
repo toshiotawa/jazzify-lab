@@ -279,6 +279,8 @@ export interface UpsertFantasyStagePayload {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // 音源オフセット（秒）: MusicXMLと音源のMeasure 1開始のズレを補正
+  audio_offset?: number | null;
 }
 
 /**

@@ -114,6 +114,8 @@ const LPFantasyDemo: React.FC = () => {
           tier: (dbStage as any).stage_tier || 'basic',
           isSheetMusicMode: !!(dbStage as any).is_sheet_music_mode,
           sheetMusicClef: (dbStage as any).sheet_music_clef || 'treble',
+          musicXml: (dbStage as any).music_xml,
+          audioOffset: (dbStage as any).audio_offset ?? 0,
         } as any;
         setStage(mapped);
       } catch (e: any) {

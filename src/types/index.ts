@@ -562,6 +562,11 @@ export interface FantasyStage {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string;
+  // 音源オフセット（秒）: MusicXMLのMeasure 1開始と音源ファイルのMeasure 1開始のズレを補正
+  // 正の値 = 音源のMeasure 1開始がMusicXMLより遅い（ノーツを後ろにずらす）
+  // 負の値 = 音源のMeasure 1開始がMusicXMLより早い（ノーツを前にずらす）
+  audio_offset?: number;
+  audioOffset?: number;
 }
 
 // ファンタジーステージクリア記録
