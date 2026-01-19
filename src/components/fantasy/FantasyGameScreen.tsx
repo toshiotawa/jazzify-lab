@@ -600,6 +600,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // 移調設定がある場合、ピッチシフトを適用
     const pitchShift = gameState.currentTransposeOffset || 0;
+    
+    // 時間同期の計算値
+    const secPerBeat = 60 / (stage.bpm || 120);
+    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
+    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    
+    // デバッグログ: BGM再生開始時の時間同期情報
+    devLog.debug('🎵 BGM再生開始 - 時間同期情報:', {
+      bgmUrl: stage.bgmUrl,
+      bpm: stage.bpm || 120,
+      timeSignature: stage.timeSignature || 4,
+      measureCount: stage.measureCount ?? 8,
+      countInMeasures: stage.countInMeasures ?? 0,
+      countInSeconds,
+      playbackRate,
+      pitchShift,
+      timingNote: `BGMの${countInSeconds.toFixed(2)}秒地点がM1 Beat1（=ノーツのhitTime 0秒）に対応`
+    });
 
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -1003,6 +1021,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
+        // デバッグログ: カウントイン中の時間情報（1秒に1回程度）
+        if (Math.floor(timestamp / 1000) !== Math.floor((timestamp - updateInterval) / 1000)) {
+          devLog.debug('🕐 カウントイン中の時間同期:', {
+            currentTime: currentTime.toFixed(3),
+            isCountIn: true,
+            firstNoteHitTime: gameState.taikoNotes[0]?.hitTime.toFixed(3),
+            timeUntilFirstNote: gameState.taikoNotes[0] ? (gameState.taikoNotes[0].hitTime - currentTime).toFixed(3) : 'N/A'
+          });
+        }
+        
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < gameState.taikoNotes.length; i++) {

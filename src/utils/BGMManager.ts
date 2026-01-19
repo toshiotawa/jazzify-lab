@@ -35,6 +35,7 @@ class BGMManager {
   private toneLoopStart: number = 0
   private toneLoopEnd: number = 0
   private useTonePitchShift = false // Tone.jsを使用するかどうか
+  private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
 
   play(
     url: string,
@@ -66,6 +67,21 @@ class BGMManager {
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
     this.toneLoopStart = this.loopBegin
     this.toneLoopEnd = this.loopEnd
+    
+    // デバッグログ: BGM時間計算の詳細
+    console.log('🎵 BGMManager.play() - 時間同期設定:', {
+      bpm,
+      timeSignature: timeSig,
+      measureCount,
+      countInMeasures: this.countInMeasures,
+      secPerBeat: secPerBeat.toFixed(3),
+      secPerMeasure: secPerMeas.toFixed(3),
+      loopBegin: this.loopBegin.toFixed(3),
+      loopEnd: this.loopEnd.toFixed(3),
+      playbackRate: this.playbackRate,
+      pitchShift: this.pitchShift,
+      note: `BGM 0秒 = カウントイン開始, BGM ${this.loopBegin.toFixed(2)}秒 = M1 Beat1 (getCurrentMusicTime = 0)`
+    })
 
     // ピッチシフトが必要な場合はTone.jsを使用
     if (this.pitchShift !== 0) {
@@ -197,34 +213,65 @@ class BGMManager {
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
    * 再生速度に関わらず、音楽的な位置（小節・拍）が正しく返される
+   * 
+   * 重要: AudioContext.currentTimeを使用して正確な同期を実現
+   * - BGMは0秒（カウントイン開始）から再生開始
+   * - loopBegin = countInMeasures * 1小節の長さ
+   * - M1開始を0秒として返す（カウントイン中は負の値）
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
       // Tone.js PitchShift使用時
       if (this.useTonePitchShift && this.tonePlayer) {
         try {
-          // Tone.Playerのseekを使用して現在位置を取得
           const Tone = (window as any).Tone
           if (Tone && typeof Tone.now === 'function') {
+            // Tone.now()を使用して経過時間を計算
             const elapsedRealTime = Tone.now() - this.waStartAt
+            // playbackRateを考慮した音楽的な時間
             const musicTime = elapsedRealTime * this.playbackRate
-            // ループを考慮した位置を計算
+            // ループを考慮した位置を計算（ループ後も正しく動作）
             const loopDuration = this.loopEnd - this.loopBegin
-            const posInLoop = musicTime % loopDuration
-            return posInLoop
+            if (loopDuration > 0 && musicTime >= this.loopEnd) {
+              // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
+              const timeSinceLoopStart = musicTime - this.loopBegin
+              const posInLoop = timeSinceLoopStart % loopDuration
+              return posInLoop
+            }
+            // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
+            return musicTime - this.loopBegin
           }
         } catch {}
       }
       
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
-        // playbackRateを考慮した音楽的な時間を計算
+        // AudioContext.currentTimeを使用して正確な経過時間を取得
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        // playbackRateを考慮した音楽的な時間
         const musicTime = elapsedRealTime * this.playbackRate
+        // ループを考慮
+        const loopDuration = this.loopEnd - this.loopBegin
+        if (loopDuration > 0 && musicTime >= this.loopEnd) {
+          // ループ後: loopBegin〜loopEndの範囲で正規化
+          const timeSinceLoopStart = musicTime - this.loopBegin
+          const posInLoop = timeSinceLoopStart % loopDuration
+          return posInLoop
+        }
+        // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
         return musicTime - this.loopBegin
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
-      if (this.audio) return this.audio.currentTime - this.loopBegin
+      if (this.audio) {
+        const loopDuration = this.loopEnd - this.loopBegin
+        const musicTime = this.audio.currentTime
+        if (loopDuration > 0 && musicTime >= this.loopEnd) {
+          const timeSinceLoopStart = musicTime - this.loopBegin
+          const posInLoop = timeSinceLoopStart % loopDuration
+          return posInLoop
+        }
+        return musicTime - this.loopBegin
+      }
     }
     return 0
   }
@@ -320,12 +367,58 @@ class BGMManager {
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
   getIsCountIn(): boolean {
-    if (this.waContext && this.waBuffer) {
-      const elapsedRealTime = this.waContext.currentTime - this.waStartAt
-      const musicTime = elapsedRealTime * this.playbackRate
-      return musicTime < this.loopBegin
+    // getCurrentMusicTime()と一貫性を持たせる
+    // M1開始が0秒なので、負の値 = カウントイン中
+    return this.getCurrentMusicTime() < 0
+  }
+  
+  /**
+   * デバッグ用: 現在の時間同期情報を取得
+   */
+  getTimingDebugInfo(): {
+    isPlaying: boolean;
+    currentMusicTime: number;
+    isCountIn: boolean;
+    loopBegin: number;
+    loopEnd: number;
+    countInMeasures: number;
+    bpm: number;
+    measureCount: number;
+    elapsedRealTime?: number;
+    rawMusicTime?: number;
+  } {
+    let elapsedRealTime: number | undefined;
+    let rawMusicTime: number | undefined;
+    
+    if (this.isPlaying) {
+      if (this.useTonePitchShift && this.tonePlayer) {
+        try {
+          const Tone = (window as any).Tone;
+          if (Tone && typeof Tone.now === 'function') {
+            elapsedRealTime = Tone.now() - this.waStartAt;
+            rawMusicTime = elapsedRealTime * this.playbackRate;
+          }
+        } catch {}
+      } else if (this.waContext && this.waBuffer) {
+        elapsedRealTime = this.waContext.currentTime - this.waStartAt;
+        rawMusicTime = elapsedRealTime * this.playbackRate;
+      } else if (this.audio) {
+        rawMusicTime = this.audio.currentTime;
+      }
     }
-    return !!this.audio && this.audio.currentTime < this.loopBegin
+    
+    return {
+      isPlaying: this.isPlaying,
+      currentMusicTime: this.getCurrentMusicTime(),
+      isCountIn: this.getIsCountIn(),
+      loopBegin: this.loopBegin,
+      loopEnd: this.loopEnd,
+      countInMeasures: this.countInMeasures,
+      bpm: this.bpm,
+      measureCount: this.measureCount,
+      elapsedRealTime,
+      rawMusicTime
+    };
   }
 
   /** Measure 1 の開始へリセット */
@@ -360,11 +453,21 @@ class BGMManager {
     // AudioContextを起動
     await Tone.start()
     
+    // PitchShiftの設定
+    // windowSize: FFT窓サイズ（秒）- 音質に影響
+    // delayTime: 処理遅延（秒）- これがオーディオ出力の遅延になる
+    const pitchShiftWindowSize = 0.1  // 100ms
+    const pitchShiftDelayTime = 0.05  // 50ms
+    
+    // PitchShiftの総遅延を計算（delayTime + windowSize/2 程度の処理遅延）
+    // 実測値に基づいて調整可能
+    this.pitchShiftLatency = pitchShiftDelayTime + (pitchShiftWindowSize * 0.5)
+    
     // PitchShiftノードを作成
     this.tonePitchShift = new Tone.PitchShift({
       pitch: this.pitchShift,
-      windowSize: 0.1,
-      delayTime: 0.05
+      windowSize: pitchShiftWindowSize,
+      delayTime: pitchShiftDelayTime
     }).toDestination()
     
     // ボリューム調整（PitchShiftの前に挿入）
@@ -379,17 +482,23 @@ class BGMManager {
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
+        // 再生開始時刻を先に記録（start()呼び出し前に）
+        const startTime = Tone.now()
         // 再生開始
-        this.tonePlayer.start(Tone.now(), 0)
+        this.tonePlayer.start(startTime, 0)
         this.isPlaying = true
         this.startTime = performance.now()
-        this.waStartAt = Tone.now()
+        // waStartAtにPitchShiftの遅延を加算して補正
+        // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
+        this.waStartAt = startTime + this.pitchShiftLatency
         console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
           url, 
           bpm: this.bpm, 
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
-          loopEnd: this.loopEnd 
+          loopEnd: this.loopEnd,
+          pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
+          note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`
         })
       }
     }).connect(gainNode)
