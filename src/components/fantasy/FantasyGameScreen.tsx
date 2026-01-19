@@ -128,6 +128,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [remainingSeconds, setRemainingSeconds] = useState<number>(timeLimitSeconds);
   const hasTimeUpFiredRef = useRef(false);
   const gameStateRef = useRef<FantasyGameState | null>(null);
+  const initialPitchShiftRef = useRef<number | null>(null);
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
@@ -552,6 +553,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     window.addEventListener('resize', updateSheetHeight);
     return () => window.removeEventListener('resize', updateSheetHeight);
   }, [showSheetMusicForTiming]);
+  
+  // BGM初期ピッチシフトの確定（ループ時の再生リスタート防止）
+  useEffect(() => {
+    if (!gameState.isGameActive) {
+      initialPitchShiftRef.current = null;
+      return;
+    }
+    if (initialPitchShiftRef.current === null) {
+      initialPitchShiftRef.current = gameState.currentTransposeOffset || 0;
+    }
+  }, [gameState.isGameActive, gameState.currentTransposeOffset]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   useEffect(() => {
@@ -562,7 +574,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const playbackRate = selectedSpeedMultiplier;
     
     // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
+    const pitchShift = initialPitchShiftRef.current ?? 0;
     
     // 時間同期の計算値
     const secPerBeat = 60 / (stage.bpm || 120);
@@ -581,7 +593,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // リピート時のキー変更でBGMのピッチシフトを更新
   useEffect(() => {

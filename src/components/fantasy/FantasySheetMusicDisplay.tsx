@@ -49,6 +49,11 @@ interface SheetImageCache {
   [offset: number]: string; // offset (0-11) -> dataURL
 }
 
+interface SheetRenderMetrics {
+  mapping: TimeMappingEntry[];
+  width: number;
+}
+
 const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   width,
   height,
@@ -67,8 +72,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
-  const scaleFactorRef = useRef<number>(10);
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
+  const sheetMetricsRef = useRef<Record<number, SheetRenderMetrics>>({});
   const lastScrollXRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
   
@@ -82,6 +87,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   // 12キー分の楽譜画像キャッシュ
   const [sheetImageCache, setSheetImageCache] = useState<SheetImageCache>({});
   const [isInitialized, setIsInitialized] = useState(false);
+  const [mappingVersion, setMappingVersion] = useState(0);
   
   // ループ情報を計算
   const loopInfo = useMemo(() => {
@@ -91,19 +97,15 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     return { secPerBeat, secPerMeasure, loopDuration };
   }, [bpm, timeSignature, measureCount]);
   
-  // タイムマッピングを作成
-  const createTimeMapping = useCallback(() => {
-    if (!osmdRef.current) {
-      return;
+  const buildTimeMapping = useCallback((
+    graphicSheet: OpenSheetMusicDisplay['GraphicSheet'] | null | undefined,
+    scaleFactor: number
+  ): TimeMappingEntry[] => {
+    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
+      return [];
     }
     
     const mapping: TimeMappingEntry[] = [];
-    const graphicSheet = osmdRef.current.GraphicSheet;
-    
-    if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
-      return;
-    }
-    
     const { secPerMeasure } = loopInfo;
     let measureIndex = 0;
     let firstMeasureX: number | null = null;
@@ -113,7 +115,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       for (const system of page.MusicSystems) {
         for (const staffLine of system.StaffLines) {
           for (const measure of staffLine.Measures) {
-            const measureX = (measure as any)?.PositionAndShape?.AbsolutePosition?.x;
+            const measureX = measure.PositionAndShape?.AbsolutePosition?.x;
             if (typeof measureX === 'number') {
               if (firstMeasureX === null) {
                 firstMeasureX = measureX;
@@ -123,7 +125,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
               const timeMs = measureIndex * secPerMeasure * 1000;
               mapping.push({
                 timeMs,
-                xPosition: measureX * scaleFactorRef.current
+                xPosition: measureX * scaleFactor
               });
               measureIndex++;
             }
@@ -133,25 +135,70 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     // 0ms → 最初の小節のアンカーを追加
-    if (firstMeasureX !== null && mapping.length > 0) {
-      if (mapping[0].timeMs !== 0) {
-        mapping.unshift({
-          timeMs: 0,
-          xPosition: firstMeasureX * scaleFactorRef.current
-        });
+    if (firstMeasureX !== null && mapping.length > 0 && mapping[0].timeMs !== 0) {
+      mapping.unshift({
+        timeMs: 0,
+        xPosition: firstMeasureX * scaleFactor
+      });
+    }
+    
+    return mapping;
+  }, [loopInfo]);
+  
+  const getScaleFactor = useCallback((
+    renderSurface: Element | null,
+    graphicSheet: OpenSheetMusicDisplay['GraphicSheet'] | null | undefined
+  ): number => {
+    if (!renderSurface || !graphicSheet || !graphicSheet.BoundingBox || graphicSheet.BoundingBox.width <= 0) {
+      return 1;
+    }
+    
+    let renderedWidth = renderSurface.getBoundingClientRect().width;
+    if (!renderedWidth && renderSurface instanceof SVGSVGElement) {
+      renderedWidth = renderSurface.width.baseVal.value;
+    } else if (!renderedWidth && renderSurface instanceof HTMLCanvasElement) {
+      renderedWidth = renderSurface.width;
+    }
+    
+    if (renderedWidth > 0) {
+      return renderedWidth / graphicSheet.BoundingBox.width;
+    }
+    
+    return 1;
+  }, []);
+  
+  const getRenderedWidth = useCallback((
+    container: HTMLDivElement,
+    fallbackWidth: number
+  ): number => {
+    const measuredWidth = container.scrollWidth;
+    if (measuredWidth > 0) {
+      return measuredWidth;
+    }
+    
+    const renderSurface = container.querySelector('svg, canvas');
+    if (renderSurface) {
+      const rectWidth = renderSurface.getBoundingClientRect().width;
+      if (rectWidth > 0) {
+        return rectWidth;
+      }
+      if (renderSurface instanceof SVGSVGElement && renderSurface.width.baseVal.value > 0) {
+        return renderSurface.width.baseVal.value;
+      }
+      if (renderSurface instanceof HTMLCanvasElement && renderSurface.width > 0) {
+        return renderSurface.width;
       }
     }
     
-    timeMappingRef.current = mapping;
-    devLog.debug('✅ タイムマッピング作成完了:', { entries: mapping.length });
-  }, [loopInfo]);
+    return fallbackWidth;
+  }, []);
   
   // 単一キーの楽譜をレンダリングして画像を取得
   const renderSheetForOffset = useCallback(async (
     xml: string,
     offset: number,
     container: HTMLDivElement
-  ): Promise<string | null> => {
+  ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; width: number } | null> => {
     try {
       // 移調を適用
       const transposedXml = offset !== 0 ? transposeMusicXml(xml, offset) : xml;
@@ -179,12 +226,17 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       await osmd.load(transposedXml);
       osmd.render();
       
+      const renderSurface = container.querySelector('svg, canvas');
+      const scaleFactor = getScaleFactor(renderSurface, osmd.GraphicSheet);
+      const mapping = buildTimeMapping(osmd.GraphicSheet, scaleFactor);
+      const measuredWidth = getRenderedWidth(container, width * 2);
+      
       // canvasの内容を画像として取得
       const canvas = container.querySelector('canvas');
       if (canvas) {
         const dataUrl = canvas.toDataURL('image/png');
         osmd.clear();
-        return dataUrl;
+        return { imageData: dataUrl, mapping, width: measuredWidth };
       }
       osmd.clear();
       return null;
@@ -192,7 +244,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       devLog.debug(`⚠️ キー${offset}の楽譜レンダリングエラー:`, err);
       return null;
     }
-  }, []);
+  }, [buildTimeMapping, getRenderedWidth, getScaleFactor, width]);
   
   // 12キー分の楽譜を事前レンダリング
   const initializeAllSheets = useCallback(async () => {
@@ -206,6 +258,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     
     try {
       const cache: SheetImageCache = {};
+      sheetMetricsRef.current = {};
       
       // まずオフセット0（元のキー）をレンダリングしてタイムマッピングを作成
       const options: IOSMDOptions = {
@@ -235,33 +288,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       await osmdRef.current.load(musicXml);
       osmdRef.current.render();
       
-      // スケールファクターを計算
       const renderSurface = containerRef.current!.querySelector('svg, canvas');
-      const boundingBox = (osmdRef.current.GraphicSheet as any)?.BoundingBox;
-      
-      if (renderSurface && boundingBox && boundingBox.width > 0) {
-        const rectWidth = renderSurface.getBoundingClientRect().width;
-        let renderedWidth = rectWidth;
-        if (!renderedWidth && renderSurface instanceof SVGSVGElement) {
-          renderedWidth = renderSurface.width.baseVal.value;
-        } else if (!renderedWidth && renderSurface instanceof HTMLCanvasElement) {
-          renderedWidth = renderSurface.width;
-        }
-        
-        if (renderedWidth > 0) {
-          scaleFactorRef.current = renderedWidth / boundingBox.width;
-        }
-      }
-      
-      // 楽譜の実際の幅を取得
-      const measuredWidth = containerRef.current!.scrollWidth || width * 2;
+      const scaleFactor = getScaleFactor(renderSurface, osmdRef.current.GraphicSheet);
+      const measuredWidth = getRenderedWidth(containerRef.current!, width * 2);
+      const mapping = buildTimeMapping(osmdRef.current.GraphicSheet, scaleFactor);
       sheetWidthRef.current = measuredWidth;
+      timeMappingRef.current = mapping;
       
-      // ラッパー幅を更新（2つ分の楽譜 + パディング）
-      setWrapperWidth(measuredWidth * 2 + WRAPPER_SCROLL_PADDING_PX);
-      
-      // タイムマッピングを作成
-      createTimeMapping();
+      sheetMetricsRef.current[0] = { mapping, width: measuredWidth };
       
       // オフセット0の画像を取得
       const canvas0 = containerRef.current!.querySelector('canvas');
@@ -276,9 +310,13 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           renderContainerRef.current.innerHTML = '';
         }
         
-        const imageData = await renderSheetForOffset(musicXml, offset, renderContainerRef.current!);
-        if (imageData) {
-          cache[offset] = imageData;
+        const renderResult = await renderSheetForOffset(musicXml, offset, renderContainerRef.current!);
+        if (renderResult) {
+          cache[offset] = renderResult.imageData;
+          sheetMetricsRef.current[offset] = {
+            mapping: renderResult.mapping,
+            width: renderResult.width
+          };
         }
         
         // 進捗ログ
@@ -298,7 +336,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, width, createTimeMapping, renderSheetForOffset]);
+  }, [buildTimeMapping, getRenderedWidth, getScaleFactor, musicXml, renderSheetForOffset, width]);
   
   // musicXmlが変更されたら12キー分をレンダリング
   useEffect(() => {
@@ -319,6 +357,24 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       : ((transposeOffset % 12) + 12) % 12;
     return sheetImageCache[nextOffset] || null;
   }, [sheetImageCache, transposeOffset, nextTransposeOffset]);
+  
+  // 現在のキーに対応するタイムマッピングと幅を反映
+  useEffect(() => {
+    if (!isInitialized) {
+      return;
+    }
+    
+    const normalizedOffset = ((transposeOffset % 12) + 12) % 12;
+    const metrics = sheetMetricsRef.current[normalizedOffset] ?? sheetMetricsRef.current[0];
+    if (!metrics) {
+      return;
+    }
+    
+    timeMappingRef.current = metrics.mapping;
+    sheetWidthRef.current = metrics.width;
+    setWrapperWidth(metrics.width * 2 + WRAPPER_SCROLL_PADDING_PX);
+    setMappingVersion((prev) => prev + 1);
+  }, [isInitialized, transposeOffset]);
   
   // 再生位置に同期してスクロール
   // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
@@ -442,7 +498,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     return positions;
-  }, [harmonyMarkers]);
+  }, [harmonyMarkers, mappingVersion]);
   
   // Harmonyマーカーのレンダリング（1つの楽譜分）
   const renderHarmonyMarkers = useCallback((offset: number, keyPrefix: string) => {
