@@ -322,17 +322,20 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   
   // 再生位置に同期してスクロール
   // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
-  // スクロールは単純に時刻→X位置の変換のみ
+  // 
+  // 重要: 音源ファイルが計算上のloopEndより短い場合、
+  // getCurrentMusicTime()の戻り値を楽譜用のタイムスケールに変換する必要がある
+  // 変換式: sheetTime = musicTime * (sheetLoopDuration / actualLoopDuration)
   useEffect(() => {
     if (!scoreWrapperRef.current || !isInitialized) {
       return;
     }
     
-    const { loopDuration } = loopInfo;
+    const { loopDuration: sheetLoopDuration } = loopInfo;
     
     const updateScroll = () => {
       // getCurrentMusicTime()はM1開始=0、カウントイン中は負の値を返す
-      // ループ後は0〜loopDurationに正規化されている
+      // ループ後は0〜actualLoopDurationに正規化されている
       const currentTime = bgmManager.getCurrentMusicTime();
       const mapping = timeMappingRef.current;
       const sheetWidth = sheetWidthRef.current;
@@ -352,29 +355,41 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         return;
       }
       
-      // 正規化された時刻をミリ秒に変換
-      const currentTimeMs = currentTime * 1000;
-      const loopDurationMs = loopDuration * 1000;
+      // 実際のloopDuration（音源ファイルが短い場合は調整済み）を取得
+      const actualLoopDuration = bgmManager.getActualLoopDuration();
+      
+      // タイムスケール変換: 音源時間 → 楽譜時間
+      // 音源が短い場合、楽譜のスクロール速度を調整
+      let sheetTime = currentTime;
+      if (actualLoopDuration > 0 && actualLoopDuration !== sheetLoopDuration) {
+        // スケーリング係数を計算
+        const timeScale = sheetLoopDuration / actualLoopDuration;
+        sheetTime = currentTime * timeScale;
+      }
+      
+      // 楽譜時間をミリ秒に変換
+      const sheetTimeMs = sheetTime * 1000;
+      const sheetLoopDurationMs = sheetLoopDuration * 1000;
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
       
       for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
+        if (sheetTimeMs >= mapping[i].timeMs && sheetTimeMs < mapping[i + 1].timeMs) {
           // 線形補間
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          const t = (sheetTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
           xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
           break;
         }
       }
       
       // 最後のエントリ以降の場合（ループ終端に向かって補間）
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+      if (sheetTimeMs >= mapping[mapping.length - 1].timeMs) {
         const lastEntry = mapping[mapping.length - 1];
         // 最後の小節から楽譜終端まで進行
-        const remainingTime = loopDurationMs - lastEntry.timeMs;
+        const remainingTime = sheetLoopDurationMs - lastEntry.timeMs;
         if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
+          const t = (sheetTimeMs - lastEntry.timeMs) / remainingTime;
           // 楽譜の終端位置（sheetWidthを使用）
           xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
         } else {
