@@ -59,8 +59,16 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
   const doc = parser.parseFromString(xmlString, 'application/xml');
 
   // Helper to convert step/alter/octave to tonal note string, e.g. C#, Eb4
+  // 🐛 Fix: ダブルシャープ・ダブルフラットもサポート
   const pitchToNote = (step: string, alter: number | null, octave: number): string => {
-    const accidental = alter === 1 ? '#' : alter === -1 ? 'b' : '';
+    let accidental = '';
+    if (alter !== null && alter !== 0) {
+      if (alter > 0) {
+        accidental = '#'.repeat(alter); // 1=#, 2=##
+      } else {
+        accidental = 'b'.repeat(-alter); // -1=b, -2=bb
+      }
+    }
     return `${step.toUpperCase()}${accidental}${octave}`;
   };
 

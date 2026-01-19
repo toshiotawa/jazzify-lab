@@ -824,8 +824,30 @@ function simplifyAccidentals(doc: Document, settings: { noteNameStyle: 'off' | '
 /**
  * 臨時記号の最小限の簡易化（互換性のため）
  * ダブルシャープ・ダブルフラットのみ処理
+ * 🐛 Fix: オクターブ境界を跨ぐケースを正しく処理
  */
 function simplifyAccidentalsMinimal(doc: Document): void {
+  // オクターブ境界を跨ぐダブルシャープ・ダブルフラットのマッピング
+  // キー: step + alter値, 値: { step, alter, octaveAdjustment }
+  const doubleAccidentalMap: Record<string, { step: string; alter: number; octaveAdjust: number }> = {
+    // ダブルシャープ（alter = 2）
+    'A2': { step: 'B', alter: 0, octaveAdjust: 0 },    // Ax → B
+    'B2': { step: 'C', alter: 1, octaveAdjust: 1 },    // Bx → C# (オクターブ上がる)
+    'C2': { step: 'D', alter: 0, octaveAdjust: 0 },    // Cx → D
+    'D2': { step: 'E', alter: 0, octaveAdjust: 0 },    // Dx → E
+    'E2': { step: 'F', alter: 1, octaveAdjust: 0 },    // Ex → F#
+    'F2': { step: 'G', alter: 0, octaveAdjust: 0 },    // Fx → G
+    'G2': { step: 'A', alter: 0, octaveAdjust: 0 },    // Gx → A
+    // ダブルフラット（alter = -2）
+    'A-2': { step: 'G', alter: 0, octaveAdjust: 0 },   // Abb → G
+    'B-2': { step: 'A', alter: 0, octaveAdjust: 0 },   // Bbb → A
+    'C-2': { step: 'B', alter: -1, octaveAdjust: -1 }, // Cbb → Bb (オクターブ下がる)
+    'D-2': { step: 'C', alter: 0, octaveAdjust: 0 },   // Dbb → C
+    'E-2': { step: 'D', alter: 0, octaveAdjust: 0 },   // Ebb → D
+    'F-2': { step: 'E', alter: -1, octaveAdjust: 0 },  // Fbb → Eb
+    'G-2': { step: 'F', alter: 0, octaveAdjust: 0 },   // Gbb → F
+  };
+  
   const notes = doc.querySelectorAll('note');
   
   notes.forEach(note => {
@@ -835,7 +857,7 @@ function simplifyAccidentalsMinimal(doc: Document): void {
     const alter = parseInt(alterElement.textContent || '0');
     
     // ダブルシャープ・ダブルフラットのみ処理
-    if (Math.abs(alter) > 1) {
+    if (Math.abs(alter) >= 2) {
       const stepElement = note.querySelector('pitch step');
       const octaveElement = note.querySelector('pitch octave');
       
@@ -844,23 +866,19 @@ function simplifyAccidentalsMinimal(doc: Document): void {
       const step = stepElement.textContent || '';
       const octave = parseInt(octaveElement.textContent || '4');
       
-      // tonal.jsを使って簡易化
-      const currentNote = `${step}${alter > 0 ? 'x'.repeat(alter/2) : 'b'.repeat(-alter/2)}${octave}`;
-      const simpleNote = parseNote(currentNote);
+      // マッピングを使用して簡易化
+      const mapKey = `${step}${alter}`;
+      const simplified = doubleAccidentalMap[mapKey];
       
-      if (simpleNote && !simpleNote.empty) {
-        // Note.enharmonic()を使用
-        const enharmonicName = Note.enharmonic(simpleNote.name);
-        if (enharmonicName && enharmonicName !== simpleNote.name) {
-          const enharmonicNote = parseNote(enharmonicName + octave);
-          if (enharmonicNote && !enharmonicNote.empty) {
-            stepElement.textContent = enharmonicNote.letter;
-            alterElement.textContent = enharmonicNote.alt.toString();
-            if (enharmonicNote.oct !== undefined && enharmonicNote.oct !== octave) {
-              octaveElement.textContent = enharmonicNote.oct.toString();
-            }
-          }
-        }
+      if (simplified) {
+        stepElement.textContent = simplified.step;
+        alterElement.textContent = simplified.alter.toString();
+        
+        // オクターブ調整
+        const newOctave = octave + simplified.octaveAdjust;
+        octaveElement.textContent = newOctave.toString();
+        
+        console.log(`🎼 ダブル臨時記号簡易化: ${step}${alter > 0 ? 'x' : 'bb'}${octave} → ${simplified.step}${simplified.alter === 1 ? '#' : simplified.alter === -1 ? 'b' : ''}${newOctave}`);
       }
     }
   });
