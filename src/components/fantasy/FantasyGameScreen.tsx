@@ -554,6 +554,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [showSheetMusicForTiming]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 注意: ループ中の移調変更でBGMを再起動しないよう、currentTransposeOffsetは依存配列から除外
+  // 初回再生時のピッチシフトのみをrefで管理
+  const initialPitchShiftRef = useRef<number>(0);
+  
   useEffect(() => {
     if (!gameState.isGameActive) return;
     if (isReady) return;
@@ -561,13 +565,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
-    
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    // 初回再生時の移調オフセットを保存（ループ中の変更では再起動しない）
+    initialPitchShiftRef.current = gameState.currentTransposeOffset || 0;
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -577,19 +576,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      pitchShift
+      initialPitchShiftRef.current
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  // 注意: gameState.currentTransposeOffsetを依存配列から除外（ループ中にBGM再起動を防ぐ）
   
   // リピート時のキー変更でBGMのピッチシフトを更新
+  // 注意: 初回再生時（BGM開始直後）は除外し、ループ境界での移調変更のみ処理
+  const lastAppliedPitchShiftRef = useRef<number | null>(null);
+  
   useEffect(() => {
     if (!gameState.isGameActive || isReady) return;
     if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
+      // 初回または同じ値の場合はスキップ（BGM再生時に既に設定済み）
+      if (lastAppliedPitchShiftRef.current === gameState.currentTransposeOffset) {
+        return;
+      }
+      
+      // ループ境界での移調変更時のみピッチシフトを更新
       bgmManager.setPitchShift(gameState.currentTransposeOffset);
+      lastAppliedPitchShiftRef.current = gameState.currentTransposeOffset;
+      
+      console.log('🎹 BGMピッチシフト更新:', {
+        newOffset: gameState.currentTransposeOffset,
+        loopCycle: gameState.taikoLoopCycle
+      });
     }
-  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
+  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset, gameState.taikoLoopCycle]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
