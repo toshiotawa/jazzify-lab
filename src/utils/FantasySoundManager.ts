@@ -408,9 +408,9 @@ export class FantasySoundManager {
     }
   }
 
-  // 🎸 ルート音再生（合成音のアコースティックベース風）
-  // 🚀 パフォーマンス最適化: 非同期待機を削除し、同期的に即座に再生
-  // 🚀 クリック音防止: PolySynthで前の音を滑らかにリリース
+  // 🎸 ルート音再生（Web Audio API直接使用 - クリック音完全防止）
+  // 🚀 パフォーマンス最適化: Tone.jsを回避し、Web Audio APIで直接制御
+  // 🚀 クリック音防止: exponentialRampでスムーズなフェードイン/フェードアウト
   private async _playRootNote(rootName: string) {
     // 初期化が完了していない場合は無視（待機しない）
     if (!this.isInited || !this.bassEnabled) return;
@@ -418,96 +418,138 @@ export class FantasySoundManager {
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // 🎸 合成音のアコースティックベース風を使用
-    const Tone = window.Tone as unknown as typeof import('tone');
-    if (!Tone) return;
-    
-    // ベースシンセが未初期化の場合は作成
-    if (!this.rootBassSynth) {
-      this._initRootBassSynth(Tone);
+    // Web Audio APIコンテキストを取得または作成
+    if (!this.rootAudioContext) {
+      try {
+        this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        // マスターゲインノード
+        this.rootMasterGain = this.rootAudioContext.createGain();
+        this.rootMasterGain.connect(this.rootAudioContext.destination);
+        this._syncRootBassVolume();
+      } catch {
+        return;
+      }
     }
     
-    if (!this.rootBassSynth) return;
+    const ctx = this.rootAudioContext;
+    if (!ctx || !this.rootMasterGain) return;
     
-    let t = Tone.now();
-    if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
-    this.lastRootStart = t;
+    // AudioContextがsuspended状態ならresumeする（非ブロッキング）
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     
-    const note = Tone.Frequency(n.midi, 'midi').toNote();
+    const now = ctx.currentTime;
+    const frequency = 440 * Math.pow(2, (n.midi - 69) / 12); // MIDIノートから周波数に変換
+    
+    // 🚀 前のノートをフェードアウト（クリック音防止）
+    if (this.activeRootOscillator && this.activeRootGain) {
+      try {
+        const fadeOutTime = 0.03; // 30msでフェードアウト
+        this.activeRootGain.gain.setValueAtTime(this.activeRootGain.gain.value, now);
+        this.activeRootGain.gain.exponentialRampToValueAtTime(0.0001, now + fadeOutTime);
+        // 古いオシレーターを停止予約
+        const oldOsc = this.activeRootOscillator;
+        const oldGain = this.activeRootGain;
+        setTimeout(() => {
+          try {
+            oldOsc.stop();
+            oldOsc.disconnect();
+            oldGain.disconnect();
+          } catch { /* 既に停止済み */ }
+        }, fadeOutTime * 1000 + 10);
+      } catch { /* エラーは無視 */ }
+    }
     
     try {
-      // 🚀 クリック音防止: 前の音を滑らかにリリースしてから新しい音を再生
-      // PolySynthなので前の音は自然にフェードアウトし、新しい音と重なる
-      if (this.lastRootNote && this.lastRootNote !== note) {
-        // 前の音を短いリリースで終了（クリック音を防ぐ）
+      // 新しいオシレーターを作成
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle'; // 三角波でベースの柔らかい音色
+      osc.frequency.setValueAtTime(frequency, now);
+      
+      // 個別のゲインノード（エンベロープ制御用）
+      const gainNode = ctx.createGain();
+      gainNode.gain.setValueAtTime(0.0001, now); // 開始時は無音（クリック防止）
+      
+      // 接続: Oscillator -> GainNode -> MasterGain -> Destination
+      osc.connect(gainNode);
+      gainNode.connect(this.rootMasterGain);
+      
+      // エンベロープ設定
+      const attackTime = 0.015;   // 15msフェードイン（クリック音防止）
+      const decayTime = 0.1;      // 100msディケイ
+      const sustainLevel = 0.3;   // サステインレベル
+      const releaseStart = 0.25;  // 250ms後からリリース開始
+      const releaseTime = 0.15;   // 150msリリース
+      
+      // Attack: 無音から最大音量へ
+      gainNode.gain.exponentialRampToValueAtTime(1.0, now + attackTime);
+      // Decay: 最大音量からサステインレベルへ
+      gainNode.gain.exponentialRampToValueAtTime(sustainLevel, now + attackTime + decayTime);
+      // Release: サステインレベルから無音へ
+      gainNode.gain.setValueAtTime(sustainLevel, now + releaseStart);
+      gainNode.gain.exponentialRampToValueAtTime(0.0001, now + releaseStart + releaseTime);
+      
+      // オシレーター開始・停止
+      osc.start(now);
+      osc.stop(now + releaseStart + releaseTime + 0.05);
+      
+      // 停止後にクリーンアップ
+      osc.onended = () => {
         try {
-          this.rootBassSynth.triggerRelease(this.lastRootNote, t);
-        } catch {
-          // リリースに失敗しても続行
+          osc.disconnect();
+          gainNode.disconnect();
+        } catch { /* 既にdisconnect済み */ }
+        // アクティブなオシレーターが自分自身なら解除
+        if (this.activeRootOscillator === osc) {
+          this.activeRootOscillator = null;
+          this.activeRootGain = null;
         }
-      }
+      };
       
-      // 新しい音を再生
-      this.rootBassSynth.triggerAttackRelease(
-        note,
-        '8n',  // 短めの発音
-        t
-      );
+      // アクティブなオシレーターとして記録
+      this.activeRootOscillator = osc;
+      this.activeRootGain = gainNode;
       
-      // 現在のノートを記録
-      this.lastRootNote = note;
     } catch {
       // エラーは無視（UIをブロックしない）
     }
   }
   
-  // 🎸 ルート音用アコースティックベース風シンセの初期化
-  private rootBassSynth: any | null = null;
-  // 🚀 パフォーマンス最適化: 前回再生したノートを追跡（滑らかなリリース用）
-  private lastRootNote: string | null = null;
-  
-  private _initRootBassSynth(Tone: typeof import('tone')) {
-    try {
-      // 🚀 パフォーマンス最適化: PolySynthを使用して音の重複再生時のクリック音を防止
-      // PolySynthは複数の音を同時に再生でき、前の音を急に切断しない
-      this.rootBassSynth = new (Tone as any).PolySynth((Tone as any).Synth, {
-        maxPolyphony: 4,  // 最大4音まで同時再生（通常は2音あれば十分）
-        voice: (Tone as any).Synth,
-        options: {
-          oscillator: {
-            type: 'triangle'  // 三角波でベースの柔らかい音色を表現
-          },
-          envelope: {
-            attack: 0.005,    // 非常に素早いアタック（弾くような感覚）
-            decay: 0.1,       // 短めのディケイ
-            sustain: 0.15,    // 低めのサステイン
-            release: 0.15     // 短めのリリース（クリック音防止のため少し長めに）
-          }
-        }
-      }).toDestination();
-      
-      // 音量を設定（ピアノ音量と連動）
-      this._syncRootBassVolume();
-      
-      console.debug('[FantasySoundManager] 🎸 Root bass synth initialized (PolySynth, click-free)');
-    } catch (e) {
-      console.warn('[FantasySoundManager] Failed to create root bass synth:', e);
-    }
-  }
+  // 🎸 ルート音用 Web Audio API リソース
+  private rootAudioContext: AudioContext | null = null;
+  private rootMasterGain: GainNode | null = null;
+  private activeRootOscillator: OscillatorNode | null = null;
+  private activeRootGain: GainNode | null = null;
   
   // ルート音ベースの音量を同期
   private _syncRootBassVolume(): void {
-    if (this.rootBassSynth) {
-      // gmPianoVolumeとbassVolumeの両方を考慮し、8倍ブースト
+    if (this.rootMasterGain && this.rootAudioContext) {
+      // gmPianoVolumeとbassVolumeの両方を考慮
       const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
-      const dbValue = effectiveVolume === 0 ? -Infinity : Math.log10(effectiveVolume) * 20 + 6; // +6dBでブースト
+      // 音量を0.3〜1.0の範囲で調整（小さすぎると聞こえない）
+      const normalizedVolume = 0.3 + effectiveVolume * 0.7;
+      try {
+        this.rootMasterGain.gain.setValueAtTime(normalizedVolume, this.rootAudioContext.currentTime);
+      } catch {
+        // エラーは無視
+      }
+    }
+    
+    // 旧Tone.jsシンセがある場合も同期（互換性維持）
+    if (this.rootBassSynth) {
+      const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
+      const dbValue = effectiveVolume === 0 ? -Infinity : Math.log10(effectiveVolume) * 20 + 6;
       try {
         (this.rootBassSynth.volume as any).value = dbValue;
-      } catch (e) {
-        console.debug('[FantasySoundManager] Root bass volume sync error:', e);
+      } catch {
+        // エラーは無視
       }
     }
   }
+  
+  // 🎸 ルート音用シンセ（旧Tone.js版 - 互換性のために残す）
+  private rootBassSynth: any | null = null;
 
   // GM音源でMIDIノートを再生（ピアノ演奏用）
   private async _playGMNote(midiNote: number, velocity: number = 1.0) {
@@ -698,6 +740,11 @@ export class FantasySoundManager {
       // GM音源用のAudioContextもresumeする
       if (this.gmAudioContext && this.gmAudioContext.state !== 'running') {
         await this.gmAudioContext.resume();
+      }
+
+      // ルート音用のAudioContextもresumeする
+      if (this.rootAudioContext && this.rootAudioContext.state !== 'running') {
+        await this.rootAudioContext.resume();
       }
 
       // iOS Safari 向け: 無音バッファを短く再生して完全に解放
