@@ -129,6 +129,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const hasTimeUpFiredRef = useRef(false);
   const gameStateRef = useRef<FantasyGameState | null>(null);
   const initialPitchShiftRef = useRef<number | null>(null);
+  const bgmStartKeyRef = useRef<string | null>(null);
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
@@ -567,33 +568,62 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   useEffect(() => {
-    if (!gameState.isGameActive) return;
-    if (isReady) return;
+    if (!gameState.isGameActive || isReady) {
+      if (bgmManager.getIsPlaying()) {
+        bgmManager.stop();
+      }
+      bgmStartKeyRef.current = null;
+      return;
+    }
 
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
     // 移調設定がある場合、ピッチシフトを適用
     const pitchShift = initialPitchShiftRef.current ?? 0;
-    
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
-    
-    bgmManager.play(
-      stage.bgmUrl ?? '/demo-1.mp3',
-      stage.bpm || 120,
-      stage.timeSignature || 4,
-      stage.measureCount ?? 8,
-      stage.countInMeasures ?? 0,
-      settings.bgmVolume ?? 0.7,
-      playbackRate,
-      pitchShift
+    const shouldUsePitchShift = Boolean(
+      gameState.transposeSettings &&
+      (gameState.transposeSettings.keyOffset !== 0 || gameState.transposeSettings.repeatKeyChange !== 'off')
     );
-
-    return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+    
+    const bgmUrl = stage.bgmUrl ?? '/demo-1.mp3';
+    const startKey = [
+      bgmUrl,
+      stage.bpm,
+      stage.timeSignature,
+      stage.measureCount,
+      stage.countInMeasures,
+      playbackRate,
+      shouldUsePitchShift ? 'pitch' : 'nopitch'
+    ].join('|');
+    
+    if (bgmStartKeyRef.current !== startKey || !bgmManager.getIsPlaying()) {
+      bgmManager.play(
+        bgmUrl,
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0,
+        settings.bgmVolume ?? 0.7,
+        playbackRate,
+        pitchShift,
+        shouldUsePitchShift
+      );
+      bgmStartKeyRef.current = startKey;
+    } else {
+      bgmManager.setVolume(settings.bgmVolume ?? 0.7);
+    }
+  }, [gameState.isGameActive, gameState.transposeSettings, isReady, selectedSpeedMultiplier, settings.bgmVolume, stage]);
+  
+  // アンマウント時のBGM停止
+  useEffect(() => {
+    return () => {
+      if (bgmManager.getIsPlaying()) {
+        bgmManager.stop();
+      }
+      bgmStartKeyRef.current = null;
+    };
+  }, []);
   
   // リピート時のキー変更でBGMのピッチシフトを更新
   useEffect(() => {
