@@ -365,7 +365,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     const normalizedOffset = ((transposeOffset % 12) + 12) % 12;
-    const metrics = sheetMetricsRef.current[normalizedOffset] ?? sheetMetricsRef.current[0];
+    const primaryMetrics = sheetMetricsRef.current[normalizedOffset];
+    const fallbackMetrics = sheetMetricsRef.current[0];
+    const metrics =
+      primaryMetrics && primaryMetrics.mapping.length > 0 && primaryMetrics.width > 0
+        ? primaryMetrics
+        : fallbackMetrics && fallbackMetrics.mapping.length > 0 && fallbackMetrics.width > 0
+          ? fallbackMetrics
+          : null;
     if (!metrics) {
       return;
     }
