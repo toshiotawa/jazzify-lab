@@ -320,6 +320,10 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     return sheetImageCache[nextOffset] || null;
   }, [sheetImageCache, transposeOffset, nextTransposeOffset]);
   
+  // ループ検出用のref（前回の時間を記録）
+  const lastMusicTimeRef = useRef<number>(0);
+  const loopCountRef = useRef<number>(0);
+
   // 再生位置に同期してスクロール
   // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
   // スクロールは単純に時刻→X位置の変換のみ
@@ -348,9 +352,30 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           scoreWrapperRef.current.style.transform = `translateX(0px)`;
         }
         lastScrollXRef.current = 0;
+        lastMusicTimeRef.current = currentTime;
         animationFrameRef.current = requestAnimationFrame(updateScroll);
         return;
       }
+      
+      // ループ境界検出：時間が大きく戻った場合（ループした）
+      // 前回の時間より大幅に小さくなった場合はループしたと判断
+      const timeDiff = lastMusicTimeRef.current - currentTime;
+      if (timeDiff > loopDuration * 0.5) {
+        // ループ検出！
+        loopCountRef.current += 1;
+        devLog.debug('🎼 楽譜ループ検出:', {
+          loopCount: loopCountRef.current,
+          prevTime: lastMusicTimeRef.current.toFixed(3),
+          currentTime: currentTime.toFixed(3),
+          timeDiff: timeDiff.toFixed(3)
+        });
+        // スクロール位置を即座に先頭にリセット
+        if (scoreWrapperRef.current) {
+          scoreWrapperRef.current.style.transform = `translateX(0px)`;
+        }
+        lastScrollXRef.current = 0;
+      }
+      lastMusicTimeRef.current = currentTime;
       
       // 正規化された時刻をミリ秒に変換
       const currentTimeMs = currentTime * 1000;
@@ -358,28 +383,36 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       
       // 現在時刻に対応するX位置を補間で計算
       let xPosition = 0;
+      let foundInMapping = false;
       
       for (let i = 0; i < mapping.length - 1; i++) {
         if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
           // 線形補間
           const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
           xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
+          foundInMapping = true;
           break;
         }
       }
       
       // 最後のエントリ以降の場合（ループ終端に向かって補間）
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
+      if (!foundInMapping && mapping.length > 0 && currentTimeMs >= mapping[mapping.length - 1].timeMs) {
         const lastEntry = mapping[mapping.length - 1];
         // 最後の小節から楽譜終端まで進行
         const remainingTime = loopDurationMs - lastEntry.timeMs;
         if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
+          const t = Math.min(1, (currentTimeMs - lastEntry.timeMs) / remainingTime);
           // 楽譜の終端位置（sheetWidthを使用）
           xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
         } else {
           xPosition = lastEntry.xPosition;
         }
+      }
+      
+      // 時刻が最初のエントリより前の場合（ループ直後など）
+      if (!foundInMapping && mapping.length > 0 && currentTimeMs < mapping[0].timeMs) {
+        // 最初のエントリの位置を使用
+        xPosition = mapping[0].xPosition;
       }
       
       // スクロール位置を計算（プレイヘッド位置を考慮）
@@ -395,6 +428,10 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       
       animationFrameRef.current = requestAnimationFrame(updateScroll);
     };
+    
+    // 初期化
+    lastMusicTimeRef.current = 0;
+    loopCountRef.current = 0;
     
     animationFrameRef.current = requestAnimationFrame(updateScroll);
     
