@@ -23,6 +23,7 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasy
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -124,6 +125,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
+  
+  // ★ 移調設定用の状態（progression_timing かつ 練習モードでのみ使用）
+  const [transpose, setTranspose] = useState(0);
+  const [loopTranspose, setLoopTranspose] = useState<'off' | 'plus1' | 'plus5'>('off');
+
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -528,12 +534,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
-  const showSheetMusicForTiming = useMemo(() => {
-    return stage.mode === 'progression_timing' && 
+  const { showSheetMusicForTiming, transposedXml } = useMemo(() => {
+    const isTimingMode = stage.mode === 'progression_timing' && 
            gameState.isTaikoMode && 
            gameState.taikoNotes.length > 0 &&
            !!stage.musicXml;
-  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
+           
+    if (!isTimingMode) return { showSheetMusicForTiming: false, transposedXml: '' };
+    
+    // 現在の移調量を取得
+    const currentTranspose = (gameState as any).currentTranspose || 0;
+    
+    // XMLを移調
+    let finalXml = stage.musicXml || '';
+    if (currentTranspose !== 0 && finalXml) {
+        try {
+            finalXml = transposeMusicXml(finalXml, currentTranspose);
+        } catch (e) {
+            console.error('XML移調エラー:', e);
+        }
+    }
+    
+    return { showSheetMusicForTiming: true, transposedXml: finalXml };
+  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml, (gameState as any).currentTranspose]);
   
   // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
   const harmonyMarkers = useMemo(() => {
@@ -580,9 +603,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [showSheetMusicForTiming]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 1. 再生開始・停止制御
   useEffect(() => {
-    if (!gameState.isGameActive) return;
-    if (isReady) return;
+    if (!gameState.isGameActive || isReady) return;
 
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
@@ -594,11 +617,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.measureCount ?? 8,
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
-      playbackRate
+      playbackRate,
+      (gameState as any).currentTranspose || 0
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  }, [gameState.isGameActive, isReady, stage.bgmUrl, stage.bpm, stage.timeSignature, stage.measureCount, stage.countInMeasures, selectedSpeedMultiplier]);
+
+  // 2. 音量・移調の動的更新
+  useEffect(() => {
+    if (!gameState.isGameActive || isReady) return;
+    
+    bgmManager.setVolume(settings.bgmVolume ?? 0.7);
+    bgmManager.setTranspose((gameState as any).currentTranspose || 0);
+    
+  }, [settings.bgmVolume, (gameState as any).currentTranspose, isReady, gameState.isGameActive]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -641,14 +674,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     
     // 🚀 画像プリロードを含むゲーム初期化を待機
     // Ready画面表示中にロードが完了する
-    // 速度倍率を含むステージを作成
+    // 速度倍率と移調設定を含むステージを作成
     const stageWithSpeed = speedMultiplier !== 1.0 
       ? { ...buildInitStage(), speedMultiplier }
       : buildInitStage();
-    await initializeGame(stageWithSpeed, mode);
+      
+    // 移調設定を渡す（initializeGameの引数を拡張する必要あり）
+    await initializeGame(stageWithSpeed, mode, { 
+      initialTranspose: transpose, 
+      loopTranspose: mode === 'practice' ? loopTranspose : 'off' 
+    });
+    
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier });
-  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized]);
+    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { speedMultiplier, transpose, loopTranspose });
+  }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, transpose, loopTranspose]);
 
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
@@ -1319,6 +1358,50 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* 練習ボタン - progressionモードの場合は速度選択付き */}
             {isProgressionMode ? (
               <div className="w-full space-y-2">
+                
+                {/* Timingモードかつ練習モードの場合の移調設定 */}
+                {playMode === 'practice' && stage.mode === 'progression_timing' && (
+                  <div className="bg-gray-800 bg-opacity-70 p-4 rounded-lg mb-4 border border-gray-700">
+                    <h3 className="text-yellow-400 font-bold mb-3 text-sm border-b border-gray-600 pb-1 text-left">
+                      移調設定
+                    </h3>
+                    <div className="space-y-3">
+                      {/* 開始キー設定 */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white">開始キー変更:</span>
+                        <select
+                          value={transpose}
+                          onChange={(e) => setTranspose(Number(e.target.value))}
+                          className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm w-32 focus:ring-1 focus:ring-yellow-500 outline-none"
+                        >
+                          {[...Array(13)].map((_, i) => {
+                            const val = i - 6; // -6 to +6
+                            return (
+                              <option key={val} value={val}>
+                                {val > 0 ? `+${val}` : val}
+                              </option>
+                            );
+                          })}
+                        </select>
+                      </div>
+                      
+                      {/* リピート移調設定 */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm text-white">リピート毎に移調:</span>
+                        <select
+                          value={loopTranspose}
+                          onChange={(e) => setLoopTranspose(e.target.value as any)}
+                          className="bg-gray-700 text-white border border-gray-600 rounded px-2 py-1 text-sm w-32 focus:ring-1 focus:ring-yellow-500 outline-none"
+                        >
+                          <option value="off">OFF</option>
+                          <option value="plus1">+1 (半音上)</option>
+                          <option value="plus5">+5 (サークル)</option>
+                        </select>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <div className="text-sm text-gray-400 mt-2">
                   {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
                 </div>
@@ -1740,7 +1823,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <FantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
-            musicXml={stage.musicXml || ''}
+            musicXml={transposedXml}
             bpm={stage.bpm || 120}
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}

@@ -22,7 +22,7 @@ import {
   BagRandomSelector
 } from './TaikoNoteSystem';
 import { bgmManager } from '@/utils/BGMManager';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, Note, Interval } from 'tonal';
 
 // ===== 型定義 =====
 
@@ -203,6 +203,15 @@ export interface FantasyGameState {
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  
+  // 移調機能用
+  transposeSettings: {
+    initialTranspose: number;
+    loopTranspose: 'off' | 'plus1' | 'plus5';
+  };
+  currentTranspose: number;
+  nextLoopTranspose: number; // 次ループ用の移調値（プレビュー用）
+  originalChordProgressionData: ChordProgressionDataItem[] | string | null; // リピート時の再生成用
 }
 
 interface FantasyGameEngineProps {
@@ -220,6 +229,45 @@ interface FantasyGameEngineProps {
 }
 
 // ===== コード定義データ =====
+
+/**
+ * コード名を移調する
+ */
+const transposeChordName = (chordName: string, semitones: number): string => {
+  if (semitones === 0) return chordName;
+  
+  // 特殊なコード名（treble_C4など）は対象外
+  if (chordName.startsWith('treble_') || chordName.startsWith('bass_')) return chordName;
+  if (chordName === 'N.C.') return chordName;
+
+  // スラッシュコード対応
+  const parts = chordName.split('/');
+  const rootPart = parts[0];
+  const bassPart = parts[1];
+  
+  // ルート部分の移調
+  const match = rootPart.match(/^([A-G][#b]?)(.*)$/);
+  if (!match) return chordName; // 解析不能
+  
+  const root = match[1];
+  const suffix = match[2];
+  
+  // 異名同音の正規化（CbやF#メジャーキーを避けるため簡易化）
+  // tonalのtranspose結果はそのままだとCbやE#が出ることがある
+  const transposedRoot = Note.transpose(root, Interval.fromSemitones(semitones));
+  // 簡易的に simplify する
+  const simplifiedRoot = Note.simplify(transposedRoot);
+  
+  let result = simplifiedRoot + suffix;
+  
+  // ベース音の移調
+  if (bassPart) {
+    const transposedBass = Note.transpose(bassPart, Interval.fromSemitones(semitones));
+    result += '/' + Note.simplify(transposedBass);
+  }
+  
+  return result;
+};
 
 /**
  * コード定義を動的に生成する関数
@@ -977,8 +1025,12 @@ export const useFantasyGameEngine = ({
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
   
   // ゲーム初期化
-  const initializeGame = useCallback(async (stage: FantasyStage, playMode: FantasyPlayMode = 'challenge') => {
-    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name });
+  const initializeGame = useCallback(async (
+    stage: FantasyStage, 
+    playMode: FantasyPlayMode = 'challenge',
+    transposeSettings: { initialTranspose: number; loopTranspose: 'off' | 'plus1' | 'plus5' } = { initialTranspose: 0, loopTranspose: 'off' }
+  ) => {
+    devLog.debug('🎮 ファンタジーゲーム初期化:', { stage: stage.name, transposeSettings });
 
     // 旧 BGM を確実に殺す
     bgmManager.stop();
@@ -1110,6 +1162,19 @@ export const useFantasyGameEngine = ({
       stage.mode === 'progression_timing';
     let taikoNotes: TaikoNote[] = [];
     
+    // 移調適用ヘルパー
+    const getTransposedDefinition = (spec: ChordSpec, semitones: number): ChordDefinition | null => {
+      if (semitones === 0) return getChordDefinition(spec, displayOpts);
+      
+      if (typeof spec === 'string') {
+        const transposed = transposeChordName(spec, semitones);
+        return getChordDefinition(transposed, displayOpts);
+      } else {
+        const transposed = transposeChordName(spec.chord, semitones);
+        return getChordDefinition({ ...spec, chord: transposed }, displayOpts);
+      }
+    };
+    
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
       switch (stage.mode) {
@@ -1130,7 +1195,7 @@ export const useFantasyGameEngine = ({
               progressionData,
               stage.bpm || 120,
               stage.timeSignature || 4,
-              (spec) => getChordDefinition(spec, displayOpts),
+              (spec) => getTransposedDefinition(spec, transposeSettings.initialTranspose),
               0 // カウントインを渡す
             );
           }
@@ -1143,7 +1208,7 @@ export const useFantasyGameEngine = ({
             stage.measureCount || 8,
             stage.bpm || 120,
             stage.timeSignature || 4,
-            (spec) => getChordDefinition(spec, displayOpts),
+            (spec) => getTransposedDefinition(spec, transposeSettings.initialTranspose),
             0,
             ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
           );
@@ -1164,7 +1229,7 @@ export const useFantasyGameEngine = ({
                 stage.measureCount || 8,
                 stage.bpm || 120,
                 stage.timeSignature || 4,
-                (spec) => getChordDefinition(spec, displayOpts),
+                (spec) => getTransposedDefinition(spec, transposeSettings.initialTranspose),
                 0,
                 (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
               );
@@ -1185,11 +1250,18 @@ export const useFantasyGameEngine = ({
       
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0],
-        lastNote: taikoNotes[taikoNotes.length - 1],
-        notes: taikoNotes.map(n => ({ measure: n.measure, hitTime: n.hitTime }))
+        transpose: transposeSettings.initialTranspose
       });
     }
+
+    // 次のループの移調値を計算
+    let nextLoopTranspose = transposeSettings.initialTranspose;
+    if (transposeSettings.loopTranspose === 'plus1') nextLoopTranspose += 1;
+    else if (transposeSettings.loopTranspose === 'plus5') nextLoopTranspose += 5;
+    
+    // ±6の範囲に収める（循環）は要件次第だが、とりあえずそのまま加算して、chord生成時に正規化されることを期待
+    // 要件「基準キーから±6」は開始キーの話。ループでどんどん上がるのはOKとするか？
+    // 「CbメジャーキーやF#メジャーキーが登場しないように」とあるので、これは transposeChordName で制御する
 
     const newState: FantasyGameState = {
       currentStage: stage,
@@ -1227,7 +1299,12 @@ export const useFantasyGameEngine = ({
       currentNoteIndex: 0,  // 0から開始（ノーツ配列の最初がM2）
       taikoLoopCycle: 0,
       lastNormalizedTime: 0,
-      awaitingLoopStart: false
+      awaitingLoopStart: false,
+      // 移調機能用
+      transposeSettings,
+      currentTranspose: transposeSettings.initialTranspose,
+      nextLoopTranspose,
+      originalChordProgressionData: stage.chordProgressionData as any // 保存
     };
 
     setGameState(newState);
@@ -1527,8 +1604,56 @@ export const useFantasyGameEngine = ({
         const justLooped = normalizedTime + 1e-6 < lastNorm;
         
         if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
-          const resetNotes = prevState.taikoNotes.map(note => ({
+          // 次ループ突入時のみリセット・巻き戻し、および移調更新
+          
+          // ★ 移調更新処理
+          let newTranspose = prevState.currentTranspose;
+          let nextNextTranspose = prevState.nextLoopTranspose;
+          let newTaikoNotes = prevState.taikoNotes;
+          
+          // リピート移調が有効な場合
+          if (prevState.transposeSettings?.loopTranspose !== 'off') {
+             // 移調値を更新（プレビューで表示していた値に確定）
+             newTranspose = prevState.nextLoopTranspose;
+             
+             // さらに次の移調値を計算
+             if (prevState.transposeSettings.loopTranspose === 'plus1') nextNextTranspose += 1;
+             else if (prevState.transposeSettings.loopTranspose === 'plus5') nextNextTranspose += 5;
+             
+             // taikoNotesを再生成
+             if (stage.mode === 'progression_timing' && prevState.originalChordProgressionData) {
+               let progressionData: ChordProgressionDataItem[];
+               if (typeof prevState.originalChordProgressionData === 'string') {
+                 progressionData = parseSimpleProgressionText(prevState.originalChordProgressionData);
+               } else {
+                 progressionData = prevState.originalChordProgressionData as ChordProgressionDataItem[];
+               }
+               
+               // 移調適用ヘルパー（スコープ内再定義）
+               const getTransposedDefinition = (spec: ChordSpec, semitones: number): ChordDefinition | null => {
+                  if (semitones === 0) return getChordDefinition(spec, displayOpts);
+                  if (typeof spec === 'string') {
+                    const transposed = transposeChordName(spec, semitones);
+                    return getChordDefinition(transposed, displayOpts);
+                  } else {
+                    const transposed = transposeChordName(spec.chord, semitones);
+                    return getChordDefinition({ ...spec, chord: transposed }, displayOpts);
+                  }
+               };
+
+               newTaikoNotes = parseChordProgressionData(
+                 progressionData,
+                 stage.bpm || 120,
+                 stage.timeSignature || 4,
+                 (spec) => getTransposedDefinition(spec, newTranspose),
+                 0
+               );
+               
+               devLog.debug('🔄 リピート移調適用:', { from: prevState.currentTranspose, to: newTranspose, next: nextNextTranspose });
+             }
+          }
+
+          const resetNotes = newTaikoNotes.map(note => ({
             ...note,
             isHit: false,
             isMissed: false
@@ -1557,7 +1682,9 @@ export const useFantasyGameEngine = ({
             awaitingLoopStart: false,
             taikoLoopCycle: (prevState.taikoLoopCycle ?? 0) + 1,
             lastNormalizedTime: normalizedTime,
-            activeMonsters: refreshedMonsters
+            activeMonsters: refreshedMonsters,
+            currentTranspose: newTranspose,
+            nextLoopTranspose: nextNextTranspose
           };
         }
         
