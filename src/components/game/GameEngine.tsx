@@ -755,7 +755,6 @@ useEffect(() => {
     const timelineTime = getTimelineTime();
     updateTime(timelineTime);
   }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
 }, [gameEngine, isPlaying, stopCurrentBufferSource]);
 
 useEffect(() => {
@@ -891,7 +890,6 @@ useEffect(() => {
     );
 
     return unsubscribe;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentSongDuration, gameEngine, getTimelineTime, updateTime]);
   
   // MIDIController管理用のRef
