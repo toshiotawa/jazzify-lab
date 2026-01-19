@@ -21,6 +21,8 @@ class BGMManager {
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
   private pitchShift = 0 // ピッチシフト（半音単位、-12 ~ +12）
+  private loopCount = 0 // ループ回数（0=最初の再生、1=1回目のループ、...）
+  private lastLoopCheckTime = -1 // 前回のループチェック時の正規化時間
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -180,6 +182,8 @@ class BGMManager {
     } finally {
       this.timeUpdateHandler = null
       this.audio = null
+      this.loopCount = 0
+      this.lastLoopCheckTime = -1
       console.log('🔇 BGM停止・クリーンアップ完了')
     }
   }
@@ -332,7 +336,69 @@ class BGMManager {
       const musicTime = elapsedRealTime * this.playbackRate
       return musicTime < this.loopBegin
     }
+    if (this.useTonePitchShift && this.toneModule) {
+      const Tone = this.toneModule
+      if (typeof Tone.now === 'function') {
+        const elapsedRealTime = Tone.now() - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        return musicTime < this.loopBegin
+      }
+    }
     return !!this.audio && this.audio.currentTime < this.loopBegin
+  }
+
+  /**
+   * 現在のループ回数を取得（設定されたloopDurationに基づく）
+   * カウントイン中は-1、最初のループは0、2回目は1、...
+   */
+  getLoopCount(): number {
+    if (!this.isPlaying) return -1
+    
+    const loopDuration = this.loopEnd - this.loopBegin
+    if (loopDuration <= 0) return 0
+    
+    let musicTime = 0
+    if (this.useTonePitchShift && this.toneModule && this.tonePlayer) {
+      const Tone = this.toneModule
+      if (typeof Tone.now === 'function') {
+        const elapsedRealTime = Tone.now() - this.waStartAt
+        musicTime = elapsedRealTime * this.playbackRate
+      }
+    } else if (this.waContext && this.waBuffer) {
+      const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+      musicTime = elapsedRealTime * this.playbackRate
+    } else if (this.audio) {
+      musicTime = this.audio.currentTime
+    }
+    
+    // カウントイン中
+    if (musicTime < this.loopBegin) return -1
+    
+    // ループ回数を計算
+    const timeAfterCountIn = musicTime - this.loopBegin
+    return Math.floor(timeAfterCountIn / loopDuration)
+  }
+
+  /**
+   * ループ境界を越えたかどうかをチェック（1回のみtrueを返す）
+   * @returns { looped: boolean, loopCount: number }
+   */
+  checkLoopBoundary(): { looped: boolean; loopCount: number } {
+    const currentLoopCount = this.getLoopCount()
+    
+    // 最初の呼び出しまたはカウントイン中
+    if (this.loopCount < 0 || currentLoopCount < 0) {
+      this.loopCount = Math.max(0, currentLoopCount)
+      return { looped: false, loopCount: this.loopCount }
+    }
+    
+    // ループ回数が増えた場合
+    if (currentLoopCount > this.loopCount) {
+      this.loopCount = currentLoopCount
+      return { looped: true, loopCount: this.loopCount }
+    }
+    
+    return { looped: false, loopCount: this.loopCount }
   }
 
   /** Measure 1 の開始へリセット */

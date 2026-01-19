@@ -1568,14 +1568,13 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // ループ境界検出
+        // ループ境界検出（BGMManagerの正確なループカウントを使用）
+        const { looped: justLooped, loopCount: newLoopCount } = bgmManager.checkLoopBoundary();
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-        const lastNorm = (prevState.lastNormalizedTime ?? normalizedTime);
-        const justLooped = normalizedTime + 1e-6 < lastNorm;
         
-        if (justLooped) {
-          // 次ループ突入時のみリセット・巻き戻し
-          const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+        if (justLooped && newLoopCount > prevState.taikoLoopCycle) {
+          // 次ループ突入時のみリセット・巻き戻し（BGMManagerのループカウントを使用）
+          devLog.debug('🔄 ループ境界検出:', { newLoopCount, prevLoopCycle: prevState.taikoLoopCycle });
           
           // リピートごとの移調を適用（移調設定がある場合）
           let transposedNotes = prevState.originalTaikoNotes.length > 0 
@@ -1587,7 +1586,7 @@ export const useFantasyGameEngine = ({
             // 新しい移調オフセットを計算
             newTransposeOffset = calculateTransposeOffset(
               prevState.transposeSettings.keyOffset,
-              newLoopCycle,
+              newLoopCount,
               prevState.transposeSettings.repeatKeyChange
             );
             
@@ -1595,9 +1594,8 @@ export const useFantasyGameEngine = ({
             if (newTransposeOffset !== 0) {
               transposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, newTransposeOffset);
               devLog.debug('🎹 リピート移調適用:', {
-                loopCycle: newLoopCycle,
+                loopCount: newLoopCount,
                 offset: newTransposeOffset,
-                key: getKeyFromOffset('C', newTransposeOffset),
                 repeatKeyChange: prevState.transposeSettings.repeatKeyChange
               });
             } else {
@@ -1633,7 +1631,7 @@ export const useFantasyGameEngine = ({
             taikoNotes: resetNotes,
             currentNoteIndex: newNoteIndex,
             awaitingLoopStart: false,
-            taikoLoopCycle: newLoopCycle,
+            taikoLoopCycle: newLoopCount,
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters,
             currentTransposeOffset: newTransposeOffset

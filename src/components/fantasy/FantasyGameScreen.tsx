@@ -1090,16 +1090,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 次ループのノーツを先読み表示する条件:
       // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
       // 2. ループ境界が近い（lookAheadTime以内）
+      // ※ 設定されたloopDurationに基づいて計算（音源長に依存しない）
       const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
       
       if (shouldShowNextLoopPreview && gameState.taikoNotes.length > 0) {
+        // 次ループの先読みノーツを表示
+        // BGMManagerのloopCountを使用して、正しいループ位置を計算
+        const currentLoopCount = bgmManager.getLoopCount();
+        
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
 
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
-          // 次ループの仮想的なヒット時間を計算
+          // 次ループの仮想的なヒット時間を計算（設定されたloopDurationを使用）
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
@@ -1110,7 +1115,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
-            id: `${note.id}_loop`,
+            id: `${note.id}_loop_${currentLoopCount + 1}`,
             chord: note.chord.displayName,
             x,
             noteNames: note.chord.noteNames
