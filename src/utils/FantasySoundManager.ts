@@ -113,7 +113,6 @@ export class FantasySoundManager {
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
-    console.log('[FantasySoundManager] 🎵 playRootNote called:', rootName);
     return this.instance._playRootNote(rootName);
   }
   
@@ -410,27 +409,13 @@ export class FantasySoundManager {
   }
 
   // 🎸 ルート音再生（合成音のアコースティックベース風）
+  // 🚀 パフォーマンス最適化: 非同期待機を削除し、同期的に即座に再生
   private async _playRootNote(rootName: string) {
-    // 初期化完了済みの場合は待機をスキップ（高速化）
-    if (!this.isInited && this.loadedPromise) {
-      // 最大500msだけ待機（初期化を待つ）
-      const timeout = new Promise(res => setTimeout(res, 500));
-      await Promise.race([this.loadedPromise, timeout]);
-    }
-
-    if (!this.bassEnabled) return;
+    // 初期化が完了していない場合は無視（待機しない）
+    if (!this.isInited || !this.bassEnabled) return;
     
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
-    
-    // デバッグ: ルート音再生状態を出力
-    console.log('[FantasySoundManager] 🎸 _playRootNote (Bass Synth):', {
-      rootName,
-      midi: n.midi,
-      bassEnabled: this.bassEnabled,
-      bassVolume: this.bassVolume,
-      isInited: this.isInited
-    });
     
     // 🎸 合成音のアコースティックベース風を使用
     const Tone = window.Tone as unknown as typeof import('tone');
@@ -456,8 +441,8 @@ export class FantasySoundManager {
         '8n',  // 短めの発音
         t
       );
-    } catch (e) {
-      console.debug('[FantasySoundManager] Root bass note playback error:', e);
+    } catch {
+      // エラーは無視（UIをブロックしない）
     }
   }
   

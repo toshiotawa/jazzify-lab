@@ -864,8 +864,13 @@ export const useFantasyGameEngine = ({
       const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
       const isDefeated = newHp === 0;
 
-      // コールバックを実行
-      onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
+      // 🚀 パフォーマンス最適化: コールバックを非同期実行（ステート更新をブロックしない）
+      // queueMicrotaskを使用して、現在のタスク完了後に即座に実行
+      const chordForCallback = chosenNote.chord;
+      const monsterIdForCallback = currentMonster.id;
+      queueMicrotask(() => {
+        onChordCorrect(chordForCallback, isSpecialAttack, actualDamage, isDefeated, monsterIdForCallback);
+      });
 
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
