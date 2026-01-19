@@ -4,6 +4,9 @@
 type ToneType = typeof import('tone');
 type PitchShiftType = InstanceType<ToneType['PitchShift']>;
 
+// ループイベントコールバックの型
+type LoopEventCallback = (loopCount: number) => void;
+
 class BGMManager {
   private audio: HTMLAudioElement | null = null
   private loopBegin = 0
@@ -35,6 +38,12 @@ class BGMManager {
   private toneLoopStart: number = 0
   private toneLoopEnd: number = 0
   private useTonePitchShift = false // Tone.jsを使用するかどうか
+  
+  // ループ追跡
+  private loopCount = 0 // 現在のループ回数（0=初回再生、1=1回目のループ...）
+  private lastLoopPosition = 0 // 前回のポジション（ループ検出用）
+  private loopEventCallbacks: LoopEventCallback[] = [] // ループイベントコールバック
+  private loopTrackingIntervalId: number | null = null // ループ追跡用Interval
 
   play(
     url: string,
@@ -58,6 +67,10 @@ class BGMManager {
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
     this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
+    
+    // ループカウントをリセット
+    this.loopCount = 0
+    this.lastLoopPosition = 0
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -136,6 +149,10 @@ class BGMManager {
         clearInterval(this.loopCheckIntervalId)
         this.loopCheckIntervalId = null
       }
+      if (this.loopTrackingIntervalId !== null) {
+        clearInterval(this.loopTrackingIntervalId)
+        this.loopTrackingIntervalId = null
+      }
 
       if (this.audio) {
         try {
@@ -197,27 +214,52 @@ class BGMManager {
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
    * 再生速度に関わらず、音楽的な位置（小節・拍）が正しく返される
+   * ループを考慮し、常にループ内の位置を返す
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
       // Tone.js PitchShift使用時
       if (this.useTonePitchShift && this.tonePlayer) {
         try {
-          // Tone.Playerのseekを使用して現在位置を取得
           const Tone = (window as any).Tone
           if (Tone && typeof Tone.now === 'function') {
             const elapsedRealTime = Tone.now() - this.waStartAt
-            const musicTime = elapsedRealTime * this.playbackRate
-            // カウントイン中は負の値を返す（M1開始=0）
-            // loopBeginを引くことでカウントイン分を考慮
-            return musicTime - this.loopBegin
+            const totalMusicTime = elapsedRealTime * this.playbackRate
+            
+            // カウントイン中の場合
+            if (totalMusicTime < this.loopBegin) {
+              return totalMusicTime - this.loopBegin // 負の値を返す
+            }
+            
+            // カウントイン後: ループを考慮した位置を計算
+            const loopDuration = this.loopEnd - this.loopBegin
+            if (loopDuration <= 0) {
+              return totalMusicTime - this.loopBegin
+            }
+            
+            // カウントイン後の経過時間
+            const timeAfterCountIn = totalMusicTime - this.loopBegin
+            
+            // ループ内の位置（M1開始=0）
+            const positionInLoop = timeAfterCountIn % loopDuration
+            
+            // ループ検出とカウント更新
+            const currentLoopCount = Math.floor(timeAfterCountIn / loopDuration)
+            if (currentLoopCount > this.loopCount) {
+              const prevLoopCount = this.loopCount
+              this.loopCount = currentLoopCount
+              // ループイベントを通知
+              this._notifyLoopEvent(currentLoopCount)
+              console.log(`🔄 ループ検出: ${prevLoopCount} → ${currentLoopCount}`)
+            }
+            
+            return positionInLoop
           }
         } catch {}
       }
       
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
-        // playbackRateを考慮した音楽的な時間を計算
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
         return musicTime - this.loopBegin
@@ -226,6 +268,41 @@ class BGMManager {
       if (this.audio) return this.audio.currentTime - this.loopBegin
     }
     return 0
+  }
+  
+  /**
+   * ループイベントコールバックを登録
+   * @param callback ループ時に呼び出されるコールバック関数
+   * @returns 登録解除用の関数
+   */
+  onLoop(callback: LoopEventCallback): () => void {
+    this.loopEventCallbacks.push(callback)
+    return () => {
+      const index = this.loopEventCallbacks.indexOf(callback)
+      if (index !== -1) {
+        this.loopEventCallbacks.splice(index, 1)
+      }
+    }
+  }
+  
+  /**
+   * 現在のループ回数を取得
+   */
+  getLoopCount(): number {
+    return this.loopCount
+  }
+  
+  /**
+   * ループイベントを通知
+   */
+  private _notifyLoopEvent(loopCount: number) {
+    for (const callback of this.loopEventCallbacks) {
+      try {
+        callback(loopCount)
+      } catch (e) {
+        console.warn('Loop event callback error:', e)
+      }
+    }
   }
   
   /** 小節番号（1始まり）。カウントイン中は0 */
@@ -241,18 +318,15 @@ class BGMManager {
   getCurrentBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      // Tone.js PitchShift使用時
+      // Tone.js PitchShift使用時 - getCurrentMusicTime()を使用してループを考慮
       if (this.useTonePitchShift && this.tonePlayer) {
-        try {
-          const Tone = (window as any).Tone
-          if (Tone && typeof Tone.now === 'function') {
-            const elapsedRealTime = Tone.now() - this.waStartAt
-            const musicTime = elapsedRealTime * this.playbackRate
-            const totalBeats = Math.floor(musicTime / secPerBeat)
-            // 負のビートに対応（カウントイン中）
-            return ((totalBeats % this.timeSignature) + this.timeSignature) % this.timeSignature + 1
-          }
-        } catch {}
+        const musicTime = this.getCurrentMusicTime()
+        // musicTimeはループ内の位置（M1開始=0、カウントイン中は負）
+        // カウントイン分を加算してから拍を計算
+        const absoluteTime = musicTime + this.loopBegin
+        const totalBeats = Math.floor(absoluteTime / secPerBeat)
+        // 負のビートに対応
+        return ((totalBeats % this.timeSignature) + this.timeSignature) % this.timeSignature + 1
       }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -272,16 +346,12 @@ class BGMManager {
   getCurrentBeatPosition(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      // Tone.js PitchShift使用時
+      // Tone.js PitchShift使用時 - getCurrentMusicTime()を使用してループを考慮
       if (this.useTonePitchShift && this.tonePlayer) {
-        try {
-          const Tone = (window as any).Tone
-          if (Tone && typeof Tone.now === 'function') {
-            const elapsedRealTime = Tone.now() - this.waStartAt
-            const musicTime = elapsedRealTime * this.playbackRate
-            return ((musicTime / secPerBeat) % this.timeSignature + this.timeSignature) % this.timeSignature
-          }
-        } catch {}
+        const musicTime = this.getCurrentMusicTime()
+        // musicTimeはループ内の位置（M1開始=0、カウントイン中は負）
+        const absoluteTime = musicTime + this.loopBegin
+        return ((absoluteTime / secPerBeat) % this.timeSignature + this.timeSignature) % this.timeSignature
       }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
@@ -306,17 +376,18 @@ class BGMManager {
   getTimeToNextBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
-      let musicTime = 0
-      // Tone.js PitchShift使用時
+      // getCurrentMusicTime()を使用してループを考慮
       if (this.useTonePitchShift && this.tonePlayer) {
-        try {
-          const Tone = (window as any).Tone
-          if (Tone && typeof Tone.now === 'function') {
-            const elapsedRealTime = Tone.now() - this.waStartAt
-            musicTime = elapsedRealTime * this.playbackRate
-          }
-        } catch {}
-      } else if (this.waContext && this.waBuffer) {
+        const musicTime = this.getCurrentMusicTime()
+        // musicTimeはループ内の位置（M1開始=0）
+        const absoluteTime = musicTime + this.loopBegin
+        const nextBeatTime = Math.ceil(absoluteTime / secPerBeat) * secPerBeat
+        const musicTimeDiff = nextBeatTime - absoluteTime
+        return (musicTimeDiff / this.playbackRate) * 1000
+      }
+      
+      let musicTime = 0
+      if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         musicTime = elapsedRealTime * this.playbackRate
       } else if (this.audio) {
@@ -333,17 +404,18 @@ class BGMManager {
   /** 次のループまでの残り時間（ms）- 実時間での残り */
   getTimeToLoop(): number {
     if (!this.isPlaying) return Infinity
-    let musicTime = 0
-    // Tone.js PitchShift使用時
+    
+    // Tone.js PitchShift使用時 - getCurrentMusicTime()を使用
     if (this.useTonePitchShift && this.tonePlayer) {
-      try {
-        const Tone = (window as any).Tone
-        if (Tone && typeof Tone.now === 'function') {
-          const elapsedRealTime = Tone.now() - this.waStartAt
-          musicTime = elapsedRealTime * this.playbackRate
-        }
-      } catch {}
-    } else if (this.waContext && this.waBuffer) {
+      const musicTime = this.getCurrentMusicTime()
+      // musicTimeはループ内の位置（M1開始=0）
+      const loopDuration = this.loopEnd - this.loopBegin
+      const timeToEnd = loopDuration - musicTime
+      return timeToEnd > 0 ? (timeToEnd / this.playbackRate) * 1000 : 0
+    }
+    
+    let musicTime = 0
+    if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
       musicTime = elapsedRealTime * this.playbackRate
     } else if (this.audio) {
@@ -361,16 +433,11 @@ class BGMManager {
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
   getIsCountIn(): boolean {
-    // Tone.js PitchShift使用時
+    // Tone.js PitchShift使用時 - getCurrentMusicTime()を使用
     if (this.useTonePitchShift && this.tonePlayer) {
-      try {
-        const Tone = (window as any).Tone
-        if (Tone && typeof Tone.now === 'function') {
-          const elapsedRealTime = Tone.now() - this.waStartAt
-          const musicTime = elapsedRealTime * this.playbackRate
-          return musicTime < this.loopBegin
-        }
-      } catch {}
+      // getCurrentMusicTime()はカウントイン中は負の値を返す
+      // ループ後は常に0以上の値になる
+      return this.loopCount === 0 && this.getCurrentMusicTime() < 0
     }
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
