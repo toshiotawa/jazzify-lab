@@ -384,14 +384,29 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         ? currentTimeMs % loopDurationMs 
         : currentTimeMs;
       
+      // タイムマッピングの最大時間を取得
+      const maxMappingTimeMs = mapping.length > 0 
+        ? mapping[mapping.length - 1].timeMs 
+        : loopDurationMs;
+      
+      // タイムマッピングとloopDurationの比率を計算
+      // 楽譜の長さとオーディオの長さが異なる場合に補正
+      const timeScaleFactor = (maxMappingTimeMs > 0 && loopDurationMs > 0 && Math.abs(maxMappingTimeMs - loopDurationMs) > 100)
+        ? maxMappingTimeMs / loopDurationMs
+        : 1.0;
+      
+      // 補正された時刻
+      const scaledTimeMs = normalizedTimeMs * timeScaleFactor;
+      
       // 現在時刻に対応するX位置を補間で計算
+      // scaledTimeMsを使用して、タイムマッピングとloopDurationの差を補正
       let xPosition = 0;
       let foundMapping = false;
       
       for (let i = 0; i < mapping.length - 1; i++) {
-        if (normalizedTimeMs >= mapping[i].timeMs && normalizedTimeMs < mapping[i + 1].timeMs) {
+        if (scaledTimeMs >= mapping[i].timeMs && scaledTimeMs < mapping[i + 1].timeMs) {
           // 線形補間
-          const t = (normalizedTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          const t = (scaledTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
           xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
           foundMapping = true;
           break;
@@ -401,17 +416,18 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // マッピングが見つからなかった場合（最後のエントリ以降）
       if (!foundMapping && mapping.length > 0) {
         const lastEntry = mapping[mapping.length - 1];
-        if (normalizedTimeMs >= lastEntry.timeMs) {
+        if (scaledTimeMs >= lastEntry.timeMs) {
           // 最後の小節から楽譜終端まで進行
-          const remainingTime = loopDurationMs - lastEntry.timeMs;
+          // maxMappingTimeMsを使用（loopDurationMsではなく）
+          const remainingTime = maxMappingTimeMs - lastEntry.timeMs + (loopDurationMs - maxMappingTimeMs);
           if (remainingTime > 0) {
-            const t = Math.min(1, (normalizedTimeMs - lastEntry.timeMs) / remainingTime);
+            const t = Math.min(1, (scaledTimeMs - lastEntry.timeMs) / remainingTime);
             // 楽譜の終端位置（sheetWidthを使用）
             xPosition = lastEntry.xPosition + t * (sheetWidth - lastEntry.xPosition);
           } else {
             xPosition = lastEntry.xPosition;
           }
-        } else if (normalizedTimeMs < mapping[0].timeMs) {
+        } else if (scaledTimeMs < mapping[0].timeMs) {
           // 最初の小節より前（通常はありえないが、念のため）
           xPosition = mapping[0].xPosition;
         }

@@ -226,6 +226,10 @@ class BGMManager {
    * 移調モード（ピッチシフト使用時）の注意:
    * - ループ後はloopBegin〜loopEndの範囲を再生（カウントインはスキップ）
    * - 経過時間ベースの計算でループ内位置を正規化
+   * 
+   * ループ境界検出:
+   * - lastLoopPositionを使用してループ境界を検出
+   * - 位置が大幅に戻った場合（loopDuration/2以上）をループと判定
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
@@ -241,15 +245,29 @@ class BGMManager {
             // ループを考慮した位置を計算（ループ後も正しく動作）
             const loopDuration = this.loopEnd - this.loopBegin
             
-            if (loopDuration > 0 && musicTime >= this.loopEnd) {
-              // ループ後: Tone.js Playerはオーディオファイル内のloopBegin〜loopEndをループ
-              // 経過時間からループ内の位置を計算
-              // musicTime - loopBegin = 最初のループ開始からの経過時間
-              // これをloopDurationで割った余りがループ内位置
-              const timeSinceFirstLoopStart = musicTime - this.loopBegin
-              const posInLoop = timeSinceFirstLoopStart % loopDuration
-              // M1開始=0秒として返す（loopBeginからの相対位置）
-              return posInLoop
+            if (loopDuration > 0) {
+              if (musicTime >= this.loopEnd) {
+                // ループ後: Tone.js Playerはオーディオファイル内のloopBegin〜loopEndをループ
+                // 経過時間からループ内の位置を計算
+                // musicTime - loopBegin = 最初のループ開始からの経過時間
+                // これをloopDurationで割った余りがループ内位置
+                const timeSinceFirstLoopStart = musicTime - this.loopBegin
+                const posInLoop = timeSinceFirstLoopStart % loopDuration
+                
+                // ループ境界検出: 位置が大幅に戻った場合
+                if (this.lastLoopPosition > loopDuration * 0.5 && posInLoop < loopDuration * 0.5) {
+                  this.toneLoopCount++
+                }
+                this.lastLoopPosition = posInLoop
+                
+                // M1開始=0秒として返す（loopBeginからの相対位置）
+                return posInLoop
+              } else if (musicTime >= this.loopBegin) {
+                // 最初のループ中（カウントイン後）
+                const posInLoop = musicTime - this.loopBegin
+                this.lastLoopPosition = posInLoop
+                return posInLoop
+              }
             }
             // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
             return musicTime - this.loopBegin
