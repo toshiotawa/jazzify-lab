@@ -15,9 +15,7 @@ import {
   TaikoNote, 
   ChordProgressionDataItem,
   TransposeSettings,
-  RepeatKeyChange,
-  getKeyFromOffset,
-  TRANSPOSE_KEYS
+  RepeatKeyChange
 } from './TaikoNoteSystem';
 import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -1378,10 +1376,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
                     </div>
                     
-                    {/* キー変更ドロップダウン */}
+                    {/* 移調量ドロップダウン */}
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-gray-300 min-w-[80px]">
-                        {isEnglishCopy ? 'Start Key' : '開始キー'}:
+                        {isEnglishCopy ? 'Transpose' : '移調量'}:
                       </label>
                       <select
                         value={transposeKeyOffset}
@@ -1390,7 +1388,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       >
                         {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
                           <option key={offset} value={offset}>
-                            {offset > 0 ? `+${offset}` : offset} ({getKeyFromOffset('C', offset)})
+                            {offset === 0 ? (isEnglishCopy ? 'Original' : '原曲キー') : 
+                              `${offset > 0 ? '+' : ''}${offset}${isEnglishCopy ? ' semitones' : '半音'}`}
                           </option>
                         ))}
                       </select>
@@ -1558,10 +1557,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     {Math.round(selectedSpeedMultiplier * 100)}%
                   </span>
                 )}
-                {/* 移調キー表示（progression_timingモードかつ移調設定がある場合） */}
+                {/* 移調量表示（progression_timingモードかつ移調設定がある場合） */}
                 {gameState.transposeSettings && gameState.currentTransposeOffset !== 0 && (
                   <span className="ml-2 px-2 py-0.5 bg-purple-600 rounded text-xs">
-                    Key: {getKeyFromOffset('C', gameState.currentTransposeOffset)}
+                    {gameState.currentTransposeOffset > 0 ? '+' : ''}{gameState.currentTransposeOffset}{isEnglishCopy ? 'st' : '半音'}
                   </span>
                 )}
               </div>

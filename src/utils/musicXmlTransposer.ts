@@ -169,7 +169,7 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     const fifthsEl = keyEl.querySelector('fifths');
     if (!fifthsEl) return;
     const current = parseInt(fifthsEl.textContent || '0', 10);
-    const newFifths = current + semitonesToFifths(semitones);
+    const newFifths = transposeKeyFifths(current, semitones);
     fifthsEl.textContent = String(newFifths);
   });
 
@@ -177,13 +177,30 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
   return serializer.serializeToString(doc);
 }
 
-// Convert semitones to fifths (circle of fifths key signature).
-function semitonesToFifths(semitones: number): number {
-  // Map semitone shift (0=C) to key signature fifths within range -7..7
-  // 0:C(0), 1:Db(-5), 2:D(+2), 3:Eb(-3), 4:E(+4), 5:F(-1), 6:Gb(-6), 7:G(+1), 8:Ab(-4), 9:A(+3), 10:Bb(-2), 11:B(+5)
-  const semitoneToFifthsMap = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
-  const mod = ((semitones % 12) + 12) % 12;
-  return semitoneToFifthsMap[mod];
+/**
+ * 現在のキー（fifths）を半音で移調した新しいキー（fifths）を計算
+ * @param currentFifths 現在のキーのfifths値（-7 ~ +7）
+ * @param semitones 移調量（半音数）
+ * @returns 新しいキーのfifths値
+ */
+function transposeKeyFifths(currentFifths: number, semitones: number): number {
+  // fifthsからピッチクラスへの変換: (fifths * 7) % 12
+  // 例: F = -1 fifths → (-1 * 7) % 12 = -7 % 12 = 5 (Fのピッチクラス)
+  //     C = 0 fifths → 0
+  //     G = 1 fifths → 7
+  const currentPitchClass = ((currentFifths * 7) % 12 + 12) % 12;
+  
+  // 移調後のピッチクラス
+  const newPitchClass = (currentPitchClass + ((semitones % 12) + 12) % 12) % 12;
+  
+  // ピッチクラスからfifthsへの変換（-6 ~ +6 の範囲を優先）
+  // ピッチクラス: C=0, Db=1, D=2, Eb=3, E=4, F=5, F#/Gb=6, G=7, Ab=8, A=9, Bb=10, B=11
+  // fifths（フラット系を優先）: C=0, Db=-5, D=2, Eb=-3, E=4, F=-1, Gb=-6, G=1, Ab=-4, A=3, Bb=-2, B=5
+  // F#=6 と Gb=-6 の選択: B(+5)やF#(+6)を避け、Gb(-6)を使用する
+  const pitchClassToFifths = [0, -5, 2, -3, 4, -1, 6, 1, -4, 3, -2, 5];
+  //                          C  Db  D   Eb  E   F  F#  G   Ab  A   Bb  B
+  
+  return pitchClassToFifths[newPitchClass];
 }
 
  

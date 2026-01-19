@@ -208,10 +208,9 @@ class BGMManager {
           if (Tone && typeof Tone.now === 'function') {
             const elapsedRealTime = Tone.now() - this.waStartAt
             const musicTime = elapsedRealTime * this.playbackRate
-            // ループを考慮した位置を計算
-            const loopDuration = this.loopEnd - this.loopBegin
-            const posInLoop = musicTime % loopDuration
-            return posInLoop
+            // カウントイン中は負の値を返す（M1開始=0）
+            // loopBeginを引くことでカウントイン分を考慮
+            return musicTime - this.loopBegin
           }
         } catch {}
       }
@@ -242,6 +241,19 @@ class BGMManager {
   getCurrentBeat(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
+      // Tone.js PitchShift使用時
+      if (this.useTonePitchShift && this.tonePlayer) {
+        try {
+          const Tone = (window as any).Tone
+          if (Tone && typeof Tone.now === 'function') {
+            const elapsedRealTime = Tone.now() - this.waStartAt
+            const musicTime = elapsedRealTime * this.playbackRate
+            const totalBeats = Math.floor(musicTime / secPerBeat)
+            // 負のビートに対応（カウントイン中）
+            return ((totalBeats % this.timeSignature) + this.timeSignature) % this.timeSignature + 1
+          }
+        } catch {}
+      }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
@@ -260,6 +272,17 @@ class BGMManager {
   getCurrentBeatPosition(): number {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
+      // Tone.js PitchShift使用時
+      if (this.useTonePitchShift && this.tonePlayer) {
+        try {
+          const Tone = (window as any).Tone
+          if (Tone && typeof Tone.now === 'function') {
+            const elapsedRealTime = Tone.now() - this.waStartAt
+            const musicTime = elapsedRealTime * this.playbackRate
+            return ((musicTime / secPerBeat) % this.timeSignature + this.timeSignature) % this.timeSignature
+          }
+        } catch {}
+      }
       if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
@@ -284,7 +307,16 @@ class BGMManager {
     const secPerBeat = 60 / this.bpm
     if (this.isPlaying) {
       let musicTime = 0
-      if (this.waContext && this.waBuffer) {
+      // Tone.js PitchShift使用時
+      if (this.useTonePitchShift && this.tonePlayer) {
+        try {
+          const Tone = (window as any).Tone
+          if (Tone && typeof Tone.now === 'function') {
+            const elapsedRealTime = Tone.now() - this.waStartAt
+            musicTime = elapsedRealTime * this.playbackRate
+          }
+        } catch {}
+      } else if (this.waContext && this.waBuffer) {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         musicTime = elapsedRealTime * this.playbackRate
       } else if (this.audio) {
@@ -302,7 +334,16 @@ class BGMManager {
   getTimeToLoop(): number {
     if (!this.isPlaying) return Infinity
     let musicTime = 0
-    if (this.waContext && this.waBuffer) {
+    // Tone.js PitchShift使用時
+    if (this.useTonePitchShift && this.tonePlayer) {
+      try {
+        const Tone = (window as any).Tone
+        if (Tone && typeof Tone.now === 'function') {
+          const elapsedRealTime = Tone.now() - this.waStartAt
+          musicTime = elapsedRealTime * this.playbackRate
+        }
+      } catch {}
+    } else if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
       musicTime = elapsedRealTime * this.playbackRate
     } else if (this.audio) {
@@ -320,6 +361,17 @@ class BGMManager {
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
   getIsCountIn(): boolean {
+    // Tone.js PitchShift使用時
+    if (this.useTonePitchShift && this.tonePlayer) {
+      try {
+        const Tone = (window as any).Tone
+        if (Tone && typeof Tone.now === 'function') {
+          const elapsedRealTime = Tone.now() - this.waStartAt
+          const musicTime = elapsedRealTime * this.playbackRate
+          return musicTime < this.loopBegin
+        }
+      } catch {}
+    }
     if (this.waContext && this.waBuffer) {
       const elapsedRealTime = this.waContext.currentTime - this.waStartAt
       const musicTime = elapsedRealTime * this.playbackRate
