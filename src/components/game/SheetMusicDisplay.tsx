@@ -319,6 +319,37 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           lastRenderedIndexRef.current = -1;
           lastScrollXRef.current = 0;
       
+      // 🔧 修正: 五線譜を縦方向の中央に配置
+      // OSMDのBoundingBoxから楽譜の実際の位置を取得して中央配置を計算
+      const renderSurfaceForCenter = containerRef.current?.querySelector('svg, canvas');
+      const graphicSheet = osmdRef.current?.GraphicSheet;
+      const scrollContainerEl = scrollContainerRef.current;
+      
+      if (renderSurfaceForCenter && graphicSheet && scrollContainerEl) {
+        const bbox = (graphicSheet as any).BoundingBox;
+        const containerHeight = scrollContainerEl.clientHeight;
+        
+        if (bbox && containerHeight > 0) {
+          // BoundingBoxのy座標と高さから楽譜の実際の位置を取得
+          const staffY = bbox.y * scaleFactorRef.current;
+          const staffHeight = bbox.height * scaleFactorRef.current;
+          
+          // 楽譜を中央に配置するためのオフセットを計算
+          // (コンテナの高さ - 楽譜の高さ) / 2 - 楽譜の現在のY位置
+          const centerOffset = (containerHeight - staffHeight) / 2 - staffY;
+          
+          // canvas/svgにtransformを適用して中央配置
+          (renderSurfaceForCenter as HTMLElement).style.transform = `translateY(${centerOffset}px)`;
+          
+          log.info(`✅ OSMD centered: containerHeight=${containerHeight}, staffY=${staffY.toFixed(1)}, staffHeight=${staffHeight.toFixed(1)}, offset=${centerOffset.toFixed(1)}`);
+        } else {
+          // フォールバック: シンプルなmargin中央揃え
+          (renderSurfaceForCenter as HTMLElement).style.display = 'block';
+          (renderSurfaceForCenter as HTMLElement).style.margin = 'auto 0';
+          log.warn('⚠️ Could not calculate center offset, using fallback margin');
+        }
+      }
+      
       log.info(`✅ OSMD initialized and rendered successfully - transpose reflected`);
       
     } catch (err) {
@@ -610,8 +641,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           })
         } as React.CSSProperties}
         >
-          {/* 楽譜コンテナ - 上部に余白を追加 */}
-          <div className="relative h-full pt-8 pb-4">
+          {/* 楽譜コンテナ - 中央揃えに変更 */}
+          <div className="relative h-full flex flex-col justify-center">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
                 <div className="text-black">楽譜を読み込み中...</div>
@@ -646,7 +677,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
             >
               <div 
                 ref={containerRef} 
-                className="h-full flex items-center"
+                className="osmd-container h-full overflow-visible"
               />
             </div>
           </div>

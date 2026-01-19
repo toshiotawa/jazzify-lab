@@ -91,12 +91,12 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     }
   };
 
-  // transpose each <note><pitch>, skipping rests and tie-stop notes
+  // transpose each <note><pitch>, skipping rests only
+  // 🔧 修正: タイで結ばれたノートも移調する必要がある（楽譜上は両方表示されるため）
   doc.querySelectorAll('note').forEach((noteEl) => {
     // Skip rest notes
     if (noteEl.querySelector('rest')) return;
-    // Skip tie stop (後ろ側)
-    if (Array.from(noteEl.querySelectorAll('tie')).some(t => t.getAttribute('type') === 'stop')) return;
+    // タイの stop 側も移調する（楽譜表示に必要）
 
     const pitchEl = noteEl.querySelector('pitch');
     if (!pitchEl) return; // safety
