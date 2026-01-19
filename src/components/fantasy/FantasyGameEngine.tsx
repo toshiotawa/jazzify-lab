@@ -1547,8 +1547,14 @@ export const useFantasyGameEngine = ({
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
         const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
         
+        // 現在の時間から予想されるループサイクルを計算
+        const expectedLoopCycle = Math.floor(currentTime / loopDuration);
+        
         // lastNormが-1（未初期化）の場合はループ境界として扱わない
-        const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm;
+        // また、既に同じサイクルで処理済みの場合もスキップ（二重処理防止）
+        const justLooped = lastNorm >= 0 && 
+                          normalizedTime + 1e-6 < lastNorm && 
+                          expectedLoopCycle > (prevState.taikoLoopCycle ?? 0);
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
