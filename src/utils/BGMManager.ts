@@ -36,6 +36,13 @@ class BGMManager {
   private toneLoopEnd: number = 0
   private useTonePitchShift = false // Tone.jsを使用するかどうか
   private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
+  
+  // ループ回数追跡（Tone.js用）- ループ発生時に更新
+  private toneLoopCount = 0
+  // Tone.jsループ監視Interval
+  private toneLoopCheckIntervalId: number | null = null
+  // 前回の正規化時間（ループ検出用）
+  private lastToneNormalizedTime = -1
 
   play(
     url: string,
@@ -152,6 +159,10 @@ class BGMManager {
         clearInterval(this.loopCheckIntervalId)
         this.loopCheckIntervalId = null
       }
+      if (this.toneLoopCheckIntervalId !== null) {
+        clearInterval(this.toneLoopCheckIntervalId)
+        this.toneLoopCheckIntervalId = null
+      }
 
       if (this.audio) {
         try {
@@ -218,6 +229,13 @@ class BGMManager {
    * - BGMは0秒（カウントイン開始）から再生開始
    * - loopBegin = countInMeasures * 1小節の長さ
    * - M1開始を0秒として返す（カウントイン中は負の値）
+   * 
+   * ループ後の計算（重要）:
+   * - ループ後はオーディオが loopBegin に戻る（カウントインをスキップ）
+   * - 戻り値は常に 0 〜 loopDuration の範囲（M1開始=0）
+   * 
+   * 音源ファイルが短い場合:
+   * - 実際のloopEnd (_actualLoopEnd) を使用して計算
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
@@ -228,18 +246,33 @@ class BGMManager {
           if (Tone && typeof Tone.now === 'function') {
             // Tone.now()を使用して経過時間を計算
             const elapsedRealTime = Tone.now() - this.waStartAt
-            // playbackRateを考慮した音楽的な時間
-            const musicTime = elapsedRealTime * this.playbackRate
-            // ループを考慮した位置を計算（ループ後も正しく動作）
-            const loopDuration = this.loopEnd - this.loopBegin
-            if (loopDuration > 0 && musicTime >= this.loopEnd) {
-              // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
-              const timeSinceLoopStart = musicTime - this.loopBegin
-              const posInLoop = timeSinceLoopStart % loopDuration
+            // playbackRateを考慮した音楽的な時間（BGMファイル内の位置）
+            const rawMusicTime = elapsedRealTime * this.playbackRate
+            
+            // 実際のloopEnd（音源ファイルが短い場合は調整済み）
+            const actualLoopEnd = (this as any)._actualLoopEnd || this.loopEnd
+            const loopDuration = actualLoopEnd - this.loopBegin
+            
+            // 最初のループ前（カウントイン含む）
+            if (rawMusicTime < actualLoopEnd) {
+              // M1開始を0秒として返す（カウントイン中は負の値）
+              return rawMusicTime - this.loopBegin
+            }
+            
+            // ループ後: loopBegin〜actualLoopEndの範囲で正規化
+            // Tone.js Playerはオーディオを loopBegin に戻すので、
+            // 経過時間からループ回数を計算してオーディオ位置を算出
+            if (loopDuration > 0) {
+              // actualLoopEnd到達後の経過時間
+              const timeSinceFirstLoopEnd = rawMusicTime - actualLoopEnd
+              // その時間でループ範囲内の位置を計算
+              // ※オーディオはloopBeginに戻ってloopDuration分進む
+              const posInLoop = timeSinceFirstLoopEnd % loopDuration
+              // M1開始=0として返す（0 〜 loopDuration の範囲）
               return posInLoop
             }
-            // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
-            return musicTime - this.loopBegin
+            
+            return rawMusicTime - this.loopBegin
           }
         } catch {}
       }
@@ -249,28 +282,47 @@ class BGMManager {
         // AudioContext.currentTimeを使用して正確な経過時間を取得
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         // playbackRateを考慮した音楽的な時間
-        const musicTime = elapsedRealTime * this.playbackRate
-        // ループを考慮
+        const rawMusicTime = elapsedRealTime * this.playbackRate
         const loopDuration = this.loopEnd - this.loopBegin
-        if (loopDuration > 0 && musicTime >= this.loopEnd) {
-          // ループ後: loopBegin〜loopEndの範囲で正規化
-          const timeSinceLoopStart = musicTime - this.loopBegin
-          const posInLoop = timeSinceLoopStart % loopDuration
+        
+        // 最初のループ前（カウントイン中）
+        if (rawMusicTime < this.loopEnd) {
+          return rawMusicTime - this.loopBegin
+        }
+        
+        // ループ後: loopBegin〜loopEndの範囲で正規化
+        if (loopDuration > 0) {
+          const timeSinceFirstLoopEnd = rawMusicTime - this.loopEnd
+          const posInLoop = timeSinceFirstLoopEnd % loopDuration
           return posInLoop
         }
-        // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
-        return musicTime - this.loopBegin
+        
+        return rawMusicTime - this.loopBegin
       }
-      // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
+      // HTMLAudioの場合、currentTimeは実際のオーディオ位置
       if (this.audio) {
         const loopDuration = this.loopEnd - this.loopBegin
-        const musicTime = this.audio.currentTime
-        if (loopDuration > 0 && musicTime >= this.loopEnd) {
-          const timeSinceLoopStart = musicTime - this.loopBegin
-          const posInLoop = timeSinceLoopStart % loopDuration
+        const audioTime = this.audio.currentTime
+        
+        // 最初のループ前（カウントイン中）
+        if (audioTime < this.loopEnd) {
+          return audioTime - this.loopBegin
+        }
+        
+        // ループ後: HTMLAudioのループ処理により loopBegin に戻されている場合
+        // currentTime が loopBegin 〜 loopEnd の範囲内であれば正規化
+        if (loopDuration > 0 && audioTime >= this.loopBegin && audioTime < this.loopEnd) {
+          return audioTime - this.loopBegin
+        }
+        
+        // その他の場合（通常は到達しない）
+        if (loopDuration > 0) {
+          const timeSinceFirstLoopEnd = audioTime - this.loopEnd
+          const posInLoop = timeSinceFirstLoopEnd % loopDuration
           return posInLoop
         }
-        return musicTime - this.loopBegin
+        
+        return audioTime - this.loopBegin
       }
     }
     return 0
@@ -373,6 +425,35 @@ class BGMManager {
   }
   
   /**
+   * 実際のloopEnd（音源ファイルが短い場合は調整済み）
+   */
+  getActualLoopEnd(): number {
+    return (this as any)._actualLoopEnd || this.loopEnd
+  }
+  
+  /**
+   * 実際のloopDuration（音源ファイルが短い場合は調整済み）
+   */
+  getActualLoopDuration(): number {
+    const actualLoopEnd = this.getActualLoopEnd()
+    return actualLoopEnd - this.loopBegin
+  }
+  
+  /**
+   * loopBeginを取得
+   */
+  getLoopBegin(): number {
+    return this.loopBegin
+  }
+  
+  /**
+   * 計算上のloopEnd（音源長さに関係なく、measureCount + countInMeasures から計算）
+   */
+  getConfiguredLoopEnd(): number {
+    return this.loopEnd
+  }
+  
+  /**
    * デバッグ用: 現在の時間同期情報を取得
    */
   getTimingDebugInfo(): {
@@ -446,6 +527,9 @@ class BGMManager {
 
   // ─────────────────────────────────────────────
   // Tone.js PitchShift 実装（iOS対応）
+  // 
+  // 重要: 音源ファイルの実際の長さが loopEnd より短い場合があるため、
+  // 音源ファイルの長さを考慮してループポイントを調整する
   private async _playTonePitchShift(url: string, volume: number): Promise<void> {
     // Tone.jsを動的インポート
     const Tone = await import('tone')
@@ -471,44 +555,130 @@ class BGMManager {
     }).toDestination()
     
     // ボリューム調整（PitchShiftの前に挿入）
-    const gainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
+    const toneGainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
     
-    // Playerを作成（ループ対応）
+    // ループカウントをリセット
+    this.toneLoopCount = 0
+    this.lastToneNormalizedTime = -1
+    
+    // Gainノードへの参照を保存（ループ時の再接続用）
+    ;(this as any)._toneGainNode = toneGainNode
+    
+    // Playerを作成
+    // loop: true を使用し、loopStart/loopEnd を設定
+    // 音源ファイルの長さはロード後に取得して調整
     this.tonePlayer = new Tone.Player({
       url: url,
       loop: true,
       playbackRate: this.playbackRate,
       onload: () => {
-        console.log('🎵 BGM loaded (Tone.js PitchShift)')
+        // 音源ファイルの実際の長さを取得
+        const bufferDuration = this.tonePlayer.buffer?.duration || 0
         
-        // ループポイントをロード後に明示的に設定（Tone.jsの仕様対応）
+        // ★重要: 音源ファイルの長さが loopEnd より短い場合、
+        // 実際のループポイントを音源ファイルの長さに合わせて調整
+        // 音源ファイル構造: [カウントイン部分][本編部分（ループ対象）]
+        // 音源ファイルが短い場合、本編部分の終わり = bufferDuration
+        const actualLoopEnd = Math.min(this.loopEnd, bufferDuration)
+        
+        // loopStart/loopEnd を設定
+        // ループ: loopBegin（カウントイン終了後）〜 actualLoopEnd
         this.tonePlayer.loopStart = this.loopBegin
-        this.tonePlayer.loopEnd = this.loopEnd
+        this.tonePlayer.loopEnd = actualLoopEnd
+        
+        console.log('🎵 BGM loaded (Tone.js PitchShift):', {
+          bufferDuration: bufferDuration.toFixed(3),
+          configuredLoopEnd: this.loopEnd.toFixed(3),
+          actualLoopEnd: actualLoopEnd.toFixed(3),
+          loopBegin: this.loopBegin.toFixed(3),
+          loopDuration: (actualLoopEnd - this.loopBegin).toFixed(3),
+          note: bufferDuration < this.loopEnd 
+            ? `⚠️ 音源ファイルが短い！ loopEndを${actualLoopEnd.toFixed(2)}秒に調整`
+            : '音源ファイルの長さは十分'
+        })
+        
+        // 内部のloopEndも更新（getCurrentMusicTime計算用）
+        ;(this as any)._actualLoopEnd = actualLoopEnd
         
         // 再生開始時刻を先に記録（start()呼び出し前に）
         const startTime = Tone.now()
-        // 再生開始
+        // 再生開始（0から開始してカウントインを含める）
         this.tonePlayer.start(startTime, 0)
         this.isPlaying = true
         this.startTime = performance.now()
         // waStartAtにPitchShiftの遅延を加算して補正
-        // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
         this.waStartAt = startTime + this.pitchShiftLatency
-        console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
+        
+        // ループ検出用の監視を開始（Tone.jsのビルトインループを補完）
+        this._startToneLoopDetector(Tone, actualLoopEnd)
+        
+        console.log('🎵 BGM再生開始 (Tone.js PitchShift + ビルトインループ):', { 
           url, 
           bpm: this.bpm, 
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
-          loopEnd: this.loopEnd,
-          loopStartSet: this.tonePlayer.loopStart,
-          loopEndSet: this.tonePlayer.loopEnd,
-          pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
-          note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`
+          loopEnd: actualLoopEnd,
+          bufferDuration,
+          pitchShiftLatency: this.pitchShiftLatency.toFixed(3)
         })
       }
-    }).connect(gainNode)
+    }).connect(toneGainNode)
+  }
+  
+  /**
+   * Tone.js Player用のループ検出監視
+   * Tone.jsのビルトインループを補完し、ループ発生時にwaStartAtを調整
+   */
+  private _startToneLoopDetector(Tone: typeof import('tone'), actualLoopEnd: number): void {
+    // 既存の監視を停止
+    if (this.toneLoopCheckIntervalId !== null) {
+      clearInterval(this.toneLoopCheckIntervalId)
+      this.toneLoopCheckIntervalId = null
+    }
     
-    // Tone.jsのTransportを使用しない（シンプルなPlayer.loopを使用）
+    const loopDuration = actualLoopEnd - this.loopBegin
+    if (loopDuration <= 0) return
+    
+    // 前回の正規化時間を初期化
+    this.lastToneNormalizedTime = -1
+    
+    // 25ms間隔でループを検出
+    this.toneLoopCheckIntervalId = window.setInterval(() => {
+      if (!this.isPlaying || !this.tonePlayer) {
+        return
+      }
+      
+      try {
+        // 現在の再生位置を計算
+        const elapsedRealTime = Tone.now() - this.waStartAt
+        const rawMusicTime = elapsedRealTime * this.playbackRate
+        
+        // ループを考慮した正規化時間を計算
+        let normalizedTime: number
+        if (rawMusicTime < actualLoopEnd) {
+          // 最初のループ前
+          normalizedTime = rawMusicTime
+        } else {
+          // ループ後: loopBegin〜actualLoopEnd の範囲で正規化
+          const timeSinceFirstLoopEnd = rawMusicTime - actualLoopEnd
+          normalizedTime = this.loopBegin + (timeSinceFirstLoopEnd % loopDuration)
+        }
+        
+        // ループ検出: 正規化時間が大きく戻った場合（loopEnd付近からloopBegin付近へ）
+        if (this.lastToneNormalizedTime > 0) {
+          const timeDiff = this.lastToneNormalizedTime - normalizedTime
+          // 時間差がloopDurationの半分以上なら、ループが発生したと判断
+          if (timeDiff > loopDuration * 0.5) {
+            this.toneLoopCount++
+            console.log(`🔄 Tone.js ループ検出 (${this.toneLoopCount}回目): ${this.lastToneNormalizedTime.toFixed(2)}秒 → ${normalizedTime.toFixed(2)}秒`)
+          }
+        }
+        
+        this.lastToneNormalizedTime = normalizedTime
+      } catch (e) {
+        // エラーは無視（再生停止時など）
+      }
+    }, 25)
   }
   
   // ─────────────────────────────────────────────
