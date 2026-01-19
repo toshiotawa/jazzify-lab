@@ -169,7 +169,11 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     const fifthsEl = keyEl.querySelector('fifths');
     if (!fifthsEl) return;
     const current = parseInt(fifthsEl.textContent || '0', 10);
-    const newFifths = current + semitonesToFifths(semitones);
+    let newFifths = current + semitonesToFifths(semitones);
+    // -7〜+7の範囲に収める（Cb/F#メジャーを避ける）
+    // 例: F major (-1) + tritone (-6) = -7 → +5 = B major
+    if (newFifths < -6) newFifths += 12;
+    if (newFifths > 6) newFifths -= 12;
     fifthsEl.textContent = String(newFifths);
   });
 
