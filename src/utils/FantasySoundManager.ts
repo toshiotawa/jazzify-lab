@@ -113,7 +113,6 @@ export class FantasySoundManager {
   public static setVolume(v: number) { return this.instance._setVolume(v); }
   public static getVolume() { return this.instance._volume; }
   public static async playRootNote(rootName: string) {
-    console.log('[FantasySoundManager] 🎵 playRootNote called:', rootName);
     return this.instance._playRootNote(rootName);
   }
   
@@ -409,99 +408,119 @@ export class FantasySoundManager {
     }
   }
 
-  // 🎸 ルート音再生（合成音のアコースティックベース風）
-  private async _playRootNote(rootName: string) {
-    // 初期化完了済みの場合は待機をスキップ（高速化）
-    if (!this.isInited && this.loadedPromise) {
-      // 最大500msだけ待機（初期化を待つ）
-      const timeout = new Promise(res => setTimeout(res, 500));
-      await Promise.race([this.loadedPromise, timeout]);
-    }
-
-    if (!this.bassEnabled) return;
+  // 🎸 ルート音再生（Web Audio API直接使用 - クリック音完全防止）
+  // 🚀 パフォーマンス最適化: setTimeout不使用、Web Audio APIスケジューリングのみ
+  // 🚀 クリック音防止: linearRampでスムーズなフェードイン/フェードアウト
+  private _playRootNote(rootName: string) {
+    // 初期化が完了していない場合は無視
+    if (!this.isInited || !this.bassEnabled) return;
     
     const n = tonalNote(rootName + '2');        // C2 付近
     if (n.midi == null) return;
     
-    // デバッグ: ルート音再生状態を出力
-    console.log('[FantasySoundManager] 🎸 _playRootNote (Bass Synth):', {
-      rootName,
-      midi: n.midi,
-      bassEnabled: this.bassEnabled,
-      bassVolume: this.bassVolume,
-      isInited: this.isInited
-    });
-    
-    // 🎸 合成音のアコースティックベース風を使用
-    const Tone = window.Tone as unknown as typeof import('tone');
-    if (!Tone) return;
-    
-    // ベースシンセが未初期化の場合は作成
-    if (!this.rootBassSynth) {
-      this._initRootBassSynth(Tone);
+    // Web Audio APIコンテキストを取得または作成（初回のみ）
+    if (!this.rootAudioContext) {
+      try {
+        this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        this.rootMasterGain = this.rootAudioContext.createGain();
+        this.rootMasterGain.connect(this.rootAudioContext.destination);
+        this._syncRootBassVolume();
+      } catch {
+        return;
+      }
     }
     
-    if (!this.rootBassSynth) return;
+    const ctx = this.rootAudioContext;
+    if (!ctx || !this.rootMasterGain) return;
     
-    let t = Tone.now();
-    if (t <= this.lastRootStart) t = this.lastRootStart + 0.001;
-    this.lastRootStart = t;
+    // AudioContextがsuspended状態ならresumeする（非ブロッキング、待機しない）
+    if (ctx.state === 'suspended') {
+      ctx.resume().catch(() => {});
+    }
     
-    const note = Tone.Frequency(n.midi, 'midi').toNote();
+    const now = ctx.currentTime;
+    const frequency = 440 * Math.pow(2, (n.midi - 69) / 12);
+    
+    // 🚀 前のオシレーターはWeb Audio APIのstop()でスケジュール停止（setTimeoutなし）
+    // onended イベントで自動クリーンアップされる
+    if (this.activeRootOscillator && this.activeRootGain) {
+      try {
+        // 30ms後に停止をスケジュール（フェードアウト完了後）
+        this.activeRootGain.gain.linearRampToValueAtTime(0, now + 0.03);
+        this.activeRootOscillator.stop(now + 0.035);
+      } catch { /* 既に停止済み */ }
+    }
     
     try {
-      // 短めの発音（アコースティックベースをイメージ）
-      this.rootBassSynth.triggerAttackRelease(
-        note,
-        '8n',  // 短めの発音
-        t
-      );
-    } catch (e) {
-      console.debug('[FantasySoundManager] Root bass note playback error:', e);
-    }
+      // 新しいオシレーターを作成
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = frequency;
+      
+      // 個別のゲインノード
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0;
+      
+      osc.connect(gainNode);
+      gainNode.connect(this.rootMasterGain);
+      
+      // エンベロープ（すべてスケジュール済み、メインスレッド負荷なし）
+      const totalDuration = 0.4; // 400ms
+      gainNode.gain.linearRampToValueAtTime(1.0, now + 0.01);      // 10ms attack
+      gainNode.gain.linearRampToValueAtTime(0.3, now + 0.12);      // 110ms後にdecay
+      gainNode.gain.linearRampToValueAtTime(0, now + totalDuration); // 400ms後にfade out完了
+      
+      osc.start(now);
+      osc.stop(now + totalDuration + 0.01);
+      
+      // onendedでクリーンアップ（Web Audioスレッドで実行、メインスレッド負荷なし）
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          gainNode.disconnect();
+        } catch { /* ignore */ }
+      };
+      
+      this.activeRootOscillator = osc;
+      this.activeRootGain = gainNode;
+      
+    } catch { /* ignore */ }
   }
   
-  // 🎸 ルート音用アコースティックベース風シンセの初期化
-  private rootBassSynth: any | null = null;
-  
-  private _initRootBassSynth(Tone: typeof import('tone')) {
-    try {
-      // アコースティックベース風の合成音
-      // 素早いアタック、短いディケイ、低めの倍音で温かみのある音色
-      this.rootBassSynth = new (Tone as any).Synth({
-        oscillator: {
-          type: 'triangle'  // 三角波でベースの柔らかい音色を表現
-        },
-        envelope: {
-          attack: 0.005,    // 非常に素早いアタック（弾くような感覚）
-          decay: 0.15,      // 短めのディケイ
-          sustain: 0.2,     // 低めのサステイン
-          release: 0.3      // 短めのリリース（スタッカート気味）
-        }
-      }).toDestination();
-      
-      // 音量を設定（ピアノ音量と連動）
-      this._syncRootBassVolume();
-      
-      console.debug('[FantasySoundManager] 🎸 Root bass synth initialized (acoustic bass style)');
-    } catch (e) {
-      console.warn('[FantasySoundManager] Failed to create root bass synth:', e);
-    }
-  }
+  // 🎸 ルート音用 Web Audio API リソース
+  private rootAudioContext: AudioContext | null = null;
+  private rootMasterGain: GainNode | null = null;
+  private activeRootOscillator: OscillatorNode | null = null;
+  private activeRootGain: GainNode | null = null;
   
   // ルート音ベースの音量を同期
   private _syncRootBassVolume(): void {
-    if (this.rootBassSynth) {
-      // gmPianoVolumeとbassVolumeの両方を考慮し、8倍ブースト
+    if (this.rootMasterGain && this.rootAudioContext) {
+      // gmPianoVolumeとbassVolumeの両方を考慮
       const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
-      const dbValue = effectiveVolume === 0 ? -Infinity : Math.log10(effectiveVolume) * 20 + 6; // +6dBでブースト
+      // 音量を0.3〜1.0の範囲で調整（小さすぎると聞こえない）
+      const normalizedVolume = 0.3 + effectiveVolume * 0.7;
+      try {
+        this.rootMasterGain.gain.setValueAtTime(normalizedVolume, this.rootAudioContext.currentTime);
+      } catch {
+        // エラーは無視
+      }
+    }
+    
+    // 旧Tone.jsシンセがある場合も同期（互換性維持）
+    if (this.rootBassSynth) {
+      const effectiveVolume = Math.max(this.gmPianoVolume, this.bassVolume);
+      const dbValue = effectiveVolume === 0 ? -Infinity : Math.log10(effectiveVolume) * 20 + 6;
       try {
         (this.rootBassSynth.volume as any).value = dbValue;
-      } catch (e) {
-        console.debug('[FantasySoundManager] Root bass volume sync error:', e);
+      } catch {
+        // エラーは無視
       }
     }
   }
+  
+  // 🎸 ルート音用シンセ（旧Tone.js版 - 互換性のために残す）
+  private rootBassSynth: any | null = null;
 
   // GM音源でMIDIノートを再生（ピアノ演奏用）
   private async _playGMNote(midiNote: number, velocity: number = 1.0) {
@@ -692,6 +711,19 @@ export class FantasySoundManager {
       // GM音源用のAudioContextもresumeする
       if (this.gmAudioContext && this.gmAudioContext.state !== 'running') {
         await this.gmAudioContext.resume();
+      }
+
+      // ルート音用のAudioContextを事前作成（初回 playRootNote のブロッキングを防止）
+      if (!this.rootAudioContext) {
+        try {
+          this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+          this.rootMasterGain = this.rootAudioContext.createGain();
+          this.rootMasterGain.connect(this.rootAudioContext.destination);
+          this._syncRootBassVolume();
+        } catch { /* ignore */ }
+      }
+      if (this.rootAudioContext && this.rootAudioContext.state !== 'running') {
+        await this.rootAudioContext.resume();
       }
 
       // iOS Safari 向け: 無音バッファを短く再生して完全に解放

@@ -7,6 +7,7 @@ import React, { useState, useCallback, useEffect } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
+import { RepeatKeyChange, getKeyFromOffset } from './TaikoNoteSystem';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
@@ -27,6 +28,106 @@ import {
   getRankBgColor,
   getRemainingClearsForNextStage 
 } from '@/utils/fantasyRankCalculator';
+
+// 結果画面用の練習設定コンポーネント
+interface ResultPracticeSettingsProps {
+  currentStage: FantasyStage;
+  isEnglishCopy: boolean;
+  onStartPractice: (speed: number, transposeOpts?: { keyOffset: number; repeatKeyChange: RepeatKeyChange }) => void;
+}
+
+const ResultPracticeSettings: React.FC<ResultPracticeSettingsProps> = ({
+  currentStage,
+  isEnglishCopy,
+  onStartPractice
+}) => {
+  const [selectedSpeed, setSelectedSpeed] = useState(1.0);
+  const [transposeKeyOffset, setTransposeKeyOffset] = useState(0);
+  const [repeatKeyChange, setRepeatKeyChange] = useState<RepeatKeyChange>('off');
+  
+  const isTimingMode = currentStage.mode === 'progression_timing';
+  
+  return (
+    <div className="w-full space-y-2">
+      <div className="text-sm text-gray-400 mt-2">
+        {isEnglishCopy ? '🎹 Practice Mode' : '🎹 練習モード'}
+      </div>
+      
+      {/* 移調練習設定（TIMINGモードの場合のみ表示） */}
+      {isTimingMode && (
+        <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
+          <div className="text-sm text-yellow-300 font-medium">
+            🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
+          </div>
+          
+          {/* キー変更ドロップダウン */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-300 min-w-[80px]">
+              {isEnglishCopy ? 'Start Key' : '開始キー'}:
+            </label>
+            <select
+              value={transposeKeyOffset}
+              onChange={(e) => setTransposeKeyOffset(parseInt(e.target.value, 10))}
+              className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
+            >
+              {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
+                <option key={offset} value={offset}>
+                  {offset > 0 ? `+${offset}` : offset} ({getKeyFromOffset('C', offset)})
+                </option>
+              ))}
+            </select>
+          </div>
+          
+          {/* リピートごとのキー変更 */}
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-gray-300 min-w-[80px]">
+              {isEnglishCopy ? 'On Repeat' : 'リピート時'}:
+            </label>
+            <select
+              value={repeatKeyChange}
+              onChange={(e) => setRepeatKeyChange(e.target.value as RepeatKeyChange)}
+              className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
+            >
+              <option value="off">OFF ({isEnglishCopy ? 'No change' : '変更なし'})</option>
+              <option value="+1">+1 ({isEnglishCopy ? 'Half step up' : '半音ずつ上'})</option>
+              <option value="+5">+5 ({isEnglishCopy ? 'Perfect 4th up' : '完全4度ずつ上'})</option>
+            </select>
+          </div>
+        </div>
+      )}
+      
+      {/* 速度選択ドロップダウン + 練習開始ボタン */}
+      <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-gray-300 min-w-[60px]">
+            {isEnglishCopy ? 'Speed' : '速度'}:
+          </label>
+          <select
+            value={selectedSpeed}
+            onChange={(e) => setSelectedSpeed(parseFloat(e.target.value))}
+            className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-2 border border-gray-600"
+          >
+            <option value={1.0}>🎵 100% ({isEnglishCopy ? 'Normal' : '通常速度'})</option>
+            <option value={0.75}>🐢 75% ({isEnglishCopy ? 'Slow' : 'ゆっくり'})</option>
+            <option value={0.5}>🐌 50% ({isEnglishCopy ? 'Very Slow' : 'とてもゆっくり'})</option>
+          </select>
+        </div>
+        
+        <button
+          onClick={() => {
+            const transposeOpts = isTimingMode 
+              ? { keyOffset: transposeKeyOffset, repeatKeyChange }
+              : undefined;
+            onStartPractice(selectedSpeed, transposeOpts);
+          }}
+          className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
+        >
+          <span className="text-white">{isEnglishCopy ? 'Start Practice' : '練習を開始'}</span>
+        </button>
+      </div>
+    </div>
+  );
+};
 
 // 1コース当たりのステージ数定数
 const COURSE_LENGTH = 10;
@@ -614,8 +715,8 @@ const FantasyMain: React.FC = () => {
   // ゲーム結果画面
   if (showResult && gameResult) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4 overflow-y-auto">
-        <div className="text-white text-center max-w-md w-full my-auto py-6">
+      <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-start justify-center p-4 overflow-y-auto">
+        <div className="text-white text-center max-w-md w-full my-auto py-6 min-h-fit">
           {/* 結果タイトル */}
             <h2 className="text-3xl font-bold mb-6 font-sans">
               {currentStage?.stageNumber}&nbsp;
@@ -734,52 +835,20 @@ const FantasyMain: React.FC = () => {
               >
                 {retryButtonLabel}
               </button>
-              {/* 練習ボタン - progressionモードの場合は速度選択付き */}
+              {/* 練習ボタン - progressionモードの場合は速度選択・移調設定付き */}
               {currentStage?.mode?.startsWith('progression') ? (
-                <div className="w-full space-y-2">
-                  <div className="text-sm text-gray-400 mt-2">
-                    {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
-                  </div>
-                  {/* 通常速度で練習 */}
-                  <button
-                    onClick={() => {
-                      setPlayMode('practice');
-                      setShowResult(false);
-                      setGameKey(prevKey => prevKey + 1);
-                      setPendingAutoStart(true);
-                      setPendingSpeedMultiplier(1.0);
-                    }}
-                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
-                  >
-                    <span className="text-white">🎵 {isEnglishCopy ? 'Normal (100%)' : '通常速度（100%）'}</span>
-                  </button>
-                  {/* 75%速度で練習 */}
-                  <button
-                    onClick={() => {
-                      setPlayMode('practice');
-                      setShowResult(false);
-                      setGameKey(prevKey => prevKey + 1);
-                      setPendingAutoStart(true);
-                      setPendingSpeedMultiplier(0.75);
-                    }}
-                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-yellow-600/80 hover:bg-yellow-500 border-yellow-400/50 hover:scale-[1.02]"
-                  >
-                    <span className="text-white">🐢 {isEnglishCopy ? 'Slow (75%)' : 'ゆっくり（75%）'}</span>
-                  </button>
-                  {/* 50%速度で練習 */}
-                  <button
-                    onClick={() => {
-                      setPlayMode('practice');
-                      setShowResult(false);
-                      setGameKey(prevKey => prevKey + 1);
-                      setPendingAutoStart(true);
-                      setPendingSpeedMultiplier(0.5);
-                    }}
-                    className="w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border bg-blue-600/80 hover:bg-blue-500 border-blue-400/50 hover:scale-[1.02]"
-                  >
-                    <span className="text-white">🐌 {isEnglishCopy ? 'Very Slow (50%)' : 'とてもゆっくり（50%）'}</span>
-                  </button>
-                </div>
+                <ResultPracticeSettings
+                  currentStage={currentStage}
+                  isEnglishCopy={isEnglishCopy}
+                  onStartPractice={(speed, transposeOpts) => {
+                    setPlayMode('practice');
+                    setShowResult(false);
+                    setGameKey(prevKey => prevKey + 1);
+                    setPendingAutoStart(true);
+                    setPendingSpeedMultiplier(speed);
+                    // 移調設定はFantasyGameScreen側で処理（URLパラメータ経由ではなくprops経由）
+                  }}
+                />
               ) : (
                 /* singleモードの場合は従来の練習ボタン */
                 <button

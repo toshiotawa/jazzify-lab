@@ -864,7 +864,7 @@ export const useFantasyGameEngine = ({
       const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
       const isDefeated = newHp === 0;
 
-      // コールバックを実行
+      // コールバック呼び出し（handleChordCorrect内で遅延処理）
       onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
 
       // SP更新

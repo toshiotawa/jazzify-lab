@@ -427,41 +427,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
-  const handleChordCorrect = useCallback(async (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
-    // デバッグ用: 正解コールバックが呼ばれたことを確認
-    console.log('🎯 handleChordCorrect called:', { 
-      chordRoot: chord.root, 
-      displayName: chord.displayName,
-      playRootOnCorrect: stage?.playRootOnCorrect 
-    });
-    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
-    
-    if (fantasyPixiInstance) {
-      fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
-      // 太鼓progressionモード時は判定ライン上に小さなヒットエフェクトを表示
-      if (isTaikoModeRef.current) {
-        const pos = fantasyPixiInstance.getJudgeLinePosition();
-        fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
+  // 🚀 パフォーマンス最適化: 全処理をrequestAnimationFrameで次フレームに遅延
+  // これによりReactのsetStateバッチ更新と分離され、ノーツアニメーションがブレなくなる
+  const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
+    // 🚀 全処理を次フレームに遅延（現在のフレームのレンダリングを妨げない）
+    requestAnimationFrame(() => {
+      devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
+      
+      // PIXI視覚フィードバック
+      if (fantasyPixiInstance) {
+        fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
+        if (isTaikoModeRef.current) {
+          const pos = fantasyPixiInstance.getJudgeLinePosition();
+          fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
+        }
       }
-    }
 
-    // 🚀 パフォーマンス最適化: ルート音を同期的に再生（動的インポート不要）
-    const allowRootSound = stage?.playRootOnCorrect !== false;
-    console.log('🎵 allowRootSound:', allowRootSound);
-    if (allowRootSound) {
-      // スラッシュコード対応: 分母があればそれをルートとして鳴らす
-      const id = chord.id || chord.displayName || chord.root;
-      let bassToPlay = chord.root;
-      if (typeof id === 'string' && id.includes('/')) {
-        const parts = id.split('/');
-        if (parts[1]) bassToPlay = parts[1];
+      // ルート音再生
+      const allowRootSound = stage?.playRootOnCorrect !== false;
+      if (allowRootSound) {
+        const id = chord.id || chord.displayName || chord.root;
+        let bassToPlay = chord.root;
+        if (typeof id === 'string' && id.includes('/')) {
+          const parts = id.split('/');
+          if (parts[1]) bassToPlay = parts[1];
+        }
+        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
       }
-      console.log('🎵 About to play root note:', bassToPlay);
-      // fire-and-forget で呼び出し（await せずにラグを防止）
-      FantasySoundManager.playRootNote(bassToPlay).catch(e => 
-        console.error('Failed to play root note:', e)
-      );
-    }
+    });
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   
@@ -957,19 +950,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
   
-  // 太鼓の達人モードのノーツ表示更新（最適化版）
+  // 🚀 パフォーマンス最適化: 太鼓ノーツ更新用のrefを追加（useEffectの依存配列から除外するため）
+  const taikoNotesRef = useRef(gameState.taikoNotes);
+  const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
+  const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
+  
+  // taikoNotes/currentNoteIndex/awaitingLoopStartが変更されたらrefを更新（アニメーションループはそのまま継続）
   useEffect(() => {
-    if (!fantasyPixiInstance || !gameState.isTaikoMode || gameState.taikoNotes.length === 0) return;
+    taikoNotesRef.current = gameState.taikoNotes;
+    currentNoteIndexRef.current = gameState.currentNoteIndex;
+    awaitingLoopStartRef.current = gameState.awaitingLoopStart;
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
+
+  // 太鼓の達人モードのノーツ表示更新（最適化版）
+  // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
+  useEffect(() => {
+    if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
+    // 初期化時にノーツがない場合もループは開始（後からノーツが追加される可能性があるため）
     
     let animationId: number;
     let lastUpdateTime = 0;
     const updateInterval = 1000 / 60; // 60fps
     
     // ループ情報を事前計算
-    const stage = gameState.currentStage!;
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+    const stageData = gameState.currentStage;
+    if (!stageData) return;
+    const secPerBeat = 60 / (stageData.bpm || 120);
+    const secPerMeasure = secPerBeat * (stageData.timeSignature || 4);
+    const loopDuration = (stageData.measureCount || 8) * secPerMeasure;
 
     // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
     // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
@@ -1013,11 +1021,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastUpdateTime = timestamp;
       
+      // 🚀 パフォーマンス最適化: refから最新の値を取得（useEffectの再起動なしに最新値を参照）
+      const taikoNotes = taikoNotesRef.current;
+      const currentNoteIndex = currentNoteIndexRef.current;
+      const isAwaitingLoop = awaitingLoopStartRef.current;
+      
+      // ノーツがない場合は何も表示せずに次フレームへ
+      if (taikoNotes.length === 0) {
+        fantasyPixiInstance.updateTaikoNotes([]);
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      
       const currentTime = bgmManager.getCurrentMusicTime();
       const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
-      const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
@@ -1026,15 +1045,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           devLog.debug('🕐 カウントイン中の時間同期:', {
             currentTime: currentTime.toFixed(3),
             isCountIn: true,
-            firstNoteHitTime: gameState.taikoNotes[0]?.hitTime.toFixed(3),
-            timeUntilFirstNote: gameState.taikoNotes[0] ? (gameState.taikoNotes[0].hitTime - currentTime).toFixed(3) : 'N/A'
+            firstNoteHitTime: taikoNotes[0]?.hitTime.toFixed(3),
+            timeUntilFirstNote: taikoNotes[0] ? (taikoNotes[0].hitTime - currentTime).toFixed(3) : 'N/A'
           });
         }
         
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
+        for (let i = 0; i < taikoNotes.length; i++) {
+          const note = taikoNotes[i];
           const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
@@ -1059,18 +1078,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
-      // awaitingLoopStart状態の場合は、次ループ開始を待っている状態
-      // この場合、現在ループのノーツは全て消化済みなので表示しない
-      const isAwaitingLoop = gameState.awaitingLoopStart;
-      
       // 通常のノーツ（現在ループのみ表示）
       if (!isAwaitingLoop) {
-        gameState.taikoNotes.forEach((note, index) => {
+        taikoNotes.forEach((note, index) => {
           // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
           if (note.isHit) return;
 
           // 既にこのループで消化済みのインデックスは表示しない（復活防止）
-          if (index < gameState.currentNoteIndex) return;
+          if (index < currentNoteIndex) return;
 
           // 現在ループ基準の時間差
           const timeUntilHit = note.hitTime - normalizedTime;
@@ -1103,9 +1118,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 2. ループ境界が近い（lookAheadTime以内）
       const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
       
-      if (shouldShowNextLoopPreview && gameState.taikoNotes.length > 0) {
-        for (let i = 0; i < gameState.taikoNotes.length; i++) {
-          const note = gameState.taikoNotes[i];
+      if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
+        for (let i = 0; i < taikoNotes.length; i++) {
+          const note = taikoNotes[i];
 
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
@@ -1165,7 +1180,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         cancelAnimationFrame(animationId);
       }
     };
-  }, [gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, fantasyPixiInstance, gameState.currentStage]);
+    // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
+    // これらはrefで参照するため、変更時にアニメーションループが再起動されない
+  }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
@@ -1356,8 +1373,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const isProgressionMode = stage.mode.startsWith('progression');
     
     return (
-      <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen">
-        <div className="text-white text-center max-w-md px-4">
+      <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen overflow-y-auto">
+        <div className="text-white text-center max-w-md px-4 py-6 my-auto">
           <div className="text-6xl mb-6">🎮</div>
             <h2 className="text-3xl font-bold mb-4">
               {localizedStageName ?? (isEnglishCopy ? 'Title unavailable' : 'タイトル取得失敗')}
@@ -1396,7 +1413,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {isProgressionMode ? (
               <div className="w-full space-y-2">
                 <div className="text-sm text-gray-400 mt-2">
-                  {isEnglishCopy ? '🎹 Practice Mode (select speed)' : '🎹 練習モード（速度を選択）'}
+                  {isEnglishCopy ? '🎹 Practice Mode' : '🎹 練習モード'}
                 </div>
                 
                 {/* 移調練習設定（progression_timingモードの場合のみ表示） */}
@@ -1442,56 +1459,39 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   </div>
                 )}
                 
-                {/* 通常速度で練習 */}
-                <button
-                  onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 100%）');
-                    startGame('practice', 1.0, { keyOffset: transposeKeyOffset, repeatKeyChange });
-                  }}
-                  disabled={!isInitialized}
-                  className={cn(
-                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
-                    isInitialized 
-                      ? "bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
-                      : "bg-gray-700 cursor-wait border-gray-600"
-                  )}
-                >
-                  <span className="text-white">🎵 {isEnglishCopy ? 'Normal (100%)' : '通常速度（100%）'}</span>
-                </button>
-                
-                {/* 75%速度で練習 */}
-                <button
-                  onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 75%）');
-                    startGame('practice', 0.75, { keyOffset: transposeKeyOffset, repeatKeyChange });
-                  }}
-                  disabled={!isInitialized}
-                  className={cn(
-                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
-                    isInitialized 
-                      ? "bg-yellow-600/80 hover:bg-yellow-500 border-yellow-400/50 hover:scale-[1.02]"
-                      : "bg-gray-700 cursor-wait border-gray-600"
-                  )}
-                >
-                  <span className="text-white">🐢 {isEnglishCopy ? 'Slow (75%)' : 'ゆっくり（75%）'}</span>
-                </button>
-                
-                {/* 50%速度で練習 */}
-                <button
-                  onClick={() => {
-                    devLog.debug('🎮 ゲーム開始（練習 50%）');
-                    startGame('practice', 0.5, { keyOffset: transposeKeyOffset, repeatKeyChange });
-                  }}
-                  disabled={!isInitialized}
-                  className={cn(
-                    "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
-                    isInitialized 
-                      ? "bg-blue-600/80 hover:bg-blue-500 border-blue-400/50 hover:scale-[1.02]"
-                      : "bg-gray-700 cursor-wait border-gray-600"
-                  )}
-                >
-                  <span className="text-white">🐌 {isEnglishCopy ? 'Very Slow (50%)' : 'とてもゆっくり（50%）'}</span>
-                </button>
+                {/* 速度選択ドロップダウン + 練習開始ボタン */}
+                <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
+                  <div className="flex items-center gap-2">
+                    <label className="text-xs text-gray-300 min-w-[60px]">
+                      {isEnglishCopy ? 'Speed' : '速度'}:
+                    </label>
+                    <select
+                      value={selectedSpeedMultiplier}
+                      onChange={(e) => setSelectedSpeedMultiplier(parseFloat(e.target.value))}
+                      className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-2 border border-gray-600"
+                    >
+                      <option value={1.0}>🎵 100% ({isEnglishCopy ? 'Normal' : '通常速度'})</option>
+                      <option value={0.75}>🐢 75% ({isEnglishCopy ? 'Slow' : 'ゆっくり'})</option>
+                      <option value={0.5}>🐌 50% ({isEnglishCopy ? 'Very Slow' : 'とてもゆっくり'})</option>
+                    </select>
+                  </div>
+                  
+                  <button
+                    onClick={() => {
+                      devLog.debug('🎮 ゲーム開始（練習）', { speed: selectedSpeedMultiplier });
+                      startGame('practice', selectedSpeedMultiplier, { keyOffset: transposeKeyOffset, repeatKeyChange });
+                    }}
+                    disabled={!isInitialized}
+                    className={cn(
+                      "w-full px-6 py-3 font-bold rounded-lg shadow-lg transform transition-all border",
+                      isInitialized 
+                        ? "bg-green-600/80 hover:bg-green-500 border-green-400/50 hover:scale-[1.02]"
+                        : "bg-gray-700 cursor-wait border-gray-600"
+                    )}
+                  >
+                    <span className="text-white">{isEnglishCopy ? 'Start Practice' : '練習を開始'}</span>
+                  </button>
+                </div>
               </div>
             ) : (
               /* singleモードの場合は従来の練習ボタン */
