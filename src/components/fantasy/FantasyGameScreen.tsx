@@ -760,13 +760,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
       // fire-and-forget で呼び出し
-      playNote(note, 64).catch(e => devLog.debug('Failed to play note:', e));
+      playNote(note, 64).catch(() => {});
       activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
     }
     
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
+    // 🚀 パフォーマンス最適化: ゲームエンジンへの入力を次フレームに遅延
+    // これにより現在のフレームのレンダリングが妨げられない
+    requestAnimationFrame(() => {
+      engineHandleNoteInput(note);
+    });
     
     // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
     if (source === 'mouse') {
