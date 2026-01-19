@@ -4,7 +4,224 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
-import { note as parseNote } from 'tonal';
+import { note as parseNote, transpose, Interval } from 'tonal';
+
+// ===== 移調設定の型定義 =====
+
+/**
+ * 出題キーの配列（CbメジャーやF#メジャーを避けた12キー）
+ * 基準キーから±6の範囲で移調
+ */
+export const TRANSPOSE_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
+export type TransposeKey = typeof TRANSPOSE_KEYS[number];
+
+/**
+ * リピートごとのキー変更オプション
+ */
+export type RepeatKeyChange = 'off' | '+1' | '+5';
+
+/**
+ * 移調設定
+ */
+export interface TransposeSettings {
+  /** 開始時のキーオフセット（-6 ~ +6） */
+  keyOffset: number;
+  /** リピートごとのキー変更 */
+  repeatKeyChange: RepeatKeyChange;
+}
+
+/**
+ * キーオフセットから出題キー名を取得
+ * @param baseKey 基準キー（通常は 'C'）
+ * @param offset 半音オフセット（-6 ~ +6）
+ * @returns 出題キー名
+ */
+export function getKeyFromOffset(baseKey: string = 'C', offset: number): TransposeKey {
+  // オフセットを-6〜+6の範囲に正規化
+  const normalizedOffset = ((offset % 12) + 12) % 12;
+  if (normalizedOffset > 6) {
+    // 7〜11は-5〜-1として扱う
+    const idx = (12 - normalizedOffset) % 12;
+    return TRANSPOSE_KEYS[idx];
+  }
+  
+  // baseKeyのインデックスを取得
+  const baseIdx = TRANSPOSE_KEYS.indexOf(baseKey as TransposeKey);
+  const baseIndex = baseIdx >= 0 ? baseIdx : 0;
+  
+  // オフセットを適用
+  const targetIndex = (baseIndex + normalizedOffset + 12) % 12;
+  return TRANSPOSE_KEYS[targetIndex];
+}
+
+/**
+ * 半音数を音楽理論的なインターバル名に変換
+ */
+function semitonesToInterval(semitones: number): string {
+  const intervalMap: Record<number, string> = {
+    0: '1P', 1: '2m', 2: '2M', 3: '3m', 4: '3M', 5: '4P',
+    6: '4A', 7: '5P', 8: '6m', 9: '6M', 10: '7m', 11: '7M', 12: '8P'
+  };
+  
+  // 負の値も対応
+  const absSemitones = Math.abs(semitones);
+  const normalized = absSemitones % 12;
+  const interval = intervalMap[normalized];
+  
+  if (!interval) return '1P';
+  
+  // 負の場合は下行
+  if (semitones < 0 && normalized !== 0) {
+    return '-' + interval;
+  }
+  
+  return interval;
+}
+
+/**
+ * 単一の音名を移調
+ * @param noteName 音名（例: 'C', 'Eb', 'F#'）
+ * @param semitones 半音数（正: 上行、負: 下行）
+ * @returns 移調後の音名
+ */
+export function transposeNoteName(noteName: string, semitones: number): string {
+  if (semitones === 0) return noteName;
+  
+  // オクターブを除去
+  const cleanName = noteName.replace(/\d+$/, '');
+  const octaveMatch = noteName.match(/(\d+)$/);
+  const octave = octaveMatch ? parseInt(octaveMatch[1], 10) : 4;
+  
+  // tonalで移調
+  const interval = Interval.fromSemitones(semitones);
+  const transposed = transpose(cleanName + octave, interval);
+  
+  if (!transposed) {
+    console.warn(`⚠️ 移調失敗: ${noteName} + ${semitones}半音`);
+    return noteName;
+  }
+  
+  // 結果を正規化（Cb → B, E# → Fなど、出題キーに合わせる）
+  const result = normalizeEnharmonic(transposed.replace(/\d+$/, ''));
+  return octaveMatch ? result + octave : result;
+}
+
+/**
+ * エンハーモニックの正規化（CbメジャーやF#メジャーを避ける）
+ * @param noteName 音名
+ * @returns 正規化された音名
+ */
+function normalizeEnharmonic(noteName: string): string {
+  // ダブルシャープ・ダブルフラットを基本音名に変換
+  const enharmonicMap: Record<string, string> = {
+    'Cb': 'B', 'B#': 'C', 'E#': 'F', 'Fb': 'E',
+    'Cx': 'D', 'Dx': 'E', 'Fx': 'G', 'Gx': 'A', 'Ax': 'B',
+    'Dbb': 'C', 'Ebb': 'D', 'Gbb': 'F', 'Abb': 'G', 'Bbb': 'A',
+    // F#/Gbは Gbを優先（Cbメジャー/F#メジャーを避けるため）
+    'F#': 'Gb'
+  };
+  
+  return enharmonicMap[noteName] || noteName;
+}
+
+/**
+ * MIDIノートを移調
+ * @param midi MIDIノート番号
+ * @param semitones 半音数
+ * @returns 移調後のMIDIノート番号
+ */
+export function transposeMidi(midi: number, semitones: number): number {
+  return midi + semitones;
+}
+
+/**
+ * ChordDefinitionを移調
+ * @param chord 元のコード定義
+ * @param semitones 半音数
+ * @returns 移調後のコード定義
+ */
+export function transposeChordDefinition(chord: ChordDefinition, semitones: number): ChordDefinition {
+  if (semitones === 0) return chord;
+  
+  // ルート音を移調
+  const transposedRoot = transposeNoteName(chord.root, semitones);
+  
+  // 各構成音を移調
+  const transposedNoteNames = chord.noteNames.map(name => transposeNoteName(name, semitones));
+  
+  // MIDIノートを移調
+  const transposedNotes = chord.notes.map(midi => transposeMidi(midi, semitones));
+  
+  // 表示名を更新（コード名の場合はルートを置換）
+  let transposedDisplayName = chord.displayName;
+  if (chord.displayName.startsWith(chord.root)) {
+    transposedDisplayName = transposedRoot + chord.displayName.slice(chord.root.length);
+  } else {
+    // 単音などの場合
+    transposedDisplayName = transposedNoteNames.join(' ');
+  }
+  
+  return {
+    id: transposedDisplayName.replace(/\s+/g, ''),
+    displayName: transposedDisplayName,
+    notes: transposedNotes,
+    noteNames: transposedNoteNames,
+    quality: chord.quality,
+    root: transposedRoot
+  };
+}
+
+/**
+ * TaikoNoteを移調
+ * @param note 元のノート
+ * @param semitones 半音数
+ * @returns 移調後のノート
+ */
+export function transposeTaikoNote(note: TaikoNote, semitones: number): TaikoNote {
+  if (semitones === 0) return note;
+  
+  return {
+    ...note,
+    id: `${note.id}_t${semitones}`, // 移調を識別できるようにIDを更新
+    chord: transposeChordDefinition(note.chord, semitones)
+  };
+}
+
+/**
+ * TaikoNote配列を移調
+ * @param notes ノート配列
+ * @param semitones 半音数
+ * @returns 移調後のノート配列
+ */
+export function transposeTaikoNotes(notes: TaikoNote[], semitones: number): TaikoNote[] {
+  if (semitones === 0) return notes;
+  return notes.map(note => transposeTaikoNote(note, semitones));
+}
+
+/**
+ * リピート回数に応じた移調オフセットを計算
+ * @param baseOffset 基準オフセット
+ * @param repeatCycle 現在のリピート回数（0から開始）
+ * @param repeatKeyChange リピートごとのキー変更設定
+ * @returns 実際の移調オフセット（半音数）
+ */
+export function calculateTransposeOffset(
+  baseOffset: number,
+  repeatCycle: number,
+  repeatKeyChange: RepeatKeyChange
+): number {
+  if (repeatKeyChange === 'off') {
+    return baseOffset;
+  }
+  
+  const changeAmount = repeatKeyChange === '+1' ? 1 : 5;
+  const totalChange = baseOffset + (repeatCycle * changeAmount);
+  
+  // -6〜+6の範囲に収める（循環）
+  // 実際の半音数は-6〜+6を超えても音楽的には同じピッチクラスなので
+  // 0-11の範囲に正規化
+  return ((totalChange % 12) + 12) % 12;
+}
 
 // ===== 袋形式ランダムセレクター =====
 

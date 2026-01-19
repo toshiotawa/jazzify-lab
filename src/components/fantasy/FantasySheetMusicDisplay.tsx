@@ -9,6 +9,7 @@ import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
+import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 interface FantasySheetMusicDisplayProps {
   width: number;
@@ -21,6 +22,8 @@ interface FantasySheetMusicDisplayProps {
   countInMeasures?: number;
   /** Harmonyデータ（chord_progression_dataのtext付きアイテム）*/
   harmonyMarkers?: Array<{ time: number; text: string }>;
+  /** 移調オフセット（半音数、-12 ~ +12） */
+  transposeOffset?: number;
   className?: string;
 }
 
@@ -43,6 +46,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   measureCount,
   countInMeasures = 0,
   harmonyMarkers = [],
+  transposeOffset = 0,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -123,9 +127,24 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     devLog.debug('✅ タイムマッピング作成完了:', { entries: mapping.length });
   }, [loopInfo]);
   
+  // 移調済みMusicXMLをメモ化
+  const transposedMusicXml = useMemo(() => {
+    if (!musicXml || transposeOffset === 0) {
+      return musicXml;
+    }
+    try {
+      const transposed = transposeMusicXml(musicXml, transposeOffset);
+      devLog.debug('🎹 楽譜を移調:', { offset: transposeOffset });
+      return transposed;
+    } catch (err) {
+      devLog.debug('⚠️ 楽譜移調エラー:', err);
+      return musicXml;
+    }
+  }, [musicXml, transposeOffset]);
+  
   // OSMDの初期化とレンダリング
   const loadAndRenderSheet = useCallback(async () => {
-    if (!containerRef.current || !musicXml) {
+    if (!containerRef.current || !transposedMusicXml) {
       setError('楽譜データがありません');
       return;
     }
@@ -161,7 +180,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       
       osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
       
-      await osmdRef.current.load(musicXml);
+      await osmdRef.current.load(transposedMusicXml);
       osmdRef.current.render();
       
       // スケールファクターを計算
@@ -198,14 +217,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, width, createTimeMapping]);
+  }, [transposedMusicXml, width, createTimeMapping]);
   
-  // musicXmlが変更されたら再レンダリング
+  // musicXmlまたはtransposeOffsetが変更されたら再レンダリング
   useEffect(() => {
-    if (musicXml) {
+    if (transposedMusicXml) {
       loadAndRenderSheet();
     }
-  }, [loadAndRenderSheet, musicXml]);
+  }, [loadAndRenderSheet, transposedMusicXml]);
   
   // 再生位置に同期してスクロール（ループ対応）
   useEffect(() => {

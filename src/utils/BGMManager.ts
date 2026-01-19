@@ -1,4 +1,8 @@
-/* HTMLAudio ベースの簡易 BGM ルーパー */
+/* HTMLAudio ベースの簡易 BGM ルーパー（ピッチシフト対応） */
+
+// Tone.jsの型（動的インポート用）
+type ToneType = typeof import('tone');
+type PitchShiftType = InstanceType<ToneType['PitchShift']>;
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
@@ -16,6 +20,7 @@ class BGMManager {
   private loopTimeoutId: number | null = null // タイムアウトID
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
+  private pitchShift = 0 // ピッチシフト（半音単位、-12 ~ +12）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -23,6 +28,13 @@ class BGMManager {
   private waBuffer: AudioBuffer | null = null
   private waSource: AudioBufferSourceNode | null = null
   private waStartAt: number = 0
+  
+  // Tone.js PitchShift（ピッチシフト用）
+  private tonePitchShift: PitchShiftType | null = null
+  private tonePlayer: any = null // Tone.Player
+  private toneLoopStart: number = 0
+  private toneLoopEnd: number = 0
+  private useTonePitchShift = false // Tone.jsを使用するかどうか
 
   play(
     url: string,
@@ -31,7 +43,8 @@ class BGMManager {
     measureCount: number,
     countIn: number,
     volume = 0.7,
-    playbackRate = 1.0
+    playbackRate = 1.0,
+    pitchShift = 0 // 半音単位のピッチシフト（-12 ~ +12）
   ) {
     if (!url) return
     
@@ -44,18 +57,60 @@ class BGMManager {
     this.measureCount = measureCount
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
+    this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
     this.loopBegin = this.countInMeasures * secPerMeas
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
+    this.toneLoopStart = this.loopBegin
+    this.toneLoopEnd = this.loopEnd
 
+    // ピッチシフトが必要な場合はTone.jsを使用
+    if (this.pitchShift !== 0) {
+      this.useTonePitchShift = true
+      this._playTonePitchShift(url, volume).catch(err => {
+        console.warn('Tone.js PitchShift failed, fallback to WebAudio:', err)
+        this.useTonePitchShift = false
+        this._playWebAudio(url, volume).catch(err2 => {
+          console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err2)
+          this._playHtmlAudio(url, volume)
+        })
+      })
+      return
+    }
+
+    this.useTonePitchShift = false
     // Web Audio 経路でシームレスループを試みる
     this._playWebAudio(url, volume).catch(err => {
       console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
       this._playHtmlAudio(url, volume)
     })
+  }
+  
+  /**
+   * ピッチシフトを動的に変更（リピート時のキー変更用）
+   * @param semitones 半音数（-12 ~ +12）
+   */
+  setPitchShift(semitones: number) {
+    this.pitchShift = Math.max(-12, Math.min(12, semitones))
+    
+    if (this.tonePitchShift) {
+      try {
+        (this.tonePitchShift as any).pitch = this.pitchShift
+        console.log(`🎹 BGMピッチシフト変更: ${this.pitchShift}半音`)
+      } catch (e) {
+        console.warn('Failed to update pitch shift:', e)
+      }
+    }
+  }
+  
+  /**
+   * 現在のピッチシフト値を取得
+   */
+  getPitchShift(): number {
+    return this.pitchShift
   }
 
   setVolume(v: number) {
@@ -70,6 +125,7 @@ class BGMManager {
   stop() {
     this.isPlaying = false
     this.loopScheduled = false
+    this.useTonePitchShift = false
 
     try {
       if (this.loopTimeoutId !== null) {
@@ -102,6 +158,21 @@ class BGMManager {
       this.waBuffer = null
       try { this.waGain?.disconnect?.() } catch {}
       this.waGain = null
+      
+      // Tone.js cleanup
+      try { 
+        if (this.tonePlayer) {
+          this.tonePlayer.stop()
+          this.tonePlayer.dispose()
+          this.tonePlayer = null
+        }
+      } catch {}
+      try {
+        if (this.tonePitchShift) {
+          this.tonePitchShift.dispose()
+          this.tonePitchShift = null
+        }
+      } catch {}
     } catch (e) {
       console.warn('BGMManager.stop safe stop failed:', e)
     } finally {
@@ -129,6 +200,22 @@ class BGMManager {
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
+      // Tone.js PitchShift使用時
+      if (this.useTonePitchShift && this.tonePlayer) {
+        try {
+          // Tone.Playerのseekを使用して現在位置を取得
+          const Tone = (window as any).Tone
+          if (Tone && typeof Tone.now === 'function') {
+            const elapsedRealTime = Tone.now() - this.waStartAt
+            const musicTime = elapsedRealTime * this.playbackRate
+            // ループを考慮した位置を計算
+            const loopDuration = this.loopEnd - this.loopBegin
+            const posInLoop = musicTime % loopDuration
+            return posInLoop
+          }
+        } catch {}
+      }
+      
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
         // playbackRateを考慮した音楽的な時間を計算
@@ -264,6 +351,52 @@ class BGMManager {
     }
   }
 
+  // ─────────────────────────────────────────────
+  // Tone.js PitchShift 実装（iOS対応）
+  private async _playTonePitchShift(url: string, volume: number): Promise<void> {
+    // Tone.jsを動的インポート
+    const Tone = await import('tone')
+    
+    // AudioContextを起動
+    await Tone.start()
+    
+    // PitchShiftノードを作成
+    this.tonePitchShift = new Tone.PitchShift({
+      pitch: this.pitchShift,
+      windowSize: 0.1,
+      delayTime: 0.05
+    }).toDestination()
+    
+    // ボリューム調整（PitchShiftの前に挿入）
+    const gainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
+    
+    // Playerを作成（ループ対応）
+    this.tonePlayer = new Tone.Player({
+      url: url,
+      loop: true,
+      loopStart: this.loopBegin,
+      loopEnd: this.loopEnd,
+      playbackRate: this.playbackRate,
+      onload: () => {
+        console.log('🎵 BGM loaded (Tone.js PitchShift)')
+        // 再生開始
+        this.tonePlayer.start(Tone.now(), 0)
+        this.isPlaying = true
+        this.startTime = performance.now()
+        this.waStartAt = Tone.now()
+        console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
+          url, 
+          bpm: this.bpm, 
+          pitchShift: this.pitchShift,
+          loopBegin: this.loopBegin, 
+          loopEnd: this.loopEnd 
+        })
+      }
+    }).connect(gainNode)
+    
+    // Tone.jsのTransportを使用しない（シンプルなPlayer.loopを使用）
+  }
+  
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
