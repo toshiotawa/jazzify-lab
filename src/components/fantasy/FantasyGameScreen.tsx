@@ -568,6 +568,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // ループ時の変更はsetPitchShift()で行うため、ここでは初期値のみ使用
     const initialPitchShift = gameState.transposeSettings?.keyOffset || 0;
     
+    // 動的ピッチシフトを有効にする条件：
+    // - 転調設定があり、かつリピートごとのキー変更が有効な場合
+    // これにより、初期ピッチシフトが0でもTone.jsを使用し、
+    // ループ時にsetPitchShift()で動的にピッチを変更できる
+    const enableDynamicPitchShift = !!(
+      gameState.transposeSettings && 
+      gameState.transposeSettings.repeatKeyChange !== 'off'
+    );
+    
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
@@ -576,7 +585,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      initialPitchShift
+      initialPitchShift,
+      enableDynamicPitchShift
     );
 
     return () => bgmManager.stop();

@@ -45,7 +45,8 @@ class BGMManager {
     countIn: number,
     volume = 0.7,
     playbackRate = 1.0,
-    pitchShift = 0 // 半音単位のピッチシフト（-12 ~ +12）
+    pitchShift = 0, // 半音単位のピッチシフト（-12 ~ +12）
+    enableDynamicPitchShift = false // 動的ピッチシフトを有効にする（転調練習モード用）
   ) {
     if (!url) return
     
@@ -80,11 +81,14 @@ class BGMManager {
       loopEnd: this.loopEnd.toFixed(3),
       playbackRate: this.playbackRate,
       pitchShift: this.pitchShift,
+      enableDynamicPitchShift,
       note: `BGM 0秒 = カウントイン開始, BGM ${this.loopBegin.toFixed(2)}秒 = M1 Beat1 (getCurrentMusicTime = 0)`
     })
 
-    // ピッチシフトが必要な場合はTone.jsを使用
-    if (this.pitchShift !== 0) {
+    // ピッチシフトが必要な場合、または動的ピッチシフトが有効な場合はTone.jsを使用
+    // enableDynamicPitchShift=trueの場合、初期ピッチシフトが0でもTone.jsを使用し、
+    // 後からsetPitchShift()で動的にピッチを変更できるようにする
+    if (this.pitchShift !== 0 || enableDynamicPitchShift) {
       this.useTonePitchShift = true
       this._playTonePitchShift(url, volume).catch(err => {
         console.warn('Tone.js PitchShift failed, fallback to WebAudio:', err)
