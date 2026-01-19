@@ -561,8 +561,10 @@ const playFromOffset = useCallback(
       };
 
       bufferSourceRef.current = source;
+      // 🔧 修正: source.start()直前のcontextTimeを保存して、ノーツとオーディオの開始時間を同期
+      const startContextTime = audioContext.currentTime;
       source.start(0, bufferOffset);
-      baseOffsetRef.current = audioContext.currentTime - bufferOffset / playbackSpeedRef.current;
+      baseOffsetRef.current = startContextTime - bufferOffset / playbackSpeedRef.current;
 
       setHasPlaybackFinished(false);
       gameEngine.start(audioContext);
