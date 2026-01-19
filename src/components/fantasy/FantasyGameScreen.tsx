@@ -15,9 +15,7 @@ import {
   TaikoNote, 
   ChordProgressionDataItem,
   TransposeSettings,
-  RepeatKeyChange,
-  getKeyFromOffset,
-  TRANSPOSE_KEYS
+  RepeatKeyChange
 } from './TaikoNoteSystem';
 import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
@@ -1001,6 +999,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
       const previewWindow = 2 * secPerMeasure; // 次ループのプレビューは2小節分
       
+      // BGMがまだ再生中でない場合（ロード中など）は、ノーツを待機位置に表示
+      if (!bgmManager.getIsPlaying()) {
+        // 最初の数ノーツを画面右側に待機表示
+        const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+        const waitingX = judgeLinePos.x + lookAheadTime * noteSpeed; // 右端に待機
+        for (let i = 0; i < Math.min(3, gameState.taikoNotes.length); i++) {
+          const note = gameState.taikoNotes[i];
+          notesToDisplay.push({ 
+            id: note.id, 
+            chord: note.chord.displayName, 
+            x: waitingX,
+            noteNames: note.chord.noteNames 
+          });
+        }
+        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+        animationId = requestAnimationFrame(updateTaikoNotes);
+        return;
+      }
+      
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
@@ -1073,16 +1090,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 次ループのノーツを先読み表示する条件:
       // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
       // 2. ループ境界が近い（lookAheadTime以内）
+      // ※ 設定されたloopDurationに基づいて計算（音源長に依存しない）
       const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
       
       if (shouldShowNextLoopPreview && gameState.taikoNotes.length > 0) {
+        // 次ループの先読みノーツを表示
+        // BGMManagerのloopCountを使用して、正しいループ位置を計算
+        const currentLoopCount = bgmManager.getLoopCount();
+        
         for (let i = 0; i < gameState.taikoNotes.length; i++) {
           const note = gameState.taikoNotes[i];
 
           // すでに通常ノーツで表示しているものは重複させない
           if (displayedBaseIds.has(note.id)) continue;
 
-          // 次ループの仮想的なヒット時間を計算
+          // 次ループの仮想的なヒット時間を計算（設定されたloopDurationを使用）
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
@@ -1093,7 +1115,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
           notesToDisplay.push({
-            id: `${note.id}_loop`,
+            id: `${note.id}_loop_${currentLoopCount + 1}`,
             chord: note.chord.displayName,
             x,
             noteNames: note.chord.noteNames
@@ -1378,10 +1400,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
                     </div>
                     
-                    {/* キー変更ドロップダウン */}
+                    {/* 移調量ドロップダウン */}
                     <div className="flex items-center gap-2">
                       <label className="text-xs text-gray-300 min-w-[80px]">
-                        {isEnglishCopy ? 'Start Key' : '開始キー'}:
+                        {isEnglishCopy ? 'Transpose' : '移調量'}:
                       </label>
                       <select
                         value={transposeKeyOffset}
@@ -1390,7 +1412,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       >
                         {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
                           <option key={offset} value={offset}>
-                            {offset > 0 ? `+${offset}` : offset} ({getKeyFromOffset('C', offset)})
+                            {offset === 0 
+                              ? (isEnglishCopy ? 'Original key' : '元のキー')
+                              : (offset > 0 ? `+${offset}` : `${offset}`) + (isEnglishCopy ? ' semitones' : '半音')}
                           </option>
                         ))}
                       </select>
@@ -1558,10 +1582,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     {Math.round(selectedSpeedMultiplier * 100)}%
                   </span>
                 )}
-                {/* 移調キー表示（progression_timingモードかつ移調設定がある場合） */}
+                {/* 移調量表示（progression_timingモードかつ移調設定がある場合） */}
                 {gameState.transposeSettings && gameState.currentTransposeOffset !== 0 && (
                   <span className="ml-2 px-2 py-0.5 bg-purple-600 rounded text-xs">
-                    Key: {getKeyFromOffset('C', gameState.currentTransposeOffset)}
+                    {gameState.currentTransposeOffset > 0 ? '+' : ''}{gameState.currentTransposeOffset}
                   </span>
                 )}
               </div>
