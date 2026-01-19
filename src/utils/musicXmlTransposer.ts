@@ -1,5 +1,148 @@
-import { Note, Interval } from 'tonal';
+import { Note, Interval, Key } from 'tonal';
 import type { TransposingInstrument } from '@/types';
+
+/**
+ * 読みやすい12種類のメジャーキー
+ * 白鍵キー: C, D, E, F, G, A, B
+ * 黒鍵キー: Db, Eb, Gb, Ab, Bb
+ */
+const PREFERRED_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+/**
+ * 異名同音（Enharmonic）のマッピング - 読みやすいキーへ正規化
+ */
+const ENHARMONIC_MAP: Record<string, string> = {
+  'C#': 'Db',
+  'D#': 'Eb',
+  'F#': 'Gb',
+  'G#': 'Ab',
+  'A#': 'Bb',
+  'Cb': 'B',
+  'Fb': 'E',
+  'E#': 'F',
+  'B#': 'C',
+  // ダブルシャープ・ダブルフラット
+  'C##': 'D',
+  'D##': 'E',
+  'E##': 'Gb',
+  'F##': 'G',
+  'G##': 'A',
+  'A##': 'B',
+  'B##': 'Db',
+  'Cbb': 'Bb',
+  'Dbb': 'C',
+  'Ebb': 'D',
+  'Fbb': 'Eb',
+  'Gbb': 'F',
+  'Abb': 'G',
+  'Bbb': 'A',
+};
+
+/**
+ * キーを読みやすい形式に正規化
+ * @param key キー名
+ * @returns 正規化されたキー名
+ */
+function normalizeToPreferredKey(key: string): string {
+  // すでに読みやすいキーならそのまま返す
+  if (PREFERRED_KEYS.includes(key)) {
+    return key;
+  }
+  
+  // 異名同音マッピングで変換
+  if (ENHARMONIC_MAP[key]) {
+    return ENHARMONIC_MAP[key];
+  }
+  
+  return key;
+}
+
+/**
+ * 元のキーから半音数で移調した後の「読みやすいキー」を決定
+ * @param originalKey 元のキー（例: 'F'）
+ * @param semitones 半音数（例: 6）
+ * @returns 読みやすいターゲットキー（例: 'B'）
+ */
+export function getPreferredTargetKey(originalKey: string, semitones: number): string {
+  // 元のキーを正規化
+  const normalizedOriginal = normalizeToPreferredKey(originalKey);
+  
+  // 半音数からターゲットのピッチクラス（0-11）を計算
+  const originalNote = Note.get(normalizedOriginal);
+  if (originalNote.empty) {
+    return normalizedOriginal;
+  }
+  
+  const originalChroma = originalNote.chroma ?? 0;
+  const targetChroma = ((originalChroma + semitones) % 12 + 12) % 12;
+  
+  // ターゲットのピッチクラスに対応する読みやすいキーを返す
+  return PREFERRED_KEYS[targetChroma];
+}
+
+/**
+ * 2つのキー間の正しい音程（Interval）を取得
+ * 音楽理論的に正しい度数を返す（例: F→B = 増4度、F→Cb = 減5度）
+ * @param fromKey 元のキー
+ * @param toKey ターゲットキー
+ * @returns 音程文字列（例: '4A' = 増4度）
+ */
+export function getCorrectInterval(fromKey: string, toKey: string): string {
+  // Tonal.jsのInterval.distanceを使用して正しい音程を取得
+  const interval = Interval.distance(fromKey, toKey);
+  if (interval) {
+    return interval;
+  }
+  
+  // フォールバック: 半音数から音程を計算
+  const fromNote = Note.get(fromKey);
+  const toNote = Note.get(toKey);
+  if (fromNote.empty || toNote.empty) {
+    return '1P'; // ユニゾン
+  }
+  
+  const fromChroma = fromNote.chroma ?? 0;
+  const toChroma = toNote.chroma ?? 0;
+  const semitones = ((toChroma - fromChroma) % 12 + 12) % 12;
+  
+  return Interval.fromSemitones(semitones) ?? '1P';
+}
+
+/**
+ * キーのfifths値（五度圏）を取得
+ * @param keyName キー名
+ * @returns fifths値
+ */
+function getKeyFifths(keyName: string): number {
+  const keyInfo = Key.majorKey(keyName);
+  // Key.majorKey returns an object with scale info
+  // fifths is the number of sharps (positive) or flats (negative)
+  
+  // フォールバック: 直接マッピング
+  const fifthsMap: Record<string, number> = {
+    'C': 0,
+    'G': 1,
+    'D': 2,
+    'A': 3,
+    'E': 4,
+    'B': 5,
+    'Gb': -6,
+    'F#': 6,
+    'Db': -5,
+    'C#': 7,
+    'Ab': -4,
+    'Eb': -3,
+    'Bb': -2,
+    'F': -1,
+    'Cb': -7,
+  };
+  
+  if (keyInfo && typeof keyInfo.alteration === 'number') {
+    return keyInfo.alteration;
+  }
+  
+  return fifthsMap[keyName] ?? 0;
+}
 
 /**
  * 移調楽器の移調量を取得
@@ -46,7 +189,38 @@ export function getTransposingInstrumentName(instrument: TransposingInstrument):
 }
 
 /**
- * Transpose MusicXML string by given semitones, applying custom enharmonic rules.
+ * fifths値（五度圏）からキー名を取得
+ * @param fifths fifths値
+ * @returns キー名
+ */
+function fifthsToKeyName(fifths: number): string {
+  const fifthsToKeyMap: Record<number, string> = {
+    '-7': 'Cb',
+    '-6': 'Gb',
+    '-5': 'Db',
+    '-4': 'Ab',
+    '-3': 'Eb',
+    '-2': 'Bb',
+    '-1': 'F',
+    '0': 'C',
+    '1': 'G',
+    '2': 'D',
+    '3': 'A',
+    '4': 'E',
+    '5': 'B',
+    '6': 'F#',
+    '7': 'C#',
+  };
+  return fifthsToKeyMap[fifths] ?? 'C';
+}
+
+/**
+ * Transpose MusicXML string by given semitones, applying music theory-correct enharmonic rules.
+ * 
+ * 改善点:
+ * 1. 移調後のキーを「読みやすいキー」に正規化（C, D, E, F, G, A, B または Db, Eb, Gb, Ab, Bb）
+ * 2. 正しい音程（Interval）を使用して移調（例: F→B = 増4度、G# → C##）
+ * 3. キー署名も正しく更新
  *
  * @param xmlString Raw MusicXML
  * @param semitones integer, positive = up, negative = down
@@ -58,8 +232,22 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, 'application/xml');
 
-  // Helper to convert step/alter/octave to tonal note string, e.g. C#, Eb4
-  // 🐛 Fix: ダブルシャープ・ダブルフラットもサポート
+  // 1. 元のキーを取得（最初の<key><fifths>から）
+  const firstKeyEl = doc.querySelector('key fifths');
+  const originalFifths = firstKeyEl ? parseInt(firstKeyEl.textContent || '0', 10) : 0;
+  const originalKeyName = fifthsToKeyName(originalFifths);
+  
+  // 2. ターゲットキー（読みやすいキー）を決定
+  const targetKeyName = getPreferredTargetKey(originalKeyName, semitones);
+  
+  // 3. 正しい音程を計算
+  const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
+  
+  // オクターブの調整が必要な場合を考慮（+12, +24, -12などの場合）
+  const octaveShift = Math.floor(semitones / 12);
+  const octaveInterval = octaveShift !== 0 ? `${Math.abs(octaveShift) * 8}P` : null;
+
+  // Helper to convert step/alter/octave to tonal note string, e.g. C#4, Eb4
   const pitchToNote = (step: string, alter: number | null, octave: number): string => {
     let accidental = '';
     if (alter !== null && alter !== 0) {
@@ -117,9 +305,23 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     const octave = parseInt(octaveEl.textContent || '4', 10);
 
     const noteStr = pitchToNote(step, alter, octave);
-    const transposedNote = Note.transpose(noteStr, Interval.fromSemitones(semitones));
     
-    applyNoteToPitch(transposedNote, pitchEl);
+    // 正しい音程で移調
+    let transposedNote = Note.transpose(noteStr, transposeInterval);
+    
+    // オクターブシフトがある場合は追加で適用
+    if (octaveInterval && transposedNote) {
+      if (octaveShift > 0) {
+        transposedNote = Note.transpose(transposedNote, octaveInterval);
+      } else if (octaveShift < 0) {
+        // 負のオクターブシフト
+        transposedNote = Note.transpose(transposedNote, `-${octaveInterval}`);
+      }
+    }
+    
+    if (transposedNote) {
+      applyNoteToPitch(transposedNote, pitchEl);
+    }
   });
 
   // transpose harmony elements (chord symbols)
@@ -140,8 +342,10 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
       rootNote += 'b'.repeat(-rootAlter);
     }
     
-    // Transpose the root note
-    const transposedRootNote = Note.transpose(rootNote, Interval.fromSemitones(semitones));
+    // Transpose the root note using the correct interval
+    const transposedRootNote = Note.transpose(rootNote, transposeInterval);
+    if (!transposedRootNote) return;
+    
     const parsed = Note.get(transposedRootNote);
     
     if (!parsed.empty) {
@@ -172,26 +376,14 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     }
   });
 
-  // transpose key signature <key><fifths>
+  // transpose key signature <key><fifths> - ターゲットキーのfifths値を使用
+  const targetFifths = getKeyFifths(targetKeyName);
   doc.querySelectorAll('key').forEach((keyEl) => {
     const fifthsEl = keyEl.querySelector('fifths');
     if (!fifthsEl) return;
-    const current = parseInt(fifthsEl.textContent || '0', 10);
-    const newFifths = current + semitonesToFifths(semitones);
-    fifthsEl.textContent = String(newFifths);
+    fifthsEl.textContent = String(targetFifths);
   });
 
   const serializer = new XMLSerializer();
   return serializer.serializeToString(doc);
 }
-
-// Convert semitones to fifths (circle of fifths key signature).
-function semitonesToFifths(semitones: number): number {
-  // Map semitone shift (0=C) to key signature fifths within range -7..7
-  // 0:C(0), 1:Db(-5), 2:D(+2), 3:Eb(-3), 4:E(+4), 5:F(-1), 6:Gb(-6), 7:G(+1), 8:Ab(-4), 9:A(+3), 10:Bb(-2), 11:B(+5)
-  const semitoneToFifthsMap = [0, -5, 2, -3, 4, -1, -6, 1, -4, 3, -2, 5];
-  const mod = ((semitones % 12) + 12) % 12;
-  return semitoneToFifthsMap[mod];
-}
-
- 
