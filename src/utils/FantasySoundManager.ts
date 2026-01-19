@@ -410,6 +410,7 @@ export class FantasySoundManager {
 
   // 🎸 ルート音再生（合成音のアコースティックベース風）
   // 🚀 パフォーマンス最適化: 非同期待機を削除し、同期的に即座に再生
+  // 🚀 クリック音防止: PolySynthで前の音を滑らかにリリース
   private async _playRootNote(rootName: string) {
     // 初期化が完了していない場合は無視（待機しない）
     if (!this.isInited || !this.bassEnabled) return;
@@ -435,12 +436,26 @@ export class FantasySoundManager {
     const note = Tone.Frequency(n.midi, 'midi').toNote();
     
     try {
-      // 短めの発音（アコースティックベースをイメージ）
+      // 🚀 クリック音防止: 前の音を滑らかにリリースしてから新しい音を再生
+      // PolySynthなので前の音は自然にフェードアウトし、新しい音と重なる
+      if (this.lastRootNote && this.lastRootNote !== note) {
+        // 前の音を短いリリースで終了（クリック音を防ぐ）
+        try {
+          this.rootBassSynth.triggerRelease(this.lastRootNote, t);
+        } catch {
+          // リリースに失敗しても続行
+        }
+      }
+      
+      // 新しい音を再生
       this.rootBassSynth.triggerAttackRelease(
         note,
         '8n',  // 短めの発音
         t
       );
+      
+      // 現在のノートを記録
+      this.lastRootNote = note;
     } catch {
       // エラーは無視（UIをブロックしない）
     }
@@ -448,27 +463,33 @@ export class FantasySoundManager {
   
   // 🎸 ルート音用アコースティックベース風シンセの初期化
   private rootBassSynth: any | null = null;
+  // 🚀 パフォーマンス最適化: 前回再生したノートを追跡（滑らかなリリース用）
+  private lastRootNote: string | null = null;
   
   private _initRootBassSynth(Tone: typeof import('tone')) {
     try {
-      // アコースティックベース風の合成音
-      // 素早いアタック、短いディケイ、低めの倍音で温かみのある音色
-      this.rootBassSynth = new (Tone as any).Synth({
-        oscillator: {
-          type: 'triangle'  // 三角波でベースの柔らかい音色を表現
-        },
-        envelope: {
-          attack: 0.005,    // 非常に素早いアタック（弾くような感覚）
-          decay: 0.15,      // 短めのディケイ
-          sustain: 0.2,     // 低めのサステイン
-          release: 0.3      // 短めのリリース（スタッカート気味）
+      // 🚀 パフォーマンス最適化: PolySynthを使用して音の重複再生時のクリック音を防止
+      // PolySynthは複数の音を同時に再生でき、前の音を急に切断しない
+      this.rootBassSynth = new (Tone as any).PolySynth((Tone as any).Synth, {
+        maxPolyphony: 4,  // 最大4音まで同時再生（通常は2音あれば十分）
+        voice: (Tone as any).Synth,
+        options: {
+          oscillator: {
+            type: 'triangle'  // 三角波でベースの柔らかい音色を表現
+          },
+          envelope: {
+            attack: 0.005,    // 非常に素早いアタック（弾くような感覚）
+            decay: 0.1,       // 短めのディケイ
+            sustain: 0.15,    // 低めのサステイン
+            release: 0.15     // 短めのリリース（クリック音防止のため少し長めに）
+          }
         }
       }).toDestination();
       
       // 音量を設定（ピアノ音量と連動）
       this._syncRootBassVolume();
       
-      console.debug('[FantasySoundManager] 🎸 Root bass synth initialized (acoustic bass style)');
+      console.debug('[FantasySoundManager] 🎸 Root bass synth initialized (PolySynth, click-free)');
     } catch (e) {
       console.warn('[FantasySoundManager] Failed to create root bass synth:', e);
     }
