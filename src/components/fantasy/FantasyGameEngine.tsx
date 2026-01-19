@@ -1544,21 +1544,30 @@ export const useFantasyGameEngine = ({
         }
         
         // ループ境界検出（本編開始後のみ）
+        // 注: currentTimeはgetCurrentMusicTime()から取得され、既に0〜loopDurationに正規化されている
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
         const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
         
-        // 現在の時間から予想されるループサイクルを計算
-        const expectedLoopCycle = Math.floor(currentTime / loopDuration);
-        
         // lastNormが-1（未初期化）の場合はループ境界として扱わない
-        // また、既に同じサイクルで処理済みの場合もスキップ（二重処理防止）
-        const justLooped = lastNorm >= 0 && 
-                          normalizedTime + 1e-6 < lastNorm && 
-                          expectedLoopCycle > (prevState.taikoLoopCycle ?? 0);
+        // ループ境界検出: normalizedTimeがlastNormより小さくなった場合
+        // 二重処理防止: lastNorm - normalizedTimeがloopDurationの半分より大きい場合のみ（真のループ境界）
+        const loopTimeDiff = lastNorm - normalizedTime;
+        const isSignificantJump = loopTimeDiff > loopDuration * 0.5; // 半分以上の戻りがあれば真のループ境界
+        const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm && isSignificantJump;
         
         if (justLooped) {
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          
+          console.log('🔄 ループ境界検出:', {
+            newLoopCycle,
+            normalizedTime: normalizedTime.toFixed(3),
+            lastNorm: lastNorm.toFixed(3),
+            loopTimeDiff: loopTimeDiff.toFixed(3),
+            hasTransposeSettings: !!prevState.transposeSettings,
+            originalNotesCount: prevState.originalTaikoNotes.length,
+            prevTransposeOffset: prevState.currentTransposeOffset
+          });
           
           // リピートごとの移調を適用（移調設定がある場合）
           let transposedNotes = prevState.originalTaikoNotes.length > 0 
@@ -1573,6 +1582,13 @@ export const useFantasyGameEngine = ({
               newLoopCycle,
               prevState.transposeSettings.repeatKeyChange
             );
+            
+            console.log('🎹 移調オフセット計算:', {
+              keyOffset: prevState.transposeSettings.keyOffset,
+              repeatKeyChange: prevState.transposeSettings.repeatKeyChange,
+              newLoopCycle,
+              newTransposeOffset
+            });
             
             // 移調を適用
             if (newTransposeOffset !== 0) {
