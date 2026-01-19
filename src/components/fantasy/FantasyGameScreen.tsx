@@ -232,21 +232,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // MIDIControllerのインスタンスを作成（一度だけ）
     if (!midiControllerRef.current) {
       const controller = new MIDIController({
-        onNoteOn: (note: number, velocity?: number) => {
-          devLog.debug('🎹 MIDI Note On:', { note, velocity });
+        onNoteOn: (note: number, _velocity?: number) => {
           if (handleNoteInputRef.current) {
             handleNoteInputRef.current(note, 'midi'); // MIDI経由として指定
           }
         },
-        onNoteOff: (note: number) => {
-          devLog.debug('🎹 MIDI Note Off:', { note });
+        onNoteOff: (_note: number) => {
+          // Note off - no action needed
         },
         playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
       });
       
       controller.setConnectionChangeCallback((connected: boolean) => {
         setIsMidiConnected(connected);
-        devLog.debug('🎹 MIDI接続状態変更:', { connected });
       });
       
       midiControllerRef.current = controller;
@@ -255,14 +253,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const initPromise = (async () => {
         try {
           await controller.initialize();
-          devLog.debug('✅ ファンタジーモードMIDIController初期化完了');
           
           // 音声システムとFantasySoundManagerを並列初期化（両方完了を待つ）
           await Promise.all([
             // 音声システム初期化
             initializeAudioSystem().then(() => {
               updateGlobalVolume(0.8);
-              devLog.debug('🎵 ファンタジーモード初期音量設定: 80%');
             }),
             // FantasySoundManagerの初期化（完了を待つ）
             FantasySoundManager.init(
@@ -271,11 +267,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               stage?.playRootOnCorrect !== false
             ).then(() => {
               FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-              devLog.debug('🔊 ファンタジーモード効果音初期化完了');
             })
           ]);
           
-          devLog.debug('✅ ファンタジーモード全初期化完了');
           setIsInitialized(true);
         } catch (error) {
           console.error('Audio system initialization failed:', error);
@@ -302,10 +296,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const connect = async () => {
       const deviceId = settings.selectedMidiDevice;
       if (midiControllerRef.current && deviceId) {
-        const success = await midiControllerRef.current.connectDevice(deviceId);
-        if (success) {
-          devLog.debug('✅ MIDIデバイス接続成功:', deviceId);
-        }
+        await midiControllerRef.current.connectDevice(deviceId);
       } else if (midiControllerRef.current && !deviceId) {
         midiControllerRef.current.disconnect();
       }
@@ -317,10 +308,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     const restoreMidiConnection = async () => {
       if (midiControllerRef.current && midiControllerRef.current.getCurrentDeviceId()) {
-        const isRestored = await midiControllerRef.current.checkAndRestoreConnection();
-        if (isRestored) {
-          devLog.debug('✅ ステージ変更後のMIDI接続を復元しました');
-        }
+        await midiControllerRef.current.checkAndRestoreConnection();
       }
     };
 
@@ -412,17 +400,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [gameAreaSize, setGameAreaSize] = useState({ width: 1000, height: 120 }); // ファンタジーモード用に高さを大幅に縮小
   
   // ゲームエンジン コールバック
-  const handleGameStateChange = useCallback((state: FantasyGameState) => {
-    devLog.debug('🎮 ファンタジーゲーム状態更新:', {
-      currentQuestion: state.currentQuestionIndex + 1,
-      totalQuestions: state.totalQuestions,
-      playerHp: state.playerHp,
-      enemyGauge: state.enemyGauge.toFixed(1),
-      isGameActive: state.isGameActive,
-      currentChord: state.currentChordTarget?.displayName,
-      score: state.score,
-      correctAnswers: state.correctAnswers
-    });
+  const handleGameStateChange = useCallback((_state: FantasyGameState) => {
+    // ゲーム状態の更新を通知（ログは削除済み）
   }, []);
   
   // ▼▼▼ 変更点 ▼▼▼
@@ -432,8 +411,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
     // 🚀 全処理を次フレームに遅延（現在のフレームのレンダリングを妨げない）
     requestAnimationFrame(() => {
-      devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
-      
       // PIXI視覚フィードバック
       if (fantasyPixiInstance) {
         fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
@@ -458,18 +435,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   
-  const handleChordIncorrect = useCallback((expectedChord: ChordDefinition, inputNotes: number[]) => {
-    devLog.debug('🎵 まだ構成音が足りません:', { expected: expectedChord.displayName, input: inputNotes });
-    
+  const handleChordIncorrect = useCallback((_expectedChord: ChordDefinition, _inputNotes: number[]) => {
     // 不正解エフェクトは削除（音の積み重ね方式のため）
-    // setShowIncorrectEffect(true);
-    // setTimeout(() => setShowIncorrectEffect(false), 500);
-    
   }, []);
   
-  const handleEnemyAttack = useCallback((attackingMonsterId?: string) => {
-    devLog.debug('💥 敵の攻撃!', { attackingMonsterId });
-    
+  const handleEnemyAttack = useCallback((_attackingMonsterId?: string) => {
     // 🚀 パフォーマンス最適化: 敵の攻撃音を同期的に再生（動的インポート不要）
     if (stage.mode === 'single') {
       FantasySoundManager.playEnemyAttack();
@@ -599,19 +569,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
     const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
     
-    // デバッグログ: BGM再生開始時の時間同期情報
-    devLog.debug('🎵 BGM再生開始 - 時間同期情報:', {
-      bgmUrl: stage.bgmUrl,
-      bpm: stage.bpm || 120,
-      timeSignature: stage.timeSignature || 4,
-      measureCount: stage.measureCount ?? 8,
-      countInMeasures: stage.countInMeasures ?? 0,
-      countInSeconds,
-      playbackRate,
-      pitchShift,
-      timingNote: `BGMの${countInSeconds.toFixed(2)}秒地点がM1 Beat1（=ノーツのhitTime 0秒）に対応`
-    });
-
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
@@ -680,7 +637,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   ) => {
     // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {
-      devLog.debug('⏳ 初期化完了を待機中...');
       await initPromiseRef.current;
     }
     
@@ -703,10 +659,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const stageWithSettings = buildInitStage(speedMultiplier, transposeSettings);
     await initializeGame(stageWithSettings, mode);
     setIsGameReady(true); // 画像プリロード完了
-    devLog.debug('✅ ゲーム初期化完了（画像プリロード含む）', { 
-      speedMultiplier, 
-      transposeSettings 
-    });
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, stage.mode]);
 
   // デイリーチャレンジ: タイムリミットで終了
@@ -760,9 +712,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
       // fire-and-forget で呼び出し
-      playNote(note, 64).catch(e => devLog.debug('Failed to play note:', e));
+      playNote(note, 64).catch(() => {});
       activeNotesRef.current.add(note);
-      devLog.debug('🎵 Played note via click:', note);
     }
     
     // ファンタジーゲームエンジンにのみ送信
@@ -783,7 +734,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
-    devLog.debug('🎮 handlePixiReady called', { hasRenderer: !!renderer });
     setPixiRenderer(renderer);
     
     if (renderer) {
@@ -833,46 +783,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       });
       
       // キーボードのクリックイベントを接続
-      devLog.debug('🎹 Setting key callbacks for Fantasy mode...');
       // 🚀 パフォーマンス最適化: 動的インポートを削除
       renderer.setKeyCallbacks(
         (note: number) => {
-          devLog.debug('🎹 Fantasy mode key press:', note);
           handleNoteInputBridge(note, 'mouse'); // マウスクリックとして扱う
         },
         (note: number) => {
-          devLog.debug('🎹 Fantasy mode key release:', note);
           // マウスリリース時に音を止める（静的インポート済み）
           stopNote(note);
           activeNotesRef.current.delete(note);
-          devLog.debug('🎵 Stopped note via release:', note);
         }
       );
-      devLog.debug('✅ Key callbacks set successfully');
       
-              // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
-        if (midiControllerRef.current) {
-          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-            renderer.highlightKey(note, active);
-          });
-          
-          devLog.debug('✅ ファンタジーモードMIDIController ↔ PIXIレンダラー連携完了');
-        }
-      
-      devLog.debug('🎮 PIXI.js ファンタジーモード準備完了:', {
-        screenWidth,
-        totalWhiteKeys,
-        whiteKeyWidth: whiteKeyWidth.toFixed(2),
-        noteWidth: dynamicNoteWidth.toFixed(2),
-        showGuide: effectiveShowGuide,
-        keyboardNoteNameStyle
-      });
+      // MIDIControllerにキーハイライト機能を設定（通常プレイと同様の処理）
+      if (midiControllerRef.current) {
+        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          renderer.highlightKey(note, active);
+        });
+      }
     }
   }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
-    devLog.debug('🎨 FantasyPIXIインスタンス準備完了');
     setFantasyPixiInstance(instance);
     // 初期状態の太鼓モードを設定
     instance.updateTaikoMode(gameState.isTaikoMode);
@@ -885,7 +818,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       pixiRenderer.updateSettings({
         noteNameStyle: keyboardNoteNameStyle
       });
-      devLog.debug('🎹 鍵盤上の音名表示設定を更新:', keyboardNoteNameStyle);
     }
   }, [keyboardNoteNameStyle, pixiRenderer]);
   
@@ -893,7 +825,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // モンスター撃破時のコールバック（状態機械対応）
   const handleMonsterDefeated = useCallback(() => {
-    devLog.debug('SCREEN: PIXIからモンスター消滅完了通知を受信しました。');
     // アニメーションが終わったので、エンジンに次の敵へ進むよう命令する
     proceedToNextEnemy();
   }, [proceedToNextEnemy]);
@@ -912,8 +843,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         height: 120 // ★★★ 高さを120pxに固定 ★★★
       };
       setGameAreaSize(newSize);
-      
-      devLog.debug('🎮 ゲームエリアサイズ更新:', newSize);
     };
 
     // 初回サイズ取得
@@ -935,10 +864,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 状態機械のガード処理により、適切なタイミングでのみモンスターが生成される
       // 遅延処理は不要になった（状態機械が適切なタイミングを制御）
       fantasyPixiInstance.createMonsterSprite(primaryMonsterIcon);
-      devLog.debug('🔄 モンスタースプライト更新要求:', { 
-        monster: primaryMonsterIcon,
-        enemyIndex: gameState.currentEnemyIndex
-      });
     }
   }, [fantasyPixiInstance, primaryMonsterIcon, gameState.currentEnemyIndex]);
   
@@ -1040,16 +965,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
-        // デバッグログ: カウントイン中の時間情報（1秒に1回程度）
-        if (Math.floor(timestamp / 1000) !== Math.floor((timestamp - updateInterval) / 1000)) {
-          devLog.debug('🕐 カウントイン中の時間同期:', {
-            currentTime: currentTime.toFixed(3),
-            isCountIn: true,
-            firstNoteHitTime: taikoNotes[0]?.hitTime.toFixed(3),
-            timeUntilFirstNote: taikoNotes[0] ? (taikoNotes[0].hitTime - currentTime).toFixed(3) : 'N/A'
-          });
-        }
-        
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < taikoNotes.length; i++) {
@@ -1189,7 +1104,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!pixiRenderer) return;
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
     pixiRenderer.updateSettings({ practiceGuide: canGuide ? 'key' : 'off' });
-    devLog.debug('🎮 PIXIレンダラー設定更新:', { practiceGuide: canGuide ? 'key' : 'off', showGuide: effectiveShowGuide, simCount: gameState.simultaneousMonsterCount, mode: stage.mode });
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, stage.mode]);
 
   // 問題が変わったタイミングでハイライトを確実にリセット
@@ -1289,8 +1203,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     const hearts = [];
-    // HP表示のデバッグログを追加
-    devLog.debug(`💖 ${isPlayer ? 'プレイヤー' : '敵'}HP表示:`, { current: hp, max: maxHp });
     
     for (let i = 0; i < maxHp; i++) {
       hearts.push(
@@ -1362,13 +1274,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
-    devLog.debug('🎮 ゲーム開始前画面表示:', { 
-      isGameActive: gameState.isGameActive,
-      hasCurrentChord: !!gameState.currentChordTarget,
-      stageName: stage.name,
-      hasOverlay: !!overlay
-    });
-    
     // progressionモードかどうかを判定
     const isProgressionMode = stage.mode.startsWith('progression');
     
@@ -1393,7 +1298,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* 挑戦ボタン */}
             <button
               onClick={() => {
-                devLog.debug('🎮 ゲーム開始（挑戦）ボタンクリック');
                 startGame('challenge', 1.0);
               }}
               disabled={!isInitialized}
@@ -1478,7 +1382,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   
                   <button
                     onClick={() => {
-                      devLog.debug('🎮 ゲーム開始（練習）', { speed: selectedSpeedMultiplier });
                       startGame('practice', selectedSpeedMultiplier, { keyOffset: transposeKeyOffset, repeatKeyChange });
                     }}
                     disabled={!isInitialized}
@@ -1497,7 +1400,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               /* singleモードの場合は従来の練習ボタン */
               <button
                 onClick={() => {
-                  devLog.debug('🎮 ゲーム開始（練習）ボタンクリック');
                   startGame('practice', 1.0);
                 }}
                 disabled={!isInitialized}
@@ -1975,7 +1877,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           {/* ゲージ強制満タンテストボタン */}
           <button
             onClick={() => {
-              devLog.debug('⚡ ゲージ強制満タンテスト実行');
               // ゲージを100にして敵攻撃をトリガー
               if (playMode !== 'practice') {
                 handleEnemyAttack();
@@ -1993,7 +1894,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         onSettingsChange={(newSettings) => {
-          devLog.debug('⚙️ ファンタジー設定変更:', newSettings);
           setCurrentNoteNameLang(newSettings.noteNameLang);
           setCurrentSimpleNoteName(newSettings.simpleNoteName);
           
@@ -2014,13 +1914,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             updateSettings({ midiVolume: newSettings.volume });
             // グローバル音量を更新（静的インポート済み）
             updateGlobalVolume(newSettings.volume);
-            devLog.debug(`🎵 ファンタジーモードのピアノ音量を更新: ${newSettings.volume}`);
           }
           
           // 効果音音量設定が変更されたら、gameStoreを更新
           if (newSettings.soundEffectVolume !== undefined) {
             updateSettings({ soundEffectVolume: newSettings.soundEffectVolume });
-            devLog.debug(`🔊 ファンタジーモードの効果音音量を更新: ${newSettings.soundEffectVolume}`);
             // FantasySoundManagerの音量も即座に更新（静的インポート済み）
             FantasySoundManager.setVolume(newSettings.soundEffectVolume);
           }
