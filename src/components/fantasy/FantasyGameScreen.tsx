@@ -427,34 +427,34 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を受け取り、新しいPIXIメソッドを呼び出す
-  // 🚀 パフォーマンス最適化: 全処理をrequestAnimationFrameで次フレームに遅延
-  // これによりReactのsetStateバッチ更新と分離され、ノーツアニメーションがブレなくなる
+  // 🚀 パフォーマンス最適化: PIXI処理は同期実行、音声処理のみ遅延
+  // requestAnimationFrameを使うとアニメーションループと競合するため使用しない
   const handleChordCorrect = useCallback((chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => {
-    // 🚀 全処理を次フレームに遅延（現在のフレームのレンダリングを妨げない）
-    requestAnimationFrame(() => {
-      devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
-      
-      // PIXI視覚フィードバック
-      if (fantasyPixiInstance) {
-        fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
-        if (isTaikoModeRef.current) {
-          const pos = fantasyPixiInstance.getJudgeLinePosition();
-          fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
-        }
+    devLog.debug('✅ 正解:', { name: chord.displayName, special: isSpecial, damage: damageDealt, defeated: defeated, monsterId });
+    
+    // PIXI視覚フィードバック（同期実行 - 軽量なので問題なし）
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.triggerAttackSuccessOnMonster(monsterId, chord.displayName, isSpecial, damageDealt, defeated);
+      if (isTaikoModeRef.current) {
+        const pos = fantasyPixiInstance.getJudgeLinePosition();
+        fantasyPixiInstance.createNoteHitEffect(pos.x, pos.y, true);
       }
+    }
 
-      // ルート音再生
-      const allowRootSound = stage?.playRootOnCorrect !== false;
-      if (allowRootSound) {
-        const id = chord.id || chord.displayName || chord.root;
-        let bassToPlay = chord.root;
-        if (typeof id === 'string' && id.includes('/')) {
-          const parts = id.split('/');
-          if (parts[1]) bassToPlay = parts[1];
-        }
-        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+    // ルート音再生（マクロタスクで遅延 - メインスレッドをブロックしない）
+    const allowRootSound = stage?.playRootOnCorrect !== false;
+    if (allowRootSound) {
+      const id = chord.id || chord.displayName || chord.root;
+      let bassToPlay = chord.root;
+      if (typeof id === 'string' && id.includes('/')) {
+        const parts = id.split('/');
+        if (parts[1]) bassToPlay = parts[1];
       }
-    });
+      // setTimeout(0)でマクロタスクキューに追加し、現在のフレーム処理を妨げない
+      setTimeout(() => {
+        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+      }, 0);
+    }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   // ▲▲▲ ここまで ▲▲▲
   

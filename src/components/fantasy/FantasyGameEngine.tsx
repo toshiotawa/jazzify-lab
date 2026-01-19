@@ -1934,7 +1934,8 @@ export const useFantasyGameEngine = ({
             gameCompleteInfo: result.gameCompleteInfo
           };
           // 状態更新後にコールバックを非同期で呼び出す
-          queueMicrotask(() => {
+          // setTimeout(0)でマクロタスクキューに追加し、Reactのレンダリング完了後に実行
+          setTimeout(() => {
             const pending = pendingCallbackRef.current;
             if (!pending) return;
             pendingCallbackRef.current = null;
@@ -1951,7 +1952,7 @@ export const useFantasyGameEngine = ({
             if (pending.gameCompleteInfo) {
               onGameComplete(pending.gameCompleteInfo.result, pending.gameCompleteInfo.finalState);
             }
-          });
+          }, 0);
         }
         return result.newState;
       }
