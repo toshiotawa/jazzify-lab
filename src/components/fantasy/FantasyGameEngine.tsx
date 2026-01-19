@@ -156,6 +156,10 @@ export interface FantasyStage {
   speedMultiplier?: number;
   // Timingモード移調練習用: 移調設定
   transposeSettings?: TransposeSettings;
+  // 音源オフセット（秒）: MusicXMLのMeasure 1開始と音源ファイルのMeasure 1開始のズレを補正
+  // 正の値 = 音源のMeasure 1開始がMusicXMLより遅い（ノーツを後ろにずらす）
+  // 負の値 = 音源のMeasure 1開始がMusicXMLより早い（ノーツを前にずらす）
+  audioOffset?: number;
 }
 
 export interface MonsterState {
@@ -1128,6 +1132,9 @@ export const useFantasyGameEngine = ({
     let taikoNotes: TaikoNote[] = [];
     
     if (isTaikoMode) {
+      // 音源オフセット（秒）: MusicXMLと音源のMeasure 1開始のズレを補正
+      const audioOffset = stage.audioOffset ?? 0;
+      
       // 太鼓の達人モードのノーツ生成
       switch (stage.mode) {
         case 'progression_timing':
@@ -1148,7 +1155,8 @@ export const useFantasyGameEngine = ({
               stage.bpm || 120,
               stage.timeSignature || 4,
               (spec) => getChordDefinition(spec, displayOpts),
-              0 // カウントインを渡す
+              0, // カウントインを渡す
+              audioOffset // 音源オフセットを適用
             );
           }
           break;
@@ -1162,7 +1170,8 @@ export const useFantasyGameEngine = ({
             stage.timeSignature || 4,
             (spec) => getChordDefinition(spec, displayOpts),
             0,
-            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
+            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4),
+            audioOffset // 音源オフセットを適用
           );
           break;
 
@@ -1183,7 +1192,8 @@ export const useFantasyGameEngine = ({
                 stage.timeSignature || 4,
                 (spec) => getChordDefinition(spec, displayOpts),
                 0,
-                (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
+                (stage as any).noteIntervalBeats || (stage.timeSignature || 4),
+                audioOffset // 音源オフセットを適用
               );
             }
           }

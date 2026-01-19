@@ -464,6 +464,8 @@ export function judgeTimingWindow(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param intervalBeats 拍間隔
+ * @param audioOffset 音源オフセット（秒）- MusicXMLと音源のMeasure 1開始のズレを補正
  */
 export function generateBasicProgressionNotes(
   chordProgression: ChordSpec[],
@@ -472,7 +474,8 @@ export function generateBasicProgressionNotes(
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  audioOffset: number = 0
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -512,7 +515,8 @@ export function generateBasicProgressionNotes(
       }
 
       // Measure 1 開始を0秒として計算（countInはBGM側でオフセット管理）
-      const hitTime = (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat;
+      // audioOffsetを適用して音源とノーツの時間を同期
+      const hitTime = (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat + audioOffset;
 
       notes.push({
         id: `note_${measure}_${beat}`,
@@ -540,6 +544,8 @@ export function generateBasicProgressionNotes(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param intervalBeats 拍間隔
+ * @param audioOffset 音源オフセット（秒）- MusicXMLと音源のMeasure 1開始のズレを補正
  */
 export function generateRandomProgressionNotes(
   chordPool: ChordSpec[],
@@ -548,7 +554,8 @@ export function generateRandomProgressionNotes(
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  audioOffset: number = 0
 ): TaikoNote[] {
   if (chordPool.length === 0) return [];
 
@@ -572,10 +579,11 @@ export function generateRandomProgressionNotes(
       const chord = getChordDefinition(nextSpec);
       if (!chord) continue;
 
+      // audioOffsetを適用して音源とノーツの時間を同期
       notes.push({
         id: `note_${measure}_${beat}`,
         chord,
-        hitTime: (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat,
+        hitTime: (measure - 1) * secPerMeasure + (beat - 1) * secPerBeat + audioOffset,
         measure,
         beat,
         isHit: false,
@@ -595,13 +603,15 @@ export function generateRandomProgressionNotes(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param audioOffset 音源オフセット（秒）- MusicXMLと音源のMeasure 1開始のズレを補正
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  audioOffset: number = 0
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -618,7 +628,8 @@ export function parseChordProgressionData(
     if (item.notes && item.notes.length > 0) {
       const chord = buildChordFromNotes(item.notes, item.octave ?? 4, item.lyricDisplay);
       if (chord) {
-        const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        // audioOffsetを適用して音源とノーツの時間を同期
+        const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat + audioOffset;
         notes.push({
           id: `note_${item.bar}_${item.beats}_${index}`,
           chord,
@@ -642,7 +653,8 @@ export function parseChordProgressionData(
     const chord = getChordDefinition(spec);
     if (chord) {
       // Measure 1 開始を0秒として計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      // audioOffsetを適用して音源とノーツの時間を同期
+      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat + audioOffset;
       
       // lyricDisplayがある場合は、displayNameとnoteNamesを上書き
       const finalChord = item.lyricDisplay ? {

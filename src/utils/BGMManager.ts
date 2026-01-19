@@ -196,7 +196,14 @@ class BGMManager {
   
   /**
    * 現在の音楽的時間（秒）。M1開始=0、カウントイン中は負。
-   * 再生速度に関わらず、音楽的な位置（小節・拍）が正しく返される
+   * 再生速度に関わらず、音楽的な位置（小節・拍）が正しく返される。
+   * 
+   * この値はTaikoNoteのhitTime（ノーツの正解タイミング）と比較するために使用される。
+   * - hitTimeはMeasure 1開始を0秒として計算される
+   * - audioOffsetがステージに設定されている場合、ノーツのhitTimeにオフセットが適用される
+   * - これにより、音源ファイルとノーツの同期が実現される
+   * 
+   * AudioContext.currentTimeを使用して高精度な時間計測を実現。
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
@@ -217,7 +224,7 @@ class BGMManager {
       }
       
       if (this.waContext && this.waBuffer) {
-        // Web Audio 再生時間を計算
+        // Web Audio 再生時間を計算（AudioContext.currentTimeを使用）
         // playbackRateを考慮した音楽的な時間を計算
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
         const musicTime = elapsedRealTime * this.playbackRate
