@@ -35,6 +35,7 @@ class BGMManager {
   private toneLoopStart: number = 0
   private toneLoopEnd: number = 0
   private useTonePitchShift = false // Tone.jsを使用するかどうか
+  private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
 
   play(
     url: string,
@@ -452,11 +453,21 @@ class BGMManager {
     // AudioContextを起動
     await Tone.start()
     
+    // PitchShiftの設定
+    // windowSize: FFT窓サイズ（秒）- 音質に影響
+    // delayTime: 処理遅延（秒）- これがオーディオ出力の遅延になる
+    const pitchShiftWindowSize = 0.1  // 100ms
+    const pitchShiftDelayTime = 0.05  // 50ms
+    
+    // PitchShiftの総遅延を計算（delayTime + windowSize/2 程度の処理遅延）
+    // 実測値に基づいて調整可能
+    this.pitchShiftLatency = pitchShiftDelayTime + (pitchShiftWindowSize * 0.5)
+    
     // PitchShiftノードを作成
     this.tonePitchShift = new Tone.PitchShift({
       pitch: this.pitchShift,
-      windowSize: 0.1,
-      delayTime: 0.05
+      windowSize: pitchShiftWindowSize,
+      delayTime: pitchShiftDelayTime
     }).toDestination()
     
     // ボリューム調整（PitchShiftの前に挿入）
@@ -471,17 +482,23 @@ class BGMManager {
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
+        // 再生開始時刻を先に記録（start()呼び出し前に）
+        const startTime = Tone.now()
         // 再生開始
-        this.tonePlayer.start(Tone.now(), 0)
+        this.tonePlayer.start(startTime, 0)
         this.isPlaying = true
         this.startTime = performance.now()
-        this.waStartAt = Tone.now()
+        // waStartAtにPitchShiftの遅延を加算して補正
+        // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
+        this.waStartAt = startTime + this.pitchShiftLatency
         console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
           url, 
           bpm: this.bpm, 
           pitchShift: this.pitchShift,
           loopBegin: this.loopBegin, 
-          loopEnd: this.loopEnd 
+          loopEnd: this.loopEnd,
+          pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
+          note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`
         })
       }
     }).connect(gainNode)
