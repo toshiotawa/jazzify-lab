@@ -1535,7 +1535,14 @@ export const useFantasyGameEngine = ({
         const currentTime = bgmManager.getCurrentMusicTime();
         const stage = prevState.currentStage;
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
-        const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+        // BGMManagerから実際のloopDurationを取得（オーディオファイル長による調整後）
+        // BGMManagerが再生中でない場合はステージ設定から計算
+        const expectedLoopDuration = (stage.measureCount || 8) * secPerMeasure;
+        const actualLoopDuration = bgmManager.getIsPlaying() 
+          ? bgmManager.getLoopDuration() 
+          : expectedLoopDuration;
+        // 有効なloopDurationを使用（0以下の場合はフォールバック）
+        const loopDuration = actualLoopDuration > 0 ? actualLoopDuration : expectedLoopDuration;
         
         // カウントイン中はループ境界検出をスキップ
         // カウントインから本編への移行時に誤検出を防ぐ
