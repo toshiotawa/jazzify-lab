@@ -1200,11 +1200,33 @@ export const useFantasyGameEngine = ({
         }
       }
       
+      // デバッグログ: ノーツの時間情報を詳細に出力
+      const secPerBeat = 60 / (stage.bpm || 120);
+      const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
       devLog.debug('🥁 太鼓の達人モード初期化:', {
         noteCount: taikoNotes.length,
-        firstNote: taikoNotes[0],
-        lastNote: taikoNotes[taikoNotes.length - 1],
-        notes: taikoNotes.map(n => ({ measure: n.measure, hitTime: n.hitTime }))
+        stageConfig: {
+          bpm: stage.bpm,
+          timeSignature: stage.timeSignature,
+          measureCount: stage.measureCount,
+          countInMeasures: stage.countInMeasures,
+          secPerBeat,
+          secPerMeasure
+        },
+        firstNote: taikoNotes[0] ? {
+          id: taikoNotes[0].id,
+          measure: taikoNotes[0].measure,
+          beat: taikoNotes[0].beat,
+          hitTime: taikoNotes[0].hitTime,
+          chord: taikoNotes[0].chord.displayName
+        } : null,
+        lastNote: taikoNotes.length > 0 ? {
+          id: taikoNotes[taikoNotes.length - 1].id,
+          measure: taikoNotes[taikoNotes.length - 1].measure,
+          hitTime: taikoNotes[taikoNotes.length - 1].hitTime
+        } : null,
+        // 時間同期の説明
+        timingNote: `M1 Beat1 = hitTime 0秒, カウントイン${stage.countInMeasures || 0}小節 = BGM開始からM1までの時間${(stage.countInMeasures || 0) * secPerMeasure}秒`
       });
     }
 
