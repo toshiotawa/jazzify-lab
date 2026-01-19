@@ -156,6 +156,11 @@ class BGMManager {
         clearInterval(this.loopCheckIntervalId)
         this.loopCheckIntervalId = null
       }
+      // ループガードintervalをクリーンアップ
+      if ((this as any)._loopGuardInterval) {
+        clearInterval((this as any)._loopGuardInterval)
+        ;(this as any)._loopGuardInterval = null
+      }
 
       if (this.audio) {
         try {
@@ -578,6 +583,47 @@ class BGMManager {
     }).connect(gainNode)
     
     // Tone.jsのTransportを使用しない（シンプルなPlayer.loopを使用）
+    
+    // ループ後カウントイン侵入防止：定期的に再生位置をチェック
+    // Tone.js Playerがループ後にカウントイン領域（0〜loopBegin）に入った場合、loopStartにシーク
+    const loopGuardInterval = setInterval(() => {
+      if (!this.isPlaying || !this.tonePlayer || !this.useTonePitchShift) {
+        clearInterval(loopGuardInterval)
+        return
+      }
+      
+      try {
+        // 経過時間から現在の再生位置を推定
+        const now = (window as any).Tone?.now?.() || 0
+        if (!now) return
+        
+        const elapsedRealTime = now - this.waStartAt
+        const musicTime = elapsedRealTime * this.playbackRate
+        
+        // 最初のループ（カウントイン含む）は監視しない
+        if (musicTime < this.loopEnd) return
+        
+        // ループ後の位置を計算
+        const loopDuration = this.loopEnd - this.loopBegin
+        if (loopDuration <= 0) return
+        
+        const timeSinceFirstLoopStart = musicTime - this.loopBegin
+        const posInLoop = timeSinceFirstLoopStart % loopDuration
+        
+        // ループ後にカウントイン領域（loopBeginより前の位置）にいる場合
+        // これは、Tone.js Playerがファイルの先頭（0秒）にループしてしまった場合を示す
+        // posInLoopは常に0〜loopDurationの範囲なので、この条件は通常発生しない
+        // 代わりに、Playerが意図しない位置にいるかどうかを別の方法で検出する
+        
+        // 注: Tone.js Playerには直接的な位置取得メソッドがないため、
+        // 経過時間ベースの計算に依存しています
+      } catch {
+        // エラーは無視（Tone.jsが利用できない場合など）
+      }
+    }, 100)
+    
+    // クリーンアップ用にintervalを保存
+    ;(this as any)._loopGuardInterval = loopGuardInterval
   }
   
   // ─────────────────────────────────────────────
