@@ -142,6 +142,14 @@ export class FantasySoundManager {
     this.instance._enableRootSound(enabled);
   }
   public static async unlock(): Promise<void> { return this.instance._unlock(); }
+  
+  /**
+   * ルート音システムのウォームアップ
+   * ゲーム開始前に呼び出して、最初のルート音が遅延しないようにする
+   */
+  public static async warmupRootSound(): Promise<void> {
+    return this.instance._warmupRootSound();
+  }
 
   // ─────────────────────────────────────────────
   // private constructor – outsider cannot new
@@ -649,6 +657,56 @@ export class FantasySoundManager {
 
   private _enableRootSound(enabled: boolean) {
     this.bassEnabled = enabled;
+  }
+
+  /**
+   * ルート音システムのウォームアップ
+   * AudioContextを事前に初期化し、無音のオシレーターを短時間再生して
+   * 最初の実際の音が遅延しないようにする
+   */
+  private async _warmupRootSound(): Promise<void> {
+    try {
+      // rootAudioContextが未初期化の場合は作成
+      if (!this.rootAudioContext) {
+        this.rootAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' });
+        this.rootMasterGain = this.rootAudioContext.createGain();
+        this.rootMasterGain.connect(this.rootAudioContext.destination);
+        this._syncRootBassVolume();
+      }
+      
+      const ctx = this.rootAudioContext;
+      if (!ctx || !this.rootMasterGain) return;
+      
+      // AudioContextがsuspended状態ならresumeする
+      if (ctx.state === 'suspended') {
+        await ctx.resume();
+      }
+      
+      // 無音のオシレーターを短時間再生してシステムをウォームアップ
+      const now = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      osc.type = 'triangle';
+      osc.frequency.value = 440; // A4
+      
+      const gainNode = ctx.createGain();
+      gainNode.gain.value = 0; // 無音（音量0）
+      
+      osc.connect(gainNode);
+      gainNode.connect(this.rootMasterGain);
+      
+      // 非常に短い時間（10ms）だけ再生してWebAudioシステムを起動
+      osc.start(now);
+      osc.stop(now + 0.01);
+      
+      osc.onended = () => {
+        try {
+          osc.disconnect();
+          gainNode.disconnect();
+        } catch { /* ignore */ }
+      };
+    } catch {
+      // ウォームアップ失敗は無視（メインの機能には影響しない）
+    }
   }
 
   private async _unlock(): Promise<void> {

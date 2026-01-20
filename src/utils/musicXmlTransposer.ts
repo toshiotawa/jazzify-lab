@@ -9,26 +9,50 @@ import type { TransposingInstrument } from '@/types';
 const PREFERRED_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
 
 /**
- * 異名同音（Enharmonic）のマッピング - 読みやすいキーへ正規化
+ * 五度圏のfifths値からキー名を取得
  */
-const ENHARMONIC_MAP: Record<string, string> = {
-  'C#': 'Db',
-  'D#': 'Eb',
-  'F#': 'Gb',
-  'G#': 'Ab',
-  'A#': 'Bb',
-  'Cb': 'B',
-  'Fb': 'E',
-  'E#': 'F',
-  'B#': 'C',
-  // ダブルシャープ・ダブルフラット
-  'C##': 'D',
-  'D##': 'E',
-  'E##': 'Gb',
-  'F##': 'G',
-  'G##': 'A',
-  'A##': 'B',
-  'B##': 'Db',
+function fifthsToKeyNameInternal(fifths: number): string {
+  const fifthsToKeyMap: Record<number, string> = {
+    '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
+    '0': 'C', '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'F#', '7': 'C#',
+  };
+  return fifthsToKeyMap[fifths] ?? 'C';
+}
+
+/**
+ * キー名から五度圏のfifths値を取得
+ */
+function keyNameToFifthsInternal(keyName: string): number {
+  const keyToFifthsMap: Record<string, number> = {
+    'Cb': -7, 'Gb': -6, 'Db': -5, 'Ab': -4, 'Eb': -3, 'Bb': -2, 'F': -1,
+    'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F#': 6, 'C#': 7,
+  };
+  return keyToFifthsMap[keyName] ?? 0;
+}
+
+/**
+ * 半音数から五度圏での移動量を計算
+ */
+function semitonesToFifthsChangeInternal(semitones: number): number {
+  const normalizedSemitones = ((semitones % 12) + 12) % 12;
+  const semitoneToFifths: Record<number, number> = {
+    0: 0, 1: -5, 2: 2, 3: -3, 4: 4, 5: -1,
+    6: 6, 7: 1, 8: -4, 9: 3, 10: -2, 11: 5
+  };
+  return semitoneToFifths[normalizedSemitones] ?? 0;
+}
+
+/**
+ * 異名同音（Enharmonic）のマッピング - 簡易表示用（ダブルシャープ/ダブルフラットのみ）
+ */
+const DOUBLE_ACCIDENTAL_MAP: Record<string, string> = {
+  'C##': 'D', 'Cx': 'D',
+  'D##': 'E', 'Dx': 'E',
+  'E##': 'F#', 'Ex': 'F#',
+  'F##': 'G', 'Fx': 'G',
+  'G##': 'A', 'Gx': 'A',
+  'A##': 'B', 'Ax': 'B',
+  'B##': 'C#', 'Bx': 'C#',
   'Cbb': 'Bb',
   'Dbb': 'C',
   'Ebb': 'D',
@@ -39,7 +63,7 @@ const ENHARMONIC_MAP: Record<string, string> = {
 };
 
 /**
- * キーを読みやすい形式に正規化
+ * キーを読みやすい形式に正規化（非推奨 - 互換性のために残す）
  * @param key キー名
  * @returns 正規化されたキー名
  */
@@ -49,12 +73,9 @@ function normalizeToPreferredKey(key: string): string {
     return key;
   }
   
-  // 異名同音マッピングで変換
-  if (ENHARMONIC_MAP[key]) {
-    return ENHARMONIC_MAP[key];
-  }
-  
-  return key;
+  // 五度圏で正しいキーを選択
+  const fifths = keyNameToFifthsInternal(key);
+  return fifthsToKeyNameInternal(fifths);
 }
 
 /**
@@ -215,18 +236,114 @@ function fifthsToKeyName(fifths: number): string {
 }
 
 /**
+ * ターゲットキーのスケール音を取得
+ * @param keyName キー名
+ * @returns スケール音の配列
+ */
+function getKeyScaleNotesForXml(keyName: string): string[] {
+  const keyInfo = Key.majorKey(keyName);
+  if (keyInfo && keyInfo.scale) {
+    return [...keyInfo.scale]; // readonly配列をミュータブルにコピー
+  }
+  
+  // フォールバック
+  const scaleMap: Record<string, string[]> = {
+    'C': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+    'G': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+    'D': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+    'A': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+    'E': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+    'B': ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
+    'F#': ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
+    'C#': ['C#', 'D#', 'E#', 'F#', 'G#', 'A#', 'B#'],
+    'Gb': ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+    'Db': ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+    'Ab': ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+    'Eb': ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+    'Bb': ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+    'F': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+    'Cb': ['Cb', 'Db', 'Eb', 'Fb', 'Gb', 'Ab', 'Bb'],
+  };
+  
+  return scaleMap[keyName] || scaleMap['C'];
+}
+
+/**
+ * 音名をターゲットキーのスケールに合わせて調整
+ * @param noteName 音名（オクターブなし）
+ * @param targetKey ターゲットキー
+ * @param simpleMode 簡易モード（ダブルシャープ/ダブルフラットを変換）
+ * @returns 調整された音名
+ */
+function adjustNoteToKeyScale(noteName: string, targetKey: string, simpleMode: boolean): string {
+  const scaleNotes = getKeyScaleNotesForXml(targetKey);
+  
+  // 音名のクロマ（ピッチクラス）を取得
+  const noteInfo = Note.get(noteName);
+  if (!noteInfo || noteInfo.chroma === undefined) {
+    return noteName;
+  }
+  const chroma = noteInfo.chroma;
+  
+  // スケール内で同じクロマを持つ音を探す
+  for (const scaleNote of scaleNotes) {
+    const scaleNoteInfo = Note.get(scaleNote);
+    if (scaleNoteInfo && scaleNoteInfo.chroma === chroma) {
+      // 簡易モードでダブルシャープ/ダブルフラットを変換
+      if (simpleMode && DOUBLE_ACCIDENTAL_MAP[scaleNote]) {
+        return DOUBLE_ACCIDENTAL_MAP[scaleNote];
+      }
+      return scaleNote;
+    }
+  }
+  
+  // スケールに含まれない音（臨時記号付き）
+  // 簡易モードでダブルシャープ/ダブルフラットを変換
+  if (simpleMode && DOUBLE_ACCIDENTAL_MAP[noteName]) {
+    return DOUBLE_ACCIDENTAL_MAP[noteName];
+  }
+  
+  return noteName;
+}
+
+/**
+ * 元のキーと半音数から正しいターゲットキーを計算（五度圏ベース）
+ * @param originalKeyName 元のキー
+ * @param semitones 半音数
+ * @returns ターゲットキー名
+ */
+function getTargetKeyFromTranspositionForXml(originalKeyName: string, semitones: number): string {
+  const originalFifths = keyNameToFifthsInternal(originalKeyName);
+  const fifthsChange = semitonesToFifthsChangeInternal(semitones);
+  
+  let targetFifths = originalFifths + fifthsChange;
+  
+  // -6〜+6の範囲に収める（Cb=-7とC#=+7を避ける）
+  while (targetFifths > 6) targetFifths -= 12;
+  while (targetFifths < -6) targetFifths += 12;
+  
+  // Cbメジャー（-7）は避けてBメジャー（+5）に
+  // C#メジャー（+7）は避けてDbメジャー（-5）に
+  if (targetFifths === -7) targetFifths = 5;
+  if (targetFifths === 7) targetFifths = -5;
+  
+  return fifthsToKeyNameInternal(targetFifths);
+}
+
+/**
  * Transpose MusicXML string by given semitones, applying music theory-correct enharmonic rules.
  * 
  * 改善点:
- * 1. 移調後のキーを「読みやすいキー」に正規化（C, D, E, F, G, A, B または Db, Eb, Gb, Ab, Bb）
- * 2. 正しい音程（Interval）を使用して移調（例: F→B = 増4度、G# → C##）
- * 3. キー署名も正しく更新
+ * 1. 五度圏に基づいて正しいターゲットキーを計算
+ * 2. ターゲットキーのスケールに合わせた音名を使用
+ * 3. 簡易モードでダブルシャープ/ダブルフラットを変換
  *
  * @param xmlString Raw MusicXML
  * @param semitones integer, positive = up, negative = down
+ * @param simpleMode 簡易表示モード（ダブルシャープ/ダブルフラットを変換）
  * @returns Transposed MusicXML string
  */
-export function transposeMusicXml(xmlString: string, semitones: number): string {
+export function transposeMusicXml(xmlString: string, semitones: number, simpleMode: boolean = false): string {
   if (semitones === 0) return xmlString;
 
   const parser = new DOMParser();
@@ -237,8 +354,8 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
   const originalFifths = firstKeyEl ? parseInt(firstKeyEl.textContent || '0', 10) : 0;
   const originalKeyName = fifthsToKeyName(originalFifths);
   
-  // 2. ターゲットキー（読みやすいキー）を決定
-  const targetKeyName = getPreferredTargetKey(originalKeyName, semitones);
+  // 2. 五度圏に基づいて正しいターゲットキーを計算
+  const targetKeyName = getTargetKeyFromTranspositionForXml(originalKeyName, semitones);
   
   // 3. 正しい音程を計算
   const transposeInterval = getCorrectInterval(originalKeyName, targetKeyName);
@@ -260,30 +377,107 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     return `${step.toUpperCase()}${accidental}${octave}`;
   };
 
+  // ターゲットキーのスケール音を取得（臨時記号の判定用）
+  const targetScaleNotes = getKeyScaleNotesForXml(targetKeyName);
+  const targetScaleChromaSet = new Set(
+    targetScaleNotes.map(n => Note.get(n).chroma).filter((c): c is number => c !== undefined)
+  );
+
+  /**
+   * 音がターゲットキーの調号内かどうかを判定
+   * 調号内の音は臨時記号不要、調号外の音は臨時記号必要
+   */
+  const isInKeySignature = (noteName: string): boolean => {
+    const noteInfo = Note.get(noteName);
+    if (!noteInfo || noteInfo.chroma === undefined) return false;
+    
+    // スケール内の音と同じクロマで、かつ同じ音名（文字+臨時記号）であれば調号内
+    return targetScaleNotes.some(scaleNote => {
+      const scaleInfo = Note.get(scaleNote);
+      return scaleInfo?.chroma === noteInfo.chroma && scaleNote === noteName;
+    });
+  };
+
   // Helper to write back tonal note with support for double accidentals
-  const applyNoteToPitch = (noteStr: string, pitchEl: Element) => {
+  // ターゲットキーのスケールに合わせた音名を使用し、臨時記号も追加
+  const applyNoteToPitch = (noteStr: string, pitchEl: Element, noteEl: Element) => {
     const parsed = Note.get(noteStr);
     if (!parsed.empty) {
       const { letter, acc, oct } = parsed;
+      
+      // 音名（オクターブなし）を取得
+      const noteNameWithoutOctave = letter + (acc || '');
+      
+      // ターゲットキーのスケールに合わせて調整
+      const adjustedNote = adjustNoteToKeyScale(noteNameWithoutOctave, targetKeyName, simpleMode);
+      const adjustedParsed = Note.get(adjustedNote);
+      
+      const finalLetter = adjustedParsed?.letter || letter;
+      const finalAcc = adjustedParsed?.acc || acc;
+      
       // Clear existing children then append
       Array.from(pitchEl.children).forEach((c) => c.remove());
       const stepEl = doc.createElement('step');
-      stepEl.textContent = letter;
+      stepEl.textContent = finalLetter;
       pitchEl.appendChild(stepEl);
 
-      if (acc) {
+      if (finalAcc) {
         const alterEl = doc.createElement('alter');
         let alterValue = '0';
-        if (acc === '#') alterValue = '1';
-        else if (acc === '##' || acc === 'x') alterValue = '2';
-        else if (acc === 'b') alterValue = '-1';
-        else if (acc === 'bb') alterValue = '-2';
+        if (finalAcc === '#') alterValue = '1';
+        else if (finalAcc === '##' || finalAcc === 'x') alterValue = '2';
+        else if (finalAcc === 'b') alterValue = '-1';
+        else if (finalAcc === 'bb') alterValue = '-2';
         alterEl.textContent = alterValue;
         pitchEl.appendChild(alterEl);
       }
       const octaveEl = doc.createElement('octave');
       octaveEl.textContent = String(oct);
       pitchEl.appendChild(octaveEl);
+
+      // 既存の<accidental>要素を削除
+      const existingAccidental = noteEl.querySelector('accidental');
+      if (existingAccidental) {
+        existingAccidental.remove();
+      }
+
+      // 臨時記号が必要かどうかを判定
+      // 調号外の音（スケール外）または調号内でも臨時記号で変化した音には臨時記号が必要
+      const finalNoteName = finalLetter + (finalAcc || '');
+      const needsAccidental = !isInKeySignature(finalNoteName);
+      
+      if (needsAccidental && finalAcc) {
+        // 臨時記号要素を追加（pitch要素の後、duration要素の前に挿入）
+        const accidentalEl = doc.createElement('accidental');
+        if (finalAcc === '#') accidentalEl.textContent = 'sharp';
+        else if (finalAcc === '##' || finalAcc === 'x') accidentalEl.textContent = 'double-sharp';
+        else if (finalAcc === 'b') accidentalEl.textContent = 'flat';
+        else if (finalAcc === 'bb') accidentalEl.textContent = 'flat-flat';
+        
+        // pitch要素の後に挿入
+        const durationEl = noteEl.querySelector('duration');
+        if (durationEl) {
+          noteEl.insertBefore(accidentalEl, durationEl);
+        } else {
+          // durationがない場合はpitchの後に追加
+          pitchEl.parentNode?.insertBefore(accidentalEl, pitchEl.nextSibling);
+        }
+      } else if (!needsAccidental && !finalAcc) {
+        // 調号内の音でナチュラルが必要な場合（元の音が臨時記号付きだった場合）
+        // この場合はナチュラル記号を追加
+        const originalStep = pitchEl.querySelector('step')?.textContent || '';
+        const originalAlter = pitchEl.querySelector('alter')?.textContent || '0';
+        if (originalAlter !== '0') {
+          const accidentalEl = doc.createElement('accidental');
+          accidentalEl.textContent = 'natural';
+          const durationEl = noteEl.querySelector('duration');
+          if (durationEl) {
+            noteEl.insertBefore(accidentalEl, durationEl);
+          } else {
+            pitchEl.parentNode?.insertBefore(accidentalEl, pitchEl.nextSibling);
+          }
+        }
+      }
     }
   };
 
@@ -320,7 +514,7 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     }
     
     if (transposedNote) {
-      applyNoteToPitch(transposedNote, pitchEl);
+      applyNoteToPitch(transposedNote, pitchEl, noteEl);
     }
   });
 

@@ -29,6 +29,8 @@ interface FantasySheetMusicDisplayProps {
   transposeOffset?: number;
   /** 次のループの移調オフセット（0 ~ 11） */
   nextTransposeOffset?: number;
+  /** 簡易表示モード（ダブルシャープ/ダブルフラットを変換） */
+  simpleMode?: boolean;
   className?: string;
 }
 
@@ -42,17 +44,32 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
-// 12キー分の楽譜画像キャッシュ
+// 12キー分の楽譜画像キャッシュ（-5〜+6の範囲）
 interface SheetImageCache {
-  [offset: number]: string; // offset (0-11) -> dataURL
+  [offset: number]: string; // offset (-5〜+6) -> dataURL
 }
 
-// 12キー分のタイムマッピングキャッシュ
+// 12キー分のタイムマッピングキャッシュ（-5〜+6の範囲）
 interface TimeMapCache {
   [offset: number]: {
     mapping: TimeMappingEntry[];
     sheetWidth: number;
   };
+}
+
+/**
+ * transposeOffsetを-5〜+6の範囲に正規化
+ * +6と-6は同じピッチクラス（Gb/F#）なので、どちらも+6として扱う
+ * これにより、音源・ノーツ・楽譜すべてで統一された移調が適用される
+ */
+function normalizeOffsetToCache(offset: number): number {
+  // まず0〜11に正規化
+  let normalized = ((offset % 12) + 12) % 12;
+  // 7〜11は-5〜-1に変換、0〜6はそのまま
+  if (normalized > 6) {
+    normalized = normalized - 12;
+  }
+  return normalized;
 }
 
 const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
@@ -65,6 +82,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   countInMeasures = 0,
   transposeOffset = 0,
   nextTransposeOffset,
+  simpleMode = false,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -103,11 +121,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   const renderSheetForOffset = useCallback(async (
     xml: string,
     offset: number,
-    container: HTMLDivElement
+    container: HTMLDivElement,
+    useSimpleMode: boolean
   ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; sheetWidth: number } | null> => {
     try {
-      // 移調を適用
-      const transposedXml = offset !== 0 ? transposeMusicXml(xml, offset) : xml;
+      // 移調を適用（simpleMode を渡す）
+      const transposedXml = offset !== 0 ? transposeMusicXml(xml, offset, useSimpleMode) : xml;
       
       // OSMDオプション設定
       const options: IOSMDOptions = {
@@ -204,7 +223,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
   }, [bpm, timeSignature]);
   
-  // 12キー分の楽譜を事前レンダリング
+  // 12キー分の楽譜を事前レンダリング（-5〜+6の範囲）
   const initializeAllSheets = useCallback(async () => {
     if (!musicXml || !renderContainerRef.current) {
       setError('楽譜データがありません');
@@ -218,14 +237,18 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       const imageCache: SheetImageCache = {};
       const mapCache: TimeMapCache = {};
       
-      // 12キー分すべてを同じ方法でレンダリング
-      for (let offset = 0; offset < 12; offset++) {
+      // 12キー分すべてを-5〜+6の範囲でレンダリング
+      // +6と-6は同じピッチクラスなので、+6のみ作成（Gbメジャーとして統一）
+      for (let i = 0; i < 12; i++) {
+        const offset = i <= 6 ? i : i - 12; // 0,1,2,3,4,5,6,-5,-4,-3,-2,-1
+        
         // レンダリング用コンテナをクリア
         if (renderContainerRef.current) {
           renderContainerRef.current.innerHTML = '';
         }
         
-        const result = await renderSheetForOffset(musicXml, offset, renderContainerRef.current!);
+        // simpleModeを渡してレンダリング
+        const result = await renderSheetForOffset(musicXml, offset, renderContainerRef.current!, simpleMode);
         if (result) {
           imageCache[offset] = result.imageData;
           mapCache[offset] = {
@@ -244,8 +267,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
         
         // 進捗ログ
-        if (offset % 3 === 0) {
-          devLog.debug(`🎹 楽譜レンダリング進捗: ${offset + 1}/12`);
+        if (i % 3 === 0) {
+          devLog.debug(`🎹 楽譜レンダリング進捗: ${i + 1}/12 (offset: ${offset}, simpleMode: ${simpleMode})`);
         }
       }
       
@@ -262,7 +285,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       console.log('✅ 12キー分の楽譜レンダリング完了', {
         imageCount: Object.keys(imageCache).length,
         mapCount: Object.keys(mapCache).length,
-        widthVariation: Object.values(mapCache).map(m => m.sheetWidth)
+        offsets: Object.keys(imageCache).map(Number).sort((a, b) => a - b),
+        simpleMode
       });
       
     } catch (err) {
@@ -271,39 +295,38 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, width, renderSheetForOffset, bpm, timeSignature]);
+  }, [musicXml, width, renderSheetForOffset, bpm, timeSignature, simpleMode]);
   
   // musicXmlまたはloopInfoが変更されたら12キー分をレンダリング
   useEffect(() => {
     if (musicXml) {
       initializeAllSheets();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicXml]);
+  }, [musicXml, initializeAllSheets]);
   
   // 現在のキーと次のキーの楽譜画像
   const currentSheetImage = useMemo(() => {
-    const offset = ((transposeOffset % 12) + 12) % 12;
+    const offset = normalizeOffsetToCache(transposeOffset);
     return sheetImageCache[offset] || null;
   }, [sheetImageCache, transposeOffset]);
   
   const nextSheetImage = useMemo(() => {
-    const nextOffset = nextTransposeOffset !== undefined 
-      ? ((nextTransposeOffset % 12) + 12) % 12
-      : ((transposeOffset % 12) + 12) % 12;
+    const nextOffset = normalizeOffsetToCache(
+      nextTransposeOffset !== undefined ? nextTransposeOffset : transposeOffset
+    );
     return sheetImageCache[nextOffset] || null;
   }, [sheetImageCache, transposeOffset, nextTransposeOffset]);
   
   // 現在のキーと次のキーの楽譜幅
   const currentSheetWidth = useMemo(() => {
-    const offset = ((transposeOffset % 12) + 12) % 12;
+    const offset = normalizeOffsetToCache(transposeOffset);
     return timeMapCache[offset]?.sheetWidth || sheetWidthRef.current;
   }, [timeMapCache, transposeOffset]);
   
   const nextSheetWidth = useMemo(() => {
-    const nextOffset = nextTransposeOffset !== undefined 
-      ? ((nextTransposeOffset % 12) + 12) % 12
-      : ((transposeOffset % 12) + 12) % 12;
+    const nextOffset = normalizeOffsetToCache(
+      nextTransposeOffset !== undefined ? nextTransposeOffset : transposeOffset
+    );
     return timeMapCache[nextOffset]?.sheetWidth || sheetWidthRef.current;
   }, [timeMapCache, transposeOffset, nextTransposeOffset]);
   
@@ -323,7 +346,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       const currentTime = bgmManager.getCurrentMusicTime();
       
       // 現在のキーに対応するタイムマッピングを取得
-      const currentOffset = ((transposeOffset % 12) + 12) % 12;
+      const currentOffset = normalizeOffsetToCache(transposeOffset);
       const currentMapData = timeMapCache[currentOffset];
       const mapping = currentMapData?.mapping || timeMappingRef.current;
       const sheetWidth = currentMapData?.sheetWidth || sheetWidthRef.current;

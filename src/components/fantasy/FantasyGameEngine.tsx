@@ -216,6 +216,8 @@ export interface FantasyGameState {
   transposeSettings: TransposeSettings | null;
   currentTransposeOffset: number; // 現在の移調オフセット（半音数）
   originalTaikoNotes: TaikoNote[]; // 移調前の元のノート配列（リピート時に使用）
+  // 先読みヒット管理（ループ直前に次ループのノーツをヒットした場合に記録）
+  preHitNoteIndices: number[]; // 次ループで既にヒット済みとするノーツのインデックス
 }
 
 interface FantasyGameEngineProps {
@@ -715,7 +717,8 @@ export const useFantasyGameEngine = ({
     // 移調練習用
     transposeSettings: null,
     currentTransposeOffset: 0,
-    originalTaikoNotes: []
+    originalTaikoNotes: [],
+    preHitNoteIndices: []
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -833,15 +836,35 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
+      // 先読みヒット（ループ境界付近で次ループのノーツにヒット）の判定
+      // currentIndexが末尾付近で、chosenIndexが先頭（0または1）の場合
+      const isPreHit = !wasAwaitingLoop && 
+        currentIndex >= prevState.taikoNotes.length - 2 && 
+        chosenIndex <= 1;
+      
       // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
       let updatedTaikoNotes;
+      const updatedPreHitIndices = [...(prevState.preHitNoteIndices || [])];
+      
       if (wasAwaitingLoop) {
+        // awaitingLoopStart状態からの先読みヒット
         // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
         updatedTaikoNotes = prevState.taikoNotes.map((n, i) => ({
           ...n,
           isHit: i === chosenIndex,
           isMissed: false
         }));
+        // preHitNoteIndicesに記録（ループ境界で維持するため）
+        if (!updatedPreHitIndices.includes(chosenIndex)) {
+          updatedPreHitIndices.push(chosenIndex);
+        }
+      } else if (isPreHit) {
+        // ループ境界付近での先読みヒット（awaitingLoopStartではない）
+        // 現在のノーツにフラグを立てつつ、preHitNoteIndicesにも記録
+        updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+        if (!updatedPreHitIndices.includes(chosenIndex)) {
+          updatedPreHitIndices.push(chosenIndex);
+        }
       } else {
         // 通常時は選ばれたノーツのみにフラグを立てる
         updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
@@ -890,7 +913,8 @@ export const useFantasyGameEngine = ({
             // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
             currentNoteIndex: nextIndexByChosen,
             taikoNotes: updatedTaikoNotes,
-            awaitingLoopStart: false
+            awaitingLoopStart: false,
+            preHitNoteIndices: [] // ゲームクリア時はリセット
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -909,7 +933,9 @@ export const useFantasyGameEngine = ({
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          awaitingLoopStart: isLastNoteByChosen ? true : false,
+          // 先読みヒットの記録
+          preHitNoteIndices: updatedPreHitIndices
         };
       }
 
@@ -922,7 +948,9 @@ export const useFantasyGameEngine = ({
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          awaitingLoopStart: true,
+          // 先読みヒットの記録
+          preHitNoteIndices: updatedPreHitIndices
         };
       }
 
@@ -935,7 +963,9 @@ export const useFantasyGameEngine = ({
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
-        awaitingLoopStart: false
+        awaitingLoopStart: false,
+        // 通常時は先読みヒット記録をクリア（ループが開始されたらリセット）
+        preHitNoteIndices: isPreHit ? updatedPreHitIndices : []
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -1202,11 +1232,13 @@ export const useFantasyGameEngine = ({
     const originalTaikoNotes = [...taikoNotes];
     
     // 初期移調を適用
+    // 簡易設定フラグ：displayOpts.simpleがtrueならダブルシャープや白鍵の異名同音を変換
+    const simpleMode = displayOpts?.simple ?? true;
     let currentTransposeOffset = 0;
     if (transposeSettings && isTaikoMode && taikoNotes.length > 0) {
       currentTransposeOffset = transposeSettings.keyOffset;
       if (currentTransposeOffset !== 0) {
-        taikoNotes = transposeTaikoNotes(taikoNotes, currentTransposeOffset);
+        taikoNotes = transposeTaikoNotes(taikoNotes, currentTransposeOffset, simpleMode);
         // モンスターのコードも更新
         if (activeMonsters.length > 0) {
           activeMonsters[0].chordTarget = taikoNotes[0].chord;
@@ -1214,7 +1246,8 @@ export const useFantasyGameEngine = ({
         }
         devLog.debug('🎹 初期移調適用:', {
           offset: currentTransposeOffset,
-          key: getKeyFromOffset('C', currentTransposeOffset)
+          key: getKeyFromOffset('C', currentTransposeOffset),
+          simpleMode
         });
       }
     }
@@ -1259,7 +1292,8 @@ export const useFantasyGameEngine = ({
       // 移調練習用
       transposeSettings,
       currentTransposeOffset,
-      originalTaikoNotes
+      originalTaikoNotes,
+      preHitNoteIndices: []
     };
 
     setGameState(newState);
@@ -1590,11 +1624,13 @@ export const useFantasyGameEngine = ({
               newTransposeOffset
             });
             
-            // 移調を適用
+            // 移調を適用（簡易設定フラグを使用）
+            const simpleMode = displayOpts?.simple ?? true;
             if (newTransposeOffset !== 0) {
-              transposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, newTransposeOffset);
+              transposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, newTransposeOffset, simpleMode);
             } else {
-              transposedNotes = prevState.originalTaikoNotes.map(note => ({ ...note }));
+              // 移調オフセットが0でも簡易モードの正規化は適用
+              transposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, 0, simpleMode);
             }
             
             // BGMのピッチシフトを直接変更（Reactのバッチ処理を待たずに即座に反映）
@@ -1603,40 +1639,101 @@ export const useFantasyGameEngine = ({
             console.log('🎵 BGMピッチシフト変更:', newTransposeOffset);
           }
           
-          // ノーツをリセット
-          const resetNotes = transposedNotes.map(note => ({
+          // ノーツをリセット（先読みヒット済みノーツは維持）
+          const preHitIndices = prevState.preHitNoteIndices || [];
+          const resetNotes = transposedNotes.map((note, index) => ({
             ...note,
-            isHit: false,
+            // 先読みでヒットしたノーツはisHit: trueを維持
+            isHit: preHitIndices.includes(index),
             isMissed: false
           }));
           
-          // ループ境界では常にノーツインデックスを0にリセット
-          // awaitingLoopStart状態に関わらず、新しいループの先頭から開始
-          const newNoteIndex = 0;
-          const firstNote = resetNotes[0];
-          const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+          // 先読みヒット済みノーツがある場合、そのノーツの次から開始
+          // それ以外は0から開始
+          const hitIndices = preHitIndices.filter(i => i < resetNotes.length);
+          const maxHitIndex = hitIndices.length > 0 ? Math.max(...hitIndices) : -1;
+          const newNoteIndex = maxHitIndex >= 0 ? maxHitIndex + 1 : 0;
+          
+          // newNoteIndexが範囲外の場合は0にリセット
+          const effectiveNoteIndex = newNoteIndex >= resetNotes.length ? 0 : newNoteIndex;
+          
+          // ターゲットコードを決定（先読みヒットがある場合は次のノーツから）
+          const targetNote = resetNotes[effectiveNoteIndex] || resetNotes[0];
+          const nextTargetNote = resetNotes[(effectiveNoteIndex + 1) % resetNotes.length] || resetNotes[0];
+          
           const refreshedMonsters = prevState.activeMonsters.map(m => ({
             ...m,
             correctNotes: [],
             gauge: 0,
-            chordTarget: firstNote.chord,
-            nextChord: secondNote.chord
+            chordTarget: targetNote.chord,
+            nextChord: nextTargetNote.chord
           }));
           
           return {
             ...prevState,
             taikoNotes: resetNotes,
-            currentNoteIndex: newNoteIndex,
+            currentNoteIndex: effectiveNoteIndex,
             awaitingLoopStart: false,
             taikoLoopCycle: newLoopCycle,
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters,
-            currentTransposeOffset: newTransposeOffset
+            currentTransposeOffset: newTransposeOffset,
+            // 先読みヒット情報をクリア（ループ開始時にリセット）
+            preHitNoteIndices: []
           };
         }
         
         // 末尾処理後の待機中はミス判定を停止（ループ境界待ち）
+        // ただし、鍵盤ガイド表示用に次のループのコード情報を事前計算する
         if (prevState.awaitingLoopStart) {
+          // 次のループの移調オフセットを先に計算
+          const nextLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+          let nextTransposeOffset = prevState.currentTransposeOffset;
+          
+          if (prevState.transposeSettings && prevState.originalTaikoNotes.length > 0) {
+            nextTransposeOffset = calculateTransposeOffset(
+              prevState.transposeSettings.keyOffset,
+              nextLoopCycle,
+              prevState.transposeSettings.repeatKeyChange
+            );
+          }
+          
+          // 次のループの先頭ノーツのコードを計算（ガイド表示用）
+          const baseNotes = prevState.originalTaikoNotes.length > 0 
+            ? prevState.originalTaikoNotes 
+            : prevState.taikoNotes;
+          
+          if (baseNotes.length > 0) {
+            // 次のループの移調後のコードを計算（簡易設定フラグを使用）
+            const simpleMode = displayOpts?.simple ?? true;
+            const nextFirstChord = nextTransposeOffset !== 0
+              ? transposeChordDefinition(baseNotes[0].chord, nextTransposeOffset, simpleMode)
+              : transposeChordDefinition(baseNotes[0].chord, 0, simpleMode);
+            const nextSecondChord = baseNotes.length > 1
+              ? (nextTransposeOffset !== 0
+                  ? transposeChordDefinition(baseNotes[1].chord, nextTransposeOffset, simpleMode)
+                  : transposeChordDefinition(baseNotes[1].chord, 0, simpleMode))
+              : nextFirstChord;
+            
+            // 現在のモンスターのnextChordを次のループの先頭コードに更新
+            // これにより、ループ直前でも正しいガイドが表示される
+            const currentMonsters = prevState.activeMonsters;
+            const needsUpdate = currentMonsters.length > 0 && 
+              currentMonsters[0].nextChord?.id !== nextFirstChord.id;
+            
+            if (needsUpdate) {
+              const updatedMonsters = currentMonsters.map(m => ({
+                ...m,
+                nextChord: nextFirstChord
+              }));
+              return { 
+                ...prevState, 
+                lastNormalizedTime: normalizedTime,
+                activeMonsters: updatedMonsters
+              };
+            }
+          }
+          
           return { ...prevState, lastNormalizedTime: normalizedTime };
         }
         

@@ -572,7 +572,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
@@ -644,6 +643,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // Ready画面表示中にロードが完了する
     const stageWithSettings = buildInitStage(speedMultiplier, transposeSettings);
     await initializeGame(stageWithSettings, mode);
+    
+    // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
+    try {
+      await FantasySoundManager.warmupRootSound();
+    } catch {
+      // ウォームアップ失敗は無視
+    }
+    
     setIsGameReady(true); // 画像プリロード完了
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, stage.mode]);
 
@@ -1142,10 +1149,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
+    // ただし、awaitingLoopStart状態では次のループの最初のコード（nextChord）を使用
     let chord;
     if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
-      const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
-      chord = currentNote?.chord;
+      // awaitingLoopStart状態では、nextChordを使用（次のループの最初のコード）
+      if (gameState.awaitingLoopStart) {
+        const targetMonster = gameState.activeMonsters?.[0];
+        // nextChordが設定されていればそれを使用、なければcurrentNoteIndexのコード
+        chord = targetMonster?.nextChord || gameState.taikoNotes[gameState.currentNoteIndex]?.chord;
+      } else {
+        const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
+        chord = currentNote?.chord;
+      }
     } else {
       // 通常モード: activeMonsters または currentChordTarget を参照
       const targetMonster = gameState.activeMonsters?.[0];
@@ -1158,7 +1173,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   // ※モンスターが複数いる場合は非表示にする
@@ -1799,6 +1814,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   )
                 : undefined
             }
+            simpleMode={currentSimpleNoteName}
             className="w-full h-full"
           />
         </div>
