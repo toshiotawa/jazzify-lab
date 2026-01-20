@@ -384,6 +384,25 @@ export function transposeMusicXml(xmlString: string, semitones: number): string 
     fifthsEl.textContent = String(targetFifths);
   });
 
+  // <credit>要素を削除（キー名などのテキストが全キー分表示される問題を防ぐ）
+  doc.querySelectorAll('credit').forEach((creditEl) => {
+    creditEl.remove();
+  });
+
+  // <direction>要素内のキー名テキスト（words要素）を削除
+  // 単一文字のキー名（A-G、シャープ/フラット付き）を検出して削除
+  doc.querySelectorAll('direction words').forEach((wordsEl) => {
+    const text = wordsEl.textContent?.trim() || '';
+    // キー名パターン: A, B, C, D, E, F, G またはそれにb/#が付いたもの
+    if (/^[A-G][b#]?$/.test(text)) {
+      // キー名テキストの場合、親のdirection要素ごと削除
+      const directionEl = wordsEl.closest('direction');
+      if (directionEl) {
+        directionEl.remove();
+      }
+    }
+  });
+
   const serializer = new XMLSerializer();
   return serializer.serializeToString(doc);
 }

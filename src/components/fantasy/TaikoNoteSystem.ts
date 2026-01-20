@@ -107,20 +107,28 @@ export function transposeNoteName(noteName: string, semitones: number): string {
 }
 
 /**
- * エンハーモニックの正規化（CbメジャーやF#メジャーを避ける）
+ * エンハーモニックの正規化
+ * 簡易設定ON時の変換ルール:
+ * - ダブルシャープ・ダブルフラットは常に変換（Cx→D, Dbb→Cなど）
+ * - 白鍵の♭#（Cb→B, B#→C, E#→F, Fb→E）は常に変換
+ * - 黒鍵の単一♭#（Db, Eb, Gb, Ab, Bb, C#, D#, F#, G#, A#）はそのまま
  * @param noteName 音名
+ * @param simple 簡易表記モード（デフォルトtrue）
  * @returns 正規化された音名
  */
-function normalizeEnharmonic(noteName: string): string {
-  // ダブルシャープ・ダブルフラットを基本音名に変換
+function normalizeEnharmonic(noteName: string, simple: boolean = true): string {
+  // ダブルシャープ・ダブルフラット、白鍵の♭#を変換
   const enharmonicMap: Record<string, string> = {
+    // 白鍵の♭#（必ず変換）
     'Cb': 'B', 'B#': 'C', 'E#': 'F', 'Fb': 'E',
-    'Cx': 'D', 'Dx': 'E', 'Fx': 'G', 'Gx': 'A', 'Ax': 'B',
-    'Dbb': 'C', 'Ebb': 'D', 'Gbb': 'F', 'Abb': 'G', 'Bbb': 'A',
-    // F#/Gbは Gbを優先（Cbメジャー/F#メジャーを避けるため）
-    'F#': 'Gb'
+    // ダブルシャープ（必ず変換）
+    'Cx': 'D', 'Dx': 'E', 'Fx': 'G', 'Gx': 'A', 'Ax': 'B', 'Bx': 'Db',
+    // ダブルフラット（必ず変換）
+    'Cbb': 'Bb', 'Dbb': 'C', 'Ebb': 'D', 'Fbb': 'Eb', 'Gbb': 'F', 'Abb': 'G', 'Bbb': 'A',
   };
   
+  // 簡易表記モードでない場合（正確表記）、黒鍵の単一♭#はそのまま
+  // ただし、ダブルシャープ・ダブルフラット・白鍵の♭#は常に変換
   return enharmonicMap[noteName] || noteName;
 }
 
@@ -132,6 +140,30 @@ function normalizeEnharmonic(noteName: string): string {
  */
 export function transposeMidi(midi: number, semitones: number): number {
   return midi + semitones;
+}
+
+/**
+ * コードネームを移調
+ * 例: Dm7 + 2半音 → Em7, G7 + 5半音 → C7
+ * @param chordName コードネーム（例: "Dm7", "G7", "Cmaj7"）
+ * @param semitones 半音数
+ * @returns 移調後のコードネーム
+ */
+export function transposeChordName(chordName: string, semitones: number): string {
+  if (semitones === 0 || !chordName) return chordName;
+  
+  // コードネームからルート音を抽出（例: "Dm7" → "D", "Abmaj7" → "Ab", "F#m" → "F#"）
+  const rootMatch = chordName.match(/^([A-G][#b]?)/);
+  if (!rootMatch) return chordName;
+  
+  const root = rootMatch[1];
+  const suffix = chordName.slice(root.length); // "m7", "maj7", "7", "m" など
+  
+  // ルート音を移調
+  const transposedRoot = transposeNoteName(root, semitones);
+  
+  // 移調後のコードネームを構築
+  return transposedRoot + suffix;
 }
 
 /**
@@ -200,10 +232,13 @@ export function transposeTaikoNotes(notes: TaikoNote[], semitones: number): Taik
 
 /**
  * リピート回数に応じた移調オフセットを計算
+ * レジェンドモードと同じ仕様:
+ * - ±6の範囲に収める（循環ではなく折り返し）
+ * - 例: +7 → -5, +8 → -4, -7 → +5
  * @param baseOffset 基準オフセット
  * @param repeatCycle 現在のリピート回数（0から開始）
  * @param repeatKeyChange リピートごとのキー変更設定
- * @returns 実際の移調オフセット（半音数）
+ * @returns 実際の移調オフセット（半音数、-6〜+6）
  */
 export function calculateTransposeOffset(
   baseOffset: number,
@@ -211,16 +246,33 @@ export function calculateTransposeOffset(
   repeatKeyChange: RepeatKeyChange
 ): number {
   if (repeatKeyChange === 'off') {
-    return baseOffset;
+    // baseOffsetも±6の範囲に正規化
+    return normalizeToRange6(baseOffset);
   }
   
   const changeAmount = repeatKeyChange === '+1' ? 1 : 5;
   const totalChange = baseOffset + (repeatCycle * changeAmount);
   
-  // -6〜+6の範囲に収める（循環）
-  // 実際の半音数は-6〜+6を超えても音楽的には同じピッチクラスなので
-  // 0-11の範囲に正規化
-  return ((totalChange % 12) + 12) % 12;
+  // ±6の範囲に正規化（折り返し方式）
+  return normalizeToRange6(totalChange);
+}
+
+/**
+ * 半音数を±6の範囲に正規化（折り返し方式）
+ * 12半音で1オクターブのため、7以上は-5～-1、-7以下は+5～+1として扱う
+ * @param semitones 半音数
+ * @returns -6〜+6の範囲に正規化された半音数
+ */
+function normalizeToRange6(semitones: number): number {
+  // まず0-11の範囲に正規化
+  let normalized = ((semitones % 12) + 12) % 12;
+  
+  // 7以上の場合は負の値に変換（±6の範囲に収める）
+  if (normalized > 6) {
+    normalized = normalized - 12; // 7 → -5, 8 → -4, ... 11 → -1
+  }
+  
+  return normalized;
 }
 
 // ===== 袋形式ランダムセレクター =====
