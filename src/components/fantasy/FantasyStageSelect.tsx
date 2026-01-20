@@ -99,7 +99,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const [stageClears, setStageClears] = useState<FantasyStageClear[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedRank, setSelectedRank] = useState<string>('1');
-  const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced'>('basic');
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced' | 'phrases'>('basic');
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -355,9 +355,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       if (isFreeOrGuest) setSelectedRank('1');
       return;
     }
-    // Basic/Advancedともに数値ランク（1,2,3...）運用。選択Tierの現在地ランクを開く
+    // Basic/Advanced/Phrasesともに数値ランク（1,2,3...）運用。選択Tierの現在地ランクを開く
     const currentStageForTier = selectedTier === 'advanced'
       ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : selectedTier === 'phrases'
+      ? '1-1' // Phrasesはまだ進捗管理がないのでデフォルト値
       : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
     if (currentStageForTier) {
       const currentRank = currentStageForTier.split('-')[0];
@@ -446,6 +448,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     /* 3) 従来の互換性: progress に記録されている現在地より前ならアンロック */
     const currentStageForTier = selectedTier === 'advanced'
       ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
+      : selectedTier === 'phrases'
+      ? '1-1' // Phrasesはまだ進捗管理がないのでデフォルト値
       : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
     const [currR, currS] = (currentStageForTier || '1-1').split('-').map(Number);
     if (isNaN(currR) || isNaN(currS)) return false;
@@ -605,16 +609,16 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           )}
           {/* 次ステージ開放までの残り回数（アンロック済みのステージで表示） */}
           {unlocked && !nextUnlocked && (
-            <div className="text-xs text-blue-300 whitespace-nowrap">
+            <div className="text-xs text-blue-300 text-right leading-tight">
               {isEnglishCopy 
-                ? `Clears needed: ${remainingClears} more`
-                : `必要クリア回数：あと${remainingClears}回`
+                ? <>Clears needed:<br />{remainingClears} more</>
+                : <>クリア回数<br />あと{remainingClears}回</>
               }
             </div>
           )}
           {unlocked && nextUnlocked && (
-            <div className="text-xs text-green-400 whitespace-nowrap">
-              {isEnglishCopy ? 'Clears needed: 0 more' : '必要クリア回数：あと0回'}
+            <div className="text-xs text-green-400 text-right leading-tight">
+              {isEnglishCopy ? <>Clears needed:<br />0 more</> : <>クリア回数<br />あと0回</>}
             </div>
           )}
         </div>
@@ -685,9 +689,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                     {currentStageLabel}: <span className="text-blue-300 font-bold">
                     {selectedTier === 'advanced'
                       ? (userProgress?.currentStageNumberAdvanced || userProgress?.currentStageNumber || '1-1')
+                      : selectedTier === 'phrases'
+                      ? '1-1'
                       : (userProgress?.currentStageNumberBasic || userProgress?.currentStageNumber || '1-1')}
                   </span>
-                  <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : 'Basic'})</span>
+                  <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : selectedTier === 'phrases' ? 'Phrases' : 'Basic'})</span>
                 </div>
               )}
             </div>
@@ -726,7 +732,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       {/* ランク選択タブの上にTier切り替え */}
       <div className="px-4 sm:px-6 mb-3 sm:mb-4">
         <div className="flex space-x-2 overflow-x-auto">
-          {(['basic','advanced'] as const).map(tier => (
+          {(['basic','advanced','phrases'] as const).map(tier => (
             <button
               key={tier}
               onClick={() => setSelectedTier(tier)}
@@ -737,7 +743,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                   : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
               )}
             >
-              {tier === 'basic' ? 'Basic' : 'Advanced'}
+              {tier === 'basic' ? 'Basic' : tier === 'advanced' ? 'Advanced' : 'Phrases'}
             </button>
           ))}
         </div>

@@ -1430,9 +1430,10 @@ export function getRankFromStageNumber(stageNumber: string): number {
 /**
  * ランクから対応するランク情報を取得
  */
-export function getFantasyRankInfo(rank: number, tier: 'basic' | 'advanced' = 'basic'): FantasyRankInfo {
+export function getFantasyRankInfo(rank: number, tier: 'basic' | 'advanced' | 'phrases' = 'basic'): FantasyRankInfo {
   // 1-200の範囲に収める
   const validRank = Math.min(Math.max(rank, 1), 200);
+  // phrases は basic と同じデータを使用
   const list = tier === 'advanced' ? FANTASY_RANKS_ADVANCED : FANTASY_RANKS_BASIC;
   return list[validRank - 1];
 }

@@ -1476,6 +1476,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   : (isEnglishCopy ? 'Practice' : '練習する')}
               </button>
             )}
+            
+            {/* 戻るボタン */}
+            <button
+              onClick={onBackToStageSelect}
+              className="w-full px-8 py-3 mt-2 text-gray-300 font-bold text-lg rounded-lg shadow-lg transform transition-all border border-gray-600 bg-gray-800 hover:bg-gray-700 hover:scale-105"
+            >
+              {isEnglishCopy ? 'Back' : '戻る'}
+            </button>
           </div>
           
           {/* デバッグ情報 */}
