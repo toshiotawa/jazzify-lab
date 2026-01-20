@@ -1566,7 +1566,9 @@ export const useFantasyGameEngine = ({
             loopTimeDiff: loopTimeDiff.toFixed(3),
             hasTransposeSettings: !!prevState.transposeSettings,
             originalNotesCount: prevState.originalTaikoNotes.length,
-            prevTransposeOffset: prevState.currentTransposeOffset
+            prevTransposeOffset: prevState.currentTransposeOffset,
+            awaitingLoopStart: prevState.awaitingLoopStart,
+            prevNoteIndex: prevState.currentNoteIndex
           });
           
           // リピートごとの移調を適用（移調設定がある場合）
@@ -1598,28 +1600,36 @@ export const useFantasyGameEngine = ({
             }
           }
           
-          // ノーツをリセット
-          const resetNotes = transposedNotes.map(note => ({
+          // ノーツをリセット（ループサイクルをIDに含めて一意性を保証）
+          const resetNotes = transposedNotes.map((note, idx) => ({
             ...note,
+            // ループサイクルをIDに含めることで、同じ位置のノーツでも一意のIDを持つ
+            id: `note_${note.measure}_${note.beat}_loop${newLoopCycle}_${idx}`,
             isHit: false,
             isMissed: false
           }));
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
+          // ループ境界では常にcurrentNoteIndexを0にリセット
+          // これにより、awaitingLoopStartの状態に関わらず正しく次ループが開始される
+          const newNoteIndex = 0;
+          const firstNote = resetNotes[0];
+          const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
           
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
-            }));
-          }
+          // モンスターのターゲットを常に更新
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: firstNote.chord,
+            nextChord: secondNote.chord
+          }));
+          
+          console.log('🔄 ループリセット完了:', {
+            newNoteIndex,
+            newTransposeOffset,
+            firstNoteChord: firstNote?.chord?.displayName,
+            secondNoteChord: secondNote?.chord?.displayName
+          });
           
           return {
             ...prevState,

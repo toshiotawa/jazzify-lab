@@ -554,6 +554,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [showSheetMusicForTiming]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 注: currentTransposeOffsetを依存配列から除外し、初期ピッチシフトのみ使用
+  // ループ中のピッチシフト変更は別のuseEffectでsetPitchShift()を使用
+  const initialTransposeOffsetRef = useRef<number>(0);
+  
   useEffect(() => {
     if (!gameState.isGameActive) return;
     if (isReady) return;
@@ -561,13 +565,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
-    
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    // 初期の移調オフセットを保存（BGM開始時のみ使用）
+    // ループ中の移調変更はsetPitchShift()で行うため、ここでは初期値のみ
+    const initialPitchShift = gameState.transposeSettings?.keyOffset || 0;
+    initialTransposeOffsetRef.current = initialPitchShift;
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -577,19 +578,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      pitchShift
+      initialPitchShift
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
+  // 重要: gameState.currentTransposeOffsetを依存配列から除外
+  // これにより、ループ中の移調変更でBGMが再起動されない
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.transposeSettings?.keyOffset]);
   
-  // リピート時のキー変更でBGMのピッチシフトを更新
+  // リピート時のキー変更でBGMのピッチシフトを動的に更新
+  // 注: これはBGMを再起動せずにピッチのみを変更する
+  // ループ中の移調変更はこのuseEffectで処理される
   useEffect(() => {
     if (!gameState.isGameActive || isReady) return;
+    
+    // 移調設定がある場合のみピッチシフトを更新
     if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
-      bgmManager.setPitchShift(gameState.currentTransposeOffset);
+      // 初期オフセットと異なる場合のみ更新（ループ境界での変更）
+      if (gameState.currentTransposeOffset !== initialTransposeOffsetRef.current || gameState.taikoLoopCycle > 0) {
+        console.log('🎹 BGMピッチシフト更新:', {
+          loopCycle: gameState.taikoLoopCycle,
+          offset: gameState.currentTransposeOffset,
+          initialOffset: initialTransposeOffsetRef.current
+        });
+        bgmManager.setPitchShift(gameState.currentTransposeOffset);
+      }
     }
-  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
+  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset, gameState.taikoLoopCycle]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
@@ -1047,13 +1062,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const transposeSettings = transposeSettingsRef.current;
         const originalNotes = originalTaikoNotesRef.current;
         const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
+        const nextLoopCycle = currentLoopCycle + 1;
         
         // 次のループで使用するノーツを決定
         let nextLoopNotes = taikoNotes;
+        let nextTransposeOffset = currentTransposeOffsetRef.current;
+        
         if (transposeSettings && originalNotes.length > 0) {
           // 次のリピートサイクルの移調オフセットを計算
-          const nextLoopCycle = currentLoopCycle + 1;
-          const nextTransposeOffset = calculateTransposeOffset(
+          nextTransposeOffset = calculateTransposeOffset(
             transposeSettings.keyOffset,
             nextLoopCycle,
             transposeSettings.repeatKeyChange
@@ -1079,8 +1096,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (timeUntilHit > lookAheadTime) break;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+          // ループサイクルと移調オフセットをIDに含めて一意性を保証
           notesToDisplay.push({
-            id: `${note.id}_loop`,
+            id: `preview_loop${nextLoopCycle}_t${nextTransposeOffset}_${i}`,
             chord: note.chord.displayName,
             x,
             noteNames: note.chord.noteNames
