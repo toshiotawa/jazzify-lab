@@ -242,8 +242,8 @@ const termsArticlesEn: TermsArticle[] = [
     id: 'fees',
     title: 'Article 7 (Fees and Payment)',
     paragraphs: [
-      'Paid subscription fees are ¥2,980 for the Standard Plan, ¥8,980 for the Premium Plan, ¥12,800 for the Platinum Plan, and ¥19,800 for the Gold Plan (all tax included). The Company will announce any changes to the fee structure in advance within the Service.',
-      'Members shall pay subscription fees via credit card through Stripe or other payment processors. Any costs arising from the selected payment method shall be borne by the member.',
+      'The monthly subscription fee for international users is $19 USD per month. The Company will announce any changes to the fee structure in advance within the Service.',
+      'Members shall pay subscription fees via credit card through Stripe, Lemon Squeezy, or other payment processors. Any costs arising from the selected payment method shall be borne by the member.',
     ],
   },
   {
@@ -350,7 +350,7 @@ const termsArticlesEn: TermsArticle[] = [
 const termsHighlightsEn: string[] = [
   'Jazzify is a subscription-based platform for learning jazz performance.',
   'A seven-day free trial is included for new members, after which monthly billing renews automatically.',
-  'Plan fees range from ¥2,980 to ¥19,800 (tax included) and are charged via Stripe or other payment processors.',
+  'The monthly subscription fee is $19 USD per month, charged via Stripe, Lemon Squeezy, or other payment processors.',
   'You can cancel anytime from My Page, and you retain access until the end of the billing cycle.',
   'Prohibited activities, disclaimers, and handling of personal data are defined by these Terms and the Privacy Policy.',
 ];

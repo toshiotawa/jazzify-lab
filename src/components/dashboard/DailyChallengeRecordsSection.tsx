@@ -3,17 +3,27 @@ import { useToastStore } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, DailyChallengeRecord } from '@/types';
 import { fetchDailyChallengeRecordsSince } from '@/platform/supabaseDailyChallenge';
 import { cn } from '@/utils/cn';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 type Period = 'week' | 'month';
 type WeekChoice = 'this_week' | 'last_week';
 
-const difficultyLabel: Record<DailyChallengeDifficulty, string> = {
+const difficultyLabelJp: Record<DailyChallengeDifficulty, string> = {
   beginner: '初級',
   intermediate: '中級',
   advanced: '上級',
 };
 
+const difficultyLabelEn: Record<DailyChallengeDifficulty, string> = {
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+};
+
 const dayLabelsJp = ['月', '火', '水', '木', '金', '土', '日'] as const;
+const dayLabelsEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
 const toLocalDateString = (d: Date): string => {
   const y = d.getFullYear();
@@ -59,6 +69,27 @@ const buildDate = (ym: string, day: number): string => `${ym}-${String(day).padS
 export const DailyChallengeRecordsSection: React.FC = () => {
   const pushToast = useToastStore((s) => s.push);
   const today = useMemo(() => toLocalDateString(new Date()), []);
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  
+  const difficultyLabel = isEnglishCopy ? difficultyLabelEn : difficultyLabelJp;
+  const dayLabels = isEnglishCopy ? dayLabelsEn : dayLabelsJp;
+  
+  // 翻訳テキスト
+  const recordsText = isEnglishCopy ? 'Records' : '記録';
+  const dailyChallengeText = isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ';
+  const playText = isEnglishCopy ? 'Play' : 'プレイする';
+  const weekText = isEnglishCopy ? 'Week' : '週';
+  const monthText = isEnglishCopy ? 'Month' : '月';
+  const thisWeekText = isEnglishCopy ? 'This Week' : '今週';
+  const lastWeekText = isEnglishCopy ? 'Last Week' : '先週';
+  const alreadyPlayedText = isEnglishCopy ? 'Already played today' : '本日はプレイ済み';
+  const notPlayedText = isEnglishCopy ? 'Not played today' : '本日は未プレイ';
+  const loadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
+  const noRecordsText = isEnglishCopy ? 'No records' : '記録がありません';
+  const oncePerDayText = isEnglishCopy ? 'Once per day for each difficulty (Beginner/Intermediate/Advanced can each be played)' : '1日に各難易度1回まで（初級/中級/上級はそれぞれプレイ可能）';
+  const loadErrorText = isEnglishCopy ? 'Failed to load records' : '記録の読み込みに失敗しました';
 
   const [period, setPeriod] = useState<Period>('week');
   const [weekChoice, setWeekChoice] = useState<WeekChoice>('this_week');
@@ -82,13 +113,13 @@ export const DailyChallengeRecordsSection: React.FC = () => {
         setSelectedYearMonth((prev) => prev ?? latest);
       } catch {
         setRecords([]);
-        pushToast('記録の読み込みに失敗しました', 'error');
+        pushToast(loadErrorText, 'error');
       } finally {
         setLoading(false);
       }
     };
     load().catch(() => {});
-  }, [difficulty, oneYearAgo, pushToast]);
+  }, [difficulty, oneYearAgo, pushToast, loadErrorText]);
 
   const monthsWithRecords = useMemo(() => {
     return Array.from(new Set(records.map((r) => toYearMonth(r.played_on)))).sort();
@@ -120,7 +151,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
     if (period === 'week') {
       const values = weekDates.map((d) => scoreByDate.get(d) ?? 0);
       return {
-        labels: [...dayLabelsJp],
+        labels: [...dayLabels],
         values,
       };
     }
@@ -143,8 +174,8 @@ export const DailyChallengeRecordsSection: React.FC = () => {
       <div className="p-4 border-b border-slate-700">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <div className="text-lg font-semibold">記録</div>
-            <div className="text-xs text-gray-400">デイリーチャレンジ</div>
+            <div className="text-lg font-semibold">{recordsText}</div>
+            <div className="text-xs text-gray-400">{dailyChallengeText}</div>
           </div>
           <button
             className={cn('btn btn-sm btn-primary', alreadyPlayedToday && 'btn-disabled')}
@@ -153,7 +184,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
             }}
             disabled={alreadyPlayedToday}
           >
-            プレイする
+            {playText}
           </button>
         </div>
 
@@ -164,13 +195,13 @@ export const DailyChallengeRecordsSection: React.FC = () => {
                 className={cn('btn btn-sm join-item', period === 'week' ? 'btn-active' : 'btn-outline')}
                 onClick={() => setPeriod('week')}
               >
-                週
+                {weekText}
               </button>
               <button
                 className={cn('btn btn-sm join-item', period === 'month' ? 'btn-active' : 'btn-outline')}
                 onClick={() => setPeriod('month')}
               >
-                月
+                {monthText}
               </button>
             </div>
 
@@ -191,19 +222,19 @@ export const DailyChallengeRecordsSection: React.FC = () => {
             <div className="flex items-center justify-between">
               <details className="dropdown">
                 <summary className="btn btn-sm btn-outline">
-                  {weekChoice === 'this_week' ? '今週' : '先週'} <span className="ml-1">∨</span>
+                  {weekChoice === 'this_week' ? thisWeekText : lastWeekText} <span className="ml-1">∨</span>
                 </summary>
                 <ul className="dropdown-content menu bg-slate-800 rounded-box z-[1] w-40 p-2 shadow border border-slate-700">
                   <li>
-                    <button onClick={() => setWeekChoice('this_week')}>今週</button>
+                    <button onClick={() => setWeekChoice('this_week')}>{thisWeekText}</button>
                   </li>
                   <li>
-                    <button onClick={() => setWeekChoice('last_week')}>先週</button>
+                    <button onClick={() => setWeekChoice('last_week')}>{lastWeekText}</button>
                   </li>
                 </ul>
               </details>
               <div className="text-xs text-gray-400">
-                {alreadyPlayedToday ? '本日はプレイ済み' : '本日は未プレイ'}
+                {alreadyPlayedToday ? alreadyPlayedText : notPlayedText}
               </div>
             </div>
           ) : (
@@ -214,7 +245,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
                 </summary>
                 <ul className="dropdown-content menu bg-slate-800 rounded-box z-[1] w-44 p-2 shadow border border-slate-700 max-h-72 overflow-y-auto">
                   {monthsWithRecords.length === 0 ? (
-                    <li className="text-xs text-gray-400 px-2 py-1">記録がありません</li>
+                    <li className="text-xs text-gray-400 px-2 py-1">{noRecordsText}</li>
                   ) : (
                     [...monthsWithRecords].reverse().map((ym) => (
                       <li key={ym}>
@@ -224,7 +255,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
                   )}
                 </ul>
               </details>
-              <div className="text-xs text-gray-400">{loading ? '読み込み中...' : ''}</div>
+              <div className="text-xs text-gray-400">{loading ? loadingText : ''}</div>
             </div>
           )}
         </div>
@@ -232,7 +263,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
 
       <div className="p-4">
         {graphData.labels.length === 0 ? (
-          <div className="text-sm text-gray-400 text-center py-8">記録がありません</div>
+          <div className="text-sm text-gray-400 text-center py-8">{noRecordsText}</div>
         ) : (
           <div className={cn(period === 'month' && 'overflow-x-auto')}>
             <div
@@ -261,7 +292,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
         )}
 
         <div className="mt-3 text-xs text-gray-400">
-          1日に各難易度1回まで（初級/中級/上級はそれぞれプレイ可能）
+          {oncePerDayText}
         </div>
       </div>
     </div>

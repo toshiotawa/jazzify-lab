@@ -5,6 +5,8 @@ import { FaHeart, FaTrash, FaEdit, FaChevronDown, FaTimes, FaSave, FaCrown, FaGe
 import { useToast } from '@/stores/toastStore';
 import { DiaryComment } from '@/platform/supabaseDiary';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 const Avatar: React.FC<{ url?: string }> = ({ url }) => (
   <img
@@ -16,7 +18,9 @@ const Avatar: React.FC<{ url?: string }> = ({ url }) => (
 
 const DiaryFeed: React.FC = () => {
   const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update, loadMore, hasMore, loadingMore } = useDiaryStore();
-  const { user, isGuest } = useAuthStore();
+  const { user, isGuest, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string|null>(null);
@@ -129,9 +133,20 @@ const DiaryFeed: React.FC = () => {
 
   if (!user || isGuest) return (
     <div className="p-4 text-center text-gray-400">
-      コミュニティ機能はログインユーザー専用です。<br />
+      {isEnglishCopy ? 'Community features are for logged-in users only.' : 'コミュニティ機能はログインユーザー専用です。'}<br />
       <button className="btn btn-sm btn-primary mt-4" onClick={()=>{window.location.hash='#login';}}>
-        ログイン / 会員登録
+        {isEnglishCopy ? 'Log in / Sign up' : 'ログイン / 会員登録'}
+      </button>
+    </div>
+  );
+
+  // 英語版ユーザーは他のユーザーの日記を閲覧できない
+  if (isEnglishCopy) return (
+    <div className="p-4 text-center text-gray-400">
+      <p className="mb-4">The community diary feature is currently available only in Japanese.</p>
+      <p className="text-sm">We are working on bringing this feature to international users soon.</p>
+      <button className="btn btn-sm btn-outline mt-4" onClick={()=>{window.location.hash='#dashboard';}}>
+        Back to Dashboard
       </button>
     </div>
   );
