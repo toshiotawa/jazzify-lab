@@ -74,36 +74,29 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       global.Image = OriginalImage;
     });
 
-    it('should preload monster images using Image API', async () => {
+    it('should preload monster PNG images using Image API', async () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
 
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
       expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
       const expectedPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.webp`)
+        (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(expectedPaths));
     });
 
-    it('should fall back to PNG when WebP load fails', async () => {
-      const failingWebp = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => `${import.meta.env.BASE_URL}monster_icons/${id}.webp`
-      );
-      failingWebp.forEach((src) => MockImage.failingSources.add(src));
+    it('should not attempt to load WebP assets', async () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
-
-      expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
-      const pngPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.png`)
-      );
-      expect(MockImage.sources).toEqual(expect.arrayContaining(pngPaths));
+      expect(MockImage.sources).toSatisfy((sources: unknown) => {
+        if (!Array.isArray(sources)) return false;
+        return sources.every((src) => typeof src === 'string' && !src.endsWith('.webp'));
+      });
     });
 
     it('should handle complete failure of monster image loading', async () => {
       ['monster_01', 'monster_02', 'monster_03'].forEach((id) => {
-        MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.webp`);
         MockImage.failingSources.add(`${import.meta.env.BASE_URL}monster_icons/${id}.png`);
       });
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
