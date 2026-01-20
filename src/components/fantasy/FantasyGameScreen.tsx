@@ -554,7 +554,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [showSheetMusicForTiming]);
 
   // ゲーム開始時の初期移調オフセットを保持（BGM再起動防止用）
-  const initialTransposeOffsetRef = useRef<number>(0);
+  const initialTransposeOffsetRef = useRef<number | null>(null);
+  // BGM再生済みフラグ（初回ピッチシフト適用のため）
+  const bgmStartedRef = useRef<boolean>(false);
   
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   // 注: 依存配列からcurrentTransposeOffsetを除外し、ループ時のBGM再起動を防止
@@ -566,11 +568,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 初回のピッチシフトを保存（BGM再生用）
-    // ループ時の移調オフセット変更はsetPitchShift()で対応
-    initialTransposeOffsetRef.current = gameState.transposeSettings?.keyOffset || 0;
-    const pitchShift = initialTransposeOffsetRef.current;
+    // 初回のピッチシフトを記録（ループ時の再起動判定用）
+    // gameState.currentTransposeOffset はゲーム初期化時に設定される
+    const currentOffset = gameState.currentTransposeOffset ?? 0;
+    initialTransposeOffsetRef.current = currentOffset;
+    bgmStartedRef.current = false;
     
+    // BGMを再生（ピッチシフト付き）
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
       stage.bpm || 120,
@@ -579,21 +583,39 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      pitchShift
+      currentOffset  // currentTransposeOffset を使用
     );
+    
+    bgmStartedRef.current = true;
+    
+    console.log('🎵 BGM再生開始 (ピッチシフト):', { currentOffset, playbackRate });
 
-    return () => bgmManager.stop();
+    return () => {
+      bgmManager.stop();
+      bgmStartedRef.current = false;
+    };
     // 注意: gameState.currentTransposeOffset は意図的に除外（ループ時のBGM再起動を防止）
+    // 初回の値は gameState から取得するが、変更時はsetPitchShiftで対応
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // リピート時のキー変更でBGMのピッチシフトを更新
+  // 初回のピッチシフトと異なる場合のみ更新（初回はplay時に設定済み）
   useEffect(() => {
     if (!gameState.isGameActive || isReady) return;
-    if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
-      bgmManager.setPitchShift(gameState.currentTransposeOffset);
+    if (!bgmStartedRef.current) return; // BGM開始前はスキップ
+    
+    const currentOffset = gameState.currentTransposeOffset ?? 0;
+    
+    // 初回設定と同じ値ならスキップ（play時に既に設定済み）
+    if (initialTransposeOffsetRef.current === currentOffset) {
+      return;
     }
-  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
+    
+    // ピッチシフトを更新
+    bgmManager.setPitchShift(currentOffset);
+    console.log('🎹 BGMピッチシフト更新:', { currentOffset, initial: initialTransposeOffsetRef.current });
+  }, [gameState.isGameActive, isReady, gameState.currentTransposeOffset]);
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);

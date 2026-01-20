@@ -212,6 +212,8 @@ export interface FantasyGameState {
   taikoLoopCycle: number;
   lastNormalizedTime: number;
   awaitingLoopStart: boolean;
+  // 先読み正解ノーツ（ループ境界で次ループのノーツを先に正解した場合に記録）
+  preHitNoteIndices: number[];
   // 移調練習用
   transposeSettings: TransposeSettings | null;
   currentTransposeOffset: number; // 現在の移調オフセット（半音数）
@@ -712,6 +714,7 @@ export const useFantasyGameEngine = ({
     taikoLoopCycle: 0,
     lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
     awaitingLoopStart: false,
+    preHitNoteIndices: [], // 先読み正解ノーツ（空）
     // 移調練習用
     transposeSettings: null,
     currentTransposeOffset: 0,
@@ -801,6 +804,13 @@ export const useFantasyGameEngine = ({
       // awaitingLoopStart状態からの復帰かどうか
       const wasAwaitingLoop = prevState.awaitingLoopStart;
       
+      // 先読みノーツかどうかを判定（ループ境界付近で次ループのノーツを正解した場合）
+      // - 現在のノーツインデックスがリストの末尾付近（length - 2以上）
+      // - 選ばれたノーツのインデックスが現在より小さい（0や1）
+      const isPreHitNote = !wasAwaitingLoop && 
+        currentIndex >= prevState.taikoNotes.length - 2 && 
+        chosenIndex < currentIndex;
+      
       // 次のノーツインデックス（選ばれたノーツ基準）
       const nextIndexByChosen = chosenIndex + 1;
       const isLastNoteByChosen = nextIndexByChosen >= prevState.taikoNotes.length;
@@ -836,10 +846,11 @@ export const useFantasyGameEngine = ({
       // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
       let updatedTaikoNotes;
       if (wasAwaitingLoop) {
-        // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
+        // 全ノーツをリセットしてから、ヒットしたノーツと先読み正解ノーツにフラグを立てる
+        const preHitIndices = prevState.preHitNoteIndices || [];
         updatedTaikoNotes = prevState.taikoNotes.map((n, i) => ({
           ...n,
-          isHit: i === chosenIndex,
+          isHit: i === chosenIndex || preHitIndices.includes(i),
           isMissed: false
         }));
       } else {
@@ -890,7 +901,8 @@ export const useFantasyGameEngine = ({
             // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
             currentNoteIndex: nextIndexByChosen,
             taikoNotes: updatedTaikoNotes,
-            awaitingLoopStart: false
+            awaitingLoopStart: false,
+            preHitNoteIndices: [] // クリア時はリセット
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -909,10 +921,47 @@ export const useFantasyGameEngine = ({
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          awaitingLoopStart: isLastNoteByChosen ? true : false,
+          preHitNoteIndices: isLastNoteByChosen ? prevState.preHitNoteIndices : [] // 先読み状態を維持または リセット
         };
       }
 
+      // 先読みノーツの場合（ループ境界付近で次ループのノーツを先に正解した）
+      if (isPreHitNote) {
+        // 先読み正解したノーツのインデックスを記録
+        const newPreHitIndices = [...prevState.preHitNoteIndices, chosenIndex];
+        
+        // ノーツにisHitフラグを立てる（ただし現在のループでは表示上は維持）
+        // 次のループリセット時にこの情報を使用
+        const preHitUpdatedNotes = prevState.taikoNotes.map((n, i) => {
+          if (newPreHitIndices.includes(i)) {
+            return { ...n, isHit: true };
+          }
+          return n;
+        });
+        
+        console.log('🎯 先読みノーツ正解:', { 
+          chosenIndex, 
+          currentIndex,
+          preHitIndices: newPreHitIndices 
+        });
+        
+        // 先読み時は currentNoteIndex は変更せず、preHitNoteIndices に追加
+        // awaitingLoopStart は現在のノーツインデックスが末尾の場合のみtrue
+        const shouldAwaitLoop = currentIndex >= prevState.taikoNotes.length - 1;
+        
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          taikoNotes: preHitUpdatedNotes,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          preHitNoteIndices: newPreHitIndices,
+          awaitingLoopStart: shouldAwaitLoop
+        };
+      }
+      
       // 末尾ノーツをヒットした場合は次ループ開始待ち
       if (isLastNoteByChosen) {
         return {
@@ -922,7 +971,8 @@ export const useFantasyGameEngine = ({
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          awaitingLoopStart: true,
+          preHitNoteIndices: [] // 末尾ノーツをヒットしたらリセット
         };
       }
 
@@ -935,7 +985,8 @@ export const useFantasyGameEngine = ({
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
-        awaitingLoopStart: false
+        awaitingLoopStart: false,
+        preHitNoteIndices: [] // 通常の進行時はリセット
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -1256,6 +1307,7 @@ export const useFantasyGameEngine = ({
       taikoLoopCycle: 0,
       lastNormalizedTime: -1, // -1 = 未初期化（ループ境界の誤検出防止）
       awaitingLoopStart: false,
+      preHitNoteIndices: [], // 先読み正解ノーツ（空）
       // 移調練習用
       transposeSettings,
       currentTransposeOffset,
@@ -1598,26 +1650,56 @@ export const useFantasyGameEngine = ({
             }
           }
           
-          // ノーツをリセット
-          const resetNotes = transposedNotes.map(note => ({
+          // 先読み正解ノーツを考慮してリセット
+          const preHitIndices = prevState.preHitNoteIndices || [];
+          const hasPreHitNotes = preHitIndices.length > 0;
+          
+          // ノーツをリセット（先読み正解ノーツはisHit: trueを維持）
+          const resetNotes = transposedNotes.map((note, idx) => ({
             ...note,
-            isHit: false,
+            isHit: preHitIndices.includes(idx), // 先読み正解ノーツは維持
             isMissed: false
           }));
           
+          // currentNoteIndexを決定
+          // - 先読み正解ノーツがある場合: 最大の先読みインデックス + 1
+          // - awaitingLoopStart状態の場合: 0（先読みがなければ）
+          // - それ以外: 現在のインデックスを維持
           let newNoteIndex = prevState.currentNoteIndex;
           let refreshedMonsters = prevState.activeMonsters;
           
-          if (prevState.awaitingLoopStart) {
+          if (hasPreHitNotes) {
+            // 先読み正解ノーツの最大インデックス + 1 を新しいインデックスに
+            const maxPreHitIndex = Math.max(...preHitIndices);
+            newNoteIndex = maxPreHitIndex + 1;
+            
+            // ノーツ配列の範囲を超えた場合は0に戻す（次のループに向けて）
+            if (newNoteIndex >= resetNotes.length) {
+              newNoteIndex = 0;
+            }
+            
+            console.log('🎯 先読み正解ノーツを引き継ぎ:', {
+              preHitIndices,
+              newNoteIndex
+            });
+          } else if (prevState.awaitingLoopStart) {
             newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+          }
+          
+          // 次のノーツ情報を取得
+          const nextNote = resetNotes[newNoteIndex];
+          const nextNextNote = (newNoteIndex + 1 < resetNotes.length)
+            ? resetNotes[newNoteIndex + 1]
+            : resetNotes[0];
+          
+          // モンスターのコードターゲットを更新
+          if (prevState.awaitingLoopStart || hasPreHitNotes) {
             refreshedMonsters = prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
               gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
+              chordTarget: nextNote.chord,
+              nextChord: nextNextNote.chord
             }));
           }
           
@@ -1626,6 +1708,7 @@ export const useFantasyGameEngine = ({
             taikoNotes: resetNotes,
             currentNoteIndex: newNoteIndex,
             awaitingLoopStart: false,
+            preHitNoteIndices: [], // リセット後はクリア
             taikoLoopCycle: newLoopCycle,
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters,
