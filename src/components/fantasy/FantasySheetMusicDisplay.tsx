@@ -110,8 +110,10 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     container: HTMLDivElement
   ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; sheetWidth: number } | null> => {
     try {
-      // 移調を適用
-      const transposedXml = offset !== 0 ? transposeMusicXml(xml, offset) : xml;
+      // 移調を適用（±6の範囲に正規化してオクターブを維持）
+      // インデックス7以上は負の値に変換（例: 10 → -2, 11 → -1）
+      const normalizedOffset = offset > 6 ? offset - 12 : offset;
+      const transposedXml = normalizedOffset !== 0 ? transposeMusicXml(xml, normalizedOffset) : xml;
       
       // OSMDオプション設定
       const options: IOSMDOptions = {
@@ -133,14 +135,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       };
       
       const osmd = new OpenSheetMusicDisplay(container, options);
-      
-      // MusicXML内の<harmony>要素（コードシンボル）を非表示にする
-      // コードネームはカスタムオーバーレイで表示するため、OSMDでの表示は不要
-      // @ts-expect-error OSMDの内部プロパティにアクセス
-      if (osmd.rules) {
-        // @ts-expect-error OSMDの内部プロパティにアクセス
-        osmd.rules.RenderChordSymbols = false;
-      }
       
       await osmd.load(transposedXml);
       osmd.render();
