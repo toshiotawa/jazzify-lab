@@ -870,10 +870,8 @@ export const useFantasyGameEngine = ({
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
       // 先読みヒット（ループ境界付近で次ループのノーツにヒット）の判定
-      // currentIndexが末尾付近で、chosenIndexが先頭（0または1）の場合
-      const isPreHit = !wasAwaitingLoop && 
-        currentIndex >= prevState.taikoNotes.length - 2 && 
-        chosenIndex <= 1;
+      // 候補選択時に判定された isNextLoopNote を使用（awaitingLoopStart状態からの復帰は除く）
+      const isPreHit = chosen.isNextLoopNote && !wasAwaitingLoop;
       
       // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
       let updatedTaikoNotes;
@@ -997,8 +995,9 @@ export const useFantasyGameEngine = ({
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
         awaitingLoopStart: false,
-        // 通常時は先読みヒット記録をクリア（ループが開始されたらリセット）
-        preHitNoteIndices: isPreHit ? updatedPreHitIndices : []
+        // 先読みヒットの場合は記録を更新、それ以外は既存の記録を維持
+        // ループ境界でリセットされるまで先読みヒット情報を保持
+        preHitNoteIndices: isPreHit ? updatedPreHitIndices : prevState.preHitNoteIndices
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
