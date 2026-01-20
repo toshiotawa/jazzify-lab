@@ -131,49 +131,7 @@ export const handler: Handler = async (event, _context) => {
     // 退会完了メール送信用にオリジナルのメールアドレスを保存
     const originalEmail = profile?.email || user.email;
 
-    // 匿名化用のメールアドレスを生成
-    const anonymizedEmail = `deleted_${user.id}@deleted.local`;
-
-    // 1. Auth ユーザーのメールアドレスを変更（これにより元のメールでログイン不可になる）
-    const { error: authUpdateErr } = await supabase.auth.admin.updateUserById(user.id, {
-      email: anonymizedEmail,
-      email_confirm: true, // メール確認済みとしてマーク
-    });
-    if (authUpdateErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to update auth email', details: authUpdateErr.message }) };
-    }
-
-    // 2. プロフィール匿名化（外部キーを保つ）
-    const { error: anonErr } = await supabase
-      .from('profiles')
-      .update({
-        email: anonymizedEmail,
-        nickname: '退会ユーザー',
-        bio: null,
-        twitter_handle: null,
-        avatar_url: null,
-        stripe_customer_id: null,
-        will_cancel: false,
-        cancel_date: null,
-        downgrade_to: null,
-        downgrade_date: null,
-      })
-      .eq('id', user.id);
-    if (anonErr) {
-      return { statusCode: 500, headers, body: JSON.stringify({ error: 'Failed to anonymize profile', details: anonErr.message }) };
-    }
-
-    // 2.5. ユーザーのいいねを削除（likes_countトリガーにより日記のいいね数が減少する）
-    const { error: deleteLikesErr } = await supabase
-      .from('diary_likes')
-      .delete()
-      .eq('user_id', user.id);
-    if (deleteLikesErr) {
-      console.error('Failed to delete diary likes:', deleteLikesErr.message);
-      // いいね削除失敗は退会処理を止めない（続行する）
-    }
-
-    // 3. 全セッションを無効化（クライアントのトークンを無効にする）
+    // 1. 全セッションを無効化（クライアントのトークンを無効にする）
     // これにより、リロードしてもログイン状態が保持されなくなる
     const { error: signOutError } = await supabase.auth.admin.signOut(user.id, 'global');
     if (signOutError) {
@@ -181,10 +139,74 @@ export const handler: Handler = async (event, _context) => {
       // 続行する - セッション無効化に失敗しても退会処理は完了させる
     }
 
-    // 4. Supabase Authユーザーの削除を試みる（失敗しても退会は完了）
-    // 注意: 外部キー制約により削除が失敗する場合があるが、
-    // メールアドレスが変更されているため元のアドレスでログインできない
-    await supabase.auth.admin.deleteUser(user.id).catch(() => {});
+    // 2. ユーザーの日記を削除
+    const { error: deleteDiariesErr } = await supabase
+      .from('practice_diaries')
+      .delete()
+      .eq('user_id', user.id);
+    if (deleteDiariesErr) {
+      console.error('Failed to delete practice_diaries:', deleteDiariesErr.message);
+      // 続行する
+    }
+
+    // 3. ユーザーのコメントを削除
+    const { error: deleteCommentsErr } = await supabase
+      .from('diary_comments')
+      .delete()
+      .eq('user_id', user.id);
+    if (deleteCommentsErr) {
+      console.error('Failed to delete diary_comments:', deleteCommentsErr.message);
+      // 続行する
+    }
+
+    // 4. ユーザーのいいねを削除（likes_countトリガーにより日記のいいね数が減少する）
+    const { error: deleteLikesErr } = await supabase
+      .from('diary_likes')
+      .delete()
+      .eq('user_id', user.id);
+    if (deleteLikesErr) {
+      console.error('Failed to delete diary_likes:', deleteLikesErr.message);
+      // 続行する
+    }
+
+    // 5. プロフィールを削除（CASCADE で関連テーブルも削除される）
+    // profiles.id は auth.users.id を参照しているため、先にprofilesを削除する必要がある
+    const { error: deleteProfileErr } = await supabase
+      .from('profiles')
+      .delete()
+      .eq('id', user.id);
+    if (deleteProfileErr) {
+      console.error('Failed to delete profile:', deleteProfileErr.message);
+      // プロフィール削除に失敗した場合は匿名化を試みる
+      const anonymizedEmail = `deleted_${user.id}@deleted.local`;
+      await supabase
+        .from('profiles')
+        .update({
+          email: anonymizedEmail,
+          nickname: '退会ユーザー',
+          bio: null,
+          twitter_handle: null,
+          avatar_url: null,
+          stripe_customer_id: null,
+          will_cancel: false,
+          cancel_date: null,
+          downgrade_to: null,
+          downgrade_date: null,
+        })
+        .eq('id', user.id);
+    }
+
+    // 6. Supabase Authユーザーを削除
+    const { error: deleteAuthErr } = await supabase.auth.admin.deleteUser(user.id);
+    if (deleteAuthErr) {
+      console.error('Failed to delete auth user:', deleteAuthErr.message);
+      // auth削除に失敗した場合、メールアドレスを匿名化して再ログインを防止
+      const anonymizedEmail = `deleted_${user.id}@deleted.local`;
+      await supabase.auth.admin.updateUserById(user.id, {
+        email: anonymizedEmail,
+        email_confirm: true,
+      });
+    }
 
     // 5. 退会完了メールを送信（非同期で実行、失敗しても退会は完了）
     if (originalEmail && !originalEmail.includes('@deleted.local')) {
