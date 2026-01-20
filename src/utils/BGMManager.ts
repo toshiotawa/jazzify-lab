@@ -21,6 +21,8 @@ class BGMManager {
   private loopCheckIntervalId: number | null = null // ループ監視Interval
   private playbackRate = 1.0 // 再生速度（1.0 = 100%, 0.75 = 75%, 0.5 = 50%）
   private pitchShift = 0 // ピッチシフト（半音単位、-12 ~ +12）
+  private loopCount = 0 // ループ回数（ゲームエンジンとの同期用）
+  private lastLoopCheckTime = -1 // 最後のループチェック時刻（ループ検出用）
 
   // Web Audio
   private waContext: AudioContext | null = null
@@ -221,6 +223,8 @@ class BGMManager {
    */
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
+      const loopDuration = this.loopEnd - this.loopBegin
+      
       // Tone.js PitchShift使用時
       if (this.useTonePitchShift && this.tonePlayer) {
         try {
@@ -231,11 +235,17 @@ class BGMManager {
             // playbackRateを考慮した音楽的な時間
             const musicTime = elapsedRealTime * this.playbackRate
             // ループを考慮した位置を計算（ループ後も正しく動作）
-            const loopDuration = this.loopEnd - this.loopBegin
             if (loopDuration > 0 && musicTime >= this.loopEnd) {
               // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
               const timeSinceLoopStart = musicTime - this.loopBegin
               const posInLoop = timeSinceLoopStart % loopDuration
+              
+              // ループカウントを更新（ゲームエンジンとの同期用）
+              const newLoopCount = Math.floor(timeSinceLoopStart / loopDuration)
+              if (newLoopCount !== this.loopCount) {
+                this.loopCount = newLoopCount
+              }
+              
               return posInLoop
             }
             // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
@@ -251,11 +261,17 @@ class BGMManager {
         // playbackRateを考慮した音楽的な時間
         const musicTime = elapsedRealTime * this.playbackRate
         // ループを考慮
-        const loopDuration = this.loopEnd - this.loopBegin
         if (loopDuration > 0 && musicTime >= this.loopEnd) {
           // ループ後: loopBegin〜loopEndの範囲で正規化
           const timeSinceLoopStart = musicTime - this.loopBegin
           const posInLoop = timeSinceLoopStart % loopDuration
+          
+          // ループカウントを更新
+          const newLoopCount = Math.floor(timeSinceLoopStart / loopDuration)
+          if (newLoopCount !== this.loopCount) {
+            this.loopCount = newLoopCount
+          }
+          
           return posInLoop
         }
         // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
@@ -263,17 +279,31 @@ class BGMManager {
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) {
-        const loopDuration = this.loopEnd - this.loopBegin
         const musicTime = this.audio.currentTime
         if (loopDuration > 0 && musicTime >= this.loopEnd) {
           const timeSinceLoopStart = musicTime - this.loopBegin
           const posInLoop = timeSinceLoopStart % loopDuration
+          
+          // ループカウントを更新
+          const newLoopCount = Math.floor(timeSinceLoopStart / loopDuration)
+          if (newLoopCount !== this.loopCount) {
+            this.loopCount = newLoopCount
+          }
+          
           return posInLoop
         }
         return musicTime - this.loopBegin
       }
     }
     return 0
+  }
+  
+  /**
+   * 現在のループ回数を取得（0始まり）
+   * ゲームエンジンとの同期用
+   */
+  getLoopCount(): number {
+    return this.loopCount
   }
   
   /** 小節番号（1始まり）。カウントイン中は0 */

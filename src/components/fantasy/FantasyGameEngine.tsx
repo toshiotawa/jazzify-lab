@@ -734,12 +734,31 @@ export const useFantasyGameEngine = ({
     const currentIndex = prevState.currentNoteIndex;
     const noteMod12 = note % 12;
     
+    // 次のループの移調を事前計算（awaitingLoopStartまたはループ境界付近で使用）
+    const nextLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+    const nextTransposeOffset = prevState.transposeSettings
+      ? calculateTransposeOffset(
+          prevState.transposeSettings.keyOffset,
+          nextLoopCycle,
+          prevState.transposeSettings.repeatKeyChange
+        )
+      : prevState.currentTransposeOffset;
+    
+    // 次ループ用のノーツを準備（移調設定がある場合）
+    const nextLoopNotes = (prevState.transposeSettings && prevState.originalTaikoNotes.length > 0)
+      ? transposeTaikoNotes(prevState.originalTaikoNotes, nextTransposeOffset)
+      : prevState.taikoNotes;
+    
     // 候補インデックスを決定
     let candidateIndices: number[];
+    // 次ループのノーツを使用するインデックスを追跡
+    const useNextLoopNotes = new Set<number>();
     
     if (prevState.awaitingLoopStart) {
       // 次ループ開始待ち中は、次ループの先頭ノーツ（インデックス0, 1）を候補にする
       candidateIndices = [0, 1].filter(i => i < prevState.taikoNotes.length);
+      // これらは次ループのノーツとして扱う
+      candidateIndices.forEach(i => useNextLoopNotes.add(i));
     } else {
       // 通常時は current と next を候補にする
       candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
@@ -748,27 +767,37 @@ export const useFantasyGameEngine = ({
       const timeToLoop = loopDuration - normalizedTime;
       if (timeToLoop < 1.0 && currentIndex >= prevState.taikoNotes.length - 2) {
         // 次ループの先頭ノーツを追加（重複を避ける）
-        if (!candidateIndices.includes(0)) candidateIndices.push(0);
-        if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) candidateIndices.push(1);
+        if (!candidateIndices.includes(0)) {
+          candidateIndices.push(0);
+          useNextLoopNotes.add(0);
+        }
+        if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) {
+          candidateIndices.push(1);
+          useNextLoopNotes.add(1);
+        }
       }
     }
 
     const candidates = candidateIndices
       .map(i => {
-        const n = prevState.taikoNotes[i];
+        // 次ループのノーツとして扱う場合は、移調されたノーツを使用
+        const isNextLoopNote = useNextLoopNotes.has(i);
+        const n = isNextLoopNote ? nextLoopNotes[i] : prevState.taikoNotes[i];
+        const originalN = prevState.taikoNotes[i]; // isHit/isMissed判定用
+        
         const includesNote = Array.from(new Set<number>(n.chord.notes.map((x: number) => x % 12))).includes(noteMod12);
         
-        // awaitingLoopStart状態または次ループの先頭ノーツの場合は、仮想的なhitTimeを使用
+        // 次ループのノーツの場合は、仮想的なhitTimeを使用
         let effectiveHitTime = n.hitTime;
-        if (prevState.awaitingLoopStart || (i < currentIndex && currentIndex >= prevState.taikoNotes.length - 2)) {
+        if (isNextLoopNote) {
           // 次ループのノーツとして扱う
           effectiveHitTime = n.hitTime + loopDuration;
         }
         
         const j = judgeTimingWindowWithLoop(currentTime, effectiveHitTime, 150, loopDuration);
-        return { i, n, j, includesNote, effectiveHitTime };
+        return { i, n, originalN, j, includesNote, effectiveHitTime, isNextLoopNote };
       })
-      .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
+      .filter(c => !c.originalN.isHit && !c.originalN.isMissed && c.includesNote && c.j.isHit)
       // 優先順位: |timingDiff| 最小 → 同点は手前優先
       .sort((a, b) => {
         const da = Math.abs(a.j.timingDiff);
@@ -785,6 +814,7 @@ export const useFantasyGameEngine = ({
 
     const chosenNote = chosen.n;
     const chosenIndex = chosen.i;
+    const isNextLoopNote = chosen.isNextLoopNote;
 
     // 現在のモンスターの正解済み音を更新
     const currentMonster = prevState.activeMonsters[0];
@@ -801,20 +831,27 @@ export const useFantasyGameEngine = ({
       // awaitingLoopStart状態からの復帰かどうか
       const wasAwaitingLoop = prevState.awaitingLoopStart;
       
+      // 次ループのノーツをヒットした場合（移調設定がある場合）
+      const shouldTransitionToNextLoop = isNextLoopNote || wasAwaitingLoop;
+      
       // 次のノーツインデックス（選ばれたノーツ基準）
       const nextIndexByChosen = chosenIndex + 1;
       const isLastNoteByChosen = nextIndexByChosen >= prevState.taikoNotes.length;
 
+      // ベースとなるノーツ配列を決定
+      // 次ループに移行する場合は、移調されたノーツを使用
+      const baseNotesForNextTarget = shouldTransitionToNextLoop ? nextLoopNotes : prevState.taikoNotes;
+      
       // 次のノーツ情報を取得（ループ対応）
       let nextNote, nextNextNote;
       if (!isLastNoteByChosen) {
-        nextNote = prevState.taikoNotes[nextIndexByChosen];
-        nextNextNote = (nextIndexByChosen + 1 < prevState.taikoNotes.length)
-          ? prevState.taikoNotes[nextIndexByChosen + 1]
-          : prevState.taikoNotes[0];
+        nextNote = baseNotesForNextTarget[nextIndexByChosen];
+        nextNextNote = (nextIndexByChosen + 1 < baseNotesForNextTarget.length)
+          ? baseNotesForNextTarget[nextIndexByChosen + 1]
+          : baseNotesForNextTarget[0];
       } else {
-        nextNote = prevState.taikoNotes[0];
-        nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+        nextNote = baseNotesForNextTarget[0];
+        nextNextNote = baseNotesForNextTarget.length > 1 ? baseNotesForNextTarget[1] : baseNotesForNextTarget[0];
       }
 
       // ダメージ計算
@@ -833,15 +870,28 @@ export const useFantasyGameEngine = ({
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
-      // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
+      // 次ループに移行する場合、移調されたノーツを使用
       let updatedTaikoNotes;
-      if (wasAwaitingLoop) {
-        // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
-        updatedTaikoNotes = prevState.taikoNotes.map((n, i) => ({
+      let newLoopCycle = prevState.taikoLoopCycle ?? 0;
+      let newTransposeOffsetState = prevState.currentTransposeOffset;
+      
+      if (shouldTransitionToNextLoop) {
+        // 次ループに移行：移調されたノーツを使用
+        newLoopCycle = nextLoopCycle;
+        newTransposeOffsetState = nextTransposeOffset;
+        
+        // 移調されたノーツで更新し、ヒットしたノーツにフラグを立てる
+        updatedTaikoNotes = nextLoopNotes.map((n, i) => ({
           ...n,
           isHit: i === chosenIndex,
           isMissed: false
         }));
+        
+        devLog.debug('🎹 先読みノーツヒットで次ループに移行:', {
+          newLoopCycle,
+          newTransposeOffset: newTransposeOffsetState,
+          chosenIndex
+        });
       } else {
         // 通常時は選ばれたノーツのみにフラグを立てる
         updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
@@ -903,18 +953,24 @@ export const useFantasyGameEngine = ({
           playerSp: newSp,
           // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
           // 末尾の場合は currentNoteIndex は変更せず awaitingLoopStart で制御
-          currentNoteIndex: isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen,
+          // 次ループに移行した場合は0から開始
+          currentNoteIndex: shouldTransitionToNextLoop 
+            ? (isLastNoteByChosen ? 0 : nextIndexByChosen)
+            : (isLastNoteByChosen ? prevState.currentNoteIndex : nextIndexByChosen),
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
-          // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          // 次ループに移行した場合はawaitingLoopStartをfalseに
+          awaitingLoopStart: shouldTransitionToNextLoop ? false : (isLastNoteByChosen ? true : false),
+          // ループサイクルと移調オフセットを更新
+          taikoLoopCycle: newLoopCycle,
+          currentTransposeOffset: newTransposeOffsetState
         };
       }
 
       // 末尾ノーツをヒットした場合は次ループ開始待ち
-      if (isLastNoteByChosen) {
+      if (isLastNoteByChosen && !shouldTransitionToNextLoop) {
         return {
           ...prevState,
           activeMonsters: updatedMonsters,
@@ -923,6 +979,24 @@ export const useFantasyGameEngine = ({
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
           awaitingLoopStart: true
+        };
+      }
+      
+      // 次ループに移行した場合
+      if (shouldTransitionToNextLoop) {
+        return {
+          ...prevState,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          // 次ループに移行した場合は、次のインデックスから開始
+          currentNoteIndex: isLastNoteByChosen ? 0 : nextIndexByChosen,
+          taikoNotes: updatedTaikoNotes,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          awaitingLoopStart: false,
+          // ループサイクルと移調オフセットを更新
+          taikoLoopCycle: newLoopCycle,
+          currentTransposeOffset: newTransposeOffsetState
         };
       }
 
