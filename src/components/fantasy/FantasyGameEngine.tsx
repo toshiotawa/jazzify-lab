@@ -1559,6 +1559,13 @@ export const useFantasyGameEngine = ({
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
           
+          // 先読みで正解したノーツを特定（ループ境界直前に次ループのノーツをヒットした場合）
+          // インデックス0または1がヒット済みなら、それは先読み正解
+          const preHitIndices = prevState.taikoNotes
+            .map((n, i) => ({ i, isHit: n.isHit }))
+            .filter(x => x.isHit && x.i < 2) // インデックス0, 1のみ（先読み対象）
+            .map(x => x.i);
+          
           console.log('🔄 ループ境界検出:', {
             newLoopCycle,
             normalizedTime: normalizedTime.toFixed(3),
@@ -1566,7 +1573,9 @@ export const useFantasyGameEngine = ({
             loopTimeDiff: loopTimeDiff.toFixed(3),
             hasTransposeSettings: !!prevState.transposeSettings,
             originalNotesCount: prevState.originalTaikoNotes.length,
-            prevTransposeOffset: prevState.currentTransposeOffset
+            prevTransposeOffset: prevState.currentTransposeOffset,
+            preHitIndices,
+            awaitingLoopStart: prevState.awaitingLoopStart
           });
           
           // リピートごとの移調を適用（移調設定がある場合）
@@ -1598,28 +1607,37 @@ export const useFantasyGameEngine = ({
             }
           }
           
-          // ノーツをリセット
-          const resetNotes = transposedNotes.map(note => ({
+          // ノーツをリセット（先読みで正解したノーツは除く）
+          // awaitingLoopStart状態でない場合、先読みで正解したノーツのヒット状態を保持
+          const resetNotes = transposedNotes.map((note, idx) => ({
             ...note,
-            isHit: false,
+            // 先読みで正解したノーツ（インデックス0, 1）はヒット状態を保持
+            // ただし、awaitingLoopStart状態の場合は全てリセット（まだ先読みしていない）
+            isHit: !prevState.awaitingLoopStart && preHitIndices.includes(idx),
             isMissed: false
           }));
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
-          
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
-            }));
+          // 先読みで正解していた場合、次のインデックスから開始
+          // 例: インデックス0が正解済み → インデックス1から開始
+          let newNoteIndex = 0;
+          if (!prevState.awaitingLoopStart && preHitIndices.length > 0) {
+            // 先読みで正解した最大インデックスの次から開始
+            newNoteIndex = Math.max(...preHitIndices) + 1;
+            if (newNoteIndex >= transposedNotes.length) {
+              newNoteIndex = 0; // 全て正解していたら0から（稀なケース）
+            }
           }
+          
+          // モンスターのターゲットを更新
+          const targetNote = resetNotes[newNoteIndex];
+          const nextTargetNote = resetNotes[(newNoteIndex + 1) % resetNotes.length];
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: targetNote.chord,
+            nextChord: nextTargetNote.chord
+          }));
           
           return {
             ...prevState,

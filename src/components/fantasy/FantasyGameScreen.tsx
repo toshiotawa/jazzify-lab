@@ -553,21 +553,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => window.removeEventListener('resize', updateSheetHeight);
   }, [showSheetMusicForTiming]);
 
+  // BGM再生フラグ（一度再生開始したら変更しない）
+  const bgmStartedRef = useRef(false);
+  
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 注: currentTransposeOffsetの変更でBGMを再起動しないよう、初回のみ再生
   useEffect(() => {
-    if (!gameState.isGameActive) return;
+    if (!gameState.isGameActive) {
+      bgmStartedRef.current = false;
+      return;
+    }
     if (isReady) return;
+    if (bgmStartedRef.current) return; // 既に再生開始済みなら何もしない
 
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
-    
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    // 初期ピッチシフト（ゲーム開始時の値）を適用
+    // gameState.currentTransposeOffsetはinitializeGame完了後に設定されている
+    const initialPitchShift = gameState.currentTransposeOffset || 0;
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -577,17 +581,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      pitchShift
+      initialPitchShift
     );
+    
+    bgmStartedRef.current = true;
+    console.log('🎵 BGM再生開始 initialPitchShift:', initialPitchShift);
 
-    return () => bgmManager.stop();
+    return () => {
+      bgmManager.stop();
+      bgmStartedRef.current = false;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
   
-  // リピート時のキー変更でBGMのピッチシフトを更新
+  // リピート時のキー変更でBGMのピッチシフトを更新（BGM再起動なし）
   useEffect(() => {
     if (!gameState.isGameActive || isReady) return;
+    if (!bgmStartedRef.current) return; // BGM未開始なら何もしない
     if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
       bgmManager.setPitchShift(gameState.currentTransposeOffset);
+      console.log('🎹 ピッチシフト更新:', gameState.currentTransposeOffset);
     }
   }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
   
