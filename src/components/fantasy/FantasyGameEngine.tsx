@@ -805,18 +805,6 @@ export const useFantasyGameEngine = ({
       const nextIndexByChosen = chosenIndex + 1;
       const isLastNoteByChosen = nextIndexByChosen >= prevState.taikoNotes.length;
 
-      // 次のノーツ情報を取得（ループ対応）
-      let nextNote, nextNextNote;
-      if (!isLastNoteByChosen) {
-        nextNote = prevState.taikoNotes[nextIndexByChosen];
-        nextNextNote = (nextIndexByChosen + 1 < prevState.taikoNotes.length)
-          ? prevState.taikoNotes[nextIndexByChosen + 1]
-          : prevState.taikoNotes[0];
-      } else {
-        nextNote = prevState.taikoNotes[0];
-        nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
-      }
-
       // ダメージ計算
       const stageForDamage = prevState.currentStage!;
       const isSpecialAttack = prevState.playerSp >= 5;
@@ -827,17 +815,50 @@ export const useFantasyGameEngine = ({
       const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
       const isDefeated = newHp === 0;
 
-      // コールバック呼び出し（handleChordCorrect内で遅延処理）
-      onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
-
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
-      // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
-      let updatedTaikoNotes;
+      // awaitingLoopStart状態からの復帰の場合、ループサイクルを進めて移調も適用
+      let updatedTaikoNotes: TaikoNote[];
+      let newLoopCycle = prevState.taikoLoopCycle ?? 0;
+      let newTransposeOffset = prevState.currentTransposeOffset;
+      
+      // 現在の正規化時間を計算（lastNormalizedTime更新用）
+      const newNormalizedTime = normalizedTime;
+      
       if (wasAwaitingLoop) {
+        // ループサイクルを進める（updateEnemyGaugeのループ境界検出と重複しないように）
+        newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+        
+        // 移調設定がある場合、新しい移調を適用
+        let baseNotes = prevState.originalTaikoNotes.length > 0 
+          ? prevState.originalTaikoNotes 
+          : prevState.taikoNotes;
+        
+        if (prevState.transposeSettings && prevState.originalTaikoNotes.length > 0) {
+          // 新しい移調オフセットを計算
+          newTransposeOffset = calculateTransposeOffset(
+            prevState.transposeSettings.keyOffset,
+            newLoopCycle,
+            prevState.transposeSettings.repeatKeyChange
+          );
+          
+          console.log('🎹 先読みノーツ正解時の移調適用:', {
+            newLoopCycle,
+            newTransposeOffset,
+            chosenIndex
+          });
+          
+          // 移調を適用
+          if (newTransposeOffset !== 0) {
+            baseNotes = transposeTaikoNotes(prevState.originalTaikoNotes, newTransposeOffset);
+          } else {
+            baseNotes = prevState.originalTaikoNotes.map(note => ({ ...note }));
+          }
+        }
+        
         // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
-        updatedTaikoNotes = prevState.taikoNotes.map((n, i) => ({
+        updatedTaikoNotes = baseNotes.map((n, i) => ({
           ...n,
           isHit: i === chosenIndex,
           isMissed: false
@@ -846,6 +867,23 @@ export const useFantasyGameEngine = ({
         // 通常時は選ばれたノーツのみにフラグを立てる
         updatedTaikoNotes = prevState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
       }
+
+      // 次のノーツ情報を取得（ループ対応、更新後のノーツ配列から）
+      let nextNote, nextNextNote;
+      if (!isLastNoteByChosen) {
+        nextNote = updatedTaikoNotes[nextIndexByChosen];
+        nextNextNote = (nextIndexByChosen + 1 < updatedTaikoNotes.length)
+          ? updatedTaikoNotes[nextIndexByChosen + 1]
+          : updatedTaikoNotes[0];
+      } else {
+        nextNote = updatedTaikoNotes[0];
+        nextNextNote = updatedTaikoNotes.length > 1 ? updatedTaikoNotes[1] : updatedTaikoNotes[0];
+      }
+
+      // コールバック呼び出し（handleChordCorrect内で遅延処理）
+      // 移調後のコードを使用
+      const hitChord = updatedTaikoNotes[chosenIndex].chord;
+      onChordCorrect(hitChord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
 
       // モンスター更新（次のターゲット/次次ターゲットは選ばれたノーツ基準）
       const updatedMonsters = prevState.activeMonsters.map(m => {
@@ -890,7 +928,12 @@ export const useFantasyGameEngine = ({
             // ヒットしたノーツの次へ進める（先のノーツをヒットした場合も含む）
             currentNoteIndex: nextIndexByChosen,
             taikoNotes: updatedTaikoNotes,
-            awaitingLoopStart: false
+            awaitingLoopStart: false,
+            // ループサイクルと移調オフセットを更新（wasAwaitingLoopの場合）
+            taikoLoopCycle: newLoopCycle,
+            currentTransposeOffset: newTransposeOffset,
+            // ループ境界検出の重複を防ぐために正規化時間を更新
+            lastNormalizedTime: newNormalizedTime
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -909,7 +952,12 @@ export const useFantasyGameEngine = ({
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           // 末尾ノーツをヒットした場合は次ループ開始待ち
-          awaitingLoopStart: isLastNoteByChosen ? true : false
+          awaitingLoopStart: isLastNoteByChosen ? true : false,
+          // ループサイクルと移調オフセットを更新（wasAwaitingLoopの場合）
+          taikoLoopCycle: newLoopCycle,
+          currentTransposeOffset: newTransposeOffset,
+          // ループ境界検出の重複を防ぐために正規化時間を更新
+          lastNormalizedTime: newNormalizedTime
         };
       }
 
@@ -922,7 +970,12 @@ export const useFantasyGameEngine = ({
           taikoNotes: updatedTaikoNotes,
           correctAnswers: prevState.correctAnswers + 1,
           score: prevState.score + 100 * actualDamage,
-          awaitingLoopStart: true
+          awaitingLoopStart: true,
+          // ループサイクルと移調オフセットを更新（wasAwaitingLoopの場合）
+          taikoLoopCycle: newLoopCycle,
+          currentTransposeOffset: newTransposeOffset,
+          // ループ境界検出の重複を防ぐために正規化時間を更新
+          lastNormalizedTime: newNormalizedTime
         };
       }
 
@@ -935,7 +988,12 @@ export const useFantasyGameEngine = ({
         taikoNotes: updatedTaikoNotes,
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
-        awaitingLoopStart: false
+        awaitingLoopStart: false,
+        // ループサイクルと移調オフセットを更新（wasAwaitingLoopの場合）
+        taikoLoopCycle: newLoopCycle,
+        currentTransposeOffset: newTransposeOffset,
+        // ループ境界検出の重複を防ぐために正規化時間を更新
+        lastNormalizedTime: newNormalizedTime
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
