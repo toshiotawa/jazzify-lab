@@ -21,8 +21,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
   // 認証前でも使えるロケール判定（URL TLD、クエリパラメータから判定）
   const isEnglishCopy = useMemo(() => detectPreferredLocale() === 'en', []);
 
-  // デフォルトメッセージの設定（ロケール対応）
-  const defaultMessage = isEnglishCopy ? 'Loading Jazzify...' : 'Jazzify を読み込み中...';
+  // デフォルトメッセージの設定（日英統一）
+  const defaultMessage = 'Loading Jazzify...';
   const displayMessage = message ?? defaultMessage;
 
   // エラー状態の表示
