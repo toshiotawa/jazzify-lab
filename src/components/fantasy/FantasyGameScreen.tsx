@@ -1806,6 +1806,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   )
                 : undefined
             }
+            simpleMode={currentSimpleNoteName}
             className="w-full h-full"
           />
         </div>

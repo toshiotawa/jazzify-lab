@@ -4,16 +4,84 @@
  */
 
 import { ChordDefinition } from './FantasyGameEngine';
-import { note as parseNote, transpose, Interval } from 'tonal';
+import { note as parseNote, transpose, Interval, Key } from 'tonal';
 
 // ===== 移調設定の型定義 =====
 
 /**
  * 出題キーの配列（CbメジャーやF#メジャーを避けた12キー）
  * 基準キーから±6の範囲で移調
+ * 注: 実際の移調では元のキーに基づいて正しいエンハーモニックを選択する
  */
 export const TRANSPOSE_KEYS = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'] as const;
 export type TransposeKey = typeof TRANSPOSE_KEYS[number];
+
+/**
+ * 五度圏のfifths値からキー名を取得
+ */
+function fifthsToKeyName(fifths: number): string {
+  const fifthsToKeyMap: Record<number, string> = {
+    '-7': 'Cb', '-6': 'Gb', '-5': 'Db', '-4': 'Ab', '-3': 'Eb', '-2': 'Bb', '-1': 'F',
+    '0': 'C', '1': 'G', '2': 'D', '3': 'A', '4': 'E', '5': 'B', '6': 'F#', '7': 'C#',
+  };
+  return fifthsToKeyMap[fifths] ?? 'C';
+}
+
+/**
+ * キー名から五度圏のfifths値を取得
+ */
+function keyNameToFifths(keyName: string): number {
+  const keyToFifthsMap: Record<string, number> = {
+    'Cb': -7, 'Gb': -6, 'Db': -5, 'Ab': -4, 'Eb': -3, 'Bb': -2, 'F': -1,
+    'C': 0, 'G': 1, 'D': 2, 'A': 3, 'E': 4, 'B': 5, 'F#': 6, 'C#': 7,
+  };
+  return keyToFifthsMap[keyName] ?? 0;
+}
+
+/**
+ * 半音数から五度圏での移動量を計算
+ * @param semitones 半音数
+ * @returns 五度圏での移動量（-6〜+6の範囲に正規化済み）
+ */
+function semitonesToFifthsChange(semitones: number): number {
+  // 半音数を0-11に正規化
+  const normalizedSemitones = ((semitones % 12) + 12) % 12;
+  
+  // 半音数と五度圏移動の対応
+  // 0→0, 1→-5(+7), 2→2, 3→-3(+9), 4→4, 5→-1(+11), 
+  // 6→6(-6), 7→1, 8→-4(+8), 9→3, 10→-2(+10), 11→5
+  const semitoneToFifths: Record<number, number> = {
+    0: 0, 1: -5, 2: 2, 3: -3, 4: 4, 5: -1,
+    6: 6, 7: 1, 8: -4, 9: 3, 10: -2, 11: 5
+  };
+  
+  return semitoneToFifths[normalizedSemitones] ?? 0;
+}
+
+/**
+ * 元のキーと半音数から正しいターゲットキーを計算
+ * 五度圏で最適な方向（シャープ側/フラット側）を選択
+ * @param originalKey 元のキー
+ * @param semitones 半音数
+ * @returns ターゲットキー名（CbとF#は避ける）
+ */
+export function getTargetKeyFromTransposition(originalKey: string, semitones: number): string {
+  const originalFifths = keyNameToFifths(originalKey);
+  const fifthsChange = semitonesToFifthsChange(semitones);
+  
+  let targetFifths = originalFifths + fifthsChange;
+  
+  // -6〜+6の範囲に収める（Cb=-7とC#=+7を避ける）
+  while (targetFifths > 6) targetFifths -= 12;
+  while (targetFifths < -6) targetFifths += 12;
+  
+  // Cbメジャー（-7）は避けてBメジャー（+5）に
+  // C#メジャー（+7）は避けてDbメジャー（-5）に
+  if (targetFifths === -7) targetFifths = 5;  // Cb → B
+  if (targetFifths === 7) targetFifths = -5;  // C# → Db
+  
+  return fifthsToKeyName(targetFifths);
+}
 
 /**
  * リピートごとのキー変更オプション
@@ -32,7 +100,7 @@ export interface TransposeSettings {
 
 /**
  * キーオフセットから出題キー名を取得
- * レジェンドモード仕様: ±6の範囲に収め、調号の少ない方を優先
+ * レジェンドモード仕様: ±6の範囲に収め、五度圏で正しいキーを選択
  * @param baseKey 基準キー（通常は 'C'）
  * @param offset 半音オフセット（任意の整数、内部で±6に正規化）
  * @returns 出題キー名
@@ -41,14 +109,18 @@ export function getKeyFromOffset(baseKey: string = 'C', offset: number): Transpo
   // オフセットを±6の範囲に正規化
   const normalizedOffset = normalizeToSixRange(offset);
   
-  // baseKeyのインデックスを取得（Cを基準）
-  const baseIdx = TRANSPOSE_KEYS.indexOf(baseKey as TransposeKey);
-  const baseIndex = baseIdx >= 0 ? baseIdx : 0;
+  // 元のキーに基づいて正しいターゲットキーを計算
+  const targetKey = getTargetKeyFromTransposition(baseKey, normalizedOffset);
   
-  // オフセットを適用して0-11の範囲に
-  const targetIndex = (baseIndex + normalizedOffset + 12) % 12;
+  // TRANSPOSE_KEYSに含まれるキー名に変換
+  // F# → Gb（TRANSPOSE_KEYSにはGbが含まれている）
+  const keyMapping: Record<string, TransposeKey> = {
+    'C': 'C', 'Db': 'Db', 'D': 'D', 'Eb': 'Eb', 'E': 'E', 'F': 'F',
+    'F#': 'Gb', 'Gb': 'Gb', 'G': 'G', 'Ab': 'Ab', 'A': 'A', 'Bb': 'Bb', 'B': 'B',
+    'C#': 'Db', 'D#': 'Eb', 'G#': 'Ab', 'A#': 'Bb', 'Cb': 'B'
+  };
   
-  return TRANSPOSE_KEYS[targetIndex];
+  return keyMapping[targetKey] || 'C';
 }
 
 /**
@@ -80,17 +152,18 @@ function semitonesToInterval(semitones: number): string {
  * @param noteName 音名（例: 'C', 'Eb', 'F#'）
  * @param semitones 半音数（正: 上行、負: 下行）
  * @param simpleMode 簡易表示モード（true: ダブルシャープや白鍵の異名同音を変換）
+ * @param targetKey ターゲットキー（指定されている場合、そのキーのスケールに合わせて表記）
  * @returns 移調後の音名
  */
-export function transposeNoteName(noteName: string, semitones: number, simpleMode: boolean = true): string {
-  if (semitones === 0) return simpleMode ? normalizeEnharmonic(noteName, true) : noteName;
+export function transposeNoteName(noteName: string, semitones: number, simpleMode: boolean = true, targetKey?: string): string {
+  if (semitones === 0) return simpleMode ? normalizeEnharmonic(noteName, true, targetKey) : noteName;
   
   // オクターブを除去
   const cleanName = noteName.replace(/\d+$/, '');
   const octaveMatch = noteName.match(/(\d+)$/);
   const octave = octaveMatch ? parseInt(octaveMatch[1], 10) : 4;
   
-  // tonalで移調
+  // tonalで移調（正しいインターバルを使用）
   const interval = Interval.fromSemitones(semitones);
   const transposed = transpose(cleanName + octave, interval);
   
@@ -99,39 +172,118 @@ export function transposeNoteName(noteName: string, semitones: number, simpleMod
     return noteName;
   }
   
-  // 結果を正規化（簡易モードの場合: Cb → B, E# → F など）
-  const result = normalizeEnharmonic(transposed.replace(/\d+$/, ''), simpleMode);
+  // 結果を正規化（ターゲットキーを考慮）
+  const result = normalizeEnharmonic(transposed.replace(/\d+$/, ''), simpleMode, targetKey);
   return octaveMatch ? result + octave : result;
 }
 
 /**
- * エンハーモニックの正規化（簡易表示モード用）
- * - ダブルシャープ（x, ##）を簡易音名に変換
- * - 白鍵の♭#付き（Cb, B#, E#, Fb）を簡易音名に変換
- * - 黒鍵の♭#1個の音はそのまま維持（C#, Db, D#, Eb, F#, Gb, G#, Ab, A#, Bb）
+ * ターゲットキーのスケール音を取得
+ * @param keyName キー名
+ * @returns スケール音の配列（正しいエンハーモニック表記）
+ */
+function getKeyScaleNotes(keyName: string): string[] {
+  const keyInfo = Key.majorKey(keyName);
+  if (keyInfo && keyInfo.scale) {
+    return [...keyInfo.scale]; // readonly配列をミュータブルにコピー
+  }
+  
+  // フォールバック: 一般的なメジャースケール
+  const scaleMap: Record<string, string[]> = {
+    'C': ['C', 'D', 'E', 'F', 'G', 'A', 'B'],
+    'G': ['G', 'A', 'B', 'C', 'D', 'E', 'F#'],
+    'D': ['D', 'E', 'F#', 'G', 'A', 'B', 'C#'],
+    'A': ['A', 'B', 'C#', 'D', 'E', 'F#', 'G#'],
+    'E': ['E', 'F#', 'G#', 'A', 'B', 'C#', 'D#'],
+    'B': ['B', 'C#', 'D#', 'E', 'F#', 'G#', 'A#'],
+    'F#': ['F#', 'G#', 'A#', 'B', 'C#', 'D#', 'E#'],
+    'Gb': ['Gb', 'Ab', 'Bb', 'Cb', 'Db', 'Eb', 'F'],
+    'Db': ['Db', 'Eb', 'F', 'Gb', 'Ab', 'Bb', 'C'],
+    'Ab': ['Ab', 'Bb', 'C', 'Db', 'Eb', 'F', 'G'],
+    'Eb': ['Eb', 'F', 'G', 'Ab', 'Bb', 'C', 'D'],
+    'Bb': ['Bb', 'C', 'D', 'Eb', 'F', 'G', 'A'],
+    'F': ['F', 'G', 'A', 'Bb', 'C', 'D', 'E'],
+  };
+  
+  return scaleMap[keyName] || scaleMap['C'];
+}
+
+/**
+ * 音名がターゲットキーのスケールに含まれるかチェックし、
+ * 含まれない場合は正しいエンハーモニックに変換
  * @param noteName 音名
- * @param simpleMode 簡易表示モード（true: 簡易表示、false: 正確表示）
+ * @param targetKey ターゲットキー
+ * @returns 正しいエンハーモニック表記の音名
+ */
+function adjustToKeyScale(noteName: string, targetKey: string): string {
+  const scaleNotes = getKeyScaleNotes(targetKey);
+  
+  // 音名のクロマ（ピッチクラス）を取得
+  const noteInfo = parseNote(noteName);
+  if (!noteInfo || noteInfo.chroma === undefined) {
+    return noteName;
+  }
+  const chroma = noteInfo.chroma;
+  
+  // スケール内で同じクロマを持つ音を探す
+  for (const scaleNote of scaleNotes) {
+    const scaleNoteInfo = parseNote(scaleNote);
+    if (scaleNoteInfo && scaleNoteInfo.chroma === chroma) {
+      return scaleNote;
+    }
+  }
+  
+  // スケールに含まれない音（臨時記号付き）はそのまま返す
+  return noteName;
+}
+
+/**
+ * エンハーモニックの正規化
+ * - simpleMode=true: ダブルシャープ・ダブルフラットを変換
+ * - targetKeyが指定されている場合: そのキーのスケールに合わせて表記
+ * @param noteName 音名
+ * @param simpleMode 簡易表示モード
+ * @param targetKey ターゲットキー（スケールに合わせた表記用）
  * @returns 正規化された音名
  */
-function normalizeEnharmonic(noteName: string, simpleMode: boolean = true): string {
-  // 正確表示モードの場合はそのまま返す（ダブルシャープなども維持）
+function normalizeEnharmonic(noteName: string, simpleMode: boolean = true, targetKey?: string): string {
+  // ターゲットキーが指定されている場合、そのキーのスケールに合わせる
+  if (targetKey) {
+    const adjusted = adjustToKeyScale(noteName, targetKey);
+    // 簡易モードでダブルシャープ/ダブルフラットのみを変換
+    if (simpleMode) {
+      return normalizeDoubleAccidentals(adjusted);
+    }
+    return adjusted;
+  }
+  
+  // ターゲットキーが指定されていない場合の処理
   if (!simpleMode) {
     return noteName;
   }
   
-  // 簡易表示モード: ダブルシャープ・ダブルフラット・白鍵の異名同音を変換
-  const simpleEnharmonicMap: Record<string, string> = {
-    // 白鍵の異名同音（常に変換）
-    'Cb': 'B', 'B#': 'C', 'E#': 'F', 'Fb': 'E',
-    // ダブルシャープ（常に変換）
+  // 簡易表示モード: ダブルシャープ・ダブルフラットのみを変換
+  // 白鍵の異名同音（E#, B#, Cb, Fb）は変換しない（キーによって正しい表記が異なるため）
+  return normalizeDoubleAccidentals(noteName);
+}
+
+/**
+ * ダブルシャープ・ダブルフラットのみを簡易表記に変換
+ * 白鍵の異名同音（E#, B#, Cb, Fb）は変換しない
+ * @param noteName 音名
+ * @returns 変換された音名
+ */
+function normalizeDoubleAccidentals(noteName: string): string {
+  const doubleAccidentalMap: Record<string, string> = {
+    // ダブルシャープ
     'Cx': 'D', 'C##': 'D',
     'Dx': 'E', 'D##': 'E',
-    'Ex': 'F#', 'E##': 'F#',  // E## = F#
+    'Ex': 'F#', 'E##': 'F#',
     'Fx': 'G', 'F##': 'G',
     'Gx': 'A', 'G##': 'A',
     'Ax': 'B', 'A##': 'B',
-    'Bx': 'C#', 'B##': 'C#',  // B## = C#
-    // ダブルフラット（常に変換）
+    'Bx': 'C#', 'B##': 'C#',
+    // ダブルフラット
     'Cbb': 'Bb',
     'Dbb': 'C',
     'Ebb': 'D',
@@ -141,10 +293,7 @@ function normalizeEnharmonic(noteName: string, simpleMode: boolean = true): stri
     'Bbb': 'A',
   };
   
-  // 黒鍵の♭#1個の音はそのまま（C#, Db, D#, Eb, F#, Gb, G#, Ab, A#, Bb）
-  // → マッピングに含まれないので自動的にそのまま返される
-  
-  return simpleEnharmonicMap[noteName] || noteName;
+  return doubleAccidentalMap[noteName] || noteName;
 }
 
 /**
@@ -193,12 +342,18 @@ export function transposeMidi(midi: number, semitones: number): number {
  * @param simpleMode 簡易表示モード（true: ダブルシャープや白鍵の異名同音を変換）
  * @returns 移調後のコード定義
  */
-export function transposeChordDefinition(chord: ChordDefinition, semitones: number, simpleMode: boolean = true): ChordDefinition {
+export function transposeChordDefinition(chord: ChordDefinition, semitones: number, simpleMode: boolean = true, originalKey?: string): ChordDefinition {
+  // ターゲットキーを計算（元のキーが不明な場合はルート音から推測）
+  const effectiveOriginalKey = originalKey || chord.root;
+  const targetKey = semitones !== 0 
+    ? getTargetKeyFromTransposition(effectiveOriginalKey, semitones)
+    : effectiveOriginalKey;
+  
   if (semitones === 0) {
     // 移調なしでも簡易モードの正規化は適用
     if (simpleMode) {
-      const normalizedRoot = normalizeEnharmonic(chord.root, true);
-      const normalizedNoteNames = chord.noteNames.map(name => normalizeEnharmonic(name, true));
+      const normalizedRoot = normalizeEnharmonic(chord.root, true, targetKey);
+      const normalizedNoteNames = chord.noteNames.map(name => normalizeEnharmonic(name, true, targetKey));
       let normalizedDisplayName = chord.displayName;
       if (chord.displayName.startsWith(chord.root) && chord.root !== normalizedRoot) {
         normalizedDisplayName = normalizedRoot + chord.displayName.slice(chord.root.length);
@@ -214,11 +369,11 @@ export function transposeChordDefinition(chord: ChordDefinition, semitones: numb
     return chord;
   }
   
-  // ルート音を移調
-  const transposedRoot = transposeNoteName(chord.root, semitones, simpleMode);
+  // ルート音を移調（ターゲットキーを渡す）
+  const transposedRoot = transposeNoteName(chord.root, semitones, simpleMode, targetKey);
   
-  // 各構成音を移調
-  const transposedNoteNames = chord.noteNames.map(name => transposeNoteName(name, semitones, simpleMode));
+  // 各構成音を移調（ターゲットキーを渡す）
+  const transposedNoteNames = chord.noteNames.map(name => transposeNoteName(name, semitones, simpleMode, targetKey));
   
   // MIDIノートを移調
   const transposedNotes = chord.notes.map(midi => transposeMidi(midi, semitones));
@@ -249,13 +404,13 @@ export function transposeChordDefinition(chord: ChordDefinition, semitones: numb
  * @param simpleMode 簡易表示モード（true: ダブルシャープや白鍵の異名同音を変換）
  * @returns 移調後のノート
  */
-export function transposeTaikoNote(note: TaikoNote, semitones: number, simpleMode: boolean = true): TaikoNote {
+export function transposeTaikoNote(note: TaikoNote, semitones: number, simpleMode: boolean = true, originalKey?: string): TaikoNote {
   if (semitones === 0 && !simpleMode) return note;
   
   return {
     ...note,
     id: semitones !== 0 ? `${note.id}_t${semitones}` : note.id, // 移調を識別できるようにIDを更新
-    chord: transposeChordDefinition(note.chord, semitones, simpleMode)
+    chord: transposeChordDefinition(note.chord, semitones, simpleMode, originalKey)
   };
 }
 
@@ -264,11 +419,16 @@ export function transposeTaikoNote(note: TaikoNote, semitones: number, simpleMod
  * @param notes ノート配列
  * @param semitones 半音数
  * @param simpleMode 簡易表示モード（true: ダブルシャープや白鍵の異名同音を変換）
+ * @param originalKey 元のキー（省略時は最初のノートのルート音から推測）
  * @returns 移調後のノート配列
  */
-export function transposeTaikoNotes(notes: TaikoNote[], semitones: number, simpleMode: boolean = true): TaikoNote[] {
+export function transposeTaikoNotes(notes: TaikoNote[], semitones: number, simpleMode: boolean = true, originalKey?: string): TaikoNote[] {
   if (semitones === 0 && !simpleMode) return notes;
-  return notes.map(note => transposeTaikoNote(note, semitones, simpleMode));
+  
+  // 元のキーが指定されていない場合、最初のノートのルート音から推測
+  const effectiveOriginalKey = originalKey || (notes.length > 0 ? notes[0].chord.root : 'C');
+  
+  return notes.map(note => transposeTaikoNote(note, semitones, simpleMode, effectiveOriginalKey));
 }
 
 /**
