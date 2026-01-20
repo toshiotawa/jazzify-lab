@@ -85,8 +85,14 @@ export function getTargetKeyFromTransposition(originalKey: string, semitones: nu
 
 /**
  * リピートごとのキー変更オプション
+ * off: 転調なし
+ * +1: 半音上
+ * +5: 完全4度上（5半音）
+ * -1: 半音下
+ * -5: 完全4度下（-5半音）
+ * random: +1, +5, -1, -5からランダムに選択
  */
-export type RepeatKeyChange = 'off' | '+1' | '+5';
+export type RepeatKeyChange = 'off' | '+1' | '+5' | '-1' | '-5' | 'random';
 
 /**
  * 移調設定
@@ -449,7 +455,42 @@ export function calculateTransposeOffset(
     return normalizeToSixRange(baseOffset);
   }
   
-  const changeAmount = repeatKeyChange === '+1' ? 1 : 5;
+  let changeAmount: number;
+  
+  if (repeatKeyChange === 'random') {
+    // ランダムモード: +1, +5, -1, -5からランダムに選択
+    // repeatCycleが0の場合（初回）は変更なし、それ以降はランダム
+    if (repeatCycle === 0) {
+      return normalizeToSixRange(baseOffset);
+    }
+    // シード値としてrepeatCycleを使用し、再現性のあるランダムを生成
+    // 各リピートで異なる値を選択するが、同じリピート回数なら同じ値
+    const options = [1, 5, -1, -5];
+    // 簡易的なハッシュ関数でインデックスを決定
+    const index = Math.abs((repeatCycle * 7 + baseOffset * 13) % options.length);
+    changeAmount = options[index];
+    const totalChange = baseOffset + (repeatCycle * changeAmount);
+    return normalizeToSixRange(totalChange);
+  }
+  
+  // 固定値モード: +1, +5, -1, -5
+  switch (repeatKeyChange) {
+    case '+1':
+      changeAmount = 1;
+      break;
+    case '+5':
+      changeAmount = 5;
+      break;
+    case '-1':
+      changeAmount = -1;
+      break;
+    case '-5':
+      changeAmount = -5;
+      break;
+    default:
+      changeAmount = 0;
+  }
+  
   const totalChange = baseOffset + (repeatCycle * changeAmount);
   
   // ±6の範囲に収める（レジェンドモード仕様）

@@ -32,6 +32,9 @@ interface TimingRow {
   type?: 'note'; // 単音指定
 }
 
+// リピート転調設定の型
+type RepeatTranspositionMode = 'off' | '+1' | '+5' | '-1' | '-5' | 'random';
+
 // フォーム全体
 interface StageFormValues {
   id?: string;
@@ -71,6 +74,9 @@ interface StageFormValues {
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
   required_clears_for_next: number;
+  // 本番モード用の転調設定（timingモード専用）
+  production_repeat_transposition_mode: RepeatTranspositionMode;
+  production_start_key: number;
 }
 
 const defaultValues: StageFormValues = {
@@ -101,6 +107,9 @@ const defaultValues: StageFormValues = {
   stage_tier: 'basic',
   is_sheet_music_mode: false,
   required_clears_for_next: 5,
+  // 本番モード用の転調設定
+  production_repeat_transposition_mode: 'off',
+  production_start_key: 0,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -322,6 +331,9 @@ const FantasyStageManager: React.FC = () => {
         is_sheet_music_mode: !!(s as any).is_sheet_music_mode,
         required_clears_for_next: (s as any).required_clears_for_next ?? 5,
         music_xml: s.music_xml || null,
+        // 本番モード用の転調設定
+        production_repeat_transposition_mode: (s as any).production_repeat_transposition_mode || 'off',
+        production_start_key: (s as any).production_start_key ?? 0,
       };
       reset(v);
     } catch (e: any) {
@@ -362,6 +374,9 @@ const FantasyStageManager: React.FC = () => {
       is_sheet_music_mode: v.is_sheet_music_mode,
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
+      // 本番モード用の転調設定（timingモード専用）
+      production_repeat_transposition_mode: v.mode === 'progression_timing' ? v.production_repeat_transposition_mode : null,
+      production_start_key: v.mode === 'progression_timing' ? v.production_start_key : null,
     };
 
     // モードに応じた不要フィールドの削除
@@ -415,7 +430,10 @@ const FantasyStageManager: React.FC = () => {
       stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' | 'phrases' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
-        music_xml: s.music_xml || null,
+      music_xml: s.music_xml || null,
+      // 本番モード用の転調設定
+      production_repeat_transposition_mode: ((s as DbFantasyStage & { production_repeat_transposition_mode?: RepeatTranspositionMode }).production_repeat_transposition_mode || 'off') as RepeatTranspositionMode,
+      production_start_key: (s as DbFantasyStage & { production_start_key?: number }).production_start_key ?? 0,
     };
   }, []);
 
@@ -541,6 +559,9 @@ const FantasyStageManager: React.FC = () => {
         is_sheet_music_mode: currentValues.is_sheet_music_mode,
         required_clears_for_next: currentValues.required_clears_for_next,
         music_xml: currentValues.music_xml || null,
+        // 本番モード用の転調設定
+        production_repeat_transposition_mode: currentValues.production_repeat_transposition_mode || 'off',
+        production_start_key: currentValues.production_start_key ?? 0,
       };
       
       // 新規ステージとして作成
@@ -1149,6 +1170,48 @@ const FantasyStageManager: React.FC = () => {
                   </div>
                   <button type="button" className="btn btn-sm" onClick={() => appendTiming({ bar: 1, beats: 1, chord: 'C', inversion: 0, octave: 4 })}>行を追加</button>
                 </div>
+              </Section>
+            )}
+
+            {/* progression_timing 用: 本番モード転調設定 */}
+            {mode === 'progression_timing' && (
+              <Section title="本番モード転調設定">
+                <p className="text-xs text-gray-400 mb-3">
+                  本番モードでのクリア条件に使用される転調設定です。練習モードでは無視され、プレイヤーの設定が使用されます。
+                </p>
+                <Row>
+                  <div>
+                    <SmallLabel>リピート転調設定</SmallLabel>
+                    <select className="select select-bordered w-full" {...register('production_repeat_transposition_mode')}>
+                      <option value="off">なし (off)</option>
+                      <option value="+1">+1 (半音上)</option>
+                      <option value="+5">+5 (完全4度上)</option>
+                      <option value="-1">-1 (半音下)</option>
+                      <option value="-5">-5 (完全4度下)</option>
+                      <option value="random">ランダム (+1, +5, -1, -5)</option>
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">リピートごとにキーが変化します</p>
+                  </div>
+                  <div>
+                    <SmallLabel>開始時キー（半音数）</SmallLabel>
+                    <select className="select select-bordered w-full" {...register('production_start_key', { valueAsNumber: true })}>
+                      <option value={0}>0 (原曲キー / C)</option>
+                      <option value={1}>+1 (Db)</option>
+                      <option value={2}>+2 (D)</option>
+                      <option value={3}>+3 (Eb)</option>
+                      <option value={4}>+4 (E)</option>
+                      <option value={5}>+5 (F)</option>
+                      <option value={6}>+6 (Gb)</option>
+                      <option value={-1}>-1 (B)</option>
+                      <option value={-2}>-2 (Bb)</option>
+                      <option value={-3}>-3 (A)</option>
+                      <option value={-4}>-4 (Ab)</option>
+                      <option value={-5}>-5 (G)</option>
+                      <option value={-6}>-6 (Gb)</option>
+                    </select>
+                    <p className="text-xs text-gray-400 mt-1">ゲーム開始時のキーオフセット</p>
+                  </div>
+                </Row>
               </Section>
             )}
 

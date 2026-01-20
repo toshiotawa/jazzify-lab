@@ -114,6 +114,9 @@ export interface ChordDefinition {
   root: string;        // ルート音（例: 'C', 'G', 'A'）
 }
 
+// 本番モード用の転調設定の型
+type ProductionRepeatTranspositionMode = 'off' | '+1' | '+5' | '-1' | '-5' | 'random';
+
 export interface FantasyStage {
   id: string;
   stageNumber: string | null;  // レッスン専用ステージではnull可
@@ -154,8 +157,11 @@ export interface FantasyStage {
   musicXml?: string;
   // 低速練習モード用: 再生速度倍率（1.0=100%, 0.75=75%, 0.5=50%）
   speedMultiplier?: number;
-  // Timingモード移調練習用: 移調設定
+  // Timingモード移調練習用: 移調設定（練習モード用）
   transposeSettings?: TransposeSettings;
+  // 本番モード用の転調設定（timingモード専用）
+  productionRepeatTranspositionMode?: ProductionRepeatTranspositionMode;
+  productionStartKey?: number;
 }
 
 export interface MonsterState {
@@ -1255,10 +1261,27 @@ export const useFantasyGameEngine = ({
       });
     }
 
-    // 移調設定の初期化（progression_timingモードかつ練習モードの場合のみ）
-    const transposeSettings = (stage.mode === 'progression_timing' && playMode === 'practice' && stage.transposeSettings)
-      ? stage.transposeSettings
-      : null;
+    // 移調設定の初期化
+    // - 練習モード: stage.transposeSettings を使用（プレイヤー設定）
+    // - 本番モード: stage.productionRepeatTranspositionMode と stage.productionStartKey を使用（ステージ設定）
+    let transposeSettings: TransposeSettings | null = null;
+    if (stage.mode === 'progression_timing') {
+      if (playMode === 'practice' && stage.transposeSettings) {
+        // 練習モード: プレイヤーの設定を使用
+        transposeSettings = stage.transposeSettings;
+      } else if (playMode === 'challenge') {
+        // 本番モード: ステージの本番用設定を使用
+        const productionMode = stage.productionRepeatTranspositionMode || 'off';
+        const productionStartKey = stage.productionStartKey ?? 0;
+        // 本番モードでも転調設定がある場合のみ適用
+        if (productionMode !== 'off' || productionStartKey !== 0) {
+          transposeSettings = {
+            keyOffset: productionStartKey,
+            repeatKeyChange: productionMode as RepeatKeyChange
+          };
+        }
+      }
+    }
     
     // 元のノーツを保存（リピート時の移調に使用）
     const originalTaikoNotes = [...taikoNotes];

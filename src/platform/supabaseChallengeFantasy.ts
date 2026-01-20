@@ -1,12 +1,15 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
-import type { FantasyStage } from '@/types';
+import type { FantasyStage, RepeatTranspositionMode } from '@/types';
 
 export interface ChallengeFantasyTrack {
   challenge_id: string;
   fantasy_stage_id: string;
   clears_required: number;
-  stage: Pick<FantasyStage, 'id' | 'stage_number' | 'name' | 'description'>;
+  stage: Pick<FantasyStage, 'id' | 'stage_number' | 'name' | 'description' | 'mode'>;
+  // timingモードステージ用の上書き設定
+  override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+  override_start_key?: number | null;
 }
 
 export interface UserChallengeFantasyProgressItem {
@@ -22,7 +25,7 @@ export async function getChallengeFantasyTracks(challengeId: string): Promise<Ch
     cacheKey,
     async () => await supabase
       .from('challenge_fantasy_tracks')
-      .select('challenge_id, fantasy_stage_id, clears_required, fantasy_stages(id, stage_number, name, description)')
+      .select('challenge_id, fantasy_stage_id, clears_required, override_repeat_transposition_mode, override_start_key, fantasy_stages(id, stage_number, name, description, mode)')
       .eq('challenge_id', challengeId),
     1000 * 30
   );
@@ -31,39 +34,90 @@ export async function getChallengeFantasyTracks(challengeId: string): Promise<Ch
     challenge_id: string;
     fantasy_stage_id: string;
     clears_required: number;
-    fantasy_stages: { id: string; stage_number: string; name: string; description: string };
+    override_repeat_transposition_mode: RepeatTranspositionMode | null;
+    override_start_key: number | null;
+    fantasy_stages: { id: string; stage_number: string; name: string; description: string; mode: string };
   }>) || [];
   return rows.map((r) => ({
     challenge_id: r.challenge_id,
     fantasy_stage_id: r.fantasy_stage_id,
     clears_required: r.clears_required,
+    override_repeat_transposition_mode: r.override_repeat_transposition_mode,
+    override_start_key: r.override_start_key,
     stage: {
       id: r.fantasy_stages.id,
       stage_number: r.fantasy_stages.stage_number,
       name: r.fantasy_stages.name,
       description: r.fantasy_stages.description,
+      mode: r.fantasy_stages.mode as FantasyStage['mode'],
     },
   }));
 }
 
-export async function addFantasyStageToChallenge(challengeId: string, fantasyStageId: string, clearsRequired: number): Promise<void> {
+export interface AddFantasyStageOptions {
+  clearsRequired: number;
+  overrideRepeatTranspositionMode?: RepeatTranspositionMode | null;
+  overrideStartKey?: number | null;
+}
+
+export async function addFantasyStageToChallenge(
+  challengeId: string, 
+  fantasyStageId: string, 
+  clearsRequiredOrOptions: number | AddFantasyStageOptions
+): Promise<void> {
   const supabase = getSupabaseClient();
+  
+  // 後方互換性のため、数値で渡された場合はclearsRequiredとして扱う
+  const options: AddFantasyStageOptions = typeof clearsRequiredOrOptions === 'number' 
+    ? { clearsRequired: clearsRequiredOrOptions }
+    : clearsRequiredOrOptions;
+  
   const { error } = await supabase
     .from('challenge_fantasy_tracks')
     .insert({
       challenge_id: challengeId,
       fantasy_stage_id: fantasyStageId,
-      clears_required: clearsRequired,
+      clears_required: options.clearsRequired,
+      override_repeat_transposition_mode: options.overrideRepeatTranspositionMode ?? null,
+      override_start_key: options.overrideStartKey ?? null,
     });
   if (error) throw error;
   clearSupabaseCache();
 }
 
-export async function updateFantasyStageInChallenge(challengeId: string, fantasyStageId: string, clearsRequired: number): Promise<void> {
+export interface UpdateFantasyStageOptions {
+  clearsRequired?: number;
+  overrideRepeatTranspositionMode?: RepeatTranspositionMode | null;
+  overrideStartKey?: number | null;
+}
+
+export async function updateFantasyStageInChallenge(
+  challengeId: string, 
+  fantasyStageId: string, 
+  clearsRequiredOrOptions: number | UpdateFantasyStageOptions
+): Promise<void> {
   const supabase = getSupabaseClient();
+  
+  // 後方互換性のため、数値で渡された場合はclearsRequiredとして扱う
+  const options: UpdateFantasyStageOptions = typeof clearsRequiredOrOptions === 'number' 
+    ? { clearsRequired: clearsRequiredOrOptions }
+    : clearsRequiredOrOptions;
+  
+  // 更新するフィールドを構築
+  const updateFields: Record<string, unknown> = {};
+  if (options.clearsRequired !== undefined) {
+    updateFields.clears_required = options.clearsRequired;
+  }
+  if (options.overrideRepeatTranspositionMode !== undefined) {
+    updateFields.override_repeat_transposition_mode = options.overrideRepeatTranspositionMode;
+  }
+  if (options.overrideStartKey !== undefined) {
+    updateFields.override_start_key = options.overrideStartKey;
+  }
+  
   const { error } = await supabase
     .from('challenge_fantasy_tracks')
-    .update({ clears_required: clearsRequired })
+    .update(updateFields)
     .eq('challenge_id', challengeId)
     .eq('fantasy_stage_id', fantasyStageId);
   if (error) throw error;
