@@ -22,6 +22,8 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
     .from('profiles')
     .select('id, nickname, level, xp, rank, avatar_url, twitter_handle, selected_title, email')
     .not('nickname', 'is', null)
+    .neq('nickname', '退会ユーザー') // 退会ユーザーを除外
+    .not('email', 'like', '%@deleted.local') // 匿名化されたユーザーを除外
     .order('level', { ascending: false })
     .order('xp', { ascending: false })
     .range(offset, offset + (limit * 2) - 1);
@@ -112,20 +114,28 @@ export async function fetchMissionRanking(missionId: string, limit = 50, offset 
   const supabase = getSupabaseClient();
   const { data, error } = await supabase
     .from('user_challenge_progress')
-    .select('user_id, clear_count, profiles(nickname, avatar_url, level, rank)')
+    .select('user_id, clear_count, profiles(nickname, avatar_url, level, rank, email)')
     .eq('challenge_id', missionId)
     .eq('completed', true)
     .order('clear_count', { ascending: false })
     .range(offset, offset + limit - 1);
   if (error) throw error;
-  return (data ?? []).map((d: any) => ({
-    user_id: d.user_id,
-    clear_count: d.clear_count,
-    nickname: d.profiles.nickname,
-    avatar_url: d.profiles.avatar_url,
-    level: d.profiles.level,
-    rank: d.profiles.rank,
-  }));
+  // 退会ユーザーを除外
+  return (data ?? [])
+    .filter((d: { profiles: { nickname: string; email: string } | null }) => {
+      if (!d.profiles) return false;
+      if (d.profiles.nickname === '退会ユーザー') return false;
+      if (d.profiles.email?.endsWith('@deleted.local')) return false;
+      return true;
+    })
+    .map((d: { user_id: string; clear_count: number; profiles: { nickname: string; avatar_url?: string; level: number; rank: string } }) => ({
+      user_id: d.user_id,
+      clear_count: d.clear_count,
+      nickname: d.profiles.nickname,
+      avatar_url: d.profiles.avatar_url,
+      level: d.profiles.level,
+      rank: d.profiles.rank,
+    }));
 }
 
 // ===== RPC based helpers for accurate global rank and paginated pages =====
