@@ -1,7 +1,5 @@
-import React from 'react';
-import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { useAuthStore } from '@/stores/authStore';
-import { useGeoStore } from '@/stores/geoStore';
+import React, { useMemo } from 'react';
+import { detectPreferredLocale } from '@/utils/globalAudience';
 
 interface LoadingScreenProps {
   progress?: number;
@@ -12,6 +10,7 @@ interface LoadingScreenProps {
 
 /**
  * ローディング画面コンポーネント
+ * 認証前に表示されるため、detectPreferredLocaleを使用してロケールを判定
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
   progress = 0,
@@ -19,12 +18,8 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
   error,
   onRetry
 }) => {
-  const profile = useAuthStore(s => s.profile);
-  const geoCountry = useGeoStore(s => s.country);
-  const isEnglishCopy = shouldUseEnglishCopy({
-    rank: profile?.rank,
-    geoCountryHint: geoCountry,
-  });
+  // 認証前でも使えるロケール判定（URL TLD、クエリパラメータから判定）
+  const isEnglishCopy = useMemo(() => detectPreferredLocale() === 'en', []);
 
   // デフォルトメッセージの設定（ロケール対応）
   const defaultMessage = isEnglishCopy ? 'Loading Jazzify...' : 'Jazzify を読み込み中...';
