@@ -553,6 +553,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     return () => window.removeEventListener('resize', updateSheetHeight);
   }, [showSheetMusicForTiming]);
 
+  // 初期ピッチシフトをrefで保持（ループ中の変更でBGMを再起動しないため）
+  const initialPitchShiftRef = useRef<number | null>(null);
+  
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   // 注意: currentTransposeOffsetは依存配列に含めない（ループ中の移調変更でBGMが再起動しないようにするため）
   // ループ中のピッチシフト変更は別のuseEffectでsetPitchShift()を呼び出す
@@ -563,9 +566,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、初期ピッチシフトを適用
-    // ループ中の変更は別のuseEffectで処理
-    const initialPitchShift = gameState.transposeSettings?.keyOffset || 0;
+    // 初回のみ初期ピッチシフトを設定
+    // currentTransposeOffsetを使用（これは初期化時にtransposeSettings.keyOffsetに設定される）
+    // 移調練習モードでは必ずTone.jsのPitchShiftを使用するため、currentTransposeOffsetを使う
+    if (initialPitchShiftRef.current === null) {
+      initialPitchShiftRef.current = gameState.currentTransposeOffset ?? gameState.transposeSettings?.keyOffset ?? 0;
+    }
+    const pitchShift = initialPitchShiftRef.current;
+    
+    console.log('🎵 BGM再生開始 - 初期ピッチシフト:', pitchShift);
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -575,16 +584,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      initialPitchShift
+      pitchShift
     );
 
-    return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.transposeSettings?.keyOffset]);
+    return () => {
+      bgmManager.stop();
+      initialPitchShiftRef.current = null; // BGM停止時にリセット
+    };
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   
   // リピート時のキー変更でBGMのピッチシフトを更新
   useEffect(() => {
     if (!gameState.isGameActive || isReady) return;
+    // 移調設定があり、現在のオフセットが定義されている場合のみ更新
+    // setPitchShiftはTone.jsのPitchShiftが使用されている場合のみ効果がある
     if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
+      console.log('🎹 リピート時ピッチシフト更新:', gameState.currentTransposeOffset);
       bgmManager.setPitchShift(gameState.currentTransposeOffset);
     }
   }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
