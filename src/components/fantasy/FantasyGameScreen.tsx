@@ -554,6 +554,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [showSheetMusicForTiming]);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
+  // 注: currentTransposeOffsetを依存配列に含めないこと！
+  // ループ境界で移調が変更されたときにBGMが再起動されてしまう
   useEffect(() => {
     if (!gameState.isGameActive) return;
     if (isReady) return;
@@ -561,13 +563,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 移調設定がある場合、ピッチシフトを適用
-    const pitchShift = gameState.currentTransposeOffset || 0;
+    // 初回再生時のピッチシフト
+    // 移調設定がある場合（repeatKeyChangeが'off'でない場合）、
+    // Tone.jsを使用するために0.001などの小さな値を設定してピッチシフトを有効化
+    // これにより、後からsetPitchShiftでピッチを変更できるようになる
+    let initialPitchShift = gameState.currentTransposeOffset || 0;
     
-    // 時間同期の計算値
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    const countInSeconds = (stage.countInMeasures ?? 0) * secPerMeasure;
+    // repeatKeyChangeが設定されている場合、Tone.jsを強制的に使用
+    // 初回は移調なし(0)でも、ループ後に移調が必要になるため
+    if (gameState.transposeSettings && gameState.transposeSettings.repeatKeyChange !== 'off') {
+      // 0だとTone.jsが使われないので、0.001を設定してTone.jsを有効化
+      // （ほぼ聴こえない差だが、setPitchShiftが動作するようになる）
+      if (initialPitchShift === 0) {
+        initialPitchShift = 0.001;
+      }
+    }
     
     bgmManager.play(
       stage.bgmUrl ?? '/demo-1.mp3',
@@ -577,19 +587,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stage.countInMeasures ?? 0,
       settings.bgmVolume ?? 0.7,
       playbackRate,
-      pitchShift
+      initialPitchShift
     );
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier, gameState.currentTransposeOffset]);
-  
-  // リピート時のキー変更でBGMのピッチシフトを更新
-  useEffect(() => {
-    if (!gameState.isGameActive || isReady) return;
-    if (gameState.transposeSettings && gameState.currentTransposeOffset !== undefined) {
-      bgmManager.setPitchShift(gameState.currentTransposeOffset);
-    }
-  }, [gameState.isGameActive, isReady, gameState.transposeSettings, gameState.currentTransposeOffset]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
+  // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
