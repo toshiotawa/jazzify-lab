@@ -1559,6 +1559,16 @@ export const useFantasyGameEngine = ({
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
           
+          // 先読みノーツの正解状態を保持するためのインデックスを取得
+          // ループ終端付近（最後の2ノーツ）で正解したものは次ループの先頭として扱う
+          const preHitNoteIndices: number[] = [];
+          prevState.taikoNotes.forEach((note, index) => {
+            // 先読みノーツ（インデックスがcurrentNoteIndex以降でisHit=true）を検出
+            if (index >= prevState.currentNoteIndex && note.isHit) {
+              preHitNoteIndices.push(index);
+            }
+          });
+          
           console.log('🔄 ループ境界検出:', {
             newLoopCycle,
             normalizedTime: normalizedTime.toFixed(3),
@@ -1566,7 +1576,8 @@ export const useFantasyGameEngine = ({
             loopTimeDiff: loopTimeDiff.toFixed(3),
             hasTransposeSettings: !!prevState.transposeSettings,
             originalNotesCount: prevState.originalTaikoNotes.length,
-            prevTransposeOffset: prevState.currentTransposeOffset
+            prevTransposeOffset: prevState.currentTransposeOffset,
+            preHitNoteIndices // 先読みで正解済みのノーツインデックス
           });
           
           // リピートごとの移調を適用（移調設定がある場合）
@@ -1599,26 +1610,68 @@ export const useFantasyGameEngine = ({
           }
           
           // ノーツをリセット
-          const resetNotes = transposedNotes.map(note => ({
-            ...note,
-            isHit: false,
-            isMissed: false
-          }));
+          // 先読みノーツ（次ループの先頭付近）の正解状態を引き継ぐ
+          // 前ループで正解した先読みノーツのインデックスを次ループの先頭にマッピング
+          const resetNotes = transposedNotes.map((note, index) => {
+            // 前ループの末尾で先読み正解したノーツを次ループの先頭として扱う
+            // 例: 前ループでインデックス7（最後）を先読み正解 → 次ループのインデックス0は正解済み
+            const wasPreHitAtEndOfLoop = preHitNoteIndices.some(preHitIndex => {
+              // 前ループの末尾ノーツが次ループの先頭に対応
+              const totalNotes = transposedNotes.length;
+              // 前ループのインデックスから次ループの先頭へのマッピング
+              // preHitIndex が totalNotes - 1 なら index 0 に対応（最後のノーツが先頭に）
+              // ただし、キーが変わっている場合は別のコードなので引き継がない
+              // キーが変わらない場合（repeatKeyChange === 'off' または同じキー）のみ引き継ぐ
+              if (prevState.transposeSettings?.repeatKeyChange === 'off' || 
+                  newTransposeOffset === prevState.currentTransposeOffset) {
+                // preHitIndex の相対位置（末尾からの距離）を計算
+                const distanceFromEnd = totalNotes - 1 - preHitIndex;
+                // 次ループの先頭からのインデックスと照合（末尾から数えて同じ位置）
+                // 例: 8ノーツで preHitIndex=7（末尾）→ distanceFromEnd=0 → index=0 と照合
+                // 例: 8ノーツで preHitIndex=6 → distanceFromEnd=1 → index=1 と照合はしない（先読みは末尾のみ）
+                return distanceFromEnd === 0 && index === 0;
+              }
+              return false;
+            });
+            
+            return {
+              ...note,
+              isHit: wasPreHitAtEndOfLoop,
+              isMissed: false
+            };
+          });
           
+          // 先読みノーツが次ループの先頭で正解済みの場合、currentNoteIndexを進める
           let newNoteIndex = prevState.currentNoteIndex;
           let refreshedMonsters = prevState.activeMonsters;
           
           if (prevState.awaitingLoopStart) {
+            // 先読みで正解済みのノーツをスキップ
             newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+            while (newNoteIndex < resetNotes.length && resetNotes[newNoteIndex].isHit) {
+              newNoteIndex++;
+            }
+            if (newNoteIndex >= resetNotes.length) {
+              newNoteIndex = 0; // 全部正解していたら先頭に戻す（通常はありえない）
+            }
+            
+            const currentNote = resetNotes[newNoteIndex];
+            const nextNoteIndex = newNoteIndex + 1 < resetNotes.length ? newNoteIndex + 1 : 0;
+            const nextNote = resetNotes[nextNoteIndex];
+            
             refreshedMonsters = prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
               gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
+              chordTarget: currentNote.chord,
+              nextChord: nextNote.chord
             }));
+            
+            console.log('🎯 先読みノーツ引き継ぎ:', {
+              preHitCount: preHitNoteIndices.length,
+              newNoteIndex,
+              skippedNotes: resetNotes.slice(0, newNoteIndex).filter(n => n.isHit).length
+            });
           }
           
           return {
