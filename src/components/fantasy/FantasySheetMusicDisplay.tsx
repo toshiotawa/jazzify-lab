@@ -44,12 +44,12 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
-// 12キー分の楽譜画像キャッシュ（-6〜+5の範囲）
+// 12キー分の楽譜画像キャッシュ（-5〜+6の範囲）
 interface SheetImageCache {
-  [offset: number]: string; // offset (-6〜+5) -> dataURL
+  [offset: number]: string; // offset (-5〜+6) -> dataURL
 }
 
-// 12キー分のタイムマッピングキャッシュ（-6〜+5の範囲）
+// 12キー分のタイムマッピングキャッシュ（-5〜+6の範囲）
 interface TimeMapCache {
   [offset: number]: {
     mapping: TimeMappingEntry[];
@@ -58,14 +58,15 @@ interface TimeMapCache {
 }
 
 /**
- * transposeOffsetを-6〜+5の範囲に正規化
- * 6は-6と同じピッチクラスなので、+6は-6として扱う
+ * transposeOffsetを-5〜+6の範囲に正規化
+ * +6と-6は同じピッチクラス（Gb/F#）なので、どちらも+6として扱う
+ * これにより、音源・ノーツ・楽譜すべてで統一された移調が適用される
  */
 function normalizeOffsetToCache(offset: number): number {
   // まず0〜11に正規化
   let normalized = ((offset % 12) + 12) % 12;
-  // 6〜11は-6〜-1に変換
-  if (normalized > 5) {
+  // 7〜11は-5〜-1に変換、0〜6はそのまま
+  if (normalized > 6) {
     normalized = normalized - 12;
   }
   return normalized;
@@ -222,7 +223,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
   }, [bpm, timeSignature]);
   
-  // 12キー分の楽譜を事前レンダリング（-6〜+5の範囲）
+  // 12キー分の楽譜を事前レンダリング（-5〜+6の範囲）
   const initializeAllSheets = useCallback(async () => {
     if (!musicXml || !renderContainerRef.current) {
       setError('楽譜データがありません');
@@ -236,10 +237,10 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       const imageCache: SheetImageCache = {};
       const mapCache: TimeMapCache = {};
       
-      // 12キー分すべてを-6〜+5の範囲でレンダリング
-      // これにより、transposeOffsetが負の値でも正しいオクターブの楽譜が表示される
+      // 12キー分すべてを-5〜+6の範囲でレンダリング
+      // +6と-6は同じピッチクラスなので、+6のみ作成（Gbメジャーとして統一）
       for (let i = 0; i < 12; i++) {
-        const offset = i <= 5 ? i : i - 12; // 0,1,2,3,4,5,-6,-5,-4,-3,-2,-1
+        const offset = i <= 6 ? i : i - 12; // 0,1,2,3,4,5,6,-5,-4,-3,-2,-1
         
         // レンダリング用コンテナをクリア
         if (renderContainerRef.current) {
