@@ -126,7 +126,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; sheetWidth: number } | null> => {
     try {
       // 移調を適用（simpleMode を渡す）
-      const transposedXml = offset !== 0 ? transposeMusicXml(xml, offset, useSimpleMode) : xml;
+      // offset === 0 でも simpleMode が有効なら変換を適用
+      const transposedXml = (offset !== 0 || useSimpleMode) ? transposeMusicXml(xml, offset, useSimpleMode) : xml;
       
       // OSMDオプション設定
       const options: IOSMDOptions = {

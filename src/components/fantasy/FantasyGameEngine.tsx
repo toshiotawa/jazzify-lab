@@ -1742,6 +1742,59 @@ export const useFantasyGameEngine = ({
         const currentNote = prevState.taikoNotes[currentNoteIndex];
         if (!currentNote) return { ...prevState, lastNormalizedTime: normalizedTime };
         
+        // 既にヒット済みのノーツはスキップして次へ進む（先読みヒット対応）
+        // これにより、ループ境界付近で先読みヒットしたノーツがミス扱いにならない
+        if (currentNote.isHit) {
+          const nextIndex = currentNoteIndex + 1;
+          if (nextIndex >= prevState.taikoNotes.length) {
+            // 末尾：次ループまで待つ
+            const nextLoopFirstNote = prevState.taikoNotes[0];
+            const nextLoopSecondNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            return {
+              ...prevState,
+              awaitingLoopStart: true,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: nextLoopFirstNote.chord,
+                nextChord: nextLoopSecondNote.chord
+              })),
+              lastNormalizedTime: normalizedTime
+            };
+          }
+          // 次のヒット済みでないノーツを探す
+          let skipIndex = nextIndex;
+          while (skipIndex < prevState.taikoNotes.length && prevState.taikoNotes[skipIndex].isHit) {
+            skipIndex++;
+          }
+          if (skipIndex >= prevState.taikoNotes.length) {
+            // 全ノーツがヒット済み：次ループまで待つ
+            const nextLoopFirstNote = prevState.taikoNotes[0];
+            const nextLoopSecondNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            return {
+              ...prevState,
+              awaitingLoopStart: true,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: nextLoopFirstNote.chord,
+                nextChord: nextLoopSecondNote.chord
+              })),
+              lastNormalizedTime: normalizedTime
+            };
+          }
+          const skipToNote = prevState.taikoNotes[skipIndex];
+          const skipToNextNote = (skipIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[skipIndex + 1] : prevState.taikoNotes[0];
+          return {
+            ...prevState,
+            currentNoteIndex: skipIndex,
+            activeMonsters: prevState.activeMonsters.map(m => ({
+              ...m,
+              chordTarget: skipToNote.chord,
+              nextChord: skipToNextNote.chord
+            })),
+            lastNormalizedTime: normalizedTime
+          };
+        }
+        
         // 現在の音楽時間とノーツのヒット時間の差を計算
         let timeDiff = currentTime - currentNote.hitTime;
         

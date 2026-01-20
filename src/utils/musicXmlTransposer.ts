@@ -344,7 +344,8 @@ function getTargetKeyFromTranspositionForXml(originalKeyName: string, semitones:
  * @returns Transposed MusicXML string
  */
 export function transposeMusicXml(xmlString: string, semitones: number, simpleMode: boolean = false): string {
-  if (semitones === 0) return xmlString;
+  // 移調もなく簡易モードもない場合のみ早期リターン
+  if (semitones === 0 && !simpleMode) return xmlString;
 
   const parser = new DOMParser();
   const doc = parser.parseFromString(xmlString, 'application/xml');
