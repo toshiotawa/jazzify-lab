@@ -632,7 +632,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-24 w-24 sm:h-32 sm:w-32 border-b-2 border-white mx-auto mb-4"></div>
-          <h2 className="text-xl sm:text-2xl font-bold">ファンタジーモード読み込み中...</h2>
+          <h2 className="text-xl sm:text-2xl font-bold">{isEnglishCopy ? 'Loading Fantasy Mode...' : 'ファンタジーモード読み込み中...'}</h2>
         </div>
       </div>
     );
@@ -644,20 +644,20 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center max-w-md">
           <div className="text-5xl sm:text-6xl mb-4">😵</div>
-          <h2 className="text-xl sm:text-2xl font-bold mb-4">エラーが発生しました</h2>
+          <h2 className="text-xl sm:text-2xl font-bold mb-4">{isEnglishCopy ? 'An error occurred' : 'エラーが発生しました'}</h2>
           <p className="text-indigo-200 mb-6 text-sm sm:text-base">{error}</p>
           <div className="space-x-2 sm:space-x-4">
             <button
               onClick={loadFantasyData}
               className="px-4 sm:px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              再読み込み
+              {isEnglishCopy ? 'Reload' : '再読み込み'}
             </button>
             <button
               onClick={onBackToMenu}
               className="px-4 sm:px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
-              戻る
+              {isEnglishCopy ? 'Back' : '戻る'}
             </button>
           </div>
         </div>

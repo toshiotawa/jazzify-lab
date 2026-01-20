@@ -202,6 +202,87 @@ const LandingPage: React.FC = () => {
             <LPFantasyDemo />
           </React.Suspense>
 
+          {/* English FAQ Section for global users */}
+          {isEnglishLanding && (
+            <>
+              {/* English Pricing Section */}
+              <section id="pricing" className="py-20 story-gradient" data-animate="slide-right text-up">
+                <div className="container mx-auto px-6">
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+                    <img src="/stage_icons/10.png" alt="Pricing" className="w-16 h-16" />
+                    Pricing
+                  </h2>
+
+                  <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
+                    {/* Standard Global Plan */}
+                    <div className="pricing-card premium rounded-2xl p-8 text-center">
+                      <div className="bg-gradient-to-r from-purple-400 to-pink-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">Standard</div>
+                      <h3 className="text-2xl font-bold text-purple-300 mb-4">Monthly Plan</h3>
+                      <div className="text-4xl font-bold text-white mb-6">$19<span className="text-sm text-gray-400">/month</span></div>
+                      <ul className="space-y-3 text-sm text-gray-400 mb-6">
+                        <li><i className="fas fa-check text-green-400 mr-2"></i>1 week free trial</li>
+                        <li><i className="fas fa-check text-green-400 mr-2"></i>Fantasy Mode (unlimited)</li>
+                        <li><i className="fas fa-check text-green-400 mr-2"></i>MIDI keyboard support</li>
+                        <li><i className="fas fa-check text-green-400 mr-2"></i>Cancel anytime</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+              </section>
+
+              {/* English FAQ Section */}
+              <section id="faq" className="py-20" data-animate="slide-left text-up">
+                <div className="container mx-auto px-6">
+                  <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+                    <img src="/stage_icons/1.png" alt="FAQ" className="w-16 h-16" />
+                    FAQ
+                  </h2>
+
+                  <div className="max-w-4xl mx-auto space-y-6" data-animate="alt-cards text-up">
+                    {(Array.from([1, 2, 3]) as number[]).map((id) => (
+                      <div key={id} className="faq-item rounded-xl p-6">
+                        <button
+                          className="w-full flex items-center justify-between cursor-pointer"
+                          onClick={() => toggleFAQ(id)}
+                          aria-expanded={openFaqId === id}
+                          aria-controls={`faq-content-en-${id}`}
+                        >
+                          <h3 className="text-lg font-bold text-white">
+                            {id === 1 && 'What devices can I use?'}
+                            {id === 2 && 'How do I use MIDI devices on iOS (iPhone/iPad)?'}
+                            {id === 3 && 'Can I cancel anytime?'}
+                          </h3>
+                          <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} text-purple-400`}></i>
+                        </button>
+                        <div
+                          id={`faq-content-en-${id}`}
+                          className={`mt-4 text-gray-400 ${openFaqId === id ? '' : 'hidden'}`}
+                        >
+                          {id === 1 && 'You can use MIDI keyboards with our application. Connect your MIDI device and start practicing!'}
+                          {id === 2 && (
+                            <span>
+                              iOS (Safari, etc.) does not support Web MIDI API. Please use{' '}
+                              <a
+                                href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="underline text-blue-300"
+                              >
+                                Web MIDI Browser
+                              </a>
+                              {' '}from the App Store.
+                            </span>
+                          )}
+                          {id === 3 && '1 week free trial is included. You can cancel your subscription at any time.'}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </section>
+            </>
+          )}
+
           {!isEnglishLanding && (
             <>
               {/* Story Section */}
@@ -729,6 +810,38 @@ const LandingPage: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {/* English Footer */}
+          {isEnglishLanding && (
+            <footer className="py-16 bg-slate-900 border-t border-purple-500 border-opacity-30">
+              <div className="container mx-auto px-6">
+                <div className="grid md:grid-cols-2 gap-8 mb-12">
+                  <div className="col-span-1">
+                    <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+                      <i className="fas fa-music mr-2"></i>Jazzify
+                    </h3>
+                    <p className="text-gray-400 text-sm leading-relaxed">
+                      Embark on a jazz adventure in a fantasy realm. A learning platform for all jazz enthusiasts, from beginners to advanced players.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h4 className="text-white font-bold mb-4">Support</h4>
+                    <ul className="space-y-2 text-sm text-gray-400">
+                      <li><Link to="/contact" className="hover:text-purple-400 transition">Contact</Link></li>
+                      <li><Link to="/terms" className="hover:text-purple-400 transition">Terms of Service</Link></li>
+                      <li><Link to="/privacy" className="hover:text-purple-400 transition">Privacy Policy</Link></li>
+                      <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">Legal Notice</Link></li>
+                    </ul>
+                  </div>
+                </div>
+
+                <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
+                  <p>&copy; {new Date().getFullYear()} Jazzify. All rights reserved.</p>
+                </div>
+              </div>
+            </footer>
+          )}
 
           {/* Footer */}
           {!isEnglishLanding && (

@@ -33,6 +33,7 @@ import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
+import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 /**
  * ダッシュボード画面
@@ -275,7 +276,7 @@ const Dashboard: React.FC = () => {
                     >
                       {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                       <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
-                        {(profile.selected_title as Title) || DEFAULT_TITLE}
+                        {translateTitle((profile.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
                       </span>
                     </div>
                     {(hoveredTitle || clickedTitle) && (
@@ -283,7 +284,7 @@ const Dashboard: React.FC = () => {
                         className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
                         style={{ bottom: '100%', left: '0', marginBottom: '4px' }}
                       >
-                        {getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE)}
+                        {translateTitleRequirement(getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}
                         <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '12px' }} />
                       </div>
                     )}
@@ -305,9 +306,9 @@ const Dashboard: React.FC = () => {
                       </div>
                   ) : userStats ? (
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
-                      {!isStandardGlobal && (<span>ミッション完了数 {userStats.missionCompletedCount}</span>)}
-                      {!isStandardGlobal && (<span>レッスンクリア数 {userStats.lessonCompletedCount}</span>)}
-                      <span>デイリーチャレンジ実施日数 {userStats.dailyChallengeParticipationDays}</span>
+                      {!isStandardGlobal && (<span>{isEnglishCopy ? 'Missions completed' : 'ミッション完了数'} {userStats.missionCompletedCount}</span>)}
+                      {!isStandardGlobal && (<span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>)}
+                      <span>{isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'} {userStats.dailyChallengeParticipationDays}</span>
                     </div>
                   ) : null}
                   

@@ -1,4 +1,5 @@
-import React from 'react';
+import React, { useMemo } from 'react';
+import { detectPreferredLocale } from '@/utils/globalAudience';
 
 interface LoadingScreenProps {
   progress?: number;
@@ -9,13 +10,21 @@ interface LoadingScreenProps {
 
 /**
  * ローディング画面コンポーネント
+ * 認証前に表示されるため、detectPreferredLocaleを使用してロケールを判定
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
   progress = 0,
-  message = 'Jazzify を読み込み中...',
+  message,
   error,
   onRetry
 }) => {
+  // 認証前でも使えるロケール判定（URL TLD、クエリパラメータから判定）
+  const isEnglishCopy = useMemo(() => detectPreferredLocale() === 'en', []);
+
+  // デフォルトメッセージの設定（日英統一）
+  const defaultMessage = 'Loading Jazzify...';
+  const displayMessage = message ?? defaultMessage;
+
   // エラー状態の表示
   if (error) {
     return (
@@ -23,7 +32,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
         <div className="bg-game-surface rounded-xl shadow-2xl border border-red-500 max-w-md w-full p-8 text-center">
           <div className="text-5xl mb-4">⚠️</div>
           <h2 className="text-xl font-bold text-red-400 mb-4">
-            読み込みエラー
+            {isEnglishCopy ? 'Loading Error' : '読み込みエラー'}
           </h2>
           <p className="text-gray-300 mb-6 text-sm">
             {error}
@@ -33,7 +42,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
               onClick={onRetry}
               className="btn btn-primary w-full"
             >
-              再試行
+              {isEnglishCopy ? 'Retry' : '再試行'}
             </button>
           )}
         </div>
@@ -66,7 +75,7 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
 
         {/* ローディングメッセージ */}
         <p className="text-primary-300 mb-6 animate-pulse">
-          {message}
+          {displayMessage}
         </p>
 
         {/* プログレスバー */}
@@ -87,10 +96,14 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
         {/* 下部のヒント */}
         <div className="mt-8 text-sm text-gray-400 max-w-md mx-auto">
           <p className="mb-2">
-            💡 ヒント: MIDIキーボードを接続すると、より本格的な演奏体験ができます
+            {isEnglishCopy 
+              ? '💡 Tip: Connect a MIDI keyboard for a more authentic playing experience'
+              : '💡 ヒント: MIDIキーボードを接続すると、より本格的な演奏体験ができます'}
           </p>
           <p className="text-xs">
-            初回読み込みには少し時間がかかる場合があります
+            {isEnglishCopy 
+              ? 'The initial load may take a moment'
+              : '初回読み込みには少し時間がかかる場合があります'}
           </p>
         </div>
       </div>

@@ -5,6 +5,9 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { FaCrown, FaStar, FaTrophy, FaGraduationCap, FaGem, FaMedal, FaHatWizard, FaSearch, FaPlus } from 'react-icons/fa';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
+import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 type SortKey = 'level' | 'lessons' | 'missions';
 
@@ -18,9 +21,18 @@ const LevelRanking: React.FC = () => {
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
   const [clickedUserId, setClickedUserId] = useState<string | null>(null);
   const { user, isGuest, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const isStandardGlobal = profile?.rank === 'standard_global';
   const PAGE_SIZE = 50;
   const [pageOffset, setPageOffset] = useState(0);
+
+  // 翻訳テキスト
+  const findMeText = isEnglishCopy ? 'Find Me' : '自分を探す';
+  const loadMoreText = isEnglishCopy ? 'Load More (50)' : 'さらに読み込む（50件）';
+  const userColumnText = isEnglishCopy ? 'User' : 'ユーザー(タップで詳細)';
+  const titleColumnText = isEnglishCopy ? 'Title' : '称号';
+  const fantasyColumnText = isEnglishCopy ? 'Fantasy' : 'ファンタジー';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -247,14 +259,14 @@ const LevelRanking: React.FC = () => {
                 onClick={scrollToMyRow}
                 className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-gray-200 hover:bg-slate-600 inline-flex items-center gap-2"
               >
-                <FaSearch /> 自分を探す
+                <FaSearch /> {findMeText}
               </button>
               <button
                 onClick={loadMore}
                 disabled={!hasMore || loadingMore}
                 className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
               >
-                <FaPlus /> さらに読み込む（50件）
+                <FaPlus /> {loadMoreText}
               </button>
             </div>
             {/* ソート切り替えボタン */}
@@ -300,13 +312,13 @@ const LevelRanking: React.FC = () => {
             <thead>
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-3 px-2 min-w-[3rem]">#</th>
-                <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
-                <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">称号</th>
+                <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">{userColumnText}</th>
+                <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">{titleColumnText}</th>
                 <th className="py-3 px-2 min-w-[3rem]">Lv</th>
-                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">レッスン</th>}
-                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">ミッション</th>}
-                <th className="py-3 px-2 min-w-[4rem]">ファンタジー</th>
-                {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">ランク</th>}
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Lessons' : 'レッスン'}</th>}
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Missions' : 'ミッション'}</th>}
+                <th className="py-3 px-2 min-w-[4rem]">{fantasyColumnText}</th>
+                {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>}
                 <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
             </thead>
@@ -346,7 +358,7 @@ const LevelRanking: React.FC = () => {
                       >
                         {getTitleIcon((e.selected_title as Title) || DEFAULT_TITLE)}
                         <span className="text-xs truncate">
-                          {(e.selected_title as Title) || DEFAULT_TITLE}
+                          {translateTitle((e.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
                         </span>
                       </div>
                       {/* ツールチップ */}
@@ -361,7 +373,7 @@ const LevelRanking: React.FC = () => {
                           }}
                         >
                           <div className="relative">
-                            <div>{getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE)}</div>
+                            <div>{translateTitleRequirement(getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}</div>
                             {/* 下向き矢印 */}
                             <div 
                               className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"
