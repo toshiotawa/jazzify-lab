@@ -562,7 +562,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
             )}>
-              {unlocked ? getLocalizedFantasyStageName(stage, profile?.rank) : "???"}
+              {unlocked ? getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : "???"}
           </div>
           
           {/* モードタグ */}
@@ -582,7 +582,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-xs sm:text-sm leading-relaxed break-words line-clamp-2 sm:line-clamp-3",
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
-              {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
+              {unlocked ? getLocalizedFantasyStageDescription(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : (
                 isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
                   ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
                   : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')

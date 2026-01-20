@@ -82,11 +82,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const localizedStageName = useMemo(
-    () => getLocalizedFantasyStageName(stage, profile?.rank),
+    () => getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }),
     [stage, profile?.rank, geoCountry],
   );
   const localizedStageDescription = useMemo(
-    () => getLocalizedFantasyStageDescription(stage, profile?.rank) ?? '',
+    () => getLocalizedFantasyStageDescription(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) ?? '',
     [stage, profile?.rank, geoCountry],
   );
   // useGameStoreの使用を削除（ファンタジーモードでは不要）

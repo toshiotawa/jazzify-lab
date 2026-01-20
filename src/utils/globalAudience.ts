@@ -150,6 +150,12 @@ export const shouldUseEnglishCopy = (input?: ShouldUseEnglishCopyInput): boolean
     signupCountryHint,
   } = context;
 
+  // Debug log in development
+  if (process.env.NODE_ENV === 'development' && typeof window !== 'undefined') {
+    // Only log once per session or use a distinct marker to avoid spam
+    // console.debug('shouldUseEnglishCopy check:', { context, storedGeo: getStoredGeoCountry(), storedSignup: getStoredSignupCountry() });
+  }
+
   if (localeOverride === LOCALE_EN) {
     return true;
   }
@@ -205,9 +211,9 @@ export const getLocalizedFantasyStageName = (
     name: string;
     name_en?: string | null;
   },
-  rank: MembershipRank | null | undefined
+  rankOrContext: MembershipRank | null | undefined | AudienceContext
 ): string => {
-  if (shouldUseEnglishCopy(rank) && stage.name_en) {
+  if (shouldUseEnglishCopy(rankOrContext) && stage.name_en) {
     return stage.name_en;
   }
   return stage.name;
@@ -218,9 +224,9 @@ export const getLocalizedFantasyStageDescription = (
     description: string;
     description_en?: string | null;
   },
-  rank: MembershipRank | null | undefined
+  rankOrContext: MembershipRank | null | undefined | AudienceContext
 ): string => {
-  if (shouldUseEnglishCopy(rank) && stage.description_en) {
+  if (shouldUseEnglishCopy(rankOrContext) && stage.description_en) {
     return stage.description_en;
   }
   return stage.description;
