@@ -8,6 +8,8 @@ import { cn } from '@/utils/cn';
 import ToastContainer from '@/components/ui/ToastContainer';
 import AuthLanding from '@/components/auth/AuthLanding';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import ProfileWizard from '@/components/auth/ProfileWizard';
 import AccountPage from '@/components/ui/AccountModal';
 import MypagePage from '@/components/ui/MypageModal';
@@ -36,8 +38,13 @@ const App: React.FC = () => {
   
   // 認証ストアの状態
   const { profile, loading:authLoading, isGuest, user } = useAuthStore();
+  const geoCountry = useGeoStore(s => s.country);
   const isFree = profile?.rank === 'free';
   const isAdmin = Boolean(profile?.isAdmin);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    geoCountryHint: geoCountry,
+  });
   
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
@@ -157,10 +164,10 @@ const App: React.FC = () => {
       <LoadingScreen 
         progress={initProgress}
         message={
-          initProgress < 0.3 ? 'システムを初期化中...' :
-          initProgress < 0.7 ? 'ブラウザ機能をチェック中...' :
-          initProgress < 1.0 ? '準備を完了中...' :
-          'まもなく完了...'
+          initProgress < 0.3 ? (isEnglishCopy ? 'Initializing system...' : 'システムを初期化中...') :
+          initProgress < 0.7 ? (isEnglishCopy ? 'Checking browser features...' : 'ブラウザ機能をチェック中...') :
+          initProgress < 1.0 ? (isEnglishCopy ? 'Finishing preparation...' : '準備を完了中...') :
+          (isEnglishCopy ? 'Almost ready...' : 'まもなく完了...')
         }
         error={initError}
         onRetry={() => {

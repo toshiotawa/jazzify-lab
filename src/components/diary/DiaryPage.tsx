@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaCalendarCheck } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 import DiaryEditor from './DiaryEditor';
 import { fetchUserDiaries } from '@/platform/supabaseDiary';
 import { useDiaryStore } from '@/stores/diaryStore';
@@ -10,6 +11,8 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 interface UserDiary {
   id: string;
@@ -45,7 +48,12 @@ const DiaryPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const { user, isGuest, profile: authProfile } = useAuthStore();
+  const geoCountry = useGeoStore(s => s.country);
   const isStandardGlobal = authProfile?.rank === 'standard_global';
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: authProfile?.rank,
+    geoCountryHint: geoCountry,
+  });
   const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
   const { addComment, deleteComment, likeComment } = useDiaryStore();
   const [commentText, setCommentText] = useState<Record<string, string>>({});
@@ -222,7 +230,7 @@ const DiaryPage: React.FC = () => {
           <div className="flex-1 overflow-y-auto">
             {loading ? (
               <div className="flex items-center justify-center h-full">
-                <p className="text-gray-400">読み込み中...</p>
+                <p className="text-gray-400">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</p>
               </div>
             ) : error ? (
               <div className="flex items-center justify-center h-full">
@@ -251,7 +259,7 @@ const DiaryPage: React.FC = () => {
                           >
                             {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
                             <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
-                              {(profile.selected_title as Title) || DEFAULT_TITLE}
+                              {translateTitle((profile.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
                             </span>
                           </div>
                           {(hoveredTitle || clickedTitle) && (
@@ -259,7 +267,7 @@ const DiaryPage: React.FC = () => {
                               className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
                               style={{ bottom: '100%', left: 0, marginBottom: '4px' }}
                             >
-                              {getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE)}
+                              {translateTitleRequirement(getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}
                               <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '12px' }} />
                             </div>
                           )}
@@ -270,22 +278,22 @@ const DiaryPage: React.FC = () => {
                             {getRankIcon(profile.rank)}
                             <span className="capitalize">{profile.rank}</span>
                           </div>
-                          <span>累計経験値 {profile.xp?.toLocaleString() || '0'}</span>
+                          <span>{isEnglishCopy ? 'Total XP' : '累計経験値'} {profile.xp?.toLocaleString() || '0'}</span>
                         </div>
-                        <div className="mt-2 grid grid-cols-2 gap-3 text-sm" role="group" aria-label="達成状況">
-                          <div className="flex items-center space-x-2" aria-label="ミッション完了数">
+                        <div className="mt-2 grid grid-cols-2 gap-3 text-sm" role="group" aria-label={isEnglishCopy ? 'Achievements' : '達成状況'}>
+                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Missions Completed' : 'ミッション完了数'}>
                             <FaTrophy className="text-purple-400" aria-hidden="true" />
-                            <span className="text-gray-400">ミッション完了</span>
+                            <span className="text-gray-400">{isEnglishCopy ? 'Missions' : 'ミッション完了'}</span>
                             <span className="font-semibold text-white">{userStats?.missionCompletedCount ?? 0}</span>
                           </div>
-                          <div className="flex items-center space-x-2" aria-label="レッスンクリア数">
+                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Lessons Cleared' : 'レッスンクリア数'}>
                             <FaGraduationCap className="text-blue-400" aria-hidden="true" />
-                            <span className="text-gray-400">レッスンクリア</span>
+                            <span className="text-gray-400">{isEnglishCopy ? 'Lessons' : 'レッスンクリア'}</span>
                             <span className="font-semibold text-white">{userStats?.lessonCompletedCount ?? 0}</span>
                           </div>
-                          <div className="flex items-center space-x-2" aria-label="デイリーチャレンジ実施日数">
+                          <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}>
                             <FaCalendarCheck className="text-yellow-400" aria-hidden="true" />
-                            <span className="text-gray-400">デイリーチャレンジ</span>
+                            <span className="text-gray-400">{isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ'}</span>
                             <span className="font-semibold text-white">{userStats?.dailyChallengeParticipationDays ?? 0}</span>
                           </div>
                         </div>
@@ -298,7 +306,19 @@ const DiaryPage: React.FC = () => {
                   </div>
                 )}
 
-                {/* 日記一覧 */}
+                {/* 日記一覧（英語版ユーザーには非表示） */}
+                {isEnglishCopy ? (
+                  <div className="p-4 sm:p-6 text-center text-gray-400 py-8">
+                    <p className="mb-2">The community diary feature is currently available only in Japanese.</p>
+                    <p className="text-sm">We are working on bringing this feature to international users soon.</p>
+                    <button 
+                      className="btn btn-sm btn-outline mt-4" 
+                      onClick={() => { window.location.hash = '#dashboard'; }}
+                    >
+                      Back to Dashboard
+                    </button>
+                  </div>
+                ) : (
                 <div className="p-4 sm:p-6">
                   {diaries.length === 0 ? (
                     <p className="text-center text-gray-400 py-8">
@@ -449,6 +469,7 @@ const DiaryPage: React.FC = () => {
                     </div>
                   )}
                 </div>
+                )}
               </div>
             )}
           </div>
