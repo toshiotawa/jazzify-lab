@@ -3,6 +3,13 @@
  * 各ランクには称号と説明文が含まれています
  */
 
+import { 
+  FANTASY_RANKS_BASIC_EN, 
+  FANTASY_RANKS_ADVANCED_EN, 
+  FANTASY_RANKS_PHRASES_EN,
+  getGenericRankTranslation
+} from '@/data/fantasy_ranks_en';
+
 export interface FantasyRankInfo {
   rank: number;
   title: string;
@@ -1634,7 +1641,7 @@ export const FANTASY_RANKS_PHRASES: FantasyRankInfo[] = [
 /**
  * ランクから対応するランク情報を取得
  */
-export function getFantasyRankInfo(rank: number, tier: 'basic' | 'advanced' | 'phrases' = 'basic'): FantasyRankInfo {
+export function getFantasyRankInfo(rank: number, tier: 'basic' | 'advanced' | 'phrases' = 'basic', isEnglish: boolean = false): FantasyRankInfo {
   // 1-200の範囲に収める
   const validRank = Math.min(Math.max(rank, 1), 200);
   // tierに応じたリストを選択
@@ -1643,7 +1650,25 @@ export function getFantasyRankInfo(rank: number, tier: 'basic' | 'advanced' | 'p
     : tier === 'phrases'
     ? FANTASY_RANKS_PHRASES
     : FANTASY_RANKS_BASIC;
-  return list[validRank - 1];
+  
+  const info = list[validRank - 1];
+
+  if (isEnglish) {
+    const enMap = tier === 'advanced' 
+      ? FANTASY_RANKS_ADVANCED_EN 
+      : tier === 'phrases'
+      ? FANTASY_RANKS_PHRASES_EN
+      : FANTASY_RANKS_BASIC_EN;
+    
+    const enInfo = enMap[validRank];
+    if (enInfo) {
+      return { ...info, ...enInfo };
+    }
+    // If no specific translation, use generic
+    return { ...info, ...getGenericRankTranslation(validRank, tier) };
+  }
+
+  return info;
 }
 
 /**

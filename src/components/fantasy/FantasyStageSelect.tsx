@@ -562,7 +562,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
             )}>
-              {unlocked ? getLocalizedFantasyStageName(stage, profile?.rank) : "???"}
+              {unlocked ? getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : "???"}
           </div>
           
           {/* モードタグ */}
@@ -582,7 +582,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-xs sm:text-sm leading-relaxed break-words line-clamp-2 sm:line-clamp-3",
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
-              {unlocked ? getLocalizedFantasyStageDescription(stage, profile?.rank) : (
+              {unlocked ? getLocalizedFantasyStageDescription(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : (
                 isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
                   ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
                   : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
@@ -671,7 +671,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   );
   const selectedRankNumberRaw = Number.parseInt(selectedRank, 10);
   const selectedRankNumber = Number.isFinite(selectedRankNumberRaw) ? selectedRankNumberRaw : 1;
-  const selectedRankInfo = getFantasyRankInfo(selectedRankNumber, selectedTier);
+  const selectedRankInfo = getFantasyRankInfo(selectedRankNumber, selectedTier, isEnglishCopy);
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 overflow-y-auto fantasy-game-screen">
@@ -763,7 +763,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                   : "bg-white bg-opacity-20 text-white hover:bg-opacity-30"
               )}
             >
-              ランク {rank}
+              {isEnglishCopy ? `Rank ${rank}` : `ランク ${rank}`}
             </button>
           ))}
         </div>
@@ -777,7 +777,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             getRankColor(selectedRankNumber)
           )}>
             <h2 className="text-white text-lg sm:text-xl font-bold mb-3 sm:mb-4">
-             ランク {selectedRank} - {selectedRankInfo.title}
+             {isEnglishCopy ? `Rank ${selectedRank} - ${selectedRankInfo.title}` : `ランク ${selectedRank} - ${selectedRankInfo.title}`}
             </h2>
             
             <div className="space-y-2 sm:space-y-3">
@@ -804,8 +804,17 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       
       {/* フッター */}
       <div className="text-center text-white text-xs sm:text-sm opacity-70 pb-6">
-        <p>🎹 正しいコードを演奏してモンスターを倒そう！</p>
-        <p className="text-[11px] sm:text-xs mt-1">構成音が全て含まれていれば正解です（順番・オクターブ不問）</p>
+        {isEnglishCopy ? (
+          <>
+            <p>🎹 Play the correct chords to defeat the monsters!</p>
+            <p className="text-[11px] sm:text-xs mt-1">Correct if all notes are included (order/octave doesn't matter)</p>
+          </>
+        ) : (
+          <>
+            <p>🎹 正しいコードを演奏してモンスターを倒そう！</p>
+            <p className="text-[11px] sm:text-xs mt-1">構成音が全て含まれていれば正解です（順番・オクターブ不問）</p>
+          </>
+        )}
       </div>
     </div>
   );
