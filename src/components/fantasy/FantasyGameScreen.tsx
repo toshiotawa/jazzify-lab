@@ -591,7 +591,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
@@ -1163,8 +1163,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
     let chord;
     if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
-      const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
-      chord = currentNote?.chord;
+      // awaitingLoopStart状態の場合、次のループの最初のノーツ（移調後）を表示
+      if (gameState.awaitingLoopStart && gameState.transposeSettings && gameState.originalTaikoNotes.length > 0) {
+        // 次のリピートサイクルの移調オフセットを計算
+        const nextLoopCycle = (gameState.taikoLoopCycle ?? 0) + 1;
+        const nextTransposeOffset = calculateTransposeOffset(
+          gameState.transposeSettings.keyOffset,
+          nextLoopCycle,
+          gameState.transposeSettings.repeatKeyChange
+        );
+        // 元のノーツに次の移調を適用
+        const nextLoopNotes = transposeTaikoNotes(gameState.originalTaikoNotes, nextTransposeOffset);
+        // 次のループの最初のノーツを取得
+        chord = nextLoopNotes[0]?.chord;
+      } else {
+        // 通常時: 現在のノーツを表示
+        const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
+        chord = currentNote?.chord;
+      }
     } else {
       // 通常モード: activeMonsters または currentChordTarget を参照
       const targetMonster = gameState.activeMonsters?.[0];
@@ -1177,7 +1193,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.taikoLoopCycle]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   // ※モンスターが複数いる場合は非表示にする

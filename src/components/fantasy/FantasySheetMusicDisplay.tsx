@@ -132,6 +132,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       };
       
       const osmd = new OpenSheetMusicDisplay(container, options);
+      // MusicXML内のHarmony/コードシンボルを非表示（独自のオーバーレイを使用するため）
+      // 型定義にはないがOSMDのEngravingRulesプロパティを使用
+      (osmd as any).EngravingRules.RenderChordSymbols = false;
       await osmd.load(transposedXml);
       osmd.render();
       
@@ -281,7 +284,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     if (musicXml) {
       initializeAllSheets();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [musicXml]);
   
   // 現在のキーと次のキーの楽譜画像
