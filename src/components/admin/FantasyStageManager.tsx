@@ -66,7 +66,7 @@ interface StageFormValues {
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
   // 新規: ステージ種別
-  stage_tier: 'basic' | 'advanced';
+  stage_tier: 'basic' | 'advanced' | 'phrases';
   // 楽譜モード
   is_sheet_music_mode: boolean;
   // 次ステージ開放に必要なクリア換算回数
@@ -412,7 +412,7 @@ const FantasyStageManager: React.FC = () => {
       allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
       chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as StageFormValues['chord_progression'],
       chord_progression_data: (s as DbFantasyStage & { chord_progression_data?: TimingRow[] }).chord_progression_data || [],
-      stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' }).stage_tier || 'basic',
+      stage_tier: (s as DbFantasyStage & { stage_tier?: 'basic' | 'advanced' | 'phrases' }).stage_tier || 'basic',
       is_sheet_music_mode: !!(s as DbFantasyStage & { is_sheet_music_mode?: boolean }).is_sheet_music_mode,
       required_clears_for_next: (s as DbFantasyStage & { required_clears_for_next?: number }).required_clears_for_next ?? 5,
         music_xml: s.music_xml || null,
@@ -636,6 +636,7 @@ const FantasyStageManager: React.FC = () => {
                   <select className="select select-bordered w-full" {...register('stage_tier', { required: true })}>
                     <option value="basic">Basic</option>
                     <option value="advanced">Advanced</option>
+                    <option value="phrases">Phrases</option>
                   </select>
                 </div>
               </Row>

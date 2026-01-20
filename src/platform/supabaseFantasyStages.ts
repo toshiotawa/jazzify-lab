@@ -269,8 +269,8 @@ export interface UpsertFantasyStagePayload {
   count_in_measures?: number;
   note_interval_beats?: number | null;
   play_root_on_correct?: boolean;
-  // ステージ種別（Basic/Advanced）
-  stage_tier?: 'basic' | 'advanced';
+  // ステージ種別（Basic/Advanced/Phrases）
+  stage_tier?: 'basic' | 'advanced' | 'phrases';
   // 使用タイプ（fantasy=ファンタジーモード専用, lesson=レッスンモード専用, both=両方）
   usage_type?: FantasyStageUsageType;
   // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
