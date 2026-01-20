@@ -1370,7 +1370,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               )}
             >
               {isDailyChallenge 
-                ? '🎯 挑戦する（2分）' 
+                ? (isEnglishCopy ? '🎯 Challenge (2 min)' : '🎯 挑戦する（2分）')
                 : (isEnglishCopy ? 'Challenge' : '挑戦')}
             </button>
             
@@ -1472,7 +1472,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 )}
               >
                 {isDailyChallenge 
-                  ? '🎹 練習する（時間無制限）' 
+                  ? (isEnglishCopy ? '🎹 Practice (Unlimited)' : '🎹 練習する（時間無制限）')
                   : (isEnglishCopy ? 'Practice' : '練習する')}
               </button>
             )}
@@ -1511,10 +1511,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         {isDailyChallenge ? (
           <div className="flex items-center justify-between px-1">
             <div className="text-sm font-sans text-white">
-              スコア <span className="text-yellow-300 font-bold">{gameState.correctAnswers}</span>
+              {isEnglishCopy ? 'Score' : 'スコア'} <span className="text-yellow-300 font-bold">{gameState.correctAnswers}</span>
             </div>
             <div className="text-sm font-sans text-white">
-              残り <span className="text-yellow-300 font-bold">
+              {isEnglishCopy ? 'Time' : '残り'} <span className="text-yellow-300 font-bold">
                 {timeLimitSeconds === Infinity 
                   ? '∞' 
                   : `${Math.floor(remainingSeconds / 60)}:${String(remainingSeconds % 60).padStart(2, '0')}`}
@@ -1525,7 +1525,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 onClick={onSwitchToChallenge}
                 className="px-2 py-1 bg-yellow-600 hover:bg-yellow-500 rounded text-xs font-bold transition-colors"
               >
-                挑戦
+                {isEnglishCopy ? 'Challenge' : '挑戦'}
               </button>
             )}
             <button
@@ -1538,7 +1538,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               onClick={onBackToStageSelect}
               className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
             >
-              戻る
+              {isEnglishCopy ? 'Back' : '戻る'}
             </button>
           </div>
         ) : (
@@ -1565,7 +1565,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 )}
               </div>
               <div className="text-xs text-gray-300">
-                モンスター数: {playMode === 'practice'
+                {isEnglishCopy ? 'Monsters:' : 'モンスター数:'} {playMode === 'practice'
                   ? '∞'
                   : Math.max(0, (gameState.totalEnemies || stage.enemyCount || 0) - (gameState.enemiesDefeated || 0))
                 }
@@ -1585,13 +1585,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 onClick={onBackToStageSelect}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
               >
-                ステージ選択に戻る
+                {isEnglishCopy ? 'Back to Select' : 'ステージ選択に戻る'}
               </button>
               <button
                 onClick={() => setIsSettingsModalOpen(true)}
                 className="px-2 py-1 bg-blue-600 hover:bg-blue-500 rounded text-xs font-medium transition-colors"
               >
-                ⚙️ 設定
+                ⚙️ {isEnglishCopy ? 'Settings' : '設定'}
               </button>
             </div>
           </div>
