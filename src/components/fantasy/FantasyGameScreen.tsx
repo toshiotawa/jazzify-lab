@@ -572,7 +572,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
@@ -644,6 +643,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // Ready画面表示中にロードが完了する
     const stageWithSettings = buildInitStage(speedMultiplier, transposeSettings);
     await initializeGame(stageWithSettings, mode);
+    
+    // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
+    try {
+      await FantasySoundManager.warmupRootSound();
+    } catch {
+      // ウォームアップ失敗は無視
+    }
+    
     setIsGameReady(true); // 画像プリロード完了
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, stage.mode]);
 

@@ -278,8 +278,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     if (musicXml) {
       initializeAllSheets();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [musicXml]);
+  }, [musicXml, initializeAllSheets]);
   
   // 現在のキーと次のキーの楽譜画像
   const currentSheetImage = useMemo(() => {
