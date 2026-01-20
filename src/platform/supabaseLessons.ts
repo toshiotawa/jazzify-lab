@@ -1,5 +1,5 @@
 import { getSupabaseClient, fetchWithCache } from './supabaseClient';
-import { Lesson, LessonSong, ClearConditions } from '@/types';
+import { Lesson, LessonSong, ClearConditions, RepeatTranspositionMode } from '@/types';
 
 // レッスンキャッシュキー生成関数
 export const LESSONS_CACHE_KEY = (courseId: string) => `lessons:${courseId}`;
@@ -174,6 +174,8 @@ type FantasyLessonSongData = {
   lesson_id: string;
   fantasy_stage_id: string;
   clear_conditions?: ClearConditions;
+  override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+  override_start_key?: number | null;
 };
 
 /**
@@ -261,7 +263,9 @@ export async function addFantasyStageToLesson(fantasyLessonSongData: FantasyLess
       fantasy_stage_id: fantasyLessonSongData.fantasy_stage_id,
       is_fantasy: true,
       clear_conditions: fantasyLessonSongData.clear_conditions,
-      order_index: nextOrderIndex
+      order_index: nextOrderIndex,
+      override_repeat_transposition_mode: fantasyLessonSongData.override_repeat_transposition_mode ?? null,
+      override_start_key: fantasyLessonSongData.override_start_key ?? null,
     })
     .select(`
       *,
@@ -293,4 +297,35 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
     console.error(`Error removing fantasy stage ${fantasyStageId} from lesson ${lessonId}:`, error);
     throw error;
   }
+}
+
+/**
+ * レッスン曲の上書き設定を更新します（timingモードステージ用）。
+ * @param {string} lessonSongId
+ * @param {Object} overrideSettings
+ * @returns {Promise<LessonSong>}
+ */
+export async function updateLessonSongOverrideSettings(
+  lessonSongId: string, 
+  overrideSettings: {
+    override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+    override_start_key?: number | null;
+  }
+): Promise<LessonSong> {
+  const { data, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .update(overrideSettings)
+    .eq('id', lessonSongId)
+    .select(`
+      *,
+      fantasy_stage:fantasy_stages (*)
+    `)
+    .single();
+
+  if (error) {
+    console.error(`Error updating lesson song override settings for ${lessonSongId}:`, error);
+    throw error;
+  }
+  
+  return data as LessonSong;
 } 

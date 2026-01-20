@@ -523,6 +523,9 @@ export type FantasyStageUsageType = 'fantasy' | 'lesson' | 'both';
 // ファンタジーモードのランク（S/A/B/C/D）
 export type FantasyRank = 'S' | 'A' | 'B' | 'C' | 'D';
 
+// リピート転調設定の型
+export type RepeatTranspositionMode = 'off' | '+1' | '+5' | '-1' | '-5' | 'random';
+
 export interface FantasyStage {
   id: string;
   stage_number: string | null;  // レッスン専用ステージではnull可
@@ -562,6 +565,9 @@ export interface FantasyStage {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string;
+  // 本番モード用の転調設定（timingモード専用）
+  production_repeat_transposition_mode?: RepeatTranspositionMode;
+  production_start_key?: number;
 }
 
 // ファンタジーステージクリア記録
@@ -613,6 +619,9 @@ export interface LessonSong {
   created_at: string;
   songs?: Pick<Song, 'id' | 'title' | 'artist'>;
   fantasy_stage?: FantasyStage;
+  // timingモードステージ用の上書き設定
+  override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+  override_start_key?: number | null;
 }
 
 export interface Lesson {

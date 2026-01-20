@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, ClearConditions, FantasyStage } from '@/types';
+import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
@@ -35,6 +35,9 @@ type ContentFormData = {
   song_id?: string;
   fantasy_stage_id?: string;
   clear_conditions: ClearConditions;
+  // timingモードステージ用の上書き設定
+  override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+  override_start_key?: number | null;
 };
 
 export const LessonManager: React.FC = () => {
@@ -219,7 +222,9 @@ export const LessonManager: React.FC = () => {
         rank: 'B',
         count: 1,
         notation_setting: 'both'
-      }
+      },
+      override_repeat_transposition_mode: null,
+      override_start_key: null,
     });
     contentDialogRef.current?.showModal();
   };
@@ -322,7 +327,9 @@ export const LessonManager: React.FC = () => {
         newLessonSong = await addFantasyStageToLesson({
           lesson_id: selectedLesson.id,
           fantasy_stage_id: formData.fantasy_stage_id,
-          clear_conditions: formData.clear_conditions
+          clear_conditions: formData.clear_conditions,
+          override_repeat_transposition_mode: formData.override_repeat_transposition_mode,
+          override_start_key: formData.override_start_key,
         });
       } else {
         throw new Error('コンテンツが選択されていません');
@@ -1076,13 +1083,72 @@ export const LessonManager: React.FC = () => {
                 </select>
               </div>
             ) : (
-              <div>
-                <label className="label"><span className="label-text">ファンタジーステージを選択 *</span></label>
-                <FantasyStageSelector 
-                  selectedStageId={watchContent('fantasy_stage_id') || null}
-                  onStageSelect={(stageId) => setValueContent('fantasy_stage_id', stageId)}
-                />
-              </div>
+              <>
+                <div>
+                  <label className="label"><span className="label-text">ファンタジーステージを選択 *</span></label>
+                  <FantasyStageSelector 
+                    selectedStageId={watchContent('fantasy_stage_id') || null}
+                    onStageSelect={(stageId) => setValueContent('fantasy_stage_id', stageId)}
+                  />
+                </div>
+                {/* timingモードの場合のみ上書き設定を表示 */}
+                {(() => {
+                  const selectedStageId = watchContent('fantasy_stage_id');
+                  const selectedStage = selectedStageId 
+                    ? availableFantasyStages.find(s => s.id === selectedStageId)
+                    : null;
+                  if (selectedStage?.mode === 'progression_timing') {
+                    return (
+                      <div className="mt-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
+                        <h5 className="text-sm font-semibold text-purple-300 mb-2">転調設定の上書き（timingモード専用）</h5>
+                        <p className="text-xs text-gray-400 mb-3">
+                          未設定の場合は元のステージ設定が使用されます。
+                        </p>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                          <div>
+                            <label className="label"><span className="label-text text-sm">リピート転調設定</span></label>
+                            <select 
+                              className="select select-bordered select-sm w-full"
+                              value={watchContent('override_repeat_transposition_mode') ?? ''}
+                              onChange={(e) => setValueContent(
+                                'override_repeat_transposition_mode', 
+                                e.target.value === '' ? null : e.target.value as RepeatTranspositionMode
+                              )}
+                            >
+                              <option value="">元のステージ設定を使用</option>
+                              <option value="off">off（転調なし）</option>
+                              <option value="+1">+1（半音上）</option>
+                              <option value="+5">+5（完全4度上）</option>
+                              <option value="-1">-1（半音下）</option>
+                              <option value="-5">-5（完全4度下）</option>
+                              <option value="random">ランダム</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="label"><span className="label-text text-sm">開始キー</span></label>
+                            <select
+                              className="select select-bordered select-sm w-full"
+                              value={watchContent('override_start_key') ?? ''}
+                              onChange={(e) => setValueContent(
+                                'override_start_key',
+                                e.target.value === '' ? null : parseInt(e.target.value, 10)
+                              )}
+                            >
+                              <option value="">元のステージ設定を使用</option>
+                              {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(k => (
+                                <option key={k} value={k}>
+                                  {k === 0 ? '0（原曲キー）' : k > 0 ? `+${k}` : `${k}`}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+                  return null;
+                })()}
+              </>
             )}
             
             {watchContent && watchContent('content_type') === 'song' && (

@@ -244,6 +244,9 @@ export async function fetchFantasyClearedStageCount(userId: string): Promise<num
   return count || 0;
 }
 
+// リピート転調設定の型（DBスキーマと一致）
+export type RepeatTranspositionMode = 'off' | '+1' | '+5' | '-1' | '-5' | 'random';
+
 export interface UpsertFantasyStagePayload {
   id?: string;
   stage_number?: string | null;  // レッスン専用ステージではnull可
@@ -279,6 +282,9 @@ export interface UpsertFantasyStagePayload {
   required_clears_for_next?: number;
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // 本番モード用の転調設定（timingモード専用）
+  production_repeat_transposition_mode?: RepeatTranspositionMode | null;
+  production_start_key?: number | null;
 }
 
 /**

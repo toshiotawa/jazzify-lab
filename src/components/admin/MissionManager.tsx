@@ -22,7 +22,8 @@ import { fetchSongs } from '@/platform/supabaseSongs';
 import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy, FaHatWizard } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { getChallengeFantasyTracks, addFantasyStageToChallenge, removeFantasyStageFromChallenge, updateFantasyStageInChallenge } from '@/platform/supabaseChallengeFantasy';
-import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
+import { fetchFantasyStageById, fetchFantasyStages } from '@/platform/supabaseFantasyStages';
+import type { RepeatTranspositionMode, FantasyStage } from '@/types';
 
 interface FormValues {
   type: ChallengeType;
@@ -58,7 +59,14 @@ const MissionManager: React.FC = () => {
   const [editingFormSong, setEditingFormSong] = useState<string | null>(null);
 
   // 新規作成用: ファンタジー選択リスト
-  const [selectedFantasy, setSelectedFantasy] = useState<Array<{ stageId: string; label: string; clears: number }>>([]);
+  const [selectedFantasy, setSelectedFantasy] = useState<Array<{ 
+    stageId: string; 
+    label: string; 
+    clears: number;
+    mode?: string;
+    overrideRepeatTranspositionMode?: RepeatTranspositionMode | null;
+    overrideStartKey?: number | null;
+  }>>([]);
   const [showFormFantasyAddModal, setShowFormFantasyAddModal] = useState(false);
 
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
@@ -132,7 +140,11 @@ const MissionManager: React.FC = () => {
         toast.success(`ミッションを追加し、${selectedSongs.length}曲を追加しました`, { title: '追加完了', duration: 3000 });
       } else if (v.category === 'fantasy_clear' && selectedFantasy.length > 0) {
         for (const item of selectedFantasy) {
-          await addFantasyStageToChallenge(newChallengeId, item.stageId, item.clears);
+          await addFantasyStageToChallenge(newChallengeId, item.stageId, {
+            clearsRequired: item.clears,
+            overrideRepeatTranspositionMode: item.overrideRepeatTranspositionMode,
+            overrideStartKey: item.overrideStartKey,
+          });
         }
         toast.success(`ミッションを追加し、ファンタジーステージを${selectedFantasy.length}件追加しました`, { title: '追加完了', duration: 3000 });
       } else {
@@ -625,7 +637,7 @@ const MissionManager: React.FC = () => {
 
       {/* フォーム用ファンタジー追加モーダル */}
       {showFormFantasyAddModal && (
-        <FormFantasyAddModal onClose={() => setShowFormFantasyAddModal(false)} onAdd={async (stageId, clears) => {
+        <FormFantasyAddModal onClose={() => setShowFormFantasyAddModal(false)} onAdd={async (stageId, clears, mode, overrideRepeatTranspositionMode, overrideStartKey) => {
           // 重複チェック
           if (selectedFantasy.some(f => f.stageId === stageId)) {
             toast.error('このステージは既に追加されています');
@@ -633,7 +645,14 @@ const MissionManager: React.FC = () => {
           }
           try {
             const stage = await fetchFantasyStageById(stageId);
-            setSelectedFantasy(prev => [...prev, { stageId, label: `${stage.stage_number} - ${stage.name}`, clears }]);
+            setSelectedFantasy(prev => [...prev, { 
+              stageId, 
+              label: `${stage.stage_number} - ${stage.name}`, 
+              clears,
+              mode,
+              overrideRepeatTranspositionMode,
+              overrideStartKey,
+            }]);
             setShowFormFantasyAddModal(false);
           } catch {
             toast.error('ステージ情報の取得に失敗しました');
@@ -1024,13 +1043,28 @@ const FormSongConditionsModal: React.FC<{
 
 // 追加: ファンタジートラック一覧（管理）
 const AdminFantasyTrackList: React.FC<{ missionId: string }> = ({ missionId }) => {
-  const [tracks, setTracks] = React.useState<Array<{ fantasy_stage_id: string; stage_label: string; clears_required: number }>>([]);
+  const [tracks, setTracks] = React.useState<Array<{ 
+    fantasy_stage_id: string; 
+    stage_label: string; 
+    clears_required: number;
+    mode?: string;
+    override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+    override_start_key?: number | null;
+  }>>([]);
+  const [editingTrack, setEditingTrack] = React.useState<string | null>(null);
   const toast = useToast();
 
   const load = async () => {
     try {
       const rows = await getChallengeFantasyTracks(missionId);
-      setTracks(rows.map(r => ({ fantasy_stage_id: r.fantasy_stage_id, stage_label: `${r.stage.stage_number} - ${r.stage.name}`, clears_required: r.clears_required })));
+      setTracks(rows.map(r => ({ 
+        fantasy_stage_id: r.fantasy_stage_id, 
+        stage_label: `${r.stage.stage_number} - ${r.stage.name}`, 
+        clears_required: r.clears_required,
+        mode: r.stage.mode,
+        override_repeat_transposition_mode: r.override_repeat_transposition_mode,
+        override_start_key: r.override_start_key,
+      })));
     } catch (e) {
       toast.error('ファンタジーステージの取得に失敗しました');
     }
@@ -1038,47 +1072,162 @@ const AdminFantasyTrackList: React.FC<{ missionId: string }> = ({ missionId }) =
 
   React.useEffect(() => { void load(); }, [missionId]);
 
+  const formatTranspositionMode = (mode: RepeatTranspositionMode | null | undefined) => {
+    if (!mode) return '元設定';
+    const labels: Record<RepeatTranspositionMode, string> = {
+      'off': '転調なし',
+      '+1': '+1(半音上)',
+      '+5': '+5(完全4度上)',
+      '-1': '-1(半音下)',
+      '-5': '-5(完全4度下)',
+      'random': 'ランダム',
+    };
+    return labels[mode] || mode;
+  };
+
   return (
     <div className="space-y-2">
       {tracks.length === 0 && (
         <div className="text-sm text-gray-400">ステージが追加されていません</div>
       )}
       {tracks.map(t => (
-        <div key={t.fantasy_stage_id} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
-          <div className="text-sm text-white">
-            {t.stage_label}
-            <span className="ml-2 text-xs text-gray-300">必要クリア: {t.clears_required}回</span>
+        <div key={t.fantasy_stage_id} className="p-2 bg-slate-700/50 rounded">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-white">
+              {t.stage_label}
+              <span className="ml-2 text-xs text-gray-300">必要クリア: {t.clears_required}回</span>
+              {t.mode === 'progression_timing' && (
+                <span className="ml-2 text-xs text-purple-300">
+                  [転調: {formatTranspositionMode(t.override_repeat_transposition_mode)}, 
+                  キー: {t.override_start_key ?? '元設定'}]
+                </span>
+              )}
+            </div>
+            <div className="flex gap-2">
+              <button className="btn btn-xs" onClick={() => setEditingTrack(editingTrack === t.fantasy_stage_id ? null : t.fantasy_stage_id)}>
+                {editingTrack === t.fantasy_stage_id ? '閉じる' : '編集'}
+              </button>
+              <button className="btn btn-xs btn-error" onClick={async () => {
+                if (!confirm('このステージを削除しますか？')) return;
+                try {
+                  await removeFantasyStageFromChallenge(missionId, t.fantasy_stage_id);
+                  toast.success('削除しました');
+                  void load();
+                } catch (e) {
+                  toast.error('削除に失敗しました');
+                }
+              }}>削除</button>
+            </div>
           </div>
-          <div className="flex gap-2">
-            <button className="btn btn-xs" onClick={async () => {
-              const input = prompt('必要クリア回数を入力してください', String(t.clears_required));
-              if (!input) return;
-              const num = parseInt(input, 10);
-              if (!Number.isFinite(num) || num <= 0) {
-                toast.error('1以上の数値を入力してください');
-                return;
-              }
-              try {
-                await updateFantasyStageInChallenge(missionId, t.fantasy_stage_id, num);
-                toast.success('更新しました');
-                void load();
-              } catch (e) {
-                toast.error('更新に失敗しました');
-              }
-            }}>編集</button>
-            <button className="btn btn-xs btn-error" onClick={async () => {
-              if (!confirm('このステージを削除しますか？')) return;
-              try {
-                await removeFantasyStageFromChallenge(missionId, t.fantasy_stage_id);
-                toast.success('削除しました');
-                void load();
-              } catch (e) {
-                toast.error('削除に失敗しました');
-              }
-            }}>削除</button>
-          </div>
+          {editingTrack === t.fantasy_stage_id && (
+            <FantasyTrackEditForm
+              track={t}
+              missionId={missionId}
+              onSaved={() => { setEditingTrack(null); void load(); }}
+              onCancel={() => setEditingTrack(null)}
+            />
+          )}
         </div>
       ))}
+    </div>
+  );
+};
+
+// 追加: ファンタジートラック編集フォーム
+const FantasyTrackEditForm: React.FC<{
+  track: {
+    fantasy_stage_id: string;
+    clears_required: number;
+    mode?: string;
+    override_repeat_transposition_mode?: RepeatTranspositionMode | null;
+    override_start_key?: number | null;
+  };
+  missionId: string;
+  onSaved: () => void;
+  onCancel: () => void;
+}> = ({ track, missionId, onSaved, onCancel }) => {
+  const [clears, setClears] = React.useState(track.clears_required);
+  const [overrideMode, setOverrideMode] = React.useState<RepeatTranspositionMode | null>(track.override_repeat_transposition_mode ?? null);
+  const [overrideKey, setOverrideKey] = React.useState<number | null>(track.override_start_key ?? null);
+  const [saving, setSaving] = React.useState(false);
+  const toast = useToast();
+
+  const handleSave = async () => {
+    if (clears <= 0) {
+      toast.error('クリア回数は1以上を入力してください');
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateFantasyStageInChallenge(missionId, track.fantasy_stage_id, {
+        clearsRequired: clears,
+        overrideRepeatTranspositionMode: overrideMode,
+        overrideStartKey: overrideKey,
+      });
+      toast.success('更新しました');
+      onSaved();
+    } catch (e) {
+      toast.error('更新に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-3 p-3 bg-slate-800 rounded border border-slate-600">
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        <div>
+          <label className="block text-xs text-gray-300 mb-1">必要クリア回数</label>
+          <input
+            type="number"
+            min={1}
+            value={clears}
+            onChange={(e) => setClears(parseInt(e.target.value, 10) || 1)}
+            className="input input-bordered input-sm w-full text-white"
+          />
+        </div>
+        {track.mode === 'progression_timing' && (
+          <>
+            <div>
+              <label className="block text-xs text-gray-300 mb-1">リピート転調設定</label>
+              <select
+                className="select select-bordered select-sm w-full text-white"
+                value={overrideMode ?? ''}
+                onChange={(e) => setOverrideMode(e.target.value === '' ? null : e.target.value as RepeatTranspositionMode)}
+              >
+                <option value="">元のステージ設定を使用</option>
+                <option value="off">off（転調なし）</option>
+                <option value="+1">+1（半音上）</option>
+                <option value="+5">+5（完全4度上）</option>
+                <option value="-1">-1（半音下）</option>
+                <option value="-5">-5（完全4度下）</option>
+                <option value="random">ランダム</option>
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs text-gray-300 mb-1">開始キー</label>
+              <select
+                className="select select-bordered select-sm w-full text-white"
+                value={overrideKey ?? ''}
+                onChange={(e) => setOverrideKey(e.target.value === '' ? null : parseInt(e.target.value, 10))}
+              >
+                <option value="">元のステージ設定を使用</option>
+                {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(k => (
+                  <option key={k} value={k}>
+                    {k === 0 ? '0（原曲キー）' : k > 0 ? `+${k}` : `${k}`}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </>
+        )}
+      </div>
+      <div className="flex gap-2 mt-3">
+        <button className="btn btn-primary btn-sm" onClick={handleSave} disabled={saving}>
+          {saving ? '保存中...' : '保存'}
+        </button>
+        <button className="btn btn-ghost btn-sm" onClick={onCancel}>キャンセル</button>
+      </div>
     </div>
   );
 };
@@ -1086,8 +1235,25 @@ const AdminFantasyTrackList: React.FC<{ missionId: string }> = ({ missionId }) =
 // 追加: ファンタジーステージ追加モーダル
 const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdded: () => void }> = ({ missionId, onClose, onAdded }) => {
   const [selectedStageId, setSelectedStageId] = React.useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = React.useState<FantasyStage | null>(null);
   const [count, setCount] = React.useState<number>(1);
+  const [overrideMode, setOverrideMode] = React.useState<RepeatTranspositionMode | null>(null);
+  const [overrideKey, setOverrideKey] = React.useState<number | null>(null);
   const toast = useToast();
+
+  // ステージ選択時にステージ情報を取得
+  const handleStageSelect = async (stageId: string) => {
+    setSelectedStageId(stageId);
+    try {
+      const stage = await fetchFantasyStageById(stageId);
+      setSelectedStage(stage);
+      // ステージが変更されたら上書き設定をリセット
+      setOverrideMode(null);
+      setOverrideKey(null);
+    } catch (e) {
+      setSelectedStage(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -1096,31 +1262,77 @@ const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdde
           <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
           <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={setSelectedStageId} />
-          </div>
+        <div className="space-y-4">
           <div>
-            <label className="block text-sm mb-1">必要クリア回数</label>
-            <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
-            <button
-              className="btn btn-primary w-full mt-3"
-              disabled={!selectedStageId || count <= 0}
-              onClick={async () => {
-                if (!selectedStageId) return;
-                try {
-                  await addFantasyStageToChallenge(missionId, selectedStageId, count);
-                  toast.success('追加しました');
-                  onAdded();
-                  onClose();
-                } catch (e) {
-                  toast.error('追加に失敗しました');
-                }
-              }}
-            >
-              追加
-            </button>
+            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={handleStageSelect} />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm mb-1">必要クリア回数</label>
+              <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
+            </div>
+            {selectedStage?.mode === 'progression_timing' && (
+              <>
+                <div>
+                  <label className="block text-sm mb-1">リピート転調設定</label>
+                  <select
+                    className="select select-bordered w-full text-white"
+                    value={overrideMode ?? ''}
+                    onChange={(e) => setOverrideMode(e.target.value === '' ? null : e.target.value as RepeatTranspositionMode)}
+                  >
+                    <option value="">元のステージ設定を使用</option>
+                    <option value="off">off（転調なし）</option>
+                    <option value="+1">+1（半音上）</option>
+                    <option value="+5">+5（完全4度上）</option>
+                    <option value="-1">-1（半音下）</option>
+                    <option value="-5">-5（完全4度下）</option>
+                    <option value="random">ランダム</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">開始キー</label>
+                  <select
+                    className="select select-bordered w-full text-white"
+                    value={overrideKey ?? ''}
+                    onChange={(e) => setOverrideKey(e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                  >
+                    <option value="">元のステージ設定を使用</option>
+                    {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(k => (
+                      <option key={k} value={k}>
+                        {k === 0 ? '0（原曲キー）' : k > 0 ? `+${k}` : `${k}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+          {selectedStage?.mode === 'progression_timing' && (
+            <p className="text-xs text-gray-400">
+              timingモードのステージです。転調設定と開始キーを上書きできます。
+            </p>
+          )}
+          <button
+            className="btn btn-primary w-full"
+            disabled={!selectedStageId || count <= 0}
+            onClick={async () => {
+              if (!selectedStageId) return;
+              try {
+                await addFantasyStageToChallenge(missionId, selectedStageId, {
+                  clearsRequired: count,
+                  overrideRepeatTranspositionMode: overrideMode,
+                  overrideStartKey: overrideKey,
+                });
+                toast.success('追加しました');
+                onAdded();
+                onClose();
+              } catch (e) {
+                toast.error('追加に失敗しました');
+              }
+            }}
+          >
+            追加
+          </button>
         </div>
       </div>
     </div>
@@ -1128,9 +1340,37 @@ const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdde
 };
 
 // 追加: フォーム用ファンタジー追加モーダル（新規作成時に使用）
-const FormFantasyAddModal: React.FC<{ onClose: () => void; onAdd: (stageId: string, clears: number) => void }> = ({ onClose, onAdd }) => {
+const FormFantasyAddModal: React.FC<{ 
+  onClose: () => void; 
+  onAdd: (
+    stageId: string, 
+    clears: number, 
+    mode?: string,
+    overrideRepeatTranspositionMode?: RepeatTranspositionMode | null,
+    overrideStartKey?: number | null
+  ) => void 
+}> = ({ onClose, onAdd }) => {
   const [selectedStageId, setSelectedStageId] = useState<string | null>(null);
+  const [selectedStage, setSelectedStage] = useState<FantasyStage | null>(null);
   const [count, setCount] = useState<number>(1);
+  const [overrideMode, setOverrideMode] = useState<RepeatTranspositionMode | null>(null);
+  const [overrideKey, setOverrideKey] = useState<number | null>(null);
+  const toast = useToast();
+
+  // ステージ選択時にステージ情報を取得
+  const handleStageSelect = async (stageId: string) => {
+    setSelectedStageId(stageId);
+    try {
+      const stage = await fetchFantasyStageById(stageId);
+      setSelectedStage(stage);
+      // ステージが変更されたら上書き設定をリセット
+      setOverrideMode(null);
+      setOverrideKey(null);
+    } catch (e) {
+      toast.error('ステージ情報の取得に失敗しました');
+      setSelectedStage(null);
+    }
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
@@ -1139,21 +1379,73 @@ const FormFantasyAddModal: React.FC<{ onClose: () => void; onAdd: (stageId: stri
           <h3 className="text-lg font-bold">ファンタジーステージを追加</h3>
           <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
         </div>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="md:col-span-2">
-            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={setSelectedStageId} />
-          </div>
+        <div className="space-y-4">
           <div>
-            <label className="block text-sm mb-1">必要クリア回数</label>
-            <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
-            <button
-              className="btn btn-primary w-full mt-3"
-              disabled={!selectedStageId || count <= 0}
-              onClick={() => { if (selectedStageId) onAdd(selectedStageId, count); }}
-            >
-              追加
-            </button>
+            <FantasyStageSelector selectedStageId={selectedStageId} onStageSelect={handleStageSelect} />
           </div>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div>
+              <label className="block text-sm mb-1">必要クリア回数</label>
+              <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
+            </div>
+            {selectedStage?.mode === 'progression_timing' && (
+              <>
+                <div>
+                  <label className="block text-sm mb-1">リピート転調設定</label>
+                  <select
+                    className="select select-bordered w-full text-white"
+                    value={overrideMode ?? ''}
+                    onChange={(e) => setOverrideMode(e.target.value === '' ? null : e.target.value as RepeatTranspositionMode)}
+                  >
+                    <option value="">元のステージ設定を使用</option>
+                    <option value="off">off（転調なし）</option>
+                    <option value="+1">+1（半音上）</option>
+                    <option value="+5">+5（完全4度上）</option>
+                    <option value="-1">-1（半音下）</option>
+                    <option value="-5">-5（完全4度下）</option>
+                    <option value="random">ランダム</option>
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-sm mb-1">開始キー</label>
+                  <select
+                    className="select select-bordered w-full text-white"
+                    value={overrideKey ?? ''}
+                    onChange={(e) => setOverrideKey(e.target.value === '' ? null : parseInt(e.target.value, 10))}
+                  >
+                    <option value="">元のステージ設定を使用</option>
+                    {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(k => (
+                      <option key={k} value={k}>
+                        {k === 0 ? '0（原曲キー）' : k > 0 ? `+${k}` : `${k}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </>
+            )}
+          </div>
+          {selectedStage?.mode === 'progression_timing' && (
+            <p className="text-xs text-gray-400">
+              timingモードのステージです。転調設定と開始キーを上書きできます。
+            </p>
+          )}
+          <button
+            className="btn btn-primary w-full"
+            disabled={!selectedStageId || count <= 0}
+            onClick={() => { 
+              if (selectedStageId) {
+                onAdd(
+                  selectedStageId, 
+                  count, 
+                  selectedStage?.mode,
+                  overrideMode,
+                  overrideKey
+                ); 
+              }
+            }}
+          >
+            追加
+          </button>
         </div>
       </div>
     </div>
