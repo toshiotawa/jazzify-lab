@@ -1596,6 +1596,11 @@ export const useFantasyGameEngine = ({
             } else {
               transposedNotes = prevState.originalTaikoNotes.map(note => ({ ...note }));
             }
+            
+            // BGMのピッチシフトを直接変更（Reactのバッチ処理を待たずに即座に反映）
+            // これにより、ノーツの移調とBGMのピッチが同時に変更される
+            bgmManager.setPitchShift(newTransposeOffset);
+            console.log('🎵 BGMピッチシフト変更:', newTransposeOffset);
           }
           
           // ノーツをリセット
@@ -1605,21 +1610,18 @@ export const useFantasyGameEngine = ({
             isMissed: false
           }));
           
-          let newNoteIndex = prevState.currentNoteIndex;
-          let refreshedMonsters = prevState.activeMonsters;
-          
-          if (prevState.awaitingLoopStart) {
-            newNoteIndex = 0;
-            const firstNote = resetNotes[0];
-            const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
-            refreshedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              correctNotes: [],
-              gauge: 0,
-              chordTarget: firstNote.chord,
-              nextChord: secondNote.chord
-            }));
-          }
+          // ループ境界では常にノーツインデックスを0にリセット
+          // awaitingLoopStart状態に関わらず、新しいループの先頭から開始
+          const newNoteIndex = 0;
+          const firstNote = resetNotes[0];
+          const secondNote = resetNotes.length > 1 ? resetNotes[1] : resetNotes[0];
+          const refreshedMonsters = prevState.activeMonsters.map(m => ({
+            ...m,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: firstNote.chord,
+            nextChord: secondNote.chord
+          }));
           
           return {
             ...prevState,
