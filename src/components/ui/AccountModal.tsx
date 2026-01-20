@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/r2Storage';
@@ -12,6 +13,8 @@ import { getUserAchievementTitles } from '@/utils/achievementTitles';
 import { updateUserTitle } from '@/platform/supabaseTitles';
 import { compressProfileImage } from '@/utils/imageCompression';
 import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -20,6 +23,15 @@ const RANK_LABEL: Record<string, string> = {
   premium: 'プレミアム',
   platinum: 'プラチナ',
   black: 'ブラック',
+};
+
+const RANK_LABEL_EN: Record<string, string> = {
+  free: 'Free',
+  standard: 'Standard',
+  standard_global: 'Standard (Global)',
+  premium: 'Premium',
+  platinum: 'Platinum',
+  black: 'Black',
 };
 
 /**
@@ -67,12 +79,18 @@ const AccountPage: React.FC = () => {
     fantasyClearedCountBasic: 0,
     fantasyClearedCountAdvanced: 0,
   });
+  const geoCountry = useGeoStore(s => s.country);
   const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
   const isJapanUser =
     !normalizedCountry ||
     normalizedCountry === 'JP' ||
     normalizedCountry === 'JPN' ||
     normalizedCountry === 'JAPAN';
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    geoCountryHint: geoCountry,
+  });
+  const rankLabel = isEnglishCopy ? RANK_LABEL_EN : RANK_LABEL;
   // ハッシュ変更で開閉
   useEffect(() => {
     const handler = () => {
@@ -185,7 +203,7 @@ const AccountPage: React.FC = () => {
       {/* Page body */}
       <div className="flex-1 w-full flex flex-col items-center overflow-auto p-6">
         <div className="w-full max-w-md space-y-6">
-          <h2 className="text-xl font-bold text-center">アカウント</h2>
+          <h2 className="text-xl font-bold text-center">{isEnglishCopy ? 'Account' : 'アカウント'}</h2>
           
           {/* Tab Navigation */}
           <div className="flex border-b border-slate-600">
@@ -197,7 +215,7 @@ const AccountPage: React.FC = () => {
               }`}
               onClick={() => setActiveTab('profile')}
             >
-              プロフィール
+              {isEnglishCopy ? 'Profile' : 'プロフィール'}
             </button>
             <button
               className={`flex-1 py-2 px-4 text-sm font-medium ${
@@ -207,7 +225,7 @@ const AccountPage: React.FC = () => {
               }`}
               onClick={() => setActiveTab('subscription')}
             >
-              アカウント
+              {isEnglishCopy ? 'Account' : 'アカウント'}
             </button>
           </div>
 
@@ -217,29 +235,29 @@ const AccountPage: React.FC = () => {
               {activeTab === 'profile' && (
                 <div className="space-y-2">
               <div className="flex justify-between">
-                <span>ニックネーム</span>
+                <span>{isEnglishCopy ? 'Nickname' : 'ニックネーム'}</span>
                 <span className="font-semibold">{profile.nickname}</span>
               </div>
               <div className="flex justify-between">
-                <span>メールアドレス</span>
+                <span>{isEnglishCopy ? 'Email' : 'メールアドレス'}</span>
                 <span className="font-semibold text-sm">{profile.email}</span>
               </div>
               <div className="flex justify-between">
-                <span>会員ランク</span>
-                <span className="font-semibold text-primary-400">{RANK_LABEL[profile.rank]}</span>
+                <span>{isEnglishCopy ? 'Membership' : '会員ランク'}</span>
+                <span className="font-semibold text-primary-400">{rankLabel[profile.rank]}</span>
               </div>
               <div className="flex justify-between">
-                <span>レベル</span>
+                <span>{isEnglishCopy ? 'Level' : 'レベル'}</span>
                 <span className="font-semibold">Lv. {profile.level}</span>
               </div>
               <div className="flex justify-between">
-                <span>経験値</span>
+                <span>{isEnglishCopy ? 'XP' : '経験値'}</span>
                 <span className="font-semibold">{profile.xp.toLocaleString()}</span>
               </div>
               
               {/* 称号選択ドロップダウン */}
               <div className="space-y-1">
-                <label htmlFor="title" className="text-sm">称号</label>
+                <label htmlFor="title" className="text-sm">{isEnglishCopy ? 'Title' : '称号'}</label>
                 <select
                   id="title"
                   className="w-full p-2 rounded bg-slate-700 text-sm"
@@ -253,11 +271,11 @@ const AccountPage: React.FC = () => {
                       if (success) {
                         await useAuthStore.getState().fetchProfile();
                                              } else {
-                         alert('称号の更新に失敗しました');
+                         alert(isEnglishCopy ? 'Failed to update title' : '称号の更新に失敗しました');
                          setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
                        }
                      } catch (err) {
-                       alert('称号の更新に失敗しました: ' + (err instanceof Error ? err.message : String(err)));
+                       alert((isEnglishCopy ? 'Failed to update title: ' : '称号の更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
                        setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
                     } finally {
                       setTitleSaving(false);
@@ -267,24 +285,24 @@ const AccountPage: React.FC = () => {
                 >
                   {/* 魔法使い称号カテゴリ */}
                   {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
-                    <optgroup label="魔法使い（Basic）称号">
+                    <optgroup label={isEnglishCopy ? 'Wizard (Basic) Titles' : '魔法使い（Basic）称号'}>
                       {achievementTitles.wizardTitles.map((title) => {
                         const conditionText = getTitleRequirement(title);
                         return (
                           <option key={title} value={title}>
-                            {title} - {conditionText}
+                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
                           </option>
                         );
                       })}
                     </optgroup>
                   )}
                   {achievementTitles.advancedTitles && achievementTitles.advancedTitles.length > 0 && (
-                    <optgroup label="戦士（Advanced）称号">
+                    <optgroup label={isEnglishCopy ? 'Warrior (Advanced) Titles' : '戦士（Advanced）称号'}>
                       {achievementTitles.advancedTitles.map((title) => {
                         const conditionText = getTitleRequirement(title);
                         return (
                           <option key={title} value={title}>
-                            {title} - {conditionText}
+                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
                           </option>
                         );
                       })}
@@ -293,12 +311,12 @@ const AccountPage: React.FC = () => {
                   
                   {/* レッスンクリア称号カテゴリ */}
                   {achievementTitles.lessonTitles.length > 0 && (
-                    <optgroup label="レッスンクリア称号">
+                    <optgroup label={isEnglishCopy ? 'Lesson Clear Titles' : 'レッスンクリア称号'}>
                       {achievementTitles.lessonTitles.map((title) => {
                         const conditionText = getTitleConditionText(title);
                         return (
                           <option key={title} value={title}>
-                            {title} - {conditionText}
+                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
                           </option>
                         );
                       })}
@@ -307,12 +325,12 @@ const AccountPage: React.FC = () => {
                   
                   {/* ミッションクリア称号カテゴリ */}
                   {achievementTitles.missionTitles.length > 0 && (
-                    <optgroup label="ミッションクリア称号">
+                    <optgroup label={isEnglishCopy ? 'Mission Clear Titles' : 'ミッションクリア称号'}>
                       {achievementTitles.missionTitles.map((title) => {
                         const conditionText = getTitleConditionText(title);
                         return (
                           <option key={title} value={title}>
-                            {title} - {conditionText}
+                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
                           </option>
                         );
                       })}
@@ -320,19 +338,19 @@ const AccountPage: React.FC = () => {
                   )}
                   
                   {/* レベル称号カテゴリ */}
-                  <optgroup label="レベル称号">
+                  <optgroup label={isEnglishCopy ? 'Level Titles' : 'レベル称号'}>
                     {getAvailableTitles(profile.level).map((title) => {
                       const conditionText = getTitleConditionText(title);
                       return (
                         <option key={title} value={title}>
-                          {title} - {conditionText}
+                          {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
                         </option>
                       );
                     })}
                   </optgroup>
                 </select>
                 {titleSaving && (
-                  <div className="text-xs text-gray-400">称号を更新中...</div>
+                  <div className="text-xs text-gray-400">{isEnglishCopy ? 'Updating title...' : '称号を更新中...'}</div>
                 )}
               </div>
               <div className="flex flex-col items-center space-y-2">
@@ -361,11 +379,11 @@ const AccountPage: React.FC = () => {
                   onClick={()=>document.getElementById('avatar-input')?.click()}
                   disabled={avatarUploading}
                 >
-                  {avatarUploading ? '圧縮中...' : 'アバター変更'}
+                  {avatarUploading ? (isEnglishCopy ? 'Compressing...' : '圧縮中...') : (isEnglishCopy ? 'Change Avatar' : 'アバター変更')}
                 </button>
               </div>
               <div className="space-y-1">
-                <label htmlFor="bio" className="text-sm">プロフィール文</label>
+                <label htmlFor="bio" className="text-sm">{isEnglishCopy ? 'Bio' : 'プロフィール文'}</label>
                 <textarea
                   id="bio"
                   className="w-full p-2 rounded bg-slate-700 text-sm"
@@ -383,10 +401,10 @@ const AccountPage: React.FC = () => {
                       await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
                       await useAuthStore.getState().fetchProfile();
                     }catch(err){
-                      alert('保存失敗: '+(err instanceof Error ? err.message : String(err)));
+                      alert((isEnglishCopy ? 'Save failed: ' : '保存失敗: ')+(err instanceof Error ? err.message : String(err)));
                     }finally{ setSaving(false); }
                   }}
-                >保存</button>
+                >{isEnglishCopy ? 'Save' : '保存'}</button>
               </div>
               <div className="space-y-1">
                 <label htmlFor="twitter" className="text-sm">Twitter ID</label>
@@ -405,7 +423,7 @@ const AccountPage: React.FC = () => {
               
               {/* メールアドレス変更 */}
               <div className="space-y-1 border-t border-slate-600 pt-4 mt-4">
-                <label htmlFor="newEmail" className="text-sm font-medium">メールアドレス変更</label>
+                <label htmlFor="newEmail" className="text-sm font-medium">{isEnglishCopy ? 'Change Email' : 'メールアドレス変更'}</label>
                 <div className="space-y-2">
                   <input
                     id="newEmail"
@@ -413,7 +431,7 @@ const AccountPage: React.FC = () => {
                     className="w-full p-2 rounded bg-slate-700 text-sm"
                     value={newEmail}
                     onChange={e=>setNewEmail(e.target.value)}
-                    placeholder="新しいメールアドレス"
+                    placeholder={isEnglishCopy ? 'New email address' : '新しいメールアドレス'}
                     disabled={emailUpdating}
                   />
                   <button
@@ -424,19 +442,19 @@ const AccountPage: React.FC = () => {
                       
                       // バリデーション
                       if (!email) {
-                        setEmailMessage('メールアドレスを入力してください');
+                        setEmailMessage(isEnglishCopy ? 'Please enter an email address' : 'メールアドレスを入力してください');
                         return;
                       }
                       
                       if (email === profile?.email) {
-                        setEmailMessage('現在のメールアドレスと同じです');
+                        setEmailMessage(isEnglishCopy ? 'Same as current email' : '現在のメールアドレスと同じです');
                         return;
                       }
                       
                       // 簡単なメール形式チェック
                       const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
                       if (!emailRegex.test(email)) {
-                        setEmailMessage('有効なメールアドレスを入力してください');
+                        setEmailMessage(isEnglishCopy ? 'Please enter a valid email address' : '有効なメールアドレスを入力してください');
                         return;
                       }
                       
@@ -449,13 +467,13 @@ const AccountPage: React.FC = () => {
                           setNewEmail('');
                         }
                       }catch(err){
-                        setEmailMessage('メールアドレスの更新に失敗しました: ' + (err instanceof Error ? err.message : String(err)));
+                        setEmailMessage((isEnglishCopy ? 'Failed to update email: ' : 'メールアドレスの更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
                       }finally{ 
                         setEmailUpdating(false); 
                       }
                     }}
                   >
-                    {emailUpdating ? '送信中...' : '確認メール送信'}
+                    {emailUpdating ? (isEnglishCopy ? 'Sending...' : '送信中...') : (isEnglishCopy ? 'Send Confirmation' : '確認メール送信')}
                   </button>
                   {emailMessage && (
                     <div className={`text-xs p-2 rounded ${
@@ -473,19 +491,19 @@ const AccountPage: React.FC = () => {
                 <div className="space-y-4">
                   {/* あなたのプラン */}
                   <div className="space-y-2">
-                    <h3 className="text-lg font-semibold">あなたのプラン</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Your Plan' : 'あなたのプラン'}</h3>
                     <div className="bg-slate-800 p-4 rounded-lg space-y-2">
                       <div className="flex justify-between items-center">
-                        <span>ご利用中のプラン</span>
+                        <span>{isEnglishCopy ? 'Current Plan' : 'ご利用中のプラン'}</span>
                         <span className="font-semibold text-primary-400">
-                          {RANK_LABEL[profile.rank]}
+                          {rankLabel[profile.rank]}
                         </span>
                       </div>
                       
                         {/* サブスクリプション状態表示 */}
                           {profile.rank !== 'free' && (
                             <div className="text-sm text-gray-200">
-                              次回の更新日はポータルでご確認ください。
+                              {isEnglishCopy ? 'Check the portal for your next renewal date.' : '次回の更新日はポータルでご確認ください。'}
                             </div>
                           )}
                       
@@ -511,24 +529,24 @@ const AccountPage: React.FC = () => {
                                 window.open(url, '_blank');
                               } else {
                                 if (response.status === 404) {
-                                  alert('まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
+                                  alert(isEnglishCopy ? 'No subscription found. Please select a plan.' : 'まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
                                   window.location.href = '/main#pricing';
                                 } else {
-                                  alert('サブスクリプション管理画面の表示に失敗しました');
+                                  alert(isEnglishCopy ? 'Failed to open subscription management' : 'サブスクリプション管理画面の表示に失敗しました');
                                 }
                               }
                             } catch (error) {
                               console.error('Portal session error:', error);
-                              alert('エラーが発生しました');
+                              alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
                             }
                           }}
                           >
-                            プラン確認・変更
+                            {isEnglishCopy ? 'Manage Plan' : 'プラン確認・変更'}
                           </button>
                       ) : (
                         <div className="text-center pt-2">
                           <p className="text-sm text-gray-400 mb-2">
-                            プレミアム機能をご利用ください
+                            {isEnglishCopy ? 'Unlock premium features' : 'プレミアム機能をご利用ください'}
                           </p>
                           <button
                             className="btn btn-sm btn-primary"
@@ -549,14 +567,14 @@ const AccountPage: React.FC = () => {
                                   const { url } = await response.json();
                                   window.location.href = url;
                                 } else {
-                                  alert('購入ページの生成に失敗しました');
+                                  alert(isEnglishCopy ? 'Failed to generate checkout page' : '購入ページの生成に失敗しました');
                                 }
                               } catch (error) {
-                                alert('エラーが発生しました');
+                                alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
                               }
                             }}
                           >
-                            プランを選択
+                            {isEnglishCopy ? 'Select a Plan' : 'プランを選択'}
                           </button>
                         </div>
                       )}
@@ -565,10 +583,11 @@ const AccountPage: React.FC = () => {
 
                   {/* 退会（アカウント削除） */}
                   <div className="space-y-2 border-t border-slate-700 pt-4">
-                    <h3 className="text-lg font-semibold text-red-400">退会（アカウント削除）</h3>
+                    <h3 className="text-lg font-semibold text-red-400">{isEnglishCopy ? 'Delete Account' : '退会（アカウント削除）'}</h3>
                     <p className="text-xs text-gray-400">
-                      退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。
-                      退会にはFreeプランである必要があります。Freeでない場合、下のボタンからCustomer Portalで解約してください。
+                      {isEnglishCopy 
+                        ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account. If not, please cancel your subscription via Customer Portal first.'
+                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。退会にはFreeプランである必要があります。Freeでない場合、下のボタンからCustomer Portalで解約してください。'}
                     </p>
                     <div className="flex gap-2">
                       {profile.rank !== 'free' && (
@@ -591,25 +610,25 @@ const AccountPage: React.FC = () => {
                                 window.open(url, '_blank');
                               } else {
                                 if (response.status === 404) {
-                                  alert('まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
+                                  alert(isEnglishCopy ? 'No subscription found. Please select a plan.' : 'まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
                                   window.location.href = '/main#pricing';
                                 } else {
-                                  alert('Customer Portalの表示に失敗しました');
+                                  alert(isEnglishCopy ? 'Failed to open Customer Portal' : 'Customer Portalの表示に失敗しました');
                                 }
                               }
                             } catch (e) {
-                              alert('エラーが発生しました');
+                              alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
                             }
                           }}
                         >
-                          Customer Portalを開く
+                          {isEnglishCopy ? 'Open Customer Portal' : 'Customer Portalを開く'}
                         </button>
                       )}
                       <button
                         className={`btn btn-sm ${profile.rank === 'free' ? 'btn-danger' : 'btn-disabled'}`}
                         disabled={profile.rank !== 'free'}
                         onClick={async () => {
-                          if (!confirm('本当に退会しますか？この操作は取り消せません。')) return;
+                          if (!confirm(isEnglishCopy ? 'Are you sure you want to delete your account? This action cannot be undone.' : '本当に退会しますか？この操作は取り消せません。')) return;
                           try {
                             const response = await fetch('/.netlify/functions/deleteAccount', {
                               method: 'POST',
@@ -624,17 +643,17 @@ const AccountPage: React.FC = () => {
                               await logout();
                               window.location.href = '/withdrawal-complete';
                             } else {
-                              const err = await response.json().catch(()=>({error:'退会に失敗しました'}));
+                              const err = await response.json().catch(()=>({error: isEnglishCopy ? 'Failed to delete account' : '退会に失敗しました'}));
                               const errorMessage = err.details ? `${err.error}: ${err.details}` : err.error;
-                              alert(errorMessage || '退会に失敗しました');
+                              alert(errorMessage || (isEnglishCopy ? 'Failed to delete account' : '退会に失敗しました'));
                             }
                           } catch (e) {
-                            alert('退会処理中にエラーが発生しました');
+                            alert(isEnglishCopy ? 'An error occurred while deleting account' : '退会処理中にエラーが発生しました');
                           }
                         }}
-                        title={profile.rank !== 'free' ? 'Freeプランのみ退会できます' : ''}
+                        title={profile.rank !== 'free' ? (isEnglishCopy ? 'Only Free plan users can delete their account' : 'Freeプランのみ退会できます') : ''}
                       >
-                        退会する
+                        {isEnglishCopy ? 'Delete Account' : '退会する'}
                       </button>
                     </div>
                   </div>
@@ -642,7 +661,7 @@ const AccountPage: React.FC = () => {
               )}
             </div>
           ) : (
-            <p className="text-center text-sm">プロフィール情報が取得できませんでした。</p>
+            <p className="text-center text-sm">{isEnglishCopy ? 'Could not retrieve profile information.' : 'プロフィール情報が取得できませんでした。'}</p>
           )}
         </div>
         <div className="mt-8 w-full max-w-md">
@@ -653,7 +672,7 @@ const AccountPage: React.FC = () => {
               window.location.href = 'https://jazzify.jp/';
             }}
           >
-            ログアウト
+            {isEnglishCopy ? 'Log Out' : 'ログアウト'}
           </button>
         </div>
       </div>
