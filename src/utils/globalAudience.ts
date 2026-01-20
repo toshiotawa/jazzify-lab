@@ -24,6 +24,18 @@ const resolveQueryLocale = (search: string): 'en' | 'ja' | null => {
   return null;
 };
 
+/**
+ * ハッシュ内のクエリパラメータからロケールを解決する
+ * 例: #fantasy?lang=en → 'en'
+ */
+const resolveHashLocale = (hash: string): 'en' | 'ja' | null => {
+  if (!hash) return null;
+  const queryIndex = hash.indexOf('?');
+  if (queryIndex === -1) return null;
+  const queryString = hash.slice(queryIndex + 1);
+  return resolveQueryLocale(queryString);
+};
+
 const resolveSubdomainLocale = (hostname: string): 'en' | 'ja' | null => {
   const segments = hostname.split('.');
   if (segments.length === 0) return null;
@@ -99,21 +111,31 @@ export const detectPreferredLocale = (): 'en' | 'ja' => {
 
   let hostname = '';
   let search = '';
+  let hash = '';
   try {
     const platformWindow = getWindow();
     hostname = normalizeHostname(platformWindow.location.hostname);
     search = platformWindow.location.search;
+    hash = platformWindow.location.hash;
   } catch {
     hostname = normalizeHostname(window.location?.hostname);
     search = window.location?.search ?? '';
+    hash = window.location?.hash ?? '';
   }
 
+  // 優先順位1: 通常のクエリパラメータ (?lang=en)
   const queryLocale = resolveQueryLocale(search);
   if (queryLocale) return queryLocale;
 
+  // 優先順位2: ハッシュ内のクエリパラメータ (#fantasy?lang=en)
+  const hashLocale = resolveHashLocale(hash);
+  if (hashLocale) return hashLocale;
+
+  // 優先順位3: サブドメイン (en.jazzify.jp)
   const subdomainLocale = resolveSubdomainLocale(hostname);
   if (subdomainLocale) return subdomainLocale;
 
+  // 優先順位4: TLD (.jp → ja, .com → en)
   const tldLocale = resolveTopLevelLocale(hostname);
   if (tldLocale) return tldLocale;
 
