@@ -739,6 +739,10 @@ export const useFantasyGameEngine = ({
     
     // 候補インデックスを決定
     let candidateIndices: number[];
+    // ループ境界までの時間
+    const timeToLoop = loopDuration - normalizedTime;
+    // 先読み判定の範囲（表示と同じ4秒前から判定を受け付ける）
+    const lookAheadJudgeTime = 4.0;
     
     if (prevState.awaitingLoopStart) {
       // 次ループ開始待ち中は、次ループの先頭ノーツ（インデックス0, 1）を候補にする
@@ -748,28 +752,54 @@ export const useFantasyGameEngine = ({
       candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
       
       // ループ境界付近では次ループの先頭ノーツも候補に追加
-      const timeToLoop = loopDuration - normalizedTime;
-      if (timeToLoop < 1.0 && currentIndex >= prevState.taikoNotes.length - 2) {
+      // 表示と同じタイミング（4秒前）から判定を受け付ける
+      if (timeToLoop < lookAheadJudgeTime && currentIndex >= prevState.taikoNotes.length - 2) {
         // 次ループの先頭ノーツを追加（重複を避ける）
         if (!candidateIndices.includes(0)) candidateIndices.push(0);
         if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) candidateIndices.push(1);
       }
     }
+    
+    // 移調設定がある場合、次のループの移調後のノーツを事前計算
+    let nextLoopTransposedNotes: TaikoNote[] | null = null;
+    if (prevState.transposeSettings && prevState.originalTaikoNotes.length > 0) {
+      const nextLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
+      const nextTransposeOffset = calculateTransposeOffset(
+        prevState.transposeSettings.keyOffset,
+        nextLoopCycle,
+        prevState.transposeSettings.repeatKeyChange
+      );
+      // 簡易モードフラグ（displayOptsがないので、true をデフォルトに）
+      nextLoopTransposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, nextTransposeOffset, true);
+    }
 
     const candidates = candidateIndices
       .map(i => {
         const n = prevState.taikoNotes[i];
-        const includesNote = Array.from(new Set<number>(n.chord.notes.map((x: number) => x % 12))).includes(noteMod12);
         
         // awaitingLoopStart状態または次ループの先頭ノーツの場合は、仮想的なhitTimeを使用
         let effectiveHitTime = n.hitTime;
-        if (prevState.awaitingLoopStart || (i < currentIndex && currentIndex >= prevState.taikoNotes.length - 2)) {
+        // 先読みノーツかどうか（次ループのノーツとして扱う場合）
+        const isPreviewNote = !prevState.awaitingLoopStart && 
+          i < currentIndex && 
+          currentIndex >= prevState.taikoNotes.length - 2;
+        const isNextLoopNote = prevState.awaitingLoopStart || isPreviewNote;
+        
+        if (isNextLoopNote) {
           // 次ループのノーツとして扱う
           effectiveHitTime = n.hitTime + loopDuration;
         }
         
+        // 移調ループの場合、次のループのノーツは移調後のコードを使用
+        let chordNotes = n.chord.notes;
+        if (isNextLoopNote && nextLoopTransposedNotes && nextLoopTransposedNotes[i]) {
+          chordNotes = nextLoopTransposedNotes[i].chord.notes;
+        }
+        
+        const includesNote = Array.from(new Set<number>(chordNotes.map((x: number) => x % 12))).includes(noteMod12);
+        
         const j = judgeTimingWindowWithLoop(currentTime, effectiveHitTime, 150, loopDuration);
-        return { i, n, j, includesNote, effectiveHitTime };
+        return { i, n, j, includesNote, effectiveHitTime, isNextLoopNote, nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? nextLoopTransposedNotes[i]?.chord : null };
       })
       .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
       // 優先順位: |timingDiff| 最小 → 同点は手前優先
@@ -793,7 +823,9 @@ export const useFantasyGameEngine = ({
     const currentMonster = prevState.activeMonsters[0];
     if (!currentMonster) return prevState;
 
-    const targetNotesMod12: number[] = Array.from(new Set<number>(chosenNote.chord.notes.map((n: number) => n % 12)));
+    // 移調ループの場合、次のループのノーツは移調後のコードを使用
+    const effectiveChord = chosen.nextLoopChord || chosenNote.chord;
+    const targetNotesMod12: number[] = Array.from(new Set<number>(effectiveChord.notes.map((n: number) => n % 12)));
     const newCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
 
     // コードが完成したかチェック（選ばれたノーツのコードに対して）
@@ -831,16 +863,15 @@ export const useFantasyGameEngine = ({
       const isDefeated = newHp === 0;
 
       // コールバック呼び出し（handleChordCorrect内で遅延処理）
-      onChordCorrect(chosenNote.chord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
+      // 移調ループの場合は移調後のコードを使用
+      onChordCorrect(effectiveChord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
 
       // SP更新
       const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
 
       // 先読みヒット（ループ境界付近で次ループのノーツにヒット）の判定
-      // currentIndexが末尾付近で、chosenIndexが先頭（0または1）の場合
-      const isPreHit = !wasAwaitingLoop && 
-        currentIndex >= prevState.taikoNotes.length - 2 && 
-        chosenIndex <= 1;
+      // 候補選択時に判定された isNextLoopNote を使用（awaitingLoopStart状態からの復帰は除く）
+      const isPreHit = chosen.isNextLoopNote && !wasAwaitingLoop;
       
       // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
       let updatedTaikoNotes;
@@ -964,8 +995,9 @@ export const useFantasyGameEngine = ({
         correctAnswers: prevState.correctAnswers + 1,
         score: prevState.score + 100 * actualDamage,
         awaitingLoopStart: false,
-        // 通常時は先読みヒット記録をクリア（ループが開始されたらリセット）
-        preHitNoteIndices: isPreHit ? updatedPreHitIndices : []
+        // 先読みヒットの場合は記録を更新、それ以外は既存の記録を維持
+        // ループ境界でリセットされるまで先読みヒット情報を保持
+        preHitNoteIndices: isPreHit ? updatedPreHitIndices : prevState.preHitNoteIndices
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -1741,6 +1773,59 @@ export const useFantasyGameEngine = ({
         const currentNoteIndex = prevState.currentNoteIndex;
         const currentNote = prevState.taikoNotes[currentNoteIndex];
         if (!currentNote) return { ...prevState, lastNormalizedTime: normalizedTime };
+        
+        // 既にヒット済みのノーツはスキップして次へ進む（先読みヒット対応）
+        // これにより、ループ境界付近で先読みヒットしたノーツがミス扱いにならない
+        if (currentNote.isHit) {
+          const nextIndex = currentNoteIndex + 1;
+          if (nextIndex >= prevState.taikoNotes.length) {
+            // 末尾：次ループまで待つ
+            const nextLoopFirstNote = prevState.taikoNotes[0];
+            const nextLoopSecondNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            return {
+              ...prevState,
+              awaitingLoopStart: true,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: nextLoopFirstNote.chord,
+                nextChord: nextLoopSecondNote.chord
+              })),
+              lastNormalizedTime: normalizedTime
+            };
+          }
+          // 次のヒット済みでないノーツを探す
+          let skipIndex = nextIndex;
+          while (skipIndex < prevState.taikoNotes.length && prevState.taikoNotes[skipIndex].isHit) {
+            skipIndex++;
+          }
+          if (skipIndex >= prevState.taikoNotes.length) {
+            // 全ノーツがヒット済み：次ループまで待つ
+            const nextLoopFirstNote = prevState.taikoNotes[0];
+            const nextLoopSecondNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
+            return {
+              ...prevState,
+              awaitingLoopStart: true,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: nextLoopFirstNote.chord,
+                nextChord: nextLoopSecondNote.chord
+              })),
+              lastNormalizedTime: normalizedTime
+            };
+          }
+          const skipToNote = prevState.taikoNotes[skipIndex];
+          const skipToNextNote = (skipIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[skipIndex + 1] : prevState.taikoNotes[0];
+          return {
+            ...prevState,
+            currentNoteIndex: skipIndex,
+            activeMonsters: prevState.activeMonsters.map(m => ({
+              ...m,
+              chordTarget: skipToNote.chord,
+              nextChord: skipToNextNote.chord
+            })),
+            lastNormalizedTime: normalizedTime
+          };
+        }
         
         // 現在の音楽時間とノーツのヒット時間の差を計算
         let timeDiff = currentTime - currentNote.hitTime;

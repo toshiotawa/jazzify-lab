@@ -99,12 +99,43 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 設定モーダル状態
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   
-  // 設定状態を管理
+  // ファンタジーモード設定のローカルストレージキー
+  const FANTASY_SETTINGS_KEY = 'fantasyGameSettings';
+  
+  // ローカルストレージから設定を読み込む
+  const loadFantasySettings = useCallback(() => {
+    try {
+      const stored = localStorage.getItem(FANTASY_SETTINGS_KEY);
+      if (stored) {
+        return JSON.parse(stored);
+      }
+    } catch {
+      // エラーは無視
+    }
+    return null;
+  }, []);
+  
+  // ローカルストレージに設定を保存する
+  const saveFantasySettings = useCallback((settings: {
+    noteNameLang: DisplayOpts['lang'];
+    simpleNoteName: boolean;
+    keyboardNoteNameStyle: 'off' | 'abc' | 'solfege';
+    showKeyboardGuide: boolean;
+  }) => {
+    try {
+      localStorage.setItem(FANTASY_SETTINGS_KEY, JSON.stringify(settings));
+    } catch {
+      // エラーは無視
+    }
+  }, []);
+  
+  // 設定状態を管理（ローカルストレージから初期値を読み込み）
   // ガイド表示: 練習モードはデフォルトON（トグル可能）、挑戦モードは常にOFF
-  const [showKeyboardGuide, setShowKeyboardGuide] = useState(true); // 練習モードのデフォルト値
-  const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(noteNameLang);
-  const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(simpleNoteName);
-  const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>('abc'); // 鍵盤上の音名表示
+  const storedSettings = useMemo(() => loadFantasySettings(), [loadFantasySettings]);
+  const [showKeyboardGuide, setShowKeyboardGuide] = useState(() => storedSettings?.showKeyboardGuide ?? true); // 練習モードのデフォルト値
+  const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(() => storedSettings?.noteNameLang ?? noteNameLang);
+  const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(() => storedSettings?.simpleNoteName ?? simpleNoteName);
+  const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>(() => storedSettings?.keyboardNoteNameStyle ?? 'abc'); // 鍵盤上の音名表示
   
   // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
@@ -1934,8 +1965,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         isOpen={isSettingsModalOpen}
         onClose={() => setIsSettingsModalOpen(false)}
         onSettingsChange={(newSettings) => {
-          setCurrentNoteNameLang(newSettings.noteNameLang);
-          setCurrentSimpleNoteName(newSettings.simpleNoteName);
+          // 設定ステートを更新
+          const updatedNoteNameLang = newSettings.noteNameLang;
+          const updatedSimpleNoteName = newSettings.simpleNoteName;
+          const updatedKeyboardStyle = newSettings.keyboardNoteNameStyle ?? keyboardNoteNameStyle;
+          const updatedShowGuide = newSettings.showKeyboardGuide ?? showKeyboardGuide;
+          
+          setCurrentNoteNameLang(updatedNoteNameLang);
+          setCurrentSimpleNoteName(updatedSimpleNoteName);
           
           // 鍵盤上の音名表示設定が変更されたら更新
           if (newSettings.keyboardNoteNameStyle !== undefined) {
@@ -1946,6 +1983,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (newSettings.showKeyboardGuide !== undefined) {
             setShowKeyboardGuide(newSettings.showKeyboardGuide);
           }
+          
+          // ローカルストレージに保存（レジェンドモードと同様）
+          saveFantasySettings({
+            noteNameLang: updatedNoteNameLang,
+            simpleNoteName: updatedSimpleNoteName,
+            keyboardNoteNameStyle: updatedKeyboardStyle,
+            showKeyboardGuide: updatedShowGuide
+          });
           
           // 🚀 パフォーマンス最適化: 動的インポートを削除
           // ピアノ音量設定が変更されたら、グローバル音量を更新
