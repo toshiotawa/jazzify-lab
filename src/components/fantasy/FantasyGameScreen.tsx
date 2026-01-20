@@ -509,25 +509,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            !!stage.musicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
   
-  // Harmonyマーカーの計算（chord_progression_dataのtext付きアイテムから）
-  const harmonyMarkers = useMemo(() => {
-    if (!showSheetMusicForTiming) return [];
-    
-    const stageData = stage as any;
-    const progressionData = stageData.chordProgressionData;
-    if (!Array.isArray(progressionData)) return [];
-    
-    const secPerBeat = 60 / (stage.bpm || 120);
-    const secPerMeasure = secPerBeat * (stage.timeSignature || 4);
-    
-    return progressionData
-      .filter((item: ChordProgressionDataItem) => item && typeof item.text === 'string' && item.text.trim() !== '')
-      .map((item: ChordProgressionDataItem) => ({
-        time: (item.bar - 1) * secPerMeasure + ((item.beats ?? 1) - 1) * secPerBeat,
-        text: item.text as string
-      }))
-      .sort((a: { time: number }, b: { time: number }) => a.time - b.time);
-  }, [showSheetMusicForTiming, stage]);
   
   // 楽譜表示エリアの高さを画面サイズに応じて調整
   useEffect(() => {
@@ -1650,8 +1631,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                           width: `${itemWidth}px`
                         }}
                       >
-                      {/* 太鼓の達人モードでは敵の下に何も表示しない */}
-                      {!gameState.isTaikoMode && (
+                      {/* 太鼓の達人モードまたは移調練習オプションON時は敵の下に何も表示しない */}
+                      {!gameState.isTaikoMode && !gameState.transposeSettings && (
                         <>
                           {/* 通常モードの表示 */}
                           {/* 楽譜モード: 挑戦モードでは非表示、練習モードではオクターブなしで表示 */}
@@ -1807,7 +1788,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             timeSignature={stage.timeSignature || 4}
             measureCount={stage.measureCount || 8}
             countInMeasures={stage.countInMeasures || 0}
-            harmonyMarkers={harmonyMarkers}
             transposeOffset={gameState.currentTransposeOffset || 0}
             nextTransposeOffset={
               // 移調設定がある場合、次のループの移調オフセットを計算
