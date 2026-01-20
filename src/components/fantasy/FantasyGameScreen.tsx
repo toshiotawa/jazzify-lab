@@ -591,7 +591,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
 
     return () => bgmManager.stop();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
@@ -644,6 +644,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!isInitialized && initPromiseRef.current) {
       await initPromiseRef.current;
     }
+    
+    // 🔊 AudioContextを事前にunlockする（ルート音の初回再生の重さを解消）
+    // ユーザー操作（ボタンクリック）のコンテキストで呼び出すことで確実に動作
+    await FantasySoundManager.unlock();
     
     // 速度を設定
     setSelectedSpeedMultiplier(speedMultiplier);
@@ -1163,8 +1167,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
     let chord;
     if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
-      const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
-      chord = currentNote?.chord;
+      // awaitingLoopStart状態の場合は次のループの最初の音を表示
+      if (gameState.awaitingLoopStart) {
+        // 次のループの移調設定を取得してノーツを計算
+        if (gameState.transposeSettings && gameState.originalTaikoNotes.length > 0) {
+          const nextLoopCycle = (gameState.taikoLoopCycle ?? 0) + 1;
+          const nextTransposeOffset = calculateTransposeOffset(
+            gameState.transposeSettings.keyOffset,
+            nextLoopCycle,
+            gameState.transposeSettings.repeatKeyChange
+          );
+          const transposedNotes = transposeTaikoNotes(gameState.originalTaikoNotes, nextTransposeOffset);
+          chord = transposedNotes[0]?.chord;
+        } else {
+          // 移調設定がない場合は現在のノーツの最初を表示
+          chord = gameState.taikoNotes[0]?.chord;
+        }
+      } else {
+        const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
+        chord = currentNote?.chord;
+      }
     } else {
       // 通常モード: activeMonsters または currentChordTarget を参照
       const targetMonster = gameState.activeMonsters?.[0];
@@ -1177,7 +1199,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex]);
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.taikoLoopCycle, gameState.transposeSettings, gameState.originalTaikoNotes]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   // ※モンスターが複数いる場合は非表示にする

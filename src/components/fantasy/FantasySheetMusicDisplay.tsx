@@ -15,6 +15,7 @@ import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
 import { transposeMusicXml } from '@/utils/musicXmlTransposer';
+import { transposeChordName } from './TaikoNoteSystem';
 
 interface FantasySheetMusicDisplayProps {
   width: number;
@@ -132,6 +133,15 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       };
       
       const osmd = new OpenSheetMusicDisplay(container, options);
+      
+      // MusicXML内の<harmony>要素（コードシンボル）を非表示にする
+      // コードネームはカスタムオーバーレイで表示するため、OSMDでの表示は不要
+      // @ts-expect-error OSMDの内部プロパティにアクセス
+      if (osmd.rules) {
+        // @ts-expect-error OSMDの内部プロパティにアクセス
+        osmd.rules.RenderChordSymbols = false;
+      }
+      
       await osmd.load(transposedXml);
       osmd.render();
       
@@ -281,7 +291,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     if (musicXml) {
       initializeAllSheets();
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+   
   }, [musicXml]);
   
   // 現在のキーと次のキーの楽譜画像
@@ -412,6 +422,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, []);
   
   // Harmonyマーカーの位置を計算（現在のキーのタイムマッピングを使用）
+  // コードネームは移調オフセットに応じて変換
   const harmonyMarkerPositions = useMemo(() => {
     // 現在のキーに対応するタイムマッピングを取得
     const currentOffset = ((transposeOffset % 12) + 12) % 12;
@@ -436,15 +447,58 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       }
       
-      positions.push({ text: marker.text, xPosition });
+      // コードネームを現在の移調オフセットに応じて変換
+      const transposedText = transposeOffset !== 0 
+        ? transposeChordName(marker.text, transposeOffset) 
+        : marker.text;
+      
+      positions.push({ text: transposedText, xPosition });
     }
     
     return positions;
   }, [harmonyMarkers, transposeOffset, timeMapCache]);
   
+  // 次のキー用のHarmonyマーカー位置を計算
+  const nextHarmonyMarkerPositions = useMemo(() => {
+    const nextOffset = nextTransposeOffset !== undefined 
+      ? ((nextTransposeOffset % 12) + 12) % 12
+      : ((transposeOffset % 12) + 12) % 12;
+    const nextMapData = timeMapCache[nextOffset];
+    const mapping = nextMapData?.mapping || timeMappingRef.current;
+    
+    if (harmonyMarkers.length === 0 || mapping.length === 0) {
+      return [];
+    }
+    
+    const positions: Array<{ text: string; xPosition: number }> = [];
+    
+    for (const marker of harmonyMarkers) {
+      const timeMs = marker.time * 1000;
+      let xPosition = 0;
+      
+      for (let i = 0; i < mapping.length - 1; i++) {
+        if (timeMs >= mapping[i].timeMs && timeMs < mapping[i + 1].timeMs) {
+          const t = (timeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
+          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
+          break;
+        }
+      }
+      
+      // コードネームを次のキーの移調オフセットに応じて変換
+      const effectiveOffset = nextTransposeOffset !== undefined ? nextTransposeOffset : transposeOffset;
+      const transposedText = effectiveOffset !== 0 
+        ? transposeChordName(marker.text, effectiveOffset) 
+        : marker.text;
+      
+      positions.push({ text: transposedText, xPosition });
+    }
+    
+    return positions;
+  }, [harmonyMarkers, transposeOffset, nextTransposeOffset, timeMapCache]);
+  
   // Harmonyマーカーのレンダリング（1つの楽譜分）
-  const renderHarmonyMarkers = useCallback((offset: number, keyPrefix: string) => {
-    return harmonyMarkerPositions.map((marker, index) => (
+  const renderHarmonyMarkers = useCallback((markerPositions: Array<{ text: string; xPosition: number }>, offset: number, keyPrefix: string) => {
+    return markerPositions.map((marker, index) => (
       <span
         key={`${keyPrefix}-${index}`}
         className="absolute text-yellow-400 font-bold text-sm whitespace-nowrap drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]"
@@ -453,7 +507,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         {marker.text}
       </span>
     ));
-  }, [harmonyMarkerPositions]);
+  }, []);
   
   if (!musicXml) {
     return (
@@ -506,10 +560,10 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           {/* Harmonyマーカーオーバーレイ（楽譜と一緒にスクロール） */}
           {harmonyMarkerPositions.length > 0 && (
             <div className="absolute top-0 left-0 h-8 pointer-events-none z-10" style={{ width: `${wrapperWidth}px` }}>
-              {/* 1つ目の楽譜用マーカー */}
-              {renderHarmonyMarkers(0, 'first')}
-              {/* 2つ目の楽譜用マーカー（現在のキーの楽譜幅分オフセット） */}
-              {currentSheetWidth > 0 && renderHarmonyMarkers(currentSheetWidth, 'second')}
+              {/* 1つ目の楽譜用マーカー（現在のキー） */}
+              {renderHarmonyMarkers(harmonyMarkerPositions, 0, 'first')}
+              {/* 2つ目の楽譜用マーカー（次のキー、現在のキーの楽譜幅分オフセット） */}
+              {currentSheetWidth > 0 && renderHarmonyMarkers(nextHarmonyMarkerPositions, currentSheetWidth, 'second')}
             </div>
           )}
           
