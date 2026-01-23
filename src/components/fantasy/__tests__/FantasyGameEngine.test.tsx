@@ -81,12 +81,12 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       expect(getStageMonsterIds).toHaveBeenCalledWith(mockStage.enemyCount);
       expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
       const expectedPaths = ['monster_01', 'monster_02', 'monster_03'].map(
-        (id) => expect.stringContaining(`monster_icons/${id}.webp`)
+        (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(expectedPaths));
     });
 
-    it('should fall back to PNG when WebP load fails', async () => {
+    it('should load PNG directly (no WebP fallback)', async () => {
       const failingWebp = ['monster_01', 'monster_02', 'monster_03'].map(
         (id) => `${import.meta.env.BASE_URL}monster_icons/${id}.webp`
       );
@@ -94,11 +94,12 @@ describe('FantasyGameEngine - Monster Image Preloading', () => {
       const monsterIds = getStageMonsterIds(mockStage.enemyCount);
       await preloadMonsterImages(monsterIds, new Map());
 
-      expect(MockImage.sources.length).toBeGreaterThanOrEqual(6);
+      expect(MockImage.sources.length).toBeGreaterThanOrEqual(3);
       const pngPaths = ['monster_01', 'monster_02', 'monster_03'].map(
         (id) => expect.stringContaining(`monster_icons/${id}.png`)
       );
       expect(MockImage.sources).toEqual(expect.arrayContaining(pngPaths));
+      expect(MockImage.sources.some((src) => src.includes('.webp'))).toBe(false);
     });
 
     it('should handle complete failure of monster image loading', async () => {
