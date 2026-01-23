@@ -74,4 +74,9 @@
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200 
+  status = 200
+
+# Edge Functions configuration
+[[edge_functions]]
+  function = "geo"
+  path = "/.netlify/functions/getGeoCountry"
