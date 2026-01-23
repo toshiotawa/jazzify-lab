@@ -122,23 +122,30 @@ export async function fetchMissionRanking(missionId: string, limit = 50, offset 
   if (error) throw error;
   // 退会ユーザーを除外
   return (data ?? [])
-    .map((d) => {
+    .map((d): MissionRankingEntry | null => {
+      if (typeof d.user_id !== 'string') return null;
+      if (typeof d.clear_count !== 'number') return null;
+
       const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
       if (!profile) return null;
       if (profile.nickname === '退会ユーザー') return null;
-      if (profile.email?.endsWith('@deleted.local')) return null;
-      if (profile.nickname === null) return null;
-      if (profile.level === null) return null;
-      if (profile.rank === null) return null;
+      if (typeof profile.email === 'string' && profile.email.endsWith('@deleted.local')) return null;
+      if (typeof profile.nickname !== 'string') return null;
+      if (typeof profile.level !== 'number') return null;
+      if (typeof profile.rank !== 'string') return null;
 
-      return {
+      const base: MissionRankingEntry = {
         user_id: d.user_id,
         clear_count: d.clear_count,
         nickname: profile.nickname,
-        avatar_url: profile.avatar_url ?? undefined,
         level: profile.level,
         rank: profile.rank,
-      } satisfies MissionRankingEntry;
+      };
+
+      if (typeof profile.avatar_url === 'string' && profile.avatar_url.length > 0) {
+        return { ...base, avatar_url: profile.avatar_url };
+      }
+      return base;
     })
     .filter((d): d is MissionRankingEntry => d !== null);
 }
