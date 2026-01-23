@@ -122,20 +122,25 @@ export async function fetchMissionRanking(missionId: string, limit = 50, offset 
   if (error) throw error;
   // 退会ユーザーを除外
   return (data ?? [])
-    .filter((d: { profiles: { nickname: string; email: string } | null }) => {
-      if (!d.profiles) return false;
-      if (d.profiles.nickname === '退会ユーザー') return false;
-      if (d.profiles.email?.endsWith('@deleted.local')) return false;
-      return true;
+    .map((d) => {
+      const profile = Array.isArray(d.profiles) ? d.profiles[0] : d.profiles;
+      if (!profile) return null;
+      if (profile.nickname === '退会ユーザー') return null;
+      if (profile.email?.endsWith('@deleted.local')) return null;
+      if (profile.nickname === null) return null;
+      if (profile.level === null) return null;
+      if (profile.rank === null) return null;
+
+      return {
+        user_id: d.user_id,
+        clear_count: d.clear_count,
+        nickname: profile.nickname,
+        avatar_url: profile.avatar_url ?? undefined,
+        level: profile.level,
+        rank: profile.rank,
+      } satisfies MissionRankingEntry;
     })
-    .map((d: { user_id: string; clear_count: number; profiles: { nickname: string; avatar_url?: string; level: number; rank: string } }) => ({
-      user_id: d.user_id,
-      clear_count: d.clear_count,
-      nickname: d.profiles.nickname,
-      avatar_url: d.profiles.avatar_url,
-      level: d.profiles.level,
-      rank: d.profiles.rank,
-    }));
+    .filter((d): d is MissionRankingEntry => d !== null);
 }
 
 // ===== RPC based helpers for accurate global rank and paginated pages =====
