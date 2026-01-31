@@ -6,13 +6,21 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Jazz Learning Game - Learn jazz piano and guitar through interactive gameplay" />
   
-  <!-- Preload fonts -->
+  <!-- Preconnect to external origins for faster loading -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="dns-prefetch" href="https://cdnjs.cloudflare.com">
+  
+  <!-- Preload critical resources -->
+  <link rel="preload" href="/first-view.png" as="image">
+  <link rel="preload" href="/default_avater/default-avater.png" as="image">
+  
+  <!-- Load fonts with display=swap for faster text rendering -->
   <link href="https://fonts.googleapis.com/css2?family=Kaisei+Opti:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
   
-  <!-- FontAwesome CDN -->
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- FontAwesome CDN - load async to not block rendering -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" media="print" onload="this.media='all'">
+  <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
   
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#0f0f23" />
