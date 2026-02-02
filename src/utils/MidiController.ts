@@ -298,6 +298,9 @@ export class MIDIController {
     console.log('🎹 MIDI Controller initialized (using global audio system)');
   }
 
+  // MIDI APIが利用可能かどうか
+  private midiSupported = false;
+
   public async initialize(): Promise<void> {
     if (this.isInitialized) {
       console.log('🎹 MIDI Controller already initialized');
@@ -306,20 +309,25 @@ export class MIDIController {
 
     try {
       // 共通音声システムを初期化（LPなど軽量指定の考慮）
-        await initializeAudioSystem();
+      await initializeAudioSystem();
       
       // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
-        const help = '詳しくは /help/ios-midi をご覧ください。';
-        const message = isIOS
-          ? 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。App Store の Web MIDI Browser の利用をご検討ください。'
-          : 'Web MIDI API is not supported';
-        throw new Error(`${message} ${help}`);
+        // iOS等でMIDI APIがない場合でもエラーをスローせず、音声システムのみ利用可能にする
+        if (isIOS) {
+          console.log('📱 iOS detected: Web MIDI API not available, touch/click input will be used');
+        } else {
+          console.log('⚠️ Web MIDI API not supported in this browser, touch/click input will be used');
+        }
+        this.midiSupported = false;
+        this.isInitialized = true;
+        return;
       }
 
       this.midiAccess = await navigator.requestMIDIAccess();
+      this.midiSupported = true;
 
       this.midiAccess!.onstatechange = (event): void => {
         if (event.port) {
@@ -349,9 +357,18 @@ export class MIDIController {
 
     } catch (error) {
       console.error('❌ MIDI Error:', error);
+      // MIDI初期化に失敗しても音声システムは利用可能なため、エラーをスローしない
+      this.midiSupported = false;
+      this.isInitialized = true;
       this.notifyConnectionChange(false);
-      throw error;
     }
+  }
+
+  /**
+   * MIDI APIが利用可能かどうかを返す
+   */
+  public isMidiSupported(): boolean {
+    return this.midiSupported;
   }
 
   private handleMIDIMessage = (message: any): void => {

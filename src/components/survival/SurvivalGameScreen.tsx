@@ -245,22 +245,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // MIDIコントローラー初期化
   useEffect(() => {
     const initMidi = async () => {
-      await initializeAudioSystem();
-      
-      midiControllerRef.current = new MIDIController({
-        onNoteOn: (note: number) => {
-          handleNoteInput(note);
-          playNote(note, 100);
-          pixiRendererRef.current?.setKeyActive(note, true);
-        },
-        onNoteOff: (note: number) => {
-          stopNote(note);
-          pixiRendererRef.current?.setKeyActive(note, false);
-        },
-        playMidiSound: false,
-      });
-      
-      await midiControllerRef.current.initialize();
+      try {
+        await initializeAudioSystem();
+        
+        midiControllerRef.current = new MIDIController({
+          onNoteOn: (note: number) => {
+            handleNoteInput(note);
+            playNote(note, 100);
+            pixiRendererRef.current?.setKeyActive(note, true);
+          },
+          onNoteOff: (note: number) => {
+            stopNote(note);
+            pixiRendererRef.current?.setKeyActive(note, false);
+          },
+          playMidiSound: false,
+        });
+        
+        await midiControllerRef.current.initialize();
+        
+        // MIDI非対応の場合でもタッチ/クリック入力でプレイ可能
+        if (!midiControllerRef.current.isMidiSupported()) {
+          console.log('🎹 MIDI not available, using touch/click input only');
+        }
+      } catch (error) {
+        // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
+        console.warn('⚠️ MIDI initialization error, continuing with touch/click input:', error);
+      }
     };
     
     initMidi();
