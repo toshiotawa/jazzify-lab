@@ -10,21 +10,27 @@ import { LevelUpBonus } from './SurvivalTypes';
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
   onSelect: (bonus: LevelUpBonus) => void;
+  onTimeout: () => void;  // タイムアウト時のコールバック
   level: number;
   pendingLevelUps: number;
   onNoteInput: (note: number) => void;
   correctNotes: number[][];  // 各オプションの正解済み音
+  tapSelectionEnabled?: boolean;  // タップで選択可能かどうか
 }
 
 const SELECTION_TIMEOUT = 10;  // 選択制限時間（秒）
 
 const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   options,
+  onSelect,
+  onTimeout,
   level,
   pendingLevelUps,
   correctNotes,
+  tapSelectionEnabled = false,
 }) => {
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
+  const timeoutCalledRef = React.useRef(false);
   
   // タイマー処理
   useEffect(() => {
@@ -33,6 +39,11 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         const newValue = prev - 0.1;
         if (newValue <= 0) {
           // タイムアウト - ボーナスなしで閉じる
+          if (!timeoutCalledRef.current) {
+            timeoutCalledRef.current = true;
+            // 次のイベントループで呼び出し（状態更新中のエラーを回避）
+            setTimeout(() => onTimeout(), 0);
+          }
           return 0;
         }
         return newValue;
@@ -40,7 +51,13 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     }, 100);
     
     return () => clearInterval(interval);
-  }, []);
+  }, [onTimeout]);
+  
+  // タップで選択
+  const handleTapSelect = (option: LevelUpBonus) => {
+    if (!tapSelectionEnabled) return;
+    onSelect(option);
+  };
   
   // 進捗計算
   const getProgress = (index: number): number => {
@@ -95,13 +112,15 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
             return (
               <div
                 key={option.type}
+                onClick={() => handleTapSelect(option)}
                 className={cn(
                   'relative p-4 rounded-xl border-2 transition-all',
                   'bg-gradient-to-br from-gray-700 to-gray-800',
                   isComplete
                     ? 'border-yellow-400 shadow-lg shadow-yellow-500/30 scale-105'
                     : 'border-gray-600 hover:border-gray-500',
-                  progress > 0 && !isComplete && 'border-green-500/50'
+                  progress > 0 && !isComplete && 'border-green-500/50',
+                  tapSelectionEnabled && 'cursor-pointer hover:scale-102 active:scale-98'
                 )}
               >
                 {/* アイコン */}
@@ -165,7 +184,10 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         
         {/* 操作説明 */}
         <div className="text-center text-sm text-gray-400 font-sans">
-          🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし
+          {tapSelectionEnabled 
+            ? '👆 タップまたは🎹 演奏でボーナスを選択！タイムアウトでボーナスなし'
+            : '🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし'
+          }
         </div>
       </div>
     </div>
