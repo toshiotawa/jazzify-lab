@@ -62,11 +62,22 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   // 進捗計算
   const getProgress = (index: number): number => {
     const chord = options[index]?.chord;
-    if (!chord) return 0;
+    if (!chord || !chord.notes) return 0;
     const totalNotes = [...new Set(chord.notes.map(n => n % 12))].length;
     const correct = correctNotes[index]?.length ?? 0;
     return totalNotes > 0 ? (correct / totalNotes) * 100 : 0;
   };
+  
+  // 有効なオプション数をチェック
+  const validOptions = options.filter(opt => opt?.chord?.notes);
+  
+  // 有効なオプションがない場合はタイムアウトを早める
+  React.useEffect(() => {
+    if (validOptions.length === 0) {
+      // 全てのオプションにコードがない場合は即座にタイムアウト
+      onTimeout();
+    }
+  }, [validOptions.length, onTimeout]);
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-[140px] z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -108,11 +119,19 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
           {options.map((option, index) => {
             const progress = getProgress(index);
             const isComplete = progress >= 100;
+            const hasValidChord = option?.chord?.notes != null;
             
             return (
               <div
                 key={option.type}
-                onClick={() => handleTapSelect(option)}
+                onClick={() => hasValidChord && handleTapSelect(option)}
+                role="button"
+                tabIndex={tapSelectionEnabled && hasValidChord ? 0 : -1}
+                onKeyDown={(e) => {
+                  if ((e.key === 'Enter' || e.key === ' ') && tapSelectionEnabled && hasValidChord) {
+                    handleTapSelect(option);
+                  }
+                }}
                 className={cn(
                   'relative p-4 rounded-xl border-2 transition-all',
                   'bg-gradient-to-br from-gray-700 to-gray-800',
@@ -120,7 +139,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                     ? 'border-yellow-400 shadow-lg shadow-yellow-500/30 scale-105'
                     : 'border-gray-600 hover:border-gray-500',
                   progress > 0 && !isComplete && 'border-green-500/50',
-                  tapSelectionEnabled && 'cursor-pointer hover:scale-102 active:scale-98'
+                  tapSelectionEnabled && hasValidChord && 'cursor-pointer hover:scale-102 active:scale-98',
+                  !hasValidChord && 'opacity-50 cursor-not-allowed'
                 )}
               >
                 {/* アイコン */}
@@ -152,13 +172,14 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                   isComplete ? 'border-yellow-400' : 'border-gray-600'
                 )}>
                   <div className="text-xs text-gray-400 mb-1 font-sans">
-                    🎹 演奏して選択
+                    {tapSelectionEnabled ? '👆 タップまたは🎹 演奏' : '🎹 演奏して選択'}
                   </div>
                   <div className={cn(
                     'text-xl font-bold font-sans',
-                    isComplete ? 'text-yellow-400' : 'text-white'
+                    isComplete ? 'text-yellow-400' : 'text-white',
+                    !hasValidChord && 'text-red-400'
                   )}>
-                    {option.chord?.displayName ?? '---'}
+                    {hasValidChord ? option.chord.displayName : '---'}
                   </div>
                 </div>
                 

@@ -121,8 +121,19 @@ const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
 export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
+  cAtk?: number;
   skills?: string[];
   tapSkillActivation?: boolean;
+  initialLevel?: number;
+  magics?: {
+    thunder?: number;
+    ice?: number;
+    fire?: number;
+    heal?: number;
+    buffer?: number;
+    debuffer?: number;
+    hint?: number;
+  };
 }
 
 interface SurvivalStageSelectProps {
@@ -153,8 +164,27 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugDifficulty, setDebugDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [debugAAtk, setDebugAAtk] = useState<number>(10);
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
+  const [debugCAtk, setDebugCAtk] = useState<number>(20);
   const [debugSkills, setDebugSkills] = useState<string[]>([]);
   const [debugTapSkillActivation, setDebugTapSkillActivation] = useState(false);
+  const [debugInitialLevel, setDebugInitialLevel] = useState<number>(1);
+  const [debugMagics, setDebugMagics] = useState<{
+    thunder: number;
+    ice: number;
+    fire: number;
+    heal: number;
+    buffer: number;
+    debuffer: number;
+    hint: number;
+  }>({
+    thunder: 0,
+    ice: 0,
+    fire: 0,
+    heal: 0,
+    buffer: 0,
+    debuffer: 0,
+    hint: 0,
+  });
   
   // データを読み込み
   const loadData = useCallback(async () => {
@@ -284,8 +314,11 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     const debugSettings: DebugSettings = {
       aAtk: debugAAtk,
       bAtk: debugBAtk,
+      cAtk: debugCAtk,
       skills: debugSkills,
       tapSkillActivation: debugTapSkillActivation,
+      initialLevel: debugInitialLevel,
+      magics: debugMagics,
     };
     
     setDebugModalOpen(false);
@@ -448,6 +481,21 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               🛠️ {isEnglishCopy ? 'Debug Settings' : 'デバッグ設定'} ({debugDifficulty.toUpperCase()})
             </h3>
             
+            {/* レベル設定 */}
+            <div className="mb-6">
+              <label className="block text-gray-300 text-sm mb-2 font-sans">
+                ⭐ {isEnglishCopy ? 'Initial Level' : '初期レベル'}: {debugInitialLevel}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="50"
+                value={debugInitialLevel}
+                onChange={(e) => setDebugInitialLevel(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+            
             {/* 攻撃力設定 */}
             <div className="space-y-4 mb-6">
               <div>
@@ -477,6 +525,20 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   className="w-full"
                 />
               </div>
+              
+              <div>
+                <label className="block text-gray-300 text-sm mb-2 font-sans">
+                  🪄 C列攻撃力 (cAtk): {debugCAtk}
+                </label>
+                <input
+                  type="range"
+                  min="1"
+                  max="500"
+                  value={debugCAtk}
+                  onChange={(e) => setDebugCAtk(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
             </div>
             
             {/* スキル選択 */}
@@ -485,7 +547,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 ⚡ {isEnglishCopy ? 'Initial Skills' : '初期スキル'}
               </label>
               <div className="grid grid-cols-2 gap-2">
-                {DEBUG_SKILLS.map(skill => (
+                {DEBUG_SKILLS.filter(s => s.id !== 'magic_all').map(skill => (
                   <button
                     key={skill.id}
                     onClick={() => toggleDebugSkill(skill.id)}
@@ -499,6 +561,66 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                     {skill.emoji} {skill.label}
                   </button>
                 ))}
+              </div>
+            </div>
+            
+            {/* 魔法個別設定 */}
+            <div className="mb-6">
+              <label className="block text-gray-300 text-sm mb-2 font-sans">
+                🪄 {isEnglishCopy ? 'Magic Levels (0=disabled, 1-3=level)' : '魔法レベル（0=なし, 1-3=レベル）'}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {([
+                  { key: 'thunder', label: '⚡ Thunder', labelJp: '⚡ 雷' },
+                  { key: 'ice', label: '❄️ Ice', labelJp: '❄️ 氷' },
+                  { key: 'fire', label: '🔥 Fire', labelJp: '🔥 炎' },
+                  { key: 'heal', label: '💚 Heal', labelJp: '💚 回復' },
+                  { key: 'buffer', label: '⬆️ Buffer', labelJp: '⬆️ バフ' },
+                  { key: 'debuffer', label: '⬇️ Debuffer', labelJp: '⬇️ デバフ' },
+                  { key: 'hint', label: '💡 Hint', labelJp: '💡 ヒント' },
+                ] as const).map(({ key, label, labelJp }) => (
+                  <div key={key} className="flex items-center gap-2">
+                    <span className="text-xs text-gray-400 w-20 font-sans">
+                      {isEnglishCopy ? label : labelJp}
+                    </span>
+                    <div className="flex gap-1">
+                      {[0, 1, 2, 3].map(level => (
+                        <button
+                          key={level}
+                          onClick={() => setDebugMagics(prev => ({ ...prev, [key]: level }))}
+                          className={cn(
+                            'w-7 h-7 rounded text-xs font-sans transition-colors',
+                            debugMagics[key] === level
+                              ? 'bg-purple-600 text-white'
+                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                          )}
+                        >
+                          {level}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ))}
+              </div>
+              
+              {/* 全魔法一括設定ボタン */}
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={() => setDebugMagics({
+                    thunder: 0, ice: 0, fire: 0, heal: 0, buffer: 0, debuffer: 0, hint: 0
+                  })}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-sans bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                >
+                  {isEnglishCopy ? 'Reset All' : 'すべてリセット'}
+                </button>
+                <button
+                  onClick={() => setDebugMagics({
+                    thunder: 3, ice: 3, fire: 3, heal: 3, buffer: 3, debuffer: 3, hint: 3
+                  })}
+                  className="flex-1 px-3 py-2 rounded-lg text-xs font-sans bg-purple-700 text-white hover:bg-purple-600 transition-colors"
+                >
+                  {isEnglishCopy ? 'Max All' : 'すべて最大'}
+                </button>
               </div>
             </div>
             
