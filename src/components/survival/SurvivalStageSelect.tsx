@@ -17,6 +17,8 @@ import {
   SurvivalHighScore,
 } from '@/platform/supabaseSurvival';
 import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { initializeAudioSystem } from '@/utils/MidiController';
 
 // デフォルト難易度設定（DB取得前のフォールバック）
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
@@ -281,7 +283,16 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             return (
               <button
                 key={difficulty}
-                onClick={() => onStageSelect(difficulty, config)}
+                onClick={async () => {
+                  // iOS対応: ユーザージェスチャー内でAudioContextを初期化
+                  try {
+                    await FantasySoundManager.unlock();
+                    await initializeAudioSystem();
+                  } catch {
+                    // エラーは無視してゲームを開始（音が出ない可能性あり）
+                  }
+                  onStageSelect(difficulty, config);
+                }}
                 className={cn(
                   'w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:shadow-xl',
                   colors.border,
