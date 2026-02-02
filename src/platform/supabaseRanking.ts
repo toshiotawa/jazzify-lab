@@ -12,6 +12,8 @@ export interface RankingEntry {
   twitter_handle?: string;
   selected_title?: string;
   fantasy_cleared_stages?: number;
+  best_survival_time?: number;
+  survival_best_difficulty?: string;
 }
 
 export async function fetchLevelRanking(limit = 50, offset = 0): Promise<RankingEntry[]> {
@@ -170,6 +172,8 @@ export async function fetchLevelRankingByView(limit = 50, offset = 0): Promise<R
       twitter_handle: r.twitter_handle ?? undefined,
       selected_title: r.selected_title ?? undefined,
       fantasy_cleared_stages: r.fantasy_cleared_stages !== null && r.fantasy_cleared_stages !== undefined ? Number(r.fantasy_cleared_stages) : 0,
+      best_survival_time: r.best_survival_time !== null && r.best_survival_time !== undefined ? Number(r.best_survival_time) : 0,
+      survival_best_difficulty: r.survival_best_difficulty ?? undefined,
     })) as unknown as RankingEntry[];
   } catch (e) {
     console.warn('rpc_get_level_ranking が利用できないためフォールバックを使用します:', e);

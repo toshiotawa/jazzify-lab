@@ -77,6 +77,37 @@ const STATUS_ICONS: Record<string, string> = {
   def_up: '🦺',
 };
 
+// ===== 敵タイプ別アイコン =====
+const ENEMY_ICONS: Record<string, string> = {
+  slime: '🫠',
+  goblin: '👺',
+  skeleton: '💀',
+  zombie: '🧟',
+  bat: '🦇',
+  ghost: '👻',
+  orc: '👹',
+  demon: '😈',
+  dragon: '🐲',
+  boss: '👑',
+};
+
+// ===== プレイヤーアイコン =====
+const PLAYER_ICON = '🧙';
+
+// ===== 弾丸アイコン =====
+const PROJECTILE_ICON = '✨';
+
+// ===== 魔法エフェクトアイコン =====
+const MAGIC_ICONS: Record<string, string> = {
+  thunder: '⚡',
+  ice: '❄️',
+  fire: '🔥',
+  heal: '💚',
+  buffer: '⬆️',
+  debuffer: '⬇️',
+  hint: '💡',
+};
+
 const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
   viewportWidth,
@@ -171,30 +202,44 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
           screenY < -50 || screenY > viewportHeight + 50) return;
       
       const size = enemy.isBoss ? 40 : 28;
+      const fontSize = enemy.isBoss ? 36 : 24;
       
-      // ステータス異常エフェクト
+      // ステータス異常エフェクト（アイコンを周りに表示）
       if (enemy.statusEffects.some(e => e.type === 'ice')) {
         ctx.fillStyle = 'rgba(34, 211, 238, 0.3)';
         ctx.beginPath();
-        ctx.arc(screenX, screenY, size + 5, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, size + 8, 0, Math.PI * 2);
         ctx.fill();
+        // 氷アイコンをオーバーレイ
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('❄️', screenX + size / 2 + 8, screenY - size / 2);
       }
       if (enemy.statusEffects.some(e => e.type === 'fire')) {
         ctx.fillStyle = 'rgba(249, 115, 22, 0.3)';
         ctx.beginPath();
-        ctx.arc(screenX, screenY, size + 5, 0, Math.PI * 2);
+        ctx.arc(screenX, screenY, size + 8, 0, Math.PI * 2);
         ctx.fill();
+        // 炎アイコンをオーバーレイ
+        ctx.font = '14px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('🔥', screenX - size / 2 - 8, screenY - size / 2);
       }
       
-      // 敵本体
-      ctx.fillStyle = COLORS.enemy[enemy.type] || '#ef4444';
-      ctx.strokeStyle = enemy.isBoss ? '#fbbf24' : '#000';
-      ctx.lineWidth = enemy.isBoss ? 3 : 2;
+      // 敵本体（アイコンで描画）
+      const enemyIcon = ENEMY_ICONS[enemy.type] || '👾';
+      ctx.font = `${fontSize}px sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(enemyIcon, screenX, screenY);
       
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, size / 2, 0, Math.PI * 2);
-      ctx.fill();
-      ctx.stroke();
+      // ボスの場合は王冠を表示
+      if (enemy.isBoss) {
+        ctx.font = '16px sans-serif';
+        ctx.fillText('👑', screenX, screenY - size / 2 - 12);
+      }
       
       // HPバー
       const hpPercent = enemy.stats.hp / enemy.stats.maxHp;
@@ -220,7 +265,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
     });
 
-    // 弾丸描画
+    // 弾丸描画（アイコンで描画）
     projectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
@@ -228,14 +273,12 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -20 || screenX > viewportWidth + 20 ||
           screenY < -20 || screenY > viewportHeight + 20) return;
       
-      ctx.fillStyle = COLORS.projectile;
+      ctx.font = '16px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
       ctx.shadowColor = COLORS.projectile;
-      ctx.shadowBlur = 10;
-      
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, 6, 0, Math.PI * 2);
-      ctx.fill();
-      
+      ctx.shadowBlur = 8;
+      ctx.fillText(PROJECTILE_ICON, screenX, screenY);
       ctx.shadowBlur = 0;
     });
 
@@ -249,26 +292,31 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.beginPath();
       ctx.arc(playerScreenX, playerScreenY, 50, 0, Math.PI * 2);
       ctx.fill();
+      // 炎エフェクトのアイコン
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i < 4; i++) {
+        const angle = (i / 4) * Math.PI * 2 + Date.now() / 500;
+        const fx = playerScreenX + Math.cos(angle) * 35;
+        const fy = playerScreenY + Math.sin(angle) * 35;
+        ctx.fillText('🔥', fx, fy);
+      }
     }
     
-    // プレイヤー本体
-    ctx.fillStyle = COLORS.player;
-    ctx.strokeStyle = COLORS.playerBorder;
-    ctx.lineWidth = 3;
+    // プレイヤー本体（アイコンで描画）
+    ctx.font = '32px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(PLAYER_ICON, playerScreenX, playerScreenY);
     
-    ctx.beginPath();
-    ctx.arc(playerScreenX, playerScreenY, 16, 0, Math.PI * 2);
-    ctx.fill();
-    ctx.stroke();
-    
-    // 方向インジケーター
+    // 方向インジケーター（矢印アイコン）
     const dirVec = getDirectionVector(player.direction);
-    ctx.strokeStyle = '#fff';
-    ctx.lineWidth = 3;
-    ctx.beginPath();
-    ctx.moveTo(playerScreenX, playerScreenY);
-    ctx.lineTo(playerScreenX + dirVec.x * 20, playerScreenY + dirVec.y * 20);
-    ctx.stroke();
+    const arrowX = playerScreenX + dirVec.x * 25;
+    const arrowY = playerScreenY + dirVec.y * 25;
+    ctx.font = '14px sans-serif';
+    ctx.fillStyle = '#fff';
+    ctx.fillText('➤', arrowX, arrowY);
     
     // プレイヤーHPバー
     const playerHpPercent = player.stats.hp / player.stats.maxHp;
@@ -293,7 +341,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
     }
 
-    // 衝撃波エフェクト描画
+    // 衝撃波エフェクト描画（アイコンベース）
     const now = Date.now();
     shockwaves.forEach(sw => {
       const elapsed = now - sw.startTime;
@@ -314,12 +362,18 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
       ctx.stroke();
       
-      // 内側のグロー
-      ctx.globalAlpha = alpha * 0.3;
-      ctx.fillStyle = '#fbbf24';  // 黄色
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, currentRadius * 0.5, 0, Math.PI * 2);
-      ctx.fill();
+      // 衝撃波アイコン（放射状に配置）
+      ctx.globalAlpha = alpha;
+      ctx.font = '20px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      const iconCount = 6;
+      for (let i = 0; i < iconCount; i++) {
+        const angle = (i / iconCount) * Math.PI * 2;
+        const ix = screenX + Math.cos(angle) * currentRadius;
+        const iy = screenY + Math.sin(angle) * currentRadius;
+        ctx.fillText('💥', ix, iy);
+      }
       
       ctx.globalAlpha = 1;
     });

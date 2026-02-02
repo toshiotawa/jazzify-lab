@@ -309,6 +309,11 @@ const Dashboard: React.FC = () => {
                       {!isStandardGlobal && (<span>{isEnglishCopy ? 'Missions completed' : 'ミッション完了数'} {userStats.missionCompletedCount}</span>)}
                       {!isStandardGlobal && (<span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>)}
                       <span>{isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'} {userStats.dailyChallengeParticipationDays}</span>
+                      {userStats.survivalBestTimeSeconds > 0 && (
+                        <span>
+                          {isEnglishCopy ? 'Survival' : 'サバイバル'}: {Math.floor(userStats.survivalBestTimeSeconds / 60)}{isEnglishCopy ? 'min' : '分'}
+                        </span>
+                      )}
                     </div>
                   ) : null}
                   

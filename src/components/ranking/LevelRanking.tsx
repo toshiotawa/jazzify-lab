@@ -9,7 +9,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
-type SortKey = 'level' | 'lessons' | 'missions';
+type SortKey = 'level' | 'lessons' | 'missions' | 'survival';
 
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
@@ -33,6 +33,15 @@ const LevelRanking: React.FC = () => {
   const userColumnText = isEnglishCopy ? 'User' : 'ユーザー(タップで詳細)';
   const titleColumnText = isEnglishCopy ? 'Title' : '称号';
   const fantasyColumnText = isEnglishCopy ? 'Fantasy' : 'ファンタジー';
+  const survivalColumnText = isEnglishCopy ? 'Survival' : 'サバイバル';
+
+  // 時間をフォーマット
+  const formatSurvivalTime = (seconds: number): string => {
+    if (seconds <= 0) return '-';
+    const mins = Math.floor(seconds / 60);
+    const secs = Math.floor(seconds % 60);
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
+  };
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -53,6 +62,11 @@ const LevelRanking: React.FC = () => {
         case 'missions':
           if (a.missions_completed !== b.missions_completed) return b.missions_completed - a.missions_completed;
           return b.level - a.level; // ミッション数が同じ場合はレベルで比較
+        case 'survival':
+          const aTime = a.best_survival_time ?? 0;
+          const bTime = b.best_survival_time ?? 0;
+          if (aTime !== bTime) return bTime - aTime;
+          return b.level - a.level; // 生存時間が同じ場合はレベルで比較
         default:
           return 0;
       }
@@ -270,7 +284,7 @@ const LevelRanking: React.FC = () => {
               </button>
             </div>
             {/* ソート切り替えボタン */}
-            <div className="flex justify-center space-x-2">
+            <div className="flex justify-center space-x-2 flex-wrap gap-2">
               <button
                 onClick={() => setSortKey('level')}
                 className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
@@ -305,6 +319,16 @@ const LevelRanking: React.FC = () => {
                   </button>
                 </>
               )}
+              <button
+                onClick={() => setSortKey('survival')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortKey === 'survival'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                Survival
+              </button>
             </div>
             
             <div className="overflow-x-auto">
@@ -318,6 +342,7 @@ const LevelRanking: React.FC = () => {
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Lessons' : 'レッスン'}</th>}
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Missions' : 'ミッション'}</th>}
                 <th className="py-3 px-2 min-w-[4rem]">{fantasyColumnText}</th>
+                <th className="py-3 px-2 min-w-[5rem]">{survivalColumnText}</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>}
                 <th className="py-3 px-2 min-w-[8rem] sm:min-w-[6rem]">Twitter</th>
               </tr>
@@ -392,6 +417,7 @@ const LevelRanking: React.FC = () => {
                   {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
                   {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}
                   <td className="py-3 px-2 text-purple-300">{e.fantasy_cleared_stages ?? 0}</td>
+                  <td className="py-3 px-2 text-red-300">{formatSurvivalTime(e.best_survival_time ?? 0)}</td>
                   {!isStandardGlobal && (
                     <td className="py-3 px-2">
                       <div className="flex items-center space-x-1">

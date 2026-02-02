@@ -1,10 +1,11 @@
 import { getSupabaseClient, getCurrentUserIdCached } from './supabaseClient';
-import { requireUserId } from '@/platform/authHelpers';
 
 export interface UserStats {
   missionCompletedCount: number;
   lessonCompletedCount: number;
   dailyChallengeParticipationDays: number;
+  survivalBestTimeSeconds: number;
+  survivalBestDifficulty: string | null;
 }
 
 // キャッシュ用の変数
@@ -27,8 +28,8 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
   }
 
   try {
-    // ミッション、レッスン、デイリーチャレンジの統計を並行取得
-    const [missionResult, lessonResult, dailyChallengeResult] = await Promise.all([
+    // ミッション、レッスン、デイリーチャレンジ、サバイバルの統計を並行取得
+    const [missionResult, lessonResult, dailyChallengeResult, survivalResult] = await Promise.all([
       supabase
         .from('user_challenge_progress')
         .select('challenge_id')
@@ -43,7 +44,15 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
       supabase
         .from('daily_challenge_records')
         .select('played_on')
+        .eq('user_id', targetUserId),
+      // サバイバルモードのベストスコア
+      supabase
+        .from('survival_high_scores')
+        .select('survival_time_seconds, difficulty')
         .eq('user_id', targetUserId)
+        .order('survival_time_seconds', { ascending: false })
+        .limit(1)
+        .maybeSingle()
     ]);
 
     // エラーチェック
@@ -56,6 +65,10 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
     if (dailyChallengeResult.error) {
       throw new Error(`デイリーチャレンジ統計の取得に失敗しました: ${dailyChallengeResult.error.message}`);
     }
+    // survivalResult.errorは致命的ではないのでログのみ
+    if (survivalResult.error) {
+      console.warn('サバイバル統計の取得に失敗:', survivalResult.error.message);
+    }
 
     // 同じ日に複数の難易度をプレイしても1日としてカウント
     const uniqueDays = new Set(
@@ -66,6 +79,8 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
       missionCompletedCount: missionResult.data?.length || 0,
       lessonCompletedCount: lessonResult.data?.length || 0,
       dailyChallengeParticipationDays: uniqueDays.size,
+      survivalBestTimeSeconds: Number(survivalResult.data?.survival_time_seconds) || 0,
+      survivalBestDifficulty: survivalResult.data?.difficulty as string | null || null,
     };
 
     // キャッシュに保存
@@ -81,6 +96,8 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
       missionCompletedCount: 0,
       lessonCompletedCount: 0,
       dailyChallengeParticipationDays: 0,
+      survivalBestTimeSeconds: 0,
+      survivalBestDifficulty: null,
     };
   }
 }
