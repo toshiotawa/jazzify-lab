@@ -146,8 +146,19 @@ interface SurvivalGameScreenProps {
   debugSettings?: {
     aAtk?: number;
     bAtk?: number;
+    cAtk?: number;
     skills?: string[];
     tapSkillActivation?: boolean;
+    initialLevel?: number;
+    magics?: {
+      thunder?: number;
+      ice?: number;
+      fire?: number;
+      heal?: number;
+      buffer?: number;
+      debuffer?: number;
+      hint?: number;
+    };
   };
 }
 
@@ -171,12 +182,54 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const initial = createInitialGameState(difficulty, config);
     // デバッグ設定を適用
     if (debugSettings) {
+      // 攻撃力設定
       if (debugSettings.aAtk !== undefined) {
         initial.player.stats.aAtk = debugSettings.aAtk;
       }
       if (debugSettings.bAtk !== undefined) {
         initial.player.stats.bAtk = debugSettings.bAtk;
       }
+      if (debugSettings.cAtk !== undefined) {
+        initial.player.stats.cAtk = debugSettings.cAtk;
+      }
+      
+      // 初期レベル設定
+      if (debugSettings.initialLevel !== undefined && debugSettings.initialLevel > 1) {
+        initial.player.level = debugSettings.initialLevel;
+        // レベルに応じて経験値要求量を更新
+        let expToNext = 10;
+        for (let i = 1; i < debugSettings.initialLevel; i++) {
+          expToNext = Math.floor(expToNext * 1.5);
+        }
+        initial.player.expToNextLevel = expToNext;
+      }
+      
+      // 魔法の個別設定
+      if (debugSettings.magics) {
+        if (debugSettings.magics.thunder !== undefined) {
+          initial.player.magics.thunder = debugSettings.magics.thunder;
+        }
+        if (debugSettings.magics.ice !== undefined) {
+          initial.player.magics.ice = debugSettings.magics.ice;
+        }
+        if (debugSettings.magics.fire !== undefined) {
+          initial.player.magics.fire = debugSettings.magics.fire;
+        }
+        if (debugSettings.magics.heal !== undefined) {
+          initial.player.magics.heal = debugSettings.magics.heal;
+        }
+        if (debugSettings.magics.buffer !== undefined) {
+          initial.player.magics.buffer = debugSettings.magics.buffer;
+        }
+        if (debugSettings.magics.debuffer !== undefined) {
+          initial.player.magics.debuffer = debugSettings.magics.debuffer;
+        }
+        if (debugSettings.magics.hint !== undefined) {
+          initial.player.magics.hint = debugSettings.magics.hint;
+        }
+      }
+      
+      // スキル設定
       if (debugSettings.skills) {
         debugSettings.skills.forEach(skill => {
           switch (skill) {
@@ -194,12 +247,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               break;
             case 'multi_hit':
               initial.player.skills.multiHitLevel = 3;
-              break;
-            case 'magic_all':
-              initial.player.magics = {
-                thunder: 3, ice: 3, fire: 3, heal: 3,
-                buffer: 3, debuffer: 3, hint: 3,
-              };
               break;
           }
         });
@@ -351,18 +398,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ゲーム開始
   const startGame = useCallback(() => {
-    const hasMagic = Object.values(gameState.player.magics).some(l => l > 0);
-    const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic);
-    
-    setGameState(prev => ({
-      ...prev,
-      isPlaying: true,
-      codeSlots,
-    }));
+    setGameState(prev => {
+      // 現在のプレイヤーの魔法状態を確認
+      const hasMagic = Object.values(prev.player.magics).some(l => l > 0);
+      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic);
+      
+      return {
+        ...prev,
+        isPlaying: true,
+        codeSlots,
+      };
+    });
     
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, gameState.player.magics]);
+  }, [config.allowedChords]);
   
   // ゲーム開始（初回）
   useEffect(() => {
@@ -446,22 +496,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     // レベルアップ中の処理
     if (gameState.isLevelingUp) {
-      setLevelUpCorrectNotes(prev => {
-        const newNotes = [...prev];
-        gameState.levelUpOptions.forEach((option, index) => {
-          if (option.chord) {
-            const correct = getCorrectNotes([...prev[index], note], option.chord);
-            newNotes[index] = correct;
-            
-            // 完成チェック - newNotes[index]を使う（更新後の値）
-            if (checkChordMatch(newNotes[index], option.chord)) {
-              // ボーナス適用
-              handleLevelUpBonusSelect(option);
-            }
+      // 現在の正解ノートを取得して新しいノートを追加
+      const currentCorrectNotes = [...levelUpCorrectNotes];
+      let matchedOptionIndex = -1;
+      
+      gameState.levelUpOptions.forEach((option, index) => {
+        if (option.chord && matchedOptionIndex === -1) {
+          const prevNotes = currentCorrectNotes[index] || [];
+          const correct = getCorrectNotes([...prevNotes, note], option.chord);
+          currentCorrectNotes[index] = correct;
+          
+          // 完成チェック
+          if (checkChordMatch(correct, option.chord)) {
+            matchedOptionIndex = index;
           }
-        });
-        return newNotes;
+        }
       });
+      
+      // 状態を更新
+      setLevelUpCorrectNotes(currentCorrectNotes);
+      
+      // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
+      if (matchedOptionIndex >= 0) {
+        const matchedOption = gameState.levelUpOptions[matchedOptionIndex];
+        // 次のイベントループで実行して状態更新の競合を避ける
+        setTimeout(() => {
+          handleLevelUpBonusSelect(matchedOption);
+        }, 0);
+      }
       return;
     }
     
@@ -630,7 +692,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords]);
+  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
   
   // タップでスキル発動（デバッグ用）
   const handleTapSkillActivation = useCallback((slotIndex: number) => {
@@ -879,22 +941,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 経験値獲得とレベルアップ
         if (defeatedEnemies.length > 0) {
           const expGained = defeatedEnemies.reduce((sum, e) => sum + (e.isBoss ? 50 : 10) * config.expMultiplier, 0);
-          const { player: newPlayer, leveledUp } = addExp(newState.player, expGained);
+          const { player: newPlayer, leveledUp, levelUpCount } = addExp(newState.player, expGained);
           newState.player = newPlayer;
           newState.enemiesDefeated += defeatedEnemies.length;
           
-          if (leveledUp) {
-            let pendingLevelUps = 0;
-            let tempPlayer = newPlayer;
-            while (tempPlayer.exp >= tempPlayer.expToNextLevel) {
-              pendingLevelUps++;
-              tempPlayer = { ...tempPlayer, exp: tempPlayer.exp - tempPlayer.expToNextLevel };
-            }
-            
+          if (leveledUp && levelUpCount > 0) {
             const options = generateLevelUpOptions(newPlayer, config.allowedChords);
             newState.isLevelingUp = true;
             newState.levelUpOptions = options;
-            newState.pendingLevelUps = pendingLevelUps + 1;
+            newState.pendingLevelUps = levelUpCount;
             setLevelUpCorrectNotes([[], [], []]);
           }
         }
@@ -915,11 +970,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         
         // スロットタイマー更新
-        newState.codeSlots.current = newState.codeSlots.current.map(slot => {
+        newState.codeSlots.current = newState.codeSlots.current.map((slot, slotIndex) => {
           if (!slot.isEnabled || slot.isCompleted) return slot;
+          
+          // コードが空の場合、新しいコードを生成
+          if (!slot.chord) {
+            const newChord = selectRandomChord(config.allowedChords);
+            if (newChord) {
+              return { ...slot, chord: newChord, correctNotes: [], timer: SLOT_TIMEOUT };
+            }
+            return slot;
+          }
+          
           const newTimer = slot.timer - deltaTime;
           if (newTimer <= 0) {
-            const nextChord = newState.codeSlots.next[['A', 'B', 'C'].indexOf(slot.type)].chord;
+            // 次のコードを取得し、無ければ新しく生成
+            let nextChord = newState.codeSlots.next[slotIndex]?.chord;
+            if (!nextChord) {
+              nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
+            }
+            
+            // 次のスロットのコードも更新
+            const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+            newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+              i === slotIndex ? { ...ns, chord: newNextChord } : ns
+            ) as [CodeSlot, CodeSlot, CodeSlot];
+            
             return { ...slot, chord: nextChord, correctNotes: [], timer: SLOT_TIMEOUT };
           }
           return { ...slot, timer: newTimer };
@@ -984,14 +1060,77 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleRetry = useCallback(() => {
     setResult(null);
     setShockwaves([]);
+    setLevelUpCorrectNotes([[], [], []]);
     const initial = createInitialGameState(difficulty, config);
     // デバッグ設定を再適用
     if (debugSettings) {
+      // 攻撃力設定
       if (debugSettings.aAtk !== undefined) {
         initial.player.stats.aAtk = debugSettings.aAtk;
       }
       if (debugSettings.bAtk !== undefined) {
         initial.player.stats.bAtk = debugSettings.bAtk;
+      }
+      if (debugSettings.cAtk !== undefined) {
+        initial.player.stats.cAtk = debugSettings.cAtk;
+      }
+      
+      // 初期レベル設定
+      if (debugSettings.initialLevel !== undefined && debugSettings.initialLevel > 1) {
+        initial.player.level = debugSettings.initialLevel;
+        let expToNext = 10;
+        for (let i = 1; i < debugSettings.initialLevel; i++) {
+          expToNext = Math.floor(expToNext * 1.5);
+        }
+        initial.player.expToNextLevel = expToNext;
+      }
+      
+      // 魔法の個別設定
+      if (debugSettings.magics) {
+        if (debugSettings.magics.thunder !== undefined) {
+          initial.player.magics.thunder = debugSettings.magics.thunder;
+        }
+        if (debugSettings.magics.ice !== undefined) {
+          initial.player.magics.ice = debugSettings.magics.ice;
+        }
+        if (debugSettings.magics.fire !== undefined) {
+          initial.player.magics.fire = debugSettings.magics.fire;
+        }
+        if (debugSettings.magics.heal !== undefined) {
+          initial.player.magics.heal = debugSettings.magics.heal;
+        }
+        if (debugSettings.magics.buffer !== undefined) {
+          initial.player.magics.buffer = debugSettings.magics.buffer;
+        }
+        if (debugSettings.magics.debuffer !== undefined) {
+          initial.player.magics.debuffer = debugSettings.magics.debuffer;
+        }
+        if (debugSettings.magics.hint !== undefined) {
+          initial.player.magics.hint = debugSettings.magics.hint;
+        }
+      }
+      
+      // スキル設定
+      if (debugSettings.skills) {
+        debugSettings.skills.forEach(skill => {
+          switch (skill) {
+            case 'a_penetration':
+              initial.player.skills.aPenetration = true;
+              break;
+            case 'a_back_bullet':
+              initial.player.skills.aBackBullet = 3;
+              break;
+            case 'a_right_bullet':
+              initial.player.skills.aRightBullet = 3;
+              break;
+            case 'a_left_bullet':
+              initial.player.skills.aLeftBullet = 3;
+              break;
+            case 'multi_hit':
+              initial.player.skills.multiHitLevel = 3;
+              break;
+          }
+        });
       }
     }
     setGameState(initial);

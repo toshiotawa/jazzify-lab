@@ -143,20 +143,37 @@ export const getChordDefinition = (chordId: string): ChordDefinition | null => {
 };
 
 export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition | null => {
+  if (!allowedChords || allowedChords.length === 0) {
+    return null;
+  }
+  
   // excludeIdsを配列に正規化
   const excludeArray = excludeIds 
     ? (Array.isArray(excludeIds) ? excludeIds : [excludeIds])
     : [];
   
   const available = allowedChords.filter(c => !excludeArray.includes(c));
-  if (available.length === 0) {
-    // 除外するとコードがなくなる場合は、除外せずに選択
-    const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
-    return getChordDefinition(chordId);
+  
+  // 利用可能なコードからランダムに選択（複数回試行）
+  const chordsToTry = available.length > 0 ? available : allowedChords;
+  
+  for (let attempt = 0; attempt < chordsToTry.length; attempt++) {
+    const chordId = chordsToTry[Math.floor(Math.random() * chordsToTry.length)];
+    const chord = getChordDefinition(chordId);
+    if (chord) {
+      return chord;
+    }
   }
   
-  const chordId = available[Math.floor(Math.random() * available.length)];
-  return getChordDefinition(chordId);
+  // 全て失敗した場合、すべてのコードを順番に試す
+  for (const chordId of allowedChords) {
+    const chord = getChordDefinition(chordId);
+    if (chord) {
+      return chord;
+    }
+  }
+  
+  return null;
 };
 
 // ===== コードスロット管理 =====
@@ -509,16 +526,37 @@ export const generateLevelUpOptions = (
   
   // コードを割り当て（重複しないように）
   const usedChordIds: string[] = [];
-  return selected.map((bonus) => {
+  const result: LevelUpBonus[] = [];
+  
+  for (const bonus of selected) {
     const chord = selectRandomChord(allowedChords, usedChordIds);
     if (chord) {
       usedChordIds.push(chord.id);
+      result.push({
+        ...bonus,
+        chord,
+      });
     }
-    return {
-      ...bonus,
-      chord: chord!,
-    };
-  });
+  }
+  
+  // 有効なオプションが3つ未満の場合、重複を許可して再試行
+  while (result.length < 3 && result.length < selected.length) {
+    const remainingBonuses = selected.filter(b => !result.some(r => r.type === b.type));
+    if (remainingBonuses.length === 0) break;
+    
+    const bonus = remainingBonuses[0];
+    const chord = selectRandomChord(allowedChords);
+    if (chord) {
+      result.push({
+        ...bonus,
+        chord,
+      });
+    } else {
+      break;
+    }
+  }
+  
+  return result;
 };
 
 // ===== ボーナス適用 =====
@@ -609,19 +647,19 @@ export const calculateExpToNextLevel = (level: number): number => {
   return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, level - 1));
 };
 
-export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean } => {
+export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
   const newPlayer = { ...player };
   newPlayer.exp += exp;
-  let leveledUp = false;
+  let levelUpCount = 0;
   
   while (newPlayer.exp >= newPlayer.expToNextLevel) {
     newPlayer.exp -= newPlayer.expToNextLevel;
     newPlayer.level += 1;
     newPlayer.expToNextLevel = calculateExpToNextLevel(newPlayer.level);
-    leveledUp = true;
+    levelUpCount += 1;
   }
   
-  return { player: newPlayer, leveledUp };
+  return { player: newPlayer, leveledUp: levelUpCount > 0, levelUpCount };
 };
 
 // ===== ダメージテキスト生成 =====
