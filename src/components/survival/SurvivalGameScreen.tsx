@@ -163,6 +163,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const { settings } = useGameStore();
   
+  // 初期化エラー状態
+  const [initError, setInitError] = useState<string | null>(null);
+  
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config);
@@ -252,24 +255,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onNoteOn: (note: number) => {
             handleNoteInput(note);
             playNote(note, 100);
-            pixiRendererRef.current?.setKeyActive(note, true);
+            pixiRendererRef.current?.highlightKey(note, true);
           },
           onNoteOff: (note: number) => {
             stopNote(note);
-            pixiRendererRef.current?.setKeyActive(note, false);
+            pixiRendererRef.current?.highlightKey(note, false);
           },
           playMidiSound: false,
         });
         
         await midiControllerRef.current.initialize();
         
-        // MIDI非対応の場合でもタッチ/クリック入力でプレイ可能
-        if (!midiControllerRef.current.isMidiSupported()) {
-          console.log('🎹 MIDI not available, using touch/click input only');
-        }
+        // 初期化エラーをクリア
+        setInitError(null);
       } catch (error) {
         // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
-        console.warn('⚠️ MIDI initialization error, continuing with touch/click input:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+        setInitError(`Audio initialization warning: ${errorMessage}. Touch/click input available.`);
       }
     };
     
@@ -291,13 +293,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       });
       
       // タッチ/クリックハンドラー設定
-      renderer.setNoteOnCallback((note: number) => {
-        handleNoteInput(note);
-        playNote(note, 100);
-      });
-      renderer.setNoteOffCallback((note: number) => {
-        stopNote(note);
-      });
+      renderer.setKeyCallbacks(
+        (note: number) => {
+          handleNoteInput(note);
+          playNote(note, 100);
+        },
+        (note: number) => {
+          stopNote(note);
+        }
+      );
     }
   }, [settings.noteNameStyle, settings.simpleDisplayMode]);
   
@@ -1074,6 +1078,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           </div>
         </div>
       </div>
+      
+      {/* 初期化エラー表示（閉じられるトースト） */}
+      {initError && (
+        <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md">
+          <div className="bg-yellow-900/90 border border-yellow-600 rounded-lg px-4 py-2 flex items-center gap-2">
+            <span className="text-yellow-200 text-sm flex-1">{initError}</span>
+            <button
+              onClick={() => setInitError(null)}
+              className="text-yellow-400 hover:text-yellow-200 text-lg font-bold"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
       
       {/* メインゲームエリア */}
       <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative">
