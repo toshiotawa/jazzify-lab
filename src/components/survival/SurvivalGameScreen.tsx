@@ -286,10 +286,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;
     if (renderer) {
+      // サバイバルモードではノーツ表示エリアを使わないため、
+      // pianoHeightを全体の高さに設定してノーツコンテナを非表示にする
       renderer.updateSettings({
         showHitLine: false,
         noteNameStyle: settings.noteNameStyle,
         simpleDisplayMode: settings.simpleDisplayMode,
+        pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
       });
       
       // タッチ/クリックハンドラー設定
