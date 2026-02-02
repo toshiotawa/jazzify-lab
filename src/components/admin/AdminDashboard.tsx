@@ -11,6 +11,7 @@ import FantasyBgmManager from './FantasyBgmManager';
 import FantasyStageManager from './FantasyStageManager';
 import LessonFantasyStageManager from './LessonFantasyStageManager';
 import DailyFantasyChallengeManager from './DailyFantasyChallengeManager';
+import SurvivalStageManager from './SurvivalStageManager';
 
 /**
  * 管理画面ゲート – is_admin フラグを持つユーザーのみアクセス許可
@@ -62,6 +63,7 @@ const AdminDashboard: React.FC = () => {
            <SidebarLink hash="#admin-songs" label="曲管理" />
            <SidebarLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <SidebarLink hash="#admin-fantasy-stages" label="ファンタジーステージ" />
+           <SidebarLink hash="#admin-survival" label="サバイバル設定" />
            <SidebarLink hash="#admin-dayly-fantasy" label="デイリーチャレンジ" />
            <SidebarLink hash="#admin-lesson-stages" label="レッスン用ステージ" />
            <SidebarLink hash="#admin-courses" label="コース管理" />
@@ -87,6 +89,7 @@ const AdminDashboard: React.FC = () => {
            <MobileTabLink hash="#admin-songs" label="曲管理" />
            <MobileTabLink hash="#admin-fantasy-bgm" label="ファンタジーBGM" />
            <MobileTabLink hash="#admin-fantasy-stages" label="ステージ" />
+           <MobileTabLink hash="#admin-survival" label="サバイバル" />
            <MobileTabLink hash="#admin-dayly-fantasy" label="デイリー" />
            <MobileTabLink hash="#admin-lesson-stages" label="レッスン用" />
            <MobileTabLink hash="#admin-courses" label="コース" />
@@ -145,6 +148,7 @@ const DashboardContent: React.FC = () => {
    if (currentHash.startsWith('#admin-songs')) return <SongManager />;
    if (currentHash.startsWith('#admin-fantasy-bgm')) return <FantasyBgmManager />;
    if (currentHash.startsWith('#admin-fantasy-stages')) return <FantasyStageManager />;
+   if (currentHash.startsWith('#admin-survival')) return <SurvivalStageManager />;
    if (currentHash.startsWith('#admin-dayly-fantasy')) return <DailyFantasyChallengeManager />;
    if (currentHash.startsWith('#admin-lesson-stages')) return <LessonFantasyStageManager />;
    if (currentHash.startsWith('#admin-courses')) return <CourseManager />;

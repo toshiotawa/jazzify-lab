@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaCalendarCheck } from 'react-icons/fa';
+import { FaCalendarAlt, FaHeart, FaChevronDown, FaEdit, FaTrash, FaSave, FaTimes, FaCrown, FaTrophy, FaGraduationCap, FaGem, FaStar, FaMedal, FaHatWizard, FaCalendarCheck, FaSkull } from 'react-icons/fa';
 import DiaryFeed from './DiaryFeed';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
@@ -296,6 +296,13 @@ const DiaryPage: React.FC = () => {
                             <span className="text-gray-400">{isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ'}</span>
                             <span className="font-semibold text-white">{userStats?.dailyChallengeParticipationDays ?? 0}</span>
                           </div>
+                          {(userStats?.survivalBestTimeSeconds ?? 0) > 0 && (
+                            <div className="flex items-center space-x-2" aria-label={isEnglishCopy ? 'Survival Best Time' : 'サバイバル最高生存時間'}>
+                              <FaSkull className="text-red-400" aria-hidden="true" />
+                              <span className="text-gray-400">{isEnglishCopy ? 'Survival' : 'サバイバル'}</span>
+                              <span className="font-semibold text-white">{Math.floor((userStats?.survivalBestTimeSeconds ?? 0) / 60)}{isEnglishCopy ? 'min' : '分'}</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>

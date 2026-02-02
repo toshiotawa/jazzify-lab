@@ -1,17 +1,25 @@
 /**
  * サバイバルモード ステージ選択画面
  * Easy/Normal/Hard/Extreme の4つの難易度から選択
+ * シンプルな縦並びカードデザイン
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { SurvivalDifficulty, DifficultyConfig } from './SurvivalTypes';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import {
+  fetchSurvivalDifficultySettings,
+  fetchUserSurvivalHighScores,
+  SurvivalDifficultySettings,
+  SurvivalHighScore,
+} from '@/platform/supabaseSurvival';
+import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
 
-// 難易度設定
-const DIFFICULTY_CONFIGS: DifficultyConfig[] = [
+// デフォルト難易度設定（DB取得前のフォールバック）
+const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
     displayName: 'Easy',
@@ -58,51 +66,51 @@ const DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   },
 ];
 
+// 難易度別アイコン設定
+const DIFFICULTY_ICONS: Record<SurvivalDifficulty, React.ReactNode> = {
+  easy: <FaStar className="text-3xl text-green-400" />,
+  normal: <FaStar className="text-3xl text-blue-400" />,
+  hard: <FaFire className="text-3xl text-orange-400" />,
+  extreme: <FaSkull className="text-3xl text-red-400" />,
+};
+
 // 色設定
-const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string; text: string }> = {
+const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string; gradient: string }> = {
   easy: {
-    bg: 'from-green-600 to-green-800',
-    border: 'border-green-400',
-    text: 'text-green-300',
+    bg: 'bg-green-900/30',
+    border: 'border-green-500',
+    gradient: 'from-green-600 to-green-800',
   },
   normal: {
-    bg: 'from-blue-600 to-blue-800',
-    border: 'border-blue-400',
-    text: 'text-blue-300',
+    bg: 'bg-blue-900/30',
+    border: 'border-blue-500',
+    gradient: 'from-blue-600 to-blue-800',
   },
   hard: {
-    bg: 'from-orange-600 to-orange-800',
-    border: 'border-orange-400',
-    text: 'text-orange-300',
+    bg: 'bg-orange-900/30',
+    border: 'border-orange-500',
+    gradient: 'from-orange-600 to-orange-800',
   },
   extreme: {
-    bg: 'from-red-600 to-red-800',
-    border: 'border-red-400',
-    text: 'text-red-300',
+    bg: 'bg-red-900/30',
+    border: 'border-red-500',
+    gradient: 'from-red-600 to-red-800',
   },
 };
 
-// デバッグ用スキル一覧
-const DEBUG_SKILLS = [
-  { id: 'a_penetration', name: '貫通' },
-  { id: 'a_back_bullet', name: '後方弾' },
-  { id: 'a_right_bullet', name: '右側弾' },
-  { id: 'a_left_bullet', name: '左側弾' },
-  { id: 'multi_hit', name: '多段攻撃' },
-  { id: 'magic_all', name: '全魔法' },
-];
-
-interface HighScore {
-  survivalTime: number;
-  finalLevel: number;
-  enemiesDefeated: number;
-}
+// 英語版説明文
+const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
+  easy: 'Beginner friendly. Basic major/minor chords only.',
+  normal: 'Standard difficulty. Seventh chords added.',
+  hard: 'Advanced. Complex chords and fast enemies.',
+  extreme: 'Expert level. All chord types, ultra fast.',
+};
 
 export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   skills?: string[];
-  tapSkillActivation?: boolean;  // A/B/Cボタンタップでスキル発動
+  tapSkillActivation?: boolean;
 }
 
 interface SurvivalStageSelectProps {
@@ -114,48 +122,105 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   onStageSelect,
   onBackToMenu,
 }) => {
-  const { profile } = useAuthStore();
+  const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   
-  // ハイスコア（将来的にはSupabaseから取得）
-  const [highScores, setHighScores] = useState<Record<SurvivalDifficulty, HighScore | null>>({
+  // 状態管理
+  const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DEFAULT_DIFFICULTY_CONFIGS);
+  const [highScores, setHighScores] = useState<Record<SurvivalDifficulty, SurvivalHighScore | null>>({
     easy: null,
     normal: null,
     hard: null,
     extreme: null,
   });
+  const [loading, setLoading] = useState(true);
   
-  // デバッグ設定（各難易度ごとに管理）
-  const [debugSettings, setDebugSettings] = useState<Record<SurvivalDifficulty, DebugSettings>>({
-    easy: {},
-    normal: {},
-    hard: {},
-    extreme: {},
-  });
-  
-  // デバッグパネル表示状態
-  const [showDebug, setShowDebug] = useState<Record<SurvivalDifficulty, boolean>>({
-    easy: false,
-    normal: false,
-    hard: false,
-    extreme: false,
-  });
-
-  // ローカルストレージからハイスコアを読み込み
-  useEffect(() => {
-    const loadHighScores = () => {
+  // データを読み込み
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      
+      // 難易度設定を取得
       try {
-        const saved = localStorage.getItem('survival_high_scores');
-        if (saved) {
-          setHighScores(JSON.parse(saved));
+        const settingsData = await fetchSurvivalDifficultySettings();
+        if (settingsData.length > 0) {
+          const configs = settingsData.map((s): DifficultyConfig => ({
+            difficulty: s.difficulty,
+            displayName: s.displayName,
+            description: s.description || '',
+            allowedChords: s.allowedChords,
+            enemySpawnRate: s.enemySpawnRate,
+            enemySpawnCount: s.enemySpawnCount,
+            enemyStatMultiplier: s.enemyStatMultiplier,
+            expMultiplier: s.expMultiplier,
+            itemDropRate: s.itemDropRate,
+          }));
+          setDifficultyConfigs(configs);
         }
       } catch {
-        // エラー時は初期値のまま
+        // DB取得失敗時はデフォルト設定を使用
       }
-    };
-    loadHighScores();
-  }, []);
+      
+      // ハイスコアを取得（ログインユーザーのみ）
+      if (profile && !isGuest) {
+        try {
+          const scores = await fetchUserSurvivalHighScores(profile.id);
+          const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+            easy: null,
+            normal: null,
+            hard: null,
+            extreme: null,
+          };
+          scores.forEach(score => {
+            scoreMap[score.difficulty] = score;
+          });
+          setHighScores(scoreMap);
+        } catch {
+          // スコア取得失敗時は初期値を使用
+        }
+      } else {
+        // ローカルストレージからハイスコアを読み込み（ゲスト用）
+        try {
+          const saved = localStorage.getItem('survival_high_scores');
+          if (saved) {
+            const parsed = JSON.parse(saved);
+            const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+              easy: null,
+              normal: null,
+              hard: null,
+              extreme: null,
+            };
+            Object.entries(parsed).forEach(([key, value]) => {
+              const diff = key as SurvivalDifficulty;
+              if (value && typeof value === 'object') {
+                const v = value as Record<string, unknown>;
+                scoreMap[diff] = {
+                  id: '',
+                  userId: '',
+                  difficulty: diff,
+                  survivalTimeSeconds: Number(v.survivalTime) || 0,
+                  finalLevel: Number(v.finalLevel) || 1,
+                  enemiesDefeated: Number(v.enemiesDefeated) || 0,
+                  createdAt: '',
+                  updatedAt: '',
+                };
+              }
+            });
+            setHighScores(scoreMap);
+          }
+        } catch {
+          // エラー時は初期値のまま
+        }
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [profile, isGuest]);
+  
+  useEffect(() => {
+    loadData();
+  }, [loadData]);
 
   const formatTime = (seconds: number): string => {
     const mins = Math.floor(seconds / 60);
@@ -163,31 +228,21 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  const handleDebugChange = (difficulty: SurvivalDifficulty, key: keyof DebugSettings, value: number | string[] | boolean) => {
-    setDebugSettings(prev => ({
-      ...prev,
-      [difficulty]: {
-        ...prev[difficulty],
-        [key]: value,
-      },
-    }));
+  // 難易度設定を取得
+  const getConfig = (difficulty: SurvivalDifficulty): DifficultyConfig => {
+    return difficultyConfigs.find(c => c.difficulty === difficulty) || DEFAULT_DIFFICULTY_CONFIGS.find(c => c.difficulty === difficulty)!;
   };
-  
-  const toggleDebugSkill = (difficulty: SurvivalDifficulty, skillId: string) => {
-    setDebugSettings(prev => {
-      const current = prev[difficulty].skills || [];
-      const newSkills = current.includes(skillId)
-        ? current.filter(s => s !== skillId)
-        : [...current, skillId];
-      return {
-        ...prev,
-        [difficulty]: {
-          ...prev[difficulty],
-          skills: newSkills,
-        },
-      };
-    });
-  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
+        <div className="text-white text-center">
+          <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4" />
+          <p className="text-lg">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
@@ -195,8 +250,9 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       <div className="relative z-10 p-4 sm:p-6 text-white">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider">
-              🎮 SURVIVAL MODE
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider flex items-center gap-3">
+              <FaBolt className="text-yellow-400" />
+              <span>SURVIVAL MODE</span>
             </h1>
             <p className="text-gray-400 text-sm sm:text-base font-sans">
               {isEnglishCopy 
@@ -213,190 +269,64 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         </div>
       </div>
 
-      {/* 難易度カード */}
+      {/* 難易度カード - シンプルな縦並び */}
       <div className="px-4 sm:px-6 pb-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-4xl mx-auto">
-          {DIFFICULTY_CONFIGS.map((config) => {
-            const colors = DIFFICULTY_COLORS[config.difficulty];
-            const score = highScores[config.difficulty];
-            const debug = debugSettings[config.difficulty];
-            const isDebugOpen = showDebug[config.difficulty];
+        <div className="max-w-2xl mx-auto space-y-4">
+          {(['easy', 'normal', 'hard', 'extreme'] as const).map((difficulty) => {
+            const config = getConfig(difficulty);
+            const colors = DIFFICULTY_COLORS[difficulty];
+            const score = highScores[difficulty];
+            const icon = DIFFICULTY_ICONS[difficulty];
 
             return (
-              <div
-                key={config.difficulty}
+              <button
+                key={difficulty}
+                onClick={() => onStageSelect(difficulty, config)}
                 className={cn(
-                  'relative rounded-xl border-2 overflow-hidden transition-all duration-300 hover:scale-[1.02] hover:shadow-2xl',
+                  'w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:shadow-xl',
                   colors.border,
-                  'bg-gradient-to-br',
-                  colors.bg
+                  colors.bg,
+                  'p-4 sm:p-5 flex items-center gap-4'
                 )}
               >
-                {/* カード内容 */}
-                <div className="p-6">
+                {/* アイコン */}
+                <div className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/30 flex items-center justify-center">
+                  {icon}
+                </div>
+                
+                {/* コンテンツ */}
+                <div className="flex-1 min-w-0">
                   {/* 難易度名 */}
-                  <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl sm:text-3xl font-bold font-sans tracking-wider">
-                      {config.displayName}
-                    </h2>
-                    <div className={cn('text-4xl', colors.text)}>
-                      {config.difficulty === 'easy' && '⭐'}
-                      {config.difficulty === 'normal' && '⭐⭐'}
-                      {config.difficulty === 'hard' && '⭐⭐⭐'}
-                      {config.difficulty === 'extreme' && '💀'}
-                    </div>
-                  </div>
-
+                  <h2 className="text-xl sm:text-2xl font-bold font-sans text-white mb-1">
+                    {config.displayName}
+                  </h2>
+                  
                   {/* 説明 */}
-                  <p className="text-gray-200 text-sm mb-4 font-sans">
-                    {isEnglishCopy ? (
-                      config.difficulty === 'easy' ? 'Beginner friendly. Basic major/minor chords only.' :
-                      config.difficulty === 'normal' ? 'Standard difficulty. Seventh chords added.' :
-                      config.difficulty === 'hard' ? 'Advanced. Complex chords and fast enemies.' :
-                      'Expert level. All chord types, ultra fast.'
-                    ) : config.description}
+                  <p className="text-gray-300 text-sm font-sans line-clamp-1">
+                    {isEnglishCopy ? DIFFICULTY_DESCRIPTIONS_EN[difficulty] : config.description}
                   </p>
-
+                  
                   {/* ハイスコア */}
-                  <div className="bg-black/30 rounded-lg p-3 mb-4">
-                    <div className="text-xs text-gray-400 mb-2 font-sans">
-                      {isEnglishCopy ? 'HIGH SCORE' : 'ハイスコア'}
-                    </div>
-                    {score ? (
-                      <div className="grid grid-cols-3 gap-2 text-center">
-                        <div>
-                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
-                            {formatTime(score.survivalTime)}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {isEnglishCopy ? 'Time' : '生存時間'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
-                            Lv.{score.finalLevel}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {isEnglishCopy ? 'Level' : 'レベル'}
-                          </div>
-                        </div>
-                        <div>
-                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
-                            {score.enemiesDefeated}
-                          </div>
-                          <div className="text-xs text-gray-400">
-                            {isEnglishCopy ? 'Kills' : '撃破数'}
-                          </div>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-gray-500 text-center font-sans">
-                        {isEnglishCopy ? 'No record yet' : '記録なし'}
-                      </div>
-                    )}
-                  </div>
-                  
-                  {/* デバッグ設定トグル */}
-                  <button
-                    onClick={() => setShowDebug(prev => ({ ...prev, [config.difficulty]: !prev[config.difficulty] }))}
-                    className="w-full text-xs text-gray-400 hover:text-gray-300 mb-2 font-sans"
-                  >
-                    🔧 {isDebugOpen ? 'Hide Debug' : 'Debug Settings'}
-                  </button>
-                  
-                  {/* デバッグ設定パネル */}
-                  {isDebugOpen && (
-                    <div className="bg-black/50 rounded-lg p-3 mb-4 text-sm">
-                      {/* A ATK */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-300 font-sans">A ATK</span>
-                        <select
-                          value={debug.aAtk || 10}
-                          onChange={(e) => handleDebugChange(config.difficulty, 'aAtk', Number(e.target.value))}
-                          className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
-                        >
-                          {[10, 20, 30, 50, 70, 100].map(v => (
-                            <option key={v} value={v}>{v}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      {/* B ATK */}
-                      <div className="flex items-center justify-between mb-2">
-                        <span className="text-gray-300 font-sans">B ATK</span>
-                        <select
-                          value={debug.bAtk || 15}
-                          onChange={(e) => handleDebugChange(config.difficulty, 'bAtk', Number(e.target.value))}
-                          className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
-                        >
-                          {[15, 25, 40, 60, 80, 100].map(v => (
-                            <option key={v} value={v}>{v}</option>
-                          ))}
-                        </select>
-                      </div>
-                      
-                      {/* スキル */}
-                      <div className="text-gray-300 font-sans text-xs mb-1">Skills</div>
-                      <div className="flex flex-wrap gap-1 mb-3">
-                        {DEBUG_SKILLS.map(skill => (
-                          <button
-                            key={skill.id}
-                            onClick={() => toggleDebugSkill(config.difficulty, skill.id)}
-                            className={cn(
-                              'px-2 py-1 rounded text-xs transition-colors',
-                              (debug.skills || []).includes(skill.id)
-                                ? 'bg-green-600 text-white'
-                                : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                            )}
-                          >
-                            {skill.name}
-                          </button>
-                        ))}
-                      </div>
-                      
-                      {/* タップでスキル発動 */}
-                      <div className="flex items-center justify-between">
-                        <span className="text-gray-300 font-sans text-xs">タップでスキル発動</span>
-                        <button
-                          onClick={() => handleDebugChange(config.difficulty, 'tapSkillActivation', !debug.tapSkillActivation)}
-                          className={cn(
-                            'px-3 py-1 rounded text-xs transition-colors',
-                            debug.tapSkillActivation
-                              ? 'bg-yellow-600 text-white'
-                              : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
-                          )}
-                        >
-                          {debug.tapSkillActivation ? 'ON' : 'OFF'}
-                        </button>
-                      </div>
+                  {score && score.survivalTimeSeconds > 0 && (
+                    <div className="mt-2 flex items-center gap-4 text-sm">
+                      <span className="text-yellow-400 font-semibold">
+                        🏆 {formatTime(score.survivalTimeSeconds)}
+                      </span>
+                      <span className="text-gray-400">
+                        Lv.{score.finalLevel}
+                      </span>
+                      <span className="text-gray-400">
+                        {score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}
+                      </span>
                     </div>
                   )}
-
-                  {/* スタートボタン */}
-                  <button
-                    onClick={() => onStageSelect(config.difficulty, config, debug)}
-                    className={cn(
-                      'w-full py-3 rounded-lg font-bold text-lg font-sans transition-all',
-                      'bg-white/20 hover:bg-white/30 border-2',
-                      colors.border,
-                      'hover:shadow-lg'
-                    )}
-                  >
-                    {isEnglishCopy ? 'START' : 'スタート'}
-                  </button>
                 </div>
-
-                {/* 装飾的なグリッド線 */}
-                <div className="absolute inset-0 pointer-events-none opacity-10">
-                  <div className="absolute inset-0" style={{
-                    backgroundImage: `
-                      linear-gradient(to right, white 1px, transparent 1px),
-                      linear-gradient(to bottom, white 1px, transparent 1px)
-                    `,
-                    backgroundSize: '20px 20px',
-                  }} />
+                
+                {/* 矢印 */}
+                <div className="flex-shrink-0 text-2xl text-gray-400">
+                  ▶
                 </div>
-              </div>
+              </button>
             );
           })}
         </div>
@@ -404,7 +334,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
       {/* 操作説明 */}
       <div className="px-4 sm:px-6 pb-6">
-        <div className="max-w-4xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
+        <div className="max-w-2xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
           <h3 className="text-lg font-bold text-white mb-3 font-sans">
             {isEnglishCopy ? '🎮 CONTROLS' : '🎮 操作方法'}
           </h3>
@@ -432,4 +362,4 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 };
 
 export default SurvivalStageSelect;
-export { DIFFICULTY_CONFIGS, DIFFICULTY_COLORS };
+export { DEFAULT_DIFFICULTY_CONFIGS as DIFFICULTY_CONFIGS, DIFFICULTY_COLORS };
