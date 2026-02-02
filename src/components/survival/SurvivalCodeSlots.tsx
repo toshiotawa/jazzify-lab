@@ -6,7 +6,6 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
 import { CodeSlot, SLOT_TIMEOUT } from './SurvivalTypes';
-import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 
 interface SurvivalCodeSlotsProps {
   currentSlots: [CodeSlot, CodeSlot, CodeSlot];
@@ -49,10 +48,9 @@ interface SlotDisplayProps {
   slot: CodeSlot;
   nextSlot: CodeSlot;
   isHinted: boolean;
-  index: number;
 }
 
-const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, index }) => {
+const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) => {
   const colors = SLOT_COLORS[slot.type];
   const timerPercent = (slot.timer / SLOT_TIMEOUT) * 100;
   
@@ -77,7 +75,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, ind
         )}
       >
         {/* ラベル */}
-        <div className="absolute top-1 left-1 text-xs font-mono opacity-70">
+        <div className="absolute top-1 left-1 text-xs font-sans opacity-70">
           {colors.label}
         </div>
         
@@ -85,13 +83,13 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, ind
         <div className="flex items-center justify-center h-full">
           {slot.isEnabled ? (
             <span className={cn(
-              'text-2xl font-bold font-mono',
+              'text-2xl font-bold font-sans',
               slot.isCompleted ? 'text-yellow-300' : 'text-white'
             )}>
               {slot.chord?.displayName ?? '---'}
             </span>
           ) : (
-            <span className="text-lg text-gray-400 font-mono">
+            <span className="text-lg text-gray-400 font-sans">
               🔒
             </span>
           )}
@@ -141,13 +139,13 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, ind
           !slot.isEnabled && 'opacity-30'
         )}
       >
-        <span className="text-xs font-mono text-gray-400">
+        <span className="text-xs font-sans text-gray-400">
           {slot.isEnabled ? (nextSlot.chord?.displayName ?? '---') : '---'}
         </span>
       </div>
       
       {/* 説明ラベル */}
-      <span className="text-[10px] text-gray-500 font-mono">
+      <span className="text-[10px] text-gray-500 font-sans">
         {colors.description}
       </span>
     </div>
@@ -172,7 +170,6 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
             slot={slot}
             nextSlot={nextSlots[index]}
             isHinted={hintSlotIndex === index}
-            index={index}
           />
         ))}
       </div>
@@ -180,7 +177,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
       {/* 魔法クールダウン表示 */}
       {hasMagic && magicCooldown > 0 && (
         <div className="w-full mt-1">
-          <div className="flex items-center justify-between text-xs text-gray-400 font-mono mb-1">
+          <div className="flex items-center justify-between text-xs text-gray-400 font-sans mb-1">
             <span>🪄 Magic Cooldown</span>
             <span>{magicCooldown.toFixed(1)}s</span>
           </div>
@@ -194,7 +191,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
       )}
       
       {/* 操作ヒント */}
-      <div className="text-[10px] text-gray-500 font-mono text-center mt-1">
+      <div className="text-[10px] text-gray-500 font-sans text-center mt-1">
         🎹 コードを演奏して攻撃！
       </div>
     </div>

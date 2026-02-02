@@ -228,6 +228,17 @@ export interface DamageText {
   duration: number;
 }
 
+// ===== 衝撃波エフェクト =====
+export interface ShockwaveEffect {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  startTime: number;
+  duration: number;
+}
+
 // ===== ゲーム状態 =====
 export interface SurvivalGameState {
   // 基本状態

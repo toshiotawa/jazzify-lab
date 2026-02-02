@@ -3,10 +3,9 @@
  * 3択からボーナスを選択
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { LevelUpBonus } from './SurvivalTypes';
-import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
@@ -21,7 +20,6 @@ const SELECTION_TIMEOUT = 10;  // 選択制限時間（秒）
 
 const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   options,
-  onSelect,
   level,
   pendingLevelUps,
   correctNotes,
@@ -35,7 +33,6 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         const newValue = prev - 0.1;
         if (newValue <= 0) {
           // タイムアウト - ボーナスなしで閉じる
-          // 空のボーナスを選択（呼び出し元で処理）
           return 0;
         }
         return newValue;
@@ -55,18 +52,18 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="max-w-4xl w-full mx-4 p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-yellow-500 shadow-2xl">
+    <div className="fixed inset-x-0 top-0 bottom-[140px] z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
+      <div className="max-w-4xl w-full mx-4 p-4 sm:p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-yellow-500 shadow-2xl max-h-full overflow-y-auto">
         {/* ヘッダー */}
         <div className="text-center mb-6">
-          <div className="text-yellow-400 text-lg font-mono mb-2">
+          <div className="text-yellow-400 text-lg font-sans mb-2">
             ✨ LEVEL UP! ✨
           </div>
-          <div className="text-4xl font-bold text-white font-mono">
+          <div className="text-4xl font-bold text-white font-sans">
             Lv.{level - 1} → Lv.{level}
           </div>
           {pendingLevelUps > 1 && (
-            <div className="text-sm text-yellow-300 mt-2">
+            <div className="text-sm text-yellow-300 mt-2 font-sans">
               残り {pendingLevelUps - 1} 回のレベルアップ！
             </div>
           )}
@@ -74,7 +71,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         
         {/* タイマーバー */}
         <div className="mb-6">
-          <div className="flex justify-between text-xs text-gray-400 mb-1 font-mono">
+          <div className="flex justify-between text-xs text-gray-400 mb-1 font-sans">
             <span>⏱️ 選択制限時間</span>
             <span>{timer.toFixed(1)}s</span>
           </div>
@@ -113,18 +110,18 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 </div>
                 
                 {/* 名前 */}
-                <div className="text-lg font-bold text-white text-center font-mono mb-1">
+                <div className="text-lg font-bold text-white text-center font-sans mb-1">
                   {option.displayName}
                 </div>
                 
                 {/* 説明 */}
-                <div className="text-xs text-gray-400 text-center mb-3">
+                <div className="text-xs text-gray-400 text-center mb-3 font-sans">
                   {option.description}
                 </div>
                 
                 {/* レベル表示（あれば） */}
                 {option.maxLevel && (
-                  <div className="text-xs text-center text-gray-500 mb-2">
+                  <div className="text-xs text-center text-gray-500 mb-2 font-sans">
                     Lv.{(option.currentLevel ?? 0) + 1} / {option.maxLevel}
                   </div>
                 )}
@@ -135,11 +132,11 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                   'bg-black/40 border',
                   isComplete ? 'border-yellow-400' : 'border-gray-600'
                 )}>
-                  <div className="text-xs text-gray-400 mb-1 font-mono">
+                  <div className="text-xs text-gray-400 mb-1 font-sans">
                     🎹 演奏して選択
                   </div>
                   <div className={cn(
-                    'text-xl font-bold font-mono',
+                    'text-xl font-bold font-sans',
                     isComplete ? 'text-yellow-400' : 'text-white'
                   )}>
                     {option.chord?.displayName ?? '---'}
@@ -167,8 +164,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         </div>
         
         {/* 操作説明 */}
-        <div className="text-center text-sm text-gray-400 font-mono">
-          🎹 コードを演奏してボーナスを選択！タイムアウトでボーナスなし
+        <div className="text-center text-sm text-gray-400 font-sans">
+          🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし
         </div>
       </div>
     </div>

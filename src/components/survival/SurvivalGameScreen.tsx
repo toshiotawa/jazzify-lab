@@ -13,6 +13,7 @@ import {
   LevelUpBonus,
   CodeSlot,
   Direction,
+  ShockwaveEffect,
   SLOT_TIMEOUT,
   EXP_PER_MINUTE,
 } from './SurvivalTypes';
@@ -41,100 +42,98 @@ import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
+import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
+import FantasySettingsModal from '../fantasy/FantasySettingsModal';
 import { useAuthStore } from '@/stores/authStore';
+import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 
-// ===== シンプルなオンスクリーンピアノ =====
-interface SimplePianoProps {
-  onNoteOn: (note: number) => void;
-  onNoteOff: (note: number) => void;
-  activeNotes: Set<number>;
+// ===== バーチャルスティック =====
+interface VirtualStickProps {
+  onDirectionChange: (keys: Set<string>) => void;
 }
 
-const SimplePiano: React.FC<SimplePianoProps> = ({ onNoteOn, onNoteOff, activeNotes }) => {
-  const startMidi = 48; // C3
-  const endMidi = 72;   // C5
+const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
+  const stickRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [stickPos, setStickPos] = useState({ x: 0, y: 0 });
+  const centerRef = useRef({ x: 0, y: 0 });
   
-  const isBlack = (midi: number): boolean => {
-    const n = midi % 12;
-    return n === 1 || n === 3 || n === 6 || n === 8 || n === 10;
-  };
-  
-  const noteNames = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  
-  const whiteKeys: number[] = [];
-  const blackKeys: number[] = [];
-  for (let n = startMidi; n <= endMidi; n++) {
-    if (isBlack(n)) blackKeys.push(n);
-    else whiteKeys.push(n);
-  }
-  
-  const handlePointerDown = (note: number) => (e: React.PointerEvent) => {
+  const handlePointerDown = (e: React.PointerEvent) => {
+    if (!stickRef.current) return;
     e.preventDefault();
     (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
-    onNoteOn(note);
+    
+    const rect = stickRef.current.getBoundingClientRect();
+    centerRef.current = {
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    };
+    setIsDragging(true);
   };
   
-  const handlePointerUp = (note: number) => (e: React.PointerEvent) => {
-    e.preventDefault();
-    onNoteOff(note);
+  const handlePointerMove = (e: React.PointerEvent) => {
+    if (!isDragging) return;
+    
+    const maxRadius = 40;
+    let dx = e.clientX - centerRef.current.x;
+    let dy = e.clientY - centerRef.current.y;
+    
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxRadius) {
+      dx = (dx / dist) * maxRadius;
+      dy = (dy / dist) * maxRadius;
+    }
+    
+    setStickPos({ x: dx, y: dy });
+    
+    // 方向を計算してキーセットに変換
+    const keys = new Set<string>();
+    const threshold = 15;
+    
+    if (dy < -threshold) keys.add('w');
+    if (dy > threshold) keys.add('s');
+    if (dx < -threshold) keys.add('a');
+    if (dx > threshold) keys.add('d');
+    
+    onDirectionChange(keys);
   };
   
-  const whiteKeyWidth = 100 / whiteKeys.length;
-  
-  const blackKeyOffsets: Record<number, number> = {
-    1: 0.66, 3: 1.58, 6: 3.66, 8: 4.58, 10: 5.66
+  const handlePointerUp = () => {
+    setIsDragging(false);
+    setStickPos({ x: 0, y: 0 });
+    onDirectionChange(new Set());
   };
   
   return (
-    <div className="relative h-32 mx-auto max-w-4xl select-none touch-none">
-      {/* 白鍵 */}
-      <div className="absolute inset-0 flex">
-        {whiteKeys.map((note, i) => (
-          <div
-            key={note}
-            className={cn(
-              'flex-1 border border-gray-600 rounded-b-md flex items-end justify-center pb-2 cursor-pointer transition-colors',
-              activeNotes.has(note) ? 'bg-green-400' : 'bg-white hover:bg-gray-100'
-            )}
-            onPointerDown={handlePointerDown(note)}
-            onPointerUp={handlePointerUp(note)}
-            onPointerLeave={handlePointerUp(note)}
-          >
-            <span className="text-xs text-gray-600 font-mono">
-              {noteNames[note % 12]}
-            </span>
-          </div>
-        ))}
+    <div
+      ref={stickRef}
+      className="relative w-28 h-28 bg-black/40 rounded-full border-2 border-white/30 touch-none select-none"
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerLeave={handlePointerUp}
+      onPointerCancel={handlePointerUp}
+    >
+      {/* 方向矢印 */}
+      <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+        <div className="absolute top-2 text-white/50 text-xl">▲</div>
+        <div className="absolute bottom-2 text-white/50 text-xl">▼</div>
+        <div className="absolute left-2 text-white/50 text-xl">◀</div>
+        <div className="absolute right-2 text-white/50 text-xl">▶</div>
       </div>
       
-      {/* 黒鍵 */}
-      {blackKeys.map(note => {
-        const semitone = note % 12;
-        const octave = Math.floor(note / 12);
-        const octaveStart = octave * 12;
-        const whitesBefore = whiteKeys.filter(w => w < octaveStart).length;
-        const offset = blackKeyOffsets[semitone] || 0;
-        const leftPercent = (whitesBefore + offset) * whiteKeyWidth;
-        
-        return (
-          <div
-            key={note}
-            className={cn(
-              'absolute top-0 h-[60%] rounded-b-md cursor-pointer transition-colors z-10',
-              activeNotes.has(note) ? 'bg-green-600' : 'bg-gray-800 hover:bg-gray-700'
-            )}
-            style={{
-              left: `${leftPercent}%`,
-              width: `${whiteKeyWidth * 0.6}%`,
-            }}
-            onPointerDown={handlePointerDown(note)}
-            onPointerUp={handlePointerUp(note)}
-            onPointerLeave={handlePointerUp(note)}
-          />
-        );
-      })}
+      {/* スティック */}
+      <div
+        className="absolute w-12 h-12 bg-white/80 rounded-full shadow-lg"
+        style={{
+          left: '50%',
+          top: '50%',
+          transform: `translate(calc(-50% + ${stickPos.x}px), calc(-50% + ${stickPos.y}px))`,
+          transition: isDragging ? 'none' : 'transform 0.1s ease-out',
+        }}
+      />
     </div>
   );
 };
@@ -144,6 +143,11 @@ interface SurvivalGameScreenProps {
   config: DifficultyConfig;
   onBackToSelect: () => void;
   onBackToMenu: () => void;
+  debugSettings?: {
+    aAtk?: number;
+    bAtk?: number;
+    skills?: string[];
+  };
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -151,30 +155,77 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   config,
   onBackToSelect,
   onBackToMenu,
+  debugSettings,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const { settings } = useGameStore();
   
   // ゲーム状態
-  const [gameState, setGameState] = useState<SurvivalGameState>(() => 
-    createInitialGameState(difficulty, config)
-  );
+  const [gameState, setGameState] = useState<SurvivalGameState>(() => {
+    const initial = createInitialGameState(difficulty, config);
+    // デバッグ設定を適用
+    if (debugSettings) {
+      if (debugSettings.aAtk !== undefined) {
+        initial.player.stats.aAtk = debugSettings.aAtk;
+      }
+      if (debugSettings.bAtk !== undefined) {
+        initial.player.stats.bAtk = debugSettings.bAtk;
+      }
+      if (debugSettings.skills) {
+        debugSettings.skills.forEach(skill => {
+          switch (skill) {
+            case 'a_penetration':
+              initial.player.skills.aPenetration = true;
+              break;
+            case 'a_back_bullet':
+              initial.player.skills.aBackBullet = 3;
+              break;
+            case 'a_right_bullet':
+              initial.player.skills.aRightBullet = 3;
+              break;
+            case 'a_left_bullet':
+              initial.player.skills.aLeftBullet = 3;
+              break;
+            case 'multi_hit':
+              initial.player.skills.multiHitLevel = 3;
+              break;
+            case 'magic_all':
+              initial.player.magics = {
+                thunder: 3, ice: 3, fire: 3, heal: 3,
+                buffer: 3, debuffer: 3, hint: 3,
+              };
+              break;
+          }
+        });
+      }
+    }
+    return initial;
+  });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
   const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>([[], [], []]);
   
+  // 衝撃波エフェクト
+  const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
+  
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
+  const virtualKeysRef = useRef<Set<string>>(new Set());
   const lastUpdateRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<number>(0);
   
-  // MIDI関連
+  // MIDI/ピアノ関連
   const midiControllerRef = useRef<MIDIController | null>(null);
-  const [activeNotes, setActiveNotes] = useState<Set<number>>(new Set());
+  const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
+  const gameAreaRef = useRef<HTMLDivElement>(null);
+  const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
   // ビューポートサイズ
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
+  const [isMobile, setIsMobile] = useState(false);
   
   // ビューポートサイズ更新
   useEffect(() => {
@@ -182,6 +233,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const width = Math.min(window.innerWidth - 32, 1200);
       const height = Math.min(window.innerHeight - 350, 600);
       setViewportSize({ width, height });
+      setIsMobile(window.innerWidth < 768);
     };
     
     updateSize();
@@ -196,17 +248,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = new MIDIController({
         onNoteOn: (note: number) => {
-          setActiveNotes(prev => new Set(prev).add(note));
           handleNoteInput(note);
           playNote(note, 100);
+          pixiRendererRef.current?.setKeyActive(note, true);
         },
         onNoteOff: (note: number) => {
-          setActiveNotes(prev => {
-            const next = new Set(prev);
-            next.delete(note);
-            return next;
-          });
           stopNote(note);
+          pixiRendererRef.current?.setKeyActive(note, false);
         },
         playMidiSound: false,
       });
@@ -219,6 +267,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       midiControllerRef.current?.destroy();
     };
+  }, []);
+  
+  // PIXIレンダラーの準備
+  const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
+    pixiRendererRef.current = renderer;
+    if (renderer) {
+      renderer.updateSettings({
+        showHitLine: false,
+        noteNameStyle: settings.noteNameStyle,
+        simpleDisplayMode: settings.simpleDisplayMode,
+      });
+      
+      // タッチ/クリックハンドラー設定
+      renderer.setNoteOnCallback((note: number) => {
+        handleNoteInput(note);
+        playNote(note, 100);
+      });
+      renderer.setNoteOffCallback((note: number) => {
+        stopNote(note);
+      });
+    }
+  }, [settings.noteNameStyle, settings.simpleDisplayMode]);
+  
+  // ピアノをC4中心にスクロール
+  const centerPianoC4 = useCallback(() => {
+    if (!pianoScrollRef.current) return;
+    const container = pianoScrollRef.current;
+    const c4Position = (60 - 21) / 88;
+    const scrollTarget = container.scrollWidth * c4Position - container.clientWidth / 2;
+    container.scrollLeft = Math.max(0, scrollTarget);
   }, []);
   
   // キーボード入力
@@ -248,9 +326,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, []);
   
+  // バーチャルスティックの方向変更
+  const handleVirtualStickChange = useCallback((keys: Set<string>) => {
+    virtualKeysRef.current = keys;
+  }, []);
+  
   // ゲーム開始
   const startGame = useCallback(() => {
-    const hasMagic = false;  // 最初は魔法なし
+    const hasMagic = Object.values(gameState.player.magics).some(l => l > 0);
     const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic);
     
     setGameState(prev => ({
@@ -261,12 +344,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords]);
+  }, [config.allowedChords, gameState.player.magics]);
   
   // ゲーム開始（初回）
   useEffect(() => {
     startGame();
-  }, [startGame]);
+  }, []);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
@@ -278,7 +361,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newNotes = [...prev];
         gameState.levelUpOptions.forEach((option, index) => {
           if (option.chord) {
-            const correct = getCorrectNotes([...prev[index].map(n => n), note], option.chord);
+            const correct = getCorrectNotes([...prev[index], note], option.chord);
             newNotes[index] = correct;
             
             // 完成チェック
@@ -301,7 +384,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 };
                 
                 if (newPendingLevelUps > 0) {
-                  // まだレベルアップが残っている
                   const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
                   setLevelUpCorrectNotes([[], [], []]);
                   return {
@@ -312,7 +394,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     codeSlots: newCodeSlots,
                   };
                 } else {
-                  // レベルアップ完了
                   return {
                     ...gs,
                     player: newPlayer,
@@ -395,11 +476,26 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
           
         } else if (slotType === 'B') {
-          // 近接攻撃
+          // 近接攻撃 - 衝撃波エフェクト追加
           const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
           const dirVec = getDirectionVector(prev.player.direction);
           const attackX = prev.player.x + dirVec.x * 40;
           const attackY = prev.player.y + dirVec.y * 40;
+          
+          // 衝撃波エフェクト追加
+          const newShockwave: ShockwaveEffect = {
+            id: `shock_${Date.now()}`,
+            x: attackX,
+            y: attackY,
+            radius: 0,
+            maxRadius: attackRange,
+            startTime: Date.now(),
+            duration: 300,
+          };
+          setShockwaves(sw => [...sw, newShockwave]);
+          
+          // ノックバック力
+          const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
           
           newState.enemies = prev.enemies.map(enemy => {
             const dx = enemy.x - attackX;
@@ -415,8 +511,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 enemy.statusEffects.some(e => e.type === 'debuffer')
               );
               
-              // ノックバック
-              const knockbackForce = 200 + prev.player.skills.bKnockbackBonus * 50;
+              // ノックバック（B列は強め）
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               
@@ -442,7 +537,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (availableMagics.length > 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
             const result = castMagic(
-              magicType as any,
+              magicType as Parameters<typeof castMagic>[0],
               level,
               prev.player,
               prev.enemies
@@ -494,6 +589,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const deltaTime = Math.min((timestamp - lastUpdateRef.current) / 1000, 0.1);
       lastUpdateRef.current = timestamp;
       
+      // キーボードとバーチャルスティックのキーをマージ
+      const combinedKeys = new Set([...keysRef.current, ...virtualKeysRef.current]);
+      
       setGameState(prev => {
         if (!prev.isPlaying || prev.isPaused || prev.isGameOver || prev.isLevelingUp) {
           return prev;
@@ -505,7 +603,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.elapsedTime = prev.elapsedTime + deltaTime;
         
         // プレイヤー移動
-        newState.player = updatePlayerPosition(prev.player, keysRef.current, deltaTime);
+        newState.player = updatePlayerPosition(prev.player, combinedKeys, deltaTime);
         
         // 敵移動
         newState.enemies = updateEnemyPositions(prev.enemies, newState.player.x, newState.player.y, deltaTime);
@@ -513,7 +611,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 弾丸更新
         newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
         
-        // 弾丸と敵の当たり判定
+        // 弾丸と敵の当たり判定（軽いノックバック追加）
         const hitResults: { enemyId: string; damage: number; projId: string }[] = [];
         newState.projectiles.forEach(proj => {
           newState.enemies.forEach(enemy => {
@@ -533,6 +631,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               );
               hitResults.push({ enemyId: enemy.id, damage, projId: proj.id });
               proj.hitEnemies.add(enemy.id);
+              
+              // A列ヒット時の軽いノックバック
+              const dirVec = getDirectionVector(proj.direction);
+              const knockbackForce = 80;
+              enemy.knockbackVelocity = {
+                x: dirVec.x * knockbackForce,
+                y: dirVec.y * knockbackForce,
+              };
             }
           });
         });
@@ -562,7 +668,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (dist < 60) {
               const fireLevel = prev.player.magics.fire;
               const damage = Math.floor(5 * fireLevel * deltaTime);
-              if (damage > 0 && Math.random() < 0.1) {  // ダメージテキストは間引く
+              if (damage > 0 && Math.random() < 0.1) {
                 newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage, true));
               }
               return {
@@ -606,7 +712,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.enemiesDefeated += defeatedEnemies.length;
           
           if (leveledUp) {
-            // レベルアップ処理
             let pendingLevelUps = 0;
             let tempPlayer = newPlayer;
             while (tempPlayer.exp >= tempPlayer.expToNextLevel) {
@@ -642,7 +747,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (!slot.isEnabled || slot.isCompleted) return slot;
           const newTimer = slot.timer - deltaTime;
           if (newTimer <= 0) {
-            // タイムアウト - 次のコードに切り替え
             const nextChord = newState.codeSlots.next[['A', 'B', 'C'].indexOf(slot.type)].chord;
             return { ...slot, chord: nextChord, correctNotes: [], timer: SLOT_TIMEOUT };
           }
@@ -676,7 +780,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.isGameOver = true;
           newState.isPlaying = false;
           
-          // 結果を生成
           const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
           setResult({
             survivalTime: newState.elapsedTime,
@@ -692,6 +795,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         return newState;
       });
       
+      // 衝撃波エフェクトの更新
+      setShockwaves(sw => sw.filter(s => Date.now() - s.startTime < s.duration));
+      
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
     
@@ -705,14 +811,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // リトライ
   const handleRetry = useCallback(() => {
     setResult(null);
-    setGameState(createInitialGameState(difficulty, config));
+    setShockwaves([]);
+    const initial = createInitialGameState(difficulty, config);
+    // デバッグ設定を再適用
+    if (debugSettings) {
+      if (debugSettings.aAtk !== undefined) {
+        initial.player.stats.aAtk = debugSettings.aAtk;
+      }
+      if (debugSettings.bAtk !== undefined) {
+        initial.player.stats.bAtk = debugSettings.bAtk;
+      }
+    }
+    setGameState(initial);
     startGame();
-  }, [difficulty, config, startGame]);
+  }, [difficulty, config, startGame, debugSettings]);
   
   // ヒントスロット判定
   const getHintSlotIndex = (): number | null => {
     if (!gameState.player.statusEffects.some(e => e.type === 'hint')) return null;
-    // 順番にA, B, Cの未完成スロットをヒント
     for (let i = 0; i < 3; i++) {
       if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
         return i;
@@ -755,14 +871,29 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+  
+  // ピアノ幅計算（ファンタジーモードと同じロジック）
+  const calculatePianoWidth = () => {
+    const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+    const adjustedThreshold = 1100;
+    const VISIBLE_WHITE_KEYS = 14;
+    const TOTAL_WHITE_KEYS = 52;
+    
+    if (gameAreaWidth >= adjustedThreshold) {
+      return { width: gameAreaWidth, needsScroll: false };
+    } else {
+      const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+      return { width: Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth), needsScroll: true };
+    }
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col">
+    <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen">
       {/* ヘッダー */}
       <div className="flex-shrink-0 p-2 sm:p-4">
         <div className="flex justify-between items-center max-w-6xl mx-auto">
           {/* 時間・レベル・撃破数 */}
-          <div className="flex items-center gap-4 text-white font-mono">
+          <div className="flex items-center gap-4 text-white font-sans">
             <div className="flex items-center gap-2">
               <span className="text-xl">⏱️</span>
               <span className="text-2xl font-bold">{formatTime(gameState.elapsedTime)}</span>
@@ -790,46 +921,63 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
               />
             </div>
-            <span className="text-white font-mono text-sm">
+            <span className="text-white font-sans text-sm">
               {Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}
             </span>
           </div>
           
-          {/* ポーズボタン */}
-          <button
-            onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-            className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-mono text-white"
-          >
-            {gameState.isPaused ? '▶️' : '⏸️'}
-          </button>
+          {/* 設定/ポーズボタン */}
+          <div className="flex gap-2">
+            <button
+              onClick={() => setIsSettingsOpen(true)}
+              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-sans text-white"
+              title={isEnglishCopy ? 'Settings' : '設定'}
+            >
+              ⚙️
+            </button>
+            <button
+              onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
+              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-sans text-white"
+            >
+              {gameState.isPaused ? '▶️' : '⏸️'}
+            </button>
+          </div>
         </div>
       </div>
       
       {/* メインゲームエリア */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4">
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative">
+        {/* バーチャルスティック（モバイル時のみ） */}
+        {isMobile && (
+          <div className="absolute left-4 bottom-4 z-30">
+            <VirtualStick onDirectionChange={handleVirtualStickChange} />
+          </div>
+        )}
+        
         {/* Canvasエリア */}
         <div className="relative rounded-xl overflow-hidden border-2 border-gray-700">
           <SurvivalCanvas
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
+            shockwaves={shockwaves}
           />
           
           {/* ポーズ画面 */}
           {gameState.isPaused && (
             <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
               <div className="text-center">
-                <div className="text-4xl font-bold text-white font-mono mb-4">PAUSED</div>
+                <div className="text-4xl font-bold text-white font-sans mb-4">PAUSED</div>
                 <div className="flex gap-4">
                   <button
                     onClick={() => setGameState(prev => ({ ...prev, isPaused: false }))}
-                    className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-mono text-white"
+                    className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-sans text-white"
                   >
                     {isEnglishCopy ? 'Resume' : '再開'}
                   </button>
                   <button
                     onClick={onBackToSelect}
-                    className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-mono text-white"
+                    className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-sans text-white"
                   >
                     {isEnglishCopy ? 'Quit' : 'やめる'}
                   </button>
@@ -849,24 +997,57 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         />
       </div>
       
-      {/* ピアノ（シンプルなオンスクリーンピアノ） */}
-      <div className="flex-shrink-0 bg-gray-900/80 py-2 px-4">
-        <SimplePiano
-          onNoteOn={(note) => {
-            handleNoteInput(note);
-            playNote(note, 100);
-            setActiveNotes(prev => new Set(prev).add(note));
-          }}
-          onNoteOff={(note) => {
-            stopNote(note);
-            setActiveNotes(prev => {
-              const next = new Set(prev);
-              next.delete(note);
-              return next;
-            });
-          }}
-          activeNotes={activeNotes}
-        />
+      {/* ピアノ（PIXINotesRenderer使用） */}
+      <div 
+        ref={gameAreaRef}
+        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
+        style={{ height: '120px' }}
+      >
+        {(() => {
+          const { width: pixiWidth, needsScroll } = calculatePianoWidth();
+          
+          if (needsScroll) {
+            return (
+              <div 
+                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
+                style={{ 
+                  WebkitOverflowScrolling: 'touch',
+                  scrollSnapType: 'none',
+                  scrollBehavior: 'auto',
+                  width: '100%',
+                  touchAction: 'pan-x',
+                  overscrollBehavior: 'contain'
+                }}
+                ref={(el) => {
+                  pianoScrollRef.current = el;
+                  if (el) {
+                    requestAnimationFrame(() => {
+                      requestAnimationFrame(centerPianoC4);
+                    });
+                  }
+                }}
+              >
+                <PIXINotesRenderer
+                  width={pixiWidth}
+                  height={120}
+                  onReady={handlePixiReady}
+                  className="w-full h-full"
+                />
+              </div>
+            );
+          } else {
+            return (
+              <div className="absolute inset-0 overflow-hidden">
+                <PIXINotesRenderer
+                  width={pixiWidth}
+                  height={120}
+                  onReady={handlePixiReady}
+                  className="w-full h-full"
+                />
+              </div>
+            );
+          }
+        })()}
       </div>
       
       {/* レベルアップ画面 */}
@@ -891,6 +1072,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onBackToMenu={onBackToMenu}
         />
       )}
+      
+      {/* 設定モーダル */}
+      <FantasySettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSettingsChange={() => {}}
+      />
     </div>
   );
 };

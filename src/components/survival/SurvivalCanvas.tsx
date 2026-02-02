@@ -12,6 +12,7 @@ import {
   DroppedItem,
   DamageText,
   Direction,
+  ShockwaveEffect,
   MAP_CONFIG,
 } from './SurvivalTypes';
 
@@ -19,6 +20,7 @@ interface SurvivalCanvasProps {
   gameState: SurvivalGameState;
   viewportWidth: number;
   viewportHeight: number;
+  shockwaves?: ShockwaveEffect[];
 }
 
 // ===== 色定義 =====
@@ -79,6 +81,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
   viewportWidth,
   viewportHeight,
+  shockwaves = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
@@ -290,8 +293,38 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
     }
 
-    // ダメージテキスト
+    // 衝撃波エフェクト描画
     const now = Date.now();
+    shockwaves.forEach(sw => {
+      const elapsed = now - sw.startTime;
+      if (elapsed >= sw.duration) return;
+      
+      const progress = elapsed / sw.duration;
+      const currentRadius = sw.maxRadius * progress;
+      const alpha = 1 - progress;
+      
+      const screenX = sw.x - camera.x;
+      const screenY = sw.y - camera.y;
+      
+      // 衝撃波リング
+      ctx.globalAlpha = alpha * 0.6;
+      ctx.strokeStyle = '#f97316';  // オレンジ色
+      ctx.lineWidth = 8 * (1 - progress);
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
+      ctx.stroke();
+      
+      // 内側のグロー
+      ctx.globalAlpha = alpha * 0.3;
+      ctx.fillStyle = '#fbbf24';  // 黄色
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, currentRadius * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+      
+      ctx.globalAlpha = 1;
+    });
+
+    // ダメージテキスト
     damageTexts.forEach(dmg => {
       const elapsed = now - dmg.startTime;
       if (elapsed >= dmg.duration) return;
@@ -311,7 +344,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.globalAlpha = 1;
     });
 
-  }, [gameState, viewportWidth, viewportHeight, getCameraOffset]);
+  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

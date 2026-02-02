@@ -82,14 +82,30 @@ const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string
   },
 };
 
+// デバッグ用スキル一覧
+const DEBUG_SKILLS = [
+  { id: 'a_penetration', name: '貫通' },
+  { id: 'a_back_bullet', name: '後方弾' },
+  { id: 'a_right_bullet', name: '右側弾' },
+  { id: 'a_left_bullet', name: '左側弾' },
+  { id: 'multi_hit', name: '多段攻撃' },
+  { id: 'magic_all', name: '全魔法' },
+];
+
 interface HighScore {
   survivalTime: number;
   finalLevel: number;
   enemiesDefeated: number;
 }
 
+export interface DebugSettings {
+  aAtk?: number;
+  bAtk?: number;
+  skills?: string[];
+}
+
 interface SurvivalStageSelectProps {
-  onStageSelect: (difficulty: SurvivalDifficulty, config: DifficultyConfig) => void;
+  onStageSelect: (difficulty: SurvivalDifficulty, config: DifficultyConfig, debugSettings?: DebugSettings) => void;
   onBackToMenu: () => void;
 }
 
@@ -107,6 +123,22 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     normal: null,
     hard: null,
     extreme: null,
+  });
+  
+  // デバッグ設定（各難易度ごとに管理）
+  const [debugSettings, setDebugSettings] = useState<Record<SurvivalDifficulty, DebugSettings>>({
+    easy: {},
+    normal: {},
+    hard: {},
+    extreme: {},
+  });
+  
+  // デバッグパネル表示状態
+  const [showDebug, setShowDebug] = useState<Record<SurvivalDifficulty, boolean>>({
+    easy: false,
+    normal: false,
+    hard: false,
+    extreme: false,
   });
 
   // ローカルストレージからハイスコアを読み込み
@@ -129,17 +161,43 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     const secs = Math.floor(seconds % 60);
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+  
+  const handleDebugChange = (difficulty: SurvivalDifficulty, key: keyof DebugSettings, value: number | string[]) => {
+    setDebugSettings(prev => ({
+      ...prev,
+      [difficulty]: {
+        ...prev[difficulty],
+        [key]: value,
+      },
+    }));
+  };
+  
+  const toggleDebugSkill = (difficulty: SurvivalDifficulty, skillId: string) => {
+    setDebugSettings(prev => {
+      const current = prev[difficulty].skills || [];
+      const newSkills = current.includes(skillId)
+        ? current.filter(s => s !== skillId)
+        : [...current, skillId];
+      return {
+        ...prev,
+        [difficulty]: {
+          ...prev[difficulty],
+          skills: newSkills,
+        },
+      };
+    });
+  };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto">
+    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
       {/* ヘッダー */}
       <div className="relative z-10 p-4 sm:p-6 text-white">
         <div className="flex justify-between items-center">
           <div>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-mono tracking-wider">
+            <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider">
               🎮 SURVIVAL MODE
             </h1>
-            <p className="text-gray-400 text-sm sm:text-base font-mono">
+            <p className="text-gray-400 text-sm sm:text-base font-sans">
               {isEnglishCopy 
                 ? 'Survive as long as you can against endless enemies!'
                 : '迫りくる敵から生き残れ！'}
@@ -147,7 +205,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
           </div>
           <button
             onClick={onBackToMenu}
-            className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
+            className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base font-sans"
           >
             {isEnglishCopy ? 'Back' : '戻る'}
           </button>
@@ -160,6 +218,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
           {DIFFICULTY_CONFIGS.map((config) => {
             const colors = DIFFICULTY_COLORS[config.difficulty];
             const score = highScores[config.difficulty];
+            const debug = debugSettings[config.difficulty];
+            const isDebugOpen = showDebug[config.difficulty];
 
             return (
               <div
@@ -175,7 +235,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <div className="p-6">
                   {/* 難易度名 */}
                   <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-2xl sm:text-3xl font-bold font-mono tracking-wider">
+                    <h2 className="text-2xl sm:text-3xl font-bold font-sans tracking-wider">
                       {config.displayName}
                     </h2>
                     <div className={cn('text-4xl', colors.text)}>
@@ -187,7 +247,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   </div>
 
                   {/* 説明 */}
-                  <p className="text-gray-200 text-sm mb-4 font-mono">
+                  <p className="text-gray-200 text-sm mb-4 font-sans">
                     {isEnglishCopy ? (
                       config.difficulty === 'easy' ? 'Beginner friendly. Basic major/minor chords only.' :
                       config.difficulty === 'normal' ? 'Standard difficulty. Seventh chords added.' :
@@ -198,13 +258,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
                   {/* ハイスコア */}
                   <div className="bg-black/30 rounded-lg p-3 mb-4">
-                    <div className="text-xs text-gray-400 mb-2 font-mono">
+                    <div className="text-xs text-gray-400 mb-2 font-sans">
                       {isEnglishCopy ? 'HIGH SCORE' : 'ハイスコア'}
                     </div>
                     {score ? (
                       <div className="grid grid-cols-3 gap-2 text-center">
                         <div>
-                          <div className={cn('text-lg font-bold font-mono', colors.text)}>
+                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
                             {formatTime(score.survivalTime)}
                           </div>
                           <div className="text-xs text-gray-400">
@@ -212,7 +272,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                           </div>
                         </div>
                         <div>
-                          <div className={cn('text-lg font-bold font-mono', colors.text)}>
+                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
                             Lv.{score.finalLevel}
                           </div>
                           <div className="text-xs text-gray-400">
@@ -220,7 +280,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                           </div>
                         </div>
                         <div>
-                          <div className={cn('text-lg font-bold font-mono', colors.text)}>
+                          <div className={cn('text-lg font-bold font-sans', colors.text)}>
                             {score.enemiesDefeated}
                           </div>
                           <div className="text-xs text-gray-400">
@@ -229,17 +289,77 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                         </div>
                       </div>
                     ) : (
-                      <div className="text-gray-500 text-center font-mono">
+                      <div className="text-gray-500 text-center font-sans">
                         {isEnglishCopy ? 'No record yet' : '記録なし'}
                       </div>
                     )}
                   </div>
+                  
+                  {/* デバッグ設定トグル */}
+                  <button
+                    onClick={() => setShowDebug(prev => ({ ...prev, [config.difficulty]: !prev[config.difficulty] }))}
+                    className="w-full text-xs text-gray-400 hover:text-gray-300 mb-2 font-sans"
+                  >
+                    🔧 {isDebugOpen ? 'Hide Debug' : 'Debug Settings'}
+                  </button>
+                  
+                  {/* デバッグ設定パネル */}
+                  {isDebugOpen && (
+                    <div className="bg-black/50 rounded-lg p-3 mb-4 text-sm">
+                      {/* A ATK */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-300 font-sans">A ATK</span>
+                        <select
+                          value={debug.aAtk || 10}
+                          onChange={(e) => handleDebugChange(config.difficulty, 'aAtk', Number(e.target.value))}
+                          className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                        >
+                          {[10, 20, 30, 50, 70, 100].map(v => (
+                            <option key={v} value={v}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* B ATK */}
+                      <div className="flex items-center justify-between mb-2">
+                        <span className="text-gray-300 font-sans">B ATK</span>
+                        <select
+                          value={debug.bAtk || 15}
+                          onChange={(e) => handleDebugChange(config.difficulty, 'bAtk', Number(e.target.value))}
+                          className="bg-gray-700 text-white rounded px-2 py-1 text-xs"
+                        >
+                          {[15, 25, 40, 60, 80, 100].map(v => (
+                            <option key={v} value={v}>{v}</option>
+                          ))}
+                        </select>
+                      </div>
+                      
+                      {/* スキル */}
+                      <div className="text-gray-300 font-sans text-xs mb-1">Skills</div>
+                      <div className="flex flex-wrap gap-1">
+                        {DEBUG_SKILLS.map(skill => (
+                          <button
+                            key={skill.id}
+                            onClick={() => toggleDebugSkill(config.difficulty, skill.id)}
+                            className={cn(
+                              'px-2 py-1 rounded text-xs transition-colors',
+                              (debug.skills || []).includes(skill.id)
+                                ? 'bg-green-600 text-white'
+                                : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                            )}
+                          >
+                            {skill.name}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  )}
 
                   {/* スタートボタン */}
                   <button
-                    onClick={() => onStageSelect(config.difficulty, config)}
+                    onClick={() => onStageSelect(config.difficulty, config, debug)}
                     className={cn(
-                      'w-full py-3 rounded-lg font-bold text-lg font-mono transition-all',
+                      'w-full py-3 rounded-lg font-bold text-lg font-sans transition-all',
                       'bg-white/20 hover:bg-white/30 border-2',
                       colors.border,
                       'hover:shadow-lg'
@@ -268,10 +388,10 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       {/* 操作説明 */}
       <div className="px-4 sm:px-6 pb-6">
         <div className="max-w-4xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-lg font-bold text-white mb-3 font-mono">
+          <h3 className="text-lg font-bold text-white mb-3 font-sans">
             {isEnglishCopy ? '🎮 CONTROLS' : '🎮 操作方法'}
           </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-300 font-mono">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-300 font-sans">
             <div className="flex items-center gap-2">
               <span className="bg-gray-700 px-2 py-1 rounded">W A S D</span>
               <span>{isEnglishCopy ? 'Move' : '移動'}</span>
@@ -285,7 +405,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       </div>
 
       {/* フッター */}
-      <div className="text-center text-white text-xs sm:text-sm opacity-50 pb-6 font-mono">
+      <div className="text-center text-white text-xs sm:text-sm opacity-50 pb-6 font-sans">
         {isEnglishCopy 
           ? '🎹 Complete chords to unleash powerful attacks!'
           : '🎹 コードを完成させて強力な攻撃を放て！'}

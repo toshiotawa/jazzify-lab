@@ -5,7 +5,7 @@
 
 import React, { useState, useCallback } from 'react';
 import { SurvivalDifficulty, DifficultyConfig } from './SurvivalTypes';
-import SurvivalStageSelect, { DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
+import SurvivalStageSelect, { DebugSettings } from './SurvivalStageSelect';
 import SurvivalGameScreen from './SurvivalGameScreen';
 
 type Screen = 'select' | 'game';
@@ -14,11 +14,13 @@ const SurvivalMain: React.FC = () => {
   const [screen, setScreen] = useState<Screen>('select');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
+  const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
   
   // 難易度選択
-  const handleStageSelect = useCallback((difficulty: SurvivalDifficulty, config: DifficultyConfig) => {
+  const handleStageSelect = useCallback((difficulty: SurvivalDifficulty, config: DifficultyConfig, debug?: DebugSettings) => {
     setSelectedDifficulty(difficulty);
     setSelectedConfig(config);
+    setDebugSettings(debug);
     setScreen('game');
   }, []);
   
@@ -27,6 +29,7 @@ const SurvivalMain: React.FC = () => {
     setScreen('select');
     setSelectedDifficulty(null);
     setSelectedConfig(null);
+    setDebugSettings(undefined);
   }, []);
   
   // メニューに戻る
@@ -52,6 +55,7 @@ const SurvivalMain: React.FC = () => {
         config={selectedConfig}
         onBackToSelect={handleBackToSelect}
         onBackToMenu={handleBackToMenu}
+        debugSettings={debugSettings}
       />
     );
   }
