@@ -27,6 +27,7 @@ import PricingTable from '@/components/subscription/PricingTable';
 import FantasyMain from '@/components/fantasy/FantasyMain';
 import StoryPage from '@/components/fantasy/StoryPage';
 import DailyChallengeMain from '@/components/dailyChallenge/DailyChallengeMain';
+import SurvivalMain from '@/components/survival/SurvivalMain';
 
 /**
  * メインアプリケーションコンポーネント
@@ -279,6 +280,9 @@ const App: React.FC = () => {
       break;
     case '#Story':
       MainContent = isFree ? <Dashboard /> : <StoryPage />;
+      break;
+    case '#survival':
+      MainContent = isFree ? <Dashboard /> : <SurvivalMain />;
       break;
     case '#songs':
     case '#practice':

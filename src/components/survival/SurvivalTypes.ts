@@ -1,0 +1,329 @@
+/**
+ * サバイバルモード 型定義
+ */
+
+import { ChordDefinition } from '../fantasy/FantasyGameEngine';
+
+// ===== 難易度 =====
+export type SurvivalDifficulty = 'easy' | 'normal' | 'hard' | 'extreme';
+
+// ===== 方向 =====
+export type Direction = 'up' | 'down' | 'left' | 'right' | 
+  'up-left' | 'up-right' | 'down-left' | 'down-right';
+
+// ===== ステータス異常 =====
+export type StatusEffect = 
+  | 'fire'      // 炎（やけど）
+  | 'ice'       // 氷（凍結）
+  | 'buffer'    // バフ
+  | 'debuffer'  // デバフ
+  | 'a_atk_up'  // A ATK UP
+  | 'b_atk_up'  // B ATK UP
+  | 'c_atk_up'  // C ATK UP
+  | 'hint'      // ヒント
+  | 'speed_up'  // 天使の靴
+  | 'def_up';   // 防弾チョッキ
+
+export interface ActiveStatusEffect {
+  type: StatusEffect;
+  duration: number;      // 残り時間（秒）
+  startTime: number;     // 開始時刻
+  level?: number;        // レベル（バフ/デバフの強度）
+}
+
+// ===== 魔法 =====
+export type MagicType = 
+  | 'thunder'   // 雷
+  | 'ice'       // 氷
+  | 'fire'      // 炎
+  | 'heal'      // 回復
+  | 'buffer'    // バフ
+  | 'debuffer'  // デバフ
+  | 'hint';     // ヒント
+
+export interface MagicDefinition {
+  type: MagicType;
+  level: number;         // 1-3
+  baseDuration: number;  // 基本効果時間（秒）
+  basePower: number;     // 基本威力
+  cooldown: number;      // クールダウン（秒）
+}
+
+// ===== プレイヤーステータス =====
+export interface PlayerStats {
+  aAtk: number;          // 遠距離弾の威力
+  bAtk: number;          // 近接攻撃の威力
+  cAtk: number;          // 魔法の威力
+  speed: number;         // 移動速度
+  reloadMagic: number;   // 魔法の再発動短縮（0.5秒/ポイント、max 20ポイント）
+  hp: number;            // 現在HP
+  maxHp: number;         // 最大HP
+  def: number;           // 防御力
+  time: number;          // 効果時間延長（0.5秒/ポイント）
+  aBulletCount: number;  // A列の弾数
+}
+
+// ===== 特殊スキル =====
+export interface SpecialSkills {
+  // A列スキル
+  aPenetration: boolean;      // 貫通
+  aBackBullet: number;        // 後方弾（追加数）
+  aRightBullet: number;       // 右側弾（追加数）
+  aLeftBullet: number;        // 左側弾（追加数）
+  
+  // B列スキル
+  bKnockbackBonus: number;    // ノックバック距離増加
+  bRangeBonus: number;        // 攻撃範囲拡大
+  
+  // 共通スキル
+  multiHitLevel: number;      // 多段攻撃レベル（0-3）
+}
+
+// ===== 取得済み魔法 =====
+export interface AcquiredMagics {
+  thunder: number;   // 0=未取得, 1-3=レベル
+  ice: number;
+  fire: number;
+  heal: number;
+  buffer: number;
+  debuffer: number;
+  hint: number;
+}
+
+// ===== プレイヤー状態 =====
+export interface PlayerState {
+  x: number;
+  y: number;
+  direction: Direction;
+  stats: PlayerStats;
+  skills: SpecialSkills;
+  magics: AcquiredMagics;
+  statusEffects: ActiveStatusEffect[];
+  level: number;
+  exp: number;
+  expToNextLevel: number;
+}
+
+// ===== 敵ステータス =====
+export interface EnemyStats {
+  atk: number;
+  def: number;
+  hp: number;
+  maxHp: number;
+  speed: number;
+}
+
+// ===== 敵の種類 =====
+export type EnemyType = 
+  | 'slime'
+  | 'goblin'
+  | 'skeleton'
+  | 'zombie'
+  | 'bat'
+  | 'ghost'
+  | 'orc'
+  | 'demon'
+  | 'dragon'
+  | 'boss';
+
+// ===== 敵状態 =====
+export interface EnemyState {
+  id: string;
+  type: EnemyType;
+  x: number;
+  y: number;
+  stats: EnemyStats;
+  statusEffects: ActiveStatusEffect[];
+  isBoss: boolean;
+  knockbackVelocity?: { x: number; y: number };
+}
+
+// ===== 弾丸 =====
+export interface Projectile {
+  id: string;
+  x: number;
+  y: number;
+  direction: Direction;
+  damage: number;
+  penetrating: boolean;
+  hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
+}
+
+// ===== コードスロット =====
+export type SlotType = 'A' | 'B' | 'C';
+
+export interface CodeSlot {
+  type: SlotType;
+  chord: ChordDefinition | null;
+  correctNotes: number[];    // 入力済みの正解音
+  timer: number;             // 残り時間（秒）
+  isCompleted: boolean;
+  isEnabled: boolean;        // C列は魔法取得まで無効
+}
+
+// ===== レベルアップボーナス =====
+export type BonusType = 
+  // ステータス系
+  | 'a_atk'
+  | 'b_atk'
+  | 'c_atk'
+  | 'speed'
+  | 'reload_magic'
+  | 'max_hp'
+  | 'def'
+  | 'time'
+  | 'a_bullet'
+  // 特殊系
+  | 'a_penetration'
+  | 'a_back_bullet'
+  | 'a_right_bullet'
+  | 'a_left_bullet'
+  | 'b_knockback'
+  | 'b_range'
+  | 'multi_hit'
+  // 魔法系
+  | 'magic_thunder'
+  | 'magic_ice'
+  | 'magic_fire'
+  | 'magic_heal'
+  | 'magic_buffer'
+  | 'magic_debuffer'
+  | 'magic_hint';
+
+export interface LevelUpBonus {
+  type: BonusType;
+  displayName: string;
+  description: string;
+  icon: string;
+  chord: ChordDefinition;    // 選択用コード
+  maxLevel?: number;         // 上限レベル（なければ無限）
+  currentLevel?: number;     // 現在レベル
+}
+
+// ===== アイテム =====
+export type ItemType = 
+  | 'heart'          // HP半分回復
+  | 'angel_shoes'    // SPEED 2倍
+  | 'vest'           // DEF 2倍
+  | 'a_atk_boost'    // A ATK 2倍
+  | 'b_atk_boost'    // B ATK 2倍
+  | 'c_atk_boost';   // C ATK 2倍
+
+export interface DroppedItem {
+  id: string;
+  type: ItemType;
+  x: number;
+  y: number;
+  duration?: number;  // 効果時間（ブースト系）
+}
+
+// ===== ダメージテキスト =====
+export interface DamageText {
+  id: string;
+  x: number;
+  y: number;
+  damage: number;
+  color: string;
+  startTime: number;
+  duration: number;
+}
+
+// ===== 衝撃波エフェクト =====
+export interface ShockwaveEffect {
+  id: string;
+  x: number;
+  y: number;
+  radius: number;
+  maxRadius: number;
+  startTime: number;
+  duration: number;
+}
+
+// ===== ゲーム状態 =====
+export interface SurvivalGameState {
+  // 基本状態
+  isPlaying: boolean;
+  isPaused: boolean;
+  isGameOver: boolean;
+  isLevelingUp: boolean;
+  
+  // 時間
+  elapsedTime: number;       // 経過時間（秒）
+  
+  // プレイヤー
+  player: PlayerState;
+  
+  // 敵
+  enemies: EnemyState[];
+  
+  // 弾丸
+  projectiles: Projectile[];
+  
+  // コードスロット
+  codeSlots: {
+    current: [CodeSlot, CodeSlot, CodeSlot];   // A, B, C
+    next: [CodeSlot, CodeSlot, CodeSlot];
+  };
+  
+  // 魔法クールダウン
+  magicCooldown: number;     // 残りクールダウン（秒）
+  
+  // レベルアップ
+  levelUpOptions: LevelUpBonus[];
+  pendingLevelUps: number;   // 未処理のレベルアップ数
+  
+  // アイテム
+  items: DroppedItem[];
+  
+  // ダメージテキスト
+  damageTexts: DamageText[];
+  
+  // 統計
+  enemiesDefeated: number;
+  
+  // 難易度
+  difficulty: SurvivalDifficulty;
+}
+
+// ===== 難易度設定 =====
+export interface DifficultyConfig {
+  difficulty: SurvivalDifficulty;
+  displayName: string;
+  description: string;
+  allowedChords: string[];   // 出題コード
+  enemySpawnRate: number;    // 敵出現間隔（秒）
+  enemySpawnCount: number;   // 1回の出現数
+  enemyStatMultiplier: number; // 敵ステータス倍率
+  expMultiplier: number;     // 経験値倍率
+  itemDropRate: number;      // アイテムドロップ率
+}
+
+// ===== マップ設定 =====
+export interface MapConfig {
+  width: number;
+  height: number;
+  tileSize: number;
+}
+
+// ===== ゲーム結果 =====
+export interface SurvivalGameResult {
+  survivalTime: number;      // 生存時間（秒）
+  finalLevel: number;        // 最終レベル
+  enemiesDefeated: number;   // 倒した敵の数
+  playerStats: PlayerStats;  // 最終ステータス
+  skills: SpecialSkills;     // 取得スキル
+  magics: AcquiredMagics;    // 取得魔法
+  earnedXp: number;          // 獲得経験値
+}
+
+// ===== 定数 =====
+export const SLOT_TIMEOUT = 10;  // コードスロットのタイムアウト（秒）
+export const MAGIC_BASE_COOLDOWN = 15;  // 魔法の基本クールダウン（秒）
+export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（秒）
+export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
+
+export const MAP_CONFIG: MapConfig = {
+  width: 1600,
+  height: 1200,
+  tileSize: 32,
+};
