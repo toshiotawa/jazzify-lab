@@ -142,9 +142,18 @@ export const getChordDefinition = (chordId: string): ChordDefinition | null => {
   };
 };
 
-export const selectRandomChord = (allowedChords: string[], excludeId?: string): ChordDefinition | null => {
-  const available = allowedChords.filter(c => c !== excludeId);
-  if (available.length === 0) return null;
+export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition | null => {
+  // excludeIdsを配列に正規化
+  const excludeArray = excludeIds 
+    ? (Array.isArray(excludeIds) ? excludeIds : [excludeIds])
+    : [];
+  
+  const available = allowedChords.filter(c => !excludeArray.includes(c));
+  if (available.length === 0) {
+    // 除外するとコードがなくなる場合は、除外せずに選択
+    const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
+    return getChordDefinition(chordId);
+  }
   
   const chordId = available[Math.floor(Math.random() * available.length)];
   return getChordDefinition(chordId);
@@ -498,9 +507,13 @@ export const generateLevelUpOptions = (
   const shuffled = [...available].sort(() => Math.random() - 0.5);
   const selected = shuffled.slice(0, 3);
   
-  // コードを割り当て
-  return selected.map((bonus, index) => {
-    const chord = selectRandomChord(allowedChords);
+  // コードを割り当て（重複しないように）
+  const usedChordIds: string[] = [];
+  return selected.map((bonus) => {
+    const chord = selectRandomChord(allowedChords, usedChordIds);
+    if (chord) {
+      usedChordIds.push(chord.id);
+    }
     return {
       ...bonus,
       chord: chord!,

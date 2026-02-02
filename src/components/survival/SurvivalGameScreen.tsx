@@ -369,6 +369,77 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     startGame();
   }, []);
   
+  // レベルアップボーナス選択処理
+  const handleLevelUpBonusSelect = useCallback((option: LevelUpBonus) => {
+    setGameState(gs => {
+      if (!gs.isLevelingUp) return gs;
+      
+      const newPlayer = applyLevelUpBonus(gs.player, option);
+      const newPendingLevelUps = gs.pendingLevelUps - 1;
+      
+      // 魔法を取得したらC列を有効化
+      const hasMagic = Object.values(newPlayer.magics).some(l => l > 0);
+      const newCodeSlots = {
+        ...gs.codeSlots,
+        current: gs.codeSlots.current.map((slot, i) => 
+          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot],
+        next: gs.codeSlots.next.map((slot, i) =>
+          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot],
+      };
+      
+      if (newPendingLevelUps > 0) {
+        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
+        setLevelUpCorrectNotes([[], [], []]);
+        return {
+          ...gs,
+          player: newPlayer,
+          pendingLevelUps: newPendingLevelUps,
+          levelUpOptions: newOptions,
+          codeSlots: newCodeSlots,
+        };
+      } else {
+        setLevelUpCorrectNotes([[], [], []]);
+        return {
+          ...gs,
+          player: newPlayer,
+          pendingLevelUps: 0,
+          isLevelingUp: false,
+          levelUpOptions: [],
+          codeSlots: newCodeSlots,
+        };
+      }
+    });
+  }, [config.allowedChords]);
+  
+  // レベルアップタイムアウト処理
+  const handleLevelUpTimeout = useCallback(() => {
+    setGameState(gs => {
+      if (!gs.isLevelingUp) return gs;
+      
+      const newPendingLevelUps = gs.pendingLevelUps - 1;
+      
+      if (newPendingLevelUps > 0) {
+        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords);
+        setLevelUpCorrectNotes([[], [], []]);
+        return {
+          ...gs,
+          pendingLevelUps: newPendingLevelUps,
+          levelUpOptions: newOptions,
+        };
+      } else {
+        setLevelUpCorrectNotes([[], [], []]);
+        return {
+          ...gs,
+          pendingLevelUps: 0,
+          isLevelingUp: false,
+          levelUpOptions: [],
+        };
+      }
+    });
+  }, [config.allowedChords]);
+  
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
     if (gameState.isGameOver || gameState.isPaused) return;
@@ -382,46 +453,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const correct = getCorrectNotes([...prev[index], note], option.chord);
             newNotes[index] = correct;
             
-            // 完成チェック
-            if (checkChordMatch([...prev[index], note], option.chord)) {
+            // 完成チェック - newNotes[index]を使う（更新後の値）
+            if (checkChordMatch(newNotes[index], option.chord)) {
               // ボーナス適用
-              setGameState(gs => {
-                const newPlayer = applyLevelUpBonus(gs.player, option);
-                const newPendingLevelUps = gs.pendingLevelUps - 1;
-                
-                // 魔法を取得したらC列を有効化
-                const hasMagic = Object.values(newPlayer.magics).some(l => l > 0);
-                const newCodeSlots = {
-                  ...gs.codeSlots,
-                  current: gs.codeSlots.current.map((slot, i) => 
-                    i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-                  ) as [CodeSlot, CodeSlot, CodeSlot],
-                  next: gs.codeSlots.next.map((slot, i) =>
-                    i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-                  ) as [CodeSlot, CodeSlot, CodeSlot],
-                };
-                
-                if (newPendingLevelUps > 0) {
-                  const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
-                  setLevelUpCorrectNotes([[], [], []]);
-                  return {
-                    ...gs,
-                    player: newPlayer,
-                    pendingLevelUps: newPendingLevelUps,
-                    levelUpOptions: newOptions,
-                    codeSlots: newCodeSlots,
-                  };
-                } else {
-                  return {
-                    ...gs,
-                    player: newPlayer,
-                    pendingLevelUps: 0,
-                    isLevelingUp: false,
-                    levelUpOptions: [],
-                    codeSlots: newCodeSlots,
-                  };
-                }
-              });
+              handleLevelUpBonusSelect(option);
             }
           }
         });
@@ -1236,11 +1271,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       {gameState.isLevelingUp && (
         <SurvivalLevelUp
           options={gameState.levelUpOptions}
-          onSelect={() => {}}
+          onSelect={handleLevelUpBonusSelect}
+          onTimeout={handleLevelUpTimeout}
           level={gameState.player.level}
           pendingLevelUps={gameState.pendingLevelUps}
           onNoteInput={handleNoteInput}
           correctNotes={levelUpCorrectNotes}
+          tapSelectionEnabled={debugSettings?.tapSkillActivation}
         />
       )}
       
