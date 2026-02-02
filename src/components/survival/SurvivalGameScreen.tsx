@@ -147,6 +147,7 @@ interface SurvivalGameScreenProps {
     aAtk?: number;
     bAtk?: number;
     skills?: string[];
+    tapSkillActivation?: boolean;
   };
 }
 
@@ -579,6 +580,125 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     });
   }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords]);
   
+  // タップでスキル発動（デバッグ用）
+  const handleTapSkillActivation = useCallback((slotIndex: number) => {
+    if (gameState.isGameOver || gameState.isPaused || gameState.isLevelingUp) return;
+    
+    const slotType = ['A', 'B', 'C'][slotIndex] as 'A' | 'B' | 'C';
+    
+    setGameState(prev => {
+      const newState = { ...prev };
+      const slot = prev.codeSlots.current[slotIndex];
+      
+      if (!slot.isEnabled) return prev;
+      
+      // 攻撃処理
+      if (slotType === 'A') {
+        // 遠距離弾発射
+        const directions: Direction[] = [prev.player.direction];
+        
+        if (prev.player.skills.aBackBullet > 0) {
+          const backDir = getOppositeDirection(prev.player.direction);
+          for (let i = 0; i < prev.player.skills.aBackBullet; i++) {
+            directions.push(backDir);
+          }
+        }
+        if (prev.player.skills.aLeftBullet > 0) {
+          const leftDir = getLeftDirection(prev.player.direction);
+          for (let i = 0; i < prev.player.skills.aLeftBullet; i++) {
+            directions.push(leftDir);
+          }
+        }
+        if (prev.player.skills.aRightBullet > 0) {
+          const rightDir = getRightDirection(prev.player.direction);
+          for (let i = 0; i < prev.player.skills.aRightBullet; i++) {
+            directions.push(rightDir);
+          }
+        }
+        
+        const newProjectiles = directions.map(dir => 
+          createProjectile(prev.player, dir, prev.player.stats.aAtk)
+        );
+        newState.projectiles = [...prev.projectiles, ...newProjectiles];
+        
+      } else if (slotType === 'B') {
+        // 近接攻撃 - 衝撃波エフェクト追加
+        const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
+        const dirVec = getDirectionVector(prev.player.direction);
+        const attackX = prev.player.x + dirVec.x * 40;
+        const attackY = prev.player.y + dirVec.y * 40;
+        
+        // 衝撃波エフェクト追加
+        const newShockwave: ShockwaveEffect = {
+          id: `shock_${Date.now()}`,
+          x: attackX,
+          y: attackY,
+          radius: 0,
+          maxRadius: attackRange,
+          startTime: Date.now(),
+          duration: 300,
+        };
+        setShockwaves(sw => [...sw, newShockwave]);
+        
+        // ノックバック力
+        const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+        
+        newState.enemies = prev.enemies.map(enemy => {
+          const dx = enemy.x - attackX;
+          const dy = enemy.y - attackY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < attackRange) {
+            const damage = calculateDamage(
+              prev.player.stats.bAtk,
+              prev.player.stats.bAtk,
+              enemy.stats.def,
+              prev.player.statusEffects.some(e => e.type === 'buffer'),
+              enemy.statusEffects.some(e => e.type === 'debuffer')
+            );
+            
+            const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+            const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
+            
+            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+            
+            return {
+              ...enemy,
+              stats: {
+                ...enemy.stats,
+                hp: Math.max(0, enemy.stats.hp - damage),
+              },
+              knockbackVelocity: { x: knockbackX, y: knockbackY },
+            };
+          }
+          return enemy;
+        });
+        
+      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
+        // 魔法発動
+        const availableMagics = Object.entries(prev.player.magics)
+          .filter(([_, level]) => level > 0);
+        
+        if (availableMagics.length > 0) {
+          const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+          const result = castMagic(
+            magicType as Parameters<typeof castMagic>[0],
+            level,
+            prev.player,
+            prev.enemies
+          );
+          
+          newState.enemies = result.enemies;
+          newState.player = result.player;
+          newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+          newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+        }
+      }
+      
+      return newState;
+    });
+  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
+  
   // ゲームループ
   useEffect(() => {
     if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver || gameState.isLevelingUp) {
@@ -951,6 +1071,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         {isMobile && (
           <div className="absolute left-4 bottom-4 z-30">
             <VirtualStick onDirectionChange={handleVirtualStickChange} />
+          </div>
+        )}
+        
+        {/* A/B/Cタップボタン（デバッグ用） */}
+        {debugSettings?.tapSkillActivation && (
+          <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-2">
+            <button
+              onClick={() => handleTapSkillActivation(0)}
+              className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform"
+            >
+              🔫 A
+            </button>
+            <button
+              onClick={() => handleTapSkillActivation(1)}
+              className="w-16 h-16 bg-orange-600/80 hover:bg-orange-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-orange-400 active:scale-95 transition-transform"
+            >
+              👊 B
+            </button>
+            <button
+              onClick={() => handleTapSkillActivation(2)}
+              disabled={!gameState.codeSlots.current[2].isEnabled}
+              className={cn(
+                "w-16 h-16 rounded-lg font-bold text-white text-xl shadow-lg border-2 active:scale-95 transition-transform",
+                gameState.codeSlots.current[2].isEnabled
+                  ? "bg-purple-600/80 hover:bg-purple-500 border-purple-400"
+                  : "bg-gray-600/50 border-gray-500 cursor-not-allowed opacity-50"
+              )}
+            >
+              🪄 C
+            </button>
           </div>
         )}
         

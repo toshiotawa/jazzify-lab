@@ -102,6 +102,7 @@ export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   skills?: string[];
+  tapSkillActivation?: boolean;  // A/B/Cボタンタップでスキル発動
 }
 
 interface SurvivalStageSelectProps {
@@ -162,7 +163,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
-  const handleDebugChange = (difficulty: SurvivalDifficulty, key: keyof DebugSettings, value: number | string[]) => {
+  const handleDebugChange = (difficulty: SurvivalDifficulty, key: keyof DebugSettings, value: number | string[] | boolean) => {
     setDebugSettings(prev => ({
       ...prev,
       [difficulty]: {
@@ -336,7 +337,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                       
                       {/* スキル */}
                       <div className="text-gray-300 font-sans text-xs mb-1">Skills</div>
-                      <div className="flex flex-wrap gap-1">
+                      <div className="flex flex-wrap gap-1 mb-3">
                         {DEBUG_SKILLS.map(skill => (
                           <button
                             key={skill.id}
@@ -351,6 +352,22 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                             {skill.name}
                           </button>
                         ))}
+                      </div>
+                      
+                      {/* タップでスキル発動 */}
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-300 font-sans text-xs">タップでスキル発動</span>
+                        <button
+                          onClick={() => handleDebugChange(config.difficulty, 'tapSkillActivation', !debug.tapSkillActivation)}
+                          className={cn(
+                            'px-3 py-1 rounded text-xs transition-colors',
+                            debug.tapSkillActivation
+                              ? 'bg-yellow-600 text-white'
+                              : 'bg-gray-600 text-gray-300 hover:bg-gray-500'
+                          )}
+                        >
+                          {debug.tapSkillActivation ? 'ON' : 'OFF'}
+                        </button>
                       </div>
                     </div>
                   )}
