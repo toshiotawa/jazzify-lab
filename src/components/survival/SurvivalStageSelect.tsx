@@ -123,6 +123,16 @@ export interface DebugSettings {
   bAtk?: number;
   skills?: string[];
   tapSkillActivation?: boolean;
+  initialLevel?: number;
+  magics?: {
+    thunder?: number;
+    ice?: number;
+    fire?: number;
+    heal?: number;
+    buffer?: number;
+    debuffer?: number;
+    hint?: number;
+  };
 }
 
 interface SurvivalStageSelectProps {
@@ -155,6 +165,18 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
   const [debugSkills, setDebugSkills] = useState<string[]>([]);
   const [debugTapSkillActivation, setDebugTapSkillActivation] = useState(false);
+  const [debugInitialLevel, setDebugInitialLevel] = useState<number>(1);
+  const [debugMagics, setDebugMagics] = useState<{
+    thunder: number;
+    ice: number;
+    fire: number;
+    heal: number;
+    buffer: number;
+    debuffer: number;
+    hint: number;
+  }>({
+    thunder: 0, ice: 0, fire: 0, heal: 0, buffer: 0, debuffer: 0, hint: 0,
+  });
   
   // データを読み込み
   const loadData = useCallback(async () => {
@@ -286,6 +308,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       bAtk: debugBAtk,
       skills: debugSkills,
       tapSkillActivation: debugTapSkillActivation,
+      initialLevel: debugInitialLevel,
+      magics: debugMagics,
     };
     
     setDebugModalOpen(false);
@@ -498,6 +522,56 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   >
                     {skill.emoji} {skill.label}
                   </button>
+                ))}
+              </div>
+            </div>
+            
+            {/* 初期レベル設定 */}
+            <div className="mb-6">
+              <label className="block text-gray-300 text-sm mb-2 font-sans">
+                ⭐ {isEnglishCopy ? 'Initial Level' : '初期レベル'}: {debugInitialLevel}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="50"
+                value={debugInitialLevel}
+                onChange={(e) => setDebugInitialLevel(Number(e.target.value))}
+                className="w-full"
+              />
+            </div>
+            
+            {/* 魔法レベル設定 */}
+            <div className="mb-6">
+              <label className="block text-gray-300 text-sm mb-2 font-sans">
+                🪄 {isEnglishCopy ? 'Magic Levels (0 = not acquired)' : '魔法レベル（0=未取得）'}
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                {[
+                  { key: 'thunder' as const, label: '⚡ Thunder', emoji: '⚡' },
+                  { key: 'ice' as const, label: '❄️ Ice', emoji: '❄️' },
+                  { key: 'fire' as const, label: '🔥 Fire', emoji: '🔥' },
+                  { key: 'heal' as const, label: '💚 Heal', emoji: '💚' },
+                  { key: 'buffer' as const, label: '⬆️ Buffer', emoji: '⬆️' },
+                  { key: 'debuffer' as const, label: '⬇️ Debuffer', emoji: '⬇️' },
+                  { key: 'hint' as const, label: '💡 Hint', emoji: '💡' },
+                ].map(magic => (
+                  <div key={magic.key} className="flex items-center gap-2">
+                    <span className="text-sm text-gray-400 w-20">{magic.label}</span>
+                    <select
+                      value={debugMagics[magic.key]}
+                      onChange={(e) => setDebugMagics(prev => ({
+                        ...prev,
+                        [magic.key]: Number(e.target.value),
+                      }))}
+                      className="flex-1 bg-gray-800 text-white rounded px-2 py-1 text-sm border border-gray-600"
+                    >
+                      <option value={0}>0</option>
+                      <option value={1}>1</option>
+                      <option value={2}>2</option>
+                      <option value={3}>3</option>
+                    </select>
+                  </div>
                 ))}
               </div>
             </div>

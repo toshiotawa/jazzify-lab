@@ -27,7 +27,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   level,
   pendingLevelUps,
   correctNotes,
-  tapSelectionEnabled = false,
+  tapSelectionEnabled = true,  // デフォルトでタップ選択を有効化
 }) => {
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
   const timeoutCalledRef = React.useRef(false);

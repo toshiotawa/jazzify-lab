@@ -142,21 +142,36 @@ export const getChordDefinition = (chordId: string): ChordDefinition | null => {
   };
 };
 
-export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition | null => {
+export const selectRandomChord = (allowedChords: string[], excludeIds?: string | string[]): ChordDefinition => {
   // excludeIdsを配列に正規化
   const excludeArray = excludeIds 
     ? (Array.isArray(excludeIds) ? excludeIds : [excludeIds])
     : [];
   
   const available = allowedChords.filter(c => !excludeArray.includes(c));
-  if (available.length === 0) {
-    // 除外するとコードがなくなる場合は、除外せずに選択
-    const chordId = allowedChords[Math.floor(Math.random() * allowedChords.length)];
-    return getChordDefinition(chordId);
+  
+  // 利用可能なコードリストを決定
+  const chordList = available.length > 0 ? available : allowedChords;
+  
+  // コードを選択（複数回試行して有効なコードを見つける）
+  for (let i = 0; i < chordList.length; i++) {
+    const chordId = chordList[(Math.floor(Math.random() * chordList.length) + i) % chordList.length];
+    const chord = getChordDefinition(chordId);
+    if (chord) {
+      return chord;
+    }
   }
   
-  const chordId = available[Math.floor(Math.random() * available.length)];
-  return getChordDefinition(chordId);
+  // フォールバック: 最もシンプルなCメジャーコード
+  const fallbackChord: ChordDefinition = {
+    id: 'C',
+    displayName: 'C',
+    notes: [60, 64, 67], // C4, E4, G4
+    noteNames: ['C', 'E', 'G'],
+    quality: 'major',
+    root: 'C',
+  };
+  return fallbackChord;
 };
 
 // ===== コードスロット管理 =====
@@ -503,20 +518,83 @@ export const generateLevelUpOptions = (
     return true;
   });
   
-  // ランダムに3つ選択
+  // 利用可能なボーナスがない場合のフォールバック
+  if (available.length === 0) {
+    // 基本的なステータス系ボーナスを追加
+    const fallbackBonuses = ALL_BONUSES.filter(b => 
+      ['a_atk', 'b_atk', 'c_atk', 'speed', 'max_hp', 'def'].includes(b.type)
+    );
+    available.push(...fallbackBonuses.slice(0, 3));
+  }
+  
+  // ランダムに3つ選択（利用可能数が3未満の場合は全て）
   const shuffled = [...available].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 3);
+  const selected = shuffled.slice(0, Math.min(3, shuffled.length));
+  
+  // 足りない場合は基本ボーナスで補完
+  while (selected.length < 3) {
+    const basicBonuses = ALL_BONUSES.filter(b => 
+      ['a_atk', 'b_atk', 'c_atk'].includes(b.type) && !selected.some(s => s.type === b.type)
+    );
+    if (basicBonuses.length > 0) {
+      selected.push(basicBonuses[0]);
+    } else {
+      // 重複を許容して追加
+      selected.push(ALL_BONUSES.find(b => b.type === 'a_atk')!);
+    }
+  }
   
   // コードを割り当て（重複しないように）
   const usedChordIds: string[] = [];
   return selected.map((bonus) => {
     const chord = selectRandomChord(allowedChords, usedChordIds);
-    if (chord) {
-      usedChordIds.push(chord.id);
+    usedChordIds.push(chord.id);
+    
+    // 現在のレベルを設定（表示用）
+    let currentLevel: number | undefined;
+    switch (bonus.type) {
+      case 'a_back_bullet':
+        currentLevel = player.skills.aBackBullet;
+        break;
+      case 'a_right_bullet':
+        currentLevel = player.skills.aRightBullet;
+        break;
+      case 'a_left_bullet':
+        currentLevel = player.skills.aLeftBullet;
+        break;
+      case 'multi_hit':
+        currentLevel = player.skills.multiHitLevel;
+        break;
+      case 'reload_magic':
+        currentLevel = player.stats.reloadMagic;
+        break;
+      case 'magic_thunder':
+        currentLevel = player.magics.thunder;
+        break;
+      case 'magic_ice':
+        currentLevel = player.magics.ice;
+        break;
+      case 'magic_fire':
+        currentLevel = player.magics.fire;
+        break;
+      case 'magic_heal':
+        currentLevel = player.magics.heal;
+        break;
+      case 'magic_buffer':
+        currentLevel = player.magics.buffer;
+        break;
+      case 'magic_debuffer':
+        currentLevel = player.magics.debuffer;
+        break;
+      case 'magic_hint':
+        currentLevel = player.magics.hint;
+        break;
     }
+    
     return {
       ...bonus,
-      chord: chord!,
+      chord,
+      currentLevel,
     };
   });
 };
@@ -609,19 +687,19 @@ export const calculateExpToNextLevel = (level: number): number => {
   return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, level - 1));
 };
 
-export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean } => {
+export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpsCount: number } => {
   const newPlayer = { ...player };
   newPlayer.exp += exp;
-  let leveledUp = false;
+  let levelUpsCount = 0;
   
   while (newPlayer.exp >= newPlayer.expToNextLevel) {
     newPlayer.exp -= newPlayer.expToNextLevel;
     newPlayer.level += 1;
     newPlayer.expToNextLevel = calculateExpToNextLevel(newPlayer.level);
-    leveledUp = true;
+    levelUpsCount++;
   }
   
-  return { player: newPlayer, leveledUp };
+  return { player: newPlayer, leveledUp: levelUpsCount > 0, levelUpsCount };
 };
 
 // ===== ダメージテキスト生成 =====
