@@ -148,6 +148,16 @@ interface SurvivalGameScreenProps {
     bAtk?: number;
     skills?: string[];
     tapSkillActivation?: boolean;
+    initialLevel?: number;
+    magics?: {
+      thunder?: number;
+      ice?: number;
+      fire?: number;
+      heal?: number;
+      buffer?: number;
+      debuffer?: number;
+      hint?: number;
+    };
   };
 }
 
@@ -166,45 +176,62 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
   
+  // デバッグ設定を適用するヘルパー関数
+  const applyDebugSettings = (initial: SurvivalGameState) => {
+    if (!debugSettings) return;
+    
+    if (debugSettings.aAtk !== undefined) {
+      initial.player.stats.aAtk = debugSettings.aAtk;
+    }
+    if (debugSettings.bAtk !== undefined) {
+      initial.player.stats.bAtk = debugSettings.bAtk;
+    }
+    if (debugSettings.initialLevel !== undefined && debugSettings.initialLevel > 1) {
+      initial.player.level = debugSettings.initialLevel;
+    }
+    if (debugSettings.magics) {
+      const m = debugSettings.magics;
+      if (m.thunder !== undefined) initial.player.magics.thunder = m.thunder;
+      if (m.ice !== undefined) initial.player.magics.ice = m.ice;
+      if (m.fire !== undefined) initial.player.magics.fire = m.fire;
+      if (m.heal !== undefined) initial.player.magics.heal = m.heal;
+      if (m.buffer !== undefined) initial.player.magics.buffer = m.buffer;
+      if (m.debuffer !== undefined) initial.player.magics.debuffer = m.debuffer;
+      if (m.hint !== undefined) initial.player.magics.hint = m.hint;
+    }
+    if (debugSettings.skills) {
+      debugSettings.skills.forEach(skill => {
+        switch (skill) {
+          case 'a_penetration':
+            initial.player.skills.aPenetration = true;
+            break;
+          case 'a_back_bullet':
+            initial.player.skills.aBackBullet = 3;
+            break;
+          case 'a_right_bullet':
+            initial.player.skills.aRightBullet = 3;
+            break;
+          case 'a_left_bullet':
+            initial.player.skills.aLeftBullet = 3;
+            break;
+          case 'multi_hit':
+            initial.player.skills.multiHitLevel = 3;
+            break;
+          case 'magic_all':
+            initial.player.magics = {
+              thunder: 3, ice: 3, fire: 3, heal: 3,
+              buffer: 3, debuffer: 3, hint: 3,
+            };
+            break;
+        }
+      });
+    }
+  };
+
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config);
-    // デバッグ設定を適用
-    if (debugSettings) {
-      if (debugSettings.aAtk !== undefined) {
-        initial.player.stats.aAtk = debugSettings.aAtk;
-      }
-      if (debugSettings.bAtk !== undefined) {
-        initial.player.stats.bAtk = debugSettings.bAtk;
-      }
-      if (debugSettings.skills) {
-        debugSettings.skills.forEach(skill => {
-          switch (skill) {
-            case 'a_penetration':
-              initial.player.skills.aPenetration = true;
-              break;
-            case 'a_back_bullet':
-              initial.player.skills.aBackBullet = 3;
-              break;
-            case 'a_right_bullet':
-              initial.player.skills.aRightBullet = 3;
-              break;
-            case 'a_left_bullet':
-              initial.player.skills.aLeftBullet = 3;
-              break;
-            case 'multi_hit':
-              initial.player.skills.multiHitLevel = 3;
-              break;
-            case 'magic_all':
-              initial.player.magics = {
-                thunder: 3, ice: 3, fire: 3, heal: 3,
-                buffer: 3, debuffer: 3, hint: 3,
-              };
-              break;
-          }
-        });
-      }
-    }
+    applyDebugSettings(initial);
     return initial;
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
@@ -785,6 +812,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 弾丸と敵の当たり判定（軽いノックバック追加）
         const hitResults: { enemyId: string; damage: number; projId: string }[] = [];
+        // 各弾丸の新しいヒット敵IDを記録（イミュータブル更新用）
+        const newHitEnemiesMap = new Map<string, Set<string>>();
+        
         newState.projectiles.forEach(proj => {
           newState.enemies.forEach(enemy => {
             if (proj.hitEnemies.has(enemy.id)) return;
@@ -802,7 +832,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 enemy.statusEffects.some(e => e.type === 'debuffer')
               );
               hitResults.push({ enemyId: enemy.id, damage, projId: proj.id });
-              proj.hitEnemies.add(enemy.id);
+              
+              // 新しいヒット敵を記録
+              if (!newHitEnemiesMap.has(proj.id)) {
+                newHitEnemiesMap.set(proj.id, new Set(proj.hitEnemies));
+              }
+              newHitEnemiesMap.get(proj.id)!.add(enemy.id);
               
               // A列ヒット時の軽いノックバック
               const dirVec = getDirectionVector(proj.direction);
@@ -815,6 +850,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           });
         });
         
+        // 弾丸のhitEnemiesをイミュータブルに更新
+        if (newHitEnemiesMap.size > 0) {
+          newState.projectiles = newState.projectiles.map(proj => {
+            const newHitEnemies = newHitEnemiesMap.get(proj.id);
+            if (newHitEnemies) {
+              return { ...proj, hitEnemies: newHitEnemies };
+            }
+            return proj;
+          });
+        }
+        
         // ダメージ適用
         hitResults.forEach(({ enemyId, damage }) => {
           const enemy = newState.enemies.find(e => e.id === enemyId);
@@ -824,7 +870,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         });
         
-        // 貫通でない弾を削除
+        // 貫通でない弾を削除（貫通弾は残す）
         newState.projectiles = newState.projectiles.filter(proj => {
           if (proj.penetrating) return true;
           return !hitResults.some(h => h.projId === proj.id);
@@ -879,22 +925,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 経験値獲得とレベルアップ
         if (defeatedEnemies.length > 0) {
           const expGained = defeatedEnemies.reduce((sum, e) => sum + (e.isBoss ? 50 : 10) * config.expMultiplier, 0);
-          const { player: newPlayer, leveledUp } = addExp(newState.player, expGained);
+          const { player: newPlayer, leveledUp, levelUpsCount } = addExp(newState.player, expGained);
           newState.player = newPlayer;
           newState.enemiesDefeated += defeatedEnemies.length;
           
           if (leveledUp) {
-            let pendingLevelUps = 0;
-            let tempPlayer = newPlayer;
-            while (tempPlayer.exp >= tempPlayer.expToNextLevel) {
-              pendingLevelUps++;
-              tempPlayer = { ...tempPlayer, exp: tempPlayer.exp - tempPlayer.expToNextLevel };
-            }
-            
             const options = generateLevelUpOptions(newPlayer, config.allowedChords);
             newState.isLevelingUp = true;
             newState.levelUpOptions = options;
-            newState.pendingLevelUps = pendingLevelUps + 1;
+            newState.pendingLevelUps = levelUpsCount;
             setLevelUpCorrectNotes([[], [], []]);
           }
         }
@@ -986,14 +1025,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setShockwaves([]);
     const initial = createInitialGameState(difficulty, config);
     // デバッグ設定を再適用
-    if (debugSettings) {
-      if (debugSettings.aAtk !== undefined) {
-        initial.player.stats.aAtk = debugSettings.aAtk;
-      }
-      if (debugSettings.bAtk !== undefined) {
-        initial.player.stats.bAtk = debugSettings.bAtk;
-      }
-    }
+    applyDebugSettings(initial);
     setGameState(initial);
     startGame();
   }, [difficulty, config, startGame, debugSettings]);
