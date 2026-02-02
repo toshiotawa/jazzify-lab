@@ -310,13 +310,33 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     ctx.textBaseline = 'middle';
     ctx.fillText(PLAYER_ICON, playerScreenX, playerScreenY);
     
-    // 方向インジケーター（矢印アイコン）
+    // 方向インジケーター（矢印アイコン）- 向きに応じて回転
     const dirVec = getDirectionVector(player.direction);
     const arrowX = playerScreenX + dirVec.x * 25;
     const arrowY = playerScreenY + dirVec.y * 25;
+    
+    // 方向から回転角度を計算（ラジアン）
+    const directionAngles: Record<Direction, number> = {
+      'right': 0,
+      'down-right': Math.PI / 4,
+      'down': Math.PI / 2,
+      'down-left': Math.PI * 3 / 4,
+      'left': Math.PI,
+      'up-left': -Math.PI * 3 / 4,
+      'up': -Math.PI / 2,
+      'up-right': -Math.PI / 4,
+    };
+    const angle = directionAngles[player.direction];
+    
+    ctx.save();
+    ctx.translate(arrowX, arrowY);
+    ctx.rotate(angle);
     ctx.font = '14px sans-serif';
     ctx.fillStyle = '#fff';
-    ctx.fillText('➤', arrowX, arrowY);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('➤', 0, 0);
+    ctx.restore();
     
     // プレイヤーHPバー
     const playerHpPercent = player.stats.hp / player.stats.maxHp;
