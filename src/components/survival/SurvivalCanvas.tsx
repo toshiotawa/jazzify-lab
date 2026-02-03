@@ -488,7 +488,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
 
     // 衝撃波エフェクト描画（アイコンベース）
-    const now = Date.now();
     shockwaves.forEach(sw => {
       const elapsed = now - sw.startTime;
       if (elapsed >= sw.duration) return;
