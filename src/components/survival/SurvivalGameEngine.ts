@@ -484,33 +484,34 @@ export const calculateDamage = (
 };
 
 // ===== レベルアップボーナス生成 =====
+// icon フィールドはアイコン名を使用（lucide-react のコンポーネント名に対応）
 const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: string; icon: string; maxLevel?: number }> = [
   // ステータス系
-  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ', icon: '🔫' },
-  { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力アップ', icon: '👊' },
-  { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力アップ', icon: '🪄' },
-  { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: '👟' },
-  { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: '⏱️', maxLevel: 20 },
-  { type: 'max_hp', displayName: 'HP +10%', description: '最大HPアップ', icon: '❤️' },
-  { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: '🛡️' },
-  { type: 'time', displayName: 'TIME +1', description: '効果時間延長', icon: '⏰' },
-  { type: 'a_bullet', displayName: 'A弾数 +1', description: '同時発射数アップ', icon: '💫' },
+  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ', icon: 'crosshair' },
+  { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力アップ', icon: 'sword' },
+  { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力アップ', icon: 'wand2' },
+  { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: 'zap' },
+  { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: 'timer', maxLevel: 20 },
+  { type: 'max_hp', displayName: 'HP +10%', description: '最大HPアップ', icon: 'heart' },
+  { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: 'shield' },
+  { type: 'time', displayName: 'TIME +1', description: '効果時間延長', icon: 'clock' },
+  { type: 'a_bullet', displayName: 'A弾数 +1', description: '同時発射数アップ', icon: 'sparkles' },
   // 特殊系
-  { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: '➡️', maxLevel: 1 },
-  { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射', icon: '⬅️', maxLevel: 3 },
-  { type: 'a_right_bullet', displayName: '右側弾', description: '右側にも発射', icon: '↗️', maxLevel: 3 },
-  { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射', icon: '↖️', maxLevel: 3 },
-  { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
-  { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
-  { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
+  { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: 'move-right', maxLevel: 1 },
+  { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射', icon: 'move-left', maxLevel: 3 },
+  { type: 'a_right_bullet', displayName: '右側弾', description: '右側にも発射', icon: 'corner-up-right', maxLevel: 3 },
+  { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射', icon: 'corner-up-left', maxLevel: 3 },
+  { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: 'wind' },
+  { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: 'maximize2' },
+  { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: 'layers', maxLevel: 3 },
   // 魔法系
-  { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
-  { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: '❄️', maxLevel: 3 },
-  { type: 'magic_fire', displayName: 'FIRE', description: '炎魔法', icon: '🔥', maxLevel: 3 },
-  { type: 'magic_heal', displayName: 'HEAL', description: '回復魔法', icon: '💚', maxLevel: 3 },
-  { type: 'magic_buffer', displayName: 'BUFFER', description: 'バフ魔法', icon: '⬆️', maxLevel: 3 },
-  { type: 'magic_debuffer', displayName: 'DEBUFFER', description: 'デバフ魔法', icon: '⬇️', maxLevel: 3 },
-  { type: 'magic_hint', displayName: 'HINT', description: 'ヒント魔法', icon: '💡', maxLevel: 3 },
+  { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: 'zap', maxLevel: 3 },
+  { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: 'snowflake', maxLevel: 3 },
+  { type: 'magic_fire', displayName: 'FIRE', description: '炎魔法', icon: 'flame', maxLevel: 3 },
+  { type: 'magic_heal', displayName: 'HEAL', description: '回復魔法', icon: 'heart-pulse', maxLevel: 3 },
+  { type: 'magic_buffer', displayName: 'BUFFER', description: 'バフ魔法', icon: 'trending-up', maxLevel: 3 },
+  { type: 'magic_debuffer', displayName: 'DEBUFFER', description: 'デバフ魔法', icon: 'trending-down', maxLevel: 3 },
+  { type: 'magic_hint', displayName: 'HINT', description: 'ヒント魔法', icon: 'lightbulb', maxLevel: 3 },
 ];
 
 export const generateLevelUpOptions = (

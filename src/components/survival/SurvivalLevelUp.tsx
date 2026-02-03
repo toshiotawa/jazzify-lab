@@ -6,7 +6,69 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { LevelUpBonus } from './SurvivalTypes';
-import { Sparkles, Clock, MousePointerClick, Piano } from 'lucide-react';
+import {
+  Sparkles,
+  Clock,
+  MousePointerClick,
+  Piano,
+  Crosshair,
+  Sword,
+  Wand2,
+  Zap,
+  Timer,
+  Heart,
+  Shield,
+  MoveRight,
+  MoveLeft,
+  CornerUpRight,
+  CornerUpLeft,
+  Wind,
+  Maximize2,
+  Layers,
+  Snowflake,
+  Flame,
+  HeartPulse,
+  TrendingUp,
+  TrendingDown,
+  Lightbulb,
+  LucideIcon,
+} from 'lucide-react';
+
+// アイコン名からコンポーネントへのマッピング
+const ICON_MAP: Record<string, LucideIcon> = {
+  crosshair: Crosshair,
+  sword: Sword,
+  wand2: Wand2,
+  zap: Zap,
+  timer: Timer,
+  heart: Heart,
+  shield: Shield,
+  clock: Clock,
+  sparkles: Sparkles,
+  'move-right': MoveRight,
+  'move-left': MoveLeft,
+  'corner-up-right': CornerUpRight,
+  'corner-up-left': CornerUpLeft,
+  wind: Wind,
+  maximize2: Maximize2,
+  layers: Layers,
+  snowflake: Snowflake,
+  flame: Flame,
+  'heart-pulse': HeartPulse,
+  'trending-up': TrendingUp,
+  'trending-down': TrendingDown,
+  lightbulb: Lightbulb,
+};
+
+// アイコン名からReactコンポーネントを取得
+const getIconComponent = (iconName: string): React.ReactNode => {
+  const IconComponent = ICON_MAP[iconName];
+  if (IconComponent) {
+    return <IconComponent className="w-10 h-10" />;
+  }
+  // フォールバック
+  return <Sparkles className="w-10 h-10" />;
+};
 
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
@@ -151,8 +213,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 )}
               >
                 {/* アイコン */}
-                <div className="text-4xl text-center mb-3">
-                  {option.icon}
+                <div className="flex justify-center mb-3 text-white">
+                  {getIconComponent(option.icon)}
                 </div>
                 
                 {/* 名前 */}
