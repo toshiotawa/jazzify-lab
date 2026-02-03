@@ -14,6 +14,7 @@ import {
   LevelUpBonus,
   BonusType,
   Projectile,
+  EnemyProjectile,
   DroppedItem,
   DamageText,
   Coin,
@@ -118,6 +119,7 @@ export const createInitialGameState = (
   player: createInitialPlayerState(),
   enemies: [],
   projectiles: [],
+  enemyProjectiles: [],
   codeSlots: {
     current: [
       createEmptyCodeSlot('A'),
@@ -876,4 +878,80 @@ export const collectCoins = (
 export const cleanupExpiredCoins = (coins: Coin[]): Coin[] => {
   const now = Date.now();
   return coins.filter(coin => now - coin.startTime < coin.lifetime);
+};
+
+// ===== 敵が弾を撃つタイプかどうか =====
+const SHOOTING_ENEMY_TYPES: EnemyType[] = ['skeleton', 'ghost', 'demon', 'dragon'];
+const ENEMY_PROJECTILE_SPEED = 200;  // 敵弾の速度（px/秒）
+const ENEMY_SHOOT_COOLDOWN = 2;      // 敵の射撃クールダウン（秒）
+
+export const canEnemyShoot = (enemyType: EnemyType): boolean => {
+  return SHOOTING_ENEMY_TYPES.includes(enemyType);
+};
+
+// ===== 敵の弾丸生成 =====
+export const createEnemyProjectile = (
+  enemy: EnemyState,
+  playerX: number,
+  playerY: number
+): EnemyProjectile => {
+  const dx = playerX - enemy.x;
+  const dy = playerY - enemy.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  
+  return {
+    id: `enemyproj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    x: enemy.x,
+    y: enemy.y,
+    dx: dist > 0 ? dx / dist : 0,
+    dy: dist > 0 ? dy / dist : 0,
+    damage: Math.floor(enemy.stats.atk * 0.5),  // 体当たりより弱いダメージ
+    speed: ENEMY_PROJECTILE_SPEED,
+  };
+};
+
+// ===== 敵の弾丸更新 =====
+export const updateEnemyProjectiles = (
+  projectiles: EnemyProjectile[],
+  deltaTime: number
+): EnemyProjectile[] => {
+  return projectiles
+    .map(proj => ({
+      ...proj,
+      x: proj.x + proj.dx * proj.speed * deltaTime,
+      y: proj.y + proj.dy * proj.speed * deltaTime,
+    }))
+    .filter(proj => 
+      proj.x > -50 && proj.x < MAP_CONFIG.width + 50 &&
+      proj.y > -50 && proj.y < MAP_CONFIG.height + 50
+    );
+};
+
+// ===== 敵の射撃判定（確率ベース） =====
+export const shouldEnemyShoot = (
+  enemy: EnemyState,
+  playerX: number,
+  playerY: number,
+  elapsedTime: number
+): boolean => {
+  if (!canEnemyShoot(enemy.type)) return false;
+  
+  // 凍結・デバフ中は撃てない
+  if (enemy.statusEffects.some(e => e.type === 'ice' || e.type === 'debuffer')) {
+    return false;
+  }
+  
+  // プレイヤーとの距離が近すぎると撃たない（150px以内）
+  const dx = playerX - enemy.x;
+  const dy = playerY - enemy.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 150) return false;
+  
+  // 距離が遠すぎても撃たない（500px以上）
+  if (dist > 500) return false;
+  
+  // 確率で射撃（2秒に1回くらい）
+  // フレームごとに呼ばれるので確率を低くする
+  const shootProbability = 0.02;  // 約2%/フレーム（60FPSで約1.2秒に1回）
+  return Math.random() < shootProbability;
 };

@@ -149,6 +149,17 @@ export interface Projectile {
   hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
 }
 
+// ===== 敵の弾丸 =====
+export interface EnemyProjectile {
+  id: string;
+  x: number;
+  y: number;
+  dx: number;               // 移動ベクトルX
+  dy: number;               // 移動ベクトルY
+  damage: number;
+  speed: number;
+}
+
 // ===== コードスロット =====
 export type SlotType = 'A' | 'B' | 'C';
 
@@ -286,6 +297,9 @@ export interface SurvivalGameState {
   
   // 弾丸
   projectiles: Projectile[];
+  
+  // 敵の弾丸
+  enemyProjectiles: EnemyProjectile[];
   
   // コードスロット
   codeSlots: {

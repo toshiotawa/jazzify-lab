@@ -41,6 +41,9 @@ import {
   cleanupExpiredCoins,
   calculateWaveQuota,
   getWaveSpeedMultiplier,
+  shouldEnemyShoot,
+  createEnemyProjectile,
+  updateEnemyProjectiles,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
 import SurvivalCanvas from './SurvivalCanvas';
@@ -1220,6 +1223,35 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const damage = Math.max(1, Math.floor(enemy.stats.atk - newState.player.stats.def * defMultiplier * 0.5));
             newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
           }
+        });
+        
+        // 敵の射撃処理
+        newState.enemies.forEach(enemy => {
+          if (shouldEnemyShoot(enemy, newState.player.x, newState.player.y, newState.elapsedTime)) {
+            const proj = createEnemyProjectile(enemy, newState.player.x, newState.player.y);
+            newState.enemyProjectiles.push(proj);
+          }
+        });
+        
+        // 敵の弾丸更新
+        newState.enemyProjectiles = updateEnemyProjectiles(prev.enemyProjectiles, deltaTime);
+        
+        // 敵の弾丸とプレイヤーの当たり判定
+        const ENEMY_PROJECTILE_HIT_RADIUS = 25;
+        newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
+          const dx = proj.x - newState.player.x;
+          const dy = proj.y - newState.player.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          
+          if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
+            // プレイヤーにダメージ
+            const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
+            const damage = Math.max(1, Math.floor(proj.damage - newState.player.stats.def * defMultiplier * 0.3));
+            newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage);
+            newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, damage));
+            return false;  // 弾を削除
+          }
+          return true;  // 弾を残す
         });
         
         // 死んだ敵を処理 - コインをドロップ
