@@ -283,18 +283,19 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (!isVisible) return;
       
       // コインの光エフェクト
-      const pulseScale = 1 + Math.sin(elapsed / 200) * 0.15;
+      const pulseScale = 1 + Math.sin(elapsed / 200) * 0.1;
       
       ctx.save();
       ctx.translate(screenX, screenY);
-      ctx.scale(pulseScale, pulseScale);
+      // 小さく、縦長に（X方向を0.6倍、Y方向を1.0倍）
+      ctx.scale(pulseScale * 0.6, pulseScale * 1.0);
       
-      // コインアイコン
-      ctx.font = '18px sans-serif';
+      // コインアイコン（小さめのサイズ）
+      ctx.font = '14px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 5;
       ctx.fillText('🪙', 0, 0);
       ctx.shadowBlur = 0;
       
