@@ -17,6 +17,7 @@ import {
   DroppedItem,
   DamageText,
   Coin,
+  WaveState,
   EnemyType,
   MagicType,
   ActiveStatusEffect,
@@ -24,6 +25,9 @@ import {
   MAGIC_BASE_COOLDOWN,
   MAGIC_MIN_COOLDOWN,
   MAP_CONFIG,
+  WAVE_BASE_QUOTA,
+  WAVE_DURATION,
+  WAVE_QUOTA_INCREMENT,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
@@ -36,7 +40,7 @@ const PROJECTILE_SIZE = 8;
 const ITEM_SIZE = 24;
 
 const BASE_PLAYER_SPEED = 150;  // px/秒
-const BASE_ENEMY_SPEED = 60;   // px/秒
+const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
 const EXP_LEVEL_FACTOR = 1.5;  // レベルアップに必要な経験値の増加率
@@ -91,6 +95,16 @@ const createEmptyCodeSlot = (type: 'A' | 'B' | 'C', chord: ChordDefinition | nul
   isEnabled: type !== 'C',  // C列は魔法取得まで無効
 });
 
+// ===== 初期WAVE状態 =====
+const createInitialWaveState = (): WaveState => ({
+  currentWave: 1,
+  waveStartTime: 0,
+  waveKills: 0,
+  waveQuota: WAVE_BASE_QUOTA,
+  waveDuration: WAVE_DURATION,
+  waveCompleted: false,
+});
+
 export const createInitialGameState = (
   difficulty: SurvivalDifficulty,
   _config: DifficultyConfig
@@ -99,6 +113,7 @@ export const createInitialGameState = (
   isPaused: false,
   isGameOver: false,
   isLevelingUp: false,
+  wave: createInitialWaveState(),
   elapsedTime: 0,
   player: createInitialPlayerState(),
   enemies: [],
@@ -124,6 +139,16 @@ export const createInitialGameState = (
   enemiesDefeated: 0,
   difficulty,
 });
+
+// ===== WAVEヘルパー関数 =====
+export const calculateWaveQuota = (waveNumber: number): number => {
+  return WAVE_BASE_QUOTA + (waveNumber - 1) * WAVE_QUOTA_INCREMENT;
+};
+
+export const getWaveSpeedMultiplier = (waveNumber: number): number => {
+  // WAVEが進むごとに敵が10%ずつ速くなる
+  return 1 + (waveNumber - 1) * 0.1;
+};
 
 // ===== コード生成 =====
 export const getChordDefinition = (chordId: string): ChordDefinition | null => {
@@ -328,7 +353,8 @@ export const updateEnemyPositions = (
   enemies: EnemyState[],
   playerX: number,
   playerY: number,
-  deltaTime: number
+  deltaTime: number,
+  waveSpeedMultiplier: number = 1
 ): EnemyState[] => {
   return enemies.map(enemy => {
     // 凍結状態なら移動しない
@@ -348,7 +374,8 @@ export const updateEnemyPositions = (
     
     if (distance < 1) return enemy;
     
-    const speed = BASE_ENEMY_SPEED * enemy.stats.speed * burnedMultiplier * debuffMultiplier;
+    // WAVE倍率を適用
+    const speed = BASE_ENEMY_SPEED * enemy.stats.speed * burnedMultiplier * debuffMultiplier * waveSpeedMultiplier;
     const moveX = (dx / distance) * speed * deltaTime;
     const moveY = (dy / distance) * speed * deltaTime;
     

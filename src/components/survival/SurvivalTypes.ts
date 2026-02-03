@@ -249,6 +249,21 @@ export interface ShockwaveEffect {
   duration: number;
 }
 
+// ===== WAVE設定 =====
+export interface WaveState {
+  currentWave: number;        // 現在のWAVE番号（1から開始）
+  waveStartTime: number;      // 現在のWAVE開始時刻（秒）
+  waveKills: number;          // 現在のWAVE内での撃破数
+  waveQuota: number;          // 現在のWAVEのノルマ
+  waveDuration: number;       // WAVEの制限時間（秒）
+  waveCompleted: boolean;     // 現在のWAVEが完了したか
+  waveFailedReason?: string;  // 失敗理由
+}
+
+export const WAVE_BASE_QUOTA = 20;       // 基本ノルマ
+export const WAVE_DURATION = 120;        // WAVE時間（秒 = 2分）
+export const WAVE_QUOTA_INCREMENT = 5;   // WAVEごとのノルマ増加量
+
 // ===== ゲーム状態 =====
 export interface SurvivalGameState {
   // 基本状態
@@ -256,6 +271,9 @@ export interface SurvivalGameState {
   isPaused: boolean;
   isGameOver: boolean;
   isLevelingUp: boolean;
+  
+  // WAVE
+  wave: WaveState;
   
   // 時間
   elapsedTime: number;       // 経過時間（秒）

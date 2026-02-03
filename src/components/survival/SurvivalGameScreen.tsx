@@ -39,7 +39,10 @@ import {
   createCoinsFromEnemy,
   collectCoins,
   cleanupExpiredCoins,
+  calculateWaveQuota,
+  getWaveSpeedMultiplier,
 } from './SurvivalGameEngine';
+import { WAVE_DURATION } from './SurvivalTypes';
 import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
@@ -1123,8 +1126,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // プレイヤー移動
         newState.player = updatePlayerPosition(prev.player, combinedKeys, deltaTime);
         
-        // 敵移動
-        newState.enemies = updateEnemyPositions(prev.enemies, newState.player.x, newState.player.y, deltaTime);
+        // 敵移動（WAVE倍率適用）
+        const waveSpeedMult = getWaveSpeedMultiplier(prev.wave.currentWave);
+        newState.enemies = updateEnemyPositions(prev.enemies, newState.player.x, newState.player.y, deltaTime, waveSpeedMult);
         
         // 弾丸更新
         newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
@@ -1229,6 +1233,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.coins = [...newState.coins, ...coins];
           });
           newState.enemiesDefeated += defeatedEnemies.length;
+          
+          // WAVEキル数を更新
+          newState.wave = {
+            ...newState.wave,
+            waveKills: newState.wave.waveKills + defeatedEnemies.length,
+          };
         }
         
         // コイン拾得処理
@@ -1320,7 +1330,43 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           d => now - d.startTime < d.duration
         );
         
-        // ゲームオーバー判定
+        // WAVEチェック
+        const waveElapsedTime = newState.elapsedTime - newState.wave.waveStartTime;
+        
+        // WAVEノルマ達成チェック
+        if (newState.wave.waveKills >= newState.wave.waveQuota && !newState.wave.waveCompleted) {
+          // 次のWAVEへ
+          const nextWave = newState.wave.currentWave + 1;
+          newState.wave = {
+            currentWave: nextWave,
+            waveStartTime: newState.elapsedTime,
+            waveKills: 0,
+            waveQuota: calculateWaveQuota(nextWave),
+            waveDuration: WAVE_DURATION,
+            waveCompleted: false,
+          };
+        }
+        
+        // WAVEタイムアウトチェック（ノルマ未達成でゲームオーバー）
+        if (waveElapsedTime >= WAVE_DURATION && newState.wave.waveKills < newState.wave.waveQuota) {
+          newState.isGameOver = true;
+          newState.isPlaying = false;
+          newState.wave.waveFailedReason = 'quota_failed';
+          
+          const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+          setResult({
+            survivalTime: newState.elapsedTime,
+            finalLevel: newState.player.level,
+            enemiesDefeated: newState.enemiesDefeated,
+            playerStats: newState.player.stats,
+            skills: newState.player.skills,
+            magics: newState.player.magics,
+            earnedXp,
+          });
+          return newState;
+        }
+        
+        // HPゲームオーバー判定
         if (newState.player.stats.hp <= 0) {
           newState.isGameOver = true;
           newState.isPlaying = false;
@@ -1514,8 +1560,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
         
         <div className="flex justify-between items-center max-w-6xl mx-auto">
-          {/* 時間・レベル・撃破数 */}
+          {/* WAVE・時間・レベル */}
           <div className="flex items-center gap-3 text-white font-sans text-sm">
+            {/* WAVE表示 */}
+            <div className="flex items-center gap-1 bg-yellow-600/50 px-2 py-0.5 rounded">
+              <span className="font-bold text-yellow-300">WAVE {gameState.wave.currentWave}</span>
+            </div>
             <div className="flex items-center gap-1">
               <span>⏱️</span>
               <span className="text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
@@ -1523,13 +1573,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             <div className="flex items-center gap-1">
               <span>⭐</span>
               <span>Lv.{gameState.player.level}</span>
-              <span className="text-xs text-purple-300">
-                ({gameState.player.exp}/{gameState.player.expToNextLevel})
+            </div>
+          </div>
+          
+          {/* WAVEノルマ表示 */}
+          <div className="flex items-center gap-2">
+            <div className="flex flex-col items-center text-xs">
+              <span className="text-gray-400">残り</span>
+              <span className={cn(
+                'font-bold',
+                gameState.wave.waveKills >= gameState.wave.waveQuota 
+                  ? 'text-green-400' 
+                  : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7
+                    ? 'text-red-400'
+                    : 'text-white'
+              )}>
+                {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}体
               </span>
             </div>
-            <div className="flex items-center gap-1">
-              <span>💀</span>
-              <span>{gameState.enemiesDefeated}</span>
+            <div className="flex flex-col items-center text-xs">
+              <span className="text-gray-400">制限</span>
+              <span className={cn(
+                'font-bold',
+                (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 
+                  ? 'text-red-400 animate-pulse' 
+                  : 'text-white'
+              )}>
+                {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
+              </span>
             </div>
           </div>
           
@@ -1742,6 +1813,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onRetry={handleRetry}
           onBackToSelect={onBackToSelect}
           onBackToMenu={onBackToMenu}
+          waveFailedReason={gameState.wave.waveFailedReason}
+          finalWave={gameState.wave.currentWave}
         />
       )}
       
