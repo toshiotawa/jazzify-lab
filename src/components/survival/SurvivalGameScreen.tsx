@@ -303,6 +303,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   
+  // handleNoteInputの最新参照を保持するref
+  const handleNoteInputRef = useRef<(note: number) => void>(() => {});
+  
   // ビューポートサイズ
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
   const [isMobile, setIsMobile] = useState(false);
@@ -329,7 +332,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         midiControllerRef.current = new MIDIController({
           onNoteOn: (note: number) => {
-            handleNoteInput(note);
+            // refを使用して常に最新のhandleNoteInputを呼び出す
+            handleNoteInputRef.current(note);
             playNote(note, 100);
             pixiRendererRef.current?.highlightKey(note, true);
           },
@@ -372,9 +376,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       });
       
       // タッチ/クリックハンドラー設定
+      // refを使用して常に最新のhandleNoteInputを呼び出す
       renderer.setKeyCallbacks(
         (note: number) => {
-          handleNoteInput(note);
+          handleNoteInputRef.current(note);
           playNote(note, 100);
         },
         (note: number) => {
@@ -888,6 +893,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return newState;
     });
   }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
+  
+  // handleNoteInputが更新されるたびにrefを更新
+  useEffect(() => {
+    handleNoteInputRef.current = handleNoteInput;
+  }, [handleNoteInput]);
   
   // タップでスキル発動（デバッグ用）
   const handleTapSkillActivation = useCallback((slotIndex: number) => {
