@@ -149,6 +149,17 @@ export interface Projectile {
   hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
 }
 
+// ===== 敵の弾丸 =====
+export interface EnemyProjectile {
+  id: string;
+  x: number;
+  y: number;
+  dx: number;               // 移動ベクトルX
+  dy: number;               // 移動ベクトルY
+  damage: number;
+  speed: number;
+}
+
 // ===== コードスロット =====
 export type SlotType = 'A' | 'B' | 'C';
 
@@ -228,6 +239,16 @@ export interface DamageText {
   duration: number;
 }
 
+// ===== コイン =====
+export interface Coin {
+  id: string;
+  x: number;
+  y: number;
+  exp: number;          // このコインが持つ経験値
+  startTime: number;    // 生成時刻
+  lifetime: number;     // 生存時間（ミリ秒）
+}
+
 // ===== 衝撃波エフェクト =====
 export interface ShockwaveEffect {
   id: string;
@@ -239,6 +260,30 @@ export interface ShockwaveEffect {
   duration: number;
 }
 
+// ===== 雷エフェクト =====
+export interface LightningEffect {
+  id: string;
+  x: number;
+  y: number;
+  startTime: number;
+  duration: number;
+}
+
+// ===== WAVE設定 =====
+export interface WaveState {
+  currentWave: number;        // 現在のWAVE番号（1から開始）
+  waveStartTime: number;      // 現在のWAVE開始時刻（秒）
+  waveKills: number;          // 現在のWAVE内での撃破数
+  waveQuota: number;          // 現在のWAVEのノルマ
+  waveDuration: number;       // WAVEの制限時間（秒）
+  waveCompleted: boolean;     // 現在のWAVEが完了したか
+  waveFailedReason?: string;  // 失敗理由
+}
+
+export const WAVE_BASE_QUOTA = 20;       // 基本ノルマ
+export const WAVE_DURATION = 120;        // WAVE時間（秒 = 2分）
+export const WAVE_QUOTA_INCREMENT = 5;   // WAVEごとのノルマ増加量
+
 // ===== ゲーム状態 =====
 export interface SurvivalGameState {
   // 基本状態
@@ -246,6 +291,9 @@ export interface SurvivalGameState {
   isPaused: boolean;
   isGameOver: boolean;
   isLevelingUp: boolean;
+  
+  // WAVE
+  wave: WaveState;
   
   // 時間
   elapsedTime: number;       // 経過時間（秒）
@@ -258,6 +306,9 @@ export interface SurvivalGameState {
   
   // 弾丸
   projectiles: Projectile[];
+  
+  // 敵の弾丸
+  enemyProjectiles: EnemyProjectile[];
   
   // コードスロット
   codeSlots: {
@@ -274,6 +325,9 @@ export interface SurvivalGameState {
   
   // アイテム
   items: DroppedItem[];
+  
+  // コイン
+  coins: Coin[];
   
   // ダメージテキスト
   damageTexts: DamageText[];

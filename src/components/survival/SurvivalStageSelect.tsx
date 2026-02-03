@@ -23,6 +23,7 @@ import { initializeAudioSystem } from '@/utils/MidiController';
 // デバッグモード用スキル一覧
 const DEBUG_SKILLS = [
   { id: 'aPenetration', label: 'A列貫通', labelEn: 'Penetration', emoji: '🔫', isBoolean: true, maxLevel: 1 },
+  { id: 'aBulletCount', label: 'A列弾数', labelEn: 'Bullet Count', emoji: '💫', isBoolean: false, maxLevel: null },
   { id: 'aBackBullet', label: 'A列後方弾', labelEn: 'Back Bullet', emoji: '↩️', isBoolean: false, maxLevel: null },
   { id: 'aRightBullet', label: 'A列右弾', labelEn: 'Right Bullet', emoji: '➡️', isBoolean: false, maxLevel: null },
   { id: 'aLeftBullet', label: 'A列左弾', labelEn: 'Left Bullet', emoji: '⬅️', isBoolean: false, maxLevel: null },
@@ -121,6 +122,7 @@ const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
 
 export interface DebugSkillSettings {
   aPenetration?: boolean;     // 貫通（上限1）
+  aBulletCount?: number;      // A列の弾数（デフォルト1）
   aBackBullet?: number;       // 後方弾（上限なし）
   aRightBullet?: number;      // 右側弾（上限なし）
   aLeftBullet?: number;       // 左側弾（上限なし）
@@ -178,6 +180,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugCAtk, setDebugCAtk] = useState<number>(20);
   const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
     aPenetration: false,
+    aBulletCount: 1,
     aBackBullet: 0,
     aRightBullet: 0,
     aLeftBullet: 0,
@@ -635,6 +638,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <button
                   onClick={() => setDebugSkills({
                     aPenetration: false,
+                    aBulletCount: 1,
                     aBackBullet: 0,
                     aRightBullet: 0,
                     aLeftBullet: 0,

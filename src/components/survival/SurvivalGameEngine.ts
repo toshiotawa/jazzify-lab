@@ -14,8 +14,11 @@ import {
   LevelUpBonus,
   BonusType,
   Projectile,
+  EnemyProjectile,
   DroppedItem,
   DamageText,
+  Coin,
+  WaveState,
   EnemyType,
   MagicType,
   ActiveStatusEffect,
@@ -23,6 +26,9 @@ import {
   MAGIC_BASE_COOLDOWN,
   MAGIC_MIN_COOLDOWN,
   MAP_CONFIG,
+  WAVE_BASE_QUOTA,
+  WAVE_DURATION,
+  WAVE_QUOTA_INCREMENT,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
@@ -35,7 +41,7 @@ const PROJECTILE_SIZE = 8;
 const ITEM_SIZE = 24;
 
 const BASE_PLAYER_SPEED = 150;  // px/秒
-const BASE_ENEMY_SPEED = 60;   // px/秒
+const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
 const EXP_LEVEL_FACTOR = 1.5;  // レベルアップに必要な経験値の増加率
@@ -90,6 +96,16 @@ const createEmptyCodeSlot = (type: 'A' | 'B' | 'C', chord: ChordDefinition | nul
   isEnabled: type !== 'C',  // C列は魔法取得まで無効
 });
 
+// ===== 初期WAVE状態 =====
+const createInitialWaveState = (): WaveState => ({
+  currentWave: 1,
+  waveStartTime: 0,
+  waveKills: 0,
+  waveQuota: WAVE_BASE_QUOTA,
+  waveDuration: WAVE_DURATION,
+  waveCompleted: false,
+});
+
 export const createInitialGameState = (
   difficulty: SurvivalDifficulty,
   _config: DifficultyConfig
@@ -98,10 +114,12 @@ export const createInitialGameState = (
   isPaused: false,
   isGameOver: false,
   isLevelingUp: false,
+  wave: createInitialWaveState(),
   elapsedTime: 0,
   player: createInitialPlayerState(),
   enemies: [],
   projectiles: [],
+  enemyProjectiles: [],
   codeSlots: {
     current: [
       createEmptyCodeSlot('A'),
@@ -118,10 +136,21 @@ export const createInitialGameState = (
   levelUpOptions: [],
   pendingLevelUps: 0,
   items: [],
+  coins: [],
   damageTexts: [],
   enemiesDefeated: 0,
   difficulty,
 });
+
+// ===== WAVEヘルパー関数 =====
+export const calculateWaveQuota = (waveNumber: number): number => {
+  return WAVE_BASE_QUOTA + (waveNumber - 1) * WAVE_QUOTA_INCREMENT;
+};
+
+export const getWaveSpeedMultiplier = (waveNumber: number): number => {
+  // WAVEが進むごとに敵が10%ずつ速くなる
+  return 1 + (waveNumber - 1) * 0.1;
+};
 
 // ===== コード生成 =====
 export const getChordDefinition = (chordId: string): ChordDefinition | null => {
@@ -326,7 +355,8 @@ export const updateEnemyPositions = (
   enemies: EnemyState[],
   playerX: number,
   playerY: number,
-  deltaTime: number
+  deltaTime: number,
+  waveSpeedMultiplier: number = 1
 ): EnemyState[] => {
   return enemies.map(enemy => {
     // 凍結状態なら移動しない
@@ -346,7 +376,8 @@ export const updateEnemyPositions = (
     
     if (distance < 1) return enemy;
     
-    const speed = BASE_ENEMY_SPEED * enemy.stats.speed * burnedMultiplier * debuffMultiplier;
+    // WAVE倍率を適用
+    const speed = BASE_ENEMY_SPEED * enemy.stats.speed * burnedMultiplier * debuffMultiplier * waveSpeedMultiplier;
     const moveX = (dx / distance) * speed * deltaTime;
     const moveY = (dy / distance) * speed * deltaTime;
     
@@ -393,7 +424,9 @@ export const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefiniti
   const inputMod12 = inputNotes.map(n => n % 12);
   const targetMod12 = [...new Set(targetChord.notes.map(n => n % 12))];
   
-  return inputMod12.filter(n => targetMod12.includes(n));
+  // 重複を除去して正解音のみを返す
+  const correctMod12 = inputMod12.filter(n => targetMod12.includes(n));
+  return [...new Set(correctMod12)];
 };
 
 // ===== 攻撃処理 =====
@@ -779,4 +812,146 @@ export const castMagic = (
   }
   
   return { enemies: updatedEnemies, player: updatedPlayer, damageTexts };
+};
+
+// ===== コイン生成 =====
+const COIN_LIFETIME = 10000;  // コインの生存時間（ミリ秒）
+
+export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): Coin[] => {
+  const baseExp = enemy.isBoss ? 50 : 10;
+  const totalExp = Math.floor(baseExp * expMultiplier);
+  
+  // 複数のコインに分割（より大きな敵は多くのコインを落とす）
+  const coinCount = enemy.isBoss ? 5 : Math.floor(Math.random() * 2) + 1;
+  const expPerCoin = Math.ceil(totalExp / coinCount);
+  
+  const coins: Coin[] = [];
+  for (let i = 0; i < coinCount; i++) {
+    // 敵の位置周辺にランダムに散らばる
+    const offsetX = (Math.random() - 0.5) * 40;
+    const offsetY = (Math.random() - 0.5) * 40;
+    
+    coins.push({
+      id: `coin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      x: enemy.x + offsetX,
+      y: enemy.y + offsetY,
+      exp: expPerCoin,
+      startTime: Date.now(),
+      lifetime: COIN_LIFETIME,
+    });
+  }
+  
+  return coins;
+};
+
+// ===== コイン拾得判定 =====
+const COIN_PICKUP_RADIUS = 50;  // コイン拾得半径
+
+export const collectCoins = (
+  player: PlayerState,
+  coins: Coin[]
+): { player: PlayerState; remainingCoins: Coin[]; collectedExp: number; leveledUp: boolean; levelUpCount: number } => {
+  let totalExp = 0;
+  const remainingCoins: Coin[] = [];
+  
+  coins.forEach(coin => {
+    const dx = coin.x - player.x;
+    const dy = coin.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist < COIN_PICKUP_RADIUS) {
+      totalExp += coin.exp;
+    } else {
+      remainingCoins.push(coin);
+    }
+  });
+  
+  if (totalExp > 0) {
+    const { player: newPlayer, leveledUp, levelUpCount } = addExp(player, totalExp);
+    return { player: newPlayer, remainingCoins, collectedExp: totalExp, leveledUp, levelUpCount };
+  }
+  
+  return { player, remainingCoins, collectedExp: 0, leveledUp: false, levelUpCount: 0 };
+};
+
+// ===== 期限切れコインのクリーンアップ =====
+export const cleanupExpiredCoins = (coins: Coin[]): Coin[] => {
+  const now = Date.now();
+  return coins.filter(coin => now - coin.startTime < coin.lifetime);
+};
+
+// ===== 敵が弾を撃つタイプかどうか =====
+const SHOOTING_ENEMY_TYPES: EnemyType[] = ['skeleton', 'ghost', 'demon', 'dragon'];
+const ENEMY_PROJECTILE_SPEED = 200;  // 敵弾の速度（px/秒）
+const ENEMY_SHOOT_COOLDOWN = 2;      // 敵の射撃クールダウン（秒）
+
+export const canEnemyShoot = (enemyType: EnemyType): boolean => {
+  return SHOOTING_ENEMY_TYPES.includes(enemyType);
+};
+
+// ===== 敵の弾丸生成 =====
+export const createEnemyProjectile = (
+  enemy: EnemyState,
+  playerX: number,
+  playerY: number
+): EnemyProjectile => {
+  const dx = playerX - enemy.x;
+  const dy = playerY - enemy.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  
+  return {
+    id: `enemyproj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    x: enemy.x,
+    y: enemy.y,
+    dx: dist > 0 ? dx / dist : 0,
+    dy: dist > 0 ? dy / dist : 0,
+    damage: Math.floor(enemy.stats.atk * 0.5),  // 体当たりより弱いダメージ
+    speed: ENEMY_PROJECTILE_SPEED,
+  };
+};
+
+// ===== 敵の弾丸更新 =====
+export const updateEnemyProjectiles = (
+  projectiles: EnemyProjectile[],
+  deltaTime: number
+): EnemyProjectile[] => {
+  return projectiles
+    .map(proj => ({
+      ...proj,
+      x: proj.x + proj.dx * proj.speed * deltaTime,
+      y: proj.y + proj.dy * proj.speed * deltaTime,
+    }))
+    .filter(proj => 
+      proj.x > -50 && proj.x < MAP_CONFIG.width + 50 &&
+      proj.y > -50 && proj.y < MAP_CONFIG.height + 50
+    );
+};
+
+// ===== 敵の射撃判定（確率ベース） =====
+export const shouldEnemyShoot = (
+  enemy: EnemyState,
+  playerX: number,
+  playerY: number,
+  elapsedTime: number
+): boolean => {
+  if (!canEnemyShoot(enemy.type)) return false;
+  
+  // 凍結・デバフ中は撃てない
+  if (enemy.statusEffects.some(e => e.type === 'ice' || e.type === 'debuffer')) {
+    return false;
+  }
+  
+  // プレイヤーとの距離が近すぎると撃たない（150px以内）
+  const dx = playerX - enemy.x;
+  const dy = playerY - enemy.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  if (dist < 150) return false;
+  
+  // 距離が遠すぎても撃たない（500px以上）
+  if (dist > 500) return false;
+  
+  // 確率で射撃（2秒に1回くらい）
+  // フレームごとに呼ばれるので確率を低くする
+  const shootProbability = 0.02;  // 約2%/フレーム（60FPSで約1.2秒に1回）
+  return Math.random() < shootProbability;
 };

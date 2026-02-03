@@ -16,6 +16,8 @@ interface SurvivalGameOverProps {
   onRetry: () => void;
   onBackToSelect: () => void;
   onBackToMenu: () => void;
+  waveFailedReason?: string;  // 'quota_failed' = WAVEノルマ失敗
+  finalWave?: number;
 }
 
 // 難易度の色設定
@@ -32,6 +34,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   onRetry,
   onBackToSelect,
   onBackToMenu,
+  waveFailedReason,
+  finalWave,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -79,9 +83,31 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           <div className="text-4xl font-bold text-red-500 font-sans mb-2">
             GAME OVER
           </div>
-          <div className={cn('text-lg font-sans', DIFFICULTY_COLORS[difficulty])}>
-            {difficulty.toUpperCase()}
-          </div>
+          
+          {/* WAVE失敗理由 */}
+          {waveFailedReason === 'quota_failed' ? (
+            <div className="mt-2 px-4 py-2 bg-red-900/50 rounded-lg border border-red-500/50">
+              <div className="text-red-400 font-bold font-sans">
+                {isEnglishCopy ? 'WAVE QUOTA FAILED!' : 'WAVEノルマ達成ならず！'}
+              </div>
+              <div className="text-sm text-gray-400">
+                {isEnglishCopy 
+                  ? `Failed to meet the quota in WAVE ${finalWave || 1}`
+                  : `WAVE ${finalWave || 1} のノルマを達成できませんでした`}
+              </div>
+            </div>
+          ) : (
+            <div className={cn('text-lg font-sans', DIFFICULTY_COLORS[difficulty])}>
+              {difficulty.toUpperCase()}
+            </div>
+          )}
+          
+          {/* WAVE到達情報 */}
+          {finalWave && (
+            <div className="mt-2 text-sm text-yellow-400">
+              🏆 WAVE {finalWave} {isEnglishCopy ? 'reached' : '到達'}
+            </div>
+          )}
         </div>
         
         {/* メイン結果 */}

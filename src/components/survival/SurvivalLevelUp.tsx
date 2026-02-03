@@ -32,6 +32,12 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
   const timeoutCalledRef = React.useRef(false);
   
+  // pendingLevelUpsが変わったらタイマーをリセット
+  useEffect(() => {
+    setTimer(SELECTION_TIMEOUT);
+    timeoutCalledRef.current = false;
+  }, [pendingLevelUps]);
+  
   // タイマー処理
   useEffect(() => {
     const interval = setInterval(() => {
@@ -51,7 +57,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     }, 100);
     
     return () => clearInterval(interval);
-  }, [onTimeout]);
+  }, [onTimeout, pendingLevelUps]);
   
   // タップで選択
   const handleTapSelect = (option: LevelUpBonus) => {
@@ -88,7 +94,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
             ✨ LEVEL UP! ✨
           </div>
           <div className="text-4xl font-bold text-white font-sans">
-            Lv.{level - 1} → Lv.{level}
+            Lv.{level - pendingLevelUps} → Lv.{level - pendingLevelUps + 1}
           </div>
           {pendingLevelUps > 1 && (
             <div className="text-sm text-yellow-300 mt-2 font-sans">
