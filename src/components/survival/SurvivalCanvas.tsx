@@ -17,11 +17,21 @@ import {
   MAP_CONFIG,
 } from './SurvivalTypes';
 
+// ===== 雷エフェクト型（ローカル） =====
+interface LightningEffect {
+  id: string;
+  x: number;
+  y: number;
+  startTime: number;
+  duration: number;
+}
+
 interface SurvivalCanvasProps {
   gameState: SurvivalGameState;
   viewportWidth: number;
   viewportHeight: number;
   shockwaves?: ShockwaveEffect[];
+  lightningEffects?: LightningEffect[];
 }
 
 // ===== 色定義 =====
@@ -123,6 +133,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   viewportWidth,
   viewportHeight,
   shockwaves = [],
+  lightningEffects = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
@@ -533,7 +544,68 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.globalAlpha = 1;
     });
 
-  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves, initParticles]);
+    // 雷エフェクト描画
+    lightningEffects.forEach(lightning => {
+      const elapsed = now - lightning.startTime;
+      if (elapsed >= lightning.duration) return;
+      
+      const progress = elapsed / lightning.duration;
+      const alpha = 1 - progress;
+      
+      const screenX = lightning.x - camera.x;
+      const screenY = lightning.y - camera.y;
+      
+      // 雷の稲妻を描画（画面上端から敵位置へ）
+      ctx.globalAlpha = alpha;
+      ctx.strokeStyle = '#ffff00';
+      ctx.lineWidth = 3 + (1 - progress) * 3;
+      ctx.shadowColor = '#ffff00';
+      ctx.shadowBlur = 20;
+      
+      // ジグザグの稲妻を描画
+      ctx.beginPath();
+      const startY = -50;  // 画面上端から
+      const endY = screenY;
+      const segments = 8;
+      const segmentHeight = (endY - startY) / segments;
+      
+      ctx.moveTo(screenX, startY);
+      for (let i = 1; i <= segments; i++) {
+        const x = screenX + (Math.random() - 0.5) * 40 * (1 - i / segments);
+        const y = startY + segmentHeight * i;
+        ctx.lineTo(x, y);
+      }
+      ctx.stroke();
+      
+      // 追加の細い分岐
+      if (Math.random() < 0.5) {
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        const branchY = startY + segmentHeight * Math.floor(Math.random() * 4 + 2);
+        ctx.moveTo(screenX, branchY);
+        ctx.lineTo(screenX + (Math.random() - 0.5) * 60, branchY + segmentHeight * 2);
+        ctx.stroke();
+      }
+      
+      ctx.shadowBlur = 0;
+      
+      // 雷アイコン
+      ctx.font = '24px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('⚡', screenX, screenY);
+      
+      // フラッシュ効果（画面全体）
+      if (progress < 0.1) {
+        ctx.globalAlpha = 0.2 * (1 - progress / 0.1);
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, viewportWidth, viewportHeight);
+      }
+      
+      ctx.globalAlpha = 1;
+    });
+
+  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves, lightningEffects, initParticles]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

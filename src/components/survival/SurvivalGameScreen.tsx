@@ -14,6 +14,7 @@ import {
   CodeSlot,
   Direction,
   ShockwaveEffect,
+  LightningEffect,
   SLOT_TIMEOUT,
   EXP_PER_MINUTE,
 } from './SurvivalTypes';
@@ -284,6 +285,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 衝撃波エフェクト
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
+  
+  // 雷エフェクト
+  const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
   
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
@@ -681,18 +685,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
         } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
-          const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
+          const baseRange = 80;
+          const bonusRange = prev.player.skills.bRangeBonus * 20;
+          const totalRange = baseRange + bonusRange;
           const dirVec = getDirectionVector(prev.player.direction);
           const attackX = prev.player.x + dirVec.x * 40;
           const attackY = prev.player.y + dirVec.y * 40;
           
-          // 衝撃波エフェクト追加
+          // 衝撃波エフェクト追加（前方のみ大きい範囲）
           const newShockwave: ShockwaveEffect = {
             id: `shock_${Date.now()}`,
             x: attackX,
             y: attackY,
             radius: 0,
-            maxRadius: attackRange,
+            maxRadius: totalRange,
             startTime: Date.now(),
             duration: 300,
           };
@@ -706,7 +712,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const dy = enemy.y - attackY;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < attackRange) {
+            // 敵が前方にいるかどうかをチェック（内積で判定）
+            const toEnemyX = enemy.x - prev.player.x;
+            const toEnemyY = enemy.y - prev.player.y;
+            const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+            const isInFront = dotProduct > 0;
+            
+            // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
+            const effectiveRange = isInFront ? totalRange : baseRange;
+            
+            if (dist < effectiveRange) {
               const damage = calculateDamage(
                 prev.player.stats.bAtk,
                 prev.player.stats.bAtk,
@@ -742,7 +757,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   // ゲーム中断中は発動しない
                   if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                   
-                  const bAttackRange = 80 + gs.player.skills.bRangeBonus * 20;
+                  const bBaseRange = 80;
+                  const bBonusRange = gs.player.skills.bRangeBonus * 20;
+                  const bTotalRange = bBaseRange + bBonusRange;
                   const bDirVec = getDirectionVector(gs.player.direction);
                   const bAttackX = gs.player.x + bDirVec.x * 40;
                   const bAttackY = gs.player.y + bDirVec.y * 40;
@@ -753,7 +770,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     x: bAttackX,
                     y: bAttackY,
                     radius: 0,
-                    maxRadius: bAttackRange,
+                    maxRadius: bTotalRange,
                     startTime: Date.now(),
                     duration: 300,
                   };
@@ -767,7 +784,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const dy = enemy.y - bAttackY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    if (dist < bAttackRange) {
+                    // 敵が前方にいるかどうか
+                    const toEnemyX = enemy.x - gs.player.x;
+                    const toEnemyY = enemy.y - gs.player.y;
+                    const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
+                    const isInFront = dotProduct > 0;
+                    const effectiveRange = isInFront ? bTotalRange : bBaseRange;
+                    
+                    if (dist < effectiveRange) {
                       const damage = calculateDamage(
                         gs.player.stats.bAtk,
                         gs.player.stats.bAtk,
@@ -821,6 +845,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.player = result.player;
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
             newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+            
+            // サンダーの場合は雷エフェクトを追加
+            if (magicType === 'thunder') {
+              const newLightning = prev.enemies.map(enemy => ({
+                id: `lightning_${Date.now()}_${enemy.id}`,
+                x: enemy.x,
+                y: enemy.y,
+                startTime: Date.now(),
+                duration: 500,
+              }));
+              setLightningEffects(le => [...le, ...newLightning]);
+            }
           }
         }
         
@@ -959,18 +995,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
       } else if (slotType === 'B') {
         // 近接攻撃 - 衝撃波エフェクト追加
-        const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
+        const baseRange = 80;
+        const bonusRange = prev.player.skills.bRangeBonus * 20;
+        const totalRange = baseRange + bonusRange;
         const dirVec = getDirectionVector(prev.player.direction);
         const attackX = prev.player.x + dirVec.x * 40;
         const attackY = prev.player.y + dirVec.y * 40;
         
-        // 衝撃波エフェクト追加
+        // 衝撃波エフェクト追加（前方のみ大きい範囲）
         const newShockwave: ShockwaveEffect = {
           id: `shock_${Date.now()}`,
           x: attackX,
           y: attackY,
           radius: 0,
-          maxRadius: attackRange,
+          maxRadius: totalRange,
           startTime: Date.now(),
           duration: 300,
         };
@@ -984,7 +1022,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const dy = enemy.y - attackY;
           const dist = Math.sqrt(dx * dx + dy * dy);
           
-          if (dist < attackRange) {
+          // 敵が前方にいるかどうかをチェック（内積で判定）
+          const toEnemyX = enemy.x - prev.player.x;
+          const toEnemyY = enemy.y - prev.player.y;
+          const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+          const isInFront = dotProduct > 0;
+          
+          // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
+          const effectiveRange = isInFront ? totalRange : baseRange;
+          
+          if (dist < effectiveRange) {
             const damage = calculateDamage(
               prev.player.stats.bAtk,
               prev.player.stats.bAtk,
@@ -1018,7 +1065,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               setGameState(gs => {
                 if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                 
-                const bAttackRange = 80 + gs.player.skills.bRangeBonus * 20;
+                const bBaseRange = 80;
+                const bBonusRange = gs.player.skills.bRangeBonus * 20;
+                const bTotalRange = bBaseRange + bBonusRange;
                 const bDirVec = getDirectionVector(gs.player.direction);
                 const bAttackX = gs.player.x + bDirVec.x * 40;
                 const bAttackY = gs.player.y + bDirVec.y * 40;
@@ -1028,7 +1077,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   x: bAttackX,
                   y: bAttackY,
                   radius: 0,
-                  maxRadius: bAttackRange,
+                  maxRadius: bTotalRange,
                   startTime: Date.now(),
                   duration: 300,
                 };
@@ -1042,7 +1091,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const dy = enemy.y - bAttackY;
                   const dist = Math.sqrt(dx * dx + dy * dy);
                   
-                  if (dist < bAttackRange) {
+                  // 敵が前方にいるかどうか
+                  const toEnemyX = enemy.x - gs.player.x;
+                  const toEnemyY = enemy.y - gs.player.y;
+                  const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
+                  const isInFront = dotProduct > 0;
+                  const effectiveRange = isInFront ? bTotalRange : bBaseRange;
+                  
+                  if (dist < effectiveRange) {
                     const damage = calculateDamage(
                       gs.player.stats.bAtk,
                       gs.player.stats.bAtk,
@@ -1096,6 +1152,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.player = result.player;
           newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
           newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+          
+          // サンダーの場合は雷エフェクトを追加
+          if (magicType === 'thunder') {
+            const newLightning = prev.enemies.map(enemy => ({
+              id: `lightning_${Date.now()}_${enemy.id}`,
+              x: enemy.x,
+              y: enemy.y,
+              startTime: Date.now(),
+              duration: 500,
+            }));
+            setLightningEffects(le => [...le, ...newLightning]);
+          }
         }
       }
       
@@ -1421,6 +1489,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // 衝撃波エフェクトの更新
       setShockwaves(sw => sw.filter(s => Date.now() - s.startTime < s.duration));
       
+      // 雷エフェクトの更新
+      setLightningEffects(le => le.filter(l => Date.now() - l.startTime < l.duration));
+      
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
     
@@ -1435,6 +1506,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleRetry = useCallback(() => {
     setResult(null);
     setShockwaves([]);
+    setLightningEffects([]);
     setLevelUpCorrectNotes([[], [], []]);
     const initial = createInitialGameState(difficulty, config);
     // デバッグ設定を再適用
@@ -1734,6 +1806,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
             shockwaves={shockwaves}
+            lightningEffects={lightningEffects}
           />
           
           {/* ポーズ画面 */}

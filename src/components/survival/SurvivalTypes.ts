@@ -260,6 +260,15 @@ export interface ShockwaveEffect {
   duration: number;
 }
 
+// ===== 雷エフェクト =====
+export interface LightningEffect {
+  id: string;
+  x: number;
+  y: number;
+  startTime: number;
+  duration: number;
+}
+
 // ===== WAVE設定 =====
 export interface WaveState {
   currentWave: number;        // 現在のWAVE番号（1から開始）
