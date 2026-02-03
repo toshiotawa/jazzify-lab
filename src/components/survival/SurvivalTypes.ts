@@ -228,6 +228,16 @@ export interface DamageText {
   duration: number;
 }
 
+// ===== コイン =====
+export interface Coin {
+  id: string;
+  x: number;
+  y: number;
+  exp: number;          // このコインが持つ経験値
+  startTime: number;    // 生成時刻
+  lifetime: number;     // 生存時間（ミリ秒）
+}
+
 // ===== 衝撃波エフェクト =====
 export interface ShockwaveEffect {
   id: string;
@@ -274,6 +284,9 @@ export interface SurvivalGameState {
   
   // アイテム
   items: DroppedItem[];
+  
+  // コイン
+  coins: Coin[];
   
   // ダメージテキスト
   damageTexts: DamageText[];

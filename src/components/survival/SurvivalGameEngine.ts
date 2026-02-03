@@ -16,6 +16,7 @@ import {
   Projectile,
   DroppedItem,
   DamageText,
+  Coin,
   EnemyType,
   MagicType,
   ActiveStatusEffect,
@@ -118,6 +119,7 @@ export const createInitialGameState = (
   levelUpOptions: [],
   pendingLevelUps: 0,
   items: [],
+  coins: [],
   damageTexts: [],
   enemiesDefeated: 0,
   difficulty,
@@ -781,4 +783,70 @@ export const castMagic = (
   }
   
   return { enemies: updatedEnemies, player: updatedPlayer, damageTexts };
+};
+
+// ===== コイン生成 =====
+const COIN_LIFETIME = 10000;  // コインの生存時間（ミリ秒）
+
+export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): Coin[] => {
+  const baseExp = enemy.isBoss ? 50 : 10;
+  const totalExp = Math.floor(baseExp * expMultiplier);
+  
+  // 複数のコインに分割（より大きな敵は多くのコインを落とす）
+  const coinCount = enemy.isBoss ? 5 : Math.floor(Math.random() * 2) + 1;
+  const expPerCoin = Math.ceil(totalExp / coinCount);
+  
+  const coins: Coin[] = [];
+  for (let i = 0; i < coinCount; i++) {
+    // 敵の位置周辺にランダムに散らばる
+    const offsetX = (Math.random() - 0.5) * 40;
+    const offsetY = (Math.random() - 0.5) * 40;
+    
+    coins.push({
+      id: `coin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      x: enemy.x + offsetX,
+      y: enemy.y + offsetY,
+      exp: expPerCoin,
+      startTime: Date.now(),
+      lifetime: COIN_LIFETIME,
+    });
+  }
+  
+  return coins;
+};
+
+// ===== コイン拾得判定 =====
+const COIN_PICKUP_RADIUS = 50;  // コイン拾得半径
+
+export const collectCoins = (
+  player: PlayerState,
+  coins: Coin[]
+): { player: PlayerState; remainingCoins: Coin[]; collectedExp: number; leveledUp: boolean; levelUpCount: number } => {
+  let totalExp = 0;
+  const remainingCoins: Coin[] = [];
+  
+  coins.forEach(coin => {
+    const dx = coin.x - player.x;
+    const dy = coin.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    
+    if (dist < COIN_PICKUP_RADIUS) {
+      totalExp += coin.exp;
+    } else {
+      remainingCoins.push(coin);
+    }
+  });
+  
+  if (totalExp > 0) {
+    const { player: newPlayer, leveledUp, levelUpCount } = addExp(player, totalExp);
+    return { player: newPlayer, remainingCoins, collectedExp: totalExp, leveledUp, levelUpCount };
+  }
+  
+  return { player, remainingCoins, collectedExp: 0, leveledUp: false, levelUpCount: 0 };
+};
+
+// ===== 期限切れコインのクリーンアップ =====
+export const cleanupExpiredCoins = (coins: Coin[]): Coin[] => {
+  const now = Date.now();
+  return coins.filter(coin => now - coin.startTime < coin.lifetime);
 };

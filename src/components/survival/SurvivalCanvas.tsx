@@ -11,6 +11,7 @@ import {
   Projectile,
   DroppedItem,
   DamageText,
+  Coin,
   Direction,
   ShockwaveEffect,
   MAP_CONFIG,
@@ -108,6 +109,15 @@ const MAGIC_ICONS: Record<string, string> = {
   hint: '💡',
 };
 
+// 背景パーティクル用の状態
+interface BackgroundParticle {
+  x: number;
+  y: number;
+  size: number;
+  speed: number;
+  opacity: number;
+}
+
 const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
   viewportWidth,
@@ -115,6 +125,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   shockwaves = [],
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const particlesRef = useRef<BackgroundParticle[]>([]);
 
   // カメラ位置（プレイヤー中心）
   const getCameraOffset = useCallback((player: PlayerState) => {
@@ -131,14 +142,65 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     };
   }, [viewportWidth, viewportHeight]);
 
+  // 背景パーティクル初期化
+  const initParticles = useCallback(() => {
+    if (particlesRef.current.length === 0) {
+      const particles: BackgroundParticle[] = [];
+      const particleCount = 50;
+      for (let i = 0; i < particleCount; i++) {
+        particles.push({
+          x: Math.random() * MAP_CONFIG.width,
+          y: Math.random() * MAP_CONFIG.height,
+          size: Math.random() * 2 + 1,
+          speed: Math.random() * 0.5 + 0.2,
+          opacity: Math.random() * 0.5 + 0.2,
+        });
+      }
+      particlesRef.current = particles;
+    }
+  }, []);
+  
   // 描画関数
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
     const { player, enemies, projectiles, items, damageTexts } = gameState;
     const camera = getCameraOffset(player);
     
-    // キャンバスクリア
-    ctx.fillStyle = COLORS.background;
+    // パーティクル初期化
+    initParticles();
+    
+    // キャンバスクリア - グラデーション背景
+    const gradient = ctx.createRadialGradient(
+      viewportWidth / 2, viewportHeight / 2, 0,
+      viewportWidth / 2, viewportHeight / 2, viewportWidth
+    );
+    gradient.addColorStop(0, '#1e1e3f');
+    gradient.addColorStop(1, '#0a0a1a');
+    ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, viewportWidth, viewportHeight);
+    
+    // 背景パーティクル描画（星のような効果）
+    const time = Date.now() / 1000;
+    particlesRef.current.forEach((particle, i) => {
+      // パーティクルをカメラに対して相対移動（視差効果）
+      const parallaxFactor = 0.3;  // カメラより遅く動く
+      const screenX = (particle.x - camera.x * parallaxFactor) % viewportWidth;
+      const screenY = (particle.y - camera.y * parallaxFactor) % viewportHeight;
+      
+      // 画面外なら反対側に
+      const adjustedX = screenX < 0 ? screenX + viewportWidth : screenX;
+      const adjustedY = screenY < 0 ? screenY + viewportHeight : screenY;
+      
+      // 点滅効果
+      const twinkle = Math.sin(time * particle.speed * 3 + i) * 0.3 + 0.7;
+      const finalOpacity = particle.opacity * twinkle;
+      
+      ctx.globalAlpha = finalOpacity;
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.arc(adjustedX, adjustedY, particle.size, 0, Math.PI * 2);
+      ctx.fill();
+    });
+    ctx.globalAlpha = 1;
     
     // グリッド描画
     ctx.strokeStyle = COLORS.grid;
@@ -190,6 +252,42 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         item.type === 'vest' ? '🦺' : '⚡',
         screenX, screenY
       );
+    });
+
+    // コイン描画
+    const now = Date.now();
+    gameState.coins.forEach(coin => {
+      const screenX = coin.x - camera.x;
+      const screenY = coin.y - camera.y;
+      
+      if (screenX < -30 || screenX > viewportWidth + 30 ||
+          screenY < -30 || screenY > viewportHeight + 30) return;
+      
+      // 残り時間で点滅（消える前の警告）
+      const elapsed = now - coin.startTime;
+      const remaining = coin.lifetime - elapsed;
+      const shouldBlink = remaining < 3000;  // 3秒以下で点滅
+      const isVisible = !shouldBlink || Math.floor(elapsed / 150) % 2 === 0;
+      
+      if (!isVisible) return;
+      
+      // コインの光エフェクト
+      const pulseScale = 1 + Math.sin(elapsed / 200) * 0.15;
+      
+      ctx.save();
+      ctx.translate(screenX, screenY);
+      ctx.scale(pulseScale, pulseScale);
+      
+      // コインアイコン
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.shadowColor = '#ffd700';
+      ctx.shadowBlur = 8;
+      ctx.fillText('🪙', 0, 0);
+      ctx.shadowBlur = 0;
+      
+      ctx.restore();
     });
 
     // 敵描画
@@ -418,7 +516,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.globalAlpha = 1;
     });
 
-  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves]);
+  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves, initParticles]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

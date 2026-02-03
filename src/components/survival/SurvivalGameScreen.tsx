@@ -36,6 +36,9 @@ import {
   getMagicCooldown,
   castMagic,
   getDirectionVector,
+  createCoinsFromEnemy,
+  collectCoins,
+  cleanupExpiredCoins,
 } from './SurvivalGameEngine';
 import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
@@ -244,6 +247,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const skills = debugSettings.skills;
         if (skills.aPenetration !== undefined) {
           initial.player.skills.aPenetration = skills.aPenetration;
+        }
+        if (skills.aBulletCount !== undefined) {
+          initial.player.stats.aBulletCount = skills.aBulletCount;
         }
         if (skills.aBackBullet !== undefined) {
           initial.player.skills.aBackBullet = skills.aBackBullet;
@@ -576,7 +582,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 攻撃処理
         if (slotType === 'A') {
           // 遠距離弾発射
-          const directions: Direction[] = [prev.player.direction];
+          const directions: Direction[] = [];
+          
+          // 前方弾（aBulletCount分）
+          const bulletCount = prev.player.stats.aBulletCount || 1;
+          for (let i = 0; i < bulletCount; i++) {
+            directions.push(prev.player.direction);
+          }
           
           // 追加弾
           if (prev.player.skills.aBackBullet > 0) {
@@ -598,9 +610,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
           
-          const newProjectiles = directions.map(dir => 
-            createProjectile(prev.player, dir, prev.player.stats.aAtk)
-          );
+          // 複数弾を少しずらして発射
+          const newProjectiles = directions.map((dir, index) => {
+            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+            // 同じ方向の弾は少しずらして発射
+            const offset = (index % bulletCount) * 5;
+            const dirVec = getDirectionVector(dir);
+            proj.x += dirVec.y * offset;  // 垂直方向にオフセット
+            proj.y -= dirVec.x * offset;  // 垂直方向にオフセット
+            return proj;
+          });
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
           
           // 多段攻撃処理（A列）
@@ -612,7 +631,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   // ゲーム中断中は発動しない
                   if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                   
-                  const multiDirections: Direction[] = [gs.player.direction];
+                  const multiDirections: Direction[] = [];
+                  const bulletCount = gs.player.stats.aBulletCount || 1;
+                  for (let i = 0; i < bulletCount; i++) {
+                    multiDirections.push(gs.player.direction);
+                  }
                   if (gs.player.skills.aBackBullet > 0) {
                     const backDir = getOppositeDirection(gs.player.direction);
                     for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
@@ -632,9 +655,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     }
                   }
                   
-                  const additionalProjectiles = multiDirections.map(dir =>
-                    createProjectile(gs.player, dir, gs.player.stats.aAtk)
-                  );
+                  const additionalProjectiles = multiDirections.map((dir, index) => {
+                    const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
+                    const offset = (index % bulletCount) * 5;
+                    const dirVec = getDirectionVector(dir);
+                    proj.x += dirVec.y * offset;
+                    proj.y -= dirVec.x * offset;
+                    return proj;
+                  });
                   
                   return {
                     ...gs,
@@ -834,7 +862,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // 攻撃処理
       if (slotType === 'A') {
         // 遠距離弾発射
-        const directions: Direction[] = [prev.player.direction];
+        const directions: Direction[] = [];
+        
+        // 前方弾（aBulletCount分）
+        const bulletCount = prev.player.stats.aBulletCount || 1;
+        for (let i = 0; i < bulletCount; i++) {
+          directions.push(prev.player.direction);
+        }
         
         if (prev.player.skills.aBackBullet > 0) {
           const backDir = getOppositeDirection(prev.player.direction);
@@ -855,9 +889,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        const newProjectiles = directions.map(dir => 
-          createProjectile(prev.player, dir, prev.player.stats.aAtk)
-        );
+        // 複数弾を少しずらして発射
+        const newProjectiles = directions.map((dir, index) => {
+          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+          // 同じ方向の弾は少しずらして発射
+          const offset = (index % bulletCount) * 5;
+          const dirVec = getDirectionVector(dir);
+          proj.x += dirVec.y * offset;
+          proj.y -= dirVec.x * offset;
+          return proj;
+        });
         newState.projectiles = [...prev.projectiles, ...newProjectiles];
         
         // 多段攻撃処理（A列・タップ）
@@ -868,7 +909,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               setGameState(gs => {
                 if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                 
-                const multiDirections: Direction[] = [gs.player.direction];
+                const multiDirections: Direction[] = [];
+                const bulletCount = gs.player.stats.aBulletCount || 1;
+                for (let i = 0; i < bulletCount; i++) {
+                  multiDirections.push(gs.player.direction);
+                }
                 if (gs.player.skills.aBackBullet > 0) {
                   const backDir = getOppositeDirection(gs.player.direction);
                   for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
@@ -888,9 +933,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   }
                 }
                 
-                const additionalProjectiles = multiDirections.map(dir =>
-                  createProjectile(gs.player, dir, gs.player.stats.aAtk)
-                );
+                const additionalProjectiles = multiDirections.map((dir, index) => {
+                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
+                  const offset = (index % bulletCount) * 5;
+                  const dirVec = getDirectionVector(dir);
+                  proj.x += dirVec.y * offset;
+                  proj.y -= dirVec.x * offset;
+                  return proj;
+                });
                 
                 return {
                   ...gs,
@@ -1168,25 +1218,38 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         });
         
-        // 死んだ敵を処理
+        // 死んだ敵を処理 - コインをドロップ
         const defeatedEnemies = newState.enemies.filter(e => e.stats.hp <= 0);
         newState.enemies = newState.enemies.filter(e => e.stats.hp > 0);
         
-        // 経験値獲得とレベルアップ
         if (defeatedEnemies.length > 0) {
-          const expGained = defeatedEnemies.reduce((sum, e) => sum + (e.isBoss ? 50 : 10) * config.expMultiplier, 0);
-          const { player: newPlayer, leveledUp, levelUpCount } = addExp(newState.player, expGained);
-          newState.player = newPlayer;
+          // コインをスポーン
+          defeatedEnemies.forEach(enemy => {
+            const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
+            newState.coins = [...newState.coins, ...coins];
+          });
           newState.enemiesDefeated += defeatedEnemies.length;
-          
-          if (leveledUp && levelUpCount > 0) {
-            const options = generateLevelUpOptions(newPlayer, config.allowedChords);
-            newState.isLevelingUp = true;
-            newState.levelUpOptions = options;
-            newState.pendingLevelUps = levelUpCount;
-            setLevelUpCorrectNotes([[], [], []]);
-          }
         }
+        
+        // コイン拾得処理
+        const { player: playerAfterCoins, remainingCoins, leveledUp, levelUpCount } = collectCoins(
+          newState.player,
+          newState.coins
+        );
+        newState.player = playerAfterCoins;
+        newState.coins = remainingCoins;
+        
+        // レベルアップ処理
+        if (leveledUp && levelUpCount > 0) {
+          const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
+          newState.isLevelingUp = true;
+          newState.levelUpOptions = options;
+          newState.pendingLevelUps = levelUpCount;
+          setLevelUpCorrectNotes([[], [], []]);
+        }
+        
+        // 期限切れコインのクリーンアップ
+        newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン
         spawnTimerRef.current += deltaTime;
@@ -1350,6 +1413,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (skills.aPenetration !== undefined) {
           initial.player.skills.aPenetration = skills.aPenetration;
         }
+        if (skills.aBulletCount !== undefined) {
+          initial.player.stats.aBulletCount = skills.aBulletCount;
+        }
         if (skills.aBackBullet !== undefined) {
           initial.player.skills.aBackBullet = skills.aBackBullet;
         }
@@ -1439,6 +1505,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen">
       {/* ヘッダー - 薄く */}
       <div className="flex-shrink-0 px-2 py-1">
+        {/* EXPバー（画面上部全体） */}
+        <div className="w-full h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
+          <div
+            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
+            style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
+          />
+        </div>
+        
         <div className="flex justify-between items-center max-w-6xl mx-auto">
           {/* 時間・レベル・撃破数 */}
           <div className="flex items-center gap-3 text-white font-sans text-sm">
@@ -1449,6 +1523,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             <div className="flex items-center gap-1">
               <span>⭐</span>
               <span>Lv.{gameState.player.level}</span>
+              <span className="text-xs text-purple-300">
+                ({gameState.player.exp}/{gameState.player.expToNextLevel})
+              </span>
             </div>
             <div className="flex items-center gap-1">
               <span>💀</span>
