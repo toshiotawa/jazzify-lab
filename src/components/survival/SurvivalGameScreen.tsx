@@ -1437,29 +1437,29 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   return (
     <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen">
-      {/* ヘッダー */}
-      <div className="flex-shrink-0 p-2 sm:p-4">
+      {/* ヘッダー - 薄く */}
+      <div className="flex-shrink-0 px-2 py-1">
         <div className="flex justify-between items-center max-w-6xl mx-auto">
           {/* 時間・レベル・撃破数 */}
-          <div className="flex items-center gap-4 text-white font-sans">
-            <div className="flex items-center gap-2">
-              <span className="text-xl">⏱️</span>
-              <span className="text-2xl font-bold">{formatTime(gameState.elapsedTime)}</span>
+          <div className="flex items-center gap-3 text-white font-sans text-sm">
+            <div className="flex items-center gap-1">
+              <span>⏱️</span>
+              <span className="text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">⭐</span>
-              <span className="text-xl">Lv.{gameState.player.level}</span>
+            <div className="flex items-center gap-1">
+              <span>⭐</span>
+              <span>Lv.{gameState.player.level}</span>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xl">💀</span>
-              <span className="text-xl">{gameState.enemiesDefeated}</span>
+            <div className="flex items-center gap-1">
+              <span>💀</span>
+              <span>{gameState.enemiesDefeated}</span>
             </div>
           </div>
           
           {/* HP */}
           <div className="flex items-center gap-2">
-            <span className="text-xl">❤️</span>
-            <div className="w-32 h-4 bg-gray-700 rounded-full overflow-hidden">
+            <span>❤️</span>
+            <div className="w-24 h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full transition-all duration-200',
@@ -1469,23 +1469,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
               />
             </div>
-            <span className="text-white font-sans text-sm">
+            <span className="text-white font-sans text-xs">
               {Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}
             </span>
           </div>
           
           {/* 設定/ポーズボタン */}
-          <div className="flex gap-2">
+          <div className="flex gap-1">
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="px-3 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-sans text-white"
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
               title={isEnglishCopy ? 'Settings' : '設定'}
             >
               ⚙️
             </button>
             <button
               onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-              className="px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-sans text-white"
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
             >
               {gameState.isPaused ? '▶️' : '⏸️'}
             </button>

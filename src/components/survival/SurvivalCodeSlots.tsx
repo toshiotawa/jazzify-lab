@@ -48,9 +48,10 @@ interface SlotDisplayProps {
   slot: CodeSlot;
   nextSlot: CodeSlot;
   isHinted: boolean;
+  isMagicOnCooldown?: boolean;  // C列の魔法がクールダウン中か
 }
 
-const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) => {
+const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isMagicOnCooldown = false }) => {
   const colors = SLOT_COLORS[slot.type];
   const timerPercent = (slot.timer / SLOT_TIMEOUT) * 100;
   
@@ -58,6 +59,9 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
   const totalNotes = slot.chord?.notes.length ?? 0;
   const correctCount = slot.correctNotes.length;
   const progressPercent = totalNotes > 0 ? (correctCount / totalNotes) * 100 : 0;
+  
+  // C列で魔法がクールダウン中の場合は灰色表示
+  const isDisabledByCooldown = slot.type === 'C' && slot.isEnabled && isMagicOnCooldown;
   
   return (
     <div className="flex flex-col items-center gap-1">
@@ -71,7 +75,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
           slot.isCompleted && 'animate-pulse',
           slot.isCompleted && `shadow-lg ${colors.glow}`,
           isHinted && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-black',
-          !slot.isEnabled && 'opacity-50 grayscale'
+          !slot.isEnabled && 'opacity-50 grayscale',
+          isDisabledByCooldown && 'opacity-50 grayscale'
         )}
       >
         {/* ラベル */}
@@ -84,7 +89,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
           {slot.isEnabled ? (
             <span className={cn(
               'text-2xl font-bold font-sans',
-              slot.isCompleted ? 'text-yellow-300' : 'text-white'
+              slot.isCompleted ? 'text-yellow-300' : 'text-white',
+              isDisabledByCooldown && 'text-gray-500'
             )}>
               {slot.chord?.displayName ?? '---'}
             </span>
@@ -96,7 +102,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
         </div>
         
         {/* 進捗バー（下部） */}
-        {slot.isEnabled && !slot.isCompleted && (
+        {slot.isEnabled && !slot.isCompleted && !isDisabledByCooldown && (
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40">
             <div
               className="h-full bg-green-400 transition-all duration-100"
@@ -106,7 +112,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
         )}
         
         {/* タイマーバー（上部） */}
-        {slot.isEnabled && !slot.isCompleted && (
+        {slot.isEnabled && !slot.isCompleted && !isDisabledByCooldown && (
           <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
             <div
               className={cn(
@@ -136,18 +142,14 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted }) =
         className={cn(
           'w-16 h-8 rounded border flex items-center justify-center',
           'bg-black/40 border-gray-600',
-          !slot.isEnabled && 'opacity-30'
+          !slot.isEnabled && 'opacity-30',
+          isDisabledByCooldown && 'opacity-30'
         )}
       >
         <span className="text-xs font-sans text-gray-400">
-          {slot.isEnabled ? (nextSlot.chord?.displayName ?? '---') : '---'}
+          {slot.isEnabled && !isDisabledByCooldown ? (nextSlot.chord?.displayName ?? '---') : '---'}
         </span>
       </div>
-      
-      {/* 説明ラベル */}
-      <span className="text-[10px] text-gray-500 font-sans">
-        {colors.description}
-      </span>
     </div>
   );
 };
@@ -161,7 +163,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
   hasMagic,
 }) => {
   return (
-    <div className="flex flex-col items-center gap-2 p-3 bg-black/60 rounded-xl backdrop-blur-sm border border-gray-700">
+    <div className="flex flex-col items-center gap-2 p-2 bg-black/60 rounded-xl backdrop-blur-sm border border-gray-700">
       {/* スロット行 */}
       <div className="flex gap-3">
         {currentSlots.map((slot, index) => (
@@ -170,29 +172,9 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
             slot={slot}
             nextSlot={nextSlots[index]}
             isHinted={hintSlotIndex === index}
+            isMagicOnCooldown={hasMagic && magicCooldown > 0}
           />
         ))}
-      </div>
-      
-      {/* 魔法クールダウン表示 */}
-      {hasMagic && magicCooldown > 0 && (
-        <div className="w-full mt-1">
-          <div className="flex items-center justify-between text-xs text-gray-400 font-sans mb-1">
-            <span>🪄 Magic Cooldown</span>
-            <span>{magicCooldown.toFixed(1)}s</span>
-          </div>
-          <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
-            <div
-              className="h-full bg-purple-500 transition-all duration-100"
-              style={{ width: `${Math.max(0, 100 - (magicCooldown / 15) * 100)}%` }}
-            />
-          </div>
-        </div>
-      )}
-      
-      {/* 操作ヒント */}
-      <div className="text-[10px] text-gray-500 font-sans text-center mt-1">
-        🎹 コードを演奏して攻撃！
       </div>
     </div>
   );

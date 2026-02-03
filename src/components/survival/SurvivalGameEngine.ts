@@ -393,7 +393,9 @@ export const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefiniti
   const inputMod12 = inputNotes.map(n => n % 12);
   const targetMod12 = [...new Set(targetChord.notes.map(n => n % 12))];
   
-  return inputMod12.filter(n => targetMod12.includes(n));
+  // 重複を除去して正解音のみを返す
+  const correctMod12 = inputMod12.filter(n => targetMod12.includes(n));
+  return [...new Set(correctMod12)];
 };
 
 // ===== 攻撃処理 =====
