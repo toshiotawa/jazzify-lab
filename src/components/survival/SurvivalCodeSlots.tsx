@@ -6,6 +6,7 @@
 import React from 'react';
 import { cn } from '@/utils/cn';
 import { CodeSlot, SLOT_TIMEOUT } from './SurvivalTypes';
+import { Crosshair, Sword, Wand2, Lock, Lightbulb } from 'lucide-react';
 
 interface SurvivalCodeSlotsProps {
   currentSlots: [CodeSlot, CodeSlot, CodeSlot];
@@ -22,7 +23,8 @@ const SLOT_COLORS = {
     border: 'border-blue-400',
     text: 'text-blue-300',
     glow: 'shadow-blue-500/50',
-    label: '🔫 A',
+    icon: <Crosshair className="w-3 h-3 inline mr-1" />,
+    label: 'A',
     description: '遠距離弾',
   },
   B: {
@@ -30,7 +32,8 @@ const SLOT_COLORS = {
     border: 'border-orange-400',
     text: 'text-orange-300',
     glow: 'shadow-orange-500/50',
-    label: '👊 B',
+    icon: <Sword className="w-3 h-3 inline mr-1" />,
+    label: 'B',
     description: '近接攻撃',
   },
   C: {
@@ -38,7 +41,8 @@ const SLOT_COLORS = {
     border: 'border-purple-400',
     text: 'text-purple-300',
     glow: 'shadow-purple-500/50',
-    label: '🪄 C',
+    icon: <Wand2 className="w-3 h-3 inline mr-1" />,
+    label: 'C',
     description: '魔法',
   },
 };
@@ -80,7 +84,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
         )}
       >
         {/* ラベル */}
-        <div className="absolute top-1 left-1 text-xs font-sans opacity-70">
+        <div className="absolute top-1 left-1 text-xs font-sans opacity-70 flex items-center">
+          {colors.icon}
           {colors.label}
         </div>
         
@@ -95,9 +100,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
               {slot.chord?.displayName ?? '---'}
             </span>
           ) : (
-            <span className="text-lg text-gray-400 font-sans">
-              🔒
-            </span>
+            <Lock className="w-5 h-5 text-gray-400" />
           )}
         </div>
         
@@ -131,8 +134,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
         
         {/* ヒントアイコン */}
         {isHinted && (
-          <div className="absolute top-1 right-1 text-sm animate-bounce">
-            💡
+          <div className="absolute top-1 right-1 animate-bounce">
+            <Lightbulb className="w-4 h-4 text-yellow-400" />
           </div>
         )}
       </div>
