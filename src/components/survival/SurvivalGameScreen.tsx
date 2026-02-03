@@ -138,6 +138,16 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
   );
 };
 
+interface DebugSkillSettings {
+  aPenetration?: boolean;     // 貫通（上限1）
+  aBackBullet?: number;       // 後方弾（上限なし）
+  aRightBullet?: number;      // 右側弾（上限なし）
+  aLeftBullet?: number;       // 左側弾（上限なし）
+  bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
+  bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
+  multiHitLevel?: number;     // 多段攻撃レベル（上限3）
+}
+
 interface SurvivalGameScreenProps {
   difficulty: SurvivalDifficulty;
   config: DifficultyConfig;
@@ -147,7 +157,7 @@ interface SurvivalGameScreenProps {
     aAtk?: number;
     bAtk?: number;
     cAtk?: number;
-    skills?: string[];
+    skills?: DebugSkillSettings;
     tapSkillActivation?: boolean;
     initialLevel?: number;
     magics?: {
@@ -231,25 +241,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // スキル設定
       if (debugSettings.skills) {
-        debugSettings.skills.forEach(skill => {
-          switch (skill) {
-            case 'a_penetration':
-              initial.player.skills.aPenetration = true;
-              break;
-            case 'a_back_bullet':
-              initial.player.skills.aBackBullet = 3;
-              break;
-            case 'a_right_bullet':
-              initial.player.skills.aRightBullet = 3;
-              break;
-            case 'a_left_bullet':
-              initial.player.skills.aLeftBullet = 3;
-              break;
-            case 'multi_hit':
-              initial.player.skills.multiHitLevel = 3;
-              break;
-          }
-        });
+        const skills = debugSettings.skills;
+        if (skills.aPenetration !== undefined) {
+          initial.player.skills.aPenetration = skills.aPenetration;
+        }
+        if (skills.aBackBullet !== undefined) {
+          initial.player.skills.aBackBullet = skills.aBackBullet;
+        }
+        if (skills.aRightBullet !== undefined) {
+          initial.player.skills.aRightBullet = skills.aRightBullet;
+        }
+        if (skills.aLeftBullet !== undefined) {
+          initial.player.skills.aLeftBullet = skills.aLeftBullet;
+        }
+        if (skills.bKnockbackBonus !== undefined) {
+          initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;
+        }
+        if (skills.bRangeBonus !== undefined) {
+          initial.player.skills.bRangeBonus = skills.bRangeBonus;
+        }
+        if (skills.multiHitLevel !== undefined) {
+          initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
       }
     }
     return initial;
@@ -590,6 +603,48 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           );
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
           
+          // 多段攻撃処理（A列）
+          const multiHitLevel = prev.player.skills.multiHitLevel;
+          if (multiHitLevel > 0) {
+            for (let hit = 1; hit <= multiHitLevel; hit++) {
+              setTimeout(() => {
+                setGameState(gs => {
+                  // ゲーム中断中は発動しない
+                  if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                  
+                  const multiDirections: Direction[] = [gs.player.direction];
+                  if (gs.player.skills.aBackBullet > 0) {
+                    const backDir = getOppositeDirection(gs.player.direction);
+                    for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
+                      multiDirections.push(backDir);
+                    }
+                  }
+                  if (gs.player.skills.aLeftBullet > 0) {
+                    const leftDir = getLeftDirection(gs.player.direction);
+                    for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
+                      multiDirections.push(leftDir);
+                    }
+                  }
+                  if (gs.player.skills.aRightBullet > 0) {
+                    const rightDir = getRightDirection(gs.player.direction);
+                    for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
+                      multiDirections.push(rightDir);
+                    }
+                  }
+                  
+                  const additionalProjectiles = multiDirections.map(dir =>
+                    createProjectile(gs.player, dir, gs.player.stats.aAtk)
+                  );
+                  
+                  return {
+                    ...gs,
+                    projectiles: [...gs.projectiles, ...additionalProjectiles],
+                  };
+                });
+              }, hit * 500); // 0.5秒ごと
+            }
+          }
+          
         } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
           const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
@@ -643,6 +698,76 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             return enemy;
           });
+          
+          // 多段攻撃処理（B列）
+          const bMultiHitLevel = prev.player.skills.multiHitLevel;
+          if (bMultiHitLevel > 0) {
+            for (let hit = 1; hit <= bMultiHitLevel; hit++) {
+              setTimeout(() => {
+                setGameState(gs => {
+                  // ゲーム中断中は発動しない
+                  if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                  
+                  const bAttackRange = 80 + gs.player.skills.bRangeBonus * 20;
+                  const bDirVec = getDirectionVector(gs.player.direction);
+                  const bAttackX = gs.player.x + bDirVec.x * 40;
+                  const bAttackY = gs.player.y + bDirVec.y * 40;
+                  
+                  // 衝撃波エフェクト追加
+                  const multiShockwave: ShockwaveEffect = {
+                    id: `shock_multi_${Date.now()}_${hit}`,
+                    x: bAttackX,
+                    y: bAttackY,
+                    radius: 0,
+                    maxRadius: bAttackRange,
+                    startTime: Date.now(),
+                    duration: 300,
+                  };
+                  setShockwaves(sw => [...sw, multiShockwave]);
+                  
+                  const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
+                  const newDamageTexts = [...gs.damageTexts];
+                  
+                  const updatedEnemies = gs.enemies.map(enemy => {
+                    const dx = enemy.x - bAttackX;
+                    const dy = enemy.y - bAttackY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (dist < bAttackRange) {
+                      const damage = calculateDamage(
+                        gs.player.stats.bAtk,
+                        gs.player.stats.bAtk,
+                        enemy.stats.def,
+                        gs.player.statusEffects.some(e => e.type === 'buffer'),
+                        enemy.statusEffects.some(e => e.type === 'debuffer')
+                      );
+                      
+                      const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
+                      const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
+                      
+                      newDamageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+                      
+                      return {
+                        ...enemy,
+                        stats: {
+                          ...enemy.stats,
+                          hp: Math.max(0, enemy.stats.hp - damage),
+                        },
+                        knockbackVelocity: { x: knockbackX, y: knockbackY },
+                      };
+                    }
+                    return enemy;
+                  });
+                  
+                  return {
+                    ...gs,
+                    enemies: updatedEnemies,
+                    damageTexts: newDamageTexts,
+                  };
+                });
+              }, hit * 500); // 0.5秒ごと
+            }
+          }
           
         } else if (slotType === 'C' && prev.magicCooldown <= 0) {
           // 魔法発動
@@ -735,6 +860,47 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         );
         newState.projectiles = [...prev.projectiles, ...newProjectiles];
         
+        // 多段攻撃処理（A列・タップ）
+        const tapMultiHitLevel = prev.player.skills.multiHitLevel;
+        if (tapMultiHitLevel > 0) {
+          for (let hit = 1; hit <= tapMultiHitLevel; hit++) {
+            setTimeout(() => {
+              setGameState(gs => {
+                if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                
+                const multiDirections: Direction[] = [gs.player.direction];
+                if (gs.player.skills.aBackBullet > 0) {
+                  const backDir = getOppositeDirection(gs.player.direction);
+                  for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
+                    multiDirections.push(backDir);
+                  }
+                }
+                if (gs.player.skills.aLeftBullet > 0) {
+                  const leftDir = getLeftDirection(gs.player.direction);
+                  for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
+                    multiDirections.push(leftDir);
+                  }
+                }
+                if (gs.player.skills.aRightBullet > 0) {
+                  const rightDir = getRightDirection(gs.player.direction);
+                  for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
+                    multiDirections.push(rightDir);
+                  }
+                }
+                
+                const additionalProjectiles = multiDirections.map(dir =>
+                  createProjectile(gs.player, dir, gs.player.stats.aAtk)
+                );
+                
+                return {
+                  ...gs,
+                  projectiles: [...gs.projectiles, ...additionalProjectiles],
+                };
+              });
+            }, hit * 500);
+          }
+        }
+        
       } else if (slotType === 'B') {
         // 近接攻撃 - 衝撃波エフェクト追加
         const attackRange = 80 + prev.player.skills.bRangeBonus * 20;
@@ -787,6 +953,74 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
           return enemy;
         });
+        
+        // 多段攻撃処理（B列・タップ）
+        const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
+        if (tapBMultiHitLevel > 0) {
+          for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
+            setTimeout(() => {
+              setGameState(gs => {
+                if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                
+                const bAttackRange = 80 + gs.player.skills.bRangeBonus * 20;
+                const bDirVec = getDirectionVector(gs.player.direction);
+                const bAttackX = gs.player.x + bDirVec.x * 40;
+                const bAttackY = gs.player.y + bDirVec.y * 40;
+                
+                const multiShockwave: ShockwaveEffect = {
+                  id: `shock_tap_${Date.now()}_${hit}`,
+                  x: bAttackX,
+                  y: bAttackY,
+                  radius: 0,
+                  maxRadius: bAttackRange,
+                  startTime: Date.now(),
+                  duration: 300,
+                };
+                setShockwaves(sw => [...sw, multiShockwave]);
+                
+                const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
+                const newDamageTexts = [...gs.damageTexts];
+                
+                const updatedEnemies = gs.enemies.map(enemy => {
+                  const dx = enemy.x - bAttackX;
+                  const dy = enemy.y - bAttackY;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  
+                  if (dist < bAttackRange) {
+                    const damage = calculateDamage(
+                      gs.player.stats.bAtk,
+                      gs.player.stats.bAtk,
+                      enemy.stats.def,
+                      gs.player.statusEffects.some(e => e.type === 'buffer'),
+                      enemy.statusEffects.some(e => e.type === 'debuffer')
+                    );
+                    
+                    const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
+                    const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
+                    
+                    newDamageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+                    
+                    return {
+                      ...enemy,
+                      stats: {
+                        ...enemy.stats,
+                        hp: Math.max(0, enemy.stats.hp - damage),
+                      },
+                      knockbackVelocity: { x: knockbackX, y: knockbackY },
+                    };
+                  }
+                  return enemy;
+                });
+                
+                return {
+                  ...gs,
+                  enemies: updatedEnemies,
+                  damageTexts: newDamageTexts,
+                };
+              });
+            }, hit * 500);
+          }
+        }
         
       } else if (slotType === 'C' && prev.magicCooldown <= 0) {
         // 魔法発動
@@ -1112,25 +1346,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // スキル設定
       if (debugSettings.skills) {
-        debugSettings.skills.forEach(skill => {
-          switch (skill) {
-            case 'a_penetration':
-              initial.player.skills.aPenetration = true;
-              break;
-            case 'a_back_bullet':
-              initial.player.skills.aBackBullet = 3;
-              break;
-            case 'a_right_bullet':
-              initial.player.skills.aRightBullet = 3;
-              break;
-            case 'a_left_bullet':
-              initial.player.skills.aLeftBullet = 3;
-              break;
-            case 'multi_hit':
-              initial.player.skills.multiHitLevel = 3;
-              break;
-          }
-        });
+        const skills = debugSettings.skills;
+        if (skills.aPenetration !== undefined) {
+          initial.player.skills.aPenetration = skills.aPenetration;
+        }
+        if (skills.aBackBullet !== undefined) {
+          initial.player.skills.aBackBullet = skills.aBackBullet;
+        }
+        if (skills.aRightBullet !== undefined) {
+          initial.player.skills.aRightBullet = skills.aRightBullet;
+        }
+        if (skills.aLeftBullet !== undefined) {
+          initial.player.skills.aLeftBullet = skills.aLeftBullet;
+        }
+        if (skills.bKnockbackBonus !== undefined) {
+          initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;
+        }
+        if (skills.bRangeBonus !== undefined) {
+          initial.player.skills.bRangeBonus = skills.bRangeBonus;
+        }
+        if (skills.multiHitLevel !== undefined) {
+          initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
       }
     }
     setGameState(initial);

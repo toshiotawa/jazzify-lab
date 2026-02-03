@@ -22,12 +22,13 @@ import { initializeAudioSystem } from '@/utils/MidiController';
 
 // デバッグモード用スキル一覧
 const DEBUG_SKILLS = [
-  { id: 'a_penetration', label: 'A列貫通', emoji: '🔫' },
-  { id: 'a_back_bullet', label: 'A列後方弾', emoji: '↩️' },
-  { id: 'a_right_bullet', label: 'A列右弾', emoji: '➡️' },
-  { id: 'a_left_bullet', label: 'A列左弾', emoji: '⬅️' },
-  { id: 'multi_hit', label: 'マルチヒット', emoji: '💥' },
-  { id: 'magic_all', label: '全魔法解放', emoji: '🪄' },
+  { id: 'aPenetration', label: 'A列貫通', labelEn: 'Penetration', emoji: '🔫', isBoolean: true, maxLevel: 1 },
+  { id: 'aBackBullet', label: 'A列後方弾', labelEn: 'Back Bullet', emoji: '↩️', isBoolean: false, maxLevel: null },
+  { id: 'aRightBullet', label: 'A列右弾', labelEn: 'Right Bullet', emoji: '➡️', isBoolean: false, maxLevel: null },
+  { id: 'aLeftBullet', label: 'A列左弾', labelEn: 'Left Bullet', emoji: '⬅️', isBoolean: false, maxLevel: null },
+  { id: 'bKnockbackBonus', label: 'ノックバック+', labelEn: 'Knockback+', emoji: '💨', isBoolean: false, maxLevel: null },
+  { id: 'bRangeBonus', label: '攻撃範囲+', labelEn: 'Range+', emoji: '📐', isBoolean: false, maxLevel: null },
+  { id: 'multiHitLevel', label: '多段攻撃', labelEn: 'Multi-Hit', emoji: '💥', isBoolean: false, maxLevel: 3 },
 ] as const;
 
 // デフォルト難易度設定（DB取得前のフォールバック）
@@ -118,11 +119,21 @@ const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
   extreme: 'Expert level. All chord types, ultra fast.',
 };
 
+export interface DebugSkillSettings {
+  aPenetration?: boolean;     // 貫通（上限1）
+  aBackBullet?: number;       // 後方弾（上限なし）
+  aRightBullet?: number;      // 右側弾（上限なし）
+  aLeftBullet?: number;       // 左側弾（上限なし）
+  bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
+  bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
+  multiHitLevel?: number;     // 多段攻撃レベル（上限3）
+}
+
 export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   cAtk?: number;
-  skills?: string[];
+  skills?: DebugSkillSettings;
   tapSkillActivation?: boolean;
   initialLevel?: number;
   magics?: {
@@ -165,7 +176,15 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugAAtk, setDebugAAtk] = useState<number>(10);
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
   const [debugCAtk, setDebugCAtk] = useState<number>(20);
-  const [debugSkills, setDebugSkills] = useState<string[]>([]);
+  const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
+    aPenetration: false,
+    aBackBullet: 0,
+    aRightBullet: 0,
+    aLeftBullet: 0,
+    bKnockbackBonus: 0,
+    bRangeBonus: 0,
+    multiHitLevel: 0,
+  });
   const [debugTapSkillActivation, setDebugTapSkillActivation] = useState(false);
   const [debugInitialLevel, setDebugInitialLevel] = useState<number>(1);
   const [debugMagics, setDebugMagics] = useState<{
@@ -288,15 +307,6 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     e.stopPropagation();
     setDebugDifficulty(difficulty);
     setDebugModalOpen(true);
-  };
-  
-  // デバッグスキルのトグル
-  const toggleDebugSkill = (skillId: string) => {
-    setDebugSkills(prev => 
-      prev.includes(skillId) 
-        ? prev.filter(s => s !== skillId)
-        : [...prev, skillId]
-    );
   };
   
   // デバッグ設定でゲーム開始
@@ -546,21 +556,96 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               <label className="block text-gray-300 text-sm mb-2 font-sans">
                 ⚡ {isEnglishCopy ? 'Initial Skills' : '初期スキル'}
               </label>
-              <div className="grid grid-cols-2 gap-2">
-                {DEBUG_SKILLS.filter(s => s.id !== 'magic_all').map(skill => (
-                  <button
-                    key={skill.id}
-                    onClick={() => toggleDebugSkill(skill.id)}
-                    className={cn(
-                      'px-3 py-2 rounded-lg text-sm font-sans transition-colors',
-                      debugSkills.includes(skill.id)
-                        ? 'bg-blue-600 text-white'
-                        : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                    )}
-                  >
-                    {skill.emoji} {skill.label}
-                  </button>
-                ))}
+              <div className="space-y-3">
+                {DEBUG_SKILLS.map(skill => {
+                  const currentValue = debugSkills[skill.id as keyof DebugSkillSettings] ?? (skill.isBoolean ? false : 0);
+                  
+                  return (
+                    <div key={skill.id} className="flex items-center gap-3 bg-gray-800/50 p-2 rounded-lg">
+                      {/* アイコンとラベル */}
+                      <div className="flex items-center gap-2 min-w-[120px]">
+                        <span>{skill.emoji}</span>
+                        <span className="text-sm text-gray-300 font-sans">
+                          {isEnglishCopy ? skill.labelEn : skill.label}
+                        </span>
+                      </div>
+                      
+                      {/* 値設定 */}
+                      {skill.isBoolean ? (
+                        // 貫通（boolean）
+                        <button
+                          onClick={() => setDebugSkills(prev => ({
+                            ...prev,
+                            [skill.id]: !currentValue,
+                          }))}
+                          className={cn(
+                            'px-4 py-1.5 rounded text-sm font-sans transition-colors',
+                            currentValue
+                              ? 'bg-green-600 text-white'
+                              : 'bg-gray-700 text-gray-400'
+                          )}
+                        >
+                          {currentValue ? 'ON' : 'OFF'}
+                        </button>
+                      ) : skill.maxLevel === 3 ? (
+                        // 多段攻撃（上限3）
+                        <div className="flex gap-1">
+                          {[0, 1, 2, 3].map(level => (
+                            <button
+                              key={level}
+                              onClick={() => setDebugSkills(prev => ({
+                                ...prev,
+                                [skill.id]: level,
+                              }))}
+                              className={cn(
+                                'w-8 h-8 rounded text-sm font-sans transition-colors',
+                                currentValue === level
+                                  ? 'bg-blue-600 text-white'
+                                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
+                              )}
+                            >
+                              {level}
+                            </button>
+                          ))}
+                        </div>
+                      ) : (
+                        // 上限なしのスキル
+                        <div className="flex items-center gap-2 flex-1">
+                          <input
+                            type="range"
+                            min="0"
+                            max="20"
+                            value={Number(currentValue) || 0}
+                            onChange={(e) => setDebugSkills(prev => ({
+                              ...prev,
+                              [skill.id]: Number(e.target.value),
+                            }))}
+                            className="flex-1"
+                          />
+                          <span className="w-8 text-center text-sm text-gray-300 font-sans">
+                            {String(currentValue)}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+                
+                {/* スキルリセットボタン */}
+                <button
+                  onClick={() => setDebugSkills({
+                    aPenetration: false,
+                    aBackBullet: 0,
+                    aRightBullet: 0,
+                    aLeftBullet: 0,
+                    bKnockbackBonus: 0,
+                    bRangeBonus: 0,
+                    multiHitLevel: 0,
+                  })}
+                  className="w-full px-3 py-2 rounded-lg text-xs font-sans bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
+                >
+                  {isEnglishCopy ? 'Reset All Skills' : 'スキルをリセット'}
+                </button>
               </div>
             </div>
             
