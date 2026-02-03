@@ -9,6 +9,22 @@ import { SurvivalGameResult, SurvivalDifficulty } from './SurvivalTypes';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import {
+  Skull,
+  Trophy,
+  Clock,
+  Star,
+  BarChart3,
+  Zap,
+  Wand2,
+  Sparkles,
+  Snowflake,
+  Flame,
+  HeartPulse,
+  TrendingUp,
+  TrendingDown,
+  Lightbulb,
+} from 'lucide-react';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -64,14 +80,14 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   if (result.skills.multiHitLevel > 0) acquiredSkills.push({ name: '多段攻撃', value: `Lv.${result.skills.multiHitLevel}` });
   
   // 魔法アイコン
-  const MAGIC_ICONS: Record<string, string> = {
-    thunder: '⚡',
-    ice: '❄️',
-    fire: '🔥',
-    heal: '💚',
-    buffer: '⬆️',
-    debuffer: '⬇️',
-    hint: '💡',
+  const MAGIC_ICONS: Record<string, React.ReactNode> = {
+    thunder: <Zap className="w-5 h-5 text-yellow-400" />,
+    ice: <Snowflake className="w-5 h-5 text-cyan-400" />,
+    fire: <Flame className="w-5 h-5 text-orange-400" />,
+    heal: <HeartPulse className="w-5 h-5 text-green-400" />,
+    buffer: <TrendingUp className="w-5 h-5 text-blue-400" />,
+    debuffer: <TrendingDown className="w-5 h-5 text-red-400" />,
+    hint: <Lightbulb className="w-5 h-5 text-yellow-300" />,
   };
 
   return (
@@ -79,7 +95,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
       <div className="max-w-2xl w-full mx-4 my-8 p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-red-500 shadow-2xl">
         {/* ヘッダー */}
         <div className="text-center mb-6">
-          <div className="text-6xl mb-4">💀</div>
+          <div className="flex justify-center mb-4">
+            <Skull className="w-16 h-16 text-red-500" />
+          </div>
           <div className="text-4xl font-bold text-red-500 font-sans mb-2">
             GAME OVER
           </div>
@@ -104,8 +122,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           
           {/* WAVE到達情報 */}
           {finalWave && (
-            <div className="mt-2 text-sm text-yellow-400">
-              🏆 WAVE {finalWave} {isEnglishCopy ? 'reached' : '到達'}
+            <div className="mt-2 text-sm text-yellow-400 flex items-center justify-center gap-1">
+              <Trophy className="w-4 h-4" /> WAVE {finalWave} {isEnglishCopy ? 'reached' : '到達'}
             </div>
           )}
         </div>
@@ -113,7 +131,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         {/* メイン結果 */}
         <div className="grid grid-cols-3 gap-4 mb-6">
           <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">⏱️</div>
+            <div className="flex justify-center mb-2">
+              <Clock className="w-8 h-8 text-white" />
+            </div>
             <div className="text-2xl font-bold text-white font-sans">
               {formatTime(result.survivalTime)}
             </div>
@@ -123,7 +143,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           </div>
           
           <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">⭐</div>
+            <div className="flex justify-center mb-2">
+              <Star className="w-8 h-8 text-yellow-400" />
+            </div>
             <div className="text-2xl font-bold text-yellow-400 font-sans">
               Lv.{result.finalLevel}
             </div>
@@ -133,7 +155,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           </div>
           
           <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">💀</div>
+            <div className="flex justify-center mb-2">
+              <Skull className="w-8 h-8 text-red-400" />
+            </div>
             <div className="text-2xl font-bold text-red-400 font-sans">
               {result.enemiesDefeated}
             </div>
@@ -147,8 +171,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         <div className="grid grid-cols-2 gap-4 mb-6">
           {/* 最終ステータス */}
           <div className="bg-black/40 rounded-xl p-4 border border-gray-700">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
-              📊 {isEnglishCopy ? 'Final Stats' : '最終ステータス'}
+            <div className="text-sm font-bold text-gray-300 mb-3 font-sans flex items-center gap-1">
+              <BarChart3 className="w-4 h-4" /> {isEnglishCopy ? 'Final Stats' : '最終ステータス'}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm font-sans">
               <div className="flex justify-between">
@@ -180,8 +204,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           
           {/* 取得スキル */}
           <div className="bg-black/40 rounded-xl p-4 border border-gray-700">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
-              ⚡ {isEnglishCopy ? 'Acquired Skills' : '取得スキル'}
+            <div className="text-sm font-bold text-gray-300 mb-3 font-sans flex items-center gap-1">
+              <Zap className="w-4 h-4" /> {isEnglishCopy ? 'Acquired Skills' : '取得スキル'}
             </div>
             {acquiredSkills.length > 0 ? (
               <div className="grid grid-cols-2 gap-2 text-sm font-sans">
@@ -203,8 +227,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         {/* 取得魔法 */}
         {acquiredMagics.length > 0 && (
           <div className="bg-black/40 rounded-xl p-4 border border-gray-700 mb-6">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
-              🪄 {isEnglishCopy ? 'Acquired Magic' : '取得魔法'}
+            <div className="text-sm font-bold text-gray-300 mb-3 font-sans flex items-center gap-1">
+              <Wand2 className="w-4 h-4" /> {isEnglishCopy ? 'Acquired Magic' : '取得魔法'}
             </div>
             <div className="flex flex-wrap gap-3">
               {acquiredMagics.map(({ type, level }) => (
@@ -212,7 +236,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   key={type}
                   className="flex items-center gap-2 bg-purple-900/40 px-3 py-2 rounded-lg border border-purple-500/30"
                 >
-                  <span className="text-xl">{MAGIC_ICONS[type] || '?'}</span>
+                  {MAGIC_ICONS[type] || <Wand2 className="w-5 h-5 text-purple-400" />}
                   <span className="text-sm text-white font-sans uppercase">{type}</span>
                   <span className="text-xs text-purple-300">Lv.{level}</span>
                 </div>
@@ -224,8 +248,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         {/* 獲得経験値 */}
         <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 rounded-xl p-4 border border-yellow-500/30 mb-6">
           <div className="flex items-center justify-between">
-            <div className="text-sm text-yellow-300 font-sans">
-              ✨ {isEnglishCopy ? 'Earned XP' : '獲得経験値'}
+            <div className="text-sm text-yellow-300 font-sans flex items-center gap-1">
+              <Sparkles className="w-4 h-4" /> {isEnglishCopy ? 'Earned XP' : '獲得経験値'}
             </div>
             <div className="text-2xl font-bold text-yellow-400 font-sans">
               +{result.earnedXp} XP

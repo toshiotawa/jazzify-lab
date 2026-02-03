@@ -58,6 +58,21 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import {
+  ChevronUp,
+  ChevronDown,
+  ChevronLeft,
+  ChevronRight,
+  Clock,
+  Star,
+  Heart,
+  Settings,
+  Play,
+  Pause,
+  Crosshair,
+  Sword,
+  Wand2,
+} from 'lucide-react';
 
 // ===== バーチャルスティック =====
 interface VirtualStickProps {
@@ -128,10 +143,10 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
     >
       {/* 方向矢印 */}
       <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-        <div className="absolute top-2 text-white/50 text-xl">▲</div>
-        <div className="absolute bottom-2 text-white/50 text-xl">▼</div>
-        <div className="absolute left-2 text-white/50 text-xl">◀</div>
-        <div className="absolute right-2 text-white/50 text-xl">▶</div>
+        <ChevronUp className="absolute top-2 w-6 h-6 text-white/50" />
+        <ChevronDown className="absolute bottom-2 w-6 h-6 text-white/50" />
+        <ChevronLeft className="absolute left-2 w-6 h-6 text-white/50" />
+        <ChevronRight className="absolute right-2 w-6 h-6 text-white/50" />
       </div>
       
       {/* スティック */}
@@ -1671,11 +1686,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               <span className="font-bold text-yellow-300">WAVE {gameState.wave.currentWave}</span>
             </div>
             <div className="flex items-center gap-1">
-              <span>⏱️</span>
+              <Clock className="w-4 h-4" />
               <span className="text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
             </div>
             <div className="flex items-center gap-1">
-              <span>⭐</span>
+              <Star className="w-4 h-4 text-yellow-400" />
               <span>Lv.{gameState.player.level}</span>
             </div>
           </div>
@@ -1710,7 +1725,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           {/* HP */}
           <div className="flex items-center gap-2">
-            <span>❤️</span>
+            <Heart className="w-4 h-4 text-red-500" />
             <div className="w-24 h-3 bg-gray-700 rounded-full overflow-hidden">
               <div
                 className={cn(
@@ -1730,16 +1745,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           <div className="flex gap-1">
             <button
               onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm flex items-center justify-center"
               title={isEnglishCopy ? 'Settings' : '設定'}
             >
-              ⚙️
+              <Settings className="w-4 h-4" />
             </button>
             <button
               onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
+              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm flex items-center justify-center"
             >
-              {gameState.isPaused ? '▶️' : '⏸️'}
+              {gameState.isPaused ? <Play className="w-4 h-4" /> : <Pause className="w-4 h-4" />}
             </button>
           </div>
         </div>
@@ -1774,27 +1789,30 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           <div className="absolute right-4 bottom-4 z-30 flex flex-col gap-2">
             <button
               onClick={() => handleTapSkillActivation(0)}
-              className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform"
+              className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform flex flex-col items-center justify-center gap-1"
             >
-              🔫 A
+              <Crosshair className="w-6 h-6" />
+              <span className="text-sm">A</span>
             </button>
             <button
               onClick={() => handleTapSkillActivation(1)}
-              className="w-16 h-16 bg-orange-600/80 hover:bg-orange-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-orange-400 active:scale-95 transition-transform"
+              className="w-16 h-16 bg-orange-600/80 hover:bg-orange-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-orange-400 active:scale-95 transition-transform flex flex-col items-center justify-center gap-1"
             >
-              👊 B
+              <Sword className="w-6 h-6" />
+              <span className="text-sm">B</span>
             </button>
             <button
               onClick={() => handleTapSkillActivation(2)}
               disabled={!gameState.codeSlots.current[2].isEnabled}
               className={cn(
-                "w-16 h-16 rounded-lg font-bold text-white text-xl shadow-lg border-2 active:scale-95 transition-transform",
+                "w-16 h-16 rounded-lg font-bold text-white text-xl shadow-lg border-2 active:scale-95 transition-transform flex flex-col items-center justify-center gap-1",
                 gameState.codeSlots.current[2].isEnabled
                   ? "bg-purple-600/80 hover:bg-purple-500 border-purple-400"
                   : "bg-gray-600/50 border-gray-500 cursor-not-allowed opacity-50"
               )}
             >
-              🪄 C
+              <Wand2 className="w-6 h-6" />
+              <span className="text-sm">C</span>
             </button>
           </div>
         )}

@@ -6,6 +6,69 @@
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
 import { LevelUpBonus } from './SurvivalTypes';
+import {
+  Sparkles,
+  Clock,
+  MousePointerClick,
+  Piano,
+  Crosshair,
+  Sword,
+  Wand2,
+  Zap,
+  Timer,
+  Heart,
+  Shield,
+  MoveRight,
+  MoveLeft,
+  CornerUpRight,
+  CornerUpLeft,
+  Wind,
+  Maximize2,
+  Layers,
+  Snowflake,
+  Flame,
+  HeartPulse,
+  TrendingUp,
+  TrendingDown,
+  Lightbulb,
+  LucideIcon,
+} from 'lucide-react';
+
+// アイコン名からコンポーネントへのマッピング
+const ICON_MAP: Record<string, LucideIcon> = {
+  crosshair: Crosshair,
+  sword: Sword,
+  wand2: Wand2,
+  zap: Zap,
+  timer: Timer,
+  heart: Heart,
+  shield: Shield,
+  clock: Clock,
+  sparkles: Sparkles,
+  'move-right': MoveRight,
+  'move-left': MoveLeft,
+  'corner-up-right': CornerUpRight,
+  'corner-up-left': CornerUpLeft,
+  wind: Wind,
+  maximize2: Maximize2,
+  layers: Layers,
+  snowflake: Snowflake,
+  flame: Flame,
+  'heart-pulse': HeartPulse,
+  'trending-up': TrendingUp,
+  'trending-down': TrendingDown,
+  lightbulb: Lightbulb,
+};
+
+// アイコン名からReactコンポーネントを取得
+const getIconComponent = (iconName: string): React.ReactNode => {
+  const IconComponent = ICON_MAP[iconName];
+  if (IconComponent) {
+    return <IconComponent className="w-10 h-10" />;
+  }
+  // フォールバック
+  return <Sparkles className="w-10 h-10" />;
+};
 
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
@@ -90,8 +153,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
       <div className="max-w-4xl w-full mx-4 p-4 sm:p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-yellow-500 shadow-2xl max-h-full overflow-y-auto">
         {/* ヘッダー */}
         <div className="text-center mb-6">
-          <div className="text-yellow-400 text-lg font-sans mb-2">
-            ✨ LEVEL UP! ✨
+          <div className="text-yellow-400 text-lg font-sans mb-2 flex items-center justify-center gap-2">
+            <Sparkles className="w-5 h-5" /> LEVEL UP! <Sparkles className="w-5 h-5" />
           </div>
           <div className="text-4xl font-bold text-white font-sans">
             Lv.{level - pendingLevelUps} → Lv.{level - pendingLevelUps + 1}
@@ -106,7 +169,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         {/* タイマーバー */}
         <div className="mb-6">
           <div className="flex justify-between text-xs text-gray-400 mb-1 font-sans">
-            <span>⏱️ 選択制限時間</span>
+            <span className="flex items-center gap-1"><Clock className="w-3 h-3" /> 選択制限時間</span>
             <span>{timer.toFixed(1)}s</span>
           </div>
           <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -150,8 +213,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 )}
               >
                 {/* アイコン */}
-                <div className="text-4xl text-center mb-3">
-                  {option.icon}
+                <div className="flex justify-center mb-3 text-white">
+                  {getIconComponent(option.icon)}
                 </div>
                 
                 {/* 名前 */}
@@ -177,8 +240,16 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                   'bg-black/40 border',
                   isComplete ? 'border-yellow-400' : 'border-gray-600'
                 )}>
-                  <div className="text-xs text-gray-400 mb-1 font-sans">
-                    {tapSelectionEnabled ? '👆 タップまたは🎹 演奏' : '🎹 演奏して選択'}
+                  <div className="text-xs text-gray-400 mb-1 font-sans flex items-center justify-center gap-1">
+                    {tapSelectionEnabled ? (
+                      <>
+                        <MousePointerClick className="w-3 h-3" /> タップまたは <Piano className="w-3 h-3" /> 演奏
+                      </>
+                    ) : (
+                      <>
+                        <Piano className="w-3 h-3" /> 演奏して選択
+                      </>
+                    )}
                   </div>
                   <div className={cn(
                     'text-xl font-bold font-sans',
@@ -210,11 +281,16 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         </div>
         
         {/* 操作説明 */}
-        <div className="text-center text-sm text-gray-400 font-sans">
-          {tapSelectionEnabled 
-            ? '👆 タップまたは🎹 演奏でボーナスを選択！タイムアウトでボーナスなし'
-            : '🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし'
-          }
+        <div className="text-center text-sm text-gray-400 font-sans flex items-center justify-center gap-1 flex-wrap">
+          {tapSelectionEnabled ? (
+            <>
+              <MousePointerClick className="w-4 h-4" /> タップまたは <Piano className="w-4 h-4" /> 演奏でボーナスを選択！タイムアウトでボーナスなし
+            </>
+          ) : (
+            <>
+              <Piano className="w-4 h-4" /> 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし
+            </>
+          )}
         </div>
       </div>
     </div>
