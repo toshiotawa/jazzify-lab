@@ -3,7 +3,7 @@
  * 3択からボーナスを選択
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { LevelUpBonus } from './SurvivalTypes';
 
@@ -19,6 +19,8 @@ interface SurvivalLevelUpProps {
 }
 
 const SELECTION_TIMEOUT = 10;  // 選択制限時間（秒）
+const INPUT_DELAY = 0.5;       // 入力受付までの遅延（秒）
+const SELECTION_DISPLAY_TIME = 0.8;  // 選択結果表示時間（秒）
 
 const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   options,
@@ -30,16 +32,42 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   tapSelectionEnabled = false,
 }) => {
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
+  const [inputEnabled, setInputEnabled] = useState(false);  // 入力受付状態
+  const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);  // 選択されたボーナス
   const timeoutCalledRef = React.useRef(false);
   
-  // pendingLevelUpsが変わったらタイマーをリセット
+  // pendingLevelUpsが変わったらタイマーと入力状態をリセット
   useEffect(() => {
     setTimer(SELECTION_TIMEOUT);
+    setInputEnabled(false);
+    setSelectedBonus(null);
     timeoutCalledRef.current = false;
+    
+    // 0.5秒後に入力を有効化
+    const inputDelayTimer = setTimeout(() => {
+      setInputEnabled(true);
+    }, INPUT_DELAY * 1000);
+    
+    return () => clearTimeout(inputDelayTimer);
   }, [pendingLevelUps]);
   
-  // タイマー処理
+  // 選択時の処理
+  const handleSelect = useCallback((bonus: LevelUpBonus) => {
+    if (!inputEnabled || selectedBonus) return;
+    
+    // 選択結果を表示
+    setSelectedBonus(bonus);
+    
+    // 一定時間後に実際の選択処理を実行
+    setTimeout(() => {
+      onSelect(bonus);
+    }, SELECTION_DISPLAY_TIME * 1000);
+  }, [inputEnabled, selectedBonus, onSelect]);
+  
+  // タイマー処理（選択中は停止）
   useEffect(() => {
+    if (selectedBonus) return;  // 選択済みならタイマー停止
+    
     const interval = setInterval(() => {
       setTimer(prev => {
         const newValue = prev - 0.1;
@@ -57,12 +85,12 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     }, 100);
     
     return () => clearInterval(interval);
-  }, [onTimeout, pendingLevelUps]);
+  }, [onTimeout, pendingLevelUps, selectedBonus]);
   
   // タップで選択
   const handleTapSelect = (option: LevelUpBonus) => {
-    if (!tapSelectionEnabled) return;
-    onSelect(option);
+    if (!tapSelectionEnabled || !inputEnabled || selectedBonus) return;
+    handleSelect(option);
   };
   
   // 進捗計算
@@ -84,6 +112,19 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
       onTimeout();
     }
   }, [validOptions.length, onTimeout]);
+  
+  // 進捗が100%になったオプションを自動選択
+  React.useEffect(() => {
+    if (!inputEnabled || selectedBonus) return;
+    
+    for (let i = 0; i < options.length; i++) {
+      const progress = getProgress(i);
+      if (progress >= 100 && options[i]?.chord?.notes) {
+        handleSelect(options[i]);
+        break;
+      }
+    }
+  }, [correctNotes, inputEnabled, selectedBonus, options, handleSelect]);
 
   return (
     <div className="fixed inset-x-0 top-0 bottom-[140px] z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
@@ -220,11 +261,29 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         
         {/* 操作説明 */}
         <div className="text-center text-sm text-gray-400 font-sans">
-          {tapSelectionEnabled 
-            ? '👆 タップまたは🎹 演奏でボーナスを選択！タイムアウトでボーナスなし'
-            : '🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし'
-          }
+          {!inputEnabled ? (
+            <span className="text-yellow-400 animate-pulse">⏳ 準備中...</span>
+          ) : tapSelectionEnabled ? (
+            '👆 タップまたは🎹 演奏でボーナスを選択！タイムアウトでボーナスなし'
+          ) : (
+            '🎹 下のピアノでコードを演奏してボーナスを選択！タイムアウトでボーナスなし'
+          )}
         </div>
+        
+        {/* 選択結果オーバーレイ */}
+        {selectedBonus && (
+          <div className="absolute inset-0 flex items-center justify-center bg-black/70 rounded-2xl z-10">
+            <div className="text-center animate-bounce">
+              <div className="text-6xl mb-4">{selectedBonus.icon}</div>
+              <div className="text-3xl font-bold text-yellow-400 font-sans mb-2">
+                {selectedBonus.displayName}
+              </div>
+              <div className="text-lg text-green-400 font-sans">
+                ✅ 獲得！
+              </div>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

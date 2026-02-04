@@ -45,6 +45,7 @@ import {
   shouldEnemyShoot,
   createEnemyProjectile,
   updateEnemyProjectiles,
+  getConditionalSkillMultipliers,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
 import SurvivalCanvas from './SurvivalCanvas';
@@ -158,6 +159,9 @@ interface DebugSkillSettings {
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
   bDeflect?: boolean;         // 拳でかきけす（上限1）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
+  expBonusLevel?: number;     // 獲得経験値+1（上限3）
+  haisuiNoJin?: boolean;      // 背水の陣（上限1）
+  zekkouchou?: boolean;       // 絶好調（上限1）
 }
 
 interface SurvivalGameScreenProps {
@@ -287,6 +291,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
+        if (skills.expBonusLevel !== undefined) {
+          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+        }
+        if (skills.haisuiNoJin !== undefined) {
+          initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
+        }
+        if (skills.zekkouchou !== undefined) {
+          initial.player.skills.zekkouchou = skills.zekkouchou;
         }
       }
     }
@@ -680,16 +693,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // refを即座に更新（次の入力で最新値を参照できるように）
         levelUpCorrectNotesRef.current = currentCorrectNotes;
         // UIの再レンダリング用にステートも更新
+        // SurvivalLevelUp側で入力遅延と選択処理を制御するため、ここでは呼び出さない
         setTimeout(() => setLevelUpCorrectNotes([...currentCorrectNotes]), 0);
         
-        // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
-        if (matchedOptionIndex >= 0) {
-          const matchedOption = prev.levelUpOptions[matchedOptionIndex];
-          // 次のイベントループで実行して状態更新の競合を避ける
-          setTimeout(() => {
-            handleLevelUpBonusSelect(matchedOption);
-          }, 0);
-        }
+        // 注: 選択処理はSurvivalLevelUp側で行う（入力遅延制御のため）
         return prev; // レベルアップ中は他の処理をスキップ
       }
       
@@ -1024,7 +1031,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.enemies = result.enemies;
             newState.player = result.player;
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+            // 背水の陣・絶好調の効果を適用したクールダウン
+            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
@@ -1362,7 +1371,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.enemies = result.enemies;
         newState.player = result.player;
         newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+        // 背水の陣・絶好調の効果を適用したクールダウン
+        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier;
         
         // サンダーの場合は雷エフェクトを追加
         if (magicType === 'thunder') {
@@ -1499,7 +1510,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           if (dist < 30) {
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            const damage = Math.max(1, Math.floor(enemy.stats.atk - newState.player.stats.def * defMultiplier * 0.5));
+            // 背水の陣のDEF=0効果
+            const condMult = getConditionalSkillMultipliers(newState.player);
+            const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
+            const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
             newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
           }
         });
@@ -1525,7 +1539,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
             // プレイヤーにダメージ
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            const damage = Math.max(1, Math.floor(proj.damage - newState.player.stats.def * defMultiplier * 0.3));
+            // 背水の陣のDEF=0効果
+            const condMultProj = getConditionalSkillMultipliers(newState.player);
+            const effectiveDefProj = condMultProj.defOverride !== null ? condMultProj.defOverride : newState.player.stats.def;
+            const damage = Math.max(1, Math.floor(proj.damage - effectiveDefProj * defMultiplier * 0.3));
             newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage);
             newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, damage));
             return false;  // 弾を削除
@@ -1656,6 +1673,37 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             e => (now - e.startTime) / 1000 < e.duration
           ),
         }));
+        
+        // 背水の陣と絶好調のステータスエフェクト管理
+        const hpPercent = newState.player.stats.hp / newState.player.stats.maxHp;
+        const hasHaisui = newState.player.statusEffects.some(e => e.type === 'haisui');
+        const hasZekkouchou = newState.player.statusEffects.some(e => e.type === 'zekkouchou');
+        
+        // 背水の陣（HP15%以下で発動）
+        if (newState.player.skills.haisuiNoJin && hpPercent <= 0.15) {
+          if (!hasHaisui) {
+            newState.player.statusEffects.push({
+              type: 'haisui',
+              duration: Infinity,
+              startTime: now,
+            });
+          }
+        } else {
+          newState.player.statusEffects = newState.player.statusEffects.filter(e => e.type !== 'haisui');
+        }
+        
+        // 絶好調（HP満タンで発動）
+        if (newState.player.skills.zekkouchou && newState.player.stats.hp >= newState.player.stats.maxHp) {
+          if (!hasZekkouchou) {
+            newState.player.statusEffects.push({
+              type: 'zekkouchou',
+              duration: Infinity,
+              startTime: now,
+            });
+          }
+        } else {
+          newState.player.statusEffects = newState.player.statusEffects.filter(e => e.type !== 'zekkouchou');
+        }
         
         // ダメージテキストのクリーンアップ
         newState.damageTexts = newState.damageTexts.filter(
@@ -1830,6 +1878,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
+        if (skills.expBonusLevel !== undefined) {
+          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+        }
+        if (skills.haisuiNoJin !== undefined) {
+          initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
+        }
+        if (skills.zekkouchou !== undefined) {
+          initial.player.skills.zekkouchou = skills.zekkouchou;
         }
       }
     }

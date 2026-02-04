@@ -101,6 +101,8 @@ const STATUS_ICONS: Record<string, string> = {
   hint: '💡',
   speed_up: '👟',
   def_up: '🦺',
+  haisui: '🩸',      // 背水の陣
+  zekkouchou: '😊',  // 絶好調
 };
 
 // ===== 敵タイプ別アイコン =====
