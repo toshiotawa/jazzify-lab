@@ -80,7 +80,7 @@ export interface SpecialSkills {
   
   // 共通スキル
   multiHitLevel: number;      // 多段攻撃レベル（0-3）
-  expBonusLevel: number;      // 獲得経験値+1（レベル0-3）
+  expBonusLevel: number;      // 獲得経験値+1（レベル0-10）
   haisuiNoJin: boolean;       // 背水の陣（HP15%以下で強化）
   zekkouchou: boolean;        // 絶好調（HP満タンで強化）
 }

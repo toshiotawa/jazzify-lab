@@ -159,7 +159,7 @@ interface DebugSkillSettings {
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
   bDeflect?: boolean;         // 拳でかきけす（上限1）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
-  expBonusLevel?: number;     // 獲得経験値+1（上限3）
+  expBonusLevel?: number;     // 獲得経験値+1（上限10）
   haisuiNoJin?: boolean;      // 背水の陣（上限1）
   zekkouchou?: boolean;       // 絶好調（上限1）
 }
@@ -293,7 +293,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
         }
         if (skills.expBonusLevel !== undefined) {
-          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+          initial.player.skills.expBonusLevel = Math.min(10, skills.expBonusLevel);
         }
         if (skills.haisuiNoJin !== undefined) {
           initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
@@ -1915,7 +1915,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
         }
         if (skills.expBonusLevel !== undefined) {
-          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+          initial.player.skills.expBonusLevel = Math.min(10, skills.expBonusLevel);
         }
         if (skills.haisuiNoJin !== undefined) {
           initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
