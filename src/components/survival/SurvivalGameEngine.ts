@@ -46,6 +46,11 @@ const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
 const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
 
+// パフォーマンス向上用の上限値
+export const MAX_ENEMIES = 80;           // 敵の最大数
+export const MAX_PROJECTILES = 100;      // 弾丸の最大数
+export const MAX_COINS = 150;            // コインの最大数
+
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
   x: MAP_CONFIG.width / 2,
@@ -62,6 +67,7 @@ const createInitialPlayerState = (): PlayerState => ({
     def: 5,
     time: 0,
     aBulletCount: 1,
+    luck: 0,  // 運（1=1%、上限40=50%）
   },
   skills: {
     aPenetration: false,
@@ -437,6 +443,16 @@ export const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefiniti
 };
 
 // ===== 攻撃処理 =====
+// A列弾丸のダメージ計算（A ATK +1 で約10ダメージ増加、初期状態で10-14維持）
+const INITIAL_A_ATK = 10;  // 初期A ATK値
+const A_ATK_DAMAGE_MULTIPLIER = 10;  // A ATK +1あたりのダメージ増加量
+const A_BASE_DAMAGE = 14;  // 基本ダメージ（初期A ATKでのダメージ）
+
+export const calculateAProjectileDamage = (aAtk: number): number => {
+  // 初期状態（aAtk=10）でA_BASE_DAMAGE、+1ごとにA_ATK_DAMAGE_MULTIPLIER増加
+  return A_BASE_DAMAGE + (aAtk - INITIAL_A_ATK) * A_ATK_DAMAGE_MULTIPLIER;
+};
+
 export const createProjectile = (
   player: PlayerState,
   direction: Direction,
@@ -475,6 +491,7 @@ export const updateProjectiles = (
 // ===== ダメージ計算 =====
 // bufferLevel: バフ魔法のレベル (0-3)、cAtk: プレイヤーのC列攻撃力
 // debufferLevel: デバフ魔法のレベル (0-3)
+// isLucky: 運発動フラグ（ダメージ2倍）
 export const calculateDamage = (
   baseDamage: number,
   attackerAtk: number,
@@ -483,7 +500,8 @@ export const calculateDamage = (
   isDebuffed: boolean = false,
   bufferLevel: number = 0,
   debufferLevel: number = 0,
-  cAtk: number = 0
+  cAtk: number = 0,
+  isLucky: boolean = false
 ): number => {
   // バッファー効果: レベルとC ATKで大幅強化
   // レベル0(無効): 1.0倍、レベル1: 1.5倍、レベル2: 2.0倍、レベル3: 2.5倍
@@ -495,22 +513,63 @@ export const calculateDamage = (
     atkMultiplier = 1.5;  // レベル情報がない場合のデフォルト
   }
   
-  // デバッファー効果: レベルとC ATKで大幅強化
-  // レベル0(無効): 1.0倍、レベル1: 0.6倍、レベル2: 0.4倍、レベル3: 0.2倍
-  // さらにC ATK×0.01を減算（C ATK 20で-0.2）
+  // デバッファー効果: バフと同様にダメージの通りをよくする
+  // 敵の防御力を大幅に無効化 + ダメージ倍率を追加
+  // レベル1: DEF50%、ダメージ1.3倍、レベル2: DEF30%、ダメージ1.6倍、レベル3: DEF10%、ダメージ1.9倍
   let defMultiplier = 1;
+  let debuffDamageMultiplier = 1;
   if (isDebuffed && debufferLevel > 0) {
-    defMultiplier = Math.max(0.1, 0.8 - debufferLevel * 0.2 - cAtk * 0.01);
+    defMultiplier = Math.max(0.1, 0.7 - debufferLevel * 0.2 - cAtk * 0.01);  // DEF 70%→50%→30%→10%
+    debuffDamageMultiplier = 1 + debufferLevel * 0.3 + cAtk * 0.02;  // ダメージ1.3〜1.9倍+C ATKボーナス
   } else if (isDebuffed) {
-    defMultiplier = 0.7;  // レベル情報がない場合のデフォルト
+    defMultiplier = 0.5;  // レベル情報がない場合のデフォルト
+    debuffDamageMultiplier = 1.3;
   }
   
-  // 攻撃力の影響を高める（攻撃力×2倍で加算）、バフ効果はbaseDamageにも適用
+  // 運発動時はダメージ2倍
+  const luckyMultiplier = isLucky ? 2 : 1;
+  
+  // ダメージ計算: バフ倍率、デバフ倍率、運倍率を適用
   const damage = Math.max(1, Math.floor(
-    (baseDamage + attackerAtk * 2) * atkMultiplier - (defenderDef * defMultiplier * 0.5)
+    (baseDamage + attackerAtk * 2) * atkMultiplier * debuffDamageMultiplier * luckyMultiplier - (defenderDef * defMultiplier * 0.5)
   ));
   
   return damage;
+};
+
+// ===== 運の判定 =====
+// 基本運率 = 10% + Luck * 1%（上限40 = 50%）
+const BASE_LUCK_CHANCE = 0.10;  // 基本10%
+const LUCK_PER_POINT = 0.01;    // Luck 1ポイントあたり1%
+const MAX_LUCK_STAT = 40;       // Luck上限（40 = 50%）
+
+export interface LuckResult {
+  isLucky: boolean;           // 運発動したか
+  doubleDamage: boolean;      // ダメージ2倍
+  noDamageTaken: boolean;     // 敵からのダメージ0
+  reloadReduction: boolean;   // 魔法リロード時間1/3
+  doubleTime: boolean;        // 魔法発動時TIME2倍
+}
+
+export const checkLuck = (luck: number): LuckResult => {
+  const effectiveLuck = Math.min(luck, MAX_LUCK_STAT);
+  const luckChance = BASE_LUCK_CHANCE + effectiveLuck * LUCK_PER_POINT;
+  const isLucky = Math.random() < luckChance;
+  
+  // 運が発動したら全ての効果が発動
+  return {
+    isLucky,
+    doubleDamage: isLucky,
+    noDamageTaken: isLucky,
+    reloadReduction: isLucky,
+    doubleTime: isLucky,
+  };
+};
+
+// 運発動確率を取得（UI表示用）
+export const getLuckChance = (luck: number): number => {
+  const effectiveLuck = Math.min(luck, MAX_LUCK_STAT);
+  return BASE_LUCK_CHANCE + effectiveLuck * LUCK_PER_POINT;
 };
 
 // ===== 背水の陣と絶好調の効果計算 =====
@@ -553,15 +612,16 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
 // ===== レベルアップボーナス生成 =====
 const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: string; icon: string; maxLevel?: number }> = [
   // ステータス系
-  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ', icon: '🔫' },
+  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
   { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力アップ', icon: '👊' },
   { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力アップ', icon: '🪄' },
   { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: '👟' },
   { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: '⏱️', maxLevel: 20 },
   { type: 'max_hp', displayName: 'HP +10%', description: '最大HPアップ', icon: '❤️' },
   { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: '🛡️' },
-  { type: 'time', displayName: 'TIME +1', description: '効果時間延長', icon: '⏰' },
+  { type: 'time', displayName: 'TIME +1', description: '効果時間+2秒', icon: '⏰' },
   { type: 'a_bullet', displayName: 'A弾数 +1', description: '同時発射数アップ', icon: '💫' },
+  { type: 'luck_pendant', displayName: '幸運のペンダント', description: '運+1%（ダメージ2倍等の確率UP）', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: '➡️', maxLevel: 1 },
   { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射（A ATKで強化）', icon: '⬅️', maxLevel: 1 },
@@ -613,6 +673,8 @@ export const generateLevelUpOptions = (
           return !player.skills.zekkouchou;
         case 'reload_magic':
           return player.stats.reloadMagic < bonus.maxLevel;
+        case 'luck_pendant':
+          return player.stats.luck < bonus.maxLevel;
         case 'magic_thunder':
           return player.magics.thunder < bonus.maxLevel;
         case 'magic_ice':
@@ -651,6 +713,7 @@ export const generateLevelUpOptions = (
       case 'multi_hit': return player.skills.multiHitLevel;
       case 'exp_bonus': return player.skills.expBonusLevel;
       case 'reload_magic': return player.stats.reloadMagic;
+      case 'luck_pendant': return player.stats.luck;
       case 'magic_thunder': return player.magics.thunder;
       case 'magic_ice': return player.magics.ice;
       case 'magic_fire': return player.magics.fire;
@@ -740,6 +803,10 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
         newPlayer.skills.aLeftBullet += 1;
       }
       break;
+    case 'luck_pendant':
+      // 幸運のペンダント: 運+1（上限40）
+      newPlayer.stats.luck = Math.min(40, newPlayer.stats.luck + 1);
+      break;
     case 'a_penetration':
       newPlayer.skills.aPenetration = true;
       break;
@@ -800,8 +867,8 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 };
 
 // ===== 経験値計算 =====
-// 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
-const EXP_CAP_LEVEL = 20;
+// 15レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
+const EXP_CAP_LEVEL = 15;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
   return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
@@ -843,8 +910,9 @@ export const castMagic = (
   magicType: MagicType,
   level: number,
   player: PlayerState,
-  enemies: EnemyState[]
-): { enemies: EnemyState[]; player: PlayerState; damageTexts: DamageText[] } => {
+  enemies: EnemyState[],
+  luckResult?: LuckResult  // 運の結果（任意）
+): { enemies: EnemyState[]; player: PlayerState; damageTexts: DamageText[]; luckResult?: LuckResult } => {
   const damageTexts: DamageText[] = [];
   let updatedPlayer = { ...player };
   let updatedEnemies = [...enemies];
@@ -853,9 +921,15 @@ export const castMagic = (
   const condMultipliers = getConditionalSkillMultipliers(player);
   const effectiveCAtk = Math.floor(player.stats.cAtk * condMultipliers.atkMultiplier);
   
+  // 運の判定（渡されていなければ新たに判定）
+  const luck = luckResult ?? checkLuck(player.stats.luck);
+  
+  // TIME効果: 1ポイントにつき2秒延長
+  // 運発動時はTIME2倍
   const baseDuration = 5 + (level - 1) * 5;  // 5/10/15秒
-  const timeBonus = player.stats.time * 0.5 * condMultipliers.timeMultiplier;
-  const totalDuration = baseDuration + timeBonus;
+  const timeBonus = player.stats.time * 2 * condMultipliers.timeMultiplier;  // 2秒/ポイント
+  const luckTimeMultiplier = luck.doubleTime ? 2 : 1;
+  const totalDuration = (baseDuration + timeBonus) * luckTimeMultiplier;
   
   // バッファー/デバッファーのレベルを取得
   const bufferEffect = player.statusEffects.find(e => e.type === 'buffer');
@@ -988,7 +1062,7 @@ export const castMagic = (
       break;
   }
   
-  return { enemies: updatedEnemies, player: updatedPlayer, damageTexts };
+  return { enemies: updatedEnemies, player: updatedPlayer, damageTexts, luckResult: luck };
 };
 
 // ===== コイン生成 =====

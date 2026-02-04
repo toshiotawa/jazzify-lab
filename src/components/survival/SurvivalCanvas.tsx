@@ -170,11 +170,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     };
   }, [viewportWidth, viewportHeight]);
 
-  // 背景パーティクル初期化
+  // 背景パーティクル初期化（パフォーマンス向上のため数を削減）
   const initParticles = useCallback(() => {
     if (particlesRef.current.length === 0) {
       const particles: BackgroundParticle[] = [];
-      const particleCount = 50;
+      const particleCount = 25;  // 50 -> 25に削減
       for (let i = 0; i < particleCount; i++) {
         particles.push({
           x: Math.random() * MAP_CONFIG.width,
