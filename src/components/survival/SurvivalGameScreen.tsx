@@ -286,6 +286,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return initial;
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
+  // レベルアップ時の正解ノートをrefで管理（setGameState内から最新値を参照するため）
+  const levelUpCorrectNotesRef = useRef<number[][]>([[], [], []]);
+  // UIの再レンダリング用のステート（refと同期）
   const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>([[], [], []]);
   
   // 衝撃波エフェクト
@@ -568,6 +571,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (newPendingLevelUps > 0) {
         const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -577,6 +581,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           codeSlots: newCodeSlots,
         };
       } else {
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -599,6 +604,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (newPendingLevelUps > 0) {
         const newOptions = generateLevelUpOptions(gs.player, config.allowedChords);
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -606,6 +612,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           levelUpOptions: newOptions,
         };
       } else {
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -627,8 +634,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // レベルアップ中の処理
       if (prev.isLevelingUp) {
-        // 現在の正解ノートを取得して新しいノートを追加
-        const currentCorrectNotes = [...levelUpCorrectNotes];
+        // 現在の正解ノートを取得して新しいノートを追加（refから最新値を取得）
+        const currentCorrectNotes = levelUpCorrectNotesRef.current.map(arr => [...arr]);
         let matchedOptionIndex = -1;
         
         prev.levelUpOptions.forEach((option, index) => {
@@ -644,8 +651,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         });
         
-        // 状態を更新（setStateの外で行う必要があるため、非同期で実行）
-        setTimeout(() => setLevelUpCorrectNotes(currentCorrectNotes), 0);
+        // refを即座に更新（次の入力で最新値を参照できるように）
+        levelUpCorrectNotesRef.current = currentCorrectNotes;
+        // UIの再レンダリング用にステートも更新
+        setTimeout(() => setLevelUpCorrectNotes([...currentCorrectNotes]), 0);
         
         // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
         if (matchedOptionIndex >= 0) {

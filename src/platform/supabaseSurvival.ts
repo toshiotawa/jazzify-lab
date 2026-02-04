@@ -51,42 +51,56 @@ export async function upsertSurvivalHighScore(
 ): Promise<SurvivalHighScoreResult> {
   const supabase = getSupabaseClient();
   
-  // 既存のスコアを取得
-  const { data: existing } = await supabase
-    .from('survival_high_scores')
-    .select('*')
-    .eq('user_id', userId)
-    .eq('difficulty', difficulty)
-    .maybeSingle();
-  
-  // 既存のスコアより低い場合は更新しない
-  if (existing && existing.survival_time_seconds >= survivalTimeSeconds) {
+  try {
+    // 既存のスコアを取得
+    const { data: existing, error: selectError } = await supabase
+      .from('survival_high_scores')
+      .select('*')
+      .eq('user_id', userId)
+      .eq('difficulty', difficulty)
+      .maybeSingle();
+    
+    if (selectError) {
+      console.error('Failed to fetch existing survival high score:', selectError);
+      throw selectError;
+    }
+    
+    // 既存のスコアより低い場合は更新しない
+    if (existing && existing.survival_time_seconds >= survivalTimeSeconds) {
+      return {
+        score: convertHighScore(existing),
+        isNewHighScore: false
+      };
+    }
+    
+    const { data, error } = await supabase
+      .from('survival_high_scores')
+      .upsert({
+        user_id: userId,
+        difficulty,
+        survival_time_seconds: survivalTimeSeconds,
+        final_level: finalLevel,
+        enemies_defeated: enemiesDefeated,
+        updated_at: new Date().toISOString(),
+      }, {
+        onConflict: 'user_id,difficulty'
+      })
+      .select()
+      .single();
+    
+    if (error) {
+      console.error('Failed to upsert survival high score:', error);
+      throw error;
+    }
+    
     return {
-      score: convertHighScore(existing),
-      isNewHighScore: false
+      score: convertHighScore(data),
+      isNewHighScore: true
     };
+  } catch (error) {
+    console.error('upsertSurvivalHighScore failed:', error);
+    throw error;
   }
-  
-  const { data, error } = await supabase
-    .from('survival_high_scores')
-    .upsert({
-      user_id: userId,
-      difficulty,
-      survival_time_seconds: survivalTimeSeconds,
-      final_level: finalLevel,
-      enemies_defeated: enemiesDefeated,
-      updated_at: new Date().toISOString(),
-    }, {
-      onConflict: 'user_id,difficulty'
-    })
-    .select()
-    .single();
-  
-  if (error) throw error;
-  return {
-    score: convertHighScore(data),
-    isNewHighScore: true
-  };
 }
 
 /**

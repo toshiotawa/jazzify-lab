@@ -70,6 +70,18 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
 
   if (fantasyError) throw fantasyError;
   
+  // サバイバルモードハイスコアを取得
+  const { data: survivalScores, error: survivalError } = await supabase
+    .from('survival_high_scores')
+    .select('user_id, survival_time_seconds, difficulty')
+    .in('user_id', userIds.length > 0 ? userIds : ['__never__'])
+    .order('survival_time_seconds', { ascending: false });
+  
+  // サバイバルスコアのエラーは無視（テーブルが存在しない可能性があるため）
+  if (survivalError) {
+    console.warn('survival_high_scores fetch failed:', survivalError);
+  }
+  
   // ユーザーごとにカウントを集計
   const lessonCountMap = new Map<string, number>();
   (lessonCounts ?? []).forEach(record => {
@@ -90,14 +102,29 @@ export async function fetchLevelRanking(limit = 50, offset = 0): Promise<Ranking
     fantasyClearsMap.set(record.user_id, count + 1);
   });
   
+  // サバイバルスコア情報のマップを作成（ユーザーごとの最高タイムと難易度）
+  const survivalMap = new Map<string, { time: number; difficulty: string }>();
+  (survivalScores ?? []).forEach(record => {
+    // 最高スコアのみを保持（降順でソート済みなので最初のレコードが最高）
+    if (!survivalMap.has(record.user_id)) {
+      survivalMap.set(record.user_id, {
+        time: Number(record.survival_time_seconds) || 0,
+        difficulty: record.difficulty,
+      });
+    }
+  });
+  
   // プロフィールデータと集計データを結合
   const result = filteredProfiles.map((p) => {
     const { email, ...profile } = p;
+    const survivalData = survivalMap.get(p.id);
     return {
       ...profile,
       lessons_cleared: lessonCountMap.get(p.id) || 0,
       missions_completed: missionCountMap.get(p.id) || 0,
       fantasy_cleared_stages: fantasyClearsMap.get(p.id) || 0,
+      best_survival_time: survivalData?.time ?? 0,
+      survival_best_difficulty: survivalData?.difficulty,
     };
   });
   
