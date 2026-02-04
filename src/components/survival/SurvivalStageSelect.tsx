@@ -33,6 +33,7 @@ const DEBUG_SKILLS = [
 ] as const;
 
 // デフォルト難易度設定（DB取得前のフォールバック）
+// 敵の強さは全難易度で統一（1.0）、出題コードで差をつける
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
@@ -41,7 +42,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em'],
     enemySpawnRate: 3,
     enemySpawnCount: 2,
-    enemyStatMultiplier: 0.7,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.0,
     itemDropRate: 0.15,
   },
@@ -52,7 +53,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'G7', 'C7', 'Am7', 'Dm7'],
     enemySpawnRate: 2.5,
     enemySpawnCount: 3,
-    enemyStatMultiplier: 1.0,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.5,
     itemDropRate: 0.12,
   },
@@ -63,7 +64,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'G7', 'Am7', 'Dm7', 'Em7', 'FM7', 'Bm7b5', 'E7', 'A7', 'D7'],
     enemySpawnRate: 2,
     enemySpawnCount: 4,
-    enemyStatMultiplier: 1.3,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 2.0,
     itemDropRate: 0.10,
   },
@@ -74,7 +75,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5', 'Cmaj9', 'Dm9', 'G13'],
     enemySpawnRate: 1.5,
     enemySpawnCount: 5,
-    enemyStatMultiplier: 1.6,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 3.0,
     itemDropRate: 0.08,
   },
@@ -135,6 +136,7 @@ export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   cAtk?: number;
+  time?: number;  // 効果時間延長
   skills?: DebugSkillSettings;
   tapSkillActivation?: boolean;
   initialLevel?: number;
@@ -178,6 +180,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugAAtk, setDebugAAtk] = useState<number>(10);
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
   const [debugCAtk, setDebugCAtk] = useState<number>(20);
+  const [debugTime, setDebugTime] = useState<number>(0);  // TIME（効果時間延長）
   const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
     aPenetration: false,
     aBulletCount: 1,
@@ -328,6 +331,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       aAtk: debugAAtk,
       bAtk: debugBAtk,
       cAtk: debugCAtk,
+      time: debugTime,
       skills: debugSkills,
       tapSkillActivation: debugTapSkillActivation,
       initialLevel: debugInitialLevel,
@@ -549,6 +553,20 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   max="500"
                   value={debugCAtk}
                   onChange={(e) => setDebugCAtk(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 text-sm mb-2 font-sans">
+                  ⏱️ TIME (効果時間延長): {debugTime}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="20"
+                  value={debugTime}
+                  onChange={(e) => setDebugTime(Number(e.target.value))}
                   className="w-full"
                 />
               </div>

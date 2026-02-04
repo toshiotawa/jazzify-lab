@@ -166,8 +166,17 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 
                 {/* レベル表示（あれば） */}
                 {option.maxLevel && (
-                  <div className="text-xs text-center text-gray-500 mb-2 font-sans">
-                    Lv.{(option.currentLevel ?? 0) + 1} / {option.maxLevel}
+                  <div className="text-xs text-center mb-2 font-sans">
+                    <span className="text-gray-400">
+                      Lv.{option.currentLevel ?? 0}
+                    </span>
+                    <span className="text-yellow-400 mx-1">→</span>
+                    <span className="text-yellow-300 font-bold">
+                      Lv.{(option.currentLevel ?? 0) + 1}
+                    </span>
+                    <span className="text-gray-500 ml-1">
+                      / {option.maxLevel}
+                    </span>
                   </div>
                 )}
                 

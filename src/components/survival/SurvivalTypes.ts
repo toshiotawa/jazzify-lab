@@ -170,6 +170,7 @@ export interface CodeSlot {
   timer: number;             // 残り時間（秒）
   isCompleted: boolean;
   isEnabled: boolean;        // C列は魔法取得まで無効
+  completedTime?: number;    // 完了時刻（自動リセット用）
 }
 
 // ===== レベルアップボーナス =====
@@ -258,6 +259,7 @@ export interface ShockwaveEffect {
   maxRadius: number;
   startTime: number;
   duration: number;
+  direction?: Direction;  // 前方のみエフェクト表示用
 }
 
 // ===== 雷エフェクト =====
@@ -280,9 +282,9 @@ export interface WaveState {
   waveFailedReason?: string;  // 失敗理由
 }
 
-export const WAVE_BASE_QUOTA = 20;       // 基本ノルマ
+export const WAVE_BASE_QUOTA = 20;       // 基本ノルマ（固定）
 export const WAVE_DURATION = 120;        // WAVE時間（秒 = 2分）
-export const WAVE_QUOTA_INCREMENT = 5;   // WAVEごとのノルマ増加量
+export const WAVE_QUOTA_INCREMENT = 0;   // WAVEごとのノルマ増加量（0 = 固定）
 
 // ===== ゲーム状態 =====
 export interface SurvivalGameState {

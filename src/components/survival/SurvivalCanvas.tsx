@@ -17,6 +17,21 @@ import {
   MAP_CONFIG,
 } from './SurvivalTypes';
 
+// 方向から角度を取得するヘルパー
+const getDirectionAngle = (direction: Direction): number => {
+  const angles: Record<Direction, number> = {
+    'right': 0,
+    'down-right': Math.PI / 4,
+    'down': Math.PI / 2,
+    'down-left': Math.PI * 3 / 4,
+    'left': Math.PI,
+    'up-left': -Math.PI * 3 / 4,
+    'up': -Math.PI / 2,
+    'up-right': -Math.PI / 4,
+  };
+  return angles[direction];
+};
+
 // ===== 雷エフェクト型（ローカル） =====
 interface LightningEffect {
   id: string;
@@ -392,7 +407,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.shadowBlur = 0;
     });
     
-    // 敵の弾丸描画
+    // 敵の弾丸描画（小さめ）
     gameState.enemyProjectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
@@ -400,11 +415,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -20 || screenX > viewportWidth + 20 ||
           screenY < -20 || screenY > viewportHeight + 20) return;
       
-      ctx.font = '14px sans-serif';
+      ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = '#ff4444';
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 4;
       ctx.fillText('🔴', screenX, screenY);
       ctx.shadowBlur = 0;
     });
@@ -488,7 +503,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
     }
 
-    // 衝撃波エフェクト描画（アイコンベース）
+    // 衝撃波エフェクト描画（前方向のみ）
     shockwaves.forEach(sw => {
       const elapsed = now - sw.startTime;
       if (elapsed >= sw.duration) return;
@@ -500,22 +515,26 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenX = sw.x - camera.x;
       const screenY = sw.y - camera.y;
       
-      // 衝撃波リング
+      // 方向に基づいて半円の衝撃波を描画
+      const baseAngle = sw.direction ? getDirectionAngle(sw.direction) : 0;
+      const arcSpread = Math.PI * 0.8;  // 前方約144度の扇形
+      
+      // 衝撃波リング（前方のみ）
       ctx.globalAlpha = alpha * 0.6;
       ctx.strokeStyle = '#f97316';  // オレンジ色
       ctx.lineWidth = 8 * (1 - progress);
       ctx.beginPath();
-      ctx.arc(screenX, screenY, currentRadius, 0, Math.PI * 2);
+      ctx.arc(screenX, screenY, currentRadius, baseAngle - arcSpread / 2, baseAngle + arcSpread / 2);
       ctx.stroke();
       
-      // 衝撃波アイコン（放射状に配置）
+      // 衝撃波アイコン（前方のみ配置）
       ctx.globalAlpha = alpha;
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const iconCount = 6;
+      const iconCount = 4;  // 前方のみなので減らす
       for (let i = 0; i < iconCount; i++) {
-        const angle = (i / iconCount) * Math.PI * 2;
+        const angle = baseAngle - arcSpread / 2 + (i / (iconCount - 1)) * arcSpread;
         const ix = screenX + Math.cos(angle) * currentRadius;
         const iy = screenY + Math.sin(angle) * currentRadius;
         ctx.fillText('💥', ix, iy);

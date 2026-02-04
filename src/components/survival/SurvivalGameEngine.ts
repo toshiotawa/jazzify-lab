@@ -44,7 +44,7 @@ const BASE_PLAYER_SPEED = 150;  // px/秒
 const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
-const EXP_LEVEL_FACTOR = 1.5;  // レベルアップに必要な経験値の増加率
+const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -148,8 +148,8 @@ export const calculateWaveQuota = (waveNumber: number): number => {
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
-  // WAVEが進むごとに敵が10%ずつ速くなる
-  return 1 + (waveNumber - 1) * 0.1;
+  // WAVEが進むごとに敵が20%ずつ速くなる（より高速化）
+  return 1 + (waveNumber - 1) * 0.2;
 };
 
 // ===== コード生成 =====
@@ -561,6 +561,27 @@ export const generateLevelUpOptions = (
   const usedChordIds: string[] = [];
   const result: LevelUpBonus[] = [];
   
+  // 現在のスキルレベルを取得するヘルパー関数
+  const getCurrentLevel = (type: string): number => {
+    switch (type) {
+      case 'a_back_bullet': return player.skills.aBackBullet;
+      case 'a_right_bullet': return player.skills.aRightBullet;
+      case 'a_left_bullet': return player.skills.aLeftBullet;
+      case 'b_knockback': return player.skills.bKnockbackBonus;
+      case 'b_range': return player.skills.bRangeBonus;
+      case 'multi_hit': return player.skills.multiHitLevel;
+      case 'reload_magic': return player.stats.reloadMagic;
+      case 'magic_thunder': return player.magics.thunder;
+      case 'magic_ice': return player.magics.ice;
+      case 'magic_fire': return player.magics.fire;
+      case 'magic_heal': return player.magics.heal;
+      case 'magic_buffer': return player.magics.buffer;
+      case 'magic_debuffer': return player.magics.debuffer;
+      case 'magic_hint': return player.magics.hint;
+      default: return 0;
+    }
+  };
+  
   for (const bonus of selected) {
     const chord = selectRandomChord(allowedChords, usedChordIds);
     if (chord) {
@@ -568,6 +589,7 @@ export const generateLevelUpOptions = (
       result.push({
         ...bonus,
         chord,
+        currentLevel: getCurrentLevel(bonus.type),  // 現在のスキルレベルを追加
       });
     }
   }
@@ -815,7 +837,7 @@ export const castMagic = (
 };
 
 // ===== コイン生成 =====
-const COIN_LIFETIME = 10000;  // コインの生存時間（ミリ秒）
+const COIN_LIFETIME = Infinity;  // コインの生存時間（無限 - 消えない）
 
 export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): Coin[] => {
   const baseExp = enemy.isBoss ? 50 : 10;

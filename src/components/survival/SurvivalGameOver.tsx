@@ -3,12 +3,13 @@
  * 結果表示とステータスカード
  */
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { cn } from '@/utils/cn';
 import { SurvivalGameResult, SurvivalDifficulty } from './SurvivalTypes';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { upsertSurvivalHighScore } from '@/platform/supabaseSurvival';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -37,9 +38,59 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   waveFailedReason,
   finalWave,
 }) => {
-  const { profile } = useAuthStore();
+  const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const [isNewHighScore, setIsNewHighScore] = useState(false);
+  
+  // ハイスコア保存
+  useEffect(() => {
+    const saveHighScore = async () => {
+      const survivalTime = Math.floor(result.survivalTime);
+      
+      if (profile && !isGuest) {
+        // ログインユーザー: Supabaseに保存
+        try {
+          const saved = await upsertSurvivalHighScore(
+            profile.id,
+            difficulty,
+            survivalTime,
+            result.finalLevel,
+            result.enemiesDefeated
+          );
+          // 保存されたスコアが今回のスコアと同じならハイスコア更新
+          if (saved.survivalTimeSeconds === survivalTime) {
+            setIsNewHighScore(true);
+          }
+        } catch (error) {
+          console.error('Failed to save high score:', error);
+        }
+      } else {
+        // ゲスト: ローカルストレージに保存
+        try {
+          const key = 'survival_high_scores';
+          const saved = localStorage.getItem(key);
+          const scores: Record<string, { survivalTime: number; finalLevel: number; enemiesDefeated: number }> = 
+            saved ? JSON.parse(saved) : {};
+          
+          const existing = scores[difficulty];
+          if (!existing || existing.survivalTime < survivalTime) {
+            scores[difficulty] = {
+              survivalTime,
+              finalLevel: result.finalLevel,
+              enemiesDefeated: result.enemiesDefeated,
+            };
+            localStorage.setItem(key, JSON.stringify(scores));
+            setIsNewHighScore(true);
+          }
+        } catch (error) {
+          console.error('Failed to save local high score:', error);
+        }
+      }
+    };
+    
+    saveHighScore();
+  }, [profile, isGuest, difficulty, result]);
   
   // 時間フォーマット
   const formatTime = (seconds: number): string => {
@@ -83,6 +134,15 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           <div className="text-4xl font-bold text-red-500 font-sans mb-2">
             GAME OVER
           </div>
+          
+          {/* ハイスコア更新表示 */}
+          {isNewHighScore && (
+            <div className="mt-2 px-4 py-2 bg-yellow-600/50 rounded-lg border border-yellow-400 animate-pulse">
+              <div className="text-yellow-300 font-bold font-sans">
+                🏆 {isEnglishCopy ? 'NEW HIGH SCORE!' : 'ハイスコア更新！'}
+              </div>
+            </div>
+          )}
           
           {/* WAVE失敗理由 */}
           {waveFailedReason === 'quota_failed' ? (
