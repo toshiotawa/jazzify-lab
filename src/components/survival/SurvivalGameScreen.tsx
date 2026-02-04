@@ -1746,15 +1746,45 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     startGame();
   }, [difficulty, config, startGame, debugSettings]);
   
-  // ヒントスロット判定
+  // ヒントスロット追跡（ローテーション用）
+  const lastHintSlotRef = useRef<number>(0);
+  const lastCompletedSlotRef = useRef<number | null>(null);
+  
+  // ヒントスロット判定（A/B列を交互に表示）
   const getHintSlotIndex = (): number | null => {
     if (!gameState.player.statusEffects.some(e => e.type === 'hint')) return null;
-    for (let i = 0; i < 3; i++) {
+    
+    // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
+    const availableSlots: number[] = [];
+    for (let i = 0; i < 2; i++) {  // A列とB列のみ（C列は除外）
       if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
-        return i;
+        availableSlots.push(i);
       }
     }
-    return null;
+    
+    if (availableSlots.length === 0) return null;
+    
+    // スロットが完了した場合、次のスロットに切り替え
+    const currentSlot = gameState.codeSlots.current[lastHintSlotRef.current];
+    if (currentSlot?.isCompleted && lastCompletedSlotRef.current !== lastHintSlotRef.current) {
+      // 完了したスロットを記録
+      lastCompletedSlotRef.current = lastHintSlotRef.current;
+      // 次の有効なスロットに切り替え
+      const nextSlot = (lastHintSlotRef.current + 1) % 2;  // A↔B切り替え
+      if (availableSlots.includes(nextSlot)) {
+        lastHintSlotRef.current = nextSlot;
+      } else if (availableSlots.length > 0) {
+        lastHintSlotRef.current = availableSlots[0];
+      }
+    }
+    
+    // 現在のヒントスロットが利用可能でなければ、利用可能な最初のスロットに切り替え
+    if (!availableSlots.includes(lastHintSlotRef.current)) {
+      lastHintSlotRef.current = availableSlots[0];
+      lastCompletedSlotRef.current = null;  // 完了記録をリセット
+    }
+    
+    return lastHintSlotRef.current;
   };
   
   // HINT鍵盤ハイライト
@@ -1773,18 +1803,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (hintSlotIndex !== null && renderer) {
       const slot = gameState.codeSlots.current[hintSlotIndex];
       if (slot.chord?.notes) {
-        // オクターブ4から上の範囲でハイライト（C4=60から）
-        const uniqueNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
+        // 基本形のみ表示: オクターブ4を基準に、各構成音を1つずつハイライト
+        // 3和音なら3鍵盤のみ表示
         const highlightNotes: number[] = [];
-        // オクターブ4-7の範囲でハイライト（C4=60 ~ B7=107）
-        for (const noteMod12 of uniqueNotes) {
-          for (let octave = 4; octave <= 7; octave++) {
-            const midiNote = noteMod12 + octave * 12;
-            if (midiNote >= 48 && midiNote <= 108) {  // C3=48以上
-              highlightNotes.push(midiNote);
-            }
+        const baseOctave = 4;
+        
+        // 元のノート配列（重複なし）を基本形の順序で取得
+        const uniqueNoteMod12 = [...new Set(slot.chord.notes.map(n => n % 12))];
+        
+        // 各構成音をオクターブ4基準で昇順に配置
+        let lastMidi = 0;
+        for (const noteMod12 of uniqueNoteMod12) {
+          // オクターブ4基準のMIDIノート
+          let midiNote = noteMod12 + baseOctave * 12;
+          // 前の音より低い場合はオクターブを上げる（基本形の昇順）
+          while (midiNote <= lastMidi) {
+            midiNote += 12;
           }
+          highlightNotes.push(midiNote);
+          lastMidi = midiNote;
         }
+        
         highlightNotes.forEach(note => {
           renderer.highlightKey(note, true);
         });

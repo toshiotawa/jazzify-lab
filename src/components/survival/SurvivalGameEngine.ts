@@ -718,12 +718,12 @@ export const addExp = (player: PlayerState, exp: number): { player: PlayerState;
 };
 
 // ===== ダメージテキスト生成 =====
-export const createDamageText = (x: number, y: number, damage: number, isCritical: boolean = false): DamageText => ({
+export const createDamageText = (x: number, y: number, damage: number, isCritical: boolean = false, customColor?: string): DamageText => ({
   id: `dmg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   x: x + (Math.random() - 0.5) * 20,
   y: y - 20,
   damage,
-  color: isCritical ? '#ff0' : '#fff',
+  color: customColor ?? (isCritical ? '#ff0' : '#fff'),
   startTime: Date.now(),
   duration: 1000,
 });
@@ -796,6 +796,8 @@ export const castMagic = (
           hp: Math.min(player.stats.maxHp, player.stats.hp + healAmount),
         },
       };
+      // 回復エフェクトを追加（緑色）
+      damageTexts.push(createDamageText(player.x, player.y, healAmount, false, '#4ade80'));
       break;
     }
       

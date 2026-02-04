@@ -43,28 +43,13 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   
-  // ハイスコア保存
+  // ハイスコア保存（ローカルストレージとデータベースの両方に保存）
   useEffect(() => {
     const saveHighScore = async () => {
       const survivalTime = Math.floor(result.survivalTime);
       
-      if (profile && !isGuest) {
-        // ログインユーザー: Supabaseに保存
-        try {
-          const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
-            profile.id,
-            difficulty,
-            survivalTime,
-            result.finalLevel,
-            result.enemiesDefeated
-          );
-          // APIから返されたフラグでハイスコア更新を判定
-          setIsNewHighScore(isNew);
-        } catch (error) {
-          console.error('Failed to save high score:', error);
-        }
-      } else {
-        // ゲスト: ローカルストレージに保存
+      // ローカルストレージに常に保存（バックアップとして）
+      const saveToLocalStorage = () => {
         try {
           const key = 'survival_high_scores';
           const saved = localStorage.getItem(key);
@@ -79,11 +64,38 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               enemiesDefeated: result.enemiesDefeated,
             };
             localStorage.setItem(key, JSON.stringify(scores));
-            setIsNewHighScore(true);
+            return true; // ハイスコア更新
           }
+          return false;
         } catch (error) {
           console.error('Failed to save local high score:', error);
+          return false;
         }
+      };
+      
+      // ローカルストレージに保存
+      const localHighScore = saveToLocalStorage();
+      
+      if (profile && !isGuest) {
+        // ログインユーザー: Supabaseにも保存を試みる
+        try {
+          const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
+            profile.id,
+            difficulty,
+            survivalTime,
+            result.finalLevel,
+            result.enemiesDefeated
+          );
+          // APIから返されたフラグでハイスコア更新を判定
+          setIsNewHighScore(isNew);
+        } catch (error) {
+          console.error('Failed to save high score to database:', error);
+          // データベース保存に失敗しても、ローカルストレージの結果を使用
+          setIsNewHighScore(localHighScore);
+        }
+      } else {
+        // ゲスト: ローカルストレージの結果のみ
+        setIsNewHighScore(localHighScore);
       }
     };
     
