@@ -43,30 +43,13 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   
-  // ハイスコア保存
+  // ハイスコア保存（ローカルストレージとデータベースの両方に保存）
   useEffect(() => {
     const saveHighScore = async () => {
       const survivalTime = Math.floor(result.survivalTime);
       
-      if (profile && !isGuest) {
-        // ログインユーザー: Supabaseに保存
-        try {
-          const saved = await upsertSurvivalHighScore(
-            profile.id,
-            difficulty,
-            survivalTime,
-            result.finalLevel,
-            result.enemiesDefeated
-          );
-          // 保存されたスコアが今回のスコアと同じならハイスコア更新
-          if (saved.survivalTimeSeconds === survivalTime) {
-            setIsNewHighScore(true);
-          }
-        } catch (error) {
-          console.error('Failed to save high score:', error);
-        }
-      } else {
-        // ゲスト: ローカルストレージに保存
+      // ローカルストレージに常に保存（バックアップとして）
+      const saveToLocalStorage = () => {
         try {
           const key = 'survival_high_scores';
           const saved = localStorage.getItem(key);
@@ -81,21 +64,52 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               enemiesDefeated: result.enemiesDefeated,
             };
             localStorage.setItem(key, JSON.stringify(scores));
-            setIsNewHighScore(true);
+            return true; // ハイスコア更新
           }
+          return false;
         } catch (error) {
           console.error('Failed to save local high score:', error);
+          return false;
         }
+      };
+      
+      // ローカルストレージに保存
+      const localHighScore = saveToLocalStorage();
+      
+      if (profile && !isGuest) {
+        // ログインユーザー: Supabaseにも保存を試みる
+        try {
+          const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
+            profile.id,
+            difficulty,
+            survivalTime,
+            result.finalLevel,
+            result.enemiesDefeated
+          );
+          // APIから返されたフラグでハイスコア更新を判定
+          setIsNewHighScore(isNew);
+        } catch (error) {
+          console.error('Failed to save high score to database:', error);
+          // データベース保存に失敗しても、ローカルストレージの結果を使用
+          setIsNewHighScore(localHighScore);
+        }
+      } else {
+        // ゲスト: ローカルストレージの結果のみ
+        setIsNewHighScore(localHighScore);
       }
     };
     
     saveHighScore();
   }, [profile, isGuest, difficulty, result]);
   
-  // 時間フォーマット
+  // 時間フォーマット（60分以上の場合はh:mm:ss形式）
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   

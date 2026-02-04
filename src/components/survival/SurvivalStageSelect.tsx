@@ -237,35 +237,18 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         // DB取得失敗時はデフォルト設定を使用
       }
       
-      // ハイスコアを取得（ログインユーザーのみ）
-      if (profile && !isGuest) {
-        try {
-          const scores = await fetchUserSurvivalHighScores(profile.id);
-          const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-            easy: null,
-            normal: null,
-            hard: null,
-            extreme: null,
-          };
-          scores.forEach(score => {
-            scoreMap[score.difficulty] = score;
-          });
-          setHighScores(scoreMap);
-        } catch {
-          // スコア取得失敗時は初期値を使用
-        }
-      } else {
-        // ローカルストレージからハイスコアを読み込み（ゲスト用）
+      // ローカルストレージからハイスコアを読み込む関数
+      const loadFromLocalStorage = (): Record<SurvivalDifficulty, SurvivalHighScore | null> => {
+        const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+          easy: null,
+          normal: null,
+          hard: null,
+          extreme: null,
+        };
         try {
           const saved = localStorage.getItem('survival_high_scores');
           if (saved) {
             const parsed = JSON.parse(saved);
-            const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-              easy: null,
-              normal: null,
-              hard: null,
-              extreme: null,
-            };
             Object.entries(parsed).forEach(([key, value]) => {
               const diff = key as SurvivalDifficulty;
               if (value && typeof value === 'object') {
@@ -282,11 +265,50 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 };
               }
             });
-            setHighScores(scoreMap);
           }
         } catch {
-          // エラー時は初期値のまま
+          // エラー時は空のまま
         }
+        return scoreMap;
+      };
+      
+      // ローカルストレージから読み込み（ベース）
+      const localScores = loadFromLocalStorage();
+      
+      // ハイスコアを取得
+      if (profile && !isGuest) {
+        // ログインユーザー: データベースから取得を試みる
+        try {
+          const scores = await fetchUserSurvivalHighScores(profile.id);
+          const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+            easy: null,
+            normal: null,
+            hard: null,
+            extreme: null,
+          };
+          scores.forEach(score => {
+            scoreMap[score.difficulty] = score;
+          });
+          
+          // データベースとローカルストレージのスコアをマージ（高い方を採用）
+          (['easy', 'normal', 'hard', 'extreme'] as const).forEach(diff => {
+            const dbScore = scoreMap[diff];
+            const localScore = localScores[diff];
+            if (!dbScore && localScore) {
+              scoreMap[diff] = localScore;
+            } else if (dbScore && localScore && localScore.survivalTimeSeconds > dbScore.survivalTimeSeconds) {
+              scoreMap[diff] = localScore;
+            }
+          });
+          
+          setHighScores(scoreMap);
+        } catch {
+          // データベース取得失敗時はローカルストレージを使用
+          setHighScores(localScores);
+        }
+      } else {
+        // ゲスト: ローカルストレージのみ
+        setHighScores(localScores);
       }
     } finally {
       setLoading(false);
@@ -297,9 +319,14 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     loadData();
   }, [loadData]);
 
+  // 時間フォーマット（60分以上の場合はh:mm:ss形式）
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   

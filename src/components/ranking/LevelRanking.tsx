@@ -35,11 +35,15 @@ const LevelRanking: React.FC = () => {
   const fantasyColumnText = isEnglishCopy ? 'Fantasy' : 'ファンタジー';
   const survivalColumnText = isEnglishCopy ? 'Survival' : 'サバイバル';
 
-  // 時間をフォーマット
+  // 時間をフォーマット（60分以上の場合はh:mm:ss形式）
   const formatSurvivalTime = (seconds: number): string => {
     if (seconds <= 0) return '-';
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 

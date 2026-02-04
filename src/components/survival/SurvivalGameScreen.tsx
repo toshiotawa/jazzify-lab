@@ -197,6 +197,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
+  // MIDI初期化完了状態
+  const [isMidiInitialized, setIsMidiInitialized] = useState(false);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
   
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
@@ -286,6 +289,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return initial;
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
+  // レベルアップ時の正解ノートをrefで管理（setGameState内から最新値を参照するため）
+  const levelUpCorrectNotesRef = useRef<number[][]>([[], [], []]);
+  // UIの再レンダリング用のステート（refと同期）
   const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>([[], [], []]);
   
   // 衝撃波エフェクト
@@ -331,86 +337,105 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
   
-  // MIDIコントローラー初期化
+  // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {
-    const initMidi = async () => {
-      try {
-        // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
-        await Promise.all([
-          // 音声システム初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8);
-          }),
-          // FantasySoundManagerの初期化（ルート音再生用）
-          FantasySoundManager.init(0.8, 0.5, true).then(() => {
-            FantasySoundManager.enableRootSound(true);
-          })
-        ]);
-        
-        const controller = new MIDIController({
-          onNoteOn: (note: number) => {
-            // refを使用して常に最新のhandleNoteInputを呼び出す
+    // MIDIControllerのインスタンスを作成（一度だけ）
+    // ファンタジーモードと同様に、先にインスタンスを作成してから非同期初期化
+    if (!midiControllerRef.current) {
+      const controller = new MIDIController({
+        onNoteOn: (note: number, _velocity?: number) => {
+          // refを使用して常に最新のhandleNoteInputを呼び出す
+          if (handleNoteInputRef.current) {
             handleNoteInputRef.current(note);
-            playNote(note, 100);
-            pixiRendererRef.current?.highlightKey(note, true);
-          },
-          onNoteOff: (note: number) => {
-            stopNote(note);
-            pixiRendererRef.current?.highlightKey(note, false);
-          },
-          playMidiSound: true, // ファンタジーモードと同様に有効化
-        });
-        
-        // MIDI接続状態変更コールバック（ファンタジーモードと同様）
-        controller.setConnectionChangeCallback((connected: boolean) => {
-          setIsMidiConnected(connected);
-        });
-        
-        midiControllerRef.current = controller;
-        
-        await controller.initialize();
-        
-        // MIDIControllerにキーハイライト機能を設定
-        if (pixiRendererRef.current) {
-          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          }
+        },
+        onNoteOff: (_note: number) => {
+          // Note off - MIDIController内で処理される
+        },
+        playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
+      });
+      
+      // MIDI接続状態変更コールバック（ファンタジーモードと同様）
+      controller.setConnectionChangeCallback((connected: boolean) => {
+        setIsMidiConnected(connected);
+      });
+      
+      midiControllerRef.current = controller;
+      
+      // 非同期初期化を開始し、完了を追跡
+      const initPromise = (async () => {
+        try {
+          await controller.initialize();
+          
+          // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
+          await Promise.all([
+            // 音声システム初期化
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(0.8);
+            }),
+            // FantasySoundManagerの初期化（ルート音再生用）
+            FantasySoundManager.init(0.8, 0.5, true).then(() => {
+              FantasySoundManager.enableRootSound(true);
+            })
+          ]);
+          
+          // MIDIControllerにキーハイライト機能を設定（初期化後に設定）
+          controller.setKeyHighlightCallback((note: number, active: boolean) => {
             pixiRendererRef.current?.highlightKey(note, active);
           });
+          
+          // 初期化完了を記録
+          setIsMidiInitialized(true);
+          setInitError(null);
+        } catch (error) {
+          // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          setInitError(`Audio initialization warning: ${errorMessage}. Touch/click input available.`);
+          // エラーでも初期化完了とする（ゲームは開始可能）
+          setIsMidiInitialized(true);
         }
-        
-        // 初期化エラーをクリア
-        setInitError(null);
-      } catch (error) {
-        // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setInitError(`Audio initialization warning: ${errorMessage}. Touch/click input available.`);
-      }
-    };
+      })();
+      
+      // promiseを保持（初期化完了待ちで使用）
+      initPromiseRef.current = initPromise;
+    }
     
-    initMidi();
-    
+    // クリーンアップ
     return () => {
-      midiControllerRef.current?.destroy();
+      if (midiControllerRef.current) {
+        midiControllerRef.current.destroy();
+        midiControllerRef.current = null;
+      }
     };
   }, []); // 空の依存配列で一度だけ実行
   
-  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと共有）
+  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと同様）
+  // 初期化完了を待ってから接続を試みる
   useEffect(() => {
     const connect = async () => {
+      // 初期化完了を待つ
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      
       const deviceId = settings.selectedMidiDevice;
       if (midiControllerRef.current && deviceId) {
         await midiControllerRef.current.connectDevice(deviceId);
-        setIsMidiConnected(true);
       } else if (midiControllerRef.current && !deviceId) {
         midiControllerRef.current.disconnect();
-        setIsMidiConnected(false);
       }
     };
     connect();
-  }, [settings.selectedMidiDevice]);
+  }, [settings.selectedMidiDevice, isMidiInitialized]);
   
-  // コンポーネントマウント時にMIDI接続を復元（ファンタジーモードと同様）
+  // 難易度変更時（ゲーム開始時）にMIDI接続を復元（ファンタジーモードのstage依存と同様）
   useEffect(() => {
     const restoreMidiConnection = async () => {
+      // 初期化完了を待つ
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      
       if (midiControllerRef.current) {
         // 現在接続中のデバイスがあれば接続を確認・復元
         if (midiControllerRef.current.getCurrentDeviceId()) {
@@ -422,12 +447,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
     
-    // 初期化が完了してから接続復元を試みる
-    const timer = setTimeout(restoreMidiConnection, 500);
+    // コンポーネントが表示されたときに接続復元を試みる
+    const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [config.difficulty, isMidiInitialized, settings.selectedMidiDevice]); // 難易度が変更されたときに実行（ステージ開始時）
   
-  // PIXIレンダラーの準備
+  // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;
     if (renderer) {
@@ -440,14 +465,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
       });
       
-      // タッチ/クリックハンドラー設定
+      // タッチ/クリックハンドラー設定（ファンタジーモードと同様）
       // refを使用して常に最新のhandleNoteInputを呼び出す
       renderer.setKeyCallbacks(
         (note: number) => {
-          handleNoteInputRef.current(note);
+          // ゲーム入力として処理
+          if (handleNoteInputRef.current) {
+            handleNoteInputRef.current(note);
+          }
+          // 音の再生
           playNote(note, 100);
         },
         (note: number) => {
+          // マウスリリース時に音を止める
           stopNote(note);
         }
       );
@@ -563,6 +593,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (newPendingLevelUps > 0) {
         const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -572,6 +603,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           codeSlots: newCodeSlots,
         };
       } else {
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -594,6 +626,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (newPendingLevelUps > 0) {
         const newOptions = generateLevelUpOptions(gs.player, config.allowedChords);
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -601,6 +634,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           levelUpOptions: newOptions,
         };
       } else {
+        levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
           ...gs,
@@ -614,43 +648,48 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    if (gameState.isGameOver || gameState.isPaused) return;
-    
-    // レベルアップ中の処理
-    if (gameState.isLevelingUp) {
-      // 現在の正解ノートを取得して新しいノートを追加
-      const currentCorrectNotes = [...levelUpCorrectNotes];
-      let matchedOptionIndex = -1;
-      
-      gameState.levelUpOptions.forEach((option, index) => {
-        if (option.chord && matchedOptionIndex === -1) {
-          const prevNotes = currentCorrectNotes[index] || [];
-          const correct = getCorrectNotes([...prevNotes, note], option.chord);
-          currentCorrectNotes[index] = correct;
-          
-          // 完成チェック
-          if (checkChordMatch(correct, option.chord)) {
-            matchedOptionIndex = index;
-          }
-        }
-      });
-      
-      // 状態を更新
-      setLevelUpCorrectNotes(currentCorrectNotes);
-      
-      // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
-      if (matchedOptionIndex >= 0) {
-        const matchedOption = gameState.levelUpOptions[matchedOptionIndex];
-        // 次のイベントループで実行して状態更新の競合を避ける
-        setTimeout(() => {
-          handleLevelUpBonusSelect(matchedOption);
-        }, 0);
-      }
-      return;
-    }
-    
     // 通常のコード入力処理
+    // 注意: gameStateを直接参照せず、setGameState内でprevを使用して最新の状態を取得する
     setGameState(prev => {
+      // ゲームオーバーまたはポーズ中は何もしない
+      if (prev.isGameOver || prev.isPaused) return prev;
+      
+      // レベルアップ中の処理
+      if (prev.isLevelingUp) {
+        // 現在の正解ノートを取得して新しいノートを追加（refから最新値を取得）
+        const currentCorrectNotes = levelUpCorrectNotesRef.current.map(arr => [...arr]);
+        let matchedOptionIndex = -1;
+        
+        prev.levelUpOptions.forEach((option, index) => {
+          if (option.chord && matchedOptionIndex === -1) {
+            const prevNotes = currentCorrectNotes[index] || [];
+            const correct = getCorrectNotes([...prevNotes, note], option.chord);
+            currentCorrectNotes[index] = correct;
+            
+            // 完成チェック
+            if (checkChordMatch(correct, option.chord)) {
+              matchedOptionIndex = index;
+            }
+          }
+        });
+        
+        // refを即座に更新（次の入力で最新値を参照できるように）
+        levelUpCorrectNotesRef.current = currentCorrectNotes;
+        // UIの再レンダリング用にステートも更新
+        setTimeout(() => setLevelUpCorrectNotes([...currentCorrectNotes]), 0);
+        
+        // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
+        if (matchedOptionIndex >= 0) {
+          const matchedOption = prev.levelUpOptions[matchedOptionIndex];
+          // 次のイベントループで実行して状態更新の競合を避ける
+          setTimeout(() => {
+            handleLevelUpBonusSelect(matchedOption);
+          }, 0);
+        }
+        return prev; // レベルアップ中は他の処理をスキップ
+      }
+      
+      // 以下、通常のコード入力処理
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
@@ -979,7 +1018,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               codeSlots: {
                 current: gs.codeSlots.current.map((slot, i) => 
                   i === completedSlotIndex 
-                    ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT }
+                    ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
@@ -995,7 +1034,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -1520,7 +1559,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (!slot.chord) {
             const newChord = selectRandomChord(config.allowedChords);
             if (newChord) {
-              return { ...slot, chord: newChord, correctNotes: [], timer: SLOT_TIMEOUT };
+              return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
             }
             return slot;
           }
@@ -1539,7 +1578,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               i === slotIndex ? { ...ns, chord: newNextChord } : ns
             ) as [CodeSlot, CodeSlot, CodeSlot];
             
-            return { ...slot, chord: nextChord, correctNotes: [], timer: SLOT_TIMEOUT };
+            return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
           }
           return { ...slot, timer: newTimer };
         }) as [CodeSlot, CodeSlot, CodeSlot];
@@ -1738,15 +1777,45 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     startGame();
   }, [difficulty, config, startGame, debugSettings]);
   
-  // ヒントスロット判定
+  // ヒントスロット追跡（ローテーション用）
+  const lastHintSlotRef = useRef<number>(0);
+  const lastCompletedSlotRef = useRef<number | null>(null);
+  
+  // ヒントスロット判定（A/B列を交互に表示）
   const getHintSlotIndex = (): number | null => {
     if (!gameState.player.statusEffects.some(e => e.type === 'hint')) return null;
-    for (let i = 0; i < 3; i++) {
+    
+    // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
+    const availableSlots: number[] = [];
+    for (let i = 0; i < 2; i++) {  // A列とB列のみ（C列は除外）
       if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
-        return i;
+        availableSlots.push(i);
       }
     }
-    return null;
+    
+    if (availableSlots.length === 0) return null;
+    
+    // スロットが完了した場合、次のスロットに切り替え
+    const currentSlot = gameState.codeSlots.current[lastHintSlotRef.current];
+    if (currentSlot?.isCompleted && lastCompletedSlotRef.current !== lastHintSlotRef.current) {
+      // 完了したスロットを記録
+      lastCompletedSlotRef.current = lastHintSlotRef.current;
+      // 次の有効なスロットに切り替え
+      const nextSlot = (lastHintSlotRef.current + 1) % 2;  // A↔B切り替え
+      if (availableSlots.includes(nextSlot)) {
+        lastHintSlotRef.current = nextSlot;
+      } else if (availableSlots.length > 0) {
+        lastHintSlotRef.current = availableSlots[0];
+      }
+    }
+    
+    // 現在のヒントスロットが利用可能でなければ、利用可能な最初のスロットに切り替え
+    if (!availableSlots.includes(lastHintSlotRef.current)) {
+      lastHintSlotRef.current = availableSlots[0];
+      lastCompletedSlotRef.current = null;  // 完了記録をリセット
+    }
+    
+    return lastHintSlotRef.current;
   };
   
   // HINT鍵盤ハイライト
@@ -1765,18 +1834,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (hintSlotIndex !== null && renderer) {
       const slot = gameState.codeSlots.current[hintSlotIndex];
       if (slot.chord?.notes) {
-        // オクターブ4から上の範囲でハイライト（C4=60から）
-        const uniqueNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
+        // 基本形のみ表示: オクターブ4を基準に、各構成音を1つずつハイライト
+        // 3和音なら3鍵盤、4和音なら4鍵盤のみ表示
         const highlightNotes: number[] = [];
-        // オクターブ4-7の範囲でハイライト（C4=60 ~ B7=107）
-        for (const noteMod12 of uniqueNotes) {
-          for (let octave = 4; octave <= 7; octave++) {
-            const midiNote = noteMod12 + octave * 12;
-            if (midiNote >= 48 && midiNote <= 108) {  // C3=48以上
-              highlightNotes.push(midiNote);
-            }
+        const baseOctave = 4;
+        
+        // 元のノート配列（重複なし）を基本形の順序で取得
+        const uniqueNoteMod12 = [...new Set(slot.chord.notes.map(n => n % 12))];
+        
+        // 各構成音をオクターブ4基準で昇順に配置
+        let lastMidi = 0;
+        for (const noteMod12 of uniqueNoteMod12) {
+          // オクターブ4基準のMIDIノート
+          let midiNote = noteMod12 + baseOctave * 12;
+          // 前の音より低い場合はオクターブを上げる（基本形の昇順）
+          while (midiNote <= lastMidi) {
+            midiNote += 12;
           }
+          highlightNotes.push(midiNote);
+          lastMidi = midiNote;
         }
+        
         highlightNotes.forEach(note => {
           renderer.highlightKey(note, true);
         });
@@ -1813,10 +1891,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return rights[dir];
   };
   
-  // フォーマット
+  // 時間フォーマット（60分以上の場合はh:mm:ss形式）
   const formatTime = (seconds: number): string => {
-    const mins = Math.floor(seconds / 60);
+    const hours = Math.floor(seconds / 3600);
+    const mins = Math.floor((seconds % 3600) / 60);
     const secs = Math.floor(seconds % 60);
+    if (hours > 0) {
+      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
+    }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
   
