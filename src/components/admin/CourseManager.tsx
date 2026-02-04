@@ -1,12 +1,14 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import { Course } from '@/types';
-import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse, setCoursePrerequisites } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
 
-type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
+type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'> & {
+  prerequisite_ids: string[];
+};
 
 export const CourseManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -47,9 +49,10 @@ export const CourseManager: React.FC = () => {
       setValue('title', course.title);
       setValue('description', course.description || '');
       setValue('premium_only', course.premium_only ?? true);
+      setValue('prerequisite_ids', course.prerequisites?.map(p => p.prerequisite_course_id) || []);
     } else {
       setSelectedCourse(null);
-      reset({ title: '', description: '', premium_only: true });
+      reset({ title: '', description: '', premium_only: true, prerequisite_ids: [] });
     }
     dialogRef.current?.showModal();
   };
@@ -61,19 +64,31 @@ export const CourseManager: React.FC = () => {
   const onSubmit = async (formData: CourseFormData) => {
     setIsSubmitting(true);
     try {
+      let courseId: string;
+      
       if (selectedCourse) {
-        await updateCourse(selectedCourse.id, formData);
+        await updateCourse(selectedCourse.id, {
+          title: formData.title,
+          description: formData.description,
+          premium_only: formData.premium_only
+        });
+        courseId = selectedCourse.id;
         toast.success('コースを更新しました。');
       } else {
         const newOrderIndex = courses.length > 0 ? Math.max(...courses.map(c => c.order_index)) + 10 : 0;
-        await addCourse({
+        const newCourse = await addCourse({
           title: formData.title,
           description: formData.description,
           premium_only: formData.premium_only,
           order_index: newOrderIndex,
         });
+        courseId = newCourse.id;
         toast.success('新しいコースを追加しました。');
       }
+      
+      // 前提条件を更新
+      await setCoursePrerequisites(courseId, formData.prerequisite_ids);
+      
       await loadCourses();
       closeDialog();
     } catch (error: any) {
@@ -193,6 +208,7 @@ export const CourseManager: React.FC = () => {
               <th className="w-[100px]">並び順</th>
               <th>コースタイトル</th>
               <th>レッスン数</th>
+              <th>前提条件数</th>
               <th>プレミアム限定</th>
               <th className="text-right">アクション</th>
             </tr>
@@ -200,11 +216,11 @@ export const CourseManager: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center">読み込み中...</td>
+                <td colSpan={7} className="text-center">読み込み中...</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={6} className="text-center text-red-500">
+                <td colSpan={7} className="text-center text-red-500">
                   <div className="py-4">
                     <p className="mb-2">エラー: {error}</p>
                     <button className="btn btn-sm btn-primary" onClick={loadCourses}>
@@ -215,7 +231,7 @@ export const CourseManager: React.FC = () => {
               </tr>
             ) : courses.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center text-gray-400">
+                <td colSpan={7} className="text-center text-gray-400">
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
@@ -250,6 +266,7 @@ export const CourseManager: React.FC = () => {
                   </td>
                   <td className="font-medium">{course.title}</td>
                   <td>{course.lessons?.length || 0}</td>
+                  <td>{course.prerequisites?.length || 0}</td>
                   <td>{course.premium_only ? '✔' : ''}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(course)}>
@@ -262,10 +279,24 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={6} className="p-0">
+                    <td colSpan={7} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
+                        
+                        {course.prerequisites && course.prerequisites.length > 0 && (
+                          <>
+                            <h5 className="font-semibold mb-2">前提条件コース</h5>
+                            <ul className="list-disc pl-5 mb-4">
+                              {course.prerequisites.map(prereq => (
+                                <li key={prereq.prerequisite_course_id} className="text-sm text-gray-400">
+                                  {sortedCourses.find(c => c.id === prereq.prerequisite_course_id)?.title || 'Unknown Course'}
+                                </li>
+                              ))}
+                            </ul>
+                          </>
+                        )}
+                        
                         <h5 className="font-semibold mb-2">レッスン一覧</h5>
                         {course.lessons && course.lessons.length > 0 ? (
                           <ul className="list-disc pl-5">
@@ -308,6 +339,29 @@ export const CourseManager: React.FC = () => {
                 <span className="label-text">プレミアム限定</span> 
                 <input type="checkbox" {...register('premium_only')} className="toggle toggle-primary" />
               </label>
+            </div>
+            <div>
+              <label htmlFor="prerequisites" className="label">
+                <span className="label-text">前提条件コース</span>
+              </label>
+              <select 
+                id="prerequisites"
+                multiple
+                {...register('prerequisite_ids')}
+                className="select select-bordered w-full h-32"
+                size={5}
+              >
+                {sortedCourses
+                  .filter(c => c.id !== selectedCourse?.id) // 自分自身は選択不可
+                  .map(c => (
+                    <option key={c.id} value={c.id}>
+                      {c.title}
+                    </option>
+                  ))}
+              </select>
+              <p className="text-xs text-gray-400 mt-1">
+                Ctrlキー（Macではコマンドキー）を押しながらクリックで複数選択
+              </p>
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>
