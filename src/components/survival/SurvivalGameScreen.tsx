@@ -30,6 +30,7 @@ import {
   getCorrectNotes,
   createProjectile,
   calculateDamage,
+  calculateAProjectileDamage,
   generateLevelUpOptions,
   applyLevelUpBonus,
   addExp,
@@ -46,6 +47,11 @@ import {
   createEnemyProjectile,
   updateEnemyProjectiles,
   getConditionalSkillMultipliers,
+  checkLuck,
+  getLuckChance,
+  MAX_ENEMIES,
+  MAX_PROJECTILES,
+  MAX_COINS,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
 import SurvivalCanvas from './SurvivalCanvas';
@@ -152,6 +158,7 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
 
 interface DebugSkillSettings {
   aPenetration?: boolean;     // 貫通（上限1）
+  aBulletCount?: number;      // A列の弾数
   aBackBullet?: number;       // 後方弾（上限なし）
   aRightBullet?: number;      // 右側弾（上限なし）
   aLeftBullet?: number;       // 左側弾（上限なし）
@@ -173,6 +180,8 @@ interface SurvivalGameScreenProps {
     aAtk?: number;
     bAtk?: number;
     cAtk?: number;
+    time?: number;  // 効果時間延長
+    luck?: number;  // 運（1=1%、上限40=50%）
     skills?: DebugSkillSettings;
     tapSkillActivation?: boolean;
     initialLevel?: number;
@@ -224,6 +233,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // TIME（効果時間延長）設定
       if (debugSettings.time !== undefined) {
         initial.player.stats.time = debugSettings.time;
+      }
+      // LUCK（運）設定
+      if (debugSettings.luck !== undefined) {
+        initial.player.stats.luck = Math.min(40, debugSettings.luck);
       }
       
       // 初期レベル設定
@@ -782,9 +795,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
           
-          // 複数弾を少しずらして発射（基本ダメージ+5）
+          // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
           const newProjectiles = directions.map((dir, index) => {
-            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
+            const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
             // 同じ方向の弾は少しずらして発射
             const offset = (index % bulletCount) * 5;
             const dirVec = getDirectionVector(dir);
@@ -828,7 +841,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   }
                   
                 const additionalProjectiles = multiDirections.map((dir, index) => {
-                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                  const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
                   const offset = (index % bulletCount) * 5;
                   const dirVec = getDirectionVector(dir);
                   proj.x += dirVec.y * offset;
@@ -1047,7 +1060,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
             // 背水の陣・絶好調の効果を適用したクールダウン
             const condMultipliers = getConditionalSkillMultipliers(prev.player);
-            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier;
+            // 運発動時はリロード時間1/3
+            const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
+            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
@@ -1141,9 +1156,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // 複数弾を少しずらして発射（基本ダメージ+5）
+        // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
         const newProjectiles = directions.map((dir, index) => {
-          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
+          const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
           // 同じ方向の弾は少しずらして発射
           const offset = (index % bulletCount) * 5;
           const dirVec = getDirectionVector(dir);
@@ -1186,7 +1201,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 }
                 
               const additionalProjectiles = multiDirections.map((dir, index) => {
-                const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
                 const offset = (index % bulletCount) * 5;
                 const dirVec = getDirectionVector(dir);
                 proj.x += dirVec.y * offset;
@@ -1401,7 +1416,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
         // 背水の陣・絶好調の効果を適用したクールダウン
         const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
-        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier;
+        // 運発動時はリロード時間1/3
+        const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
+        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         // サンダーの場合は雷エフェクトを追加
         if (magicType === 'thunder') {
@@ -1455,7 +1472,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
         
         // 弾丸と敵の当たり判定（軽いノックバック追加）
-        const hitResults: { enemyId: string; damage: number; projId: string }[] = [];
+        const hitResults: { enemyId: string; damage: number; projId: string; isLucky: boolean }[] = [];
         newState.projectiles.forEach(proj => {
           newState.enemies.forEach(enemy => {
             if (proj.hitEnemies.has(enemy.id)) return;
@@ -1469,6 +1486,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const condMultA = getConditionalSkillMultipliers(prev.player);
               const effectiveADamage = Math.floor(proj.damage * condMultA.atkMultiplier);
               
+              // 運の判定（ダメージ2倍の可能性）
+              const luckResultHit = checkLuck(prev.player.stats.luck);
+              
               const damage = calculateDamage(
                 effectiveADamage,
                 0,
@@ -1477,9 +1497,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 enemy.statusEffects.some(e => e.type === 'debuffer'),
                 getBufferLevel(prev.player.statusEffects),
                 getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk
+                prev.player.stats.cAtk,
+                luckResultHit.doubleDamage  // 運発動時ダメージ2倍
               );
-              hitResults.push({ enemyId: enemy.id, damage, projId: proj.id });
+              hitResults.push({ enemyId: enemy.id, damage, projId: proj.id, isLucky: luckResultHit.doubleDamage });
               proj.hitEnemies.add(enemy.id);
               
               // A列ヒット時の軽いノックバック
@@ -1494,11 +1515,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         });
         
         // ダメージ適用
-        hitResults.forEach(({ enemyId, damage }) => {
+        hitResults.forEach(({ enemyId, damage, isLucky }) => {
           const enemy = newState.enemies.find(e => e.id === enemyId);
           if (enemy) {
             enemy.stats.hp = Math.max(0, enemy.stats.hp - damage);
-            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+            // 運発動時は金色で表示
+            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage, isLucky, isLucky ? '#ffd700' : undefined));
           }
         });
         
@@ -1544,12 +1566,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const dist = Math.sqrt(dx * dx + dy * dy);
           
           if (dist < 30) {
-            const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            // 背水の陣のDEF=0効果
-            const condMult = getConditionalSkillMultipliers(newState.player);
-            const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
-            const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
-            newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
+            // 運の判定（敵ダメージ0の可能性）
+            const luckResultContact = checkLuck(newState.player.stats.luck);
+            if (luckResultContact.noDamageTaken) {
+              // 運発動: ダメージ0（ラッキー表示）
+              // 何も起きない（ダメージを受けない）
+            } else {
+              const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
+              // 背水の陣のDEF=0効果
+              const condMult = getConditionalSkillMultipliers(newState.player);
+              const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
+              const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
+              newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
+            }
           }
         });
         
@@ -1572,6 +1601,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const dist = Math.sqrt(dx * dx + dy * dy);
           
           if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
+            // 運の判定（敵ダメージ0の可能性）
+            const luckResultProj = checkLuck(newState.player.stats.luck);
+            if (luckResultProj.noDamageTaken) {
+              // 運発動: ダメージ0（弾は消えるがダメージなし）
+              newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, 0, false, '#ffd700'));  // 金色で0表示
+              return false;  // 弾を削除
+            }
+            
             // プレイヤーにダメージ
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
             // 背水の陣のDEF=0効果
@@ -1590,10 +1627,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.enemies = newState.enemies.filter(e => e.stats.hp > 0);
         
         if (defeatedEnemies.length > 0) {
-          // コインをスポーン
+          // コインをスポーン（上限チェック付き）
           defeatedEnemies.forEach(enemy => {
-            const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
-            newState.coins = [...newState.coins, ...coins];
+            if (newState.coins.length < MAX_COINS) {
+              const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
+              const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
+              newState.coins = [...newState.coins, ...allowedCoins];
+            }
           });
           newState.enemiesDefeated += defeatedEnemies.length;
           
@@ -1624,11 +1664,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 期限切れコインのクリーンアップ
         newState.coins = cleanupExpiredCoins(newState.coins);
         
-        // 敵スポーン
+        // 敵スポーン（上限チェック付き）
         spawnTimerRef.current += deltaTime;
-        if (spawnTimerRef.current >= config.enemySpawnRate) {
+        if (spawnTimerRef.current >= config.enemySpawnRate && newState.enemies.length < MAX_ENEMIES) {
           spawnTimerRef.current = 0;
-          for (let i = 0; i < config.enemySpawnCount; i++) {
+          const spawnCount = Math.min(config.enemySpawnCount, MAX_ENEMIES - newState.enemies.length);
+          for (let i = 0; i < spawnCount; i++) {
             const newEnemy = spawnEnemy(
               newState.player.x,
               newState.player.y,
@@ -1637,6 +1678,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             );
             newState.enemies.push(newEnemy);
           }
+        }
+        
+        // パフォーマンス: プロジェクタイルの数を制限
+        if (newState.projectiles.length > MAX_PROJECTILES) {
+          newState.projectiles = newState.projectiles.slice(-MAX_PROJECTILES);
         }
         
         // スロットタイマー更新
@@ -1847,6 +1893,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // TIME（効果時間延長）設定
       if (debugSettings.time !== undefined) {
         initial.player.stats.time = debugSettings.time;
+      }
+      // LUCK（運）設定
+      if (debugSettings.luck !== undefined) {
+        initial.player.stats.luck = Math.min(40, debugSettings.luck);
       }
       
       // 初期レベル設定

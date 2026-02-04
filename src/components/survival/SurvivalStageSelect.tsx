@@ -30,6 +30,7 @@ const DEBUG_SKILLS = [
   { id: 'bKnockbackBonus', label: 'ノックバック+', labelEn: 'Knockback+', emoji: '💨', isBoolean: false, maxLevel: null },
   { id: 'bRangeBonus', label: '攻撃範囲+', labelEn: 'Range+', emoji: '📐', isBoolean: false, maxLevel: null },
   { id: 'multiHitLevel', label: '多段攻撃', labelEn: 'Multi-Hit', emoji: '💥', isBoolean: false, maxLevel: 3 },
+  { id: 'expBonusLevel', label: '獲得経験値+', labelEn: 'EXP Bonus', emoji: '💰', isBoolean: false, maxLevel: 10, description: 'コイン1枚あたり+1経験値' },
 ] as const;
 
 // デフォルト難易度設定（DB取得前のフォールバック）
@@ -130,6 +131,7 @@ export interface DebugSkillSettings {
   bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
+  expBonusLevel?: number;     // 獲得経験値+1（上限10）- コイン1枚あたり+1
 }
 
 export interface DebugSettings {
@@ -137,6 +139,7 @@ export interface DebugSettings {
   bAtk?: number;
   cAtk?: number;
   time?: number;  // 効果時間延長
+  luck?: number;  // 運（1=1%、上限40=50%）
   skills?: DebugSkillSettings;
   tapSkillActivation?: boolean;
   initialLevel?: number;
@@ -181,6 +184,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
   const [debugCAtk, setDebugCAtk] = useState<number>(20);
   const [debugTime, setDebugTime] = useState<number>(0);  // TIME（効果時間延長）
+  const [debugLuck, setDebugLuck] = useState<number>(0);  // 運（1=1%、上限40=50%）
   const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
     aPenetration: false,
     aBulletCount: 1,
@@ -190,6 +194,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     bKnockbackBonus: 0,
     bRangeBonus: 0,
     multiHitLevel: 0,
+    expBonusLevel: 0,
   });
   const [debugTapSkillActivation, setDebugTapSkillActivation] = useState(false);
   const [debugInitialLevel, setDebugInitialLevel] = useState<number>(1);
@@ -359,6 +364,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       bAtk: debugBAtk,
       cAtk: debugCAtk,
       time: debugTime,
+      luck: debugLuck,
       skills: debugSkills,
       tapSkillActivation: debugTapSkillActivation,
       initialLevel: debugInitialLevel,
@@ -586,7 +592,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               
               <div>
                 <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  ⏱️ TIME (効果時間延長): {debugTime}
+                  ⏱️ TIME (効果時間延長): {debugTime} （+{debugTime * 2}秒）
                 </label>
                 <input
                   type="range"
@@ -596,6 +602,23 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   onChange={(e) => setDebugTime(Number(e.target.value))}
                   className="w-full"
                 />
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 text-sm mb-2 font-sans">
+                  🍀 LUCK (運): {debugLuck} （{10 + debugLuck}%で特殊効果発動）
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="40"
+                  value={debugLuck}
+                  onChange={(e) => setDebugLuck(Number(e.target.value))}
+                  className="w-full"
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  発動時：ダメージ2倍、被ダメージ0、リロード1/3、TIME2倍
+                </p>
               </div>
             </div>
             
@@ -690,6 +713,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                     bKnockbackBonus: 0,
                     bRangeBonus: 0,
                     multiHitLevel: 0,
+                    expBonusLevel: 0,
                   })}
                   className="w-full px-3 py-2 rounded-lg text-xs font-sans bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
                 >
