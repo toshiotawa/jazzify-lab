@@ -51,17 +51,15 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
       if (profile && !isGuest) {
         // ログインユーザー: Supabaseに保存
         try {
-          const saved = await upsertSurvivalHighScore(
+          const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
             profile.id,
             difficulty,
             survivalTime,
             result.finalLevel,
             result.enemiesDefeated
           );
-          // 保存されたスコアが今回のスコアと同じならハイスコア更新
-          if (saved.survivalTimeSeconds === survivalTime) {
-            setIsNewHighScore(true);
-          }
+          // APIから返されたフラグでハイスコア更新を判定
+          setIsNewHighScore(isNew);
         } catch (error) {
           console.error('Failed to save high score:', error);
         }

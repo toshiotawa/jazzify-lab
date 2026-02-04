@@ -16,6 +16,11 @@ export interface SurvivalHighScore {
   updatedAt: string;
 }
 
+export interface SurvivalHighScoreResult {
+  score: SurvivalHighScore;
+  isNewHighScore: boolean;
+}
+
 export interface SurvivalDifficultySettings {
   id: string;
   difficulty: SurvivalDifficulty;
@@ -43,7 +48,7 @@ export async function upsertSurvivalHighScore(
   survivalTimeSeconds: number,
   finalLevel: number,
   enemiesDefeated: number
-): Promise<SurvivalHighScore> {
+): Promise<SurvivalHighScoreResult> {
   const supabase = getSupabaseClient();
   
   // 既存のスコアを取得
@@ -56,7 +61,10 @@ export async function upsertSurvivalHighScore(
   
   // 既存のスコアより低い場合は更新しない
   if (existing && existing.survival_time_seconds >= survivalTimeSeconds) {
-    return convertHighScore(existing);
+    return {
+      score: convertHighScore(existing),
+      isNewHighScore: false
+    };
   }
   
   const { data, error } = await supabase
@@ -75,7 +83,10 @@ export async function upsertSurvivalHighScore(
     .single();
   
   if (error) throw error;
-  return convertHighScore(data);
+  return {
+    score: convertHighScore(data),
+    isNewHighScore: true
+  };
 }
 
 /**

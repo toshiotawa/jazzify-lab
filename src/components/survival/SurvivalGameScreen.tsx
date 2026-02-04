@@ -331,7 +331,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => window.removeEventListener('resize', updateSize);
   }, []);
   
-  // MIDIコントローラー初期化
+  // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {
     const initMidi = async () => {
       try {
@@ -347,18 +347,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           })
         ]);
         
+        // MIDIControllerのインスタンスを作成（ファンタジーモードと同様）
+        // 注意: onNoteOn内では音の再生やハイライトを直接呼ばない
+        // MIDIController内のhandleNoteOnで処理される（playMidiSound=trueがデフォルト）
         const controller = new MIDIController({
-          onNoteOn: (note: number) => {
+          onNoteOn: (note: number, _velocity?: number) => {
             // refを使用して常に最新のhandleNoteInputを呼び出す
-            handleNoteInputRef.current(note);
-            playNote(note, 100);
-            pixiRendererRef.current?.highlightKey(note, true);
+            if (handleNoteInputRef.current) {
+              handleNoteInputRef.current(note);
+            }
           },
-          onNoteOff: (note: number) => {
-            stopNote(note);
-            pixiRendererRef.current?.highlightKey(note, false);
+          onNoteOff: (_note: number) => {
+            // Note off - MIDIController内で処理される
           },
-          playMidiSound: true, // ファンタジーモードと同様に有効化
+          // playMidiSoundはデフォルト（true）を使用
         });
         
         // MIDI接続状態変更コールバック（ファンタジーモードと同様）
@@ -370,12 +372,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         await controller.initialize();
         
-        // MIDIControllerにキーハイライト機能を設定
-        if (pixiRendererRef.current) {
-          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
-            pixiRendererRef.current?.highlightKey(note, active);
-          });
-        }
+        // MIDIControllerにキーハイライト機能を設定（初期化後に設定）
+        controller.setKeyHighlightCallback((note: number, active: boolean) => {
+          pixiRendererRef.current?.highlightKey(note, active);
+        });
         
         // 初期化エラーをクリア
         setInitError(null);
@@ -427,7 +427,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => clearTimeout(timer);
   }, []);
   
-  // PIXIレンダラーの準備
+  // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;
     if (renderer) {
@@ -440,14 +440,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
       });
       
-      // タッチ/クリックハンドラー設定
+      // タッチ/クリックハンドラー設定（ファンタジーモードと同様）
       // refを使用して常に最新のhandleNoteInputを呼び出す
       renderer.setKeyCallbacks(
         (note: number) => {
-          handleNoteInputRef.current(note);
+          // ゲーム入力として処理
+          if (handleNoteInputRef.current) {
+            handleNoteInputRef.current(note);
+          }
+          // 音の再生
           playNote(note, 100);
         },
         (note: number) => {
+          // マウスリリース時に音を止める
           stopNote(note);
         }
       );
@@ -614,43 +619,46 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    if (gameState.isGameOver || gameState.isPaused) return;
-    
-    // レベルアップ中の処理
-    if (gameState.isLevelingUp) {
-      // 現在の正解ノートを取得して新しいノートを追加
-      const currentCorrectNotes = [...levelUpCorrectNotes];
-      let matchedOptionIndex = -1;
-      
-      gameState.levelUpOptions.forEach((option, index) => {
-        if (option.chord && matchedOptionIndex === -1) {
-          const prevNotes = currentCorrectNotes[index] || [];
-          const correct = getCorrectNotes([...prevNotes, note], option.chord);
-          currentCorrectNotes[index] = correct;
-          
-          // 完成チェック
-          if (checkChordMatch(correct, option.chord)) {
-            matchedOptionIndex = index;
-          }
-        }
-      });
-      
-      // 状態を更新
-      setLevelUpCorrectNotes(currentCorrectNotes);
-      
-      // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
-      if (matchedOptionIndex >= 0) {
-        const matchedOption = gameState.levelUpOptions[matchedOptionIndex];
-        // 次のイベントループで実行して状態更新の競合を避ける
-        setTimeout(() => {
-          handleLevelUpBonusSelect(matchedOption);
-        }, 0);
-      }
-      return;
-    }
-    
     // 通常のコード入力処理
+    // 注意: gameStateを直接参照せず、setGameState内でprevを使用して最新の状態を取得する
     setGameState(prev => {
+      // ゲームオーバーまたはポーズ中は何もしない
+      if (prev.isGameOver || prev.isPaused) return prev;
+      
+      // レベルアップ中の処理
+      if (prev.isLevelingUp) {
+        // 現在の正解ノートを取得して新しいノートを追加
+        const currentCorrectNotes = [...levelUpCorrectNotes];
+        let matchedOptionIndex = -1;
+        
+        prev.levelUpOptions.forEach((option, index) => {
+          if (option.chord && matchedOptionIndex === -1) {
+            const prevNotes = currentCorrectNotes[index] || [];
+            const correct = getCorrectNotes([...prevNotes, note], option.chord);
+            currentCorrectNotes[index] = correct;
+            
+            // 完成チェック
+            if (checkChordMatch(correct, option.chord)) {
+              matchedOptionIndex = index;
+            }
+          }
+        });
+        
+        // 状態を更新（setStateの外で行う必要があるため、非同期で実行）
+        setTimeout(() => setLevelUpCorrectNotes(currentCorrectNotes), 0);
+        
+        // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
+        if (matchedOptionIndex >= 0) {
+          const matchedOption = prev.levelUpOptions[matchedOptionIndex];
+          // 次のイベントループで実行して状態更新の競合を避ける
+          setTimeout(() => {
+            handleLevelUpBonusSelect(matchedOption);
+          }, 0);
+        }
+        return prev; // レベルアップ中は他の処理をスキップ
+      }
+      
+      // 以下、通常のコード入力処理
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
@@ -995,7 +1003,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, gameState.levelUpOptions, config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
