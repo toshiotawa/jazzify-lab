@@ -693,13 +693,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 各スロットをチェック
-      let completedSlotIndex: number | null = null;
+      // 魔法がクールダウン中かどうか
+      const isMagicOnCooldown = prev.magicCooldown > 0;
+      
+      // 各スロットをチェック - 完了したすべてのスロットを追跡
+      const completedSlotIndices: number[] = [];
       
       newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || !slot.chord) return slot;
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
+        
+        // C列で魔法がクールダウン中の場合はスキップ（完成させない）
+        if (index === 2 && isMagicOnCooldown) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -708,9 +714,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newCorrectNotes = [...slot.correctNotes, noteMod12];
         const isComplete = newCorrectNotes.length >= targetNotes.length;
         
-        // 完了したスロットを記録（最初に完了したもののみ攻撃処理を行う）
-        if (isComplete && completedSlotIndex === null) {
-          completedSlotIndex = index;
+        // 完了したスロットをすべて記録
+        if (isComplete) {
+          completedSlotIndices.push(index);
         }
         
         return {
@@ -721,8 +727,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }) as [CodeSlot, CodeSlot, CodeSlot];
       
-      // コード完成時の処理
-      if (completedSlotIndex !== null) {
+      // コード完成時の処理 - すべての完了スロットに対してスキル発動
+      for (const completedSlotIndex of completedSlotIndices) {
         const slotType = ['A', 'B', 'C'][completedSlotIndex] as 'A' | 'B' | 'C';
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
@@ -819,16 +825,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     return proj;
                   });
                   
-                  return {
-                    ...gs,
-                    projectiles: [...gs.projectiles, ...additionalProjectiles],
-                  };
-                });
-              }, hit * 500); // 0.5秒ごと
-            }
+                return {
+                  ...gs,
+                  projectiles: [...gs.projectiles, ...additionalProjectiles],
+                };
+              });
+            }, hit * 200); // 0.2秒ごと
           }
-          
-        } else if (slotType === 'B') {
+        }
+        
+      } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
@@ -964,17 +970,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     return enemy;
                   });
                   
-                  return {
-                    ...gs,
-                    enemies: updatedEnemies,
-                    damageTexts: newDamageTexts,
-                  };
-                });
-              }, hit * 500); // 0.5秒ごと
-            }
+                return {
+                  ...gs,
+                  enemies: updatedEnemies,
+                  damageTexts: newDamageTexts,
+                };
+              });
+            }, hit * 200); // 0.2秒ごと
           }
-          
-        } else if (slotType === 'C' && prev.magicCooldown <= 0) {
+        }
+        
+      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
           // 魔法発動
           const availableMagics = Object.entries(prev.player.magics)
             .filter(([_, level]) => level > 0);
@@ -1007,29 +1013,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // スロットをリセット
+        // スロットをリセット（短い遅延でスムーズに次のコードへ）
+        // クロージャでインデックスをキャプチャ
+        const slotIdxToReset = completedSlotIndex;
         setTimeout(() => {
           setGameState(gs => {
-            const nextChord = gs.codeSlots.next[completedSlotIndex!].chord;
+            const nextChord = gs.codeSlots.next[slotIdxToReset].chord;
             const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
             
             return {
               ...gs,
               codeSlots: {
                 current: gs.codeSlots.current.map((slot, i) => 
-                  i === completedSlotIndex 
+                  i === slotIdxToReset 
                     ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
-                  i === completedSlotIndex
+                  i === slotIdxToReset
                     ? { ...slot, chord: newNextChord }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
               },
             };
           });
-        }, 200);
+        }, 50);  // 50msで素早くリセット
       }
       
       return newState;
@@ -1136,36 +1144,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   return proj;
                 });
                 
-                return {
-                  ...gs,
-                  projectiles: [...gs.projectiles, ...additionalProjectiles],
-                };
-              });
-            }, hit * 500);
-          }
+              return {
+                ...gs,
+                projectiles: [...gs.projectiles, ...additionalProjectiles],
+              };
+            });
+          }, hit * 200);  // 0.2秒ごと
         }
-        
-      } else if (slotType === 'B') {
-        // 近接攻撃 - 衝撃波エフェクト追加
-        const baseRange = 80;
-        const bonusRange = prev.player.skills.bRangeBonus * 20;
-        const totalRange = baseRange + bonusRange;
-        const dirVec = getDirectionVector(prev.player.direction);
-        const attackX = prev.player.x + dirVec.x * 40;
-        const attackY = prev.player.y + dirVec.y * 40;
-        
-        // 衝撃波エフェクト追加（前方のみ大きい範囲）
-        const newShockwave: ShockwaveEffect = {
-          id: `shock_${Date.now()}`,
-          x: attackX,
-          y: attackY,
-          radius: 0,
-          maxRadius: totalRange,
-          startTime: Date.now(),
-          duration: 300,
-          direction: prev.player.direction,  // プレイヤーの向きを追加
-        };
-        setShockwaves(sw => [...sw, newShockwave]);
+      }
+      
+    } else if (slotType === 'B') {
+      // 近接攻撃 - 衝撃波エフェクト追加
+      const baseRange = 80;
+      const bonusRange = prev.player.skills.bRangeBonus * 20;
+      const totalRange = baseRange + bonusRange;
+      const dirVec = getDirectionVector(prev.player.direction);
+      const attackX = prev.player.x + dirVec.x * 40;
+      const attackY = prev.player.y + dirVec.y * 40;
+      
+      // 衝撃波エフェクト追加（前方のみ大きい範囲）
+      const newShockwave: ShockwaveEffect = {
+        id: `shock_${Date.now()}`,
+        x: attackX,
+        y: attackY,
+        radius: 0,
+        maxRadius: totalRange,
+        startTime: Date.now(),
+        duration: 300,
+        direction: prev.player.direction,  // プレイヤーの向きを追加
+      };
+      setShockwaves(sw => [...sw, newShockwave]);
         
         // ノックバック力
         const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
@@ -1278,52 +1286,52 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   return enemy;
                 });
                 
-                return {
-                  ...gs,
-                  enemies: updatedEnemies,
-                  damageTexts: newDamageTexts,
-                };
-              });
-            }, hit * 500);
-          }
-        }
-        
-      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-        // 魔法発動
-        const availableMagics = Object.entries(prev.player.magics)
-          .filter(([_, level]) => level > 0);
-        
-        if (availableMagics.length > 0) {
-          const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
-          const result = castMagic(
-            magicType as Parameters<typeof castMagic>[0],
-            level,
-            prev.player,
-            prev.enemies
-          );
-          
-          newState.enemies = result.enemies;
-          newState.player = result.player;
-          newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-          newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
-          
-          // サンダーの場合は雷エフェクトを追加
-          if (magicType === 'thunder') {
-            const newLightning = prev.enemies.map(enemy => ({
-              id: `lightning_${Date.now()}_${enemy.id}`,
-              x: enemy.x,
-              y: enemy.y,
-              startTime: Date.now(),
-              duration: 500,
-            }));
-            setLightningEffects(le => [...le, ...newLightning]);
-          }
+              return {
+                ...gs,
+                enemies: updatedEnemies,
+                damageTexts: newDamageTexts,
+              };
+            });
+          }, hit * 200);  // 0.2秒ごと
         }
       }
       
-      return newState;
-    });
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
+    } else if (slotType === 'C' && prev.magicCooldown <= 0) {
+      // 魔法発動
+      const availableMagics = Object.entries(prev.player.magics)
+        .filter(([_, level]) => level > 0);
+      
+      if (availableMagics.length > 0) {
+        const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const result = castMagic(
+          magicType as Parameters<typeof castMagic>[0],
+          level,
+          prev.player,
+          prev.enemies
+        );
+        
+        newState.enemies = result.enemies;
+        newState.player = result.player;
+        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+        
+        // サンダーの場合は雷エフェクトを追加
+        if (magicType === 'thunder') {
+          const newLightning = prev.enemies.map(enemy => ({
+            id: `lightning_${Date.now()}_${enemy.id}`,
+            x: enemy.x,
+            y: enemy.y,
+            startTime: Date.now(),
+            duration: 500,
+          }));
+          setLightningEffects(le => [...le, ...newLightning]);
+        }
+      }
+    }
+    
+    return newState;
+  });
+}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
   
   // ゲームループ
   useEffect(() => {
