@@ -70,7 +70,11 @@ const createInitialPlayerState = (): PlayerState => ({
     aLeftBullet: 0,
     bKnockbackBonus: 0,
     bRangeBonus: 0,
+    bDeflect: false,
     multiHitLevel: 0,
+    expBonusLevel: 0,
+    haisuiNoJin: false,
+    zekkouchou: false,
   },
   magics: {
     thunder: 0,
@@ -329,7 +333,10 @@ export const updatePlayerPosition = (
   
   // 速度計算（バフ込み）
   const speedMultiplier = player.statusEffects.some(e => e.type === 'speed_up') ? 2 : 1;
-  const speed = BASE_PLAYER_SPEED * (1 + player.stats.speed * 0.1) * speedMultiplier;
+  // 背水の陣のSPEEDボーナス
+  const conditionalMultipliers = getConditionalSkillMultipliers(player);
+  const totalSpeed = player.stats.speed + conditionalMultipliers.speedBonus;
+  const speed = BASE_PLAYER_SPEED * (1 + totalSpeed * 0.1) * speedMultiplier;
   
   // 新しい位置
   let newX = player.x + dx * speed * deltaTime;
@@ -466,21 +473,81 @@ export const updateProjectiles = (
 };
 
 // ===== ダメージ計算 =====
+// bufferLevel: バフ魔法のレベル (0-3)、cAtk: プレイヤーのC列攻撃力
+// debufferLevel: デバフ魔法のレベル (0-3)
 export const calculateDamage = (
   baseDamage: number,
   attackerAtk: number,
   defenderDef: number,
   isBuffed: boolean = false,
-  isDebuffed: boolean = false
+  isDebuffed: boolean = false,
+  bufferLevel: number = 0,
+  debufferLevel: number = 0,
+  cAtk: number = 0
 ): number => {
-  const atkMultiplier = isBuffed ? 1.5 : 1;
-  const defMultiplier = isDebuffed ? 0.7 : 1;
+  // バッファー効果: レベルとC ATKで大幅強化
+  // レベル0(無効): 1.0倍、レベル1: 1.5倍、レベル2: 2.0倍、レベル3: 2.5倍
+  // さらにC ATK×0.03を加算（C ATK 20で+0.6倍）
+  let atkMultiplier = 1;
+  if (isBuffed && bufferLevel > 0) {
+    atkMultiplier = 1 + bufferLevel * 0.5 + cAtk * 0.03;
+  } else if (isBuffed) {
+    atkMultiplier = 1.5;  // レベル情報がない場合のデフォルト
+  }
   
+  // デバッファー効果: レベルとC ATKで大幅強化
+  // レベル0(無効): 1.0倍、レベル1: 0.6倍、レベル2: 0.4倍、レベル3: 0.2倍
+  // さらにC ATK×0.01を減算（C ATK 20で-0.2）
+  let defMultiplier = 1;
+  if (isDebuffed && debufferLevel > 0) {
+    defMultiplier = Math.max(0.1, 0.8 - debufferLevel * 0.2 - cAtk * 0.01);
+  } else if (isDebuffed) {
+    defMultiplier = 0.7;  // レベル情報がない場合のデフォルト
+  }
+  
+  // 攻撃力の影響を高める（攻撃力×2倍で加算）
   const damage = Math.max(1, Math.floor(
-    (baseDamage + attackerAtk * atkMultiplier) - (defenderDef * defMultiplier * 0.5)
+    (baseDamage + attackerAtk * 2 * atkMultiplier) - (defenderDef * defMultiplier * 0.5)
   ));
   
   return damage;
+};
+
+// ===== 背水の陣と絶好調の効果計算 =====
+export const getConditionalSkillMultipliers = (player: PlayerState): {
+  atkMultiplier: number;      // 攻撃力倍率
+  timeMultiplier: number;     // TIME倍率
+  reloadMultiplier: number;   // RELOAD倍率（小さいほど早い）
+  speedBonus: number;         // SPEED加算
+  defOverride: number | null; // DEFの上書き（nullなら上書きなし）
+} => {
+  const hpPercent = player.stats.hp / player.stats.maxHp;
+  const hasHaisui = player.skills.haisuiNoJin && hpPercent <= 0.15;
+  const hasZekkouchou = player.skills.zekkouchou && player.stats.hp >= player.stats.maxHp;
+  
+  let atkMultiplier = 1;
+  let timeMultiplier = 1;
+  let reloadMultiplier = 1;
+  let speedBonus = 0;
+  let defOverride: number | null = null;
+  
+  // 背水の陣（HP15%以下）: ABC攻撃力2倍、SPEED+10、RELOAD半分、TIME2倍、DEF=0
+  if (hasHaisui) {
+    atkMultiplier *= 2;
+    timeMultiplier *= 2;
+    reloadMultiplier *= 0.5;
+    speedBonus += 10;
+    defOverride = 0;
+  }
+  
+  // 絶好調（HP満タン）: ABC攻撃力1.3倍、TIME2倍、RELOAD半分
+  if (hasZekkouchou) {
+    atkMultiplier *= 1.3;
+    timeMultiplier *= 2;
+    reloadMultiplier *= 0.5;
+  }
+  
+  return { atkMultiplier, timeMultiplier, reloadMultiplier, speedBonus, defOverride };
 };
 
 // ===== レベルアップボーナス生成 =====
@@ -502,7 +569,11 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射（A ATKで強化）', icon: '↖️', maxLevel: 1 },
   { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
+  { type: 'b_deflect', displayName: '拳でかきけす', description: 'B列攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
+  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 3 },
+  { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
+  { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
   { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: '❄️', maxLevel: 3 },
@@ -530,8 +601,16 @@ export const generateLevelUpOptions = (
           return player.skills.aRightBullet < bonus.maxLevel;
         case 'a_left_bullet':
           return player.skills.aLeftBullet < bonus.maxLevel;
+        case 'b_deflect':
+          return !player.skills.bDeflect;
         case 'multi_hit':
           return player.skills.multiHitLevel < bonus.maxLevel;
+        case 'exp_bonus':
+          return player.skills.expBonusLevel < bonus.maxLevel;
+        case 'haisui_no_jin':
+          return !player.skills.haisuiNoJin;
+        case 'zekkouchou':
+          return !player.skills.zekkouchou;
         case 'reload_magic':
           return player.stats.reloadMagic < bonus.maxLevel;
         case 'magic_thunder':
@@ -570,6 +649,7 @@ export const generateLevelUpOptions = (
       case 'b_knockback': return player.skills.bKnockbackBonus;
       case 'b_range': return player.skills.bRangeBonus;
       case 'multi_hit': return player.skills.multiHitLevel;
+      case 'exp_bonus': return player.skills.expBonusLevel;
       case 'reload_magic': return player.stats.reloadMagic;
       case 'magic_thunder': return player.magics.thunder;
       case 'magic_ice': return player.magics.ice;
@@ -678,8 +758,20 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
     case 'b_range':
       newPlayer.skills.bRangeBonus += 1;
       break;
+    case 'b_deflect':
+      newPlayer.skills.bDeflect = true;
+      break;
     case 'multi_hit':
       newPlayer.skills.multiHitLevel = Math.min(3, newPlayer.skills.multiHitLevel + 1);
+      break;
+    case 'exp_bonus':
+      newPlayer.skills.expBonusLevel = Math.min(3, newPlayer.skills.expBonusLevel + 1);
+      break;
+    case 'haisui_no_jin':
+      newPlayer.skills.haisuiNoJin = true;
+      break;
+    case 'zekkouchou':
+      newPlayer.skills.zekkouchou = true;
       break;
     case 'magic_thunder':
       newPlayer.magics.thunder = Math.min(3, newPlayer.magics.thunder + 1);
@@ -757,15 +849,31 @@ export const castMagic = (
   let updatedPlayer = { ...player };
   let updatedEnemies = [...enemies];
   
+  // 背水の陣・絶好調の効果を取得
+  const condMultipliers = getConditionalSkillMultipliers(player);
+  const effectiveCAtk = Math.floor(player.stats.cAtk * condMultipliers.atkMultiplier);
+  
   const baseDuration = 5 + (level - 1) * 5;  // 5/10/15秒
-  const timeBonus = player.stats.time * 0.5;
+  const timeBonus = player.stats.time * 0.5 * condMultipliers.timeMultiplier;
   const totalDuration = baseDuration + timeBonus;
+  
+  // バッファー/デバッファーのレベルを取得
+  const bufferEffect = player.statusEffects.find(e => e.type === 'buffer');
+  const bufferLevel = bufferEffect?.level ?? 0;
+  const isBuffed = bufferLevel > 0;
   
   switch (magicType) {
     case 'thunder':
       // 画面上の敵にランダムダメージ
       updatedEnemies = enemies.map(enemy => {
-        const damage = calculateDamage(20 * level, player.stats.cAtk, enemy.stats.def);
+        const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
+        const debufferLevel = debufferEffect?.level ?? 0;
+        const isDebuffed = debufferLevel > 0;
+        
+        const damage = calculateDamage(
+          20 * level, effectiveCAtk, enemy.stats.def,
+          isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+        );
         damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
         return {
           ...enemy,
@@ -791,7 +899,7 @@ export const castMagic = (
     case 'fire': {
       // 自分の周りに炎の渦（プレイヤーにバフとして付与 + 周囲の敵にダメージ）
       const fireRange = 100 + level * 30; // 炎の範囲（レベルで拡大）
-      const fireDamage = Math.floor(15 * level * (1 + player.stats.cAtk * 0.05)); // 炎ダメージ
+      const fireDamage = Math.floor(15 * level * (1 + effectiveCAtk * 0.05)); // 炎ダメージ
       
       // 範囲内の敵にダメージ
       updatedEnemies = enemies.map(enemy => {
@@ -800,7 +908,14 @@ export const castMagic = (
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance <= fireRange) {
-          const damage = calculateDamage(fireDamage, player.stats.cAtk, enemy.stats.def);
+          const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
+          const debufferLevel = debufferEffect?.level ?? 0;
+          const isDebuffed = debufferLevel > 0;
+          
+          const damage = calculateDamage(
+            fireDamage, effectiveCAtk, enemy.stats.def,
+            isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+          );
           damageTexts.push(createDamageText(enemy.x, enemy.y, damage, false, '#ff6b35'));
           return {
             ...enemy,
@@ -916,13 +1031,16 @@ export const collectCoins = (
   let totalExp = 0;
   const remainingCoins: Coin[] = [];
   
+  // 経験値ボーナス（コイン1枚あたり+1 × レベル）
+  const expBonus = player.skills.expBonusLevel;
+  
   coins.forEach(coin => {
     const dx = coin.x - player.x;
     const dy = coin.y - player.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     
     if (dist < COIN_PICKUP_RADIUS) {
-      totalExp += coin.exp;
+      totalExp += coin.exp + expBonus;
     } else {
       remainingCoins.push(coin);
     }

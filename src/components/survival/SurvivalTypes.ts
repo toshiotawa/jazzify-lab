@@ -22,7 +22,9 @@ export type StatusEffect =
   | 'c_atk_up'  // C ATK UP
   | 'hint'      // ヒント
   | 'speed_up'  // 天使の靴
-  | 'def_up';   // 防弾チョッキ
+  | 'def_up'    // 防弾チョッキ
+  | 'haisui'    // 背水の陣（HP15%以下で発動）
+  | 'zekkouchou'; // 絶好調（HP満タンで発動）
 
 export interface ActiveStatusEffect {
   type: StatusEffect;
@@ -74,9 +76,13 @@ export interface SpecialSkills {
   // B列スキル
   bKnockbackBonus: number;    // ノックバック距離増加
   bRangeBonus: number;        // 攻撃範囲拡大
+  bDeflect: boolean;          // 拳でかきけす（敵弾消去）
   
   // 共通スキル
   multiHitLevel: number;      // 多段攻撃レベル（0-3）
+  expBonusLevel: number;      // 獲得経験値+1（レベル0-3）
+  haisuiNoJin: boolean;       // 背水の陣（HP15%以下で強化）
+  zekkouchou: boolean;        // 絶好調（HP満タンで強化）
 }
 
 // ===== 取得済み魔法 =====
@@ -192,7 +198,11 @@ export type BonusType =
   | 'a_left_bullet'
   | 'b_knockback'
   | 'b_range'
+  | 'b_deflect'
   | 'multi_hit'
+  | 'exp_bonus'
+  | 'haisui_no_jin'
+  | 'zekkouchou'
   // 魔法系
   | 'magic_thunder'
   | 'magic_ice'

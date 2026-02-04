@@ -124,16 +124,22 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
         )}
       </div>
       
-      {/* 次のスロット（小さく表示） */}
+      {/* 次のスロット（見やすく大きめ表示） */}
       <div
         className={cn(
-          'w-16 h-8 rounded border flex items-center justify-center',
-          'bg-black/40 border-gray-600',
+          'w-20 h-10 rounded-lg border-2 flex flex-col items-center justify-center',
+          'bg-gradient-to-br from-gray-800/80 to-gray-900/80',
+          colors.border,
+          'border-opacity-50',
           !slot.isEnabled && 'opacity-30',
           isDisabledByCooldown && 'opacity-30'
         )}
       >
-        <span className="text-xs font-sans text-gray-400">
+        <span className="text-[10px] font-sans text-gray-500 leading-none">NEXT</span>
+        <span className={cn(
+          'text-base font-bold font-sans',
+          colors.text
+        )}>
           {slot.isEnabled && !isDisabledByCooldown ? (nextSlot.chord?.displayName ?? '---') : '---'}
         </span>
       </div>

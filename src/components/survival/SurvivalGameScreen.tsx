@@ -45,6 +45,7 @@ import {
   shouldEnemyShoot,
   createEnemyProjectile,
   updateEnemyProjectiles,
+  getConditionalSkillMultipliers,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
 import SurvivalCanvas from './SurvivalCanvas';
@@ -156,7 +157,11 @@ interface DebugSkillSettings {
   aLeftBullet?: number;       // 左側弾（上限なし）
   bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
+  bDeflect?: boolean;         // 拳でかきけす（上限1）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
+  expBonusLevel?: number;     // 獲得経験値+1（上限3）
+  haisuiNoJin?: boolean;      // 背水の陣（上限1）
+  zekkouchou?: boolean;       // 絶好調（上限1）
 }
 
 interface SurvivalGameScreenProps {
@@ -281,8 +286,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (skills.bRangeBonus !== undefined) {
           initial.player.skills.bRangeBonus = skills.bRangeBonus;
         }
+        if (skills.bDeflect !== undefined) {
+          initial.player.skills.bDeflect = skills.bDeflect;
+        }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
+        if (skills.expBonusLevel !== undefined) {
+          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+        }
+        if (skills.haisuiNoJin !== undefined) {
+          initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
+        }
+        if (skills.zekkouchou !== undefined) {
+          initial.player.skills.zekkouchou = skills.zekkouchou;
         }
       }
     }
@@ -676,16 +693,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // refを即座に更新（次の入力で最新値を参照できるように）
         levelUpCorrectNotesRef.current = currentCorrectNotes;
         // UIの再レンダリング用にステートも更新
+        // SurvivalLevelUp側で入力遅延と選択処理を制御するため、ここでは呼び出さない
         setTimeout(() => setLevelUpCorrectNotes([...currentCorrectNotes]), 0);
         
-        // マッチしたオプションがあれば選択（状態更新後に非同期で実行）
-        if (matchedOptionIndex >= 0) {
-          const matchedOption = prev.levelUpOptions[matchedOptionIndex];
-          // 次のイベントループで実行して状態更新の競合を避ける
-          setTimeout(() => {
-            handleLevelUpBonusSelect(matchedOption);
-          }, 0);
-        }
+        // 注: 選択処理はSurvivalLevelUp側で行う（入力遅延制御のため）
         return prev; // レベルアップ中は他の処理をスキップ
       }
       
@@ -693,13 +704,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 各スロットをチェック
-      let completedSlotIndex: number | null = null;
+      // 魔法がクールダウン中かどうか
+      const isMagicOnCooldown = prev.magicCooldown > 0;
+      
+      // 各スロットをチェック - 完了したすべてのスロットを追跡
+      const completedSlotIndices: number[] = [];
       
       newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || !slot.chord) return slot;
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
+        
+        // C列で魔法がクールダウン中の場合はスキップ（完成させない）
+        if (index === 2 && isMagicOnCooldown) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -708,9 +725,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newCorrectNotes = [...slot.correctNotes, noteMod12];
         const isComplete = newCorrectNotes.length >= targetNotes.length;
         
-        // 完了したスロットを記録（最初に完了したもののみ攻撃処理を行う）
-        if (isComplete && completedSlotIndex === null) {
-          completedSlotIndex = index;
+        // 完了したスロットをすべて記録
+        if (isComplete) {
+          completedSlotIndices.push(index);
         }
         
         return {
@@ -721,8 +738,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }) as [CodeSlot, CodeSlot, CodeSlot];
       
-      // コード完成時の処理
-      if (completedSlotIndex !== null) {
+      // コード完成時の処理 - すべての完了スロットに対してスキル発動
+      for (const completedSlotIndex of completedSlotIndices) {
         const slotType = ['A', 'B', 'C'][completedSlotIndex] as 'A' | 'B' | 'C';
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
@@ -765,9 +782,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
           
-          // 複数弾を少しずらして発射
+          // 複数弾を少しずらして発射（基本ダメージ+5）
           const newProjectiles = directions.map((dir, index) => {
-            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
             // 同じ方向の弾は少しずらして発射
             const offset = (index % bulletCount) * 5;
             const dirVec = getDirectionVector(dir);
@@ -810,25 +827,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     }
                   }
                   
-                  const additionalProjectiles = multiDirections.map((dir, index) => {
-                    const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
-                    const offset = (index % bulletCount) * 5;
-                    const dirVec = getDirectionVector(dir);
-                    proj.x += dirVec.y * offset;
-                    proj.y -= dirVec.x * offset;
-                    return proj;
-                  });
-                  
-                  return {
-                    ...gs,
-                    projectiles: [...gs.projectiles, ...additionalProjectiles],
-                  };
+                const additionalProjectiles = multiDirections.map((dir, index) => {
+                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                  const offset = (index % bulletCount) * 5;
+                  const dirVec = getDirectionVector(dir);
+                  proj.x += dirVec.y * offset;
+                  proj.y -= dirVec.x * offset;
+                  return proj;
                 });
-              }, hit * 500); // 0.5秒ごと
-            }
+                
+                return {
+                  ...gs,
+                  projectiles: [...gs.projectiles, ...additionalProjectiles],
+                };
+              });
+            }, hit * 200); // 0.2秒ごと
           }
-          
-        } else if (slotType === 'B') {
+        }
+        
+      } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
@@ -850,6 +867,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
           setShockwaves(sw => [...sw, newShockwave]);
           
+          // 拳でかきけす - B列攻撃で敵弾消去
+          if (prev.player.skills.bDeflect) {
+            newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+              const dx = proj.x - attackX;
+              const dy = proj.y - attackY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              // 攻撃範囲内の敵弾を消去
+              return dist >= totalRange;
+            });
+          }
+          
           // ノックバック力
           const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
           
@@ -868,12 +896,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const effectiveRange = isInFront ? totalRange : baseRange;
             
             if (dist < effectiveRange) {
+              // 背水の陣・絶好調の攻撃力倍率
+              const condMultB = getConditionalSkillMultipliers(prev.player);
+              const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultB.atkMultiplier);
+              
               const damage = calculateDamage(
-                prev.player.stats.bAtk,
-                prev.player.stats.bAtk,
+                effectiveBAtk,
+                effectiveBAtk,
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer')
+                enemy.statusEffects.some(e => e.type === 'debuffer'),
+                getBufferLevel(prev.player.statusEffects),
+                getDebufferLevel(enemy.statusEffects),
+                prev.player.stats.cAtk
               );
               
               // ノックバック（B列は強め）
@@ -923,6 +958,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   };
                   setShockwaves(sw => [...sw, multiShockwave]);
                   
+                  // 拳でかきけす - B列多段攻撃でも敵弾消去
+                  let updatedEnemyProjectiles = gs.enemyProjectiles;
+                  if (gs.player.skills.bDeflect) {
+                    updatedEnemyProjectiles = gs.enemyProjectiles.filter(proj => {
+                      const dx = proj.x - bAttackX;
+                      const dy = proj.y - bAttackY;
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      return dist >= bTotalRange;
+                    });
+                  }
+                  
                   const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
                   const newDamageTexts = [...gs.damageTexts];
                   
@@ -939,12 +985,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                     
                     if (dist < effectiveRange) {
+                      // 背水の陣・絶好調の攻撃力倍率
+                      const condMultBMulti = getConditionalSkillMultipliers(gs.player);
+                      const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBMulti.atkMultiplier);
+                      
                       const damage = calculateDamage(
-                        gs.player.stats.bAtk,
-                        gs.player.stats.bAtk,
+                        effectiveBAtk,
+                        effectiveBAtk,
                         enemy.stats.def,
                         gs.player.statusEffects.some(e => e.type === 'buffer'),
-                        enemy.statusEffects.some(e => e.type === 'debuffer')
+                        enemy.statusEffects.some(e => e.type === 'debuffer'),
+                        getBufferLevel(gs.player.statusEffects),
+                        getDebufferLevel(enemy.statusEffects),
+                        gs.player.stats.cAtk
                       );
                       
                       const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
@@ -964,17 +1017,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     return enemy;
                   });
                   
-                  return {
-                    ...gs,
-                    enemies: updatedEnemies,
-                    damageTexts: newDamageTexts,
-                  };
-                });
-              }, hit * 500); // 0.5秒ごと
-            }
+                return {
+                  ...gs,
+                  enemies: updatedEnemies,
+                  enemyProjectiles: updatedEnemyProjectiles,
+                  damageTexts: newDamageTexts,
+                };
+              });
+            }, hit * 200); // 0.2秒ごと
           }
-          
-        } else if (slotType === 'C' && prev.magicCooldown <= 0) {
+        }
+        
+      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
           // 魔法発動
           const availableMagics = Object.entries(prev.player.magics)
             .filter(([_, level]) => level > 0);
@@ -991,7 +1045,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.enemies = result.enemies;
             newState.player = result.player;
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
+            // 背水の陣・絶好調の効果を適用したクールダウン
+            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
@@ -1007,29 +1063,31 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // スロットをリセット
+        // スロットをリセット（短い遅延でスムーズに次のコードへ）
+        // クロージャでインデックスをキャプチャ
+        const slotIdxToReset = completedSlotIndex;
         setTimeout(() => {
           setGameState(gs => {
-            const nextChord = gs.codeSlots.next[completedSlotIndex!].chord;
+            const nextChord = gs.codeSlots.next[slotIdxToReset].chord;
             const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
             
             return {
               ...gs,
               codeSlots: {
                 current: gs.codeSlots.current.map((slot, i) => 
-                  i === completedSlotIndex 
+                  i === slotIdxToReset 
                     ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
-                  i === completedSlotIndex
+                  i === slotIdxToReset
                     ? { ...slot, chord: newNextChord }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
               },
             };
           });
-        }, 200);
+        }, 50);  // 50msで素早くリセット
       }
       
       return newState;
@@ -1083,9 +1141,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // 複数弾を少しずらして発射
+        // 複数弾を少しずらして発射（基本ダメージ+5）
         const newProjectiles = directions.map((dir, index) => {
-          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
           // 同じ方向の弾は少しずらして発射
           const offset = (index % bulletCount) * 5;
           const dirVec = getDirectionVector(dir);
@@ -1127,86 +1185,103 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   }
                 }
                 
-                const additionalProjectiles = multiDirections.map((dir, index) => {
-                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
-                  const offset = (index % bulletCount) * 5;
-                  const dirVec = getDirectionVector(dir);
-                  proj.x += dirVec.y * offset;
-                  proj.y -= dirVec.x * offset;
-                  return proj;
-                });
-                
-                return {
-                  ...gs,
-                  projectiles: [...gs.projectiles, ...additionalProjectiles],
-                };
+              const additionalProjectiles = multiDirections.map((dir, index) => {
+                const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                const offset = (index % bulletCount) * 5;
+                const dirVec = getDirectionVector(dir);
+                proj.x += dirVec.y * offset;
+                proj.y -= dirVec.x * offset;
+                return proj;
               });
-            }, hit * 500);
-          }
+              
+              return {
+                ...gs,
+                projectiles: [...gs.projectiles, ...additionalProjectiles],
+              };
+            });
+          }, hit * 200);  // 0.2秒ごと
         }
-        
-      } else if (slotType === 'B') {
-        // 近接攻撃 - 衝撃波エフェクト追加
-        const baseRange = 80;
-        const bonusRange = prev.player.skills.bRangeBonus * 20;
-        const totalRange = baseRange + bonusRange;
-        const dirVec = getDirectionVector(prev.player.direction);
-        const attackX = prev.player.x + dirVec.x * 40;
-        const attackY = prev.player.y + dirVec.y * 40;
-        
-        // 衝撃波エフェクト追加（前方のみ大きい範囲）
-        const newShockwave: ShockwaveEffect = {
-          id: `shock_${Date.now()}`,
-          x: attackX,
-          y: attackY,
-          radius: 0,
-          maxRadius: totalRange,
-          startTime: Date.now(),
-          duration: 300,
-          direction: prev.player.direction,  // プレイヤーの向きを追加
-        };
-        setShockwaves(sw => [...sw, newShockwave]);
-        
-        // ノックバック力
-        const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-        
-        newState.enemies = prev.enemies.map(enemy => {
-          const dx = enemy.x - attackX;
-          const dy = enemy.y - attackY;
+      }
+      
+    } else if (slotType === 'B') {
+      // 近接攻撃 - 衝撃波エフェクト追加
+      const baseRange = 80;
+      const bonusRange = prev.player.skills.bRangeBonus * 20;
+      const totalRange = baseRange + bonusRange;
+      const dirVec = getDirectionVector(prev.player.direction);
+      const attackX = prev.player.x + dirVec.x * 40;
+      const attackY = prev.player.y + dirVec.y * 40;
+      
+      // 衝撃波エフェクト追加（前方のみ大きい範囲）
+      const newShockwave: ShockwaveEffect = {
+        id: `shock_${Date.now()}`,
+        x: attackX,
+        y: attackY,
+        radius: 0,
+        maxRadius: totalRange,
+        startTime: Date.now(),
+        duration: 300,
+        direction: prev.player.direction,  // プレイヤーの向きを追加
+      };
+      setShockwaves(sw => [...sw, newShockwave]);
+      
+      // 拳でかきけす - B列攻撃で敵弾消去（タップ）
+      if (prev.player.skills.bDeflect) {
+        newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+          const dx = proj.x - attackX;
+          const dy = proj.y - attackY;
           const dist = Math.sqrt(dx * dx + dy * dy);
+          return dist >= totalRange;
+        });
+      }
+        
+      // ノックバック力
+      const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+      
+      newState.enemies = prev.enemies.map(enemy => {
+        const dx = enemy.x - attackX;
+        const dy = enemy.y - attackY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // 敵が前方にいるかどうかをチェック（内積で判定）
+        const toEnemyX = enemy.x - prev.player.x;
+        const toEnemyY = enemy.y - prev.player.y;
+        const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+        const isInFront = dotProduct > 0;
+        
+        // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
+        const effectiveRange = isInFront ? totalRange : baseRange;
+        
+        if (dist < effectiveRange) {
+          // 背水の陣・絶好調の攻撃力倍率
+          const condMultBTap = getConditionalSkillMultipliers(prev.player);
+          const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultBTap.atkMultiplier);
           
-          // 敵が前方にいるかどうかをチェック（内積で判定）
-          const toEnemyX = enemy.x - prev.player.x;
-          const toEnemyY = enemy.y - prev.player.y;
-          const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
-          const isInFront = dotProduct > 0;
+          const damage = calculateDamage(
+            effectiveBAtk,
+            effectiveBAtk,
+            enemy.stats.def,
+            prev.player.statusEffects.some(e => e.type === 'buffer'),
+            enemy.statusEffects.some(e => e.type === 'debuffer'),
+            getBufferLevel(prev.player.statusEffects),
+            getDebufferLevel(enemy.statusEffects),
+            prev.player.stats.cAtk
+          );
           
-          // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
-          const effectiveRange = isInFront ? totalRange : baseRange;
+          const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+          const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
           
-          if (dist < effectiveRange) {
-            const damage = calculateDamage(
-              prev.player.stats.bAtk,
-              prev.player.stats.bAtk,
-              enemy.stats.def,
-              prev.player.statusEffects.some(e => e.type === 'buffer'),
-              enemy.statusEffects.some(e => e.type === 'debuffer')
-            );
-            
-            const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-            const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-            
-            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
-            
-            return {
-              ...enemy,
-              stats: {
-                ...enemy.stats,
-                hp: Math.max(0, enemy.stats.hp - damage),
-              },
-              knockbackVelocity: { x: knockbackX, y: knockbackY },
-            };
-          }
+          newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+          
+          return {
+            ...enemy,
+            stats: {
+              ...enemy.stats,
+              hp: Math.max(0, enemy.stats.hp - damage),
+            },
+            knockbackVelocity: { x: knockbackX, y: knockbackY },
+          };
+        }
           return enemy;
         });
         
@@ -1237,6 +1312,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 };
                 setShockwaves(sw => [...sw, multiShockwave]);
                 
+                // 拳でかきけす - B列多段攻撃でも敵弾消去（タップ）
+                let updatedEnemyProjectilesTap = gs.enemyProjectiles;
+                if (gs.player.skills.bDeflect) {
+                  updatedEnemyProjectilesTap = gs.enemyProjectiles.filter(proj => {
+                    const dx = proj.x - bAttackX;
+                    const dy = proj.y - bAttackY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    return dist >= bTotalRange;
+                  });
+                }
+                
                 const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
                 const newDamageTexts = [...gs.damageTexts];
                 
@@ -1253,12 +1339,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                   
                   if (dist < effectiveRange) {
+                    // 背水の陣・絶好調の攻撃力倍率
+                    const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
+                    const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBTapMulti.atkMultiplier);
+                    
                     const damage = calculateDamage(
-                      gs.player.stats.bAtk,
-                      gs.player.stats.bAtk,
+                      effectiveBAtk,
+                      effectiveBAtk,
                       enemy.stats.def,
                       gs.player.statusEffects.some(e => e.type === 'buffer'),
-                      enemy.statusEffects.some(e => e.type === 'debuffer')
+                      enemy.statusEffects.some(e => e.type === 'debuffer'),
+                      getBufferLevel(gs.player.statusEffects),
+                      getDebufferLevel(enemy.statusEffects),
+                      gs.player.stats.cAtk
                     );
                     
                     const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
@@ -1278,52 +1371,55 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   return enemy;
                 });
                 
-                return {
-                  ...gs,
-                  enemies: updatedEnemies,
-                  damageTexts: newDamageTexts,
-                };
-              });
-            }, hit * 500);
-          }
-        }
-        
-      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-        // 魔法発動
-        const availableMagics = Object.entries(prev.player.magics)
-          .filter(([_, level]) => level > 0);
-        
-        if (availableMagics.length > 0) {
-          const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
-          const result = castMagic(
-            magicType as Parameters<typeof castMagic>[0],
-            level,
-            prev.player,
-            prev.enemies
-          );
-          
-          newState.enemies = result.enemies;
-          newState.player = result.player;
-          newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-          newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic);
-          
-          // サンダーの場合は雷エフェクトを追加
-          if (magicType === 'thunder') {
-            const newLightning = prev.enemies.map(enemy => ({
-              id: `lightning_${Date.now()}_${enemy.id}`,
-              x: enemy.x,
-              y: enemy.y,
-              startTime: Date.now(),
-              duration: 500,
-            }));
-            setLightningEffects(le => [...le, ...newLightning]);
-          }
+              return {
+                ...gs,
+                enemies: updatedEnemies,
+                enemyProjectiles: updatedEnemyProjectilesTap,
+                damageTexts: newDamageTexts,
+              };
+            });
+          }, hit * 200);  // 0.2秒ごと
         }
       }
       
-      return newState;
-    });
-  }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
+    } else if (slotType === 'C' && prev.magicCooldown <= 0) {
+      // 魔法発動
+      const availableMagics = Object.entries(prev.player.magics)
+        .filter(([_, level]) => level > 0);
+      
+      if (availableMagics.length > 0) {
+        const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const result = castMagic(
+          magicType as Parameters<typeof castMagic>[0],
+          level,
+          prev.player,
+          prev.enemies
+        );
+        
+        newState.enemies = result.enemies;
+        newState.player = result.player;
+        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+        // 背水の陣・絶好調の効果を適用したクールダウン
+        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier;
+        
+        // サンダーの場合は雷エフェクトを追加
+        if (magicType === 'thunder') {
+          const newLightning = prev.enemies.map(enemy => ({
+            id: `lightning_${Date.now()}_${enemy.id}`,
+            x: enemy.x,
+            y: enemy.y,
+            startTime: Date.now(),
+            duration: 500,
+          }));
+          setLightningEffects(le => [...le, ...newLightning]);
+        }
+      }
+    }
+    
+    return newState;
+  });
+}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
   
   // ゲームループ
   useEffect(() => {
@@ -1368,13 +1464,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const dy = enemy.y - proj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < 20) {
+            if (dist < 25) {  // 当たり判定を少し大きく
+              // 背水の陣・絶好調の攻撃力倍率
+              const condMultA = getConditionalSkillMultipliers(prev.player);
+              const effectiveADamage = Math.floor(proj.damage * condMultA.atkMultiplier);
+              
               const damage = calculateDamage(
-                proj.damage,
+                effectiveADamage,
                 0,
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer')
+                enemy.statusEffects.some(e => e.type === 'debuffer'),
+                getBufferLevel(prev.player.statusEffects),
+                getDebufferLevel(enemy.statusEffects),
+                prev.player.stats.cAtk
               );
               hitResults.push({ enemyId: enemy.id, damage, projId: proj.id });
               proj.hitEnemies.add(enemy.id);
@@ -1442,7 +1545,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           if (dist < 30) {
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            const damage = Math.max(1, Math.floor(enemy.stats.atk - newState.player.stats.def * defMultiplier * 0.5));
+            // 背水の陣のDEF=0効果
+            const condMult = getConditionalSkillMultipliers(newState.player);
+            const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
+            const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
             newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
           }
         });
@@ -1468,7 +1574,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
             // プレイヤーにダメージ
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            const damage = Math.max(1, Math.floor(proj.damage - newState.player.stats.def * defMultiplier * 0.3));
+            // 背水の陣のDEF=0効果
+            const condMultProj = getConditionalSkillMultipliers(newState.player);
+            const effectiveDefProj = condMultProj.defOverride !== null ? condMultProj.defOverride : newState.player.stats.def;
+            const damage = Math.max(1, Math.floor(proj.damage - effectiveDefProj * defMultiplier * 0.3));
             newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage);
             newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, damage));
             return false;  // 弾を削除
@@ -1599,6 +1708,37 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             e => (now - e.startTime) / 1000 < e.duration
           ),
         }));
+        
+        // 背水の陣と絶好調のステータスエフェクト管理
+        const hpPercent = newState.player.stats.hp / newState.player.stats.maxHp;
+        const hasHaisui = newState.player.statusEffects.some(e => e.type === 'haisui');
+        const hasZekkouchou = newState.player.statusEffects.some(e => e.type === 'zekkouchou');
+        
+        // 背水の陣（HP15%以下で発動）
+        if (newState.player.skills.haisuiNoJin && hpPercent <= 0.15) {
+          if (!hasHaisui) {
+            newState.player.statusEffects.push({
+              type: 'haisui',
+              duration: Infinity,
+              startTime: now,
+            });
+          }
+        } else {
+          newState.player.statusEffects = newState.player.statusEffects.filter(e => e.type !== 'haisui');
+        }
+        
+        // 絶好調（HP満タンで発動）
+        if (newState.player.skills.zekkouchou && newState.player.stats.hp >= newState.player.stats.maxHp) {
+          if (!hasZekkouchou) {
+            newState.player.statusEffects.push({
+              type: 'zekkouchou',
+              duration: Infinity,
+              startTime: now,
+            });
+          }
+        } else {
+          newState.player.statusEffects = newState.player.statusEffects.filter(e => e.type !== 'zekkouchou');
+        }
         
         // ダメージテキストのクリーンアップ
         newState.damageTexts = newState.damageTexts.filter(
@@ -1768,8 +1908,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (skills.bRangeBonus !== undefined) {
           initial.player.skills.bRangeBonus = skills.bRangeBonus;
         }
+        if (skills.bDeflect !== undefined) {
+          initial.player.skills.bDeflect = skills.bDeflect;
+        }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
+        }
+        if (skills.expBonusLevel !== undefined) {
+          initial.player.skills.expBonusLevel = Math.min(3, skills.expBonusLevel);
+        }
+        if (skills.haisuiNoJin !== undefined) {
+          initial.player.skills.haisuiNoJin = skills.haisuiNoJin;
+        }
+        if (skills.zekkouchou !== undefined) {
+          initial.player.skills.zekkouchou = skills.zekkouchou;
         }
       }
     }
@@ -1862,6 +2014,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
   }, [gameState.player.statusEffects, gameState.codeSlots.current]);
+  
+  // バッファー/デバッファーレベル取得ヘルパー
+  const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
+    const buffer = statusEffects.find(e => e.type === 'buffer');
+    return buffer?.level ?? 0;
+  };
+  
+  const getDebufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
+    const debuffer = statusEffects.find(e => e.type === 'debuffer');
+    return debuffer?.level ?? 0;
+  };
   
   // 方向ヘルパー
   const getOppositeDirection = (dir: Direction): Direction => {
