@@ -497,9 +497,9 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'a_bullet', displayName: 'A弾数 +1', description: '同時発射数アップ', icon: '💫' },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: '➡️', maxLevel: 1 },
-  { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射', icon: '⬅️', maxLevel: 3 },
-  { type: 'a_right_bullet', displayName: '右側弾', description: '右側にも発射', icon: '↗️', maxLevel: 3 },
-  { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射', icon: '↖️', maxLevel: 3 },
+  { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射（A ATKで強化）', icon: '⬅️', maxLevel: 1 },
+  { type: 'a_right_bullet', displayName: '右側弾', description: '右側にも発射（A ATKで強化）', icon: '↗️', maxLevel: 1 },
+  { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射（A ATKで強化）', icon: '↖️', maxLevel: 1 },
   { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
@@ -649,6 +649,16 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       break;
     case 'a_bullet':
       newPlayer.stats.aBulletCount += 1;
+      // 解放済みの後ろ、右、左弾も追加
+      if (newPlayer.skills.aBackBullet > 0) {
+        newPlayer.skills.aBackBullet += 1;
+      }
+      if (newPlayer.skills.aRightBullet > 0) {
+        newPlayer.skills.aRightBullet += 1;
+      }
+      if (newPlayer.skills.aLeftBullet > 0) {
+        newPlayer.skills.aLeftBullet += 1;
+      }
       break;
     case 'a_penetration':
       newPlayer.skills.aPenetration = true;
@@ -698,8 +708,11 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 };
 
 // ===== 経験値計算 =====
+// 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
+const EXP_CAP_LEVEL = 20;
 export const calculateExpToNextLevel = (level: number): number => {
-  return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, level - 1));
+  const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
+  return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
@@ -775,8 +788,32 @@ export const castMagic = (
       }));
       break;
       
-    case 'fire':
-      // 自分の周りに炎の渦（プレイヤーにバフとして付与）
+    case 'fire': {
+      // 自分の周りに炎の渦（プレイヤーにバフとして付与 + 周囲の敵にダメージ）
+      const fireRange = 100 + level * 30; // 炎の範囲（レベルで拡大）
+      const fireDamage = Math.floor(15 * level * (1 + player.stats.cAtk * 0.05)); // 炎ダメージ
+      
+      // 範囲内の敵にダメージ
+      updatedEnemies = enemies.map(enemy => {
+        const dx = enemy.x - player.x;
+        const dy = enemy.y - player.y;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        
+        if (distance <= fireRange) {
+          const damage = calculateDamage(fireDamage, player.stats.cAtk, enemy.stats.def);
+          damageTexts.push(createDamageText(enemy.x, enemy.y, damage, false, '#ff6b35'));
+          return {
+            ...enemy,
+            stats: {
+              ...enemy.stats,
+              hp: Math.max(0, enemy.stats.hp - damage),
+            },
+          };
+        }
+        return enemy;
+      });
+      
+      // プレイヤーに炎バフを付与
       updatedPlayer = {
         ...player,
         statusEffects: [
@@ -785,6 +822,7 @@ export const castMagic = (
         ],
       };
       break;
+    }
       
     case 'heal': {
       // HP回復
