@@ -390,19 +390,19 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
     });
 
-    // 弾丸描画（アイコンで描画）
+    // 弾丸描画（アイコンで描画 - 少し大きめ）
     projectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
       
-      if (screenX < -20 || screenX > viewportWidth + 20 ||
-          screenY < -20 || screenY > viewportHeight + 20) return;
+      if (screenX < -25 || screenX > viewportWidth + 25 ||
+          screenY < -25 || screenY > viewportHeight + 25) return;
       
-      ctx.font = '16px sans-serif';
+      ctx.font = '22px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = COLORS.projectile;
-      ctx.shadowBlur = 8;
+      ctx.shadowBlur = 12;
       ctx.fillText(PROJECTILE_ICON, screenX, screenY);
       ctx.shadowBlur = 0;
     });

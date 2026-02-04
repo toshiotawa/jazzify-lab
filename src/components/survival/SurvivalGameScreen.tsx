@@ -156,6 +156,7 @@ interface DebugSkillSettings {
   aLeftBullet?: number;       // 左側弾（上限なし）
   bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
+  bDeflect?: boolean;         // 拳でかきけす（上限1）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
 }
 
@@ -280,6 +281,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.bRangeBonus !== undefined) {
           initial.player.skills.bRangeBonus = skills.bRangeBonus;
+        }
+        if (skills.bDeflect !== undefined) {
+          initial.player.skills.bDeflect = skills.bDeflect;
         }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);
@@ -771,9 +775,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
           
-          // 複数弾を少しずらして発射
+          // 複数弾を少しずらして発射（基本ダメージ+5）
           const newProjectiles = directions.map((dir, index) => {
-            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+            const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
             // 同じ方向の弾は少しずらして発射
             const offset = (index % bulletCount) * 5;
             const dirVec = getDirectionVector(dir);
@@ -816,15 +820,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     }
                   }
                   
-                  const additionalProjectiles = multiDirections.map((dir, index) => {
-                    const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
-                    const offset = (index % bulletCount) * 5;
-                    const dirVec = getDirectionVector(dir);
-                    proj.x += dirVec.y * offset;
-                    proj.y -= dirVec.x * offset;
-                    return proj;
-                  });
-                  
+                const additionalProjectiles = multiDirections.map((dir, index) => {
+                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                  const offset = (index % bulletCount) * 5;
+                  const dirVec = getDirectionVector(dir);
+                  proj.x += dirVec.y * offset;
+                  proj.y -= dirVec.x * offset;
+                  return proj;
+                });
+                
                 return {
                   ...gs,
                   projectiles: [...gs.projectiles, ...additionalProjectiles],
@@ -855,6 +859,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             direction: prev.player.direction,  // プレイヤーの向きを追加
           };
           setShockwaves(sw => [...sw, newShockwave]);
+          
+          // 拳でかきけす - B列攻撃で敵弾消去
+          if (prev.player.skills.bDeflect) {
+            newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+              const dx = proj.x - attackX;
+              const dy = proj.y - attackY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              // 攻撃範囲内の敵弾を消去
+              return dist >= totalRange;
+            });
+          }
           
           // ノックバック力
           const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
@@ -929,6 +944,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   };
                   setShockwaves(sw => [...sw, multiShockwave]);
                   
+                  // 拳でかきけす - B列多段攻撃でも敵弾消去
+                  let updatedEnemyProjectiles = gs.enemyProjectiles;
+                  if (gs.player.skills.bDeflect) {
+                    updatedEnemyProjectiles = gs.enemyProjectiles.filter(proj => {
+                      const dx = proj.x - bAttackX;
+                      const dy = proj.y - bAttackY;
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      return dist >= bTotalRange;
+                    });
+                  }
+                  
                   const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
                   const newDamageTexts = [...gs.damageTexts];
                   
@@ -973,6 +999,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 return {
                   ...gs,
                   enemies: updatedEnemies,
+                  enemyProjectiles: updatedEnemyProjectiles,
                   damageTexts: newDamageTexts,
                 };
               });
@@ -1091,9 +1118,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // 複数弾を少しずらして発射
+        // 複数弾を少しずらして発射（基本ダメージ+5）
         const newProjectiles = directions.map((dir, index) => {
-          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk);
+          const proj = createProjectile(prev.player, dir, prev.player.stats.aAtk + 5);
           // 同じ方向の弾は少しずらして発射
           const offset = (index % bulletCount) * 5;
           const dirVec = getDirectionVector(dir);
@@ -1135,15 +1162,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   }
                 }
                 
-                const additionalProjectiles = multiDirections.map((dir, index) => {
-                  const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk);
-                  const offset = (index % bulletCount) * 5;
-                  const dirVec = getDirectionVector(dir);
-                  proj.x += dirVec.y * offset;
-                  proj.y -= dirVec.x * offset;
-                  return proj;
-                });
-                
+              const additionalProjectiles = multiDirections.map((dir, index) => {
+                const proj = createProjectile(gs.player, dir, gs.player.stats.aAtk + 5);
+                const offset = (index % bulletCount) * 5;
+                const dirVec = getDirectionVector(dir);
+                proj.x += dirVec.y * offset;
+                proj.y -= dirVec.x * offset;
+                return proj;
+              });
+              
               return {
                 ...gs,
                 projectiles: [...gs.projectiles, ...additionalProjectiles],
@@ -1174,46 +1201,56 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         direction: prev.player.direction,  // プレイヤーの向きを追加
       };
       setShockwaves(sw => [...sw, newShockwave]);
-        
-        // ノックバック力
-        const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-        
-        newState.enemies = prev.enemies.map(enemy => {
-          const dx = enemy.x - attackX;
-          const dy = enemy.y - attackY;
+      
+      // 拳でかきけす - B列攻撃で敵弾消去（タップ）
+      if (prev.player.skills.bDeflect) {
+        newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+          const dx = proj.x - attackX;
+          const dy = proj.y - attackY;
           const dist = Math.sqrt(dx * dx + dy * dy);
+          return dist >= totalRange;
+        });
+      }
+        
+      // ノックバック力
+      const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
+      
+      newState.enemies = prev.enemies.map(enemy => {
+        const dx = enemy.x - attackX;
+        const dy = enemy.y - attackY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        // 敵が前方にいるかどうかをチェック（内積で判定）
+        const toEnemyX = enemy.x - prev.player.x;
+        const toEnemyY = enemy.y - prev.player.y;
+        const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
+        const isInFront = dotProduct > 0;
+        
+        // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
+        const effectiveRange = isInFront ? totalRange : baseRange;
+        
+        if (dist < effectiveRange) {
+          const damage = calculateDamage(
+            prev.player.stats.bAtk,
+            prev.player.stats.bAtk,
+            enemy.stats.def,
+            prev.player.statusEffects.some(e => e.type === 'buffer'),
+            enemy.statusEffects.some(e => e.type === 'debuffer')
+          );
           
-          // 敵が前方にいるかどうかをチェック（内積で判定）
-          const toEnemyX = enemy.x - prev.player.x;
-          const toEnemyY = enemy.y - prev.player.y;
-          const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
-          const isInFront = dotProduct > 0;
+          const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
+          const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
           
-          // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
-          const effectiveRange = isInFront ? totalRange : baseRange;
+          newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
           
-          if (dist < effectiveRange) {
-            const damage = calculateDamage(
-              prev.player.stats.bAtk,
-              prev.player.stats.bAtk,
-              enemy.stats.def,
-              prev.player.statusEffects.some(e => e.type === 'buffer'),
-              enemy.statusEffects.some(e => e.type === 'debuffer')
-            );
-            
-            const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-            const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-            
-            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
-            
-            return {
-              ...enemy,
-              stats: {
-                ...enemy.stats,
-                hp: Math.max(0, enemy.stats.hp - damage),
-              },
-              knockbackVelocity: { x: knockbackX, y: knockbackY },
-            };
+          return {
+            ...enemy,
+            stats: {
+              ...enemy.stats,
+              hp: Math.max(0, enemy.stats.hp - damage),
+            },
+            knockbackVelocity: { x: knockbackX, y: knockbackY },
+          };
           }
           return enemy;
         });
@@ -1244,6 +1281,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   direction: gs.player.direction,  // プレイヤーの向きを追加
                 };
                 setShockwaves(sw => [...sw, multiShockwave]);
+                
+                // 拳でかきけす - B列多段攻撃でも敵弾消去（タップ）
+                let updatedEnemyProjectilesTap = gs.enemyProjectiles;
+                if (gs.player.skills.bDeflect) {
+                  updatedEnemyProjectilesTap = gs.enemyProjectiles.filter(proj => {
+                    const dx = proj.x - bAttackX;
+                    const dy = proj.y - bAttackY;
+                    const dist = Math.sqrt(dx * dx + dy * dy);
+                    return dist >= bTotalRange;
+                  });
+                }
                 
                 const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
                 const newDamageTexts = [...gs.damageTexts];
@@ -1289,6 +1337,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               return {
                 ...gs,
                 enemies: updatedEnemies,
+                enemyProjectiles: updatedEnemyProjectilesTap,
                 damageTexts: newDamageTexts,
               };
             });
@@ -1376,7 +1425,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const dy = enemy.y - proj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < 20) {
+            if (dist < 25) {  // 当たり判定を少し大きく
               const damage = calculateDamage(
                 proj.damage,
                 0,
@@ -1775,6 +1824,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.bRangeBonus !== undefined) {
           initial.player.skills.bRangeBonus = skills.bRangeBonus;
+        }
+        if (skills.bDeflect !== undefined) {
+          initial.player.skills.bDeflect = skills.bDeflect;
         }
         if (skills.multiHitLevel !== undefined) {
           initial.player.skills.multiHitLevel = Math.min(3, skills.multiHitLevel);

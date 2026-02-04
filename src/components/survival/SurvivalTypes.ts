@@ -74,6 +74,7 @@ export interface SpecialSkills {
   // B列スキル
   bKnockbackBonus: number;    // ノックバック距離増加
   bRangeBonus: number;        // 攻撃範囲拡大
+  bDeflect: boolean;          // 拳でかきけす（敵弾消去）
   
   // 共通スキル
   multiHitLevel: number;      // 多段攻撃レベル（0-3）
@@ -192,6 +193,7 @@ export type BonusType =
   | 'a_left_bullet'
   | 'b_knockback'
   | 'b_range'
+  | 'b_deflect'
   | 'multi_hit'
   // 魔法系
   | 'magic_thunder'

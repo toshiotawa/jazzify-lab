@@ -70,6 +70,7 @@ const createInitialPlayerState = (): PlayerState => ({
     aLeftBullet: 0,
     bKnockbackBonus: 0,
     bRangeBonus: 0,
+    bDeflect: false,
     multiHitLevel: 0,
   },
   magics: {
@@ -476,8 +477,9 @@ export const calculateDamage = (
   const atkMultiplier = isBuffed ? 1.5 : 1;
   const defMultiplier = isDebuffed ? 0.7 : 1;
   
+  // 攻撃力の影響を高める（攻撃力×2倍で加算）
   const damage = Math.max(1, Math.floor(
-    (baseDamage + attackerAtk * atkMultiplier) - (defenderDef * defMultiplier * 0.5)
+    (baseDamage + attackerAtk * 2 * atkMultiplier) - (defenderDef * defMultiplier * 0.5)
   ));
   
   return damage;
@@ -502,6 +504,7 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射（A ATKで強化）', icon: '↖️', maxLevel: 1 },
   { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
+  { type: 'b_deflect', displayName: '拳でかきけす', description: 'B列攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
@@ -530,6 +533,8 @@ export const generateLevelUpOptions = (
           return player.skills.aRightBullet < bonus.maxLevel;
         case 'a_left_bullet':
           return player.skills.aLeftBullet < bonus.maxLevel;
+        case 'b_deflect':
+          return !player.skills.bDeflect;
         case 'multi_hit':
           return player.skills.multiHitLevel < bonus.maxLevel;
         case 'reload_magic':
@@ -677,6 +682,9 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       break;
     case 'b_range':
       newPlayer.skills.bRangeBonus += 1;
+      break;
+    case 'b_deflect':
+      newPlayer.skills.bDeflect = true;
       break;
     case 'multi_hit':
       newPlayer.skills.multiHitLevel = Math.min(3, newPlayer.skills.multiHitLevel + 1);
