@@ -213,6 +213,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (debugSettings.cAtk !== undefined) {
         initial.player.stats.cAtk = debugSettings.cAtk;
       }
+      // TIME（効果時間延長）設定
+      if (debugSettings.time !== undefined) {
+        initial.player.stats.time = debugSettings.time;
+      }
       
       // 初期レベル設定
       if (debugSettings.initialLevel !== undefined && debugSettings.initialLevel > 1) {
@@ -395,12 +399,33 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const deviceId = settings.selectedMidiDevice;
       if (midiControllerRef.current && deviceId) {
         await midiControllerRef.current.connectDevice(deviceId);
+        setIsMidiConnected(true);
       } else if (midiControllerRef.current && !deviceId) {
         midiControllerRef.current.disconnect();
+        setIsMidiConnected(false);
       }
     };
     connect();
   }, [settings.selectedMidiDevice]);
+  
+  // コンポーネントマウント時にMIDI接続を復元（ファンタジーモードと同様）
+  useEffect(() => {
+    const restoreMidiConnection = async () => {
+      if (midiControllerRef.current) {
+        // 現在接続中のデバイスがあれば接続を確認・復元
+        if (midiControllerRef.current.getCurrentDeviceId()) {
+          await midiControllerRef.current.checkAndRestoreConnection();
+        } else if (settings.selectedMidiDevice) {
+          // gameStoreにデバイスIDがあれば接続を試みる
+          await midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+        }
+      }
+    };
+    
+    // 初期化が完了してから接続復元を試みる
+    const timer = setTimeout(restoreMidiConnection, 500);
+    return () => clearTimeout(timer);
+  }, []);
   
   // PIXIレンダラーの準備
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -463,12 +488,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       keysRef.current.delete(key);
     };
     
+    // フォーカス喪失時にキーをクリア（タブ切り替え、右クリック対策）
+    const handleBlur = () => {
+      keysRef.current.clear();
+    };
+    
+    // visibility変更時にキーをクリア
+    const handleVisibilityChange = () => {
+      if (document.hidden) {
+        keysRef.current.clear();
+      }
+    };
+    
     window.addEventListener('keydown', handleKeyDown);
     window.addEventListener('keyup', handleKeyUp);
+    window.addEventListener('blur', handleBlur);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
     
     return () => {
       window.removeEventListener('keydown', handleKeyDown);
       window.removeEventListener('keyup', handleKeyUp);
+      window.removeEventListener('blur', handleBlur);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
     };
   }, []);
   
@@ -613,11 +654,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 各スロットをチェック
+      // 各スロットをチェック（1回の入力で1つのスロットのみ完了させる）
       let completedSlotIndex: number | null = null;
+      let alreadyMatchedSlot = false;  // 1回の入力で1スロットのみ処理
       
       newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || slot.isCompleted || !slot.chord) return slot;
+        // 既にリセット待ち中のスロットはスキップ（completedTimeが設定されている）
+        if (slot.completedTime) return slot;
+        // 既に他のスロットがマッチした場合はスキップ
+        if (alreadyMatchedSlot) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -628,12 +674,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         if (isComplete) {
           completedSlotIndex = index;
+          alreadyMatchedSlot = true;  // このスロットで完了したので他はスキップ
         }
         
         return {
           ...slot,
           correctNotes: newCorrectNotes,
           isCompleted: isComplete,
+          completedTime: isComplete ? Date.now() : undefined,  // 完了時刻を設定
         };
       }) as [CodeSlot, CodeSlot, CodeSlot];
       
@@ -1620,6 +1668,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (debugSettings.cAtk !== undefined) {
         initial.player.stats.cAtk = debugSettings.cAtk;
       }
+      // TIME（効果時間延長）設定
+      if (debugSettings.time !== undefined) {
+        initial.player.stats.time = debugSettings.time;
+      }
       
       // 初期レベル設定
       if (debugSettings.initialLevel !== undefined && debugSettings.initialLevel > 1) {
@@ -1699,6 +1751,42 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     return null;
   };
+  
+  // HINT鍵盤ハイライト
+  const prevHintNotesRef = useRef<number[]>([]);
+  useEffect(() => {
+    const hintSlotIndex = getHintSlotIndex();
+    const renderer = pixiRendererRef.current;
+    
+    // 以前のハイライトをクリア
+    prevHintNotesRef.current.forEach(note => {
+      renderer?.highlightKey(note, false);
+    });
+    prevHintNotesRef.current = [];
+    
+    // HINTが有効な場合、該当スロットのコードの構成音をハイライト
+    if (hintSlotIndex !== null && renderer) {
+      const slot = gameState.codeSlots.current[hintSlotIndex];
+      if (slot.chord?.notes) {
+        // 全オクターブで該当する鍵盤をハイライト
+        const uniqueNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
+        const highlightNotes: number[] = [];
+        // ピアノの範囲（A0=21 ~ C8=108）でハイライト
+        for (const noteMod12 of uniqueNotes) {
+          for (let octave = 0; octave <= 8; octave++) {
+            const midiNote = noteMod12 + (octave + 1) * 12;
+            if (midiNote >= 21 && midiNote <= 108) {
+              highlightNotes.push(midiNote);
+            }
+          }
+        }
+        highlightNotes.forEach(note => {
+          renderer.highlightKey(note, true);
+        });
+        prevHintNotesRef.current = highlightNotes;
+      }
+    }
+  }, [gameState.player.statusEffects, gameState.codeSlots.current]);
   
   // 方向ヘルパー
   const getOppositeDirection = (dir: Direction): Direction => {

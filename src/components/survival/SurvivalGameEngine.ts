@@ -561,6 +561,27 @@ export const generateLevelUpOptions = (
   const usedChordIds: string[] = [];
   const result: LevelUpBonus[] = [];
   
+  // 現在のスキルレベルを取得するヘルパー関数
+  const getCurrentLevel = (type: string): number => {
+    switch (type) {
+      case 'a_back_bullet': return player.skills.aBackBullet;
+      case 'a_right_bullet': return player.skills.aRightBullet;
+      case 'a_left_bullet': return player.skills.aLeftBullet;
+      case 'b_knockback': return player.skills.bKnockbackBonus;
+      case 'b_range': return player.skills.bRangeBonus;
+      case 'multi_hit': return player.skills.multiHitLevel;
+      case 'reload_magic': return player.stats.reloadMagic;
+      case 'magic_thunder': return player.magics.thunder;
+      case 'magic_ice': return player.magics.ice;
+      case 'magic_fire': return player.magics.fire;
+      case 'magic_heal': return player.magics.heal;
+      case 'magic_buffer': return player.magics.buffer;
+      case 'magic_debuffer': return player.magics.debuffer;
+      case 'magic_hint': return player.magics.hint;
+      default: return 0;
+    }
+  };
+  
   for (const bonus of selected) {
     const chord = selectRandomChord(allowedChords, usedChordIds);
     if (chord) {
@@ -568,6 +589,7 @@ export const generateLevelUpOptions = (
       result.push({
         ...bonus,
         chord,
+        currentLevel: getCurrentLevel(bonus.type),  // 現在のスキルレベルを追加
       });
     }
   }

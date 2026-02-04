@@ -136,6 +136,7 @@ export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   cAtk?: number;
+  time?: number;  // 効果時間延長
   skills?: DebugSkillSettings;
   tapSkillActivation?: boolean;
   initialLevel?: number;
@@ -179,6 +180,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [debugAAtk, setDebugAAtk] = useState<number>(10);
   const [debugBAtk, setDebugBAtk] = useState<number>(20);
   const [debugCAtk, setDebugCAtk] = useState<number>(20);
+  const [debugTime, setDebugTime] = useState<number>(0);  // TIME（効果時間延長）
   const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
     aPenetration: false,
     aBulletCount: 1,
@@ -329,6 +331,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       aAtk: debugAAtk,
       bAtk: debugBAtk,
       cAtk: debugCAtk,
+      time: debugTime,
       skills: debugSkills,
       tapSkillActivation: debugTapSkillActivation,
       initialLevel: debugInitialLevel,
@@ -550,6 +553,20 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   max="500"
                   value={debugCAtk}
                   onChange={(e) => setDebugCAtk(Number(e.target.value))}
+                  className="w-full"
+                />
+              </div>
+              
+              <div>
+                <label className="block text-gray-300 text-sm mb-2 font-sans">
+                  ⏱️ TIME (効果時間延長): {debugTime}
+                </label>
+                <input
+                  type="range"
+                  min="0"
+                  max="20"
+                  value={debugTime}
+                  onChange={(e) => setDebugTime(Number(e.target.value))}
                   className="w-full"
                 />
               </div>
