@@ -44,7 +44,7 @@ const BASE_PLAYER_SPEED = 150;  // px/秒
 const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
-const EXP_LEVEL_FACTOR = 1.5;  // レベルアップに必要な経験値の増加率
+const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -815,7 +815,7 @@ export const castMagic = (
 };
 
 // ===== コイン生成 =====
-const COIN_LIFETIME = 10000;  // コインの生存時間（ミリ秒）
+const COIN_LIFETIME = Infinity;  // コインの生存時間（無限 - 消えない）
 
 export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): Coin[] => {
   const baseExp = enemy.isBoss ? 50 : 10;

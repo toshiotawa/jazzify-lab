@@ -33,6 +33,7 @@ const DEBUG_SKILLS = [
 ] as const;
 
 // デフォルト難易度設定（DB取得前のフォールバック）
+// 敵の強さは全難易度で統一（1.0）、出題コードで差をつける
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
@@ -41,7 +42,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em'],
     enemySpawnRate: 3,
     enemySpawnCount: 2,
-    enemyStatMultiplier: 0.7,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.0,
     itemDropRate: 0.15,
   },
@@ -52,7 +53,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'G7', 'C7', 'Am7', 'Dm7'],
     enemySpawnRate: 2.5,
     enemySpawnCount: 3,
-    enemyStatMultiplier: 1.0,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.5,
     itemDropRate: 0.12,
   },
@@ -63,7 +64,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'G7', 'Am7', 'Dm7', 'Em7', 'FM7', 'Bm7b5', 'E7', 'A7', 'D7'],
     enemySpawnRate: 2,
     enemySpawnCount: 4,
-    enemyStatMultiplier: 1.3,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 2.0,
     itemDropRate: 0.10,
   },
@@ -74,7 +75,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5', 'Cmaj9', 'Dm9', 'G13'],
     enemySpawnRate: 1.5,
     enemySpawnCount: 5,
-    enemyStatMultiplier: 1.6,
+    enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 3.0,
     itemDropRate: 0.08,
   },

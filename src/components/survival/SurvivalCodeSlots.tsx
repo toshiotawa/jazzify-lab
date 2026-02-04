@@ -111,19 +111,6 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
           </div>
         )}
         
-        {/* タイマーバー（上部） */}
-        {slot.isEnabled && !slot.isCompleted && !isDisabledByCooldown && (
-          <div className="absolute top-0 left-0 right-0 h-1 bg-black/40">
-            <div
-              className={cn(
-                'h-full transition-all duration-100',
-                timerPercent > 30 ? 'bg-white/70' : 'bg-red-500'
-              )}
-              style={{ width: `${timerPercent}%` }}
-            />
-          </div>
-        )}
-        
         {/* 完成エフェクト */}
         {slot.isCompleted && (
           <div className="absolute inset-0 bg-yellow-400/30 animate-ping" />

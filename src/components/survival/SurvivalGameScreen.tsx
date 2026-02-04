@@ -53,7 +53,8 @@ import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
-import FantasySettingsModal from '../fantasy/FantasySettingsModal';
+import SurvivalSettingsModal from './SurvivalSettingsModal';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -341,7 +342,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             stopNote(note);
             pixiRendererRef.current?.highlightKey(note, false);
           },
-          playMidiSound: false,
+          playMidiSound: true, // ファンタジーモードと同様に有効化
         });
         
         await midiControllerRef.current.initialize();
@@ -361,6 +362,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       midiControllerRef.current?.destroy();
     };
   }, []);
+  
+  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと共有）
+  useEffect(() => {
+    const connect = async () => {
+      const deviceId = settings.selectedMidiDevice;
+      if (midiControllerRef.current && deviceId) {
+        await midiControllerRef.current.connectDevice(deviceId);
+      } else if (midiControllerRef.current && !deviceId) {
+        midiControllerRef.current.disconnect();
+      }
+    };
+    connect();
+  }, [settings.selectedMidiDevice]);
   
   // PIXIレンダラーの準備
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
@@ -594,6 +608,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (completedSlotIndex !== null) {
         const slotType = ['A', 'B', 'C'][completedSlotIndex] as 'A' | 'B' | 'C';
         
+        // 正解時にルート音を鳴らす（ファンタジーモードと同様）
+        const completedChord = prev.codeSlots.current[completedSlotIndex].chord;
+        if (completedChord) {
+          const rootNote = completedChord.root || completedChord.noteNames?.[0];
+          if (rootNote) {
+            FantasySoundManager.playRootNote(rootNote).catch(() => {});
+          }
+        }
+        
         // 攻撃処理
         if (slotType === 'A') {
           // 遠距離弾発射
@@ -706,6 +729,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             maxRadius: totalRange,
             startTime: Date.now(),
             duration: 300,
+            direction: prev.player.direction,  // プレイヤーの向きを追加
           };
           setShockwaves(sw => [...sw, newShockwave]);
           
@@ -778,6 +802,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     maxRadius: bTotalRange,
                     startTime: Date.now(),
                     duration: 300,
+                    direction: gs.player.direction,  // プレイヤーの向きを追加
                   };
                   setShockwaves(sw => [...sw, multiShockwave]);
                   
@@ -1021,6 +1046,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           maxRadius: totalRange,
           startTime: Date.now(),
           duration: 300,
+          direction: prev.player.direction,  // プレイヤーの向きを追加
         };
         setShockwaves(sw => [...sw, newShockwave]);
         
@@ -1090,6 +1116,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   maxRadius: bTotalRange,
                   startTime: Date.now(),
                   duration: 300,
+                  direction: gs.player.direction,  // プレイヤーの向きを追加
                 };
                 setShockwaves(sw => [...sw, multiShockwave]);
                 
@@ -1443,9 +1470,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // WAVEチェック
         const waveElapsedTime = newState.elapsedTime - newState.wave.waveStartTime;
         
-        // WAVEノルマ達成チェック
+        // WAVEノルマ達成マーク（ノルマ達成しても2分経つまでは同じWAVEに留まる）
         if (newState.wave.waveKills >= newState.wave.waveQuota && !newState.wave.waveCompleted) {
-          // 次のWAVEへ
+          newState.wave = {
+            ...newState.wave,
+            waveCompleted: true,
+          };
+        }
+        
+        // 2分経過後にWAVE進行チェック
+        if (waveElapsedTime >= WAVE_DURATION) {
+          // ノルマ未達成でゲームオーバー
+          if (!newState.wave.waveCompleted) {
+            newState.isGameOver = true;
+            newState.isPlaying = false;
+            newState.wave.waveFailedReason = 'quota_failed';
+            
+            const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+            setResult({
+              survivalTime: newState.elapsedTime,
+              finalLevel: newState.player.level,
+              enemiesDefeated: newState.enemiesDefeated,
+              playerStats: newState.player.stats,
+              skills: newState.player.skills,
+              magics: newState.player.magics,
+              earnedXp,
+            });
+            return newState;
+          }
+          
+          // ノルマ達成済み：次のWAVEへ
           const nextWave = newState.wave.currentWave + 1;
           newState.wave = {
             currentWave: nextWave,
@@ -1455,25 +1509,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             waveDuration: WAVE_DURATION,
             waveCompleted: false,
           };
-        }
-        
-        // WAVEタイムアウトチェック（ノルマ未達成でゲームオーバー）
-        if (waveElapsedTime >= WAVE_DURATION && newState.wave.waveKills < newState.wave.waveQuota) {
-          newState.isGameOver = true;
-          newState.isPlaying = false;
-          newState.wave.waveFailedReason = 'quota_failed';
-          
-          const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
-          setResult({
-            survivalTime: newState.elapsedTime,
-            finalLevel: newState.player.level,
-            enemiesDefeated: newState.enemiesDefeated,
-            playerStats: newState.player.stats,
-            skills: newState.player.skills,
-            magics: newState.player.magics,
-            earnedXp,
-          });
-          return newState;
         }
         
         // HPゲームオーバー判定
@@ -1934,10 +1969,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       )}
       
       {/* 設定モーダル */}
-      <FantasySettingsModal
+      <SurvivalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        onSettingsChange={() => {}}
+        isMidiConnected={!!midiControllerRef.current?.getCurrentDeviceId()}
       />
     </div>
   );
