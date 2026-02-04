@@ -197,6 +197,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 初期化エラー状態
   const [initError, setInitError] = useState<string | null>(null);
+  // MIDI初期化完了状態
+  const [isMidiInitialized, setIsMidiInitialized] = useState(false);
+  const initPromiseRef = useRef<Promise<void> | null>(null);
   
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
@@ -336,84 +339,103 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {
-    const initMidi = async () => {
-      try {
-        // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
-        await Promise.all([
-          // 音声システム初期化
-          initializeAudioSystem().then(() => {
-            updateGlobalVolume(0.8);
-          }),
-          // FantasySoundManagerの初期化（ルート音再生用）
-          FantasySoundManager.init(0.8, 0.5, true).then(() => {
-            FantasySoundManager.enableRootSound(true);
-          })
-        ]);
-        
-        // MIDIControllerのインスタンスを作成（ファンタジーモードと同様）
-        // 注意: onNoteOn内では音の再生やハイライトを直接呼ばない
-        // MIDIController内のhandleNoteOnで処理される（playMidiSound=trueがデフォルト）
-        const controller = new MIDIController({
-          onNoteOn: (note: number, _velocity?: number) => {
-            // refを使用して常に最新のhandleNoteInputを呼び出す
-            if (handleNoteInputRef.current) {
-              handleNoteInputRef.current(note);
-            }
-          },
-          onNoteOff: (_note: number) => {
-            // Note off - MIDIController内で処理される
-          },
-          // playMidiSoundはデフォルト（true）を使用
-        });
-        
-        // MIDI接続状態変更コールバック（ファンタジーモードと同様）
-        controller.setConnectionChangeCallback((connected: boolean) => {
-          setIsMidiConnected(connected);
-        });
-        
-        midiControllerRef.current = controller;
-        
-        await controller.initialize();
-        
-        // MIDIControllerにキーハイライト機能を設定（初期化後に設定）
-        controller.setKeyHighlightCallback((note: number, active: boolean) => {
-          pixiRendererRef.current?.highlightKey(note, active);
-        });
-        
-        // 初期化エラーをクリア
-        setInitError(null);
-      } catch (error) {
-        // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
-        const errorMessage = error instanceof Error ? error.message : 'Unknown error';
-        setInitError(`Audio initialization warning: ${errorMessage}. Touch/click input available.`);
-      }
-    };
+    // MIDIControllerのインスタンスを作成（一度だけ）
+    // ファンタジーモードと同様に、先にインスタンスを作成してから非同期初期化
+    if (!midiControllerRef.current) {
+      const controller = new MIDIController({
+        onNoteOn: (note: number, _velocity?: number) => {
+          // refを使用して常に最新のhandleNoteInputを呼び出す
+          if (handleNoteInputRef.current) {
+            handleNoteInputRef.current(note);
+          }
+        },
+        onNoteOff: (_note: number) => {
+          // Note off - MIDIController内で処理される
+        },
+        playMidiSound: true // 通常プレイと同様に共通音声システムを有効化
+      });
+      
+      // MIDI接続状態変更コールバック（ファンタジーモードと同様）
+      controller.setConnectionChangeCallback((connected: boolean) => {
+        setIsMidiConnected(connected);
+      });
+      
+      midiControllerRef.current = controller;
+      
+      // 非同期初期化を開始し、完了を追跡
+      const initPromise = (async () => {
+        try {
+          await controller.initialize();
+          
+          // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
+          await Promise.all([
+            // 音声システム初期化
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(0.8);
+            }),
+            // FantasySoundManagerの初期化（ルート音再生用）
+            FantasySoundManager.init(0.8, 0.5, true).then(() => {
+              FantasySoundManager.enableRootSound(true);
+            })
+          ]);
+          
+          // MIDIControllerにキーハイライト機能を設定（初期化後に設定）
+          controller.setKeyHighlightCallback((note: number, active: boolean) => {
+            pixiRendererRef.current?.highlightKey(note, active);
+          });
+          
+          // 初期化完了を記録
+          setIsMidiInitialized(true);
+          setInitError(null);
+        } catch (error) {
+          // MIDI初期化エラーが発生しても、タッチ/クリック入力でプレイ可能
+          const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+          setInitError(`Audio initialization warning: ${errorMessage}. Touch/click input available.`);
+          // エラーでも初期化完了とする（ゲームは開始可能）
+          setIsMidiInitialized(true);
+        }
+      })();
+      
+      // promiseを保持（初期化完了待ちで使用）
+      initPromiseRef.current = initPromise;
+    }
     
-    initMidi();
-    
+    // クリーンアップ
     return () => {
-      midiControllerRef.current?.destroy();
+      if (midiControllerRef.current) {
+        midiControllerRef.current.destroy();
+        midiControllerRef.current = null;
+      }
     };
   }, []); // 空の依存配列で一度だけ実行
   
-  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと共有）
+  // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと同様）
+  // 初期化完了を待ってから接続を試みる
   useEffect(() => {
     const connect = async () => {
+      // 初期化完了を待つ
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      
       const deviceId = settings.selectedMidiDevice;
       if (midiControllerRef.current && deviceId) {
         await midiControllerRef.current.connectDevice(deviceId);
-        setIsMidiConnected(true);
       } else if (midiControllerRef.current && !deviceId) {
         midiControllerRef.current.disconnect();
-        setIsMidiConnected(false);
       }
     };
     connect();
-  }, [settings.selectedMidiDevice]);
+  }, [settings.selectedMidiDevice, isMidiInitialized]);
   
-  // コンポーネントマウント時にMIDI接続を復元（ファンタジーモードと同様）
+  // 難易度変更時（ゲーム開始時）にMIDI接続を復元（ファンタジーモードのstage依存と同様）
   useEffect(() => {
     const restoreMidiConnection = async () => {
+      // 初期化完了を待つ
+      if (initPromiseRef.current) {
+        await initPromiseRef.current;
+      }
+      
       if (midiControllerRef.current) {
         // 現在接続中のデバイスがあれば接続を確認・復元
         if (midiControllerRef.current.getCurrentDeviceId()) {
@@ -425,10 +447,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
     
-    // 初期化が完了してから接続復元を試みる
-    const timer = setTimeout(restoreMidiConnection, 500);
+    // コンポーネントが表示されたときに接続復元を試みる
+    const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
-  }, []);
+  }, [config.difficulty, isMidiInitialized, settings.selectedMidiDevice]); // 難易度が変更されたときに実行（ステージ開始時）
   
   // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
