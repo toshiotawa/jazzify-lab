@@ -987,7 +987,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               codeSlots: {
                 current: gs.codeSlots.current.map((slot, i) => 
                   i === completedSlotIndex 
-                    ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT }
+                    ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
                 ) as [CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
@@ -1528,7 +1528,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (!slot.chord) {
             const newChord = selectRandomChord(config.allowedChords);
             if (newChord) {
-              return { ...slot, chord: newChord, correctNotes: [], timer: SLOT_TIMEOUT };
+              return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
             }
             return slot;
           }
@@ -1547,7 +1547,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               i === slotIndex ? { ...ns, chord: newNextChord } : ns
             ) as [CodeSlot, CodeSlot, CodeSlot];
             
-            return { ...slot, chord: nextChord, correctNotes: [], timer: SLOT_TIMEOUT };
+            return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
           }
           return { ...slot, timer: newTimer };
         }) as [CodeSlot, CodeSlot, CodeSlot];
