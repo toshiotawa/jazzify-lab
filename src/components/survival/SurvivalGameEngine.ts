@@ -867,8 +867,8 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 };
 
 // ===== 経験値計算 =====
-// 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
-const EXP_CAP_LEVEL = 20;
+// 15レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
+const EXP_CAP_LEVEL = 15;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
   return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
