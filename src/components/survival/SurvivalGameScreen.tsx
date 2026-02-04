@@ -1804,7 +1804,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const slot = gameState.codeSlots.current[hintSlotIndex];
       if (slot.chord?.notes) {
         // 基本形のみ表示: オクターブ4を基準に、各構成音を1つずつハイライト
-        // 3和音なら3鍵盤のみ表示
+        // 3和音なら3鍵盤、4和音なら4鍵盤のみ表示
         const highlightNotes: number[] = [];
         const baseOctave = 4;
         
