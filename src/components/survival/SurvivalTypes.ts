@@ -61,8 +61,9 @@ export interface PlayerStats {
   hp: number;            // 現在HP
   maxHp: number;         // 最大HP
   def: number;           // 防御力
-  time: number;          // 効果時間延長（0.5秒/ポイント）
+  time: number;          // 効果時間延長（2秒/ポイント）
   aBulletCount: number;  // A列の弾数
+  luck: number;          // 運（1ポイント=1%、上限40=50%）
 }
 
 // ===== 特殊スキル =====
@@ -191,6 +192,7 @@ export type BonusType =
   | 'def'
   | 'time'
   | 'a_bullet'
+  | 'luck_pendant'  // 幸運のペンダント（Luck +1）
   // 特殊系
   | 'a_penetration'
   | 'a_back_bullet'
