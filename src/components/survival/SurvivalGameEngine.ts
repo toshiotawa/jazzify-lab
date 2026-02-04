@@ -473,15 +473,37 @@ export const updateProjectiles = (
 };
 
 // ===== ダメージ計算 =====
+// bufferLevel: バフ魔法のレベル (0-3)、cAtk: プレイヤーのC列攻撃力
+// debufferLevel: デバフ魔法のレベル (0-3)
 export const calculateDamage = (
   baseDamage: number,
   attackerAtk: number,
   defenderDef: number,
   isBuffed: boolean = false,
-  isDebuffed: boolean = false
+  isDebuffed: boolean = false,
+  bufferLevel: number = 0,
+  debufferLevel: number = 0,
+  cAtk: number = 0
 ): number => {
-  const atkMultiplier = isBuffed ? 1.5 : 1;
-  const defMultiplier = isDebuffed ? 0.7 : 1;
+  // バッファー効果: レベルとC ATKで大幅強化
+  // レベル0(無効): 1.0倍、レベル1: 1.5倍、レベル2: 2.0倍、レベル3: 2.5倍
+  // さらにC ATK×0.03を加算（C ATK 20で+0.6倍）
+  let atkMultiplier = 1;
+  if (isBuffed && bufferLevel > 0) {
+    atkMultiplier = 1 + bufferLevel * 0.5 + cAtk * 0.03;
+  } else if (isBuffed) {
+    atkMultiplier = 1.5;  // レベル情報がない場合のデフォルト
+  }
+  
+  // デバッファー効果: レベルとC ATKで大幅強化
+  // レベル0(無効): 1.0倍、レベル1: 0.6倍、レベル2: 0.4倍、レベル3: 0.2倍
+  // さらにC ATK×0.01を減算（C ATK 20で-0.2）
+  let defMultiplier = 1;
+  if (isDebuffed && debufferLevel > 0) {
+    defMultiplier = Math.max(0.1, 0.8 - debufferLevel * 0.2 - cAtk * 0.01);
+  } else if (isDebuffed) {
+    defMultiplier = 0.7;  // レベル情報がない場合のデフォルト
+  }
   
   // 攻撃力の影響を高める（攻撃力×2倍で加算）
   const damage = Math.max(1, Math.floor(
@@ -835,11 +857,23 @@ export const castMagic = (
   const timeBonus = player.stats.time * 0.5 * condMultipliers.timeMultiplier;
   const totalDuration = baseDuration + timeBonus;
   
+  // バッファー/デバッファーのレベルを取得
+  const bufferEffect = player.statusEffects.find(e => e.type === 'buffer');
+  const bufferLevel = bufferEffect?.level ?? 0;
+  const isBuffed = bufferLevel > 0;
+  
   switch (magicType) {
     case 'thunder':
       // 画面上の敵にランダムダメージ
       updatedEnemies = enemies.map(enemy => {
-        const damage = calculateDamage(20 * level, effectiveCAtk, enemy.stats.def);
+        const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
+        const debufferLevel = debufferEffect?.level ?? 0;
+        const isDebuffed = debufferLevel > 0;
+        
+        const damage = calculateDamage(
+          20 * level, effectiveCAtk, enemy.stats.def,
+          isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+        );
         damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
         return {
           ...enemy,
@@ -874,7 +908,14 @@ export const castMagic = (
         const distance = Math.sqrt(dx * dx + dy * dy);
         
         if (distance <= fireRange) {
-          const damage = calculateDamage(fireDamage, effectiveCAtk, enemy.stats.def);
+          const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
+          const debufferLevel = debufferEffect?.level ?? 0;
+          const isDebuffed = debufferLevel > 0;
+          
+          const damage = calculateDamage(
+            fireDamage, effectiveCAtk, enemy.stats.def,
+            isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+          );
           damageTexts.push(createDamageText(enemy.x, enemy.y, damage, false, '#ff6b35'));
           return {
             ...enemy,

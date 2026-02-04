@@ -896,12 +896,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const effectiveRange = isInFront ? totalRange : baseRange;
             
             if (dist < effectiveRange) {
+              // 背水の陣・絶好調の攻撃力倍率
+              const condMultB = getConditionalSkillMultipliers(prev.player);
+              const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultB.atkMultiplier);
+              
               const damage = calculateDamage(
-                prev.player.stats.bAtk,
-                prev.player.stats.bAtk,
+                effectiveBAtk,
+                effectiveBAtk,
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer')
+                enemy.statusEffects.some(e => e.type === 'debuffer'),
+                getBufferLevel(prev.player.statusEffects),
+                getDebufferLevel(enemy.statusEffects),
+                prev.player.stats.cAtk
               );
               
               // ノックバック（B列は強め）
@@ -978,12 +985,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                     
                     if (dist < effectiveRange) {
+                      // 背水の陣・絶好調の攻撃力倍率
+                      const condMultBMulti = getConditionalSkillMultipliers(gs.player);
+                      const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBMulti.atkMultiplier);
+                      
                       const damage = calculateDamage(
-                        gs.player.stats.bAtk,
-                        gs.player.stats.bAtk,
+                        effectiveBAtk,
+                        effectiveBAtk,
                         enemy.stats.def,
                         gs.player.statusEffects.some(e => e.type === 'buffer'),
-                        enemy.statusEffects.some(e => e.type === 'debuffer')
+                        enemy.statusEffects.some(e => e.type === 'debuffer'),
+                        getBufferLevel(gs.player.statusEffects),
+                        getDebufferLevel(enemy.statusEffects),
+                        gs.player.stats.cAtk
                       );
                       
                       const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
@@ -1239,12 +1253,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const effectiveRange = isInFront ? totalRange : baseRange;
         
         if (dist < effectiveRange) {
+          // 背水の陣・絶好調の攻撃力倍率
+          const condMultBTap = getConditionalSkillMultipliers(prev.player);
+          const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultBTap.atkMultiplier);
+          
           const damage = calculateDamage(
-            prev.player.stats.bAtk,
-            prev.player.stats.bAtk,
+            effectiveBAtk,
+            effectiveBAtk,
             enemy.stats.def,
             prev.player.statusEffects.some(e => e.type === 'buffer'),
-            enemy.statusEffects.some(e => e.type === 'debuffer')
+            enemy.statusEffects.some(e => e.type === 'debuffer'),
+            getBufferLevel(prev.player.statusEffects),
+            getDebufferLevel(enemy.statusEffects),
+            prev.player.stats.cAtk
           );
           
           const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
@@ -1260,7 +1281,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             },
             knockbackVelocity: { x: knockbackX, y: knockbackY },
           };
-          }
+        }
           return enemy;
         });
         
@@ -1318,12 +1339,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                   
                   if (dist < effectiveRange) {
+                    // 背水の陣・絶好調の攻撃力倍率
+                    const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
+                    const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBTapMulti.atkMultiplier);
+                    
                     const damage = calculateDamage(
-                      gs.player.stats.bAtk,
-                      gs.player.stats.bAtk,
+                      effectiveBAtk,
+                      effectiveBAtk,
                       enemy.stats.def,
                       gs.player.statusEffects.some(e => e.type === 'buffer'),
-                      enemy.statusEffects.some(e => e.type === 'debuffer')
+                      enemy.statusEffects.some(e => e.type === 'debuffer'),
+                      getBufferLevel(gs.player.statusEffects),
+                      getDebufferLevel(enemy.statusEffects),
+                      gs.player.stats.cAtk
                     );
                     
                     const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
@@ -1437,12 +1465,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const dist = Math.sqrt(dx * dx + dy * dy);
             
             if (dist < 25) {  // 当たり判定を少し大きく
+              // 背水の陣・絶好調の攻撃力倍率
+              const condMultA = getConditionalSkillMultipliers(prev.player);
+              const effectiveADamage = Math.floor(proj.damage * condMultA.atkMultiplier);
+              
               const damage = calculateDamage(
-                proj.damage,
+                effectiveADamage,
                 0,
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer')
+                enemy.statusEffects.some(e => e.type === 'debuffer'),
+                getBufferLevel(prev.player.statusEffects),
+                getDebufferLevel(enemy.statusEffects),
+                prev.player.stats.cAtk
               );
               hitResults.push({ enemyId: enemy.id, damage, projId: proj.id });
               proj.hitEnemies.add(enemy.id);
@@ -1979,6 +2014,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     }
   }, [gameState.player.statusEffects, gameState.codeSlots.current]);
+  
+  // バッファー/デバッファーレベル取得ヘルパー
+  const getBufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
+    const buffer = statusEffects.find(e => e.type === 'buffer');
+    return buffer?.level ?? 0;
+  };
+  
+  const getDebufferLevel = (statusEffects: { type: string; level?: number }[]): number => {
+    const debuffer = statusEffects.find(e => e.type === 'debuffer');
+    return debuffer?.level ?? 0;
+  };
   
   // 方向ヘルパー
   const getOppositeDirection = (dir: Direction): Direction => {
