@@ -51,7 +51,7 @@ import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
-import { MIDIController, playNote, stopNote, initializeAudioSystem } from '@/utils/MidiController';
+import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import SurvivalSettingsModal from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -310,6 +310,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ビューポートサイズ
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
   const [isMobile, setIsMobile] = useState(false);
+  // MIDI接続状態
+  const [isMidiConnected, setIsMidiConnected] = useState(false);
   
   // ビューポートサイズ更新
   useEffect(() => {
@@ -329,9 +331,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   useEffect(() => {
     const initMidi = async () => {
       try {
-        await initializeAudioSystem();
+        // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
+        await Promise.all([
+          // 音声システム初期化
+          initializeAudioSystem().then(() => {
+            updateGlobalVolume(0.8);
+          }),
+          // FantasySoundManagerの初期化（ルート音再生用）
+          FantasySoundManager.init(0.8, 0.5, true).then(() => {
+            FantasySoundManager.enableRootSound(true);
+          })
+        ]);
         
-        midiControllerRef.current = new MIDIController({
+        const controller = new MIDIController({
           onNoteOn: (note: number) => {
             // refを使用して常に最新のhandleNoteInputを呼び出す
             handleNoteInputRef.current(note);
@@ -345,7 +357,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           playMidiSound: true, // ファンタジーモードと同様に有効化
         });
         
-        await midiControllerRef.current.initialize();
+        // MIDI接続状態変更コールバック（ファンタジーモードと同様）
+        controller.setConnectionChangeCallback((connected: boolean) => {
+          setIsMidiConnected(connected);
+        });
+        
+        midiControllerRef.current = controller;
+        
+        await controller.initialize();
+        
+        // MIDIControllerにキーハイライト機能を設定
+        if (pixiRendererRef.current) {
+          midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+            pixiRendererRef.current?.highlightKey(note, active);
+          });
+        }
         
         // 初期化エラーをクリア
         setInitError(null);
@@ -361,7 +387,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       midiControllerRef.current?.destroy();
     };
-  }, []);
+  }, []); // 空の依存配列で一度だけ実行
   
   // gameStoreのデバイスIDを監視して接続/切断（ファンタジーモードと共有）
   useEffect(() => {
@@ -400,6 +426,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           stopNote(note);
         }
       );
+      
+      // MIDIControllerにキーハイライト機能を設定（ファンタジーモードと同様）
+      if (midiControllerRef.current) {
+        midiControllerRef.current.setKeyHighlightCallback((note: number, active: boolean) => {
+          renderer.highlightKey(note, active);
+        });
+      }
     }
   }, [settings.noteNameStyle, settings.simpleDisplayMode]);
   
@@ -1972,7 +2005,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       <SurvivalSettingsModal
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
-        isMidiConnected={!!midiControllerRef.current?.getCurrentDeviceId()}
+        isMidiConnected={isMidiConnected}
       />
     </div>
   );
