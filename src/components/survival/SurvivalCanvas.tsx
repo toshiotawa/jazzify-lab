@@ -407,7 +407,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.shadowBlur = 0;
     });
     
-    // 敵の弾丸描画
+    // 敵の弾丸描画（小さめ）
     gameState.enemyProjectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
@@ -415,11 +415,11 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -20 || screenX > viewportWidth + 20 ||
           screenY < -20 || screenY > viewportHeight + 20) return;
       
-      ctx.font = '14px sans-serif';
+      ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = '#ff4444';
-      ctx.shadowBlur = 6;
+      ctx.shadowBlur = 4;
       ctx.fillText('🔴', screenX, screenY);
       ctx.shadowBlur = 0;
     });

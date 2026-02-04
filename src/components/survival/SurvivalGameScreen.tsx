@@ -1374,8 +1374,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 敵の弾丸更新
         newState.enemyProjectiles = updateEnemyProjectiles(prev.enemyProjectiles, deltaTime);
         
-        // 敵の弾丸とプレイヤーの当たり判定
-        const ENEMY_PROJECTILE_HIT_RADIUS = 25;
+        // 敵の弾丸とプレイヤーの当たり判定（小さめ）
+        const ENEMY_PROJECTILE_HIT_RADIUS = 15;
         newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
           const dx = proj.x - newState.player.x;
           const dy = proj.y - newState.player.y;
@@ -1448,7 +1448,28 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // スロットタイマー更新
         newState.codeSlots.current = newState.codeSlots.current.map((slot, slotIndex) => {
-          if (!slot.isEnabled || slot.isCompleted) return slot;
+          if (!slot.isEnabled) return slot;
+          
+          // 完了状態のスロットは一定時間後に自動リセット（setTimeoutが失敗した場合のフォールバック）
+          if (slot.isCompleted) {
+            // completedTimeが設定されていない場合は設定
+            if (!slot.completedTime) {
+              return { ...slot, completedTime: Date.now() };
+            }
+            // 500ms以上経過していたら強制リセット
+            if (Date.now() - slot.completedTime > 500) {
+              let nextChord = newState.codeSlots.next[slotIndex]?.chord;
+              if (!nextChord) {
+                nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
+              }
+              const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+              newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                i === slotIndex ? { ...ns, chord: newNextChord } : ns
+              ) as [CodeSlot, CodeSlot, CodeSlot];
+              return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
+            }
+            return slot;
+          }
           
           // コードが空の場合、新しいコードを生成
           if (!slot.chord) {

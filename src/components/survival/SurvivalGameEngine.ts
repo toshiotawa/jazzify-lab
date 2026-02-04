@@ -148,8 +148,8 @@ export const calculateWaveQuota = (waveNumber: number): number => {
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
-  // WAVEが進むごとに敵が10%ずつ速くなる
-  return 1 + (waveNumber - 1) * 0.1;
+  // WAVEが進むごとに敵が20%ずつ速くなる（より高速化）
+  return 1 + (waveNumber - 1) * 0.2;
 };
 
 // ===== コード生成 =====

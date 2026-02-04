@@ -170,6 +170,7 @@ export interface CodeSlot {
   timer: number;             // 残り時間（秒）
   isCompleted: boolean;
   isEnabled: boolean;        // C列は魔法取得まで無効
+  completedTime?: number;    // 完了時刻（自動リセット用）
 }
 
 // ===== レベルアップボーナス =====
