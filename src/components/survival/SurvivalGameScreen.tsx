@@ -654,16 +654,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 各スロットをチェック（1回の入力で1つのスロットのみ完了させる）
+      // 各スロットをチェック
       let completedSlotIndex: number | null = null;
-      let alreadyMatchedSlot = false;  // 1回の入力で1スロットのみ処理
       
       newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
-        if (!slot.isEnabled || slot.isCompleted || !slot.chord) return slot;
-        // 既にリセット待ち中のスロットはスキップ（completedTimeが設定されている）
-        if (slot.completedTime) return slot;
-        // 既に他のスロットがマッチした場合はスキップ
-        if (alreadyMatchedSlot) return slot;
+        if (!slot.isEnabled || !slot.chord) return slot;
+        // 既に完了済み or リセット待ち中のスロットはスキップ
+        if (slot.isCompleted || slot.completedTime) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -672,9 +669,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const newCorrectNotes = [...slot.correctNotes, noteMod12];
         const isComplete = newCorrectNotes.length >= targetNotes.length;
         
-        if (isComplete) {
+        // 完了したスロットを記録（最初に完了したもののみ攻撃処理を行う）
+        if (isComplete && completedSlotIndex === null) {
           completedSlotIndex = index;
-          alreadyMatchedSlot = true;  // このスロットで完了したので他はスキップ
         }
         
         return {
@@ -1768,14 +1765,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (hintSlotIndex !== null && renderer) {
       const slot = gameState.codeSlots.current[hintSlotIndex];
       if (slot.chord?.notes) {
-        // 全オクターブで該当する鍵盤をハイライト
+        // オクターブ4から上の範囲でハイライト（C4=60から）
         const uniqueNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         const highlightNotes: number[] = [];
-        // ピアノの範囲（A0=21 ~ C8=108）でハイライト
+        // オクターブ4-7の範囲でハイライト（C4=60 ~ B7=107）
         for (const noteMod12 of uniqueNotes) {
-          for (let octave = 0; octave <= 8; octave++) {
-            const midiNote = noteMod12 + (octave + 1) * 12;
-            if (midiNote >= 21 && midiNote <= 108) {
+          for (let octave = 4; octave <= 7; octave++) {
+            const midiNote = noteMod12 + octave * 12;
+            if (midiNote >= 48 && midiNote <= 108) {  // C3=48以上
               highlightNotes.push(midiNote);
             }
           }
