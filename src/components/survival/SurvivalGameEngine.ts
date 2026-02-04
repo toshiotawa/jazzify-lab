@@ -505,9 +505,9 @@ export const calculateDamage = (
     defMultiplier = 0.7;  // レベル情報がない場合のデフォルト
   }
   
-  // 攻撃力の影響を高める（攻撃力×2倍で加算）
+  // 攻撃力の影響を高める（攻撃力×2倍で加算）、バフ効果はbaseDamageにも適用
   const damage = Math.max(1, Math.floor(
-    (baseDamage + attackerAtk * 2 * atkMultiplier) - (defenderDef * defMultiplier * 0.5)
+    (baseDamage + attackerAtk * 2) * atkMultiplier - (defenderDef * defMultiplier * 0.5)
   ));
   
   return damage;
@@ -571,7 +571,7 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
   { type: 'b_deflect', displayName: '拳でかきけす', description: 'B列攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
-  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 3 },
+  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
   { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
   { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },
   // 魔法系
@@ -765,7 +765,7 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.skills.multiHitLevel = Math.min(3, newPlayer.skills.multiHitLevel + 1);
       break;
     case 'exp_bonus':
-      newPlayer.skills.expBonusLevel = Math.min(3, newPlayer.skills.expBonusLevel + 1);
+      newPlayer.skills.expBonusLevel = Math.min(10, newPlayer.skills.expBonusLevel + 1);
       break;
     case 'haisui_no_jin':
       newPlayer.skills.haisuiNoJin = true;
