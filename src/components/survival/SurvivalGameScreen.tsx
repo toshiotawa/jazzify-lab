@@ -29,6 +29,7 @@ import {
   checkChordMatch,
   getCorrectNotes,
   createProjectile,
+  createProjectileFromAngle,
   calculateDamage,
   calculateAProjectileDamage,
   generateLevelUpOptions,
@@ -38,6 +39,8 @@ import {
   getMagicCooldown,
   castMagic,
   getDirectionVector,
+  getClockwiseBulletAngles,
+  getDirectionAngle,
   createCoinsFromEnemy,
   collectCoins,
   cleanupExpiredCoins,
@@ -48,7 +51,6 @@ import {
   updateEnemyProjectiles,
   getConditionalSkillMultipliers,
   checkLuck,
-  getLuckChance,
   MAX_ENEMIES,
   MAX_PROJECTILES,
   MAX_COINS,
@@ -158,10 +160,7 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
 
 interface DebugSkillSettings {
   aPenetration?: boolean;     // 貫通（上限1）
-  aBulletCount?: number;      // A列の弾数
-  aBackBullet?: number;       // 後方弾（上限なし）
-  aRightBullet?: number;      // 右側弾（上限なし）
-  aLeftBullet?: number;       // 左側弾（上限なし）
+  aBulletCount?: number;      // A列の弾数（時計方向システム）
   bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
   bDeflect?: boolean;         // 拳でかきけす（上限1）
@@ -283,15 +282,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.aBulletCount !== undefined) {
           initial.player.stats.aBulletCount = skills.aBulletCount;
-        }
-        if (skills.aBackBullet !== undefined) {
-          initial.player.skills.aBackBullet = skills.aBackBullet;
-        }
-        if (skills.aRightBullet !== undefined) {
-          initial.player.skills.aRightBullet = skills.aRightBullet;
-        }
-        if (skills.aLeftBullet !== undefined) {
-          initial.player.skills.aLeftBullet = skills.aLeftBullet;
         }
         if (skills.bKnockbackBonus !== undefined) {
           initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;
@@ -766,44 +756,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 攻撃処理
         if (slotType === 'A') {
-          // 遠距離弾発射
-          const directions: Direction[] = [];
-          
-          // 前方弾（aBulletCount分）
+          // 遠距離弾発射 - 時計方向システム
           const bulletCount = prev.player.stats.aBulletCount || 1;
-          for (let i = 0; i < bulletCount; i++) {
-            directions.push(prev.player.direction);
-          }
+          const baseAngle = getDirectionAngle(prev.player.direction);
+          const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
           
-          // 追加弾
-          if (prev.player.skills.aBackBullet > 0) {
-            const backDir = getOppositeDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aBackBullet; i++) {
-              directions.push(backDir);
-            }
-          }
-          if (prev.player.skills.aLeftBullet > 0) {
-            const leftDir = getLeftDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aLeftBullet; i++) {
-              directions.push(leftDir);
-            }
-          }
-          if (prev.player.skills.aRightBullet > 0) {
-            const rightDir = getRightDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aRightBullet; i++) {
-              directions.push(rightDir);
-            }
-          }
-          
-          // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
-          const newProjectiles = directions.map((dir, index) => {
-            const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
-            // 同じ方向の弾は少しずらして発射
-            const offset = (index % bulletCount) * 5;
-            const dirVec = getDirectionVector(dir);
-            proj.x += dirVec.y * offset;  // 垂直方向にオフセット
-            proj.y -= dirVec.x * offset;  // 垂直方向にオフセット
-            return proj;
+          // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+          const newProjectiles = bulletAngles.map((angle) => {
+            return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
           });
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
           
@@ -816,45 +776,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   // ゲーム中断中は発動しない
                   if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                   
-                  const multiDirections: Direction[] = [];
-                  const bulletCount = gs.player.stats.aBulletCount || 1;
-                  for (let i = 0; i < bulletCount; i++) {
-                    multiDirections.push(gs.player.direction);
-                  }
-                  if (gs.player.skills.aBackBullet > 0) {
-                    const backDir = getOppositeDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
-                      multiDirections.push(backDir);
-                    }
-                  }
-                  if (gs.player.skills.aLeftBullet > 0) {
-                    const leftDir = getLeftDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
-                      multiDirections.push(leftDir);
-                    }
-                  }
-                  if (gs.player.skills.aRightBullet > 0) {
-                    const rightDir = getRightDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
-                      multiDirections.push(rightDir);
-                    }
-                  }
+                  // 時計方向システム
+                  const multiBulletCount = gs.player.stats.aBulletCount || 1;
+                  const multiBaseAngle = getDirectionAngle(gs.player.direction);
+                  const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
                   
-                const additionalProjectiles = multiDirections.map((dir, index) => {
-                  const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
-                  const offset = (index % bulletCount) * 5;
-                  const dirVec = getDirectionVector(dir);
-                  proj.x += dirVec.y * offset;
-                  proj.y -= dirVec.x * offset;
-                  return proj;
+                  const additionalProjectiles = multiBulletAngles.map((angle) => {
+                    return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
+                  });
+                  
+                  return {
+                    ...gs,
+                    projectiles: [...gs.projectiles, ...additionalProjectiles],
+                  };
                 });
-                
-                return {
-                  ...gs,
-                  projectiles: [...gs.projectiles, ...additionalProjectiles],
-                };
-              });
-            }, hit * 200); // 0.2秒ごと
+              }, hit * 200); // 0.2秒ごと
+            }
           }
         }
         
@@ -1128,43 +1065,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // 攻撃処理
       if (slotType === 'A') {
-        // 遠距離弾発射
-        const directions: Direction[] = [];
-        
-        // 前方弾（aBulletCount分）
+        // 遠距離弾発射 - 時計方向システム
         const bulletCount = prev.player.stats.aBulletCount || 1;
-        for (let i = 0; i < bulletCount; i++) {
-          directions.push(prev.player.direction);
-        }
+        const baseAngle = getDirectionAngle(prev.player.direction);
+        const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
         
-        if (prev.player.skills.aBackBullet > 0) {
-          const backDir = getOppositeDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aBackBullet; i++) {
-            directions.push(backDir);
-          }
-        }
-        if (prev.player.skills.aLeftBullet > 0) {
-          const leftDir = getLeftDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aLeftBullet; i++) {
-            directions.push(leftDir);
-          }
-        }
-        if (prev.player.skills.aRightBullet > 0) {
-          const rightDir = getRightDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aRightBullet; i++) {
-            directions.push(rightDir);
-          }
-        }
-        
-        // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
-        const newProjectiles = directions.map((dir, index) => {
-          const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
-          // 同じ方向の弾は少しずらして発射
-          const offset = (index % bulletCount) * 5;
-          const dirVec = getDirectionVector(dir);
-          proj.x += dirVec.y * offset;
-          proj.y -= dirVec.x * offset;
-          return proj;
+        // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+        const newProjectiles = bulletAngles.map((angle) => {
+          return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
         });
         newState.projectiles = [...prev.projectiles, ...newProjectiles];
         
@@ -1176,47 +1084,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               setGameState(gs => {
                 if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                 
-                const multiDirections: Direction[] = [];
-                const bulletCount = gs.player.stats.aBulletCount || 1;
-                for (let i = 0; i < bulletCount; i++) {
-                  multiDirections.push(gs.player.direction);
-                }
-                if (gs.player.skills.aBackBullet > 0) {
-                  const backDir = getOppositeDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
-                    multiDirections.push(backDir);
-                  }
-                }
-                if (gs.player.skills.aLeftBullet > 0) {
-                  const leftDir = getLeftDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
-                    multiDirections.push(leftDir);
-                  }
-                }
-                if (gs.player.skills.aRightBullet > 0) {
-                  const rightDir = getRightDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
-                    multiDirections.push(rightDir);
-                  }
-                }
+                // 時計方向システム
+                const multiBulletCount = gs.player.stats.aBulletCount || 1;
+                const multiBaseAngle = getDirectionAngle(gs.player.direction);
+                const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
                 
-              const additionalProjectiles = multiDirections.map((dir, index) => {
-                const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
-                const offset = (index % bulletCount) * 5;
-                const dirVec = getDirectionVector(dir);
-                proj.x += dirVec.y * offset;
-                proj.y -= dirVec.x * offset;
-                return proj;
+                const additionalProjectiles = multiBulletAngles.map((angle) => {
+                  return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
+                });
+                
+                return {
+                  ...gs,
+                  projectiles: [...gs.projectiles, ...additionalProjectiles],
+                };
               });
-              
-              return {
-                ...gs,
-                projectiles: [...gs.projectiles, ...additionalProjectiles],
-              };
-            });
-          }, hit * 200);  // 0.2秒ごと
+            }, hit * 200);  // 0.2秒ごと
+          }
         }
-      }
       
     } else if (slotType === 'B') {
       // 近接攻撃 - 衝撃波エフェクト追加
@@ -1942,15 +1826,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.aBulletCount !== undefined) {
           initial.player.stats.aBulletCount = skills.aBulletCount;
-        }
-        if (skills.aBackBullet !== undefined) {
-          initial.player.skills.aBackBullet = skills.aBackBullet;
-        }
-        if (skills.aRightBullet !== undefined) {
-          initial.player.skills.aRightBullet = skills.aRightBullet;
-        }
-        if (skills.aLeftBullet !== undefined) {
-          initial.player.skills.aLeftBullet = skills.aLeftBullet;
         }
         if (skills.bKnockbackBonus !== undefined) {
           initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;

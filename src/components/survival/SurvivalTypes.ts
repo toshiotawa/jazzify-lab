@@ -70,9 +70,8 @@ export interface PlayerStats {
 export interface SpecialSkills {
   // A列スキル
   aPenetration: boolean;      // 貫通
-  aBackBullet: number;        // 後方弾（追加数）
-  aRightBullet: number;       // 右側弾（追加数）
-  aLeftBullet: number;        // 左側弾（追加数）
+  // 注: aBackBullet, aRightBullet, aLeftBulletは廃止
+  // 代わりにaBulletCountが時計方向に弾を追加する
   
   // B列スキル
   bKnockbackBonus: number;    // ノックバック距離増加
@@ -151,6 +150,7 @@ export interface Projectile {
   x: number;
   y: number;
   direction: Direction;
+  angle?: number;            // 移動角度（ラジアン）- 時計方向システム用
   damage: number;
   penetrating: boolean;
   hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
@@ -195,9 +195,6 @@ export type BonusType =
   | 'luck_pendant'  // 幸運のペンダント（Luck +1）
   // 特殊系
   | 'a_penetration'
-  | 'a_back_bullet'
-  | 'a_right_bullet'
-  | 'a_left_bullet'
   | 'b_knockback'
   | 'b_range'
   | 'b_deflect'
@@ -386,7 +383,7 @@ export interface SurvivalGameResult {
 
 // ===== 定数 =====
 export const SLOT_TIMEOUT = 10;  // コードスロットのタイムアウト（秒）
-export const MAGIC_BASE_COOLDOWN = 15;  // 魔法の基本クールダウン（秒）
+export const MAGIC_BASE_COOLDOWN = 10;  // 魔法の基本クールダウン（秒）
 export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（秒）
 export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
 
