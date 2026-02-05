@@ -32,6 +32,9 @@ export interface SurvivalDifficultySettings {
   enemyStatMultiplier: number;
   expMultiplier: number;
   itemDropRate: number;
+  // BGM設定（オプショナル - DBにカラムがない場合は未定義）
+  bgmOddWave?: string | null;    // 奇数WAVE用BGM URL
+  bgmEvenWave?: string | null;   // 偶数WAVE用BGM URL
 }
 
 export interface UserBestSurvivalTime {
@@ -189,6 +192,8 @@ export async function updateSurvivalDifficultySettings(
   if (settings.enemyStatMultiplier !== undefined) updateData.enemy_stat_multiplier = settings.enemyStatMultiplier;
   if (settings.expMultiplier !== undefined) updateData.exp_multiplier = settings.expMultiplier;
   if (settings.itemDropRate !== undefined) updateData.item_drop_rate = settings.itemDropRate;
+  if (settings.bgmOddWave !== undefined) updateData.bgm_odd_wave = settings.bgmOddWave;
+  if (settings.bgmEvenWave !== undefined) updateData.bgm_even_wave = settings.bgmEvenWave;
   
   const { data, error } = await supabase
     .from('survival_difficulty_settings')
@@ -227,5 +232,7 @@ function convertDifficultySettings(row: Record<string, unknown>): SurvivalDiffic
     enemyStatMultiplier: Number(row.enemy_stat_multiplier) || 1.0,
     expMultiplier: Number(row.exp_multiplier) || 1.0,
     itemDropRate: Number(row.item_drop_rate) || 0.1,
+    bgmOddWave: (row.bgm_odd_wave as string | null) || null,
+    bgmEvenWave: (row.bgm_even_wave as string | null) || null,
   };
 }

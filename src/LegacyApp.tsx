@@ -263,6 +263,7 @@ const App: React.FC = () => {
     case '#admin-songs':
     case '#admin-fantasy-bgm':
     case '#admin-fantasy-stages':
+    case '#admin-survival':
     case '#admin-lesson-stages':
     case '#admin-lessons':
     case '#admin-challenges':
@@ -292,7 +293,8 @@ const App: React.FC = () => {
       MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
       break;
     default:
-      MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
+      // 不正なURLの場合はダッシュボードを表示
+      MainContent = <Dashboard />;
       break;
   }
 

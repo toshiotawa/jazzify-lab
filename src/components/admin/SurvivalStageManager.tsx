@@ -179,6 +179,8 @@ const SurvivalStageManager: React.FC = () => {
         enemyStatMultiplier: currentSettings.enemyStatMultiplier,
         expMultiplier: currentSettings.expMultiplier,
         itemDropRate: currentSettings.itemDropRate,
+        bgmOddWave: currentSettings.bgmOddWave,
+        bgmEvenWave: currentSettings.bgmEvenWave,
       });
       toast.success('設定を保存しました');
     } catch (e) {
@@ -283,6 +285,44 @@ const SurvivalStageManager: React.FC = () => {
                 />
               </div>
             </div>
+          </div>
+          
+          {/* BGM設定 */}
+          <div className="mb-6">
+            <h4 className="text-lg font-semibold text-white mb-4">BGM設定（WAVE別）</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <SmallLabel>奇数WAVE BGM URL（ループ再生）</SmallLabel>
+                <input
+                  type="text"
+                  placeholder="https://... または空欄でBGMなし"
+                  className="input input-bordered w-full bg-slate-700"
+                  value={currentSettings.bgmOddWave || ''}
+                  onChange={(e) => setSettings(prev => prev.map(s => 
+                    s.difficulty === selectedDifficulty 
+                      ? { ...s, bgmOddWave: e.target.value || null }
+                      : s
+                  ))}
+                />
+              </div>
+              <div>
+                <SmallLabel>偶数WAVE BGM URL（ループ再生）</SmallLabel>
+                <input
+                  type="text"
+                  placeholder="https://... または空欄でBGMなし"
+                  className="input input-bordered w-full bg-slate-700"
+                  value={currentSettings.bgmEvenWave || ''}
+                  onChange={(e) => setSettings(prev => prev.map(s => 
+                    s.difficulty === selectedDifficulty 
+                      ? { ...s, bgmEvenWave: e.target.value || null }
+                      : s
+                  ))}
+                />
+              </div>
+            </div>
+            <p className="text-xs text-gray-400 mt-2">
+              ※ DBにbgm_odd_wave, bgm_even_waveカラムがない場合は設定が保存されません
+            </p>
           </div>
           
           {/* 許可コード設定 */}
