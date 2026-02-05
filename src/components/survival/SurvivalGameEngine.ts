@@ -557,7 +557,7 @@ export const getVectorFromAngle = (angle: number): { x: number; y: number } => {
 };
 
 // ===== 攻撃処理 =====
-// A列弾丸のダメージ計算（A ATK +1 で約10ダメージ増加、初期状態で10-14維持）
+// A列（遠距離）弾丸のダメージ計算（A ATK +1 で約10ダメージ増加、初期状態で10-14維持）
 const INITIAL_A_ATK = 10;  // 初期A ATK値
 const A_ATK_DAMAGE_MULTIPLIER = 10;  // A ATK +1あたりのダメージ増加量
 const A_BASE_DAMAGE = 14;  // 基本ダメージ（初期A ATKでのダメージ）
@@ -565,6 +565,25 @@ const A_BASE_DAMAGE = 14;  // 基本ダメージ（初期A ATKでのダメージ
 export const calculateAProjectileDamage = (aAtk: number): number => {
   // 初期状態（aAtk=10）でA_BASE_DAMAGE、+1ごとにA_ATK_DAMAGE_MULTIPLIER増加
   return A_BASE_DAMAGE + (aAtk - INITIAL_A_ATK) * A_ATK_DAMAGE_MULTIPLIER;
+};
+
+// B列（近接）攻撃のダメージ計算（B ATK +1 で10ダメージ増加）
+const INITIAL_B_ATK = 15;  // 初期B ATK値
+const B_ATK_DAMAGE_MULTIPLIER = 10;  // B ATK +1あたりのダメージ増加量
+const B_BASE_DAMAGE = 20;  // 基本ダメージ（初期B ATKでのダメージ）
+
+export const calculateBMeleeDamage = (bAtk: number): number => {
+  // 初期状態（bAtk=15）でB_BASE_DAMAGE、+1ごとにB_ATK_DAMAGE_MULTIPLIER増加
+  return B_BASE_DAMAGE + (bAtk - INITIAL_B_ATK) * B_ATK_DAMAGE_MULTIPLIER;
+};
+
+// C列（魔法）攻撃のダメージ計算（C ATK +1 で10ダメージ増加）
+const INITIAL_C_ATK = 20;  // 初期C ATK値
+const C_ATK_DAMAGE_MULTIPLIER = 10;  // C ATK +1あたりのダメージ増加量
+
+export const calculateCMagicDamage = (cAtk: number, baseSpellDamage: number): number => {
+  // 基本呪文ダメージ + (C ATK - 初期値) × 10
+  return baseSpellDamage + (cAtk - INITIAL_C_ATK) * C_ATK_DAMAGE_MULTIPLIER;
 };
 
 export const createProjectile = (
@@ -748,21 +767,21 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
 // ===== レベルアップボーナス生成 =====
 const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: string; icon: string; maxLevel?: number }> = [
   // ステータス系
-  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
-  { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力アップ', icon: '👊' },
-  { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力アップ', icon: '🪄' },
+  { type: 'a_atk', displayName: '遠距離 ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
+  { type: 'b_atk', displayName: '近接 ATK +1', description: '近接攻撃力アップ（+10ダメージ）', icon: '👊' },
+  { type: 'c_atk', displayName: '魔法 ATK +1', description: '魔法攻撃力アップ（+10ダメージ）', icon: '🪄' },
   { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: '👟' },
   { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: '⏱️', maxLevel: 20 },
   { type: 'max_hp', displayName: 'HP +20%', description: '最大HPアップ', icon: '❤️' },
   { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: '🛡️' },
   { type: 'time', displayName: 'TIME +1', description: '効果時間+2秒', icon: '⏰' },
-  { type: 'a_bullet', displayName: 'A弾数 +2', description: '時計方向に弾を追加', icon: '💫' },
+  { type: 'a_bullet', displayName: '遠距離弾数 +2', description: '時計方向に弾を追加', icon: '💫' },
   { type: 'luck_pendant', displayName: '幸運のペンダント', description: '運+1%（ダメージ2倍等の確率UP）', icon: '🍀', maxLevel: 40 },
   // 特殊系
-  { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: '➡️', maxLevel: 1 },
-  { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
+  { type: 'a_penetration', displayName: '貫通', description: '遠距離弾が敵を貫通', icon: '➡️', maxLevel: 1 },
+  { type: 'b_knockback', displayName: 'ノックバック+', description: '近接攻撃のノックバック距離増加', icon: '💨' },
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
-  { type: 'b_deflect', displayName: '拳でかきけす', description: 'B列攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
+  { type: 'b_deflect', displayName: '拳でかきけす', description: '近接攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
   { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
   { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
@@ -1051,14 +1070,18 @@ export const castMagic = (
   
   switch (magicType) {
     case 'thunder':
-      // 画面上の敵にランダムダメージ
+      // 画面上の敵にランダムダメージ（C ATK +1で10ダメージ増加）
       updatedEnemies = enemies.map(enemy => {
         const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
         const debufferLevel = debufferEffect?.level ?? 0;
         const isDebuffed = debufferLevel > 0;
         
+        // 基本呪文ダメージ（レベル1: 30, レベル2: 50, レベル3: 70）にC ATKボーナスを加算
+        const baseThunderDamage = 30 + (level - 1) * 20;
+        const cMagicDamage = calculateCMagicDamage(player.stats.cAtk, baseThunderDamage);
+        
         const damage = calculateDamage(
-          20 * level, effectiveCAtk, enemy.stats.def,
+          Math.floor(cMagicDamage * condMultipliers.atkMultiplier), 0, enemy.stats.def,
           isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
         );
         damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
@@ -1086,7 +1109,9 @@ export const castMagic = (
     case 'fire': {
       // 自分の周りに炎の渦（プレイヤーにバフとして付与 + 周囲の敵にダメージ）
       const fireRange = 100 + level * 30; // 炎の範囲（レベルで拡大）
-      const fireDamage = Math.floor(15 * level * (1 + effectiveCAtk * 0.05)); // 炎ダメージ
+      // 基本炎ダメージ（レベル1: 25, レベル2: 40, レベル3: 55）にC ATKボーナスを加算
+      const baseFireDamage = 25 + (level - 1) * 15;
+      const fireDamage = Math.floor(calculateCMagicDamage(player.stats.cAtk, baseFireDamage) * condMultipliers.atkMultiplier);
       
       // 範囲内の敵にダメージ
       updatedEnemies = enemies.map(enemy => {
@@ -1100,7 +1125,7 @@ export const castMagic = (
           const isDebuffed = debufferLevel > 0;
           
           const damage = calculateDamage(
-            fireDamage, effectiveCAtk, enemy.stats.def,
+            fireDamage, 0, enemy.stats.def,
             isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
           );
           damageTexts.push(createDamageText(enemy.x, enemy.y, damage, false, '#ff6b35'));

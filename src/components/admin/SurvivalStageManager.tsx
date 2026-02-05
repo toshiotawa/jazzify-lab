@@ -129,7 +129,7 @@ const SurvivalStageManager: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   
   // コードをトグル
   const toggleChord = useCallback((chordName: string) => {
@@ -238,8 +238,8 @@ const SurvivalStageManager: React.FC = () => {
       <h3 className="text-xl font-bold">サバイバルモード管理</h3>
       
       {/* 難易度選択タブ */}
-      <div className="flex space-x-2">
-        {(['easy', 'normal', 'hard', 'extreme'] as const).map(diff => (
+      <div className="flex flex-wrap gap-2">
+        {(['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).map(diff => (
           <button
             key={diff}
             onClick={() => setSelectedDifficulty(diff)}
@@ -249,7 +249,7 @@ const SurvivalStageManager: React.FC = () => {
                 : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
             }`}
           >
-            {diff.charAt(0).toUpperCase() + diff.slice(1)}
+            {diff === 'veryeasy' ? 'Very Easy' : diff.charAt(0).toUpperCase() + diff.slice(1)}
           </button>
         ))}
       </div>

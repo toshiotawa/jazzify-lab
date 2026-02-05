@@ -583,7 +583,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             <div className="space-y-4 mb-6">
               <div>
                 <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  🔫 A列攻撃力 (aAtk): {debugAAtk}
+                  🔫 遠距離攻撃力 (aAtk): {debugAAtk}
                 </label>
                 <input
                   type="range"
@@ -597,7 +597,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               
               <div>
                 <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  👊 B列攻撃力 (bAtk): {debugBAtk}
+                  👊 近接攻撃力 (bAtk): {debugBAtk}
                 </label>
                 <input
                   type="range"
@@ -611,7 +611,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               
               <div>
                 <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  🪄 C列攻撃力 (cAtk): {debugCAtk}
+                  🪄 魔法攻撃力 (cAtk): {debugCAtk}
                 </label>
                 <input
                   type="range"

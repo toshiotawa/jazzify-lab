@@ -32,6 +32,7 @@ import {
   createProjectileFromAngle,
   calculateDamage,
   calculateAProjectileDamage,
+  calculateBMeleeDamage,
   generateLevelUpOptions,
   applyLevelUpBonus,
   addExp,
@@ -929,11 +930,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (dist < effectiveRange) {
               // 背水の陣・絶好調の攻撃力倍率
               const condMultB = getConditionalSkillMultipliers(prev.player);
-              const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultB.atkMultiplier);
+              // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
               
               const damage = calculateDamage(
-                effectiveBAtk,
-                effectiveBAtk,
+                baseBDamage,
+                0,  // attackerAtkは0（baseBDamageに含まれる）
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
                 enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -942,7 +944,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 prev.player.stats.cAtk
               );
               
-              // ノックバック（B列は強め）
+              // ノックバック（近接は強め）
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               
@@ -1018,11 +1020,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     if (dist < effectiveRange) {
                       // 背水の陣・絶好調の攻撃力倍率
                       const condMultBMulti = getConditionalSkillMultipliers(gs.player);
-                      const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBMulti.atkMultiplier);
+                      // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+                      const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier);
                       
                       const damage = calculateDamage(
-                        effectiveBAtk,
-                        effectiveBAtk,
+                        baseBDamage,
+                        0,  // attackerAtkは0（baseBDamageに含まれる）
                         enemy.stats.def,
                         gs.player.statusEffects.some(e => e.type === 'buffer'),
                         enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1268,11 +1271,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (dist < effectiveRange) {
           // 背水の陣・絶好調の攻撃力倍率
           const condMultBTap = getConditionalSkillMultipliers(prev.player);
-          const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultBTap.atkMultiplier);
+          // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+          const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier);
           
           const damage = calculateDamage(
-            effectiveBAtk,
-            effectiveBAtk,
+            baseBDamage,
+            0,  // attackerAtkは0（baseBDamageに含まれる）
             enemy.stats.def,
             prev.player.statusEffects.some(e => e.type === 'buffer'),
             enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1354,11 +1358,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   if (dist < effectiveRange) {
                     // 背水の陣・絶好調の攻撃力倍率
                     const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
-                    const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBTapMulti.atkMultiplier);
+                    // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+                    const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier);
                     
                     const damage = calculateDamage(
-                      effectiveBAtk,
-                      effectiveBAtk,
+                      baseBDamage,
+                      0,  // attackerAtkは0（baseBDamageに含まれる）
                       enemy.stats.def,
                       gs.player.statusEffects.some(e => e.type === 'buffer'),
                       enemy.statusEffects.some(e => e.type === 'debuffer'),
