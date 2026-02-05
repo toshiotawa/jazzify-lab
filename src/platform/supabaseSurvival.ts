@@ -3,7 +3,7 @@
  */
 import { getSupabaseClient } from './supabaseClient';
 
-export type SurvivalDifficulty = 'easy' | 'normal' | 'hard' | 'extreme';
+export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 
 export interface SurvivalHighScore {
   id: string;

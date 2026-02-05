@@ -120,10 +120,18 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
 
 /**
  * コード名のパース（ルートとクオリティに分割）
- * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7'）
+ * @param chordName コード名（例: 'CM7', 'F#m7', 'Bb7', 'C_note'）
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+  // 単音表記の確認（例: 'C_note', 'D_note'）
+  if (chordName.endsWith('_note')) {
+    const root = chordName.replace('_note', '');
+    if (/^[A-G](?:#{1,2}|b{1,2}|x)?$/.test(root)) {
+      return { root, quality: 'single' };
+    }
+  }
+  
   // ルート音とサフィックスを分離（ダブルシャープ・ダブルフラットも対応）
   const match = chordName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.*)$/);
   if (!match) return null;

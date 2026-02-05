@@ -37,6 +37,19 @@ const DEBUG_SKILLS = [
 // 敵の強さは全難易度で統一（1.0）、出題コードで差をつける
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
+    difficulty: 'veryeasy',
+    displayName: 'Very Easy',
+    description: '入門向け。単音ノーツのみで練習。',
+    allowedChords: ['C_note', 'D_note', 'E_note', 'F_note', 'G_note', 'A_note', 'B_note'],
+    enemySpawnRate: 3,
+    enemySpawnCount: 2,
+    enemyStatMultiplier: 0.8,  // 敵が弱め
+    expMultiplier: 0.5,
+    itemDropRate: 0.20,
+    bgmOddWaveUrl: null,
+    bgmEvenWaveUrl: null,
+  },
+  {
     difficulty: 'easy',
     displayName: 'Easy',
     description: '初心者向け。基本的なメジャー・マイナーコードのみ。',
@@ -92,6 +105,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
 
 // 難易度別アイコン設定
 const DIFFICULTY_ICONS: Record<SurvivalDifficulty, React.ReactNode> = {
+  veryeasy: <FaStar className="text-3xl text-emerald-300" />,
   easy: <FaStar className="text-3xl text-green-400" />,
   normal: <FaStar className="text-3xl text-blue-400" />,
   hard: <FaFire className="text-3xl text-orange-400" />,
@@ -100,6 +114,11 @@ const DIFFICULTY_ICONS: Record<SurvivalDifficulty, React.ReactNode> = {
 
 // 色設定
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string; gradient: string }> = {
+  veryeasy: {
+    bg: 'bg-emerald-900/30',
+    border: 'border-emerald-400',
+    gradient: 'from-emerald-500 to-emerald-700',
+  },
   easy: {
     bg: 'bg-green-900/30',
     border: 'border-green-500',
@@ -124,6 +143,7 @@ const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string
 
 // 英語版説明文
 const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
+  veryeasy: 'Introduction. Single notes only.',
   easy: 'Beginner friendly. Basic major/minor chords only.',
   normal: 'Standard difficulty. Seventh chords added.',
   hard: 'Advanced. Complex chords and fast enemies.',
@@ -178,6 +198,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   // 状態管理
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DEFAULT_DIFFICULTY_CONFIGS);
   const [highScores, setHighScores] = useState<Record<SurvivalDifficulty, SurvivalHighScore | null>>({
+    veryeasy: null,
     easy: null,
     normal: null,
     hard: null,
@@ -255,6 +276,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       // ローカルストレージからハイスコアを読み込む関数
       const loadFromLocalStorage = (): Record<SurvivalDifficulty, SurvivalHighScore | null> => {
         const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+          veryeasy: null,
           easy: null,
           normal: null,
           hard: null,
@@ -296,6 +318,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         try {
           const scores = await fetchUserSurvivalHighScores(profile.id);
           const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
+            veryeasy: null,
             easy: null,
             normal: null,
             hard: null,
@@ -306,7 +329,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
           });
           
           // データベースとローカルストレージのスコアをマージ（高い方を採用）
-          (['easy', 'normal', 'hard', 'extreme'] as const).forEach(diff => {
+          (['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).forEach(diff => {
             const dbScore = scoreMap[diff];
             const localScore = localScores[diff];
             if (!dbScore && localScore) {
@@ -424,7 +447,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       {/* 難易度カード - シンプルな縦並び */}
       <div className="px-4 sm:px-6 pb-6">
         <div className="max-w-2xl mx-auto space-y-4">
-          {(['easy', 'normal', 'hard', 'extreme'] as const).map((difficulty) => {
+          {(['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).map((difficulty) => {
             const config = getConfig(difficulty);
             const colors = DIFFICULTY_COLORS[difficulty];
             const score = highScores[difficulty];

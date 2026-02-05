@@ -1674,7 +1674,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // レベルアップ処理
         if (leveledUp && levelUpCount > 0) {
-          if (newState.isLevelingUp) {
+          // オート選択スキルがある場合は自動的にボーナスを選択
+          if (newState.player.skills.autoSelect) {
+            // 複数回のレベルアップに対応
+            let currentPlayer = newState.player;
+            for (let i = 0; i < levelUpCount; i++) {
+              const options = generateLevelUpOptions(currentPlayer, config.allowedChords);
+              if (options.length > 0) {
+                // ランダムに1つ選択
+                const randomIndex = Math.floor(Math.random() * options.length);
+                currentPlayer = applyLevelUpBonus(currentPlayer, options[randomIndex]);
+              }
+            }
+            newState.player = currentPlayer;
+            
+            // 魔法を取得したらC列とD列を有効化
+            const hasMagic = Object.values(newState.player.magics).some(l => l > 0);
+            newState.codeSlots = {
+              ...newState.codeSlots,
+              current: newState.codeSlots.current.map((slot, i) => 
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+              next: newState.codeSlots.next.map((slot, i) =>
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+            };
+          } else if (newState.isLevelingUp) {
             // 既にレベルアップ中の場合は、保留中のレベルアップ回数に加算
             newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
           } else {
@@ -1691,9 +1716,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        // easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
+        // veryeasy/easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
         // extreme: 設定通り
-        const isEasyNormalHard = ['easy', 'normal', 'hard'].includes(newState.difficulty);
+        const isEasyNormalHard = ['veryeasy', 'easy', 'normal', 'hard'].includes(newState.difficulty);
         const effectiveSpawnRate = isEasyNormalHard ? 2 : config.enemySpawnRate;
         const baseSpawnCount = isEasyNormalHard ? 4 : config.enemySpawnCount;
         const waveBonus = isEasyNormalHard ? (newState.wave.currentWave - 1) : 0;

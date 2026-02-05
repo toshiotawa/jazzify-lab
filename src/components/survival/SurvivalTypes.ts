@@ -5,7 +5,7 @@
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 
 // ===== 難易度 =====
-export type SurvivalDifficulty = 'easy' | 'normal' | 'hard' | 'extreme';
+export type SurvivalDifficulty = 'veryeasy' | 'easy' | 'normal' | 'hard' | 'extreme';
 
 // ===== 方向 =====
 export type Direction = 'up' | 'down' | 'left' | 'right' | 
@@ -83,6 +83,7 @@ export interface SpecialSkills {
   expBonusLevel: number;      // 獲得経験値+1（レベル0-10）
   haisuiNoJin: boolean;       // 背水の陣（HP15%以下で強化）
   zekkouchou: boolean;        // 絶好調（HP満タンで強化）
+  autoSelect: boolean;        // オート選択（レベルアップボーナスを自動選択）
 }
 
 // ===== 取得済み魔法 =====
@@ -202,6 +203,7 @@ export type BonusType =
   | 'exp_bonus'
   | 'haisui_no_jin'
   | 'zekkouchou'
+  | 'auto_select'   // オート選択
   // 魔法系
   | 'magic_thunder'
   | 'magic_ice'

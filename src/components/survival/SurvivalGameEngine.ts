@@ -60,7 +60,7 @@ const createInitialPlayerState = (): PlayerState => ({
     aAtk: 10,
     bAtk: 15,
     cAtk: 20,
-    speed: 1,
+    speed: 0,  // 初期移動速度を遅く（以前は1）
     reloadMagic: 0,
     hp: 100,
     maxHp: 100,
@@ -78,6 +78,7 @@ const createInitialPlayerState = (): PlayerState => ({
     expBonusLevel: 0,
     haisuiNoJin: false,
     zekkouchou: false,
+    autoSelect: false,  // オート選択
   },
   magics: {
     thunder: 0,
@@ -766,6 +767,7 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
   { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
   { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },
+  { type: 'auto_select', displayName: 'オート選択', description: 'レベルアップボーナスを自動選択', icon: '🤖', maxLevel: 1 },
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
   { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: '❄️', maxLevel: 3 },
@@ -797,6 +799,8 @@ export const generateLevelUpOptions = (
           return !player.skills.haisuiNoJin;
         case 'zekkouchou':
           return !player.skills.zekkouchou;
+        case 'auto_select':
+          return !player.skills.autoSelect;
         case 'reload_magic':
           return player.stats.reloadMagic < bonus.maxLevel;
         case 'luck_pendant':
@@ -944,6 +948,9 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       break;
     case 'zekkouchou':
       newPlayer.skills.zekkouchou = true;
+      break;
+    case 'auto_select':
+      newPlayer.skills.autoSelect = true;
       break;
     case 'magic_thunder':
       newPlayer.magics.thunder = Math.min(3, newPlayer.magics.thunder + 1);

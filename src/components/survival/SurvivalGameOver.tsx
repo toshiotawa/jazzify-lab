@@ -24,6 +24,7 @@ interface SurvivalGameOverProps {
 
 // 難易度の色設定
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
+  veryeasy: 'text-emerald-300',
   easy: 'text-green-400',
   normal: 'text-blue-400',
   hard: 'text-orange-400',

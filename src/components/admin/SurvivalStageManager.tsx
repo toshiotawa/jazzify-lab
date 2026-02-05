@@ -14,6 +14,7 @@ import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
 
 // コードクオリティからサフィックスを取得
 const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'single': '_note',
   'maj': '',
   'min': 'm',
   'aug': 'aug',
@@ -46,6 +47,7 @@ const ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#'
 
 // 難易度の色設定
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string }> = {
+  veryeasy: { bg: 'bg-emerald-900/30', border: 'border-emerald-500' },
   easy: { bg: 'bg-green-900/30', border: 'border-green-600' },
   normal: { bg: 'bg-blue-900/30', border: 'border-blue-600' },
   hard: { bg: 'bg-orange-900/30', border: 'border-orange-600' },
