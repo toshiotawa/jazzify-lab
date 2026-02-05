@@ -47,9 +47,9 @@ const EXP_BASE = 10;           // 敵1体あたりの基本経験値
 const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
 
 // パフォーマンス向上用の上限値
-export const MAX_ENEMIES = 80;           // 敵の最大数
-export const MAX_PROJECTILES = 100;      // 弾丸の最大数
-export const MAX_COINS = 150;            // コインの最大数
+export const MAX_ENEMIES = Infinity;     // 敵の最大数（制限なし）
+export const MAX_PROJECTILES = 200;      // 弾丸の最大数
+export const MAX_COINS = 300;            // コインの最大数
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -241,7 +241,12 @@ export const initializeCodeSlots = (
 const ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'skeleton', 'zombie', 'bat', 'ghost', 'orc', 'demon', 'dragon'];
 
 const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: number) => {
-  const timeBonus = Math.floor(elapsedTime / 30) * 0.1;  // 30秒ごとに10%強化
+  // 時間経過による強化（30秒ごとに15%強化、10分以降はさらに加速）
+  const baseTimeBonus = Math.floor(elapsedTime / 30) * 0.15;
+  // 10分（600秒）以降は追加で強化
+  const lateGameBonus = elapsedTime >= 600 ? (elapsedTime - 600) / 120 * 0.3 : 0;  // 2分ごとに30%追加
+  const timeBonus = baseTimeBonus + lateGameBonus;
+  
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
     slime: { atk: 5, def: 2, hp: 30, speed: 0.8 },
     goblin: { atk: 8, def: 3, hp: 40, speed: 1.0 },
@@ -285,21 +290,35 @@ export const spawnEnemy = (
   y = Math.max(ENEMY_SIZE, Math.min(MAP_CONFIG.height - ENEMY_SIZE, y));
   
   // 経過時間に応じて敵タイプの上限を上げる（1分ごとに1タイプ解禁）
-  // ただし、常にランダムで選ぶ（弱い敵も出現し続ける）
   const maxTypeIndex = Math.min(
     Math.floor(elapsedTime / 60) + 2,  // 最初は0,1,2(slime,goblin,skeleton)から
     ENEMY_TYPES.length - 1
   );
   
-  // 重み付きランダム：弱い敵ほど出現確率が高い
-  // 例: slime=50%, goblin=25%, skeleton=12.5%... のように減衰
+  // 10分（600秒）以降は強い敵の出現確率が上がる
+  const isLateGame = elapsedTime >= 600;
+  
+  // 重み付きランダム
+  // 通常: 弱い敵ほど出現確率が高い（0.6の指数減衰）
+  // 10分以降: 強い敵の出現確率が上がる（0.8の指数減衰 + 最小インデックスを上げる）
   let typeIndex = 0;
   const rand = Math.random();
   let cumulative = 0;
-  for (let i = 0; i <= maxTypeIndex; i++) {
+  
+  // 10分以降は最低でもgoblin(1)から、15分以降はskeleton(2)から
+  const minTypeIndex = isLateGame 
+    ? Math.min(Math.floor((elapsedTime - 600) / 300) + 1, maxTypeIndex - 2)  // 5分ごとに最低ラインが上がる
+    : 0;
+  
+  // 減衰係数：10分以降は0.75（強い敵が出やすい）
+  const decayFactor = isLateGame ? 0.75 : 0.6;
+  
+  for (let i = minTypeIndex; i <= maxTypeIndex; i++) {
     // 各敵タイプの重み（指数減衰）
-    const weight = Math.pow(0.6, i);  // 0.6^0=1, 0.6^1=0.6, 0.6^2=0.36...
-    const normalizedWeight = weight / (1 - Math.pow(0.6, maxTypeIndex + 1)) * (1 - 0.6);  // 正規化
+    const adjustedIndex = i - minTypeIndex;  // minTypeIndexを基準に調整
+    const weight = Math.pow(decayFactor, adjustedIndex);
+    const totalWeight = (1 - Math.pow(decayFactor, maxTypeIndex - minTypeIndex + 1)) / (1 - decayFactor);
+    const normalizedWeight = weight / totalWeight;
     cumulative += normalizedWeight;
     if (rand < cumulative) {
       typeIndex = i;
@@ -310,7 +329,9 @@ export const spawnEnemy = (
   
   const type = ENEMY_TYPES[typeIndex];
   
-  const isBoss = Math.random() < 0.05 && elapsedTime > 120;  // 2分以降、5%の確率でボス
+  // ボス出現確率：2分以降5%、10分以降10%
+  const bossChance = isLateGame ? 0.10 : 0.05;
+  const isBoss = Math.random() < bossChance && elapsedTime > 120;
   
   return {
     id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
@@ -951,8 +972,8 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 };
 
 // ===== 経験値計算 =====
-// 15レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
-const EXP_CAP_LEVEL = 15;
+// 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
+const EXP_CAP_LEVEL = 20;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
   return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));

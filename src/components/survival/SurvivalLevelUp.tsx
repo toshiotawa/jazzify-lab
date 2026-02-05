@@ -22,7 +22,7 @@ interface SurvivalLevelUpProps {
 
 const SELECTION_TIMEOUT = 10;  // 選択制限時間（秒）
 const INPUT_DELAY = 0.5;       // 入力受付までの遅延（秒）
-const SELECTION_DISPLAY_TIME = 0.5;  // 選択結果表示時間（秒）- 短縮
+const SELECTION_DISPLAY_TIME = 0.02;  // 選択結果表示時間（秒）- 20msで即切り替え
 
 const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   options,
@@ -46,18 +46,26 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     timeoutCalledRef.current = false;
     
     // レベルアップ音を再生（音量小さめ）
-    try {
-      // FantasySoundManagerのplayStageClearを音量小さめで再生
-      const originalVolume = FantasySoundManager.getVolume();
-      FantasySoundManager.setVolume(originalVolume * 0.3);  // 30%の音量
-      FantasySoundManager.playStageClear();
-      // 少し遅延して元の音量に戻す
-      setTimeout(() => {
-        FantasySoundManager.setVolume(originalVolume);
-      }, 500);
-    } catch {
-      // 音声再生エラーは無視
-    }
+    const playLevelUpSound = async () => {
+      try {
+        // FantasySoundManagerが初期化されているか確認
+        const originalVolume = FantasySoundManager.getVolume();
+        if (typeof originalVolume === 'number' && originalVolume > 0) {
+          // 音量を一時的に下げて再生
+          FantasySoundManager.setVolume(Math.min(originalVolume, 0.3));
+          await FantasySoundManager.playStageClear();
+          // 元の音量に戻す
+          FantasySoundManager.setVolume(originalVolume);
+        } else {
+          // 音量が0または未設定の場合、デフォルト音量で再生
+          FantasySoundManager.setVolume(0.3);
+          await FantasySoundManager.playStageClear();
+        }
+      } catch {
+        // 音声再生エラーは無視
+      }
+    };
+    playLevelUpSound();
     
     // 0.5秒後に入力を有効化
     const inputDelayTimer = setTimeout(() => {

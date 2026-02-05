@@ -10,6 +10,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore } from '@/platform/supabaseSurvival';
+import { addXp } from '@/platform/supabaseXp';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -38,14 +39,15 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   waveFailedReason,
   finalWave,
 }) => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile, isGuest, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
+  const [xpAdded, setXpAdded] = useState(false);
   
-  // ハイスコア保存（ローカルストレージとデータベースの両方に保存）
+  // ハイスコア保存とXP付与（ローカルストレージとデータベースの両方に保存）
   useEffect(() => {
-    const saveHighScore = async () => {
+    const saveHighScoreAndAddXp = async () => {
       const survivalTime = Math.floor(result.survivalTime);
       
       // ローカルストレージに常に保存（バックアップとして）
@@ -93,14 +95,34 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           // データベース保存に失敗しても、ローカルストレージの結果を使用
           setIsNewHighScore(localHighScore);
         }
+        
+        // XPをプロフィールに付与（一度だけ）
+        if (!xpAdded && result.earnedXp > 0) {
+          try {
+            await addXp({
+              songId: null,  // サバイバルモードは曲なし
+              baseXp: result.earnedXp,
+              speedMultiplier: 1,
+              rankMultiplier: 1,
+              transposeMultiplier: 1,
+              membershipMultiplier: 1,
+              reason: `survival_${difficulty}_${Math.floor(survivalTime / 60)}min`,
+            });
+            setXpAdded(true);
+            // プロフィールを更新して新しいXPを反映
+            await fetchProfile({ forceRefresh: true });
+          } catch (error) {
+            console.error('Failed to add XP:', error);
+          }
+        }
       } else {
         // ゲスト: ローカルストレージの結果のみ
         setIsNewHighScore(localHighScore);
       }
     };
     
-    saveHighScore();
-  }, [profile, isGuest, difficulty, result]);
+    saveHighScoreAndAddXp();
+  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile]);
   
   // 時間フォーマット（60分以上の場合はh:mm:ss形式）
   const formatTime = (seconds: number): string => {
