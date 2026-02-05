@@ -1323,8 +1323,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
   
   // ゲームループ
+  // 注意: isLevelingUp中もゲームは継続（一時停止しない）
   useEffect(() => {
-    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver || gameState.isLevelingUp) {
+    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver) {
       return;
     }
     
@@ -1336,7 +1337,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const combinedKeys = new Set([...keysRef.current, ...virtualKeysRef.current]);
       
       setGameState(prev => {
-        if (!prev.isPlaying || prev.isPaused || prev.isGameOver || prev.isLevelingUp) {
+        // isLevelingUp中もゲームは継続
+        if (!prev.isPlaying || prev.isPaused || prev.isGameOver) {
           return prev;
         }
         
@@ -1549,10 +1551,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
+        // easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
+        // extreme: 設定通り
+        const isEasyNormalHard = ['easy', 'normal', 'hard'].includes(newState.difficulty);
+        const effectiveSpawnRate = isEasyNormalHard ? 2 : config.enemySpawnRate;
+        const baseSpawnCount = isEasyNormalHard ? 4 : config.enemySpawnCount;
+        const waveBonus = isEasyNormalHard ? (newState.wave.currentWave - 1) : 0;
+        const effectiveSpawnCount = baseSpawnCount + waveBonus;
+        
         spawnTimerRef.current += deltaTime;
-        if (spawnTimerRef.current >= config.enemySpawnRate && newState.enemies.length < MAX_ENEMIES) {
+        if (spawnTimerRef.current >= effectiveSpawnRate && newState.enemies.length < MAX_ENEMIES) {
           spawnTimerRef.current = 0;
-          const spawnCount = Math.min(config.enemySpawnCount, MAX_ENEMIES - newState.enemies.length);
+          const spawnCount = Math.min(effectiveSpawnCount, MAX_ENEMIES - newState.enemies.length);
           for (let i = 0; i < spawnCount; i++) {
             const newEnemy = spawnEnemy(
               newState.player.x,
@@ -1753,7 +1763,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, gameState.isLevelingUp, config]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config]);
   
   // リトライ
   const handleRetry = useCallback(() => {

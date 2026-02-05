@@ -119,8 +119,9 @@ const ENEMY_ICONS: Record<string, string> = {
   boss: '👑',
 };
 
-// ===== プレイヤーアイコン =====
-const PLAYER_ICON = '🧙';
+// ===== プレイヤーアバター画像パス =====
+const PLAYER_AVATAR_PATH = '/default_avater/default-avater.png';
+const PLAYER_SIZE = 32;  // プレイヤーの表示サイズ
 
 // ===== 弾丸アイコン =====
 const PROJECTILE_ICON = '✨';
@@ -154,6 +155,21 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
+  const playerImageRef = useRef<HTMLImageElement | null>(null);
+  const playerImageLoadedRef = useRef(false);
+  
+  // プレイヤー画像をプリロード
+  useEffect(() => {
+    const img = new Image();
+    img.onload = () => {
+      playerImageRef.current = img;
+      playerImageLoadedRef.current = true;
+    };
+    img.onerror = () => {
+      playerImageLoadedRef.current = false;
+    };
+    img.src = PLAYER_AVATAR_PATH;
+  }, []);
 
   // カメラ位置（プレイヤー中心）
   const getCameraOffset = useCallback((player: PlayerState) => {
@@ -448,11 +464,33 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
     }
     
-    // プレイヤー本体（アイコンで描画）
-    ctx.font = '32px sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.fillText(PLAYER_ICON, playerScreenX, playerScreenY);
+    // プレイヤー本体（アバター画像で描画）
+    if (playerImageRef.current && playerImageLoadedRef.current) {
+      // 画像が読み込まれている場合は画像を描画
+      ctx.save();
+      ctx.translate(playerScreenX, playerScreenY);
+      
+      // プレイヤーの向きに応じて画像を反転
+      if (player.direction === 'left' || player.direction === 'up-left' || player.direction === 'down-left') {
+        ctx.scale(-1, 1);
+      }
+      
+      // 画像を中心に配置
+      ctx.drawImage(
+        playerImageRef.current,
+        -PLAYER_SIZE / 2,
+        -PLAYER_SIZE / 2,
+        PLAYER_SIZE,
+        PLAYER_SIZE
+      );
+      ctx.restore();
+    } else {
+      // フォールバック: 絵文字で描画
+      ctx.font = '32px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText('🧙', playerScreenX, playerScreenY);
+    }
     
     // 方向インジケーター（矢印アイコン）- 向きに応じて回転
     const dirVec = getDirectionVector(player.direction);
