@@ -14,6 +14,7 @@ import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
 
 // コードクオリティからサフィックスを取得
 const QUALITY_TO_SUFFIX: Record<ChordQuality, string> = {
+  'single': '_note',
   'maj': '',
   'min': 'm',
   'aug': 'aug',
@@ -46,6 +47,7 @@ const ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#'
 
 // 難易度の色設定
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string }> = {
+  veryeasy: { bg: 'bg-emerald-900/30', border: 'border-emerald-500' },
   easy: { bg: 'bg-green-900/30', border: 'border-green-600' },
   normal: { bg: 'bg-blue-900/30', border: 'border-blue-600' },
   hard: { bg: 'bg-orange-900/30', border: 'border-orange-600' },
@@ -127,7 +129,7 @@ const SurvivalStageManager: React.FC = () => {
     return () => {
       isMounted = false;
     };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, []);
   
   // コードをトグル
   const toggleChord = useCallback((chordName: string) => {
@@ -236,8 +238,8 @@ const SurvivalStageManager: React.FC = () => {
       <h3 className="text-xl font-bold">サバイバルモード管理</h3>
       
       {/* 難易度選択タブ */}
-      <div className="flex space-x-2">
-        {(['easy', 'normal', 'hard', 'extreme'] as const).map(diff => (
+      <div className="flex flex-wrap gap-2">
+        {(['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).map(diff => (
           <button
             key={diff}
             onClick={() => setSelectedDifficulty(diff)}
@@ -247,7 +249,7 @@ const SurvivalStageManager: React.FC = () => {
                 : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
             }`}
           >
-            {diff.charAt(0).toUpperCase() + diff.slice(1)}
+            {diff === 'veryeasy' ? 'Very Easy' : diff.charAt(0).toUpperCase() + diff.slice(1)}
           </button>
         ))}
       </div>

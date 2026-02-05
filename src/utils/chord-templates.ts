@@ -4,6 +4,7 @@
  */
 
 export type ChordQuality = 
+  | 'single' // 単音（Very Easy用）
   | 'maj' | 'min' | 'aug' | 'dim'
   | '7' | 'maj7' | 'm7' | 'mM7' | 'dim7' | 'aug7' | 'm7b5'
   | '6' | 'm6' | '9' | 'm9' | 'maj9' | '11' | 'm11' | '13' | 'm13'
@@ -33,6 +34,9 @@ export const VALID_ROOTS = [
  * 実音は transpose() で都度生成する
  */
 export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
+  // 単音（Very Easy用）
+  'single': ['1P'],
+  
   // トライアド
   'maj':    ['1P', '3M', '5P'],
   'min':    ['1P', '3m', '5P'],
@@ -96,6 +100,15 @@ export const CHORD_ALIASES: Record<string, ChordQuality> = {
  * 既存のコードIDとの互換性を保つ
  */
 export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQuality }> = {
+  // 単音（Very Easy / 初心者用）- '_note' サフィックスで識別
+  'C_note': { root: 'C', quality: 'single' },
+  'D_note': { root: 'D', quality: 'single' },
+  'E_note': { root: 'E', quality: 'single' },
+  'F_note': { root: 'F', quality: 'single' },
+  'G_note': { root: 'G', quality: 'single' },
+  'A_note': { root: 'A', quality: 'single' },
+  'B_note': { root: 'B', quality: 'single' },
+  
   // メジャートライアド
   'C': { root: 'C', quality: 'maj' },
   'F': { root: 'F', quality: 'maj' },

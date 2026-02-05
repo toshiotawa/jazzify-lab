@@ -32,6 +32,7 @@ import {
   createProjectileFromAngle,
   calculateDamage,
   calculateAProjectileDamage,
+  calculateBMeleeDamage,
   generateLevelUpOptions,
   applyLevelUpBonus,
   addExp,
@@ -319,6 +320,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
+  
+  // オート選択で取得したスキル通知
+  interface SkillNotification {
+    id: string;
+    icon: string;
+    displayName: string;
+    startTime: number;
+  }
+  const [skillNotifications, setSkillNotifications] = useState<SkillNotification[]>([]);
   
   // BGM制御用refs
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
@@ -920,11 +930,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (dist < effectiveRange) {
               // 背水の陣・絶好調の攻撃力倍率
               const condMultB = getConditionalSkillMultipliers(prev.player);
-              const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultB.atkMultiplier);
+              // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
               
               const damage = calculateDamage(
-                effectiveBAtk,
-                effectiveBAtk,
+                baseBDamage,
+                0,  // attackerAtkは0（baseBDamageに含まれる）
                 enemy.stats.def,
                 prev.player.statusEffects.some(e => e.type === 'buffer'),
                 enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -933,7 +944,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 prev.player.stats.cAtk
               );
               
-              // ノックバック（B列は強め）
+              // ノックバック（近接は強め）
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               
@@ -1009,11 +1020,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     if (dist < effectiveRange) {
                       // 背水の陣・絶好調の攻撃力倍率
                       const condMultBMulti = getConditionalSkillMultipliers(gs.player);
-                      const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBMulti.atkMultiplier);
+                      // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+                      const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier);
                       
                       const damage = calculateDamage(
-                        effectiveBAtk,
-                        effectiveBAtk,
+                        baseBDamage,
+                        0,  // attackerAtkは0（baseBDamageに含まれる）
                         enemy.stats.def,
                         gs.player.statusEffects.some(e => e.type === 'buffer'),
                         enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1259,11 +1271,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (dist < effectiveRange) {
           // 背水の陣・絶好調の攻撃力倍率
           const condMultBTap = getConditionalSkillMultipliers(prev.player);
-          const effectiveBAtk = Math.floor(prev.player.stats.bAtk * condMultBTap.atkMultiplier);
+          // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+          const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier);
           
           const damage = calculateDamage(
-            effectiveBAtk,
-            effectiveBAtk,
+            baseBDamage,
+            0,  // attackerAtkは0（baseBDamageに含まれる）
             enemy.stats.def,
             prev.player.statusEffects.some(e => e.type === 'buffer'),
             enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1345,11 +1358,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   if (dist < effectiveRange) {
                     // 背水の陣・絶好調の攻撃力倍率
                     const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
-                    const effectiveBAtk = Math.floor(gs.player.stats.bAtk * condMultBTapMulti.atkMultiplier);
+                    // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
+                    const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier);
                     
                     const damage = calculateDamage(
-                      effectiveBAtk,
-                      effectiveBAtk,
+                      baseBDamage,
+                      0,  // attackerAtkは0（baseBDamageに含まれる）
                       enemy.stats.def,
                       gs.player.statusEffects.some(e => e.type === 'buffer'),
                       enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1674,7 +1688,69 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // レベルアップ処理
         if (leveledUp && levelUpCount > 0) {
-          if (newState.isLevelingUp) {
+          // オート選択スキルがある場合は自動的にボーナスを選択
+          if (newState.player.skills.autoSelect) {
+            // 複数回のレベルアップに対応
+            let currentPlayer = newState.player;
+            const acquiredBonuses: LevelUpBonus[] = [];
+            
+            for (let i = 0; i < levelUpCount; i++) {
+              const options = generateLevelUpOptions(currentPlayer, config.allowedChords);
+              if (options.length > 0) {
+                // ランダムに1つ選択
+                const randomIndex = Math.floor(Math.random() * options.length);
+                const selectedBonus = options[randomIndex];
+                currentPlayer = applyLevelUpBonus(currentPlayer, selectedBonus);
+                acquiredBonuses.push(selectedBonus);
+              }
+            }
+            newState.player = currentPlayer;
+            
+            // 魔法を取得したらC列とD列を有効化
+            const hasMagic = Object.values(newState.player.magics).some(l => l > 0);
+            newState.codeSlots = {
+              ...newState.codeSlots,
+              current: newState.codeSlots.current.map((slot, i) => 
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+              next: newState.codeSlots.next.map((slot, i) =>
+                (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic && !slot.chord ? selectRandomChord(config.allowedChords) : slot.chord } : slot
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+            };
+            
+            // オート選択でも音を再生し、取得スキルを通知（setStateコールバック外で実行）
+            if (acquiredBonuses.length > 0) {
+              setTimeout(() => {
+                // レベルアップ音を再生
+                const playSound = async () => {
+                  try {
+                    const originalVolume = FantasySoundManager.getVolume();
+                    if (typeof originalVolume === 'number' && originalVolume > 0) {
+                      FantasySoundManager.setVolume(Math.min(originalVolume, 0.3));
+                      await FantasySoundManager.playStageClear();
+                      FantasySoundManager.setVolume(originalVolume);
+                    } else {
+                      FantasySoundManager.setVolume(0.3);
+                      await FantasySoundManager.playStageClear();
+                    }
+                  } catch {
+                    // 音声再生エラーは無視
+                  }
+                };
+                playSound();
+                
+                // 取得スキル通知を追加（各スキルをずらして表示）
+                const now = Date.now();
+                const notifications = acquiredBonuses.map((bonus, idx) => ({
+                  id: `skill_${now}_${idx}`,
+                  icon: bonus.icon,
+                  displayName: bonus.displayName,
+                  startTime: now + idx * 300, // 300msずつずらす
+                }));
+                setSkillNotifications(prev => [...prev, ...notifications]);
+              }, 0);
+            }
+          } else if (newState.isLevelingUp) {
             // 既にレベルアップ中の場合は、保留中のレベルアップ回数に加算
             newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
           } else {
@@ -1691,9 +1767,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        // easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
+        // veryeasy/easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
         // extreme: 設定通り
-        const isEasyNormalHard = ['easy', 'normal', 'hard'].includes(newState.difficulty);
+        const isEasyNormalHard = ['veryeasy', 'easy', 'normal', 'hard'].includes(newState.difficulty);
         const effectiveSpawnRate = isEasyNormalHard ? 2 : config.enemySpawnRate;
         const baseSpawnCount = isEasyNormalHard ? 4 : config.enemySpawnCount;
         const waveBonus = isEasyNormalHard ? (newState.wave.currentWave - 1) : 0;
@@ -1898,6 +1974,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // 雷エフェクトの更新
       setLightningEffects(le => le.filter(l => Date.now() - l.startTime < l.duration));
       
+      // スキル通知の更新（2秒後に消える）
+      const SKILL_NOTIFICATION_DURATION = 2000;
+      setSkillNotifications(sn => sn.filter(n => Date.now() - n.startTime < SKILL_NOTIFICATION_DURATION));
+      
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
     
@@ -1913,6 +1993,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setResult(null);
     setShockwaves([]);
     setLightningEffects([]);
+    setSkillNotifications([]);
     setLevelUpCorrectNotes([[], [], []]);
     const initial = createInitialGameState(difficulty, config);
     // デバッグ設定を再適用
@@ -2264,6 +2345,44 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               ×
             </button>
           </div>
+        </div>
+      )}
+      
+      {/* オート選択で取得したスキル通知 */}
+      {skillNotifications.length > 0 && (
+        <div className="fixed top-24 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
+          {skillNotifications.map((notification, index) => {
+            const now = Date.now();
+            const elapsed = now - notification.startTime;
+            // 表示開始前は非表示
+            if (elapsed < 0) return null;
+            // フェードアウト計算（1.5秒後からフェード開始）
+            const fadeStart = 1500;
+            const fadeDuration = 500;
+            const opacity = elapsed < fadeStart ? 1 : Math.max(0, 1 - (elapsed - fadeStart) / fadeDuration);
+            // Y方向のオフセット（重ならないように）
+            const yOffset = index * 50;
+            
+            return (
+              <div
+                key={notification.id}
+                className="bg-gradient-to-r from-yellow-600/90 to-amber-600/90 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-400/50 shadow-lg animate-bounce"
+                style={{
+                  opacity,
+                  transform: `translateY(${yOffset}px)`,
+                  transition: 'opacity 0.3s ease-out',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="text-2xl">{notification.icon}</span>
+                  <div>
+                    <div className="text-xs text-yellow-200 font-sans">LEVEL UP!</div>
+                    <div className="text-white font-bold font-sans">{notification.displayName}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
         </div>
       )}
       
