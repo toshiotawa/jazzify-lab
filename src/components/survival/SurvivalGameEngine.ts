@@ -71,9 +71,6 @@ const createInitialPlayerState = (): PlayerState => ({
   },
   skills: {
     aPenetration: false,
-    aBackBullet: 0,
-    aRightBullet: 0,
-    aLeftBullet: 0,
     bKnockbackBonus: 0,
     bRangeBonus: 0,
     bDeflect: false,
@@ -97,13 +94,13 @@ const createInitialPlayerState = (): PlayerState => ({
   expToNextLevel: EXP_BASE,
 });
 
-const createEmptyCodeSlot = (type: 'A' | 'B' | 'C', chord: ChordDefinition | null = null): CodeSlot => ({
+const createEmptyCodeSlot = (type: 'A' | 'B' | 'C' | 'D', chord: ChordDefinition | null = null): CodeSlot => ({
   type,
   chord,
   correctNotes: [],
   timer: SLOT_TIMEOUT,
   isCompleted: false,
-  isEnabled: type !== 'C',  // C列は魔法取得まで無効
+  isEnabled: type === 'A' || type === 'B',  // C/D列は魔法取得まで無効
 });
 
 // ===== 初期WAVE状態 =====
@@ -135,11 +132,13 @@ export const createInitialGameState = (
       createEmptyCodeSlot('A'),
       createEmptyCodeSlot('B'),
       createEmptyCodeSlot('C'),
+      createEmptyCodeSlot('D'),
     ],
     next: [
       createEmptyCodeSlot('A'),
       createEmptyCodeSlot('B'),
       createEmptyCodeSlot('C'),
+      createEmptyCodeSlot('D'),
     ],
   },
   magicCooldown: 0,
@@ -220,16 +219,18 @@ export const initializeCodeSlots = (
   allowedChords: string[],
   hasMagic: boolean
 ): SurvivalGameState['codeSlots'] => {
-  const current: [CodeSlot, CodeSlot, CodeSlot] = [
+  const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
   ];
   
-  const next: [CodeSlot, CodeSlot, CodeSlot] = [
+  const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
     { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: hasMagic },
   ];
   
   return { current, next };
@@ -453,19 +454,79 @@ export const calculateAProjectileDamage = (aAtk: number): number => {
   return A_BASE_DAMAGE + (aAtk - INITIAL_A_ATK) * A_ATK_DAMAGE_MULTIPLIER;
 };
 
+// プレイヤーの向きから角度（ラジアン）を取得（12時方向が0）
+export const getDirectionAngle = (direction: Direction): number => {
+  const angles: Record<Direction, number> = {
+    'up': 0,
+    'up-right': Math.PI / 4,
+    'right': Math.PI / 2,
+    'down-right': Math.PI * 3 / 4,
+    'down': Math.PI,
+    'down-left': -Math.PI * 3 / 4,
+    'left': -Math.PI / 2,
+    'up-left': -Math.PI / 4,
+  };
+  return angles[direction];
+};
+
+// 弾数に応じた発射角度リストを生成（時計回り）
+export const generateBulletAngles = (bulletCount: number, baseAngle: number): number[] => {
+  const angles: number[] = [];
+  
+  if (bulletCount <= 0) return angles;
+  
+  // 1周目（12方向まで）: 均等配置
+  // 2周目以降: 1分（0.5度）ずつオフセット
+  const fullRotations = Math.floor((bulletCount - 1) / 12);
+  const offsetPerRotation = (Math.PI / 360);  // 0.5度
+  
+  for (let i = 0; i < bulletCount; i++) {
+    const rotationIndex = Math.floor(i / 12);
+    const positionInRotation = i % 12;
+    
+    // 時計回りに均等配置
+    // 最初は12時方向、次は1時方向...と配置
+    const angleStep = (Math.PI * 2) / Math.max(bulletCount, 12);
+    const angle = baseAngle + (i * angleStep) + (rotationIndex * offsetPerRotation);
+    
+    angles.push(angle);
+  }
+  
+  return angles;
+};
+
 export const createProjectile = (
   player: PlayerState,
-  direction: Direction,
+  angle: number,
   damage: number
 ): Projectile => ({
   id: `proj_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
   x: player.x,
   y: player.y,
-  direction,
+  angle,
   damage,
   penetrating: player.skills.aPenetration,
   hitEnemies: new Set(),
 });
+
+// 弾丸をまとめて発射（時計回りで配置）
+export const createProjectiles = (
+  player: PlayerState,
+  damage: number
+): Projectile[] => {
+  const baseAngle = getDirectionAngle(player.direction);
+  const angles = generateBulletAngles(player.stats.aBulletCount, baseAngle);
+  
+  return angles.map((angle, index) => ({
+    id: `proj_${Date.now()}_${index}_${Math.random().toString(36).substr(2, 9)}`,
+    x: player.x,
+    y: player.y,
+    angle,
+    damage,
+    penetrating: player.skills.aPenetration,
+    hitEnemies: new Set<string>(),
+  }));
+};
 
 export const updateProjectiles = (
   projectiles: Projectile[],
@@ -475,11 +536,13 @@ export const updateProjectiles = (
   
   return projectiles
     .map(proj => {
-      const vec = getDirectionVector(proj.direction);
+      // 角度から移動ベクトルを計算（0が上向き）
+      const dx = Math.sin(proj.angle) * PROJECTILE_SPEED * deltaTime;
+      const dy = -Math.cos(proj.angle) * PROJECTILE_SPEED * deltaTime;
       return {
         ...proj,
-        x: proj.x + vec.x * PROJECTILE_SPEED * deltaTime,
-        y: proj.y + vec.y * PROJECTILE_SPEED * deltaTime,
+        x: proj.x + dx,
+        y: proj.y + dy,
       };
     })
     .filter(proj => 
@@ -612,28 +675,25 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
 // ===== レベルアップボーナス生成 =====
 const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: string; icon: string; maxLevel?: number }> = [
   // ステータス系
-  { type: 'a_atk', displayName: 'A ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
-  { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力アップ', icon: '👊' },
-  { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力アップ', icon: '🪄' },
-  { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: '👟' },
-  { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: '⏱️', maxLevel: 20 },
-  { type: 'max_hp', displayName: 'HP +10%', description: '最大HPアップ', icon: '❤️' },
-  { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: '🛡️' },
-  { type: 'time', displayName: 'TIME +1', description: '効果時間+2秒', icon: '⏰' },
-  { type: 'a_bullet', displayName: 'A弾数 +1', description: '同時発射数アップ', icon: '💫' },
-  { type: 'luck_pendant', displayName: '幸運のペンダント', description: '運+1%（ダメージ2倍等の確率UP）', icon: '🍀', maxLevel: 40 },
+  { type: 'a_atk', displayName: 'A ATK +1', description: '+10ダメージ', icon: '🔫' },
+  { type: 'b_atk', displayName: 'B ATK +1', description: '近接攻撃力UP', icon: '👊' },
+  { type: 'c_atk', displayName: 'C ATK +1', description: '魔法攻撃力UP', icon: '🪄' },
+  { type: 'speed', displayName: 'SPEED +1', description: '移動速度UP', icon: '👟' },
+  { type: 'reload_magic', displayName: 'RELOAD +1', description: '-1秒', icon: '⏱️', maxLevel: 7 },
+  { type: 'max_hp', displayName: 'HP +20%', description: '最大HP UP', icon: '❤️' },
+  { type: 'def', displayName: 'DEF +1', description: '防御力UP', icon: '🛡️' },
+  { type: 'time', displayName: 'TIME +1', description: '+2秒', icon: '⏰' },
+  { type: 'a_bullet', displayName: '弾数 +2', description: '時計回りで増加', icon: '💫' },
+  { type: 'luck_pendant', displayName: '幸運のペンダント', description: '運+1%', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', description: '弾が敵を貫通', icon: '➡️', maxLevel: 1 },
-  { type: 'a_back_bullet', displayName: '後方弾', description: '後方にも発射（A ATKで強化）', icon: '⬅️', maxLevel: 1 },
-  { type: 'a_right_bullet', displayName: '右側弾', description: '右側にも発射（A ATKで強化）', icon: '↗️', maxLevel: 1 },
-  { type: 'a_left_bullet', displayName: '左側弾', description: '左側にも発射（A ATKで強化）', icon: '↖️', maxLevel: 1 },
-  { type: 'b_knockback', displayName: 'ノックバック+', description: 'ノックバック距離増加', icon: '💨' },
-  { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
-  { type: 'b_deflect', displayName: '拳でかきけす', description: 'B列攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
+  { type: 'b_knockback', displayName: 'ノックバック+', description: '距離増加', icon: '💨' },
+  { type: 'b_range', displayName: '攻撃範囲+', description: '範囲拡大', icon: '📐' },
+  { type: 'b_deflect', displayName: '拳でかきけす', description: '敵弾消去', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
-  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
-  { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
-  { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },
+  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン+1', icon: '💰', maxLevel: 10 },
+  { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で強化', icon: '🩸', maxLevel: 1 },
+  { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで強化', icon: '😊', maxLevel: 1 },
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
   { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: '❄️', maxLevel: 3 },
@@ -655,12 +715,6 @@ export const generateLevelUpOptions = (
       switch (bonus.type) {
         case 'a_penetration':
           return !player.skills.aPenetration;
-        case 'a_back_bullet':
-          return player.skills.aBackBullet < bonus.maxLevel;
-        case 'a_right_bullet':
-          return player.skills.aRightBullet < bonus.maxLevel;
-        case 'a_left_bullet':
-          return player.skills.aLeftBullet < bonus.maxLevel;
         case 'b_deflect':
           return !player.skills.bDeflect;
         case 'multi_hit':
@@ -705,9 +759,7 @@ export const generateLevelUpOptions = (
   // 現在のスキルレベルを取得するヘルパー関数
   const getCurrentLevel = (type: string): number => {
     switch (type) {
-      case 'a_back_bullet': return player.skills.aBackBullet;
-      case 'a_right_bullet': return player.skills.aRightBullet;
-      case 'a_left_bullet': return player.skills.aLeftBullet;
+      case 'a_bullet': return player.stats.aBulletCount;
       case 'b_knockback': return player.skills.bKnockbackBonus;
       case 'b_range': return player.skills.bRangeBonus;
       case 'multi_hit': return player.skills.multiHitLevel;
@@ -778,11 +830,13 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.stats.speed += 1;
       break;
     case 'reload_magic':
-      newPlayer.stats.reloadMagic = Math.min(20, newPlayer.stats.reloadMagic + 1);
+      // Reload +1 = 1秒短縮（上限7で最小3秒）
+      newPlayer.stats.reloadMagic = Math.min(7, newPlayer.stats.reloadMagic + 1);
       break;
     case 'max_hp':
-      newPlayer.stats.maxHp = Math.floor(newPlayer.stats.maxHp * 1.1);
-      newPlayer.stats.hp = Math.min(newPlayer.stats.hp + Math.floor(newPlayer.stats.maxHp * 0.1), newPlayer.stats.maxHp);
+      // HP +20%
+      newPlayer.stats.maxHp = Math.floor(newPlayer.stats.maxHp * 1.2);
+      newPlayer.stats.hp = Math.min(newPlayer.stats.hp + Math.floor(newPlayer.stats.maxHp * 0.2), newPlayer.stats.maxHp);
       break;
     case 'def':
       newPlayer.stats.def += 1;
@@ -791,17 +845,8 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.stats.time += 1;
       break;
     case 'a_bullet':
-      newPlayer.stats.aBulletCount += 1;
-      // 解放済みの後ろ、右、左弾も追加
-      if (newPlayer.skills.aBackBullet > 0) {
-        newPlayer.skills.aBackBullet += 1;
-      }
-      if (newPlayer.skills.aRightBullet > 0) {
-        newPlayer.skills.aRightBullet += 1;
-      }
-      if (newPlayer.skills.aLeftBullet > 0) {
-        newPlayer.skills.aLeftBullet += 1;
-      }
+      // 弾数 +2（時計回りで増加）
+      newPlayer.stats.aBulletCount += 2;
       break;
     case 'luck_pendant':
       // 幸運のペンダント: 運+1（上限40）
@@ -809,15 +854,6 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       break;
     case 'a_penetration':
       newPlayer.skills.aPenetration = true;
-      break;
-    case 'a_back_bullet':
-      newPlayer.skills.aBackBullet += 1;
-      break;
-    case 'a_right_bullet':
-      newPlayer.skills.aRightBullet += 1;
-      break;
-    case 'a_left_bullet':
-      newPlayer.skills.aLeftBullet += 1;
       break;
     case 'b_knockback':
       newPlayer.skills.bKnockbackBonus += 1;
@@ -902,7 +938,8 @@ export const createDamageText = (x: number, y: number, damage: number, isCritica
 
 // ===== マジッククールダウン計算 =====
 export const getMagicCooldown = (reloadMagic: number): number => {
-  return Math.max(MAGIC_MIN_COOLDOWN, MAGIC_BASE_COOLDOWN - reloadMagic * 0.5);
+  // RELOAD +1 = 1秒短縮、基本10秒、最小3秒
+  return Math.max(MAGIC_MIN_COOLDOWN, MAGIC_BASE_COOLDOWN - reloadMagic * 1);
 };
 
 // ===== 魔法発動 =====

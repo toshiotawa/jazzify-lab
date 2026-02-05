@@ -121,9 +121,6 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   // 取得したスキル一覧
   const acquiredSkills: Array<{ name: string; value: string | number }> = [];
   if (result.skills.aPenetration) acquiredSkills.push({ name: '貫通', value: '✓' });
-  if (result.skills.aBackBullet > 0) acquiredSkills.push({ name: '後方弾', value: `+${result.skills.aBackBullet}` });
-  if (result.skills.aRightBullet > 0) acquiredSkills.push({ name: '右側弾', value: `+${result.skills.aRightBullet}` });
-  if (result.skills.aLeftBullet > 0) acquiredSkills.push({ name: '左側弾', value: `+${result.skills.aLeftBullet}` });
   if (result.skills.bKnockbackBonus > 0) acquiredSkills.push({ name: 'ノックバック', value: `+${result.skills.bKnockbackBonus}` });
   if (result.skills.bRangeBonus > 0) acquiredSkills.push({ name: '攻撃範囲', value: `+${result.skills.bRangeBonus}` });
   if (result.skills.multiHitLevel > 0) acquiredSkills.push({ name: '多段攻撃', value: `Lv.${result.skills.multiHitLevel}` });
