@@ -99,23 +99,35 @@ const SurvivalStageManager: React.FC = () => {
   // 現在選択中の難易度設定
   const currentSettings = settings.find(s => s.difficulty === selectedDifficulty);
   
-  // 設定を読み込み
-  const loadSettings = useCallback(async () => {
-    try {
-      setLoading(true);
-      const data = await fetchSurvivalDifficultySettings();
-      setSettings(data);
-    } catch (e) {
-      const errorMessage = e instanceof Error ? e.message : '設定の読み込みに失敗しました';
-      toast.error(errorMessage);
-    } finally {
-      setLoading(false);
-    }
-  }, [toast]);
-  
+  // 設定を読み込み（初回のみ）
   useEffect(() => {
-    loadSettings();
-  }, [loadSettings]);
+    let isMounted = true;
+    
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        const data = await fetchSurvivalDifficultySettings();
+        if (isMounted) {
+          setSettings(data);
+        }
+      } catch (e) {
+        if (isMounted) {
+          const errorMessage = e instanceof Error ? e.message : '設定の読み込みに失敗しました';
+          toast.error(errorMessage);
+        }
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+    
+    loadData();
+    
+    return () => {
+      isMounted = false;
+    };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
   
   // コードをトグル
   const toggleChord = useCallback((chordName: string) => {

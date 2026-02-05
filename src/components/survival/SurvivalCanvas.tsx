@@ -298,7 +298,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       );
     });
 
-    // コイン描画
+    // コイン描画（軽量なCanvas図形）
     const now = Date.now();
     gameState.coins.forEach(coin => {
       const screenX = coin.x - camera.x;
@@ -317,20 +317,30 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // コインの光エフェクト
       const pulseScale = 1 + Math.sin(elapsed / 200) * 0.1;
+      const coinRadius = 6 * pulseScale;
       
       ctx.save();
-      ctx.translate(screenX, screenY);
-      // 小さく、縦長に（X方向を0.6倍、Y方向を1.0倍）
-      ctx.scale(pulseScale * 0.6, pulseScale * 1.0);
       
-      // コインアイコン（小さめのサイズ）
-      ctx.font = '14px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = '#ffd700';
-      ctx.shadowBlur = 5;
-      ctx.fillText('🪙', 0, 0);
-      ctx.shadowBlur = 0;
+      // 外側の光（グロー効果）
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, coinRadius + 3, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 215, 0, 0.3)';
+      ctx.fill();
+      
+      // コイン本体（金色の円）
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, coinRadius, 0, Math.PI * 2);
+      ctx.fillStyle = '#ffd700';
+      ctx.fill();
+      ctx.strokeStyle = '#b8860b';
+      ctx.lineWidth = 1.5;
+      ctx.stroke();
+      
+      // 内側のハイライト
+      ctx.beginPath();
+      ctx.arc(screenX - 2, screenY - 2, coinRadius * 0.4, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(255, 255, 200, 0.6)';
+      ctx.fill();
       
       ctx.restore();
     });
@@ -408,7 +418,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
     });
 
-    // 弾丸描画（アイコンで描画 - 少し大きめ）
+    // 弾丸描画（軽量なCanvas図形）
     projectiles.forEach(proj => {
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
@@ -416,13 +426,35 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -25 || screenX > viewportWidth + 25 ||
           screenY < -25 || screenY > viewportHeight + 25) return;
       
-      ctx.font = '22px sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = COLORS.projectile;
-      ctx.shadowBlur = 12;
-      ctx.fillText(PROJECTILE_ICON, screenX, screenY);
-      ctx.shadowBlur = 0;
+      ctx.save();
+      
+      // 外側の光（グロー効果）
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 10, 0, Math.PI * 2);
+      ctx.fillStyle = 'rgba(254, 240, 138, 0.4)';
+      ctx.fill();
+      
+      // 弾丸本体（黄色い星型）
+      ctx.beginPath();
+      const spikes = 5;
+      const outerRadius = 7;
+      const innerRadius = 3;
+      for (let i = 0; i < spikes * 2; i++) {
+        const radius = i % 2 === 0 ? outerRadius : innerRadius;
+        const angle = (i * Math.PI) / spikes - Math.PI / 2;
+        const x = screenX + Math.cos(angle) * radius;
+        const y = screenY + Math.sin(angle) * radius;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.fillStyle = '#fef08a';
+      ctx.fill();
+      ctx.strokeStyle = '#eab308';
+      ctx.lineWidth = 1;
+      ctx.stroke();
+      
+      ctx.restore();
     });
     
     // 敵の弾丸描画（小さめ）

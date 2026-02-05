@@ -11,7 +11,8 @@ interface SurvivalCodeSlotsProps {
   currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   hintSlotIndex: number | null;  // ヒント表示中のスロット（0=A, 1=B, 2=C, 3=D）
-  magicCooldown: number;
+  cSlotCooldown: number;  // C列のクールダウン
+  dSlotCooldown: number;  // D列のクールダウン
   hasMagic: boolean;
 }
 
@@ -160,9 +161,18 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
   currentSlots,
   nextSlots,
   hintSlotIndex,
-  magicCooldown,
+  cSlotCooldown,
+  dSlotCooldown,
   hasMagic,
 }) => {
+  // 各スロットのクールダウン状態を判定
+  const getSlotCooldown = (index: number): boolean => {
+    if (!hasMagic) return false;
+    if (index === 2) return cSlotCooldown > 0;  // C列
+    if (index === 3) return dSlotCooldown > 0;  // D列
+    return false;  // A, B列はクールダウンなし
+  };
+  
   return (
     <div className="flex flex-col items-center gap-2 p-2 bg-black/60 rounded-xl backdrop-blur-sm border border-gray-700">
       {/* スロット行 */}
@@ -173,7 +183,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
             slot={slot}
             nextSlot={nextSlots[index]}
             isHinted={hintSlotIndex === index}
-            isMagicOnCooldown={hasMagic && magicCooldown > 0}
+            isMagicOnCooldown={getSlotCooldown(index)}
           />
         ))}
       </div>

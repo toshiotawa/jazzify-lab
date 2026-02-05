@@ -783,9 +783,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 魔法がクールダウン中かどうか
-      const isMagicOnCooldown = prev.magicCooldown > 0;
-      
       // 各スロットをチェック - 完了したすべてのスロットを追跡
       const completedSlotIndices: number[] = [];
       
@@ -794,8 +791,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
         
-        // C列またはD列で魔法がクールダウン中の場合はスキップ（完成させない）
-        if ((index === 2 || index === 3) && isMagicOnCooldown) return slot;
+        // C列はcSlotCooldown、D列はdSlotCooldownをチェック（それぞれ独立）
+        if (index === 2 && prev.cSlotCooldown > 0) return slot;
+        if (index === 3 && prev.dSlotCooldown > 0) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -1052,8 +1050,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-      } else if ((slotType === 'C' || slotType === 'D') && prev.magicCooldown <= 0) {
-          // 魔法発動（C列・D列共通）
+      } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
+          // C列魔法発動
           const availableMagics = Object.entries(prev.player.magics)
             .filter(([_, level]) => level > 0);
           
@@ -1069,11 +1067,44 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.enemies = result.enemies;
             newState.player = result.player;
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-            // 背水の陣・絶好調の効果を適用したクールダウン
+            // 背水の陣・絶好調の効果を適用したクールダウン（C列のみ）
             const condMultipliers = getConditionalSkillMultipliers(prev.player);
-            // 運発動時はリロード時間1/3
             const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
-            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            
+            // サンダーの場合は雷エフェクトを追加
+            if (magicType === 'thunder') {
+              const newLightning = prev.enemies.map(enemy => ({
+                id: `lightning_${Date.now()}_${enemy.id}`,
+                x: enemy.x,
+                y: enemy.y,
+                startTime: Date.now(),
+                duration: 500,
+              }));
+              setLightningEffects(le => [...le, ...newLightning]);
+            }
+          }
+        } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
+          // D列魔法発動
+          const availableMagics = Object.entries(prev.player.magics)
+            .filter(([_, level]) => level > 0);
+          
+          if (availableMagics.length > 0) {
+            const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+            const result = castMagic(
+              magicType as Parameters<typeof castMagic>[0],
+              level,
+              prev.player,
+              prev.enemies
+            );
+            
+            newState.enemies = result.enemies;
+            newState.player = result.player;
+            newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+            // 背水の陣・絶好調の効果を適用したクールダウン（D列のみ）
+            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
+            newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
@@ -1355,8 +1386,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       }
       
-    } else if ((slotType === 'C' || slotType === 'D') && prev.magicCooldown <= 0) {
-      // 魔法発動（C列・D列共通）
+    } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
+      // C列魔法発動（タップ）
       const availableMagics = Object.entries(prev.player.magics)
         .filter(([_, level]) => level > 0);
       
@@ -1372,13 +1403,42 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.enemies = result.enemies;
         newState.player = result.player;
         newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-        // 背水の陣・絶好調の効果を適用したクールダウン
         const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
-        // 運発動時はリロード時間1/3
         const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
-        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
-        // サンダーの場合は雷エフェクトを追加
+        if (magicType === 'thunder') {
+          const newLightning = prev.enemies.map(enemy => ({
+            id: `lightning_${Date.now()}_${enemy.id}`,
+            x: enemy.x,
+            y: enemy.y,
+            startTime: Date.now(),
+            duration: 500,
+          }));
+          setLightningEffects(le => [...le, ...newLightning]);
+        }
+      }
+    } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
+      // D列魔法発動（タップ）
+      const availableMagics = Object.entries(prev.player.magics)
+        .filter(([_, level]) => level > 0);
+      
+      if (availableMagics.length > 0) {
+        const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const result = castMagic(
+          magicType as Parameters<typeof castMagic>[0],
+          level,
+          prev.player,
+          prev.enemies
+        );
+        
+        newState.enemies = result.enemies;
+        newState.player = result.player;
+        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
+        newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        
         if (magicType === 'thunder') {
           const newLightning = prev.enemies.map(enemy => ({
             id: `lightning_${Date.now()}_${enemy.id}`,
@@ -1614,11 +1674,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // レベルアップ処理
         if (leveledUp && levelUpCount > 0) {
-          const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
-          newState.isLevelingUp = true;
-          newState.levelUpOptions = options;
-          newState.pendingLevelUps = levelUpCount;
-          setLevelUpCorrectNotes([[], [], []]);
+          if (newState.isLevelingUp) {
+            // 既にレベルアップ中の場合は、保留中のレベルアップ回数に加算
+            newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
+          } else {
+            // 新しくレベルアップを開始
+            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
+            newState.isLevelingUp = true;
+            newState.levelUpOptions = options;
+            newState.pendingLevelUps = levelUpCount;
+            setLevelUpCorrectNotes([[], [], []]);
+          }
         }
         
         // 期限切れコインのクリーンアップ
@@ -1706,9 +1772,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return { ...slot, timer: newTimer };
         }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
-        // 魔法クールダウン更新
-        if (newState.magicCooldown > 0) {
-          newState.magicCooldown = Math.max(0, newState.magicCooldown - deltaTime);
+        // 魔法クールダウン更新（C列とD列で独立）
+        if (newState.cSlotCooldown > 0) {
+          newState.cSlotCooldown = Math.max(0, newState.cSlotCooldown - deltaTime);
+        }
+        if (newState.dSlotCooldown > 0) {
+          newState.dSlotCooldown = Math.max(0, newState.dSlotCooldown - deltaTime);
         }
         
         // ステータス効果の時間更新
@@ -2276,7 +2345,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           currentSlots={gameState.codeSlots.current}
           nextSlots={gameState.codeSlots.next}
           hintSlotIndex={getHintSlotIndex()}
-          magicCooldown={gameState.magicCooldown}
+          cSlotCooldown={gameState.cSlotCooldown}
+          dSlotCooldown={gameState.dSlotCooldown}
           hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
         />
       </div>

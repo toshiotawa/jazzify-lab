@@ -327,8 +327,9 @@ export interface SurvivalGameState {
     next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   };
   
-  // 魔法クールダウン
-  magicCooldown: number;     // 残りクールダウン（秒）
+  // 魔法クールダウン（C列とD列で独立）
+  cSlotCooldown: number;     // C列の残りクールダウン（秒）
+  dSlotCooldown: number;     // D列の残りクールダウン（秒）
   
   // レベルアップ
   levelUpOptions: LevelUpBonus[];

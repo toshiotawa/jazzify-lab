@@ -141,7 +141,8 @@ export const createInitialGameState = (
       createEmptyCodeSlot('D'),
     ],
   },
-  magicCooldown: 0,
+  cSlotCooldown: 0,
+  dSlotCooldown: 0,
   levelUpOptions: [],
   pendingLevelUps: 0,
   items: [],
@@ -283,11 +284,30 @@ export const spawnEnemy = (
   x = Math.max(ENEMY_SIZE, Math.min(MAP_CONFIG.width - ENEMY_SIZE, x));
   y = Math.max(ENEMY_SIZE, Math.min(MAP_CONFIG.height - ENEMY_SIZE, y));
   
-  // 経過時間に応じて強い敵が出現
-  const typeIndex = Math.min(
-    Math.floor(elapsedTime / 60) + Math.floor(Math.random() * 3),
+  // 経過時間に応じて敵タイプの上限を上げる（1分ごとに1タイプ解禁）
+  // ただし、常にランダムで選ぶ（弱い敵も出現し続ける）
+  const maxTypeIndex = Math.min(
+    Math.floor(elapsedTime / 60) + 2,  // 最初は0,1,2(slime,goblin,skeleton)から
     ENEMY_TYPES.length - 1
   );
+  
+  // 重み付きランダム：弱い敵ほど出現確率が高い
+  // 例: slime=50%, goblin=25%, skeleton=12.5%... のように減衰
+  let typeIndex = 0;
+  const rand = Math.random();
+  let cumulative = 0;
+  for (let i = 0; i <= maxTypeIndex; i++) {
+    // 各敵タイプの重み（指数減衰）
+    const weight = Math.pow(0.6, i);  // 0.6^0=1, 0.6^1=0.6, 0.6^2=0.36...
+    const normalizedWeight = weight / (1 - Math.pow(0.6, maxTypeIndex + 1)) * (1 - 0.6);  // 正規化
+    cumulative += normalizedWeight;
+    if (rand < cumulative) {
+      typeIndex = i;
+      break;
+    }
+    typeIndex = i;  // フォールバック
+  }
+  
   const type = ENEMY_TYPES[typeIndex];
   
   const isBoss = Math.random() < 0.05 && elapsedTime > 120;  // 2分以降、5%の確率でボス
