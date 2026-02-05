@@ -11,6 +11,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore } from '@/platform/supabaseSurvival';
 import { addXp } from '@/platform/supabaseXp';
+import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -91,6 +92,10 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           );
           // APIから返されたフラグでハイスコア更新を判定
           setIsNewHighScore(isNew);
+          
+          // ハイスコア保存後にユーザー統計キャッシュをクリア
+          // これにより、ダッシュボードやプロフィールカードに最新のスコアが反映される
+          clearUserStatsCache(profile.id);
         } catch (error) {
           console.error('Failed to save high score to database:', error);
           // データベース保存に失敗しても、ローカルストレージの結果を使用
