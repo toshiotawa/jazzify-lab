@@ -29,6 +29,7 @@ import {
   checkChordMatch,
   getCorrectNotes,
   createProjectile,
+  createProjectileFromAngle,
   calculateDamage,
   calculateAProjectileDamage,
   generateLevelUpOptions,
@@ -38,6 +39,8 @@ import {
   getMagicCooldown,
   castMagic,
   getDirectionVector,
+  getClockwiseBulletAngles,
+  getDirectionAngle,
   createCoinsFromEnemy,
   collectCoins,
   cleanupExpiredCoins,
@@ -48,7 +51,6 @@ import {
   updateEnemyProjectiles,
   getConditionalSkillMultipliers,
   checkLuck,
-  getLuckChance,
   MAX_ENEMIES,
   MAX_PROJECTILES,
   MAX_COINS,
@@ -158,10 +160,7 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
 
 interface DebugSkillSettings {
   aPenetration?: boolean;     // 貫通（上限1）
-  aBulletCount?: number;      // A列の弾数
-  aBackBullet?: number;       // 後方弾（上限なし）
-  aRightBullet?: number;      // 右側弾（上限なし）
-  aLeftBullet?: number;       // 左側弾（上限なし）
+  aBulletCount?: number;      // A列の弾数（時計方向システム）
   bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
   bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
   bDeflect?: boolean;         // 拳でかきけす（上限1）
@@ -284,15 +283,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (skills.aBulletCount !== undefined) {
           initial.player.stats.aBulletCount = skills.aBulletCount;
         }
-        if (skills.aBackBullet !== undefined) {
-          initial.player.skills.aBackBullet = skills.aBackBullet;
-        }
-        if (skills.aRightBullet !== undefined) {
-          initial.player.skills.aRightBullet = skills.aRightBullet;
-        }
-        if (skills.aLeftBullet !== undefined) {
-          initial.player.skills.aLeftBullet = skills.aLeftBullet;
-        }
         if (skills.bKnockbackBonus !== undefined) {
           initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;
         }
@@ -330,6 +320,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
   
+  // BGM制御用refs
+  const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentBgmUrlRef = useRef<string | null>(null);
+  
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
   const virtualKeysRef = useRef<Set<string>>(new Set());
@@ -365,6 +359,78 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     updateSize();
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
+  }, []);
+  
+  // BGM再生制御（WAVEごとに切り替え）
+  useEffect(() => {
+    // ゲームオーバーまたはポーズ中はBGMを停止
+    if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+      }
+      return;
+    }
+    
+    // WAVEに応じたBGM URLを決定
+    const isOddWave = gameState.wave.currentWave % 2 === 1;
+    const targetBgmUrl = isOddWave ? config.bgmOddWaveUrl : config.bgmEvenWaveUrl;
+    
+    // BGMが設定されていない場合は何もしない
+    if (!targetBgmUrl) {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+        currentBgmUrlRef.current = null;
+      }
+      return;
+    }
+    
+    // 同じBGMが既に再生中の場合は何もしない
+    if (currentBgmUrlRef.current === targetBgmUrl && bgmAudioRef.current && !bgmAudioRef.current.paused) {
+      return;
+    }
+    
+    // BGMを切り替え
+    const playBgm = async () => {
+      try {
+        // 既存のBGMを停止
+        if (bgmAudioRef.current) {
+          bgmAudioRef.current.pause();
+          bgmAudioRef.current = null;
+        }
+        
+        // 新しいBGMを作成
+        const audio = new Audio(targetBgmUrl);
+        audio.loop = true;
+        audio.volume = 0.2;  // 音量小さめ
+        
+        bgmAudioRef.current = audio;
+        currentBgmUrlRef.current = targetBgmUrl;
+        
+        await audio.play();
+      } catch (error) {
+        // BGM再生に失敗しても、ゲームは続行
+        console.warn('BGM playback failed:', error);
+      }
+    };
+    
+    playBgm();
+    
+    // クリーンアップ
+    return () => {
+      // コンポーネントアンマウント時はBGMを停止
+      // 注: WAVEが変わるたびに呼ばれるので、この中ではBGMを停止しない
+    };
+  }, [gameState.wave.currentWave, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmOddWaveUrl, config.bgmEvenWaveUrl]);
+  
+  // コンポーネントアンマウント時にBGMを停止
+  useEffect(() => {
+    return () => {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+      }
+    };
   }, []);
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
@@ -609,16 +675,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPlayer = applyLevelUpBonus(gs.player, option);
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
-      // 魔法を取得したらC列を有効化
+      // 魔法を取得したらC列とD列を有効化
       const hasMagic = Object.values(newPlayer.magics).some(l => l > 0);
       const newCodeSlots = {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
-          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-        ) as [CodeSlot, CodeSlot, CodeSlot],
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
         next: gs.codeSlots.next.map((slot, i) =>
-          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-        ) as [CodeSlot, CodeSlot, CodeSlot],
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
       };
       
       if (newPendingLevelUps > 0) {
@@ -717,9 +783,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newState = { ...prev };
       const noteMod12 = note % 12;
       
-      // 魔法がクールダウン中かどうか
-      const isMagicOnCooldown = prev.magicCooldown > 0;
-      
       // 各スロットをチェック - 完了したすべてのスロットを追跡
       const completedSlotIndices: number[] = [];
       
@@ -728,8 +791,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
         
-        // C列で魔法がクールダウン中の場合はスキップ（完成させない）
-        if (index === 2 && isMagicOnCooldown) return slot;
+        // C列はcSlotCooldown、D列はdSlotCooldownをチェック（それぞれ独立）
+        if (index === 2 && prev.cSlotCooldown > 0) return slot;
+        if (index === 3 && prev.dSlotCooldown > 0) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -749,11 +813,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isCompleted: isComplete,
           completedTime: isComplete ? Date.now() : undefined,  // 完了時刻を設定
         };
-      }) as [CodeSlot, CodeSlot, CodeSlot];
+      }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
       
       // コード完成時の処理 - すべての完了スロットに対してスキル発動
       for (const completedSlotIndex of completedSlotIndices) {
-        const slotType = ['A', 'B', 'C'][completedSlotIndex] as 'A' | 'B' | 'C';
+        const slotType = ['A', 'B', 'C', 'D'][completedSlotIndex] as 'A' | 'B' | 'C' | 'D';
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
         const completedChord = prev.codeSlots.current[completedSlotIndex].chord;
@@ -766,44 +830,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 攻撃処理
         if (slotType === 'A') {
-          // 遠距離弾発射
-          const directions: Direction[] = [];
-          
-          // 前方弾（aBulletCount分）
+          // 遠距離弾発射 - 時計方向システム
           const bulletCount = prev.player.stats.aBulletCount || 1;
-          for (let i = 0; i < bulletCount; i++) {
-            directions.push(prev.player.direction);
-          }
+          const baseAngle = getDirectionAngle(prev.player.direction);
+          const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
           
-          // 追加弾
-          if (prev.player.skills.aBackBullet > 0) {
-            const backDir = getOppositeDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aBackBullet; i++) {
-              directions.push(backDir);
-            }
-          }
-          if (prev.player.skills.aLeftBullet > 0) {
-            const leftDir = getLeftDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aLeftBullet; i++) {
-              directions.push(leftDir);
-            }
-          }
-          if (prev.player.skills.aRightBullet > 0) {
-            const rightDir = getRightDirection(prev.player.direction);
-            for (let i = 0; i < prev.player.skills.aRightBullet; i++) {
-              directions.push(rightDir);
-            }
-          }
-          
-          // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
-          const newProjectiles = directions.map((dir, index) => {
-            const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
-            // 同じ方向の弾は少しずらして発射
-            const offset = (index % bulletCount) * 5;
-            const dirVec = getDirectionVector(dir);
-            proj.x += dirVec.y * offset;  // 垂直方向にオフセット
-            proj.y -= dirVec.x * offset;  // 垂直方向にオフセット
-            return proj;
+          // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+          const newProjectiles = bulletAngles.map((angle) => {
+            return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
           });
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
           
@@ -816,49 +850,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   // ゲーム中断中は発動しない
                   if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                   
-                  const multiDirections: Direction[] = [];
-                  const bulletCount = gs.player.stats.aBulletCount || 1;
-                  for (let i = 0; i < bulletCount; i++) {
-                    multiDirections.push(gs.player.direction);
-                  }
-                  if (gs.player.skills.aBackBullet > 0) {
-                    const backDir = getOppositeDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
-                      multiDirections.push(backDir);
-                    }
-                  }
-                  if (gs.player.skills.aLeftBullet > 0) {
-                    const leftDir = getLeftDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
-                      multiDirections.push(leftDir);
-                    }
-                  }
-                  if (gs.player.skills.aRightBullet > 0) {
-                    const rightDir = getRightDirection(gs.player.direction);
-                    for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
-                      multiDirections.push(rightDir);
-                    }
-                  }
+                  // 時計方向システム
+                  const multiBulletCount = gs.player.stats.aBulletCount || 1;
+                  const multiBaseAngle = getDirectionAngle(gs.player.direction);
+                  const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
                   
-                const additionalProjectiles = multiDirections.map((dir, index) => {
-                  const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
-                  const offset = (index % bulletCount) * 5;
-                  const dirVec = getDirectionVector(dir);
-                  proj.x += dirVec.y * offset;
-                  proj.y -= dirVec.x * offset;
-                  return proj;
+                  const additionalProjectiles = multiBulletAngles.map((angle) => {
+                    return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
+                  });
+                  
+                  return {
+                    ...gs,
+                    projectiles: [...gs.projectiles, ...additionalProjectiles],
+                  };
                 });
-                
-                return {
-                  ...gs,
-                  projectiles: [...gs.projectiles, ...additionalProjectiles],
-                };
-              });
-            }, hit * 200); // 0.2秒ごと
+              }, hit * 200); // 0.2秒ごと
+            }
           }
-        }
-        
-      } else if (slotType === 'B') {
+        } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
@@ -1041,8 +1050,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-          // 魔法発動
+      } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
+          // C列魔法発動
           const availableMagics = Object.entries(prev.player.magics)
             .filter(([_, level]) => level > 0);
           
@@ -1058,11 +1067,44 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.enemies = result.enemies;
             newState.player = result.player;
             newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-            // 背水の陣・絶好調の効果を適用したクールダウン
+            // 背水の陣・絶好調の効果を適用したクールダウン（C列のみ）
             const condMultipliers = getConditionalSkillMultipliers(prev.player);
-            // 運発動時はリロード時間1/3
             const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
-            newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            
+            // サンダーの場合は雷エフェクトを追加
+            if (magicType === 'thunder') {
+              const newLightning = prev.enemies.map(enemy => ({
+                id: `lightning_${Date.now()}_${enemy.id}`,
+                x: enemy.x,
+                y: enemy.y,
+                startTime: Date.now(),
+                duration: 500,
+              }));
+              setLightningEffects(le => [...le, ...newLightning]);
+            }
+          }
+        } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
+          // D列魔法発動
+          const availableMagics = Object.entries(prev.player.magics)
+            .filter(([_, level]) => level > 0);
+          
+          if (availableMagics.length > 0) {
+            const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+            const result = castMagic(
+              magicType as Parameters<typeof castMagic>[0],
+              level,
+              prev.player,
+              prev.enemies
+            );
+            
+            newState.enemies = result.enemies;
+            newState.player = result.player;
+            newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+            // 背水の陣・絶好調の効果を適用したクールダウン（D列のみ）
+            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
+            newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
@@ -1093,12 +1135,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   i === slotIdxToReset 
                     ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot],
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
                   i === slotIdxToReset
                     ? { ...slot, chord: newNextChord }
                     : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot],
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
               },
             };
           });
@@ -1118,53 +1160,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleTapSkillActivation = useCallback((slotIndex: number) => {
     if (gameState.isGameOver || gameState.isPaused || gameState.isLevelingUp) return;
     
-    const slotType = ['A', 'B', 'C'][slotIndex] as 'A' | 'B' | 'C';
+    const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
     
     setGameState(prev => {
       const newState = { ...prev };
       const slot = prev.codeSlots.current[slotIndex];
       
-      if (!slot.isEnabled) return prev;
+      if (!slot || !slot.isEnabled) return prev;
       
       // 攻撃処理
       if (slotType === 'A') {
-        // 遠距離弾発射
-        const directions: Direction[] = [];
-        
-        // 前方弾（aBulletCount分）
+        // 遠距離弾発射 - 時計方向システム
         const bulletCount = prev.player.stats.aBulletCount || 1;
-        for (let i = 0; i < bulletCount; i++) {
-          directions.push(prev.player.direction);
-        }
+        const baseAngle = getDirectionAngle(prev.player.direction);
+        const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
         
-        if (prev.player.skills.aBackBullet > 0) {
-          const backDir = getOppositeDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aBackBullet; i++) {
-            directions.push(backDir);
-          }
-        }
-        if (prev.player.skills.aLeftBullet > 0) {
-          const leftDir = getLeftDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aLeftBullet; i++) {
-            directions.push(leftDir);
-          }
-        }
-        if (prev.player.skills.aRightBullet > 0) {
-          const rightDir = getRightDirection(prev.player.direction);
-          for (let i = 0; i < prev.player.skills.aRightBullet; i++) {
-            directions.push(rightDir);
-          }
-        }
-        
-        // 複数弾を少しずらして発射（A ATK +1で+10ダメージ増加）
-        const newProjectiles = directions.map((dir, index) => {
-          const proj = createProjectile(prev.player, dir, calculateAProjectileDamage(prev.player.stats.aAtk));
-          // 同じ方向の弾は少しずらして発射
-          const offset = (index % bulletCount) * 5;
-          const dirVec = getDirectionVector(dir);
-          proj.x += dirVec.y * offset;
-          proj.y -= dirVec.x * offset;
-          return proj;
+        // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+        const newProjectiles = bulletAngles.map((angle) => {
+          return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
         });
         newState.projectiles = [...prev.projectiles, ...newProjectiles];
         
@@ -1176,47 +1189,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               setGameState(gs => {
                 if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
                 
-                const multiDirections: Direction[] = [];
-                const bulletCount = gs.player.stats.aBulletCount || 1;
-                for (let i = 0; i < bulletCount; i++) {
-                  multiDirections.push(gs.player.direction);
-                }
-                if (gs.player.skills.aBackBullet > 0) {
-                  const backDir = getOppositeDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aBackBullet; i++) {
-                    multiDirections.push(backDir);
-                  }
-                }
-                if (gs.player.skills.aLeftBullet > 0) {
-                  const leftDir = getLeftDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aLeftBullet; i++) {
-                    multiDirections.push(leftDir);
-                  }
-                }
-                if (gs.player.skills.aRightBullet > 0) {
-                  const rightDir = getRightDirection(gs.player.direction);
-                  for (let i = 0; i < gs.player.skills.aRightBullet; i++) {
-                    multiDirections.push(rightDir);
-                  }
-                }
+                // 時計方向システム
+                const multiBulletCount = gs.player.stats.aBulletCount || 1;
+                const multiBaseAngle = getDirectionAngle(gs.player.direction);
+                const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
                 
-              const additionalProjectiles = multiDirections.map((dir, index) => {
-                const proj = createProjectile(gs.player, dir, calculateAProjectileDamage(gs.player.stats.aAtk));
-                const offset = (index % bulletCount) * 5;
-                const dirVec = getDirectionVector(dir);
-                proj.x += dirVec.y * offset;
-                proj.y -= dirVec.x * offset;
-                return proj;
+                const additionalProjectiles = multiBulletAngles.map((angle) => {
+                  return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
+                });
+                
+                return {
+                  ...gs,
+                  projectiles: [...gs.projectiles, ...additionalProjectiles],
+                };
               });
-              
-              return {
-                ...gs,
-                projectiles: [...gs.projectiles, ...additionalProjectiles],
-              };
-            });
-          }, hit * 200);  // 0.2秒ごと
+            }, hit * 200);  // 0.2秒ごと
+          }
         }
-      }
       
     } else if (slotType === 'B') {
       // 近接攻撃 - 衝撃波エフェクト追加
@@ -1397,8 +1386,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       }
       
-    } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-      // 魔法発動
+    } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
+      // C列魔法発動（タップ）
       const availableMagics = Object.entries(prev.player.magics)
         .filter(([_, level]) => level > 0);
       
@@ -1414,13 +1403,42 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.enemies = result.enemies;
         newState.player = result.player;
         newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-        // 背水の陣・絶好調の効果を適用したクールダウン
         const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
-        // 運発動時はリロード時間1/3
         const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
-        newState.magicCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
-        // サンダーの場合は雷エフェクトを追加
+        if (magicType === 'thunder') {
+          const newLightning = prev.enemies.map(enemy => ({
+            id: `lightning_${Date.now()}_${enemy.id}`,
+            x: enemy.x,
+            y: enemy.y,
+            startTime: Date.now(),
+            duration: 500,
+          }));
+          setLightningEffects(le => [...le, ...newLightning]);
+        }
+      }
+    } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
+      // D列魔法発動（タップ）
+      const availableMagics = Object.entries(prev.player.magics)
+        .filter(([_, level]) => level > 0);
+      
+      if (availableMagics.length > 0) {
+        const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const result = castMagic(
+          magicType as Parameters<typeof castMagic>[0],
+          level,
+          prev.player,
+          prev.enemies
+        );
+        
+        newState.enemies = result.enemies;
+        newState.player = result.player;
+        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
+        newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        
         if (magicType === 'thunder') {
           const newLightning = prev.enemies.map(enemy => ({
             id: `lightning_${Date.now()}_${enemy.id}`,
@@ -1439,8 +1457,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
   
   // ゲームループ
+  // 注意: isLevelingUp中もゲームは継続（一時停止しない）
   useEffect(() => {
-    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver || gameState.isLevelingUp) {
+    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver) {
       return;
     }
     
@@ -1452,7 +1471,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const combinedKeys = new Set([...keysRef.current, ...virtualKeysRef.current]);
       
       setGameState(prev => {
-        if (!prev.isPlaying || prev.isPaused || prev.isGameOver || prev.isLevelingUp) {
+        // isLevelingUp中もゲームは継続
+        if (!prev.isPlaying || prev.isPaused || prev.isGameOver) {
           return prev;
         }
         
@@ -1654,21 +1674,35 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // レベルアップ処理
         if (leveledUp && levelUpCount > 0) {
-          const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
-          newState.isLevelingUp = true;
-          newState.levelUpOptions = options;
-          newState.pendingLevelUps = levelUpCount;
-          setLevelUpCorrectNotes([[], [], []]);
+          if (newState.isLevelingUp) {
+            // 既にレベルアップ中の場合は、保留中のレベルアップ回数に加算
+            newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
+          } else {
+            // 新しくレベルアップを開始
+            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
+            newState.isLevelingUp = true;
+            newState.levelUpOptions = options;
+            newState.pendingLevelUps = levelUpCount;
+            setLevelUpCorrectNotes([[], [], []]);
+          }
         }
         
         // 期限切れコインのクリーンアップ
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
+        // easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
+        // extreme: 設定通り
+        const isEasyNormalHard = ['easy', 'normal', 'hard'].includes(newState.difficulty);
+        const effectiveSpawnRate = isEasyNormalHard ? 2 : config.enemySpawnRate;
+        const baseSpawnCount = isEasyNormalHard ? 4 : config.enemySpawnCount;
+        const waveBonus = isEasyNormalHard ? (newState.wave.currentWave - 1) : 0;
+        const effectiveSpawnCount = baseSpawnCount + waveBonus;
+        
         spawnTimerRef.current += deltaTime;
-        if (spawnTimerRef.current >= config.enemySpawnRate && newState.enemies.length < MAX_ENEMIES) {
+        if (spawnTimerRef.current >= effectiveSpawnRate && newState.enemies.length < MAX_ENEMIES) {
           spawnTimerRef.current = 0;
-          const spawnCount = Math.min(config.enemySpawnCount, MAX_ENEMIES - newState.enemies.length);
+          const spawnCount = Math.min(effectiveSpawnCount, MAX_ENEMIES - newState.enemies.length);
           for (let i = 0; i < spawnCount; i++) {
             const newEnemy = spawnEnemy(
               newState.player.x,
@@ -1704,7 +1738,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
               newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                 i === slotIndex ? { ...ns, chord: newNextChord } : ns
-              ) as [CodeSlot, CodeSlot, CodeSlot];
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
               return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
             }
             return slot;
@@ -1731,16 +1765,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
             newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
               i === slotIndex ? { ...ns, chord: newNextChord } : ns
-            ) as [CodeSlot, CodeSlot, CodeSlot];
+            ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
             
             return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
           }
           return { ...slot, timer: newTimer };
-        }) as [CodeSlot, CodeSlot, CodeSlot];
+        }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
-        // 魔法クールダウン更新
-        if (newState.magicCooldown > 0) {
-          newState.magicCooldown = Math.max(0, newState.magicCooldown - deltaTime);
+        // 魔法クールダウン更新（C列とD列で独立）
+        if (newState.cSlotCooldown > 0) {
+          newState.cSlotCooldown = Math.max(0, newState.cSlotCooldown - deltaTime);
+        }
+        if (newState.dSlotCooldown > 0) {
+          newState.dSlotCooldown = Math.max(0, newState.dSlotCooldown - deltaTime);
         }
         
         // ステータス効果の時間更新
@@ -1869,7 +1906,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, gameState.isLevelingUp, config]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -1942,15 +1979,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.aBulletCount !== undefined) {
           initial.player.stats.aBulletCount = skills.aBulletCount;
-        }
-        if (skills.aBackBullet !== undefined) {
-          initial.player.skills.aBackBullet = skills.aBackBullet;
-        }
-        if (skills.aRightBullet !== undefined) {
-          initial.player.skills.aRightBullet = skills.aRightBullet;
-        }
-        if (skills.aLeftBullet !== undefined) {
-          initial.player.skills.aLeftBullet = skills.aLeftBullet;
         }
         if (skills.bKnockbackBonus !== undefined) {
           initial.player.skills.bKnockbackBonus = skills.bKnockbackBonus;
@@ -2317,7 +2345,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           currentSlots={gameState.codeSlots.current}
           nextSlots={gameState.codeSlots.next}
           hintSlotIndex={getHintSlotIndex()}
-          magicCooldown={gameState.magicCooldown}
+          cSlotCooldown={gameState.cSlotCooldown}
+          dSlotCooldown={gameState.dSlotCooldown}
           hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
         />
       </div>

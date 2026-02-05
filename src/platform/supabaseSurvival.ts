@@ -32,6 +32,8 @@ export interface SurvivalDifficultySettings {
   enemyStatMultiplier: number;
   expMultiplier: number;
   itemDropRate: number;
+  bgmOddWaveUrl: string | null;
+  bgmEvenWaveUrl: string | null;
 }
 
 export interface UserBestSurvivalTime {
@@ -189,6 +191,8 @@ export async function updateSurvivalDifficultySettings(
   if (settings.enemyStatMultiplier !== undefined) updateData.enemy_stat_multiplier = settings.enemyStatMultiplier;
   if (settings.expMultiplier !== undefined) updateData.exp_multiplier = settings.expMultiplier;
   if (settings.itemDropRate !== undefined) updateData.item_drop_rate = settings.itemDropRate;
+  if (settings.bgmOddWaveUrl !== undefined) updateData.bgm_odd_wave_url = settings.bgmOddWaveUrl;
+  if (settings.bgmEvenWaveUrl !== undefined) updateData.bgm_even_wave_url = settings.bgmEvenWaveUrl;
   
   const { data, error } = await supabase
     .from('survival_difficulty_settings')
@@ -227,5 +231,7 @@ function convertDifficultySettings(row: Record<string, unknown>): SurvivalDiffic
     enemyStatMultiplier: Number(row.enemy_stat_multiplier) || 1.0,
     expMultiplier: Number(row.exp_multiplier) || 1.0,
     itemDropRate: Number(row.item_drop_rate) || 0.1,
+    bgmOddWaveUrl: row.bgm_odd_wave_url as string | null,
+    bgmEvenWaveUrl: row.bgm_even_wave_url as string | null,
   };
 }
