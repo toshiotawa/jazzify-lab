@@ -179,6 +179,8 @@ const SurvivalStageManager: React.FC = () => {
         enemyStatMultiplier: currentSettings.enemyStatMultiplier,
         expMultiplier: currentSettings.expMultiplier,
         itemDropRate: currentSettings.itemDropRate,
+        bgmOddWaveUrl: currentSettings.bgmOddWaveUrl,
+        bgmEvenWaveUrl: currentSettings.bgmEvenWaveUrl,
       });
       toast.success('設定を保存しました');
     } catch (e) {
@@ -197,6 +199,17 @@ const SurvivalStageManager: React.FC = () => {
     setSettings(prev => prev.map(s => {
       if (s.difficulty !== selectedDifficulty) return s;
       return { ...s, [field]: value };
+    }));
+  }, [selectedDifficulty]);
+  
+  // BGMフィールドを更新
+  const updateBgmField = useCallback((
+    field: 'bgmOddWaveUrl' | 'bgmEvenWaveUrl',
+    value: string
+  ) => {
+    setSettings(prev => prev.map(s => {
+      if (s.difficulty !== selectedDifficulty) return s;
+      return { ...s, [field]: value || null };
     }));
   }, [selectedDifficulty]);
   
@@ -281,6 +294,35 @@ const SurvivalStageManager: React.FC = () => {
                   value={currentSettings.itemDropRate}
                   onChange={(e) => updateNumericField('itemDropRate', Number(e.target.value))}
                 />
+              </div>
+            </div>
+          </div>
+          
+          {/* BGM設定 */}
+          <div className="mb-6">
+            <h4 className="text-lg font-semibold text-white mb-4">🎵 BGM設定（WAVE別）</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <SmallLabel>奇数WAVE BGM URL（WAVE 1, 3, 5...）</SmallLabel>
+                <input
+                  type="url"
+                  placeholder="https://example.com/bgm-odd.mp3"
+                  className="input input-bordered w-full bg-slate-700"
+                  value={currentSettings.bgmOddWaveUrl || ''}
+                  onChange={(e) => updateBgmField('bgmOddWaveUrl', e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">MP3/OGG形式のURLを入力（ループ再生）</p>
+              </div>
+              <div>
+                <SmallLabel>偶数WAVE BGM URL（WAVE 2, 4, 6...）</SmallLabel>
+                <input
+                  type="url"
+                  placeholder="https://example.com/bgm-even.mp3"
+                  className="input input-bordered w-full bg-slate-700"
+                  value={currentSettings.bgmEvenWaveUrl || ''}
+                  onChange={(e) => updateBgmField('bgmEvenWaveUrl', e.target.value)}
+                />
+                <p className="text-xs text-gray-500 mt-1">MP3/OGG形式のURLを入力（ループ再生）</p>
               </div>
             </div>
           </div>

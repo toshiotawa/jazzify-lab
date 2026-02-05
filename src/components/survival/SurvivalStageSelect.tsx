@@ -46,6 +46,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.0,
     itemDropRate: 0.15,
+    bgmOddWaveUrl: null,
+    bgmEvenWaveUrl: null,
   },
   {
     difficulty: 'normal',
@@ -57,6 +59,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 1.5,
     itemDropRate: 0.12,
+    bgmOddWaveUrl: null,
+    bgmEvenWaveUrl: null,
   },
   {
     difficulty: 'hard',
@@ -68,6 +72,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 2.0,
     itemDropRate: 0.10,
+    bgmOddWaveUrl: null,
+    bgmEvenWaveUrl: null,
   },
   {
     difficulty: 'extreme',
@@ -79,6 +85,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     enemyStatMultiplier: 1.0,  // 敵の強さを統一
     expMultiplier: 3.0,
     itemDropRate: 0.08,
+    bgmOddWaveUrl: null,
+    bgmEvenWaveUrl: null,
   },
 ];
 
@@ -235,6 +243,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             enemyStatMultiplier: s.enemyStatMultiplier,
             expMultiplier: s.expMultiplier,
             itemDropRate: s.itemDropRate,
+            bgmOddWaveUrl: s.bgmOddWaveUrl,
+            bgmEvenWaveUrl: s.bgmEvenWaveUrl,
           }));
           setDifficultyConfigs(configs);
         }

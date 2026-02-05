@@ -94,13 +94,13 @@ const createInitialPlayerState = (): PlayerState => ({
   expToNextLevel: EXP_BASE,
 });
 
-const createEmptyCodeSlot = (type: 'A' | 'B' | 'C', chord: ChordDefinition | null = null): CodeSlot => ({
+const createEmptyCodeSlot = (type: 'A' | 'B' | 'C' | 'D', chord: ChordDefinition | null = null): CodeSlot => ({
   type,
   chord,
   correctNotes: [],
   timer: SLOT_TIMEOUT,
   isCompleted: false,
-  isEnabled: type !== 'C',  // C列は魔法取得まで無効
+  isEnabled: type !== 'C' && type !== 'D',  // C列・D列は魔法取得まで無効
 });
 
 // ===== 初期WAVE状態 =====
@@ -132,11 +132,13 @@ export const createInitialGameState = (
       createEmptyCodeSlot('A'),
       createEmptyCodeSlot('B'),
       createEmptyCodeSlot('C'),
+      createEmptyCodeSlot('D'),
     ],
     next: [
       createEmptyCodeSlot('A'),
       createEmptyCodeSlot('B'),
       createEmptyCodeSlot('C'),
+      createEmptyCodeSlot('D'),
     ],
   },
   magicCooldown: 0,
@@ -217,16 +219,18 @@ export const initializeCodeSlots = (
   allowedChords: string[],
   hasMagic: boolean
 ): SurvivalGameState['codeSlots'] => {
-  const current: [CodeSlot, CodeSlot, CodeSlot] = [
+  const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
   ];
   
-  const next: [CodeSlot, CodeSlot, CodeSlot] = [
+  const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
     { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: hasMagic },
   ];
   
   return { current, next };

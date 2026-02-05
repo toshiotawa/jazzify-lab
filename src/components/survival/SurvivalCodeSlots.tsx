@@ -8,9 +8,9 @@ import { cn } from '@/utils/cn';
 import { CodeSlot, SLOT_TIMEOUT } from './SurvivalTypes';
 
 interface SurvivalCodeSlotsProps {
-  currentSlots: [CodeSlot, CodeSlot, CodeSlot];
-  nextSlots: [CodeSlot, CodeSlot, CodeSlot];
-  hintSlotIndex: number | null;  // ヒント表示中のスロット（0=A, 1=B, 2=C）
+  currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+  nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+  hintSlotIndex: number | null;  // ヒント表示中のスロット（0=A, 1=B, 2=C, 3=D）
   magicCooldown: number;
   hasMagic: boolean;
 }
@@ -41,6 +41,14 @@ const SLOT_COLORS = {
     label: '🪄 C',
     description: '魔法',
   },
+  D: {
+    bg: 'from-pink-600/80 to-pink-800/80',
+    border: 'border-pink-400',
+    text: 'text-pink-300',
+    glow: 'shadow-pink-500/50',
+    label: '✨ D',
+    description: '魔法',
+  },
 };
 
 // ===== 単一スロット表示 =====
@@ -60,8 +68,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
   const correctCount = slot.correctNotes.length;
   const progressPercent = totalNotes > 0 ? (correctCount / totalNotes) * 100 : 0;
   
-  // C列で魔法がクールダウン中の場合は灰色表示
-  const isDisabledByCooldown = slot.type === 'C' && slot.isEnabled && isMagicOnCooldown;
+  // C列またはD列で魔法がクールダウン中の場合は灰色表示
+  const isDisabledByCooldown = (slot.type === 'C' || slot.type === 'D') && slot.isEnabled && isMagicOnCooldown;
   
   return (
     <div className="flex flex-col items-center gap-1">

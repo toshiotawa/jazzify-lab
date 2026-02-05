@@ -320,6 +320,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
   
+  // BGM制御用refs
+  const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
+  const currentBgmUrlRef = useRef<string | null>(null);
+  
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
   const virtualKeysRef = useRef<Set<string>>(new Set());
@@ -355,6 +359,78 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     updateSize();
     window.addEventListener('resize', updateSize);
     return () => window.removeEventListener('resize', updateSize);
+  }, []);
+  
+  // BGM再生制御（WAVEごとに切り替え）
+  useEffect(() => {
+    // ゲームオーバーまたはポーズ中はBGMを停止
+    if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+      }
+      return;
+    }
+    
+    // WAVEに応じたBGM URLを決定
+    const isOddWave = gameState.wave.currentWave % 2 === 1;
+    const targetBgmUrl = isOddWave ? config.bgmOddWaveUrl : config.bgmEvenWaveUrl;
+    
+    // BGMが設定されていない場合は何もしない
+    if (!targetBgmUrl) {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+        currentBgmUrlRef.current = null;
+      }
+      return;
+    }
+    
+    // 同じBGMが既に再生中の場合は何もしない
+    if (currentBgmUrlRef.current === targetBgmUrl && bgmAudioRef.current && !bgmAudioRef.current.paused) {
+      return;
+    }
+    
+    // BGMを切り替え
+    const playBgm = async () => {
+      try {
+        // 既存のBGMを停止
+        if (bgmAudioRef.current) {
+          bgmAudioRef.current.pause();
+          bgmAudioRef.current = null;
+        }
+        
+        // 新しいBGMを作成
+        const audio = new Audio(targetBgmUrl);
+        audio.loop = true;
+        audio.volume = 0.2;  // 音量小さめ
+        
+        bgmAudioRef.current = audio;
+        currentBgmUrlRef.current = targetBgmUrl;
+        
+        await audio.play();
+      } catch (error) {
+        // BGM再生に失敗しても、ゲームは続行
+        console.warn('BGM playback failed:', error);
+      }
+    };
+    
+    playBgm();
+    
+    // クリーンアップ
+    return () => {
+      // コンポーネントアンマウント時はBGMを停止
+      // 注: WAVEが変わるたびに呼ばれるので、この中ではBGMを停止しない
+    };
+  }, [gameState.wave.currentWave, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmOddWaveUrl, config.bgmEvenWaveUrl]);
+  
+  // コンポーネントアンマウント時にBGMを停止
+  useEffect(() => {
+    return () => {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.pause();
+        bgmAudioRef.current = null;
+      }
+    };
   }, []);
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
@@ -599,16 +675,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPlayer = applyLevelUpBonus(gs.player, option);
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
-      // 魔法を取得したらC列を有効化
+      // 魔法を取得したらC列とD列を有効化
       const hasMagic = Object.values(newPlayer.magics).some(l => l > 0);
       const newCodeSlots = {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
-          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-        ) as [CodeSlot, CodeSlot, CodeSlot],
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
         next: gs.codeSlots.next.map((slot, i) =>
-          i === 2 ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
-        ) as [CodeSlot, CodeSlot, CodeSlot],
+          (i === 2 || i === 3) ? { ...slot, isEnabled: hasMagic, chord: hasMagic ? selectRandomChord(config.allowedChords) : null } : slot
+        ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
       };
       
       if (newPendingLevelUps > 0) {
@@ -718,8 +794,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
         
-        // C列で魔法がクールダウン中の場合はスキップ（完成させない）
-        if (index === 2 && isMagicOnCooldown) return slot;
+        // C列またはD列で魔法がクールダウン中の場合はスキップ（完成させない）
+        if ((index === 2 || index === 3) && isMagicOnCooldown) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
@@ -739,11 +815,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isCompleted: isComplete,
           completedTime: isComplete ? Date.now() : undefined,  // 完了時刻を設定
         };
-      }) as [CodeSlot, CodeSlot, CodeSlot];
+      }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
       
       // コード完成時の処理 - すべての完了スロットに対してスキル発動
       for (const completedSlotIndex of completedSlotIndices) {
-        const slotType = ['A', 'B', 'C'][completedSlotIndex] as 'A' | 'B' | 'C';
+        const slotType = ['A', 'B', 'C', 'D'][completedSlotIndex] as 'A' | 'B' | 'C' | 'D';
         
         // 正解時にルート音を鳴らす（ファンタジーモードと同様）
         const completedChord = prev.codeSlots.current[completedSlotIndex].chord;
@@ -793,9 +869,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }, hit * 200); // 0.2秒ごと
             }
           }
-        }
-        
-      } else if (slotType === 'B') {
+        } else if (slotType === 'B') {
           // 近接攻撃 - 衝撃波エフェクト追加
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
@@ -978,8 +1052,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-      } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-          // 魔法発動
+      } else if ((slotType === 'C' || slotType === 'D') && prev.magicCooldown <= 0) {
+          // 魔法発動（C列・D列共通）
           const availableMagics = Object.entries(prev.player.magics)
             .filter(([_, level]) => level > 0);
           
@@ -1030,12 +1104,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   i === slotIdxToReset 
                     ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
                     : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot],
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
                 next: gs.codeSlots.next.map((slot, i) =>
                   i === slotIdxToReset
                     ? { ...slot, chord: newNextChord }
                     : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot],
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
               },
             };
           });
@@ -1055,13 +1129,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleTapSkillActivation = useCallback((slotIndex: number) => {
     if (gameState.isGameOver || gameState.isPaused || gameState.isLevelingUp) return;
     
-    const slotType = ['A', 'B', 'C'][slotIndex] as 'A' | 'B' | 'C';
+    const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
     
     setGameState(prev => {
       const newState = { ...prev };
       const slot = prev.codeSlots.current[slotIndex];
       
-      if (!slot.isEnabled) return prev;
+      if (!slot || !slot.isEnabled) return prev;
       
       // 攻撃処理
       if (slotType === 'A') {
@@ -1281,8 +1355,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       }
       
-    } else if (slotType === 'C' && prev.magicCooldown <= 0) {
-      // 魔法発動
+    } else if ((slotType === 'C' || slotType === 'D') && prev.magicCooldown <= 0) {
+      // 魔法発動（C列・D列共通）
       const availableMagics = Object.entries(prev.player.magics)
         .filter(([_, level]) => level > 0);
       
@@ -1598,7 +1672,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
               newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
                 i === slotIndex ? { ...ns, chord: newNextChord } : ns
-              ) as [CodeSlot, CodeSlot, CodeSlot];
+              ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
               return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
             }
             return slot;
@@ -1625,12 +1699,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
             newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
               i === slotIndex ? { ...ns, chord: newNextChord } : ns
-            ) as [CodeSlot, CodeSlot, CodeSlot];
+            ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
             
             return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
           }
           return { ...slot, timer: newTimer };
-        }) as [CodeSlot, CodeSlot, CodeSlot];
+        }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
         // 魔法クールダウン更新
         if (newState.magicCooldown > 0) {

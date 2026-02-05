@@ -168,7 +168,7 @@ export interface EnemyProjectile {
 }
 
 // ===== コードスロット =====
-export type SlotType = 'A' | 'B' | 'C';
+export type SlotType = 'A' | 'B' | 'C' | 'D';
 
 export interface CodeSlot {
   type: SlotType;
@@ -176,7 +176,7 @@ export interface CodeSlot {
   correctNotes: number[];    // 入力済みの正解音
   timer: number;             // 残り時間（秒）
   isCompleted: boolean;
-  isEnabled: boolean;        // C列は魔法取得まで無効
+  isEnabled: boolean;        // C列・D列は魔法取得まで無効
   completedTime?: number;    // 完了時刻（自動リセット用）
 }
 
@@ -323,8 +323,8 @@ export interface SurvivalGameState {
   
   // コードスロット
   codeSlots: {
-    current: [CodeSlot, CodeSlot, CodeSlot];   // A, B, C
-    next: [CodeSlot, CodeSlot, CodeSlot];
+    current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];   // A, B, C, D
+    next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   };
   
   // 魔法クールダウン
@@ -361,6 +361,8 @@ export interface DifficultyConfig {
   enemyStatMultiplier: number; // 敵ステータス倍率
   expMultiplier: number;     // 経験値倍率
   itemDropRate: number;      // アイテムドロップ率
+  bgmOddWaveUrl: string | null;  // 奇数WAVEのBGM URL
+  bgmEvenWaveUrl: string | null; // 偶数WAVEのBGM URL
 }
 
 // ===== マップ設定 =====
