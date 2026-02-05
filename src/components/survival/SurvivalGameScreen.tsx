@@ -1298,9 +1298,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   });
 }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
   
-  // ゲームループ
+  // ゲームループ（レベルアップ中も継続）
   useEffect(() => {
-    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver || gameState.isLevelingUp) {
+    if (!gameState.isPlaying || gameState.isPaused || gameState.isGameOver) {
       return;
     }
     
@@ -1312,7 +1312,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const combinedKeys = new Set([...keysRef.current, ...virtualKeysRef.current]);
       
       setGameState(prev => {
-        if (!prev.isPlaying || prev.isPaused || prev.isGameOver || prev.isLevelingUp) {
+        if (!prev.isPlaying || prev.isPaused || prev.isGameOver) {
           return prev;
         }
         
@@ -1518,6 +1518,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.levelUpOptions = options;
           newState.pendingLevelUps = levelUpCount;
           setLevelUpCorrectNotes([[], [], []]);
+          
+          // レベルアップ音を再生（小さめの音量）
+          const originalVolume = FantasySoundManager.getVolume();
+          FantasySoundManager.setVolume(originalVolume * 0.3);  // 30%の音量で再生
+          FantasySoundManager.playStageClear();
+          setTimeout(() => {
+            FantasySoundManager.setVolume(originalVolume);  // 元の音量に戻す
+          }, 500);
         }
         
         // 期限切れコインのクリーンアップ
@@ -1728,7 +1736,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, gameState.isLevelingUp, config]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config]);
   
   // リトライ
   const handleRetry = useCallback(() => {

@@ -41,9 +41,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     displayName: 'Easy',
     description: '初心者向け。基本的なメジャー・マイナーコードのみ。',
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em'],
-    enemySpawnRate: 3,
-    enemySpawnCount: 2,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemySpawnRate: 2.0,      // 敵出現間隔を短く
+    enemySpawnCount: 3,       // 出現数を増加
+    enemyStatMultiplier: 1.0,
     expMultiplier: 1.0,
     itemDropRate: 0.15,
   },
@@ -52,9 +52,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     displayName: 'Normal',
     description: '標準的な難易度。セブンスコードが追加。',
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'G7', 'C7', 'Am7', 'Dm7'],
-    enemySpawnRate: 2.5,
-    enemySpawnCount: 3,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemySpawnRate: 1.8,      // 敵出現間隔を短く
+    enemySpawnCount: 4,       // 出現数を増加
+    enemyStatMultiplier: 1.0,
     expMultiplier: 1.5,
     itemDropRate: 0.12,
   },
@@ -63,9 +63,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     displayName: 'Hard',
     description: '上級者向け。複雑なコードと高速な敵。',
     allowedChords: ['CM7', 'G7', 'Am7', 'Dm7', 'Em7', 'FM7', 'Bm7b5', 'E7', 'A7', 'D7'],
-    enemySpawnRate: 2,
-    enemySpawnCount: 4,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemySpawnRate: 1.6,      // Extremeより少し長い
+    enemySpawnCount: 5,       // Extremeと同じ出現数
+    enemyStatMultiplier: 1.0,
     expMultiplier: 2.0,
     itemDropRate: 0.10,
   },
@@ -74,9 +74,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     displayName: 'Extreme',
     description: 'エキスパート向け。全コードタイプ、超高速。',
     allowedChords: ['CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5', 'Cmaj9', 'Dm9', 'G13'],
-    enemySpawnRate: 1.5,
-    enemySpawnCount: 5,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemySpawnRate: 1.4,      // 最速
+    enemySpawnCount: 6,       // 最多
+    enemyStatMultiplier: 1.0,
     expMultiplier: 3.0,
     itemDropRate: 0.08,
   },
