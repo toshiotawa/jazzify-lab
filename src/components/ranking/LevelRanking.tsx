@@ -66,11 +66,12 @@ const LevelRanking: React.FC = () => {
         case 'missions':
           if (a.missions_completed !== b.missions_completed) return b.missions_completed - a.missions_completed;
           return b.level - a.level; // ミッション数が同じ場合はレベルで比較
-        case 'survival':
+        case 'survival': {
           const aTime = a.best_survival_time ?? 0;
           const bTime = b.best_survival_time ?? 0;
           if (aTime !== bTime) return bTime - aTime;
           return b.level - a.level; // 生存時間が同じ場合はレベルで比較
+        }
         default:
           return 0;
       }
