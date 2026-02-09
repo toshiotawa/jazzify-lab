@@ -76,6 +76,38 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
 };
 
 /**
+ * 度数（インターバル）定義
+ * ユーザー向けの表記名 → tonal.js のインターバル記法へのマッピング
+ */
+export const INTERVAL_DEFINITIONS: {
+  name: string;        // ユーザー向け表記 (例: "m2", "M3")
+  tonalInterval: string; // tonal.js の書式 (例: "2m", "3M")
+  semitones: number;     // 半音数
+  label: string;         // 日本語ラベル
+}[] = [
+  { name: 'm2',   tonalInterval: '2m',  semitones: 1,  label: '短2度 (m2)' },
+  { name: 'M2',   tonalInterval: '2M',  semitones: 2,  label: '長2度 (M2)' },
+  { name: 'm3',   tonalInterval: '3m',  semitones: 3,  label: '短3度 (m3)' },
+  { name: 'M3',   tonalInterval: '3M',  semitones: 4,  label: '長3度 (M3)' },
+  { name: 'P4',   tonalInterval: '4P',  semitones: 5,  label: '完全4度 (P4)' },
+  { name: 'aug4', tonalInterval: '4A',  semitones: 6,  label: '増4度 (aug4)' },
+  { name: 'dim5', tonalInterval: '5d',  semitones: 6,  label: '減5度 (dim5)' },
+  { name: 'P5',   tonalInterval: '5P',  semitones: 7,  label: '完全5度 (P5)' },
+  { name: 'aug5', tonalInterval: '5A',  semitones: 8,  label: '増5度 (aug5)' },
+  { name: 'm6',   tonalInterval: '6m',  semitones: 8,  label: '短6度 (m6)' },
+  { name: 'M6',   tonalInterval: '6M',  semitones: 9,  label: '長6度 (M6)' },
+  { name: 'm7',   tonalInterval: '7m',  semitones: 10, label: '短7度 (m7)' },
+  { name: 'M7',   tonalInterval: '7M',  semitones: 11, label: '長7度 (M7)' },
+];
+
+/**
+ * インターバル名 → tonal.js フォーマットのマッピング
+ */
+export const INTERVAL_NAME_TO_TONAL: Record<string, string> = Object.fromEntries(
+  INTERVAL_DEFINITIONS.map(d => [d.name, d.tonalInterval])
+);
+
+/**
  * コード表記のエイリアス（よく使われる別名）
  */
 export const CHORD_ALIASES: Record<string, ChordQuality> = {

@@ -15,7 +15,7 @@ import {
 import { clearCacheByPattern } from '@/platform/supabaseClient';
 import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFantasyBgm';
 import { FantasyStageSelector } from './FantasyStageSelector';
-import { CHORD_TEMPLATES, ChordQuality } from '@/utils/chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, INTERVAL_DEFINITIONS } from '@/utils/chord-templates';
 import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
@@ -1006,13 +1006,76 @@ const FantasyStageManager: React.FC = () => {
                   ))}
                 </div>
 
-                <div className="flex flex-wrap gap-2">
-                  {allowedChordFields.map((f, idx) => (
-                    <div key={(f as any).id || idx} className="badge badge-lg gap-2 bg-slate-700">
-                      <span>{typeof f === 'string' ? f : (f as any).chord || JSON.stringify(f)}</span>
-                      <button type="button" className="btn btn-xs" onClick={() => removeAllowedChord(idx)}>×</button>
+                {/* 度数（インターバル）クリック追加セクション */}
+                <div className="border border-emerald-700 rounded-lg p-3 space-y-3">
+                  <SmallLabel>度数クリック追加（オクターブ:4）</SmallLabel>
+                  <p className="text-xs text-gray-400">
+                    ルート音から指定した度数の音を答えさせる問題を追加します。例: C m2 up = Db が正解
+                  </p>
+                  {INTERVAL_DEFINITIONS.map((intervalDef) => (
+                    <div key={intervalDef.name} className="space-y-1">
+                      <div className="text-xs text-gray-400">{intervalDef.label}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {CLICK_ADD_ROOTS.map((root) => (
+                          <React.Fragment key={`${intervalDef.name}-${root}`}>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline hover:btn-success text-emerald-300 border-emerald-600"
+                              onClick={() => {
+                                const spec = {
+                                  chord: root,
+                                  interval: intervalDef.name,
+                                  direction: 'up' as const,
+                                  octave: 4,
+                                  type: 'interval' as const,
+                                };
+                                appendAllowedChord(spec as any);
+                              }}
+                            >
+                              {root}{'\u2191'}
+                            </button>
+                            <button
+                              type="button"
+                              className="btn btn-xs btn-outline hover:btn-warning text-amber-300 border-amber-600"
+                              onClick={() => {
+                                const spec = {
+                                  chord: root,
+                                  interval: intervalDef.name,
+                                  direction: 'down' as const,
+                                  octave: 4,
+                                  type: 'interval' as const,
+                                };
+                                appendAllowedChord(spec as any);
+                              }}
+                            >
+                              {root}{'\u2193'}
+                            </button>
+                          </React.Fragment>
+                        ))}
+                      </div>
                     </div>
                   ))}
+                </div>
+
+                <div className="flex flex-wrap gap-2">
+                  {allowedChordFields.map((f, idx) => {
+                    // 表示ラベルの生成
+                    let displayLabel: string;
+                    if (typeof f === 'string') {
+                      displayLabel = f;
+                    } else if ((f as any).type === 'interval') {
+                      const arrow = (f as any).direction === 'up' ? '\u2191' : '\u2193';
+                      displayLabel = `${(f as any).chord} ${(f as any).interval} ${arrow}`;
+                    } else {
+                      displayLabel = (f as any).chord || JSON.stringify(f);
+                    }
+                    return (
+                      <div key={(f as any).id || idx} className="badge badge-lg gap-2 bg-slate-700">
+                        <span>{displayLabel}</span>
+                        <button type="button" className="btn btn-xs" onClick={() => removeAllowedChord(idx)}>×</button>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             </Section>

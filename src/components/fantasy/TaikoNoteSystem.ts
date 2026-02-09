@@ -673,6 +673,14 @@ export type ChordSpec =
       octave?: number | null;
       /** 単音指定の場合に 'note' をセット（省略時はコード扱い） */
       type?: 'note';
+    }
+  | {
+      chord: string;       // ルート音 (例: 'C', 'D#', 'Bb')
+      interval: string;    // インターバル名 (例: 'm2', 'M3', 'P5')
+      direction: 'up' | 'down';
+      octave?: number | null;
+      /** 度数問題の場合に 'interval' をセット */
+      type: 'interval';
     };
 
 // chord_progression_data のJSON形式

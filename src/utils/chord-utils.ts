@@ -4,7 +4,7 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES } from './chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES, INTERVAL_NAME_TO_TONAL } from './chord-templates';
 import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
@@ -231,4 +231,53 @@ export function semitonesBetween(from: string, to: string): number {
   }
   
   return note2.midi - note1.midi;
+}
+
+/**
+ * インターバル（度数）からターゲット音を解決する
+ * @param root ルート音名（例: 'C', 'D#', 'Bb'）
+ * @param intervalName インターバル名（例: 'm2', 'M3', 'P5'）
+ * @param direction 方向（'up' or 'down'）
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns { noteName: string, midi: number } | null
+ */
+export function resolveInterval(
+  root: string,
+  intervalName: string,
+  direction: 'up' | 'down',
+  octave: number = 4
+): { noteName: string; midi: number } | null {
+  const tonalInterval = INTERVAL_NAME_TO_TONAL[intervalName];
+  if (!tonalInterval) return null;
+
+  // 方向に応じてインターバルを構成
+  const effectiveInterval = direction === 'down' ? `-${tonalInterval}` : tonalInterval;
+
+  const rootWithOctave = `${root}${octave}`;
+  const result = transpose(rootWithOctave, effectiveInterval);
+  if (!result) return null;
+
+  const parsed = parseNote(result);
+  if (!parsed || typeof parsed.midi !== 'number') return null;
+
+  // オクターブを除去した音名
+  const noteName = result.replace(/\d+$/, '').replace(/##/g, 'x');
+
+  return { noteName, midi: parsed.midi };
+}
+
+/**
+ * インターバル表記の表示名を生成
+ * @param root ルート音名
+ * @param intervalName インターバル名
+ * @param direction 方向
+ * @returns 表示名（例: "C m2↑", "D M3↓"）
+ */
+export function formatIntervalDisplayName(
+  root: string,
+  intervalName: string,
+  direction: 'up' | 'down'
+): string {
+  const arrow = direction === 'up' ? '↑' : '↓';
+  return `${root} ${intervalName} ${arrow}`;
 }
