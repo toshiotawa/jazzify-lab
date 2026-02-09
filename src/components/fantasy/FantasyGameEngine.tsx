@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
-import { resolveChord } from '@/utils/chord-utils';
+import { resolveChord, resolveInterval, formatIntervalDisplayName } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
@@ -252,6 +252,23 @@ interface FantasyGameEngineProps {
  * それ以外は全て基本形（オクターブ4）で表示。
  */
 const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDefinition | null => {
+  // 度数（インターバル）指定のハンドリング
+  if (typeof spec === 'object' && spec.type === 'interval') {
+    const { chord: root, interval, direction, octave: specOctave } = spec;
+    const octave = specOctave ?? 4;
+    const resolved = resolveInterval(root, interval, direction, octave);
+    if (!resolved) return null;
+    const displayName = formatIntervalDisplayName(root, interval, direction);
+    return {
+      id: `${root}_${interval}_${direction}`,
+      displayName,
+      notes: [resolved.midi],
+      noteNames: [resolved.noteName],
+      quality: 'single', // 度数問題は単音正解
+      root // 問題のルート音を保持（移調時にdisplayNameが正しく更新されるように）
+    };
+  }
+
   // 単音指定のハンドリング
   if (typeof spec === 'object' && spec.type === 'note') {
     const step = spec.chord; // 'G', 'F#' など
