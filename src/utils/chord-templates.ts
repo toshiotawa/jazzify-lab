@@ -108,6 +108,189 @@ export const INTERVAL_NAME_TO_TONAL: Record<string, string> = Object.fromEntries
 );
 
 /**
+ * スケールタイプ定義
+ * 各スケールのインターバルパターンを定義（Cルート基準）
+ */
+export type ScaleType = 
+  | 'major'                    // メジャースケール
+  | 'natural_minor'            // ナチュラルマイナースケール
+  | 'harmonic_minor'           // ハーモニックマイナースケール
+  | 'melodic_minor'            // メロディックマイナースケール
+  | 'hmp5_below'               // HMP5 Below
+  | 'ionian'                   // イオニアン
+  | 'dorian'                   // ドリアン
+  | 'phrygian'                 // フリジアン
+  | 'lydian'                   // リディアン
+  | 'mixolydian'               // ミクソリディアン
+  | 'aeolian'                  // エオリアン
+  | 'locrian'                  // ロクリアン
+  | 'altered'                  // オルタード
+  | 'half_whole_diminished'    // Half Whole Diminished
+  | 'whole_half_diminished'    // Whole Half Diminished
+  | 'lydian_dominant'          // リディアン7th (Lydian Dominant)
+  | 'mixolydian_b6'            // ミクソリディアン♭6th
+  | 'major_pentatonic'         // メジャーペンタトニック
+  | 'minor_pentatonic';        // マイナーペンタトニック
+
+/**
+ * スケールテンプレート
+ * 各スケールのインターバルパターンを定義（1オクターブ内の度数）
+ */
+export const SCALE_TEMPLATES: Record<ScaleType, string[]> = {
+  // メジャースケール（イオニアンと同じ）
+  'major': ['1P', '2M', '3M', '4P', '5P', '6M', '7M'],
+  'ionian': ['1P', '2M', '3M', '4P', '5P', '6M', '7M'],
+  
+  // ナチュラルマイナースケール（エオリアンと同じ）
+  'natural_minor': ['1P', '2M', '3m', '4P', '5P', '6m', '7m'],
+  'aeolian': ['1P', '2M', '3m', '4P', '5P', '6m', '7m'],
+  
+  // ハーモニックマイナースケール
+  'harmonic_minor': ['1P', '2M', '3m', '4P', '5P', '6m', '7M'],
+  
+  // メロディックマイナースケール（上行）
+  'melodic_minor': ['1P', '2M', '3m', '4P', '5P', '6M', '7M'],
+  
+  // HMP5 Below（ハーモニックマイナーパーフェクト5th Below）
+  'hmp5_below': ['1P', '2m', '3m', '4P', '5d', '6m', '7m'],
+  
+  // ドリアン
+  'dorian': ['1P', '2M', '3m', '4P', '5P', '6M', '7m'],
+  
+  // フリジアン
+  'phrygian': ['1P', '2m', '3m', '4P', '5P', '6m', '7m'],
+  
+  // リディアン
+  'lydian': ['1P', '2M', '3M', '4A', '5P', '6M', '7M'],
+  
+  // ミクソリディアン
+  'mixolydian': ['1P', '2M', '3M', '4P', '5P', '6M', '7m'],
+  
+  // ロクリアン
+  'locrian': ['1P', '2m', '3m', '4P', '5d', '6m', '7m'],
+  
+  // オルタードスケール
+  'altered': ['1P', '2m', '3m', '3M', '5d', '6m', '7m'],
+  
+  // Half Whole Diminished
+  'half_whole_diminished': ['1P', '2m', '3m', '3M', '4A', '5P', '6m', '7M'],
+  
+  // Whole Half Diminished
+  'whole_half_diminished': ['1P', '2M', '3m', '4P', '5d', '6m', '6M', '7M'],
+  
+  // リディアン7th（リディアンドミナント）
+  'lydian_dominant': ['1P', '2M', '3M', '4A', '5P', '6M', '7m'],
+  
+  // ミクソリディアン♭6th
+  'mixolydian_b6': ['1P', '2M', '3M', '4P', '5P', '6m', '7m'],
+  
+  // メジャーペンタトニック
+  'major_pentatonic': ['1P', '2M', '3M', '5P', '6M'],
+  
+  // マイナーペンタトニック
+  'minor_pentatonic': ['1P', '3m', '4P', '5P', '7m']
+};
+
+/**
+ * スケール名のエイリアス（日本語名や別名に対応）
+ */
+export const SCALE_ALIASES: Record<string, ScaleType> = {
+  // メジャースケール
+  'major': 'major',
+  'メジャースケール': 'major',
+  'maj': 'major',
+  'M': 'major',
+  
+  // ナチュラルマイナースケール
+  'natural_minor': 'natural_minor',
+  'ナチュラルマイナースケール': 'natural_minor',
+  'natural_minor_scale': 'natural_minor',
+  'minor': 'natural_minor',
+  'min': 'natural_minor',
+  
+  // ハーモニックマイナースケール
+  'harmonic_minor': 'harmonic_minor',
+  'ハーモニックマイナースケール': 'harmonic_minor',
+  'harmonic_minor_scale': 'harmonic_minor',
+  
+  // メロディックマイナースケール
+  'melodic_minor': 'melodic_minor',
+  'メロディックマイナースケール': 'melodic_minor',
+  'melodic_minor_scale': 'melodic_minor',
+  
+  // HMP5 Below
+  'hmp5_below': 'hmp5_below',
+  'HMP5 Below': 'hmp5_below',
+  'hmp5below': 'hmp5_below',
+  
+  // イオニアン
+  'ionian': 'ionian',
+  'イオニアン': 'ionian',
+  
+  // ドリアン
+  'dorian': 'dorian',
+  'ドリアン': 'dorian',
+  
+  // フリジアン
+  'phrygian': 'phrygian',
+  'フリジアン': 'phrygian',
+  
+  // リディアン
+  'lydian': 'lydian',
+  'リディアン': 'lydian',
+  
+  // ミクソリディアン
+  'mixolydian': 'mixolydian',
+  'ミクソリディアン': 'mixolydian',
+  
+  // エオリアン
+  'aeolian': 'aeolian',
+  'エオリアン': 'aeolian',
+  
+  // ロクリアン
+  'locrian': 'locrian',
+  'ロクリアン': 'locrian',
+  
+  // オルタード
+  'altered': 'altered',
+  'オルタード': 'altered',
+  
+  // Half Whole Diminished
+  'half_whole_diminished': 'half_whole_diminished',
+  'Half Whole Diminished': 'half_whole_diminished',
+  'halfwhole': 'half_whole_diminished',
+  'hw_diminished': 'half_whole_diminished',
+  
+  // Whole Half Diminished
+  'whole_half_diminished': 'whole_half_diminished',
+  'Whole Half Diminished': 'whole_half_diminished',
+  'wholehalf': 'whole_half_diminished',
+  'wh_diminished': 'whole_half_diminished',
+  
+  // リディアン7th
+  'lydian_dominant': 'lydian_dominant',
+  'リディアン7th': 'lydian_dominant',
+  'lydian7th': 'lydian_dominant',
+  'lydian_7th': 'lydian_dominant',
+  
+  // ミクソリディアン♭6th
+  'mixolydian_b6': 'mixolydian_b6',
+  'ミクソリディアン♭6th': 'mixolydian_b6',
+  'mixolydian_b6th': 'mixolydian_b6',
+  'mixolydian_flat6': 'mixolydian_b6',
+  
+  // メジャーペンタトニック
+  'major_pentatonic': 'major_pentatonic',
+  'メジャーペンタトニック': 'major_pentatonic',
+  'major_pent': 'major_pentatonic',
+  
+  // マイナーペンタトニック
+  'minor_pentatonic': 'minor_pentatonic',
+  'マイナーペンタトニック': 'minor_pentatonic',
+  'minor_pent': 'minor_pentatonic'
+};
+
+/**
  * コード表記のエイリアス（よく使われる別名）
  */
 export const CHORD_ALIASES: Record<string, ChordQuality> = {

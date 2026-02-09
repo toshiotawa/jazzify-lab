@@ -4,7 +4,7 @@
  */
 
 import { transpose, note as parseNote, distance } from 'tonal';
-import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES, INTERVAL_NAME_TO_TONAL } from './chord-templates';
+import { CHORD_TEMPLATES, ChordQuality, FANTASY_CHORD_MAP, CHORD_ALIASES, INTERVAL_NAME_TO_TONAL, SCALE_TEMPLATES, ScaleType, SCALE_ALIASES } from './chord-templates';
 import { type DisplayOpts, toDisplayChordName } from './display-note';
 
 /**
@@ -280,4 +280,103 @@ export function formatIntervalDisplayName(
 ): string {
   const arrow = direction === 'up' ? '↑' : '↓';
   return `${root} ${intervalName} ${arrow}`;
+}
+
+/**
+ * スケール名をパース（ルートとスケールタイプに分割）
+ * @param scaleName スケール名（例: 'C major', 'C major_scale', 'D natural_minor'）
+ * @returns { root: string, scaleType: ScaleType } | null
+ */
+export function parseScaleName(scaleName: string): { root: string; scaleType: ScaleType } | null {
+  // パターン1: "C major", "C major_scale", "C メジャースケール" など
+  // パターン2: "Cmajor", "C_major" など
+  
+  // まず、スペースやアンダースコアで分割を試みる
+  const parts = scaleName.split(/[\s_]+/);
+  
+  if (parts.length >= 2) {
+    const root = parts[0];
+    const scaleNamePart = parts.slice(1).join('_').toLowerCase();
+    
+    // スケール名のエイリアスをチェック
+    const scaleType = SCALE_ALIASES[scaleNamePart];
+    if (scaleType && /^[A-G](?:#{1,2}|b{1,2}|x)?$/.test(root)) {
+      return { root, scaleType };
+    }
+  }
+  
+  // パターン2: ルート音とスケール名が結合されている場合（例: "Cmajor", "Dnatural_minor"）
+  const match = scaleName.match(/^([A-G](?:#{1,2}|b{1,2}|x)?)(.+)$/);
+  if (match) {
+    const [, root, scaleNamePart] = match;
+    const normalizedScaleName = scaleNamePart.toLowerCase().replace(/[_\s]/g, '_');
+    const scaleType = SCALE_ALIASES[normalizedScaleName];
+    if (scaleType) {
+      return { root, scaleType };
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * スケールから実音配列を取得（オクターブなし）
+ * @param root ルート音名
+ * @param scaleType スケールタイプ
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns 実音配列（音名のみ、オクターブなし）
+ */
+export function buildScaleNotes(root: string, scaleType: ScaleType, octave: number = 4): string[] {
+  const intervals = SCALE_TEMPLATES[scaleType];
+  if (!intervals) {
+    console.warn(`⚠️ 未定義のスケールタイプ: ${scaleType}`);
+    return [];
+  }
+
+  // ルートにオクターブを付加（内部計算用）
+  const rootWithOctave = `${root}${octave}`;
+  
+  // 各インターバルを移調して実音を生成
+  return intervals.map(interval => {
+    const note = transpose(rootWithOctave, interval);
+    if (!note) {
+      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
+      return root;
+    }
+    
+    // オクターブを削除して音名のみを返す
+    const noteNameOnly = note.replace(/\d+$/, '');
+    // ダブルシャープをxに変換（表示用）
+    return noteNameOnly.replace(/##/g, 'x');
+  });
+}
+
+/**
+ * スケールからMIDIノート番号配列を取得
+ * @param root ルート音名
+ * @param scaleType スケールタイプ
+ * @param octave 基準オクターブ（デフォルト: 4）
+ * @returns MIDIノート番号配列
+ */
+export function buildScaleMidiNotes(root: string, scaleType: ScaleType, octave: number = 4): number[] {
+  const intervals = SCALE_TEMPLATES[scaleType];
+  if (!intervals) {
+    console.warn(`⚠️ 未定義のスケールタイプ: ${scaleType}`);
+    return [];
+  }
+
+  const rootWithOctave = `${root}${octave}`;
+  const midiNotes: number[] = [];
+  for (const interval of intervals) {
+    const n = transpose(rootWithOctave, interval);
+    if (!n) {
+      console.warn(`⚠️ 移調失敗: ${rootWithOctave} + ${interval}`);
+      continue;
+    }
+    const parsed = parseNote(n);
+    if (parsed && typeof parsed.midi === 'number') {
+      midiNotes.push(parsed.midi);
+    }
+  }
+  return midiNotes;
 }

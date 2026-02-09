@@ -5,7 +5,7 @@
 
 import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
-import { resolveChord, resolveInterval, formatIntervalDisplayName } from '@/utils/chord-utils';
+import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
@@ -287,6 +287,29 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
   }
 
   const chordId = typeof spec === 'string' ? spec : spec.chord;
+  
+  // スケール名のハンドリング（例: "C major", "C major_scale", "D natural_minor"）
+  const parsedScale = parseScaleName(chordId);
+  if (parsedScale) {
+    const { root, scaleType } = parsedScale;
+    const octave = (typeof spec === 'object' && spec.octave) ? spec.octave : 4;
+    const scaleNotes = buildScaleNotes(root, scaleType, octave);
+    const scaleMidiNotes = buildScaleMidiNotes(root, scaleType, octave);
+    
+    // スケールの各音を単音として扱う（最初の音を返す）
+    // 実際のゲームでは、スケールの各音を個別に扱う必要がある場合は、
+    // allowed_chordsにスケール名を展開する必要がある
+    if (scaleNotes.length > 0 && scaleMidiNotes.length > 0) {
+      return {
+        id: chordId,
+        displayName: `${root} ${scaleType}`,
+        notes: [scaleMidiNotes[0]], // 最初の音のみ（スケール全体を扱う場合は展開が必要）
+        noteNames: [scaleNotes[0]],
+        quality: 'single',
+        root
+      };
+    }
+  }
   
   // 楽譜モードの音名形式をハンドリング（treble_C4, bass_A3 など）
   if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
