@@ -789,6 +789,7 @@ export const useFantasyGameEngine = ({
     const timeToLoop = loopDuration - normalizedTime;
     // 先読み判定の範囲（表示と同じ4秒前から判定を受け付ける）
     const lookAheadJudgeTime = 4.0;
+    const isNearLoopBoundary = timeToLoop < lookAheadJudgeTime;
     
     if (prevState.awaitingLoopStart) {
       // 次ループ開始待ち中は、次ループの先頭ノーツ（インデックス0, 1）を候補にする
@@ -799,7 +800,7 @@ export const useFantasyGameEngine = ({
       
       // ループ境界付近では次ループの先頭ノーツも候補に追加
       // 表示と同じタイミング（4秒前）から判定を受け付ける
-      if (timeToLoop < lookAheadJudgeTime && currentIndex >= prevState.taikoNotes.length - 2) {
+      if (isNearLoopBoundary && currentIndex >= prevState.taikoNotes.length - 2) {
         // 次ループの先頭ノーツを追加（重複を避ける）
         if (!candidateIndices.includes(0)) candidateIndices.push(0);
         if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) candidateIndices.push(1);
@@ -826,8 +827,10 @@ export const useFantasyGameEngine = ({
         // awaitingLoopStart状態または次ループの先頭ノーツの場合は、仮想的なhitTimeを使用
         let effectiveHitTime = n.hitTime;
         // 先読みノーツかどうか（次ループのノーツとして扱う場合）
-        const isPreviewNote = !prevState.awaitingLoopStart && 
-          i < currentIndex && 
+        const isPreviewNote = !prevState.awaitingLoopStart &&
+          isNearLoopBoundary &&
+          i < currentIndex &&
+          i <= 1 &&
           currentIndex >= prevState.taikoNotes.length - 2;
         const isNextLoopNote = prevState.awaitingLoopStart || isPreviewNote;
         
@@ -844,7 +847,7 @@ export const useFantasyGameEngine = ({
         
         const includesNote = Array.from(new Set<number>(chordNotes.map((x: number) => x % 12))).includes(noteMod12);
         
-        const j = judgeTimingWindowWithLoop(currentTime, effectiveHitTime, 150, loopDuration);
+        const j = judgeTimingWindowWithLoop(normalizedTime, effectiveHitTime, 150, loopDuration);
         return { i, n, j, includesNote, effectiveHitTime, isNextLoopNote, nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? nextLoopTransposedNotes[i]?.chord : null };
       })
       .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
@@ -1890,8 +1893,8 @@ export const useFantasyGameEngine = ({
           };
         }
         
-        // 現在の音楽時間とノーツのヒット時間の差を計算
-        let timeDiff = currentTime - currentNote.hitTime;
+        // 現在のループ内時間とノーツのヒット時間の差を計算
+        let timeDiff = normalizedTime - currentNote.hitTime;
         
         // ループを考慮した時間差の調整
         while (timeDiff > loopDuration / 2) {

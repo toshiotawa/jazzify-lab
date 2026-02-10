@@ -37,6 +37,30 @@ class BGMManager {
   private useTonePitchShift = false // Tone.jsを使用するかどうか
   private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
 
+  /**
+   * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
+   * - M1開始を0秒として返す（カウントイン中は負値）
+   * - ループ境界の微小ジッタは0秒へスナップする
+   */
+  private normalizeMusicTime(musicTime: number): number {
+    const relativeTime = musicTime - this.loopBegin
+    if (relativeTime < 0) {
+      return relativeTime
+    }
+
+    const loopDuration = this.loopEnd - this.loopBegin
+    if (loopDuration <= 0) {
+      return relativeTime
+    }
+
+    const wrapped = ((relativeTime % loopDuration) + loopDuration) % loopDuration
+    const epsilon = 1e-3
+    if (wrapped < epsilon || loopDuration - wrapped < epsilon) {
+      return 0
+    }
+    return wrapped
+  }
+
   play(
     url: string,
     bpm: number,
@@ -228,18 +252,9 @@ class BGMManager {
           if (Tone && typeof Tone.now === 'function') {
             // Tone.now()を使用して経過時間を計算
             const elapsedRealTime = Tone.now() - this.waStartAt
-            // playbackRateを考慮した音楽的な時間
+            // playbackRateを考慮した音楽的な時間（BGM先頭=0）
             const musicTime = elapsedRealTime * this.playbackRate
-            // ループを考慮した位置を計算（ループ後も正しく動作）
-            const loopDuration = this.loopEnd - this.loopBegin
-            if (loopDuration > 0 && musicTime >= this.loopEnd) {
-              // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
-              const timeSinceLoopStart = musicTime - this.loopBegin
-              const posInLoop = timeSinceLoopStart % loopDuration
-              return posInLoop
-            }
-            // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
-            return musicTime - this.loopBegin
+            return this.normalizeMusicTime(musicTime)
           }
         } catch {}
       }
@@ -248,29 +263,14 @@ class BGMManager {
         // Web Audio 再生時間を計算
         // AudioContext.currentTimeを使用して正確な経過時間を取得
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt
-        // playbackRateを考慮した音楽的な時間
+        // playbackRateを考慮した音楽的な時間（BGM先頭=0）
         const musicTime = elapsedRealTime * this.playbackRate
-        // ループを考慮
-        const loopDuration = this.loopEnd - this.loopBegin
-        if (loopDuration > 0 && musicTime >= this.loopEnd) {
-          // ループ後: loopBegin〜loopEndの範囲で正規化
-          const timeSinceLoopStart = musicTime - this.loopBegin
-          const posInLoop = timeSinceLoopStart % loopDuration
-          return posInLoop
-        }
-        // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
-        return musicTime - this.loopBegin
+        return this.normalizeMusicTime(musicTime)
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) {
-        const loopDuration = this.loopEnd - this.loopBegin
         const musicTime = this.audio.currentTime
-        if (loopDuration > 0 && musicTime >= this.loopEnd) {
-          const timeSinceLoopStart = musicTime - this.loopBegin
-          const posInLoop = timeSinceLoopStart % loopDuration
-          return posInLoop
-        }
-        return musicTime - this.loopBegin
+        return this.normalizeMusicTime(musicTime)
       }
     }
     return 0
