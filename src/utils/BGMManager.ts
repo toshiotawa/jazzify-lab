@@ -40,25 +40,17 @@ class BGMManager {
   /**
    * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
    * - M1開始を0秒として返す（カウントイン中は負値）
-   * - ループ境界の微小ジッタは0秒へスナップする
+   * - ループ後は loopBegin〜loopEnd の範囲で正規化
    */
   private normalizeMusicTime(musicTime: number): number {
-    const relativeTime = musicTime - this.loopBegin
-    if (relativeTime < 0) {
-      return relativeTime
-    }
-
     const loopDuration = this.loopEnd - this.loopBegin
-    if (loopDuration <= 0) {
-      return relativeTime
+    if (loopDuration > 0 && musicTime >= this.loopEnd) {
+      // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
+      const timeSinceLoopStart = musicTime - this.loopBegin
+      return timeSinceLoopStart % loopDuration
     }
-
-    const wrapped = ((relativeTime % loopDuration) + loopDuration) % loopDuration
-    const epsilon = 1e-3
-    if (wrapped < epsilon || loopDuration - wrapped < epsilon) {
-      return 0
-    }
-    return wrapped
+    // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
+    return musicTime - this.loopBegin
   }
 
   play(

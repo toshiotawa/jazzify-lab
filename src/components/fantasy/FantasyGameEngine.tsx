@@ -2268,7 +2268,12 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [handleTaikoModeInput, onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
+  // 注: handleTaikoModeInput を依存配列に含めない。
+  // displayOpts のオブジェクトリテラル再生成でコールバックが毎レンダー再作成され、
+  // 下流の handleNoteInputBridge まで連鎖的に再作成されてフレーム落ちの原因になる。
+  // handleTaikoModeInput は setGameState updater 内で呼ばれるため stale closure で問題ない。
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
