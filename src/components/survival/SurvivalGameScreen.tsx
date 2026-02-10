@@ -10,6 +10,7 @@ import {
   SurvivalDifficulty,
   DifficultyConfig,
   SurvivalGameResult,
+  SurvivalCharacter,
   LevelUpBonus,
   CodeSlot,
   Direction,
@@ -35,6 +36,8 @@ import {
   calculateBMeleeDamage,
   generateLevelUpOptions,
   applyLevelUpBonus,
+  applyCharacterToPlayerState,
+  applyLevel10Bonuses,
   addExp,
   createDamageText,
   getMagicCooldown,
@@ -180,8 +183,8 @@ interface SurvivalGameScreenProps {
     aAtk?: number;
     bAtk?: number;
     cAtk?: number;
-    time?: number;  // 効果時間延長
-    luck?: number;  // 運（1=1%、上限40=50%）
+    time?: number;
+    luck?: number;
     skills?: DebugSkillSettings;
     tapSkillActivation?: boolean;
     initialLevel?: number;
@@ -195,6 +198,7 @@ interface SurvivalGameScreenProps {
       hint?: number;
     };
   };
+  character?: SurvivalCharacter;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -203,6 +207,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onBackToSelect,
   onBackToMenu,
   debugSettings,
+  character,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -218,6 +223,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config);
+    // キャラクター能力を適用
+    if (character) {
+      initial.player = applyCharacterToPlayerState(initial.player, character);
+      // 魔法不可キャラの場合、C/Dスロットを永続無効化
+      if (character.noMagic) {
+        initial.codeSlots.current[2].isEnabled = false;
+        initial.codeSlots.current[3].isEnabled = false;
+        initial.codeSlots.next[2].isEnabled = false;
+        initial.codeSlots.next[3].isEnabled = false;
+      }
+    }
     // デバッグ設定を適用
     if (debugSettings) {
       // 攻撃力設定
@@ -677,6 +693,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     startGame();
   }, []);
   
+  // キャラクター固有のボーナス除外リストとnoMagicフラグ
+  const charExcludedBonuses = character?.excludedBonuses;
+  const charNoMagic = character?.noMagic;
+
   // レベルアップボーナス選択処理
   const handleLevelUpBonusSelect = useCallback((option: LevelUpBonus) => {
     setGameState(gs => {
@@ -685,8 +705,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPlayer = applyLevelUpBonus(gs.player, option);
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
-      // 魔法を取得したらC列とD列を有効化
-      const hasMagic = Object.values(newPlayer.magics).some(l => l > 0);
+      // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
+      const hasMagic = !charNoMagic && Object.values(newPlayer.magics).some(l => l > 0);
       const newCodeSlots = {
         ...gs.codeSlots,
         current: gs.codeSlots.current.map((slot, i) => 
@@ -698,7 +718,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       };
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords);
+        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords, charExcludedBonuses, charNoMagic);
         levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
@@ -721,7 +741,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic]);
   
   // レベルアップタイムアウト処理
   const handleLevelUpTimeout = useCallback(() => {
@@ -731,7 +751,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords);
+        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords, charExcludedBonuses, charNoMagic);
         levelUpCorrectNotesRef.current = [[], [], []];
         setLevelUpCorrectNotes([[], [], []]);
         return {
@@ -750,7 +770,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic]);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
@@ -1686,6 +1706,37 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.player = playerAfterCoins;
         newState.coins = remainingCoins;
         
+        // キャラクターレベル10ボーナス判定
+        if (leveledUp && levelUpCount > 0 && character && character.level10Bonuses.length > 0) {
+          const oldLevel = playerAfterCoins.level - levelUpCount;
+          const newLevel = playerAfterCoins.level;
+          // レベル10の倍数を跨いだ回数をチェック
+          const oldMilestone = Math.floor(oldLevel / 10);
+          const newMilestone = Math.floor(newLevel / 10);
+          if (newMilestone > oldMilestone) {
+            const milestoneCount = newMilestone - oldMilestone;
+            let charPlayer = newState.player;
+            const allMessages: string[] = [];
+            for (let m = 0; m < milestoneCount; m++) {
+              const { player: updated, messages } = applyLevel10Bonuses(charPlayer, character.level10Bonuses);
+              charPlayer = updated;
+              allMessages.push(...messages);
+            }
+            newState.player = charPlayer;
+            // 能力値アップメッセージを通知
+            if (allMessages.length > 0) {
+              const now = Date.now();
+              const notifications = allMessages.map((msg, idx) => ({
+                id: `lv10_${now}_${idx}`,
+                icon: '⭐',
+                displayName: `Lv${newMilestone * 10}: ${msg}`,
+                startTime: now + idx * 400,
+              }));
+              setSkillNotifications(prev => [...prev, ...notifications]);
+            }
+          }
+        }
+
         // レベルアップ処理
         if (leveledUp && levelUpCount > 0) {
           // オート選択スキルがある場合は自動的にボーナスを選択
@@ -1695,7 +1746,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const acquiredBonuses: LevelUpBonus[] = [];
             
             for (let i = 0; i < levelUpCount; i++) {
-              const options = generateLevelUpOptions(currentPlayer, config.allowedChords);
+              const options = generateLevelUpOptions(currentPlayer, config.allowedChords, charExcludedBonuses, charNoMagic);
               if (options.length > 0) {
                 // ランダムに1つ選択
                 const randomIndex = Math.floor(Math.random() * options.length);
@@ -1706,8 +1757,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             newState.player = currentPlayer;
             
-            // 魔法を取得したらC列とD列を有効化
-            const hasMagic = Object.values(newState.player.magics).some(l => l > 0);
+            // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
+            const hasMagic = !charNoMagic && Object.values(newState.player.magics).some(l => l > 0);
             newState.codeSlots = {
               ...newState.codeSlots,
               current: newState.codeSlots.current.map((slot, i) => 
@@ -1755,7 +1806,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
           } else {
             // 新しくレベルアップを開始
-            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords);
+            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords, charExcludedBonuses, charNoMagic);
             newState.isLevelingUp = true;
             newState.levelUpOptions = options;
             newState.pendingLevelUps = levelUpCount;
@@ -1763,6 +1814,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
+        // キャラクター固有: HP回復
+        if (character && character.hpRegenPerSecond > 0) {
+          const regenAmount = character.hpRegenPerSecond * deltaTime;
+          newState.player.stats.hp = Math.min(
+            newState.player.stats.maxHp,
+            newState.player.stats.hp + regenAmount
+          );
+        }
+
+        // キャラクター固有: 永続効果の維持
+        if (character && character.permanentEffects.length > 0) {
+          for (const eff of character.permanentEffects) {
+            const existing = newState.player.statusEffects.find(se => se.type === eff.type as never);
+            if (!existing) {
+              newState.player.statusEffects = [
+                ...newState.player.statusEffects,
+                {
+                  type: eff.type as never,
+                  duration: 999999,
+                  startTime: Date.now(),
+                  level: eff.level,
+                },
+              ];
+            } else if (existing.duration < 999990) {
+              existing.duration = 999999;
+              existing.level = eff.level;
+            }
+          }
+        }
+
         // 期限切れコインのクリーンアップ
         newState.coins = cleanupExpiredCoins(newState.coins);
         
@@ -1996,6 +2077,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setSkillNotifications([]);
     setLevelUpCorrectNotes([[], [], []]);
     const initial = createInitialGameState(difficulty, config);
+    // キャラクター能力を再適用
+    if (character) {
+      initial.player = applyCharacterToPlayerState(initial.player, character);
+      if (character.noMagic) {
+        initial.codeSlots.current[2].isEnabled = false;
+        initial.codeSlots.current[3].isEnabled = false;
+        initial.codeSlots.next[2].isEnabled = false;
+        initial.codeSlots.next[3].isEnabled = false;
+      }
+    }
     // デバッグ設定を再適用
     if (debugSettings) {
       // 攻撃力設定
@@ -2433,6 +2524,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             viewportHeight={viewportSize.height}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
+            characterAvatarUrl={character?.avatarUrl}
           />
           
           {/* ポーズ画面 */}

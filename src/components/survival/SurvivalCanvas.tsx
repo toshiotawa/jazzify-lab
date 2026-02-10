@@ -47,6 +47,7 @@ interface SurvivalCanvasProps {
   viewportHeight: number;
   shockwaves?: ShockwaveEffect[];
   lightningEffects?: LightningEffect[];
+  characterAvatarUrl?: string;
 }
 
 // ===== 色定義 =====
@@ -152,14 +153,16 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   viewportHeight,
   shockwaves = [],
   lightningEffects = [],
+  characterAvatarUrl,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
   const playerImageRef = useRef<HTMLImageElement | null>(null);
   const playerImageLoadedRef = useRef(false);
   
-  // プレイヤー画像をプリロード
+  // プレイヤー画像をプリロード（キャラクターアバター優先）
   useEffect(() => {
+    const avatarSrc = characterAvatarUrl || PLAYER_AVATAR_PATH;
     const img = new Image();
     img.onload = () => {
       playerImageRef.current = img;
@@ -168,8 +171,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     img.onerror = () => {
       playerImageLoadedRef.current = false;
     };
-    img.src = PLAYER_AVATAR_PATH;
-  }, []);
+    img.src = avatarSrc;
+  }, [characterAvatarUrl]);
 
   // カメラ位置（プレイヤー中心）
   const getCameraOffset = useCallback((player: PlayerState) => {

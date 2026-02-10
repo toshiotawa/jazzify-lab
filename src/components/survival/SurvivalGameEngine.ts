@@ -22,6 +22,8 @@ import {
   EnemyType,
   MagicType,
   ActiveStatusEffect,
+  SurvivalCharacter,
+  CharacterLevel10Bonus,
   SLOT_TIMEOUT,
   MAGIC_BASE_COOLDOWN,
   MAGIC_MIN_COOLDOWN,
@@ -94,6 +96,129 @@ const createInitialPlayerState = (): PlayerState => ({
   exp: 0,
   expToNextLevel: EXP_BASE,
 });
+
+// ===== キャラクター能力を初期状態に適用 =====
+export const applyCharacterToPlayerState = (
+  player: PlayerState,
+  character: SurvivalCharacter
+): PlayerState => {
+  const p = { ...player };
+  p.stats = { ...player.stats };
+  p.skills = { ...player.skills };
+  p.magics = { ...player.magics };
+
+  // 初期ステータス上書き
+  const stats = character.initialStats;
+  if (stats.aAtk !== undefined) p.stats.aAtk = stats.aAtk;
+  if (stats.bAtk !== undefined) p.stats.bAtk = stats.bAtk;
+  if (stats.cAtk !== undefined) p.stats.cAtk = stats.cAtk;
+  if (stats.speed !== undefined) p.stats.speed = stats.speed;
+  if (stats.reloadMagic !== undefined) p.stats.reloadMagic = stats.reloadMagic;
+  if (stats.hp !== undefined) p.stats.hp = stats.hp;
+  if (stats.maxHp !== undefined) p.stats.maxHp = stats.maxHp;
+  if (stats.def !== undefined) p.stats.def = stats.def;
+  if (stats.time !== undefined) p.stats.time = stats.time;
+  if (stats.aBulletCount !== undefined) p.stats.aBulletCount = stats.aBulletCount;
+  if (stats.luck !== undefined) p.stats.luck = stats.luck;
+
+  // 初期スキル適用
+  const skills = character.initialSkills;
+  if (skills.aPenetration !== undefined) p.skills.aPenetration = skills.aPenetration;
+  if (skills.bKnockbackBonus !== undefined) p.skills.bKnockbackBonus = skills.bKnockbackBonus;
+  if (skills.bRangeBonus !== undefined) p.skills.bRangeBonus = skills.bRangeBonus;
+  if (skills.bDeflect !== undefined) p.skills.bDeflect = skills.bDeflect;
+  if (skills.multiHitLevel !== undefined) p.skills.multiHitLevel = skills.multiHitLevel;
+  if (skills.expBonusLevel !== undefined) p.skills.expBonusLevel = skills.expBonusLevel;
+  if (skills.haisuiNoJin !== undefined) p.skills.haisuiNoJin = skills.haisuiNoJin;
+  if (skills.zekkouchou !== undefined) p.skills.zekkouchou = skills.zekkouchou;
+  if (skills.autoSelect !== undefined) p.skills.autoSelect = skills.autoSelect;
+
+  // 初期魔法適用
+  const magics = character.initialMagics;
+  if (magics.thunder !== undefined) p.magics.thunder = magics.thunder;
+  if (magics.ice !== undefined) p.magics.ice = magics.ice;
+  if (magics.fire !== undefined) p.magics.fire = magics.fire;
+  if (magics.heal !== undefined) p.magics.heal = magics.heal;
+  if (magics.buffer !== undefined) p.magics.buffer = magics.buffer;
+  if (magics.debuffer !== undefined) p.magics.debuffer = magics.debuffer;
+  if (magics.hint !== undefined) p.magics.hint = magics.hint;
+
+  return p;
+};
+
+// ===== レベル10ボーナスを適用 =====
+export const applyLevel10Bonuses = (
+  player: PlayerState,
+  bonuses: CharacterLevel10Bonus[]
+): { player: PlayerState; messages: string[] } => {
+  let p = { ...player };
+  p.stats = { ...player.stats };
+  p.skills = { ...player.skills };
+  p.magics = { ...player.magics };
+  const messages: string[] = [];
+
+  for (const bonus of bonuses) {
+    switch (bonus.type) {
+      case 'max_hp_flat':
+        p.stats.maxHp += bonus.value;
+        p.stats.hp += bonus.value;
+        messages.push(`HP +${bonus.value}`);
+        break;
+      case 'exp_bonus': {
+        const maxVal = bonus.max ?? 10;
+        if (p.skills.expBonusLevel < maxVal) {
+          p.skills.expBonusLevel = Math.min(maxVal, p.skills.expBonusLevel + bonus.value);
+          messages.push(`EXP Bonus +${bonus.value}`);
+        }
+        break;
+      }
+      case 'a_atk':
+        p.stats.aAtk += bonus.value;
+        messages.push(`A ATK +${bonus.value}`);
+        break;
+      case 'b_atk':
+        p.stats.bAtk += bonus.value;
+        messages.push(`B ATK +${bonus.value}`);
+        break;
+      case 'c_atk':
+        p.stats.cAtk += bonus.value;
+        messages.push(`Magic ATK +${bonus.value}`);
+        break;
+      case 'speed':
+        p.stats.speed += bonus.value;
+        messages.push(`SPEED +${bonus.value}`);
+        break;
+      case 'reload_magic':
+        p.stats.reloadMagic = Math.min(20, p.stats.reloadMagic + bonus.value);
+        messages.push(`RELOAD +${bonus.value}`);
+        break;
+      case 'time':
+        p.stats.time += bonus.value;
+        messages.push(`TIME +${bonus.value}`);
+        break;
+      case 'a_bullet':
+        p.stats.aBulletCount += bonus.value;
+        messages.push(`Bullets +${bonus.value}`);
+        break;
+      case 'b_knockback':
+        p.skills.bKnockbackBonus += bonus.value;
+        messages.push(`Knockback +${bonus.value}`);
+        break;
+      case 'b_range':
+        p.skills.bRangeBonus += bonus.value;
+        messages.push(`Range +${bonus.value}`);
+        break;
+      case 'luck_pendant':
+        p.stats.luck = Math.min(40, p.stats.luck + bonus.value);
+        messages.push(`LUCK +${bonus.value}`);
+        break;
+      default:
+        break;
+    }
+  }
+
+  return { player: p, messages };
+};
 
 const createEmptyCodeSlot = (type: 'A' | 'B' | 'C' | 'D', chord: ChordDefinition | null = null): CodeSlot => ({
   type,
@@ -799,10 +924,20 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
 
 export const generateLevelUpOptions = (
   player: PlayerState,
-  allowedChords: string[]
+  allowedChords: string[],
+  excludedBonuses?: string[],
+  noMagic?: boolean
 ): LevelUpBonus[] => {
   // 取得可能なボーナスをフィルタリング
   const available = ALL_BONUSES.filter(bonus => {
+    // キャラクター固有の除外ボーナスチェック
+    if (excludedBonuses && excludedBonuses.includes(bonus.type)) return false;
+    // 魔法不可キャラの場合、魔法関連ボーナスを除外
+    if (noMagic && (
+      bonus.type.startsWith('magic_') ||
+      bonus.type === 'c_atk' ||
+      bonus.type === 'reload_magic'
+    )) return false;
     // 上限チェック
     if (bonus.maxLevel) {
       switch (bonus.type) {

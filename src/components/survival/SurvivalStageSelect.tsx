@@ -1,40 +1,27 @@
 /**
  * サバイバルモード ステージ選択画面
- * Easy/Normal/Hard/Extreme の4つの難易度から選択
- * シンプルな縦並びカードデザイン
+ * 11キャラクター × 5難易度 = 55ステージ
+ * 難易度別グループでキャラクターカードを表示
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
-import { SurvivalDifficulty, DifficultyConfig } from './SurvivalTypes';
+import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import {
   fetchSurvivalDifficultySettings,
   fetchUserSurvivalHighScores,
-  SurvivalDifficultySettings,
+  fetchSurvivalCharacters,
   SurvivalHighScore,
+  SurvivalCharacterRow,
 } from '@/platform/supabaseSurvival';
-import { FaSkull, FaStar, FaFire, FaBolt, FaCog } from 'react-icons/fa';
+import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 
-// デバッグモード用スキル一覧
-const DEBUG_SKILLS = [
-  { id: 'aPenetration', label: 'A列貫通', labelEn: 'Penetration', emoji: '🔫', isBoolean: true, maxLevel: 1 },
-  { id: 'aBulletCount', label: 'A列弾数', labelEn: 'Bullet Count', emoji: '💫', isBoolean: false, maxLevel: null },
-  { id: 'aBackBullet', label: 'A列後方弾', labelEn: 'Back Bullet', emoji: '↩️', isBoolean: false, maxLevel: null },
-  { id: 'aRightBullet', label: 'A列右弾', labelEn: 'Right Bullet', emoji: '➡️', isBoolean: false, maxLevel: null },
-  { id: 'aLeftBullet', label: 'A列左弾', labelEn: 'Left Bullet', emoji: '⬅️', isBoolean: false, maxLevel: null },
-  { id: 'bKnockbackBonus', label: 'ノックバック+', labelEn: 'Knockback+', emoji: '💨', isBoolean: false, maxLevel: null },
-  { id: 'bRangeBonus', label: '攻撃範囲+', labelEn: 'Range+', emoji: '📐', isBoolean: false, maxLevel: null },
-  { id: 'multiHitLevel', label: '多段攻撃', labelEn: 'Multi-Hit', emoji: '💥', isBoolean: false, maxLevel: 3 },
-  { id: 'expBonusLevel', label: '獲得経験値+', labelEn: 'EXP Bonus', emoji: '💰', isBoolean: false, maxLevel: 10, description: 'コイン1枚あたり+1経験値' },
-] as const;
-
 // デフォルト難易度設定（DB取得前のフォールバック）
-// 敵の強さは全難易度で統一（1.0）、出題コードで差をつける
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'veryeasy',
@@ -43,7 +30,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C_note', 'D_note', 'E_note', 'F_note', 'G_note', 'A_note', 'B_note'],
     enemySpawnRate: 3,
     enemySpawnCount: 2,
-    enemyStatMultiplier: 0.8,  // 敵が弱め
+    enemyStatMultiplier: 0.8,
     expMultiplier: 0.5,
     itemDropRate: 0.20,
     bgmOddWaveUrl: null,
@@ -56,7 +43,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em'],
     enemySpawnRate: 3,
     enemySpawnCount: 2,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemyStatMultiplier: 1.0,
     expMultiplier: 1.0,
     itemDropRate: 0.15,
     bgmOddWaveUrl: null,
@@ -69,7 +56,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'G7', 'C7', 'Am7', 'Dm7'],
     enemySpawnRate: 2.5,
     enemySpawnCount: 3,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemyStatMultiplier: 1.0,
     expMultiplier: 1.5,
     itemDropRate: 0.12,
     bgmOddWaveUrl: null,
@@ -82,7 +69,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'G7', 'Am7', 'Dm7', 'Em7', 'FM7', 'Bm7b5', 'E7', 'A7', 'D7'],
     enemySpawnRate: 2,
     enemySpawnCount: 4,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemyStatMultiplier: 1.0,
     expMultiplier: 2.0,
     itemDropRate: 0.10,
     bgmOddWaveUrl: null,
@@ -95,7 +82,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     allowedChords: ['CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5', 'Cmaj9', 'Dm9', 'G13'],
     enemySpawnRate: 1.5,
     enemySpawnCount: 5,
-    enemyStatMultiplier: 1.0,  // 敵の強さを統一
+    enemyStatMultiplier: 1.0,
     expMultiplier: 3.0,
     itemDropRate: 0.08,
     bgmOddWaveUrl: null,
@@ -103,45 +90,59 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   },
 ];
 
-// 難易度別アイコン設定
+// 難易度別アイコン
 const DIFFICULTY_ICONS: Record<SurvivalDifficulty, React.ReactNode> = {
-  veryeasy: <FaStar className="text-3xl text-emerald-300" />,
-  easy: <FaStar className="text-3xl text-green-400" />,
-  normal: <FaStar className="text-3xl text-blue-400" />,
-  hard: <FaFire className="text-3xl text-orange-400" />,
-  extreme: <FaSkull className="text-3xl text-red-400" />,
+  veryeasy: <FaStar className="text-emerald-300" />,
+  easy: <FaStar className="text-green-400" />,
+  normal: <FaStar className="text-blue-400" />,
+  hard: <FaFire className="text-orange-400" />,
+  extreme: <FaSkull className="text-red-400" />,
 };
 
-// 色設定
-const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string; gradient: string }> = {
+// 難易度別色設定
+const DIFFICULTY_COLORS: Record<SurvivalDifficulty, { bg: string; border: string; badge: string; text: string }> = {
   veryeasy: {
-    bg: 'bg-emerald-900/30',
-    border: 'border-emerald-400',
-    gradient: 'from-emerald-500 to-emerald-700',
+    bg: 'bg-emerald-900/20',
+    border: 'border-emerald-500/40',
+    badge: 'bg-emerald-600',
+    text: 'text-emerald-300',
   },
   easy: {
-    bg: 'bg-green-900/30',
-    border: 'border-green-500',
-    gradient: 'from-green-600 to-green-800',
+    bg: 'bg-green-900/20',
+    border: 'border-green-500/40',
+    badge: 'bg-green-600',
+    text: 'text-green-300',
   },
   normal: {
-    bg: 'bg-blue-900/30',
-    border: 'border-blue-500',
-    gradient: 'from-blue-600 to-blue-800',
+    bg: 'bg-blue-900/20',
+    border: 'border-blue-500/40',
+    badge: 'bg-blue-600',
+    text: 'text-blue-300',
   },
   hard: {
-    bg: 'bg-orange-900/30',
-    border: 'border-orange-500',
-    gradient: 'from-orange-600 to-orange-800',
+    bg: 'bg-orange-900/20',
+    border: 'border-orange-500/40',
+    badge: 'bg-orange-600',
+    text: 'text-orange-300',
   },
   extreme: {
-    bg: 'bg-red-900/30',
-    border: 'border-red-500',
-    gradient: 'from-red-600 to-red-800',
+    bg: 'bg-red-900/20',
+    border: 'border-red-500/40',
+    badge: 'bg-red-600',
+    text: 'text-red-300',
   },
 };
 
-// 英語版説明文
+// 難易度表示名
+const DIFFICULTY_DISPLAY: Record<SurvivalDifficulty, string> = {
+  veryeasy: 'Very Easy',
+  easy: 'Easy',
+  normal: 'Normal',
+  hard: 'Hard',
+  extreme: 'Extreme',
+};
+
+// 英語版難易度説明
 const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
   veryeasy: 'Introduction. Single notes only.',
   easy: 'Beginner friendly. Basic major/minor chords only.',
@@ -150,24 +151,43 @@ const DIFFICULTY_DESCRIPTIONS_EN: Record<SurvivalDifficulty, string> = {
   extreme: 'Expert level. All chord types, ultra fast.',
 };
 
+// DBから取得したキャラクターをアプリ内型に変換
+const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
+  id: row.id,
+  name: row.name,
+  nameEn: row.nameEn,
+  avatarUrl: row.avatarUrl,
+  sortOrder: row.sortOrder,
+  initialStats: row.initialStats as SurvivalCharacter['initialStats'],
+  initialSkills: row.initialSkills as SurvivalCharacter['initialSkills'],
+  initialMagics: row.initialMagics as SurvivalCharacter['initialMagics'],
+  level10Bonuses: row.level10Bonuses,
+  excludedBonuses: row.excludedBonuses,
+  permanentEffects: row.permanentEffects,
+  noMagic: row.noMagic,
+  hpRegenPerSecond: row.hpRegenPerSecond,
+  description: row.description,
+  descriptionEn: row.descriptionEn,
+});
+
 export interface DebugSkillSettings {
-  aPenetration?: boolean;     // 貫通（上限1）
-  aBulletCount?: number;      // A列の弾数（デフォルト1）
-  aBackBullet?: number;       // 後方弾（上限なし）
-  aRightBullet?: number;      // 右側弾（上限なし）
-  aLeftBullet?: number;       // 左側弾（上限なし）
-  bKnockbackBonus?: number;   // ノックバック距離増加（上限なし）
-  bRangeBonus?: number;       // 攻撃範囲拡大（上限なし）
-  multiHitLevel?: number;     // 多段攻撃レベル（上限3）
-  expBonusLevel?: number;     // 獲得経験値+1（上限10）- コイン1枚あたり+1
+  aPenetration?: boolean;
+  aBulletCount?: number;
+  aBackBullet?: number;
+  aRightBullet?: number;
+  aLeftBullet?: number;
+  bKnockbackBonus?: number;
+  bRangeBonus?: number;
+  multiHitLevel?: number;
+  expBonusLevel?: number;
 }
 
 export interface DebugSettings {
   aAtk?: number;
   bAtk?: number;
   cAtk?: number;
-  time?: number;  // 効果時間延長
-  luck?: number;  // 運（1=1%、上限40=50%）
+  time?: number;
+  luck?: number;
   skills?: DebugSkillSettings;
   tapSkillActivation?: boolean;
   initialLevel?: number;
@@ -183,9 +203,16 @@ export interface DebugSettings {
 }
 
 interface SurvivalStageSelectProps {
-  onStageSelect: (difficulty: SurvivalDifficulty, config: DifficultyConfig, debugSettings?: DebugSettings) => void;
+  onStageSelect: (
+    difficulty: SurvivalDifficulty,
+    config: DifficultyConfig,
+    debugSettings?: DebugSettings,
+    character?: SurvivalCharacter,
+  ) => void;
   onBackToMenu: () => void;
 }
+
+const DIFFICULTIES: SurvivalDifficulty[] = ['veryeasy', 'easy', 'normal', 'hard', 'extreme'];
 
 const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   onStageSelect,
@@ -194,9 +221,10 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
-  
+
   // 状態管理
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DEFAULT_DIFFICULTY_CONFIGS);
+  const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
   const [highScores, setHighScores] = useState<Record<SurvivalDifficulty, SurvivalHighScore | null>>({
     veryeasy: null,
     easy: null,
@@ -205,51 +233,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     extreme: null,
   });
   const [loading, setLoading] = useState(true);
-  
-  // デバッグ設定用状態
-  const [debugModalOpen, setDebugModalOpen] = useState(false);
-  const [debugDifficulty, setDebugDifficulty] = useState<SurvivalDifficulty | null>(null);
-  const [debugAAtk, setDebugAAtk] = useState<number>(10);
-  const [debugBAtk, setDebugBAtk] = useState<number>(20);
-  const [debugCAtk, setDebugCAtk] = useState<number>(20);
-  const [debugTime, setDebugTime] = useState<number>(0);  // TIME（効果時間延長）
-  const [debugLuck, setDebugLuck] = useState<number>(0);  // 運（1=1%、上限40=50%）
-  const [debugSkills, setDebugSkills] = useState<DebugSkillSettings>({
-    aPenetration: false,
-    aBulletCount: 1,
-    aBackBullet: 0,
-    aRightBullet: 0,
-    aLeftBullet: 0,
-    bKnockbackBonus: 0,
-    bRangeBonus: 0,
-    multiHitLevel: 0,
-    expBonusLevel: 0,
-  });
-  const [debugTapSkillActivation, setDebugTapSkillActivation] = useState(false);
-  const [debugInitialLevel, setDebugInitialLevel] = useState<number>(1);
-  const [debugMagics, setDebugMagics] = useState<{
-    thunder: number;
-    ice: number;
-    fire: number;
-    heal: number;
-    buffer: number;
-    debuffer: number;
-    hint: number;
-  }>({
-    thunder: 0,
-    ice: 0,
-    fire: 0,
-    heal: 0,
-    buffer: 0,
-    debuffer: 0,
-    hint: 0,
-  });
-  
-  // データを読み込み
+  const [expandedDifficulty, setExpandedDifficulty] = useState<SurvivalDifficulty | null>('veryeasy');
+
+  // データ読み込み
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
-      
+
       // 難易度設定を取得
       try {
         const settingsData = await fetchSurvivalDifficultySettings();
@@ -272,15 +262,19 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       } catch {
         // DB取得失敗時はデフォルト設定を使用
       }
-      
-      // ローカルストレージからハイスコアを読み込む関数
+
+      // キャラクターを取得
+      try {
+        const charRows = await fetchSurvivalCharacters();
+        setCharacters(charRows.map(convertToSurvivalCharacter));
+      } catch {
+        // キャラクター取得失敗
+      }
+
+      // ハイスコアを取得
       const loadFromLocalStorage = (): Record<SurvivalDifficulty, SurvivalHighScore | null> => {
         const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-          veryeasy: null,
-          easy: null,
-          normal: null,
-          hard: null,
-          extreme: null,
+          veryeasy: null, easy: null, normal: null, hard: null, extreme: null,
         };
         try {
           const saved = localStorage.getItem('survival_high_scores');
@@ -291,45 +285,31 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               if (value && typeof value === 'object') {
                 const v = value as Record<string, unknown>;
                 scoreMap[diff] = {
-                  id: '',
-                  userId: '',
-                  difficulty: diff,
+                  id: '', userId: '', difficulty: diff,
                   survivalTimeSeconds: Number(v.survivalTime) || 0,
                   finalLevel: Number(v.finalLevel) || 1,
                   enemiesDefeated: Number(v.enemiesDefeated) || 0,
-                  createdAt: '',
-                  updatedAt: '',
+                  createdAt: '', updatedAt: '',
                 };
               }
             });
           }
         } catch {
-          // エラー時は空のまま
+          // ignore
         }
         return scoreMap;
       };
-      
-      // ローカルストレージから読み込み（ベース）
+
       const localScores = loadFromLocalStorage();
-      
-      // ハイスコアを取得
+
       if (profile && !isGuest) {
-        // ログインユーザー: データベースから取得を試みる
         try {
           const scores = await fetchUserSurvivalHighScores(profile.id);
           const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-            veryeasy: null,
-            easy: null,
-            normal: null,
-            hard: null,
-            extreme: null,
+            veryeasy: null, easy: null, normal: null, hard: null, extreme: null,
           };
-          scores.forEach(score => {
-            scoreMap[score.difficulty] = score;
-          });
-          
-          // データベースとローカルストレージのスコアをマージ（高い方を採用）
-          (['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).forEach(diff => {
+          scores.forEach(score => { scoreMap[score.difficulty] = score; });
+          (DIFFICULTIES).forEach(diff => {
             const dbScore = scoreMap[diff];
             const localScore = localScores[diff];
             if (!dbScore && localScore) {
@@ -338,26 +318,27 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               scoreMap[diff] = localScore;
             }
           });
-          
           setHighScores(scoreMap);
         } catch {
-          // データベース取得失敗時はローカルストレージを使用
           setHighScores(localScores);
         }
       } else {
-        // ゲスト: ローカルストレージのみ
         setHighScores(localScores);
       }
     } finally {
       setLoading(false);
     }
   }, [profile, isGuest]);
-  
-  useEffect(() => {
-    loadData();
-  }, [loadData]);
 
-  // 時間フォーマット（60分以上の場合はh:mm:ss形式）
+  useEffect(() => { loadData(); }, [loadData]);
+
+  // 難易度設定取得
+  const getConfig = (difficulty: SurvivalDifficulty): DifficultyConfig => {
+    return difficultyConfigs.find(c => c.difficulty === difficulty)
+      || DEFAULT_DIFFICULTY_CONFIGS.find(c => c.difficulty === difficulty)!;
+  };
+
+  // 時間フォーマット
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -367,45 +348,22 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-  
-  // 難易度設定を取得
-  const getConfig = (difficulty: SurvivalDifficulty): DifficultyConfig => {
-    return difficultyConfigs.find(c => c.difficulty === difficulty) || DEFAULT_DIFFICULTY_CONFIGS.find(c => c.difficulty === difficulty)!;
-  };
-  
-  // デバッグモーダルを開く
-  const openDebugModal = (difficulty: SurvivalDifficulty, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setDebugDifficulty(difficulty);
-    setDebugModalOpen(true);
-  };
-  
-  // デバッグ設定でゲーム開始
-  const startWithDebugSettings = async () => {
-    if (!debugDifficulty) return;
-    
+
+  // キャラクター選択時の処理
+  const handleCharacterSelect = async (difficulty: SurvivalDifficulty, character: SurvivalCharacter) => {
     try {
       await FantasySoundManager.unlock();
       await initializeAudioSystem();
     } catch {
-      // エラーは無視
+      // ignore
     }
-    
-    const config = getConfig(debugDifficulty);
-    const debugSettings: DebugSettings = {
-      aAtk: debugAAtk,
-      bAtk: debugBAtk,
-      cAtk: debugCAtk,
-      time: debugTime,
-      luck: debugLuck,
-      skills: debugSkills,
-      tapSkillActivation: debugTapSkillActivation,
-      initialLevel: debugInitialLevel,
-      magics: debugMagics,
-    };
-    
-    setDebugModalOpen(false);
-    onStageSelect(debugDifficulty, config, debugSettings);
+    const config = getConfig(difficulty);
+    onStageSelect(difficulty, config, undefined, character);
+  };
+
+  // 難易度セクション開閉
+  const toggleDifficulty = (difficulty: SurvivalDifficulty) => {
+    setExpandedDifficulty(prev => prev === difficulty ? null : difficulty);
   };
 
   if (loading) {
@@ -430,9 +388,9 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               <span>SURVIVAL MODE</span>
             </h1>
             <p className="text-gray-400 text-sm sm:text-base font-sans">
-              {isEnglishCopy 
-                ? 'Survive as long as you can against endless enemies!'
-                : '迫りくる敵から生き残れ！'}
+              {isEnglishCopy
+                ? 'Choose your character and difficulty!'
+                : 'キャラクターと難易度を選んで挑戦！'}
             </p>
           </div>
           <button
@@ -444,86 +402,129 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         </div>
       </div>
 
-      {/* 難易度カード - シンプルな縦並び */}
+      {/* 難易度別セクション */}
       <div className="px-4 sm:px-6 pb-6">
-        <div className="max-w-2xl mx-auto space-y-4">
-          {(['veryeasy', 'easy', 'normal', 'hard', 'extreme'] as const).map((difficulty) => {
+        <div className="max-w-4xl mx-auto space-y-3">
+          {DIFFICULTIES.map((difficulty) => {
             const config = getConfig(difficulty);
             const colors = DIFFICULTY_COLORS[difficulty];
-            const score = highScores[difficulty];
             const icon = DIFFICULTY_ICONS[difficulty];
+            const isExpanded = expandedDifficulty === difficulty;
+            const score = highScores[difficulty];
 
             return (
-              <div
-                key={difficulty}
-                className={cn(
-                  'w-full text-left rounded-xl border-2 overflow-hidden transition-all duration-200 hover:scale-[1.02] hover:shadow-xl relative',
-                  colors.border,
-                  colors.bg,
-                  'p-4 sm:p-5 flex items-center gap-4'
-                )}
-              >
-                {/* デバッグ設定ボタン */}
+              <div key={difficulty}>
+                {/* 難易度ヘッダー */}
                 <button
-                  onClick={(e) => openDebugModal(difficulty, e)}
-                  className="absolute top-2 right-2 p-2 bg-black/40 hover:bg-black/60 rounded-full text-gray-400 hover:text-white transition-colors z-10"
-                  title={isEnglishCopy ? 'Debug Settings' : 'デバッグ設定'}
+                  onClick={() => toggleDifficulty(difficulty)}
+                  className={cn(
+                    'w-full rounded-xl border-2 p-4 flex items-center gap-4 transition-all duration-200',
+                    isExpanded ? 'rounded-b-none' : '',
+                    colors.border,
+                    colors.bg,
+                    'hover:brightness-110'
+                  )}
                 >
-                  <FaCog className="text-sm" />
-                </button>
-                
-                {/* メインボタン */}
-                <button
-                  onClick={async () => {
-                    // iOS対応: ユーザージェスチャー内でAudioContextを初期化
-                    try {
-                      await FantasySoundManager.unlock();
-                      await initializeAudioSystem();
-                    } catch {
-                      // エラーは無視してゲームを開始（音が出ない可能性あり）
-                    }
-                    onStageSelect(difficulty, config);
-                  }}
-                  className="flex items-center gap-4 flex-1 min-w-0"
-                >
-                  {/* アイコン */}
-                  <div className="flex-shrink-0 w-14 h-14 sm:w-16 sm:h-16 rounded-full bg-black/30 flex items-center justify-center">
-                    {icon}
-                  </div>
-                  
-                  {/* コンテンツ */}
-                  <div className="flex-1 min-w-0 text-left">
-                    {/* 難易度名 */}
-                    <h2 className="text-xl sm:text-2xl font-bold font-sans text-white mb-1">
-                      {config.displayName}
-                    </h2>
-                    
-                    {/* 説明 */}
-                    <p className="text-gray-300 text-sm font-sans line-clamp-1">
+                  <div className="flex-shrink-0 text-2xl">{icon}</div>
+                  <div className="flex-1 text-left">
+                    <div className="flex items-center gap-3">
+                      <h2 className="text-xl sm:text-2xl font-bold font-sans text-white">
+                        {DIFFICULTY_DISPLAY[difficulty]}
+                      </h2>
+                      <span className={cn('text-xs px-2 py-0.5 rounded-full font-sans', colors.badge, 'text-white')}>
+                        {characters.length} {isEnglishCopy ? 'characters' : 'キャラ'}
+                      </span>
+                    </div>
+                    <p className="text-gray-400 text-sm font-sans mt-1">
                       {isEnglishCopy ? DIFFICULTY_DESCRIPTIONS_EN[difficulty] : config.description}
                     </p>
-                    
-                    {/* ハイスコア */}
+                    {/* ハイスコア表示 */}
                     {score && score.survivalTimeSeconds > 0 && (
-                      <div className="mt-2 flex items-center gap-4 text-sm">
+                      <div className="mt-1 flex items-center gap-4 text-xs text-gray-400">
                         <span className="text-yellow-400 font-semibold">
-                          🏆 {formatTime(score.survivalTimeSeconds)}
+                          Best: {formatTime(score.survivalTimeSeconds)}
                         </span>
-                        <span className="text-gray-400">
-                          Lv.{score.finalLevel}
-                        </span>
-                        <span className="text-gray-400">
-                          {score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}
-                        </span>
+                        <span>Lv.{score.finalLevel}</span>
+                        <span>{score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}</span>
                       </div>
                     )}
                   </div>
-                  
-                  {/* 矢印 */}
-                  <div className="flex-shrink-0 text-2xl text-gray-400">
+                  <div className={cn(
+                    'flex-shrink-0 text-xl text-gray-400 transition-transform duration-200',
+                    isExpanded ? 'rotate-90' : ''
+                  )}>
                     ▶
                   </div>
                 </button>
+
+                {/* キャラクターカード一覧 */}
+                {isExpanded && (
+                  <div className={cn(
+                    'border-2 border-t-0 rounded-b-xl p-4',
+                    colors.border,
+                    'bg-black/30'
+                  )}>
+                    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
+                      {characters.map((character) => (
+                        <button
+                          key={`${difficulty}-${character.id}`}
+                          onClick={() => handleCharacterSelect(difficulty, character)}
+                          className={cn(
+                            'relative rounded-xl border overflow-hidden transition-all duration-200',
+                            'hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20',
+                            'bg-gradient-to-b from-gray-800/80 to-gray-900/80',
+                            'border-gray-600/50 hover:border-purple-400/60',
+                            'p-3 flex flex-col items-center gap-2 text-center'
+                          )}
+                        >
+                          {/* アバター画像 */}
+                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-gray-700/50 flex-shrink-0 border-2 border-gray-600/50">
+                            <img
+                              src={character.avatarUrl}
+                              alt={character.name}
+                              className="w-full h-full object-cover"
+                              loading="lazy"
+                            />
+                          </div>
+
+                          {/* キャラ名 */}
+                          <h3 className="text-sm sm:text-base font-bold text-white font-sans leading-tight">
+                            {isEnglishCopy ? (character.nameEn || character.name) : character.name}
+                          </h3>
+
+                          {/* 能力説明 */}
+                          <p className="text-[10px] sm:text-xs text-gray-400 font-sans leading-tight line-clamp-2">
+                            {isEnglishCopy ? (character.descriptionEn || character.description) : character.description}
+                          </p>
+
+                          {/* 特殊タグ */}
+                          <div className="flex flex-wrap gap-1 justify-center">
+                            {character.noMagic && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-900/60 text-red-300 font-sans">
+                                {isEnglishCopy ? 'No Magic' : '魔法不可'}
+                              </span>
+                            )}
+                            {character.permanentEffects.length > 0 && character.permanentEffects.map((eff, i) => (
+                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-900/60 text-purple-300 font-sans">
+                                {eff.type === 'hint' ? 'HINT' : eff.type === 'buffer' ? `Buffer Lv${eff.level}` : eff.type}
+                              </span>
+                            ))}
+                            {character.initialSkills.autoSelect && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 font-sans">
+                                Auto
+                              </span>
+                            )}
+                            {character.hpRegenPerSecond > 0 && (
+                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-900/60 text-green-300 font-sans">
+                                HP Regen
+                              </span>
+                            )}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             );
           })}
@@ -532,9 +533,9 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
       {/* 操作説明 */}
       <div className="px-4 sm:px-6 pb-6">
-        <div className="max-w-2xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
+        <div className="max-w-4xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
           <h3 className="text-lg font-bold text-white mb-3 font-sans">
-            {isEnglishCopy ? '🎮 CONTROLS' : '🎮 操作方法'}
+            {isEnglishCopy ? 'CONTROLS' : '操作方法'}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-300 font-sans">
             <div className="flex items-center gap-2">
@@ -542,7 +543,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               <span>{isEnglishCopy ? 'Move' : '移動'}</span>
             </div>
             <div className="flex items-center gap-2">
-              <span className="bg-gray-700 px-2 py-1 rounded">🎹</span>
+              <span className="bg-gray-700 px-2 py-1 rounded text-lg">🎹</span>
               <span>{isEnglishCopy ? 'Play chords to attack' : 'コードを演奏して攻撃'}</span>
             </div>
           </div>
@@ -551,301 +552,10 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
       {/* フッター */}
       <div className="text-center text-white text-xs sm:text-sm opacity-50 pb-6 font-sans">
-        {isEnglishCopy 
-          ? '🎹 Complete chords to unleash powerful attacks!'
-          : '🎹 コードを完成させて強力な攻撃を放て！'}
+        {isEnglishCopy
+          ? 'Complete chords to unleash powerful attacks!'
+          : 'コードを完成させて強力な攻撃を放て！'}
       </div>
-      
-      {/* デバッグ設定モーダル */}
-      {debugModalOpen && debugDifficulty && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
-          <div className="bg-gray-900 rounded-xl border-2 border-gray-700 p-6 max-w-md w-full mx-4 max-h-[80vh] overflow-y-auto">
-            <h3 className="text-xl font-bold text-white mb-4 font-sans">
-              🛠️ {isEnglishCopy ? 'Debug Settings' : 'デバッグ設定'} ({debugDifficulty.toUpperCase()})
-            </h3>
-            
-            {/* レベル設定 */}
-            <div className="mb-6">
-              <label className="block text-gray-300 text-sm mb-2 font-sans">
-                ⭐ {isEnglishCopy ? 'Initial Level' : '初期レベル'}: {debugInitialLevel}
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="50"
-                value={debugInitialLevel}
-                onChange={(e) => setDebugInitialLevel(Number(e.target.value))}
-                className="w-full"
-              />
-            </div>
-            
-            {/* 攻撃力設定 */}
-            <div className="space-y-4 mb-6">
-              <div>
-                <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  🔫 遠距離攻撃力 (aAtk): {debugAAtk}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="500"
-                  value={debugAAtk}
-                  onChange={(e) => setDebugAAtk(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  👊 近接攻撃力 (bAtk): {debugBAtk}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="500"
-                  value={debugBAtk}
-                  onChange={(e) => setDebugBAtk(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  🪄 魔法攻撃力 (cAtk): {debugCAtk}
-                </label>
-                <input
-                  type="range"
-                  min="1"
-                  max="500"
-                  value={debugCAtk}
-                  onChange={(e) => setDebugCAtk(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  ⏱️ TIME (効果時間延長): {debugTime} （+{debugTime * 2}秒）
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="20"
-                  value={debugTime}
-                  onChange={(e) => setDebugTime(Number(e.target.value))}
-                  className="w-full"
-                />
-              </div>
-              
-              <div>
-                <label className="block text-gray-300 text-sm mb-2 font-sans">
-                  🍀 LUCK (運): {debugLuck} （{10 + debugLuck}%で特殊効果発動）
-                </label>
-                <input
-                  type="range"
-                  min="0"
-                  max="40"
-                  value={debugLuck}
-                  onChange={(e) => setDebugLuck(Number(e.target.value))}
-                  className="w-full"
-                />
-                <p className="text-xs text-gray-500 mt-1">
-                  発動時：ダメージ2倍、被ダメージ0、リロード1/3、TIME2倍
-                </p>
-              </div>
-            </div>
-            
-            {/* スキル選択 */}
-            <div className="mb-6">
-              <label className="block text-gray-300 text-sm mb-2 font-sans">
-                ⚡ {isEnglishCopy ? 'Initial Skills' : '初期スキル'}
-              </label>
-              <div className="space-y-3">
-                {DEBUG_SKILLS.map(skill => {
-                  const currentValue = debugSkills[skill.id as keyof DebugSkillSettings] ?? (skill.isBoolean ? false : 0);
-                  
-                  return (
-                    <div key={skill.id} className="flex items-center gap-3 bg-gray-800/50 p-2 rounded-lg">
-                      {/* アイコンとラベル */}
-                      <div className="flex items-center gap-2 min-w-[120px]">
-                        <span>{skill.emoji}</span>
-                        <span className="text-sm text-gray-300 font-sans">
-                          {isEnglishCopy ? skill.labelEn : skill.label}
-                        </span>
-                      </div>
-                      
-                      {/* 値設定 */}
-                      {skill.isBoolean ? (
-                        // 貫通（boolean）
-                        <button
-                          onClick={() => setDebugSkills(prev => ({
-                            ...prev,
-                            [skill.id]: !currentValue,
-                          }))}
-                          className={cn(
-                            'px-4 py-1.5 rounded text-sm font-sans transition-colors',
-                            currentValue
-                              ? 'bg-green-600 text-white'
-                              : 'bg-gray-700 text-gray-400'
-                          )}
-                        >
-                          {currentValue ? 'ON' : 'OFF'}
-                        </button>
-                      ) : skill.maxLevel === 3 ? (
-                        // 多段攻撃（上限3）
-                        <div className="flex gap-1">
-                          {[0, 1, 2, 3].map(level => (
-                            <button
-                              key={level}
-                              onClick={() => setDebugSkills(prev => ({
-                                ...prev,
-                                [skill.id]: level,
-                              }))}
-                              className={cn(
-                                'w-8 h-8 rounded text-sm font-sans transition-colors',
-                                currentValue === level
-                                  ? 'bg-blue-600 text-white'
-                                  : 'bg-gray-700 text-gray-400 hover:bg-gray-600'
-                              )}
-                            >
-                              {level}
-                            </button>
-                          ))}
-                        </div>
-                      ) : (
-                        // 上限なしのスキル
-                        <div className="flex items-center gap-2 flex-1">
-                          <input
-                            type="range"
-                            min="0"
-                            max="20"
-                            value={Number(currentValue) || 0}
-                            onChange={(e) => setDebugSkills(prev => ({
-                              ...prev,
-                              [skill.id]: Number(e.target.value),
-                            }))}
-                            className="flex-1"
-                          />
-                          <span className="w-8 text-center text-sm text-gray-300 font-sans">
-                            {String(currentValue)}
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-                
-                {/* スキルリセットボタン */}
-                <button
-                  onClick={() => setDebugSkills({
-                    aPenetration: false,
-                    aBulletCount: 1,
-                    aBackBullet: 0,
-                    aRightBullet: 0,
-                    aLeftBullet: 0,
-                    bKnockbackBonus: 0,
-                    bRangeBonus: 0,
-                    multiHitLevel: 0,
-                    expBonusLevel: 0,
-                  })}
-                  className="w-full px-3 py-2 rounded-lg text-xs font-sans bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
-                >
-                  {isEnglishCopy ? 'Reset All Skills' : 'スキルをリセット'}
-                </button>
-              </div>
-            </div>
-            
-            {/* 魔法個別設定 */}
-            <div className="mb-6">
-              <label className="block text-gray-300 text-sm mb-2 font-sans">
-                🪄 {isEnglishCopy ? 'Magic Levels (0=disabled, 1-3=level)' : '魔法レベル（0=なし, 1-3=レベル）'}
-              </label>
-              <div className="grid grid-cols-2 gap-3">
-                {([
-                  { key: 'thunder', label: '⚡ Thunder', labelJp: '⚡ 雷' },
-                  { key: 'ice', label: '❄️ Ice', labelJp: '❄️ 氷' },
-                  { key: 'fire', label: '🔥 Fire', labelJp: '🔥 炎' },
-                  { key: 'heal', label: '💚 Heal', labelJp: '💚 回復' },
-                  { key: 'buffer', label: '⬆️ Buffer', labelJp: '⬆️ バフ' },
-                  { key: 'debuffer', label: '⬇️ Debuffer', labelJp: '⬇️ デバフ' },
-                  { key: 'hint', label: '💡 Hint', labelJp: '💡 ヒント' },
-                ] as const).map(({ key, label, labelJp }) => (
-                  <div key={key} className="flex items-center gap-2">
-                    <span className="text-xs text-gray-400 w-20 font-sans">
-                      {isEnglishCopy ? label : labelJp}
-                    </span>
-                    <div className="flex gap-1">
-                      {[0, 1, 2, 3].map(level => (
-                        <button
-                          key={level}
-                          onClick={() => setDebugMagics(prev => ({ ...prev, [key]: level }))}
-                          className={cn(
-                            'w-7 h-7 rounded text-xs font-sans transition-colors',
-                            debugMagics[key] === level
-                              ? 'bg-purple-600 text-white'
-                              : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
-                          )}
-                        >
-                          {level}
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ))}
-              </div>
-              
-              {/* 全魔法一括設定ボタン */}
-              <div className="flex gap-2 mt-3">
-                <button
-                  onClick={() => setDebugMagics({
-                    thunder: 0, ice: 0, fire: 0, heal: 0, buffer: 0, debuffer: 0, hint: 0
-                  })}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-sans bg-gray-700 text-gray-300 hover:bg-gray-600 transition-colors"
-                >
-                  {isEnglishCopy ? 'Reset All' : 'すべてリセット'}
-                </button>
-                <button
-                  onClick={() => setDebugMagics({
-                    thunder: 3, ice: 3, fire: 3, heal: 3, buffer: 3, debuffer: 3, hint: 3
-                  })}
-                  className="flex-1 px-3 py-2 rounded-lg text-xs font-sans bg-purple-700 text-white hover:bg-purple-600 transition-colors"
-                >
-                  {isEnglishCopy ? 'Max All' : 'すべて最大'}
-                </button>
-              </div>
-            </div>
-            
-            {/* タップでスキル発動 */}
-            <div className="mb-6">
-              <label className="flex items-center gap-3 text-gray-300 text-sm font-sans cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={debugTapSkillActivation}
-                  onChange={(e) => setDebugTapSkillActivation(e.target.checked)}
-                  className="w-5 h-5 rounded"
-                />
-                👆 {isEnglishCopy ? 'Tap to activate skills (no piano input)' : 'タップでスキル発動（ピアノ入力不要）'}
-              </label>
-            </div>
-            
-            {/* ボタン */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDebugModalOpen(false)}
-                className="flex-1 px-4 py-3 bg-gray-700 hover:bg-gray-600 rounded-lg text-white font-sans transition-colors"
-              >
-                {isEnglishCopy ? 'Cancel' : 'キャンセル'}
-              </button>
-              <button
-                onClick={startWithDebugSettings}
-                className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-500 rounded-lg text-white font-sans transition-colors"
-              >
-                {isEnglishCopy ? 'Start' : '開始'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

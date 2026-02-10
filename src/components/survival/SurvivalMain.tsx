@@ -4,7 +4,7 @@
  */
 
 import React, { useState, useCallback } from 'react';
-import { SurvivalDifficulty, DifficultyConfig } from './SurvivalTypes';
+import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
 import SurvivalStageSelect, { DebugSettings } from './SurvivalStageSelect';
 import SurvivalGameScreen from './SurvivalGameScreen';
 
@@ -15,28 +15,36 @@ const SurvivalMain: React.FC = () => {
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
-  
-  // 難易度選択
-  const handleStageSelect = useCallback((difficulty: SurvivalDifficulty, config: DifficultyConfig, debug?: DebugSettings) => {
+  const [selectedCharacter, setSelectedCharacter] = useState<SurvivalCharacter | undefined>(undefined);
+
+  // 難易度・キャラクター選択
+  const handleStageSelect = useCallback((
+    difficulty: SurvivalDifficulty,
+    config: DifficultyConfig,
+    debug?: DebugSettings,
+    character?: SurvivalCharacter,
+  ) => {
     setSelectedDifficulty(difficulty);
     setSelectedConfig(config);
     setDebugSettings(debug);
+    setSelectedCharacter(character);
     setScreen('game');
   }, []);
-  
+
   // ステージ選択に戻る
   const handleBackToSelect = useCallback(() => {
     setScreen('select');
     setSelectedDifficulty(null);
     setSelectedConfig(null);
     setDebugSettings(undefined);
+    setSelectedCharacter(undefined);
   }, []);
-  
+
   // メニューに戻る
   const handleBackToMenu = useCallback(() => {
     window.location.hash = '#dashboard';
   }, []);
-  
+
   // ステージ選択画面
   if (screen === 'select') {
     return (
@@ -46,7 +54,7 @@ const SurvivalMain: React.FC = () => {
       />
     );
   }
-  
+
   // ゲーム画面
   if (screen === 'game' && selectedDifficulty && selectedConfig) {
     return (
@@ -56,10 +64,11 @@ const SurvivalMain: React.FC = () => {
         onBackToSelect={handleBackToSelect}
         onBackToMenu={handleBackToMenu}
         debugSettings={debugSettings}
+        character={selectedCharacter}
       />
     );
   }
-  
+
   // フォールバック
   return (
     <SurvivalStageSelect

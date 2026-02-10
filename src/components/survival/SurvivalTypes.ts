@@ -386,6 +386,38 @@ export interface SurvivalGameResult {
   earnedXp: number;          // 獲得経験値
 }
 
+// ===== キャラクターレベル10ボーナス定義 =====
+export interface CharacterLevel10Bonus {
+  type: string;    // BonusType相当（'max_hp_flat' | 'exp_bonus' | 'a_atk' など）
+  value: number;   // 増加量
+  max?: number;    // 上限（あれば）
+}
+
+// ===== キャラクター永続効果 =====
+export interface CharacterPermanentEffect {
+  type: string;    // StatusEffect相当（'hint' | 'buffer' など）
+  level: number;   // レベル
+}
+
+// ===== サバイバルキャラクター =====
+export interface SurvivalCharacter {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  avatarUrl: string;
+  sortOrder: number;
+  initialStats: Partial<PlayerStats>;
+  initialSkills: Partial<SpecialSkills>;
+  initialMagics: Partial<AcquiredMagics>;
+  level10Bonuses: CharacterLevel10Bonus[];
+  excludedBonuses: string[];          // BonusType[] に相当
+  permanentEffects: CharacterPermanentEffect[];
+  noMagic: boolean;
+  hpRegenPerSecond: number;
+  description: string | null;
+  descriptionEn: string | null;
+}
+
 // ===== 定数 =====
 export const SLOT_TIMEOUT = 10;  // コードスロットのタイムアウト（秒）
 export const MAGIC_BASE_COOLDOWN = 10;  // 魔法の基本クールダウン（秒）

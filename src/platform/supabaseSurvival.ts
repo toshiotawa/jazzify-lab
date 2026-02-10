@@ -205,7 +205,78 @@ export async function updateSurvivalDifficultySettings(
   return convertDifficultySettings(data);
 }
 
+// ===== キャラクター型 =====
+export interface SurvivalCharacterRow {
+  id: string;
+  name: string;
+  nameEn: string | null;
+  avatarUrl: string;
+  sortOrder: number;
+  initialStats: Record<string, unknown>;
+  initialSkills: Record<string, unknown>;
+  initialMagics: Record<string, unknown>;
+  level10Bonuses: Array<{ type: string; value: number; max?: number }>;
+  excludedBonuses: string[];
+  permanentEffects: Array<{ type: string; level: number }>;
+  noMagic: boolean;
+  hpRegenPerSecond: number;
+  description: string | null;
+  descriptionEn: string | null;
+}
+
+/**
+ * サバイバルキャラクター一覧を取得
+ */
+export async function fetchSurvivalCharacters(): Promise<SurvivalCharacterRow[]> {
+  const supabase = getSupabaseClient();
+  
+  const { data, error } = await supabase
+    .from('survival_characters')
+    .select('*')
+    .order('sort_order');
+  
+  if (error) throw error;
+  return (data ?? []).map(convertCharacter);
+}
+
+/**
+ * プロフィールのサバイバルキャラクターIDを更新
+ */
+export async function updateProfileSurvivalCharacter(
+  userId: string,
+  characterId: string | null
+): Promise<void> {
+  const supabase = getSupabaseClient();
+  
+  const { error } = await supabase
+    .from('profiles')
+    .update({ survival_character_id: characterId })
+    .eq('id', userId);
+  
+  if (error) throw error;
+}
+
 // 変換ヘルパー
+function convertCharacter(row: Record<string, unknown>): SurvivalCharacterRow {
+  return {
+    id: row.id as string,
+    name: row.name as string,
+    nameEn: (row.name_en as string) || null,
+    avatarUrl: row.avatar_url as string,
+    sortOrder: Number(row.sort_order) || 0,
+    initialStats: (row.initial_stats as Record<string, unknown>) || {},
+    initialSkills: (row.initial_skills as Record<string, unknown>) || {},
+    initialMagics: (row.initial_magics as Record<string, unknown>) || {},
+    level10Bonuses: (row.level_10_bonuses as Array<{ type: string; value: number; max?: number }>) || [],
+    excludedBonuses: (row.excluded_bonuses as string[]) || [],
+    permanentEffects: (row.permanent_effects as Array<{ type: string; level: number }>) || [],
+    noMagic: Boolean(row.no_magic),
+    hpRegenPerSecond: Number(row.hp_regen_per_second) || 0,
+    description: (row.description as string) || null,
+    descriptionEn: (row.description_en as string) || null,
+  };
+}
+
 function convertHighScore(row: Record<string, unknown>): SurvivalHighScore {
   return {
     id: row.id as string,
