@@ -112,6 +112,9 @@ temp/
 # Local dev environment
 .local/
 
+# Local global npm binaries accidentally created in repo root
+$HOME/
+
 # TypeScript cache
 *.tsbuildinfo
 node_modules/.cache/
