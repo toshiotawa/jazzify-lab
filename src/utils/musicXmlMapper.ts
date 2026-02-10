@@ -662,6 +662,24 @@ export function calculatePlayheadPosition(doc: Document, jsonNotes: NoteData[], 
 }
 
 /**
+ * 楽譜表示用にMusicXMLの歌詞要素を除去
+ */
+export function stripLyricsFromMusicXml(musicXmlText: string): string {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(musicXmlText, 'text/xml');
+    const lyricElements = doc.querySelectorAll('lyric');
+    lyricElements.forEach((lyric) => {
+      lyric.remove();
+    });
+    const serializer = new XMLSerializer();
+    return serializer.serializeToString(doc);
+  } catch {
+    return musicXmlText;
+  }
+}
+
+/**
  * MusicXMLの簡易表示処理: コードネームと音名を簡易化
  * gameStore の設定に基づいてMusicXMLを前処理
  */

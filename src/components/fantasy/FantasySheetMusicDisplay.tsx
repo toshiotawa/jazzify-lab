@@ -14,6 +14,7 @@ import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
+import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 interface FantasySheetMusicDisplayProps {
@@ -128,6 +129,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       // 移調を適用（simpleMode を渡す）
       // offset === 0 でも simpleMode が有効なら変換を適用
       const transposedXml = (offset !== 0 || useSimpleMode) ? transposeMusicXml(xml, offset, useSimpleMode) : xml;
+      const displayXml = stripLyricsFromMusicXml(transposedXml);
       
       // OSMDオプション設定
       const options: IOSMDOptions = {
@@ -149,7 +151,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       };
       
       const osmd = new OpenSheetMusicDisplay(container, options);
-      await osmd.load(transposedXml);
+      await osmd.load(displayXml);
       osmd.render();
       
       // canvasの内容を画像として取得

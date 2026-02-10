@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
-import { simplifyMusicXmlForDisplay } from '@/utils/musicXmlMapper';
+import { simplifyMusicXmlForDisplay, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
 
 interface SheetMusicDisplayProps {
@@ -245,8 +245,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         osmdRef.current.clear();
       }
       
+      const xmlWithoutLyrics = stripLyricsFromMusicXml(musicXml);
       // 🎯 簡易表示設定に基づいてMusicXMLを前処理
-        const processedMusicXml = simplifyMusicXmlForDisplay(musicXml, {
+        const processedMusicXml = simplifyMusicXmlForDisplay(xmlWithoutLyrics, {
         simpleDisplayMode: settings.simpleDisplayMode,
         noteNameStyle: settings.noteNameStyle,
         chordsOnly: settings.sheetMusicChordsOnly,
