@@ -220,6 +220,20 @@ const FantasyMain: React.FC = () => {
     !isLessonMode &&
     !isMissionMode &&
     (isFreeOrGuest || nextStageUnlockInfo?.isUnlocked === true);
+  const previousClearCredit = nextStageUnlockInfo
+    ? Math.max(0, nextStageUnlockInfo.currentClearCredit - (gameResult?.clearCredit ?? 0))
+    : 0;
+  const shouldShowStageUnlockedMessage =
+    gameResult?.result === 'clear' &&
+    !isLessonMode &&
+    !isMissionMode &&
+    nextStageUnlockInfo?.isUnlocked === true &&
+    previousClearCredit < (nextStageUnlockInfo?.requiredClears ?? 0);
+  const shouldShowNextStageInfo =
+    !isLessonMode &&
+    !isMissionMode &&
+    !!nextStageUnlockInfo &&
+    (!nextStageUnlockInfo.isUnlocked || shouldShowStageUnlockedMessage);
   
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
@@ -746,9 +760,9 @@ const FantasyMain: React.FC = () => {
               </div>
             
             {/* 次ステージ開放情報 */}
-            {!isLessonMode && !isMissionMode && nextStageUnlockInfo && (
+            {shouldShowNextStageInfo && (
               <div className="mt-4 pt-4 border-t border-gray-600">
-                {nextStageUnlockInfo.isUnlocked ? (
+                {shouldShowStageUnlockedMessage ? (
                   <div className="text-yellow-400 font-bold text-lg">
                     {stageUnlockedLabel}
                   </div>
