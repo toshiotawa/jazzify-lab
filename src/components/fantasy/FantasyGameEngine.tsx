@@ -1805,34 +1805,16 @@ export const useFantasyGameEngine = ({
           
           // ノーツをリセット（先読みヒット済みノーツは維持）
           const preHitIndices = prevState.preHitNoteIndices || [];
-          
-          // ループ境界直後にヒットされたノーツも保持する（レースコンディション対策）
-          // normalizedTime が小さい（ループ開始直後）かつ、前の状態でヒット済みのノーツで、
-          // hitTime が normalizedTime 付近にあるものは新ループで既にヒットされたとみなす
-          const recentHitIndices: number[] = [...preHitIndices];
-          if (normalizedTime < 0.5) {
-            prevState.taikoNotes.forEach((prevNote, index) => {
-              if (
-                prevNote.isHit &&
-                !recentHitIndices.includes(index) &&
-                transposedNotes[index] &&
-                transposedNotes[index].hitTime <= normalizedTime + 0.15
-              ) {
-                recentHitIndices.push(index);
-              }
-            });
-          }
-          
           const resetNotes = transposedNotes.map((note, index) => ({
             ...note,
-            // 先読みヒットまたはループ境界直後のヒットを維持
-            isHit: recentHitIndices.includes(index),
+            // 先読みでヒットしたノーツはisHit: trueを維持
+            isHit: preHitIndices.includes(index),
             isMissed: false
           }));
           
-          // ヒット済みノーツがある場合、そのノーツの次から開始
+          // 先読みヒット済みノーツがある場合、そのノーツの次から開始
           // それ以外は0から開始
-          const hitIndices = recentHitIndices.filter(i => i < resetNotes.length);
+          const hitIndices = preHitIndices.filter(i => i < resetNotes.length);
           const maxHitIndex = hitIndices.length > 0 ? Math.max(...hitIndices) : -1;
           const newNoteIndex = maxHitIndex >= 0 ? maxHitIndex + 1 : 0;
           

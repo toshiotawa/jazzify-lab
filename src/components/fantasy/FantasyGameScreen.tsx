@@ -911,8 +911,37 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const currentTransposeOffsetRef = useRef(gameState.currentTransposeOffset);
   const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
   
+  // ループ境界レースコンディション対策: ヒットされたノーツIDと時刻を記録
+  // ループリセットで isHit が false に戻っても、一定時間は表示を抑制する
+  const recentlyHitNoteIdsRef = useRef<Map<string, number>>(new Map());
+  
   // taikoNotes/currentNoteIndex/awaitingLoopStart/移調設定が変更されたらrefを更新（アニメーションループはそのまま継続）
   useEffect(() => {
+    // ヒット遷移の検知: 前回 isHit=false → 今回 isHit=true のノーツを記録
+    const prevNotes = taikoNotesRef.current;
+    const nextNotes = gameState.taikoNotes;
+    const now = performance.now();
+    for (let i = 0; i < nextNotes.length; i++) {
+      if (nextNotes[i].isHit && (!prevNotes[i] || !prevNotes[i].isHit)) {
+        recentlyHitNoteIdsRef.current.set(nextNotes[i].id, now);
+      }
+    }
+    // 500ms以上経過したエントリを削除
+    for (const [id, hitTime] of recentlyHitNoteIdsRef.current) {
+      if (now - hitTime > 500) {
+        recentlyHitNoteIdsRef.current.delete(id);
+      }
+    }
+    // ループサイクルが変わった場合、古いヒット記録をクリア（新ループのノーツが同じIDを持つため）
+    if (gameState.taikoLoopCycle !== taikoLoopCycleRef.current) {
+      // 直近100ms以内のヒットのみ保持（ループ境界直前のヒットを維持するため）
+      for (const [id, hitTime] of recentlyHitNoteIdsRef.current) {
+        if (now - hitTime > 100) {
+          recentlyHitNoteIdsRef.current.delete(id);
+        }
+      }
+    }
+    
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
@@ -1034,11 +1063,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
+      // 直近ヒットされたノーツIDを取得（ループ境界レースコンディション対策）
+      const recentHits = recentlyHitNoteIdsRef.current;
+      const displayNow = performance.now();
+      
       // 通常のノーツ（現在ループのみ表示）
       if (!isAwaitingLoop) {
         taikoNotes.forEach((note, index) => {
           // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
           if (note.isHit) return;
+          
+          // ループリセット後も、直近ヒットされたノーツは一定時間表示を抑制
+          const hitTime = recentHits.get(note.id);
+          if (hitTime !== undefined && displayNow - hitTime < 400) return;
 
           // 既にこのループで消化済みのインデックスは表示しない（復活防止）
           if (index < currentNoteIndex) return;
