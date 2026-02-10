@@ -235,15 +235,34 @@ class BGMManager {
    * - loopBegin = countInMeasures * 1小節の長さ
    * - M1開始を0秒として返す（カウントイン中は負の値）
    */
+  /**
+   * AudioContext の出力レイテンシを取得する。
+   * outputLatency + baseLatency を合算し、ユーザーが実際に音を聴くまでの
+   * 遅延を返す（秒）。取得できない環境では 0 を返す。
+   */
+  private getOutputLatency(): number {
+    if (this.waContext) {
+      const ctx = this.waContext as AudioContext & { outputLatency?: number }
+      const output = typeof ctx.outputLatency === 'number' ? ctx.outputLatency : 0
+      const base = typeof ctx.baseLatency === 'number' ? ctx.baseLatency : 0
+      return output + base
+    }
+    return 0
+  }
+
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
+      // 出力レイテンシ補正: AudioContextの報告時間はスピーカー出力より先行するため、
+      // レイテンシ分を差し引いてユーザーが実際に聴いている音楽位置に近づける
+      const latencyCompensation = this.getOutputLatency()
+
       // Tone.js PitchShift使用時
       if (this.useTonePitchShift && this.tonePlayer) {
         try {
           const Tone = (window as any).Tone
           if (Tone && typeof Tone.now === 'function') {
             // Tone.now()を使用して経過時間を計算
-            const elapsedRealTime = Tone.now() - this.waStartAt
+            const elapsedRealTime = Tone.now() - this.waStartAt - latencyCompensation
             // playbackRateを考慮した音楽的な時間（BGM先頭=0）
             const musicTime = elapsedRealTime * this.playbackRate
             return this.normalizeMusicTime(musicTime)
@@ -254,7 +273,7 @@ class BGMManager {
       if (this.waContext && this.waBuffer) {
         // Web Audio 再生時間を計算
         // AudioContext.currentTimeを使用して正確な経過時間を取得
-        const elapsedRealTime = this.waContext.currentTime - this.waStartAt
+        const elapsedRealTime = this.waContext.currentTime - this.waStartAt - latencyCompensation
         // playbackRateを考慮した音楽的な時間（BGM先頭=0）
         const musicTime = elapsedRealTime * this.playbackRate
         return this.normalizeMusicTime(musicTime)

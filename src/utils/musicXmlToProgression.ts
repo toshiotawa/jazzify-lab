@@ -100,6 +100,18 @@ export function convertMusicXmlToProgressionData(
           lookaheadIndex++;
         }
 
+        // タイ処理: グループの先頭ノートが tie-stop のみ（tie-start なし）の場合、
+        // タイで繋がれた後続音符なのでスキップする（位置は進める）
+        const leadTies = Array.from(noteEl.querySelectorAll('tie'));
+        const hasTieStop = leadTies.some(t => t.getAttribute('type') === 'stop');
+        const hasTieStart = leadTies.some(t => t.getAttribute('type') === 'start');
+        if (hasTieStop && !hasTieStart) {
+          const dur = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);
+          currentPos += isNaN(dur) ? 0 : dur;
+          idx = lookaheadIndex - 1;
+          continue;
+        }
+
         // 歌詞からコード名を取得（グループ内を走査）
         // 新しい歌詞が見つかった場合、currentLyricDisplayを更新
         let foundNewLyric = false;

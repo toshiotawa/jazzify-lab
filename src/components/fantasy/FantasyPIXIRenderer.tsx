@@ -523,7 +523,6 @@ export class FantasyPIXIInstance {
     // ノーツを描画
     this.taikoNotes.forEach((note) => {
       const radius = 30; // ノーツ半径を大幅に拡大
-      const isAhead = note.x >= judgePos.x;
       
       // ノーツの影
       ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
@@ -531,13 +530,13 @@ export class FantasyPIXIInstance {
       ctx.arc(note.x + 2, judgePos.y + 2, radius, 0, Math.PI * 2);
       ctx.fill();
       
-      // ノーツ本体
+      // ノーツ本体（常に金色 — 判定ライン前後で色を変えない）
       const gradient = ctx.createRadialGradient(
         note.x - radius * 0.3, judgePos.y - radius * 0.3, 0,
         note.x, judgePos.y, radius
       );
-      gradient.addColorStop(0, isAhead ? '#fde047' : '#94a3b8');
-      gradient.addColorStop(1, isAhead ? '#f59e0b' : '#64748b');
+      gradient.addColorStop(0, '#fde047');
+      gradient.addColorStop(1, '#f59e0b');
       
       ctx.fillStyle = gradient;
       ctx.beginPath();
@@ -545,12 +544,11 @@ export class FantasyPIXIInstance {
       ctx.fill();
       
       // ノーツの縁
-      ctx.strokeStyle = isAhead ? NOTE_STROKE : '#475569';
+      ctx.strokeStyle = NOTE_STROKE;
       ctx.lineWidth = 3;
       ctx.stroke();
       
-      // 音名表示（ノーツの上に縦配置で表示）
-      // noteNamesがある場合は縦に並べる、なければchordをスペースで分割
+      // 音名表示（ノーツの上に縦配置で表示 — 背景なし、影のみ）
       const displayNotes = note.noteNames || (note.chord ? note.chord.split(/\s+/).filter(n => n) : []);
       const noteCount = displayNotes.length;
       
@@ -559,47 +557,26 @@ export class FantasyPIXIInstance {
       const fontSize = noteCount > 3 ? 16 : noteCount > 2 ? 18 : 22;
       const lineHeight = fontSize + 4;
       const badgePadding = 8;
-      
-      ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
-      
-      // 最大テキスト幅を計算
-      let maxTextWidth = 0;
-      for (const noteName of displayNotes) {
-        const tw = ctx.measureText(noteName).width;
-        if (tw > maxTextWidth) maxTextWidth = tw;
-      }
-      
-      const badgeWidth = maxTextWidth + badgePadding * 2;
       const badgeHeight = noteCount * lineHeight + badgePadding * 2;
-      const badgeX = note.x - badgeWidth / 2;
       const badgeY = judgePos.y - radius - badgeHeight - 8;
       
-      // バッジ背景
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.85)';
-      ctx.beginPath();
-      ctx.roundRect(badgeX, badgeY, badgeWidth, badgeHeight, 6);
-      ctx.fill();
-      
-      // バッジのポインタ（三角形）
-      ctx.beginPath();
-      ctx.moveTo(note.x, badgeY + badgeHeight);
-      ctx.lineTo(note.x - 6, badgeY + badgeHeight + 6);
-      ctx.lineTo(note.x + 6, badgeY + badgeHeight + 6);
-      ctx.closePath();
-      ctx.fill();
-      
-      // 音名を縦に配置（下から上へ、つまり配列の先頭が最下部）
+      ctx.save();
+      ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
       ctx.fillStyle = '#ffffff';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
+      ctx.shadowBlur = 4;
+      ctx.shadowOffsetX = 1;
+      ctx.shadowOffsetY = 1;
       
       // displayNotesは低い音から順なので、下から上に配置
       for (let i = 0; i < noteCount; i++) {
         const noteName = displayNotes[i];
-        // 最下部から上へ配置（i=0が最下部）
         const textY = badgeY + badgeHeight - badgePadding - (i + 0.5) * lineHeight;
         ctx.fillText(noteName, note.x, textY);
       }
+      ctx.restore();
     });
   }
 

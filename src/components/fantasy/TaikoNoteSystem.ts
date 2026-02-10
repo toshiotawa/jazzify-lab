@@ -742,7 +742,7 @@ export function judgeTimingWindow(
   
   // 判定ウィンドウ内
   let timing: 'early' | 'perfect' | 'late';
-  if (Math.abs(diffMs) <= 50) {
+  if (Math.abs(diffMs) <= PERFORMANCE_CONFIG.PERFECT_WINDOW) {
     timing = 'perfect';
   } else if (diffMs < 0) {
     timing = 'early';
@@ -1133,7 +1133,7 @@ export function judgeTimingWindowWithLoop(
   }
   
   let timing: 'early' | 'perfect' | 'late';
-  if (Math.abs(diffMs) <= 50) {
+  if (Math.abs(diffMs) <= PERFORMANCE_CONFIG.PERFECT_WINDOW) {
     timing = 'perfect';
   } else if (diffMs < 0) {
     timing = 'early';
@@ -1190,7 +1190,7 @@ export const PERFORMANCE_CONFIG = {
   
   // 判定設定
   JUDGMENT_WINDOW: 150,         // 判定ウィンドウ（ms）
-  PERFECT_WINDOW: 50,           // Perfect判定ウィンドウ（ms）
+  PERFECT_WINDOW: 60,           // Perfect判定ウィンドウ（ms）
   
   // アニメーション設定
   LERP_FACTOR: 0.15,           // 位置補間係数
