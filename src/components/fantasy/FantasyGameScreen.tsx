@@ -1302,14 +1302,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     );
   }, [gameState.enemyGauge]);
   
-  // NEXTコード表示（コード進行モード用）
-  const getNextChord = useCallback(() => {
-    if (!stage.mode.startsWith('progression') || !stage.chordProgression) return null;
-    const nextIndex = (gameState.currentQuestionIndex + 1) % stage.chordProgression.length;
-    const spec = stage.chordProgression[nextIndex] as any;
-    return typeof spec === 'string' ? spec : spec?.chord ?? '';
-  }, [stage.mode, stage.chordProgression, gameState.currentQuestionIndex]);
-  
   // SPゲージ表示
   const renderSpGauge = useCallback((sp: number) => {
     const spBlocks = [];
@@ -1806,16 +1798,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             {/* プレイヤーのHP表示とSPゲージ */}
           </div>
         </div>
-        
-        {/* NEXTコード表示（固定進行モードのみ、サイズを縮小） */}
-        {stage.mode === 'progression_order' && getNextChord() && (
-          <div className="mb-1 text-right">
-            <div className="text-white text-xs">NEXT:</div>
-            <div className="text-blue-300 text-sm font-bold">
-              {getNextChord()}
-            </div>
-          </div>
-        )}
       </div>
       
       {/* HP・SPゲージを固定配置 */}
