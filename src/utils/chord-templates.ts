@@ -198,6 +198,7 @@ export const SCALE_ALIASES: Record<string, ScaleType> = {
   // メジャースケール
   'major': 'major',
   'メジャースケール': 'major',
+  'major_scale': 'major',
   'maj': 'major',
   'M': 'major',
   
