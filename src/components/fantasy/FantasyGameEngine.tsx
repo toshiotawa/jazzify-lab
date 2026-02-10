@@ -770,8 +770,12 @@ export const useFantasyGameEngine = ({
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
   // 太鼓の達人モードの入力処理
-  const handleTaikoModeInput = useCallback((prevState: FantasyGameState, note: number): FantasyGameState => {
-    const currentTime = bgmManager.getCurrentMusicTime();
+  const handleTaikoModeInput = useCallback((
+    prevState: FantasyGameState,
+    note: number,
+    inputMusicTime?: number
+  ): FantasyGameState => {
+    const currentTime = inputMusicTime ?? bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
@@ -791,21 +795,31 @@ export const useFantasyGameEngine = ({
     const lookAheadJudgeTime = 4.0;
     const isNearLoopBoundary = timeToLoop < lookAheadJudgeTime;
     
+    const previewCandidateIndices: number[] = [];
+    if (prevState.awaitingLoopStart || isNearLoopBoundary) {
+      for (let i = 0; i < prevState.taikoNotes.length; i++) {
+        const virtualHitTime = prevState.taikoNotes[i].hitTime + loopDuration;
+        const timeUntilVirtualHit = virtualHitTime - normalizedTime;
+        if (timeUntilVirtualHit > -0.2 && timeUntilVirtualHit <= lookAheadJudgeTime) {
+          previewCandidateIndices.push(i);
+        }
+      }
+    }
+
     if (prevState.awaitingLoopStart) {
-      // 次ループ開始待ち中は、次ループの先頭ノーツ（インデックス0, 1）を候補にする
-      candidateIndices = [0, 1].filter(i => i < prevState.taikoNotes.length);
+      // 次ループ開始待ち中は、表示ロジック準拠で先読み候補を使用
+      candidateIndices = [...new Set(previewCandidateIndices)];
     } else {
       // 通常時は current と next を候補にする
       candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
-      
-      // ループ境界付近では次ループの先頭ノーツも候補に追加
-      // 表示と同じタイミング（4秒前）から判定を受け付ける
-      if (isNearLoopBoundary && currentIndex >= prevState.taikoNotes.length - 2) {
-        // 次ループの先頭ノーツを追加（重複を避ける）
-        if (!candidateIndices.includes(0)) candidateIndices.push(0);
-        if (prevState.taikoNotes.length > 1 && !candidateIndices.includes(1)) candidateIndices.push(1);
-      }
+
+      // ループ境界付近では次ループ先読み候補を追加（表示ロジックと揃える）
+      previewCandidateIndices.forEach(i => {
+        if (!candidateIndices.includes(i)) candidateIndices.push(i);
+      });
     }
+
+    const previewCandidateSet = new Set(previewCandidateIndices);
     
     // 移調設定がある場合、次のループの移調後のノーツを事前計算
     let nextLoopTransposedNotes: TaikoNote[] | null = null;
@@ -829,9 +843,8 @@ export const useFantasyGameEngine = ({
         // 先読みノーツかどうか（次ループのノーツとして扱う場合）
         const isPreviewNote = !prevState.awaitingLoopStart &&
           isNearLoopBoundary &&
-          i < currentIndex &&
-          i <= 1 &&
-          currentIndex >= prevState.taikoNotes.length - 2;
+          previewCandidateSet.has(i) &&
+          i < currentIndex;
         const isNextLoopNote = prevState.awaitingLoopStart || isPreviewNote;
         
         if (isNextLoopNote) {
@@ -2084,7 +2097,14 @@ export const useFantasyGameEngine = ({
   }, [handleEnemyAttack, onGameStateChange, isReady, gameState.currentStage?.mode, gameState.playMode]);
   
   // ノート入力処理（ミスタッチ概念を排除し、バッファを永続化）
-  const handleNoteInput = useCallback((note: number) => {
+  const handleNoteInput = useCallback((note: number, inputTimestampMs?: number) => {
+    const nowMs = performance.now();
+    const sampledMusicTime = bgmManager.getCurrentMusicTime();
+    const inputDelaySec =
+      typeof inputTimestampMs === 'number' ? Math.max(0, (nowMs - inputTimestampMs) / 1000) : 0;
+    // 入力イベント発生時刻の音楽時間に近づけ、setState遅延による判定ブレを抑える
+    const capturedInputMusicTime = sampledMusicTime - inputDelaySec;
+
     // updater関数の中でロジックを実行するように変更
     setGameState(prevState => {
       // ゲームがアクティブでない場合は何もしない
@@ -2094,7 +2114,7 @@ export const useFantasyGameEngine = ({
 
       // 太鼓の達人モードの場合は専用の処理を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note);
+        return handleTaikoModeInput(prevState, note, capturedInputMusicTime);
       }
 
       const noteMod12 = note % 12;
@@ -2208,7 +2228,7 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
+  }, [handleTaikoModeInput, onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {

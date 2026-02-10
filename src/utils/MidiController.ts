@@ -414,13 +414,8 @@ export class MIDIController {
     }
   };
 
-  private async handleNoteOn(note: number, velocity: number): Promise<void> {
+  private handleNoteOn(note: number, velocity: number): void {
     try {
-      // playMidiSoundフラグがtrueの場合のみ共通の音声再生を実行
-      if (this.playMidiSound) {
-        await playNote(note, velocity);
-      }
-      
       // アクティブノーツに追加
       this.activeNotes.add(note);
       
@@ -429,8 +424,15 @@ export class MIDIController {
         this.onKeyHighlight(note, true);
       }
       
-      // ゲームエンジンに通知
+      // ゲーム判定を最優先にするため、先にエンジンへ通知
       this.onNoteOn(note, velocity);
+
+      // 音声再生は後続で実行（判定遅延を避ける）
+      if (this.playMidiSound) {
+        void playNote(note, velocity).catch((error) => {
+          console.error('❌ Failed to play note:', error);
+        });
+      }
       
     } catch (error) {
       console.error('❌ Failed to handle note on:', error);

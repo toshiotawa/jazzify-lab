@@ -723,6 +723,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // MIDI/音声入力のハンドリング
   // 🚀 パフォーマンス最適化: 動的インポートを完全に削除
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
+    const inputTimestampMs = performance.now();
+
     // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
     if ((window as any).Tone?.context?.state !== 'running') {
        (window as any).Tone?.start?.().catch(() => {});
@@ -733,15 +735,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     
+    // 判定を最優先にするため、先にゲームエンジンへ入力を渡す
+    engineHandleNoteInput(note, inputTimestampMs);
+
     // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
+      activeNotesRef.current.add(note);
       // fire-and-forget で呼び出し
       playNote(note, 64).catch(() => {});
-      activeNotesRef.current.add(note);
     }
-    
-    // ファンタジーゲームエンジンにのみ送信
-    engineHandleNoteInput(note);
     
     // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
     if (source === 'mouse') {
