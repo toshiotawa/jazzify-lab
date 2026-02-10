@@ -402,6 +402,7 @@ const FantasyMain: React.FC = () => {
         if (!isFreeOrGuest && profile && currentStage) {
           const { getSupabaseClient } = await import('@/platform/supabaseClient');
           const supabase = getSupabaseClient();
+          let canAdvanceStage = false;
           // クリア記録保存（RPC関数を使用）
           try {
             const { data: clearResult, error: clearError } = await supabase
@@ -423,19 +424,21 @@ const FantasyMain: React.FC = () => {
               const clearData = clearResult[0];
               const requiredClears = (currentStage as any).required_clears_for_next ?? 5;
               const remaining = getRemainingClearsForNextStage(clearData.total_clear_credit, requiredClears);
+              const isUnlocked = remaining === 0;
               setNextStageUnlockInfo({
                 currentClearCredit: clearData.total_clear_credit,
                 requiredClears,
                 remainingClears: remaining,
-                isUnlocked: remaining === 0
+                isUnlocked
               });
+              canAdvanceStage = isUnlocked;
               devLog.debug('✅ クリア記録保存成功:', clearData);
             }
           } catch (e) {
             devLog.error('クリア記録保存例外:', e);
           }
           // 進捗の更新（クリア時に current_stage_number が遅れていたら進める）
-          if (result === 'clear' && currentStage.stageNumber) {
+          if (result === 'clear' && currentStage.stageNumber && canAdvanceStage) {
             try {
               const nextStageNumber = getNextStageNumber(currentStage.stageNumber);
               const tier = (currentStage as { tier?: string }).tier || 'basic';
