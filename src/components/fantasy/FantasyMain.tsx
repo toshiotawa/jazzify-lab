@@ -215,6 +215,11 @@ const FantasyMain: React.FC = () => {
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
+  const canProceedToNextStage =
+    gameResult?.result === 'clear' &&
+    !isLessonMode &&
+    !isMissionMode &&
+    (isFreeOrGuest || nextStageUnlockInfo?.isUnlocked === true);
   
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
@@ -823,7 +828,7 @@ const FantasyMain: React.FC = () => {
           {/* アクションボタン */}
           <div className="space-y-4">
             {/* ミッションモード時は「次のステージへ」を表示しない */}
-              {gameResult.result === 'clear' && !isLessonMode && !isMissionMode && (
+              {canProceedToNextStage && (
                 <button onClick={gotoNextStageWaiting} className="w-full px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans">{nextStageButtonLabel}</button>
               )}
               <button

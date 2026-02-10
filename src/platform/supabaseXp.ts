@@ -64,17 +64,17 @@ export async function addXp(params: AddXpParams) {
   const levelInfo = calcLevel(newTotalXp);
 
   // 1) まず履歴を記録（失敗しても続行し、プロフィール更新を優先）
-  const { error: histErr } = await supabase.from('xp_history').insert({
-    user_id: userId,
-    song_id: params.songId,
-    gained_xp: gained,
-    base_xp: params.baseXp,
-    speed_multiplier: params.speedMultiplier,
-    rank_multiplier: params.rankMultiplier,
-    transpose_multiplier: params.transposeMultiplier,
-    membership_multiplier: params.membershipMultiplier,
-    mission_multiplier: missionMul,
-    reason: params.reason || 'unknown',
+  const { error: histErr } = await supabase.rpc('insert_xp_history', {
+    p_user_id: userId,
+    p_song_id: params.songId,
+    p_gained_xp: gained,
+    p_base_xp: params.baseXp,
+    p_speed_multiplier: params.speedMultiplier,
+    p_rank_multiplier: params.rankMultiplier,
+    p_transpose_multiplier: params.transposeMultiplier,
+    p_membership_multiplier: params.membershipMultiplier,
+    p_mission_multiplier: missionMul,
+    p_reason: params.reason || 'unknown',
   });
   if (histErr) {
     log.warn('xp_history insert failed (will continue to update profile):', histErr);
