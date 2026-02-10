@@ -851,11 +851,24 @@ export const useFantasyGameEngine = ({
         return { i, n, j, includesNote, effectiveHitTime, isNextLoopNote, nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? nextLoopTransposedNotes[i]?.chord : null };
       })
       .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
-      // 優先順位: |timingDiff| 最小 → 同点は手前優先
+      // 優先順位:
+      // 1) |timingDiff| が明確に小さいものを優先
+      // 2) 近接同点（入力ジッタ帯）では early 側（負方向）を優先して
+      //    「ジャスト付近なのに late 扱い」になりやすいケースを抑える
+      // 3) それでも同点なら手前の時刻を優先
       .sort((a, b) => {
         const da = Math.abs(a.j.timingDiff);
         const db = Math.abs(b.j.timingDiff);
-        if (da !== db) return da - db;
+        const nearTieMs = 10;
+        if (Math.abs(da - db) > nearTieMs) return da - db;
+
+        const aSign = Math.sign(a.j.timingDiff);
+        const bSign = Math.sign(b.j.timingDiff);
+        if (aSign !== bSign) {
+          if (aSign < bSign) return -1;
+          return 1;
+        }
+
         if (a.effectiveHitTime !== b.effectiveHitTime) return a.effectiveHitTime - b.effectiveHitTime;
         return a.i - b.i;
       });
