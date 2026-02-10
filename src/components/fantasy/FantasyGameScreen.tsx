@@ -979,6 +979,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return markers;
     })();
     
+    // ★ シームレスループ: 表示ループ自身がオーディオのラップを検知し、
+    // React state の更新を待たずに即座にノーツ表示を切り替える。
+    // これにより state 更新のレイテンシ（useEffect → ref 伝播）による
+    // 全ノーツの一瞬の点滅を根本排除する。
+    let lastDisplayNorm = -1;
+    let displayWrapPending = false;
+    
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
       if (timestamp - lastUpdateTime < updateInterval) {
@@ -989,8 +996,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // 🚀 パフォーマンス最適化: refから最新の値を取得（useEffectの再起動なしに最新値を参照）
       const taikoNotes = taikoNotesRef.current;
-      const currentNoteIndex = currentNoteIndexRef.current;
-      const isAwaitingLoop = awaitingLoopStartRef.current;
+      const stateNoteIndex = currentNoteIndexRef.current;
+      const stateAwaitingLoop = awaitingLoopStartRef.current;
       
       // ノーツがない場合は何も表示せずに次フレームへ
       if (taikoNotes.length === 0) {
@@ -1006,6 +1013,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // カウントイン中は複数ノーツを先行表示
       if (currentTime < 0) {
+        lastDisplayNorm = -1;
+        displayWrapPending = false;
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
         for (let i = 0; i < taikoNotes.length; i++) {
@@ -1028,19 +1037,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         return;
       }
       
+      // 現在の時間をループ内0..Tへ正規化
+      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+      
+      // ★ シームレスループ: オーディオのラップを表示ループ側で即時検知
+      // normalizedTime が大きく巻き戻ったらラップが発生した
+      if (lastDisplayNorm >= 0 && lastDisplayNorm - normalizedTime > loopDuration * 0.5) {
+        displayWrapPending = true;
+      }
+      lastDisplayNorm = normalizedTime;
+      
+      // state が追いついたらフラグをクリア
+      // （stateNoteIndex が小さい = ループ先頭に戻っている、かつ awaitingLoop でない）
+      if (displayWrapPending && stateNoteIndex <= 1 && !stateAwaitingLoop) {
+        displayWrapPending = false;
+      }
+      
+      // ★ 表示用の実効値: ラップ検知時は state の更新を待たず即座にループ先頭として表示
+      const currentNoteIndex = displayWrapPending ? 0 : stateNoteIndex;
+      const isAwaitingLoop = displayWrapPending ? false : stateAwaitingLoop;
+      
       // 表示するノーツを収集
       const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
       
-      // 現在の時間（カウントイン中は負値）をループ内0..Tへ正規化
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-      
       // 通常のノーツ（現在ループのみ表示）
+      // ★ isHit フラグを表示判定に使わない（currentNoteIndex のみで制御）
+      // これにより state 側でのノーツ配列リセットが表示に影響しなくなる
       if (!isAwaitingLoop) {
         taikoNotes.forEach((note, index) => {
-          // ヒット済みノーツは現在ループでは表示しない（次ループのプレビューには表示される）
-          if (note.isHit) return;
-
-          // 既にこのループで消化済みのインデックスは表示しない（復活防止）
+          // 消化済みインデックスは表示しない
           if (index < currentNoteIndex) return;
 
           // 現在ループ基準の時間差
@@ -1066,7 +1091,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
       
       // 次ループのプレビュー表示
-      // ループ境界までの時間を計算
       const timeToLoop = loopDuration - normalizedTime;
       
       // 次ループのノーツを先読み表示する条件:
@@ -1083,20 +1107,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         // 次のループで使用するノーツを決定
         let nextLoopNotes = taikoNotes;
         if (transposeSettings && originalNotes.length > 0) {
-          // 次のリピートサイクルの移調オフセットを計算
           const nextLoopCycle = currentLoopCycle + 1;
           const nextTransposeOffset = calculateTransposeOffset(
             transposeSettings.keyOffset,
             nextLoopCycle,
             transposeSettings.repeatKeyChange
           );
-          // 元のノーツに次の移調を適用
           nextLoopNotes = transposeTaikoNotes(originalNotes, nextTransposeOffset);
         }
         
         for (let i = 0; i < nextLoopNotes.length; i++) {
           const note = nextLoopNotes[i];
-          const baseNote = taikoNotes[i]; // 元のノーツのIDでチェック
+          const baseNote = taikoNotes[i];
 
           // すでに通常ノーツで表示しているものは重複させない
           if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
@@ -1107,7 +1129,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // 現在より過去とみなせるものは描画しない
           if (timeUntilHit <= 0) continue;
-          // lookAheadTime先までを表示（プレビュー範囲を拡大）
           if (timeUntilHit > lookAheadTime) break;
 
           const x = judgeLinePos.x + timeUntilHit * noteSpeed;
