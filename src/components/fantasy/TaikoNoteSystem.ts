@@ -792,9 +792,10 @@ export function generateBasicProgressionNotes(
     return [];
   }
 
-  if (intervalBeats <= 0) {
-    intervalBeats = timeSignature; // フォールバック
-  }
+  const rawIntervalBeats =
+    typeof intervalBeats === 'string' ? Number.parseFloat(intervalBeats) : intervalBeats;
+  const safeIntervalBeats =
+    Number.isFinite(rawIntervalBeats) && rawIntervalBeats > 0 ? rawIntervalBeats : timeSignature;
 
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -804,8 +805,12 @@ export function generateBasicProgressionNotes(
   let noteIndex = 0;
   
   // 各小節に対して intervalBeats おきに配置（1拍目から）
+  // 浮動小数の累積誤差でタイミングが崩れないよう step から beat を算出する。
   for (let measure = 1; measure <= measureCount; measure++) {
-    for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
+    for (let step = 0; ; step++) {
+      const beat = 1 + step * safeIntervalBeats;
+      if (beat > timeSignature + 1e-9) break;
+
       const spec = chordProgression[noteIndex % chordProgression.length];
       const chord = getChordDefinition(spec);
       if (!chord) {
@@ -854,9 +859,10 @@ export function generateRandomProgressionNotes(
 ): TaikoNote[] {
   if (chordPool.length === 0) return [];
 
-  if (intervalBeats <= 0) {
-    intervalBeats = timeSignature; // フォールバック
-  }
+  const rawIntervalBeats =
+    typeof intervalBeats === 'string' ? Number.parseFloat(intervalBeats) : intervalBeats;
+  const safeIntervalBeats =
+    Number.isFinite(rawIntervalBeats) && rawIntervalBeats > 0 ? rawIntervalBeats : timeSignature;
 
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -867,8 +873,12 @@ export function generateRandomProgressionNotes(
   const bagSelector = new BagRandomSelector(chordPool, specToId);
 
   // 各小節に対して intervalBeats おきに配置（1拍目から）
+  // 浮動小数の累積誤差でタイミングが崩れないよう step から beat を算出する。
   for (let measure = 1; measure <= measureCount; measure++) {
-    for (let beat = 1; beat <= timeSignature; beat += intervalBeats) {
+    for (let step = 0; ; step++) {
+      const beat = 1 + step * safeIntervalBeats;
+      if (beat > timeSignature + 1e-9) break;
+
       // 袋形式で次のコードを取得（直前と同じコードは自動的に避けられる）
       const nextSpec = bagSelector.next();
       const chord = getChordDefinition(nextSpec);

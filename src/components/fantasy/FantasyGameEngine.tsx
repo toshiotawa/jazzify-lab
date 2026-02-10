@@ -1254,7 +1254,7 @@ export const useFantasyGameEngine = ({
                 stage.timeSignature || 4,
                 (spec) => getChordDefinition(spec, displayOpts),
                 0,
-                (stage as any).noteIntervalBeats || (stage.timeSignature || 4)
+                (stage as any).noteIntervalBeats || (stage as any).note_interval_beats || (stage.timeSignature || 4)
               );
             }
           }
