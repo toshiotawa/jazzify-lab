@@ -788,38 +788,46 @@ export const useFantasyGameEngine = ({
     const noteMod12 = note % 12;
     
     // 候補インデックスを決定
-    let candidateIndices: number[];
+    const candidateIndices: number[] = [];
     // ループ境界までの時間
     const timeToLoop = loopDuration - normalizedTime;
     // 先読み判定の範囲（表示と同じ4秒前から判定を受け付ける）
     const lookAheadJudgeTime = 4.0;
     const isNearLoopBoundary = timeToLoop < lookAheadJudgeTime;
-    
-    const previewCandidateIndices: number[] = [];
+
+    // 次ループで先読み表示される候補は hitTime の昇順で先頭連続区間になる。
+    // 全ノーツ走査を避けるため、上限時刻までを先頭から走査して打ち切る。
+    let maxPreviewIndex = -1;
     if (prevState.awaitingLoopStart || isNearLoopBoundary) {
-      for (let i = 0; i < prevState.taikoNotes.length; i++) {
-        const virtualHitTime = prevState.taikoNotes[i].hitTime + loopDuration;
-        const timeUntilVirtualHit = virtualHitTime - normalizedTime;
-        if (timeUntilVirtualHit > -0.2 && timeUntilVirtualHit <= lookAheadJudgeTime) {
-          previewCandidateIndices.push(i);
+      const previewUpperHitTime = lookAheadJudgeTime - timeToLoop;
+      if (previewUpperHitTime >= 0) {
+        for (let i = 0; i < prevState.taikoNotes.length; i++) {
+          if (prevState.taikoNotes[i].hitTime > previewUpperHitTime + 1e-6) break;
+          maxPreviewIndex = i;
         }
       }
     }
 
     if (prevState.awaitingLoopStart) {
-      // 次ループ開始待ち中は、表示ロジック準拠で先読み候補を使用
-      candidateIndices = [...new Set(previewCandidateIndices)];
+      // 次ループ開始待ち中は、表示ロジック準拠で先読み候補のみ
+      for (let i = 0; i <= maxPreviewIndex; i++) {
+        candidateIndices.push(i);
+      }
     } else {
       // 通常時は current と next を候補にする
-      candidateIndices = [currentIndex, currentIndex + 1].filter(i => i < prevState.taikoNotes.length);
+      if (currentIndex < prevState.taikoNotes.length) candidateIndices.push(currentIndex);
+      if (currentIndex + 1 < prevState.taikoNotes.length) candidateIndices.push(currentIndex + 1);
 
       // ループ境界付近では次ループ先読み候補を追加（表示ロジックと揃える）
-      previewCandidateIndices.forEach(i => {
-        if (!candidateIndices.includes(i)) candidateIndices.push(i);
-      });
+      if (isNearLoopBoundary && maxPreviewIndex >= 0) {
+        for (let i = 0; i <= maxPreviewIndex; i++) {
+          // 次ループ先読みは「現在インデックスより前」だけを対象にして候補を絞る
+          if (i < currentIndex && !candidateIndices.includes(i)) {
+            candidateIndices.push(i);
+          }
+        }
+      }
     }
-
-    const previewCandidateSet = new Set(previewCandidateIndices);
     
     // 移調設定がある場合、次のループの移調後のノーツを事前計算
     let nextLoopTransposedNotes: TaikoNote[] | null = null;
@@ -834,59 +842,91 @@ export const useFantasyGameEngine = ({
       nextLoopTransposedNotes = transposeTaikoNotes(prevState.originalTaikoNotes, nextTransposeOffset, true);
     }
 
-    const candidates = candidateIndices
-      .map(i => {
-        const n = prevState.taikoNotes[i];
-        
-        // awaitingLoopStart状態または次ループの先頭ノーツの場合は、仮想的なhitTimeを使用
-        let effectiveHitTime = n.hitTime;
-        // 先読みノーツかどうか（次ループのノーツとして扱う場合）
-        const isPreviewNote = !prevState.awaitingLoopStart &&
-          isNearLoopBoundary &&
-          previewCandidateSet.has(i) &&
-          i < currentIndex;
-        const isNextLoopNote = prevState.awaitingLoopStart || isPreviewNote;
-        
-        if (isNextLoopNote) {
-          // 次ループのノーツとして扱う
-          effectiveHitTime = n.hitTime + loopDuration;
+    let chosen: {
+      i: number;
+      n: TaikoNote;
+      j: ReturnType<typeof judgeTimingWindowWithLoop>;
+      effectiveHitTime: number;
+      isNextLoopNote: boolean;
+      nextLoopChord: ChordDefinition | null;
+    } | null = null;
+
+    const nearTieMs = 10;
+    for (const i of candidateIndices) {
+      const n = prevState.taikoNotes[i];
+      if (!n || n.isHit || n.isMissed) continue;
+
+      // awaitingLoopStart状態または次ループ先読みノーツの場合は、仮想的なhitTimeを使用
+      let effectiveHitTime = n.hitTime;
+      const isPreviewNote = !prevState.awaitingLoopStart &&
+        isNearLoopBoundary &&
+        i < currentIndex &&
+        i <= maxPreviewIndex;
+      const isNextLoopNote = prevState.awaitingLoopStart || isPreviewNote;
+      if (isNextLoopNote) {
+        effectiveHitTime = n.hitTime + loopDuration;
+      }
+
+      // 移調ループの場合、次のループのノーツは移調後のコードを使用
+      let chordNotes = n.chord.notes;
+      if (isNextLoopNote && nextLoopTransposedNotes && nextLoopTransposedNotes[i]) {
+        chordNotes = nextLoopTransposedNotes[i].chord.notes;
+      }
+
+      // 毎入力で Set を作らず、直接 mod12 比較
+      let includesNote = false;
+      for (const chordNote of chordNotes) {
+        if (((chordNote % 12) + 12) % 12 === noteMod12) {
+          includesNote = true;
+          break;
         }
-        
-        // 移調ループの場合、次のループのノーツは移調後のコードを使用
-        let chordNotes = n.chord.notes;
-        if (isNextLoopNote && nextLoopTransposedNotes && nextLoopTransposedNotes[i]) {
-          chordNotes = nextLoopTransposedNotes[i].chord.notes;
-        }
-        
-        const includesNote = Array.from(new Set<number>(chordNotes.map((x: number) => x % 12))).includes(noteMod12);
-        
-        const j = judgeTimingWindowWithLoop(normalizedTime, effectiveHitTime, 150, loopDuration);
-        return { i, n, j, includesNote, effectiveHitTime, isNextLoopNote, nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? nextLoopTransposedNotes[i]?.chord : null };
-      })
-      .filter(c => !c.n.isHit && !c.n.isMissed && c.includesNote && c.j.isHit)
+      }
+      if (!includesNote) continue;
+
+      const j = judgeTimingWindowWithLoop(normalizedTime, effectiveHitTime, 150, loopDuration);
+      if (!j.isHit) continue;
+
+      const candidate = {
+        i,
+        n,
+        j,
+        effectiveHitTime,
+        isNextLoopNote,
+        nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? (nextLoopTransposedNotes[i]?.chord || null) : null
+      };
+
+      if (!chosen) {
+        chosen = candidate;
+        continue;
+      }
+
       // 優先順位:
       // 1) |timingDiff| が明確に小さいものを優先
-      // 2) 近接同点（入力ジッタ帯）では early 側（負方向）を優先して
-      //    「ジャスト付近なのに late 扱い」になりやすいケースを抑える
+      // 2) 近接同点（入力ジッタ帯）では early 側（負方向）を優先
       // 3) それでも同点なら手前の時刻を優先
-      .sort((a, b) => {
-        const da = Math.abs(a.j.timingDiff);
-        const db = Math.abs(b.j.timingDiff);
-        const nearTieMs = 10;
-        if (Math.abs(da - db) > nearTieMs) return da - db;
+      const da = Math.abs(candidate.j.timingDiff);
+      const db = Math.abs(chosen.j.timingDiff);
+      let shouldReplace = false;
 
-        const aSign = Math.sign(a.j.timingDiff);
-        const bSign = Math.sign(b.j.timingDiff);
+      if (Math.abs(da - db) > nearTieMs) {
+        shouldReplace = da < db;
+      } else {
+        const aSign = Math.sign(candidate.j.timingDiff);
+        const bSign = Math.sign(chosen.j.timingDiff);
         if (aSign !== bSign) {
-          if (aSign < bSign) return -1;
-          return 1;
+          shouldReplace = aSign < bSign;
+        } else if (candidate.effectiveHitTime !== chosen.effectiveHitTime) {
+          shouldReplace = candidate.effectiveHitTime < chosen.effectiveHitTime;
+        } else {
+          shouldReplace = candidate.i < chosen.i;
         }
+      }
 
-        if (a.effectiveHitTime !== b.effectiveHitTime) return a.effectiveHitTime - b.effectiveHitTime;
-        return a.i - b.i;
-      });
+      if (shouldReplace) {
+        chosen = candidate;
+      }
+    }
 
-    const chosen = candidates[0];
     if (!chosen) {
       return prevState; // ウィンドウ外 or 構成音外
     }
