@@ -936,6 +936,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const secPerBeat = 60 / (stageData.bpm || 120);
     const secPerMeasure = secPerBeat * (stageData.timeSignature || 4);
     const loopDuration = (stageData.measureCount || 8) * secPerMeasure;
+    const useChordNameOnNotes = 
+      stageData.mode === 'progression_order' ||
+      stageData.mode === 'progression_random' ||
+      stageData.mode === 'progression';
+    const getDisplayNoteNames = (note: TaikoNote): string[] =>
+      useChordNameOnNotes ? [note.chord.displayName] : note.chord.noteNames;
 
     // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
     // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
@@ -1010,7 +1016,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id, 
               chord: note.chord.displayName, 
               x,
-              noteNames: note.chord.noteNames 
+              noteNames: getDisplayNoteNames(note)
             });
             if (notesToDisplay.length >= maxPreCountNotes) break;
           }
@@ -1048,7 +1054,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id,
               chord: note.chord.displayName,
               x,
-              noteNames: note.chord.noteNames
+              noteNames: getDisplayNoteNames(note)
             });
           }
         });
@@ -1107,7 +1113,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
             x,
-            noteNames: note.chord.noteNames
+            noteNames: getDisplayNoteNames(note)
           });
         }
       }
