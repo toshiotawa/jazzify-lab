@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
+import type { GraphicalNote } from 'opensheetmusicdisplay';
 import { useGameSelector } from '@/stores/helpers';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
@@ -106,110 +107,174 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       return;
     }
 
-    const mapping: TimeMappingEntry[] = [];
     const graphicSheet = osmdRef.current.GraphicSheet;
-    
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
       log.warn('楽譜のグラフィック情報が取得できません');
       return;
     }
 
-    let noteIndex = 0;
-    let osmdPlayableNoteCount = 0;
-    
-    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
-    
-    // 全ての音符を走査して演奏可能なノートのみを抽出
-    const osmdPlayableNotes = [];
-    let firstBeatX: number | null = null; // 最初の小節1拍目のX座標
-    
-    for (const page of graphicSheet.MusicPages) {
-      for (const system of page.MusicSystems) {
-        for (const staffLine of system.StaffLines) {
-          for (const measure of staffLine.Measures) {
-            for (const staffEntry of measure.staffEntries) {
-              // 最初に見つかった StaffEntry のX座標（実質1小節目1拍目）を拾う
-              const sePos = (staffEntry as any)?.PositionAndShape?.AbsolutePosition?.x;
-              if (typeof sePos === 'number') {
-                if (firstBeatX === null || sePos < firstBeatX) {
-                  firstBeatX = sePos;
+    const STAFF_ENTRY_MERGE_EPSILON_PX = 2;
+    const TIME_GROUP_THRESHOLD_MS = 1;
+
+    const isPlayableNote = (graphicNote: GraphicalNote): boolean => {
+      const sourceNote = graphicNote.sourceNote as {
+        NoteTie?: { StartNote?: unknown };
+        isRest?: () => boolean;
+      };
+      if (!sourceNote) {
+        return false;
+      }
+      if (typeof sourceNote.isRest === 'function' && sourceNote.isRest()) {
+        return false;
+      }
+      if (sourceNote.NoteTie && sourceNote.NoteTie.StartNote && sourceNote.NoteTie.StartNote !== sourceNote) {
+        return false;
+      }
+      return true;
+    };
+
+    const extractStaffEntryCentersPx = (): number[] => {
+      const centers: number[] = [];
+      for (const page of graphicSheet.MusicPages ?? []) {
+        for (const system of page.MusicSystems ?? []) {
+          for (const staffLine of system.StaffLines ?? []) {
+            for (const measure of staffLine.Measures ?? []) {
+              for (const staffEntry of measure.staffEntries ?? []) {
+                if (!staffEntry?.graphicalVoiceEntries?.length) {
+                  continue;
                 }
-              }
-              
-              for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
-                    continue;
-                  }
-                  
-                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
-                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
-                    continue;
-                  }
-                  
-                  osmdPlayableNotes.push(graphicNote);
+                const hasPlayableNote = staffEntry.graphicalVoiceEntries.some((voiceEntry) =>
+                  voiceEntry.notes.some((note) => isPlayableNote(note))
+                );
+                if (!hasPlayableNote) {
+                  continue;
                 }
+                const boundingBox = staffEntry.PositionAndShape as {
+                  AbsolutePosition?: { x?: number };
+                  Size?: { width?: number };
+                } | undefined;
+                const absoluteX = boundingBox?.AbsolutePosition?.x;
+                if (typeof absoluteX !== 'number') {
+                  continue;
+                }
+                const width = boundingBox?.Size?.width ?? 0;
+                centers.push((absoluteX + width / 2) * scaleFactorRef.current);
               }
             }
           }
         }
       }
-    }
-    
-    osmdPlayableNoteCount = osmdPlayableNotes.length;
+      return centers.sort((a, b) => a - b);
+    };
 
-    // マッピングを作成
-      const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
-      for (const graphicNote of osmdPlayableNotes) {
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
-
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
-                      }
-
-                        mapping.push({
-                          timeMs: (note.time + timingAdjustmentSec) * 1000,
-                          // 動的に計算したスケール係数を使用
-                          xPosition: centerX * scaleFactorRef.current
-                        });
-                    }
-                    noteIndex++;
+    const mergeCenters = (centers: number[]): number[] => {
+      const merged: number[] = [];
+      for (const center of centers) {
+        const lastIndex = merged.length - 1;
+        if (lastIndex >= 0 && Math.abs(merged[lastIndex] - center) <= STAFF_ENTRY_MERGE_EPSILON_PX) {
+          merged[lastIndex] = (merged[lastIndex] + center) / 2;
+        } else {
+          merged.push(center);
+        }
       }
-    }
-    
-    // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
-    if (firstBeatX !== null) {
-      mapping.unshift({
-        timeMs: 0,
-        xPosition: firstBeatX * scaleFactorRef.current
+      return merged;
+    };
+
+    const groupNoteTimes = (noteTimesMs: number[]) => {
+      const groupIndices: number[] = [];
+      const groupTimesMs: number[] = [];
+      const groupCounts: number[] = [];
+      let currentGroupIndex = -1;
+      let lastGroupTime = Number.NEGATIVE_INFINITY;
+
+      noteTimesMs.forEach((timeMs) => {
+        if (timeMs - lastGroupTime > TIME_GROUP_THRESHOLD_MS) {
+          groupTimesMs.push(timeMs);
+          groupCounts.push(1);
+          currentGroupIndex += 1;
+          lastGroupTime = timeMs;
+        } else {
+          const count = groupCounts[currentGroupIndex];
+          groupTimesMs[currentGroupIndex] = (groupTimesMs[currentGroupIndex] * count + timeMs) / (count + 1);
+          groupCounts[currentGroupIndex] = count + 1;
+        }
+        groupIndices.push(currentGroupIndex);
       });
-      log.info(`✅ 小節頭アンカー追加: 0ms → X=${firstBeatX * scaleFactorRef.current}px`);
+
+      return { groupIndices, groupTimesMs };
+    };
+
+    const assignSlotsToGroups = (groupCount: number, slots: number[]): number[] => {
+      if (groupCount === 0) {
+        return [];
+      }
+      if (slots.length === 0) {
+        return new Array(groupCount).fill(0);
+      }
+
+      const assignments = new Array(groupCount).fill(slots[slots.length - 1]);
+      const pairCount = Math.min(groupCount, slots.length);
+
+      for (let i = 0; i < pairCount; i += 1) {
+        assignments[i] = slots[i];
+      }
+
+      if (pairCount < groupCount) {
+        const fallbackStep = pairCount >= 2 ? slots[pairCount - 1] - slots[pairCount - 2] : 0;
+        for (let i = pairCount; i < groupCount; i += 1) {
+          assignments[i] = assignments[i - 1] + fallbackStep;
+        }
+      }
+
+      return assignments;
+    };
+
+    const staffEntryCentersPx = mergeCenters(extractStaffEntryCentersPx());
+    if (staffEntryCentersPx.length === 0) {
+      log.warn('StaffEntryの座標が見つからなかったため、タイムマッピングを作成できません');
+      return;
     }
-    
-    log.info(`📊 OSMD Note Extraction Summary:
-    OSMD playable notes: ${osmdPlayableNoteCount}
-    JSON notes count: ${notes.length}
-    Mapped notes: ${mapping.length}
-    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
-    
-    if (osmdPlayableNoteCount !== notes.length) {
-      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
+
+    const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
+    const noteTimesMs = notes.map((note) => (note.time + timingAdjustmentSec) * 1000);
+    const { groupIndices, groupTimesMs } = groupNoteTimes(noteTimesMs);
+
+    if (groupTimesMs.length === 0) {
+      log.warn('ノート時刻のグルーピングに失敗しました');
+      return;
     }
-    
-    timeMappingRef.current = mapping; // refを更新
+
+    const slotAssignments = assignSlotsToGroups(groupTimesMs.length, staffEntryCentersPx);
+
+    if (staffEntryCentersPx.length !== groupTimesMs.length) {
+      log.warn(
+        `StaffEntry数(${staffEntryCentersPx.length})とノート時刻グループ数(${groupTimesMs.length})が一致しません。スクロールにズレが生じる可能性があります。`
+      );
+    }
+
+    const mapping: TimeMappingEntry[] = noteTimesMs.map((timeMs, index) => {
+      const groupIndex = groupIndices[index];
+      const xPosition = slotAssignments[groupIndex] ?? slotAssignments[slotAssignments.length - 1] ?? 0;
+      return {
+        timeMs,
+        xPosition: Math.max(0, xPosition)
+      };
+    });
+
+    mapping.unshift({
+      timeMs: 0,
+      xPosition: Math.max(0, staffEntryCentersPx[0])
+    });
+
+    log.info(
+      `📊 OSMDタイムマッピング作成完了: staff slots=${staffEntryCentersPx.length}, note groups=${groupTimesMs.length}`
+    );
+
+    timeMappingRef.current = mapping;
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-    }, [notes, settings.timingAdjustment]);
+  }, [notes, settings.timingAdjustment]);
 
   const loadAndRenderSheet = useCallback(async () => {
     if (!shouldRenderSheet) {

@@ -21,7 +21,7 @@ declare module 'opensheetmusicdisplay' {
   export interface GraphicalNote {
     sourceNote: {
       NoteTie?: {
-        StartNote: boolean;
+        StartNote?: unknown;
       };
       Pitch?: {
         FundamentalNote: number;
@@ -31,11 +31,15 @@ declare module 'opensheetmusicdisplay' {
         FundamentalNote: number;
         Accidental?: number;
       };
-    };
-    PositionAndShape: {
-      AbsolutePosition: {
-        x: number;
-        y: number;
+      isRest?: () => boolean;
+    } | null;
+    PositionAndShape?: {
+      AbsolutePosition?: {
+        x?: number;
+        y?: number;
+      };
+      BoundingBox?: {
+        width?: number;
       };
     };
   }
@@ -46,6 +50,16 @@ declare module 'opensheetmusicdisplay' {
 
   export interface GraphicalStaffEntry {
     graphicalVoiceEntries: GraphicalVoiceEntry[];
+    PositionAndShape?: {
+      AbsolutePosition?: {
+        x?: number;
+        y?: number;
+      };
+      Size?: {
+        width?: number;
+        height?: number;
+      };
+    };
   }
 
   export interface GraphicalMeasure {
