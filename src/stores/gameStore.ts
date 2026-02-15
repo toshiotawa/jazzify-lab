@@ -738,9 +738,16 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // この場合、音名マージと時間再計算をスキップする（数が合わず壊れるため）。
                 const notesAlreadyHaveNames = rawNotes.length > 0 && rawNotes.every(n => !!n.noteName);
                 
-                if (notesAlreadyHaveNames) {
-                  // MusicXML-only: 音名・時間は parseMusicXmlToNoteData で既に設定済み
-                  // XMLは譜面表示用にのみ使用
+                if (notesAlreadyHaveNames && transpose !== 0) {
+                  // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
+                  const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+                  const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
+                  finalNotes = rawNotes.map((n, i) => ({
+                    ...n,
+                    noteName: reparsed[i]?.noteName ?? n.noteName,
+                  }));
+                } else if (notesAlreadyHaveNames) {
+                  // MusicXML-only + 移調なし: そのまま使用
                   finalNotes = rawNotes;
                 } else {
                   // JSON+XML フロー: 従来通り音名マージと時間再計算を行う
@@ -1164,14 +1171,32 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                     throw new Error('MusicXMLファイルの解析に失敗しました');
                   }
                   
-                  const noteNames = extractPlayableNoteNames(xmlDoc);
-                  finalNotes = mergeJsonWithNames(notes, noteNames);
+                  // MusicXML-only フロー判定
+                  const notesAlreadyHaveNames = notes.length > 0 && notes.every(n => !!n.noteName);
                   
-                  // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
-                  finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                  if (notesAlreadyHaveNames && transpose !== 0) {
+                    // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
+                    const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+                    const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
+                    finalNotes = notes.map((n, i) => ({
+                      ...n,
+                      noteName: reparsed[i]?.noteName ?? n.noteName,
+                    }));
+                  } else if (notesAlreadyHaveNames) {
+                    finalNotes = notes;
+                  } else {
+                    // JSON+XML フロー
+                    const noteNames = extractPlayableNoteNames(xmlDoc);
+                    finalNotes = mergeJsonWithNames(notes, noteNames);
+                    finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                  }
                   
-                  // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
-                  finalChords = extractChordProgressions(xmlDoc, notes);
+                  // コードネーム情報を抽出
+                  try {
+                    finalChords = extractChordProgressions(xmlDoc, finalNotes);
+                  } catch {
+                    finalChords = [];
+                  }
                 } catch (error) {
                   console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                   finalXml = null;
@@ -1480,10 +1505,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  // MusicXML-only フロー判定
                  const notesAlreadyHaveNames = notes.length > 0 && notes.every(n => !!n.noteName);
                  
-                 if (notesAlreadyHaveNames) {
-                   // MusicXML-only: rawNotes のタイミング・ピッチはそのまま使用
-                   // ピッチは PIXINotesRenderer 側で settings.transpose を加算
-                   // 音名は resolveNoteName が MIDI + transpose から再計算
+                 if (notesAlreadyHaveNames && transpose !== 0) {
+                   // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
+                   const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+                   const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
+                   // 再パース結果から音名のみを元ノーツにコピー（ピッチ・タイミングは元のまま維持）
+                   finalNotes = notes.map((n, i) => ({
+                     ...n,
+                     noteName: reparsed[i]?.noteName ?? n.noteName,
+                   }));
+                 } else if (notesAlreadyHaveNames) {
+                   // MusicXML-only + 移調なし: そのまま使用
                    finalNotes = notes;
                  } else {
                    // JSON+XML フロー: 音名マージと時間再計算
