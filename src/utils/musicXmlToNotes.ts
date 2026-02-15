@@ -12,7 +12,7 @@
  * - 和音 (<chord>) ノートを同時刻に配置
  */
 
-import type { NoteData } from '@/types';
+import type { NoteData, NoteHand } from '@/types';
 import {
   stepAlterOctaveToMidi,
   stepAlterToDisplayName,
@@ -31,6 +31,7 @@ interface RawParsedNote {
   pitch: number;      // MIDI
   noteName: string;   // 例 "C4"
   isOrnament: boolean;
+  staff: number;      // MusicXML staff番号 (1=右手, 2=左手)
 }
 
 // ========== 公開API ==========
@@ -185,6 +186,11 @@ export function parseMusicXmlToNoteData(
       const mainName = stepAlterToDisplayName(step, alter, octave);
       const duration = parseInt(noteEl.querySelector('duration')?.textContent ?? '0', 10);
 
+      // スタッフ番号 (1=右手, 2=左手, なければ voice で推定)
+      const staffNum = parseInt(noteEl.querySelector('staff')?.textContent ?? '0', 10);
+      const voiceNum = parseInt(noteEl.querySelector('voice')?.textContent ?? '1', 10);
+      const noteStaff = staffNum > 0 ? staffNum : (voiceNum <= 1 ? 1 : 2);
+
       // 和音ノートは直前の非和音ノートと同じ位置（同時発音）
       const notePos = isChord ? lastNonChordPos : posInDivisions;
       if (!isChord) {
@@ -205,6 +211,7 @@ export function parseMusicXmlToNoteData(
           pitch: gn.pitch,
           noteName: gn.noteName,
           isOrnament: true,
+          staff: noteStaff,
         });
         graceOffset += gn.durationDivisions;
       }
@@ -228,6 +235,7 @@ export function parseMusicXmlToNoteData(
             pitch: en.pitch,
             noteName: en.noteName,
             isOrnament: en.isOrnament,
+            staff: noteStaff,
           });
           offset += en.durationDivisions;
         }
@@ -238,6 +246,7 @@ export function parseMusicXmlToNoteData(
           pitch: mainPitch,
           noteName: mainName,
           isOrnament: false,
+          staff: noteStaff,
         });
       }
 
@@ -254,12 +263,34 @@ export function parseMusicXmlToNoteData(
   // 時間順にソート (同時刻はピッチ昇順)
   collected.sort((a, b) => a.time - b.time || a.pitch - b.pitch);
 
+  // ユニゾン検出: 同時刻 + 同ピッチ で異なるスタッフ → 'both'
+  // まず (time, pitch) → Set<staff> のマップを構築
+  const unisonMap = new Map<string, Set<number>>();
+  for (const n of collected) {
+    const key = `${n.time.toFixed(6)}:${n.pitch}`;
+    let staffSet = unisonMap.get(key);
+    if (!staffSet) {
+      staffSet = new Set();
+      unisonMap.set(key, staffSet);
+    }
+    staffSet.add(n.staff);
+  }
+
+  // hand 判定
+  const toHand = (n: RawParsedNote): NoteHand => {
+    const key = `${n.time.toFixed(6)}:${n.pitch}`;
+    const staffSet = unisonMap.get(key);
+    if (staffSet && staffSet.size > 1) return 'both';
+    return n.staff <= 1 ? 'right' : 'left';
+  };
+
   // NoteData に変換
   return collected.map((n, i) => ({
     id: `${songId}-${i}`,
     time: Math.max(0, n.time),
     pitch: n.pitch,
     noteName: n.noteName,
+    hand: toHand(n),
   }));
 }
 

@@ -22,6 +22,13 @@ interface RendererSettings {
     guideKey: string | number;
     correctKey: string | number; // 正解済み鍵盤の色
     background: string | number;
+    // 右手/左手/両手ユニゾン色
+    rightHand: string | number;
+    rightHandBlack: string | number;
+    leftHand: string | number;
+    leftHandBlack: string | number;
+    bothHands: string | number;
+    bothHandsBlack: string | number;
   };
   noteNameStyle: NoteNameStyle;
   simpleDisplayMode: boolean;
@@ -126,8 +133,17 @@ const createDefaultSettings = (): RendererSettings => ({
     blackKey: '#2D2D2D',
     activeKey: '#FF8C00',
     guideKey: '#22C55E',
-    correctKey: '#EF4444', // 正解済み鍵盤は赤色
-    background: '#05060A'
+    correctKey: '#EF4444',
+    background: '#05060A',
+    // 右手: 青系
+    rightHand: '#4A90E2',
+    rightHandBlack: '#2C5282',
+    // 左手: 緑系
+    leftHand: '#38B2AC',
+    leftHandBlack: '#276B68',
+    // 両手ユニゾン: 金/オレンジ系
+    bothHands: '#ECC94B',
+    bothHandsBlack: '#B7860B',
   },
   noteNameStyle: 'off',
   simpleDisplayMode: false,
@@ -364,7 +380,13 @@ export class PIXINotesRendererInstance {
       activeKey: toColor(colors.activeKey),
       guideKey: toColor(colors.guideKey),
       correctKey: toColor(colors.correctKey),
-      background: toColor(colors.background)
+      background: toColor(colors.background),
+      rightHand: toColor(colors.rightHand),
+      rightHandBlack: toColor(colors.rightHandBlack),
+      leftHand: toColor(colors.leftHand),
+      leftHandBlack: toColor(colors.leftHandBlack),
+      bothHands: toColor(colors.bothHands),
+      bothHandsBlack: toColor(colors.bothHandsBlack),
     };
   }
 
@@ -928,7 +950,7 @@ export class PIXINotesRendererInstance {
       const height = this.settings.noteHeight;
       const x = geometry.x + geometry.width / 2 - width / 2;
       const y = noteY - height;
-      ctx.fillStyle = this.getStateColor(note.state, geometry.isBlack);
+      ctx.fillStyle = this.getStateColor(note.state, geometry.isBlack, note.hand);
       ctx.fillRect(x, y, width, height);
       if (note.state === 'missed') {
         ctx.strokeStyle = 'rgba(248,113,113,0.5)';
@@ -1043,14 +1065,22 @@ export class PIXINotesRendererInstance {
     ctx.restore();
   }
 
-  private getStateColor(state: ActiveNote['state'], isBlack: boolean): string {
+  private getStateColor(state: ActiveNote['state'], isBlack: boolean, hand?: ActiveNote['hand']): string {
     if (state === 'hit' || state === 'good' || state === 'perfect') {
       return this.colors.hit;
     }
     if (state === 'missed') {
       return this.colors.missed;
     }
-    return isBlack ? this.colors.visibleBlack : this.colors.visible;
+    // hand 情報があれば色分け
+    if (hand === 'left') {
+      return isBlack ? this.colors.leftHandBlack : this.colors.leftHand;
+    }
+    if (hand === 'both') {
+      return isBlack ? this.colors.bothHandsBlack : this.colors.bothHands;
+    }
+    // 'right' またはデフォルト
+    return isBlack ? this.colors.rightHandBlack : this.colors.rightHand;
   }
 
   private getNoteLabel(note: ActiveNote): string | null {

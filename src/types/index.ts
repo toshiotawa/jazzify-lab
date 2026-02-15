@@ -35,12 +35,15 @@ export interface ChordInfo {
 
 // ===== ノーツデータ =====
 
+export type NoteHand = 'right' | 'left' | 'both';
+
 export interface NoteData {
   id: string;
   time: number;      // 秒単位での時間
   pitch: number;     // MIDIノート番号 (21-108)
   appearTime?: number; // ノーツが表示される時間（計算で設定）
   noteName?: string;  // MusicXMLから取得した音名（例: "C", "D#", "Eb"）
+  hand?: NoteHand;   // 右手(staff=1) / 左手(staff=2) / 両手ユニゾン
 }
 
 // ===== Phase 2: ゲームエンジン型定義 =====
