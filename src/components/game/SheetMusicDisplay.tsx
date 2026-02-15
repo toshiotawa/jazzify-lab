@@ -301,6 +301,9 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     lastScrollXRef.current = 0;
   }, [notes, settings.timingAdjustment]);
 
+  // 非同期レンダリングの競合防止用カウンター
+  const renderGenerationRef = useRef(0);
+
   const loadAndRenderSheet = useCallback(async () => {
     if (!shouldRenderSheet) {
       if (osmdRef.current) {
@@ -326,11 +329,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       return;
     }
 
+    // 世代カウンターをインクリメント: 後続の呼び出しが来たら古い処理を破棄
+    const generation = ++renderGenerationRef.current;
+
     setIsLoading(true);
     setError(null);
 
       try {
-      // 既存のOSMDインスタンスを破棄（移調時の即時反映のため）
+      // 既存のOSMDインスタンスを破棄
       if (osmdRef.current) {
         osmdRef.current.clear();
         osmdRef.current = null;
@@ -369,11 +375,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           defaultColorLabel: '#000000',
           defaultColorTitle: '#000000'
         };
-      osmdRef.current = new OpenSheetMusicDisplay(containerRef.current, options);
+      const osmd = new OpenSheetMusicDisplay(containerRef.current, options);
       
       // 前処理されたMusicXMLを使用
-      await osmdRef.current.load(processedMusicXml);
-      osmdRef.current.render();
+      await osmd.load(processedMusicXml);
+
+      // await 後に世代チェック: 新しい呼び出しがあれば古い結果を破棄
+      if (generation !== renderGenerationRef.current) {
+        osmd.clear();
+        return;
+      }
+
+      osmd.render();
+      osmdRef.current = osmd;
 
       if (settings.sheetMusicChordsOnly) {
         const noteEls = containerRef.current.querySelectorAll('[class*=notehead], [class*=rest], [class*=stem]');
@@ -429,11 +443,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       settings.simpleDisplayMode,
       settings.noteNameStyle,
       settings.sheetMusicChordsOnly,
-        settings.transpose,
           createTimeMapping,
           updateWrapperWidth,
-        useRhythmNotation // リズム譜モードを依存関係に追加
-    ]); // 簡易表示設定とトランスポーズを依存関係に追加
+        useRhythmNotation
+    ]); // musicXml更新時にのみ再レンダリング（settings.transposeはmusicXml経由で反映）
 
     useEffect(() => {
       if (!shouldRenderSheet) {
