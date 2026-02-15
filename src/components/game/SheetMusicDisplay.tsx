@@ -178,46 +178,95 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
       }
 
+      // --- OSMDノートをX座標でソート ---
+      // OSMDは staffLine ごとに走査するため、2段譜（ピアノ等）では
+      // 「右手全部→左手全部」の順になる。ゲームノーツは時間順で両手混在。
+      // X座標（楽譜上の左→右 ≈ 時間軸）でソートすることで時間順に揃える。
+      const sortedOsmdIndices = Array.from(
+        { length: osmdPlayableNoteCount },
+        (_, i) => i,
+      ).sort((a, b) => {
+        const xDiff = osmdXPositions[a] - osmdXPositions[b];
+        if (Math.abs(xDiff) > 0.5) return xDiff;
+        // X座標が同じ（同じ拍の上下段）場合はピッチ昇順で安定ソート
+        return a - b;
+      });
+
+      // ソート済みX座標配列
+      const sortedX = sortedOsmdIndices.map((i) => osmdXPositions[i]);
+
       if (osmdPlayableNoteCount === notes.length) {
-        // === 通常フロー: 1:1 index マッピング ===
+        // === 数一致: ソート済み OSMD ノートとゲームノーツを 1:1 マッピング ===
         for (let i = 0; i < osmdPlayableNoteCount; i++) {
-          if (noteIndex < notes.length) {
-            mapping.push({
-              timeMs: (notes[noteIndex].time + timingAdjustmentSec) * 1000,
-              xPosition: osmdXPositions[i],
+          mapping.push({
+            timeMs: (notes[i].time + timingAdjustmentSec) * 1000,
+            xPosition: sortedX[i],
+          });
+        }
+        noteIndex = notes.length;
+      } else if (notes.length > osmdPlayableNoteCount && osmdPlayableNoteCount > 0) {
+        // === ゲームノーツが多い (装飾音符展開): ===
+        // 装飾展開で追加されたノーツを特定し、親ノートと同じX座標にマッピング。
+        // 非装飾ノーツは1:1でソート済みOSMDノーツにマッピング。
+        const extraCount = notes.length - osmdPlayableNoteCount;
+
+        // --- 装飾展開ノーツの検出 ---
+        // 連続するゲームノーツ間の時間差が最も小さいものが装飾展開ノーツ
+        // (モルデント: 0.03〜0.06s, 通常16分音符: 0.125s 以上)
+        const isOrnamentExtra = new Array<boolean>(notes.length).fill(false);
+
+        if (extraCount > 0) {
+          const deltas: { idx: number; delta: number }[] = [];
+          for (let i = 1; i < notes.length; i++) {
+            deltas.push({
+              idx: i,
+              delta: Math.abs(notes[i].time - notes[i - 1].time),
             });
-            noteIndex++;
+          }
+          // 時間差が小さい順にソートし、extraCount 個を装飾ノーツとしてマーク
+          deltas.sort((a, b) => a.delta - b.delta);
+          const markCount = Math.min(extraCount, deltas.length);
+          for (let i = 0; i < markCount; i++) {
+            isOrnamentExtra[deltas[i].idx] = true;
           }
         }
+
+        // --- マッピング構築 ---
+        // 非装飾ノーツ → ソート済みOSMDノーツと1:1
+        // 装飾ノーツ → 直前のマッピングエントリと同じX座標
+        let osmdPtr = 0;
+        for (let gi = 0; gi < notes.length; gi++) {
+          const t = (notes[gi].time + timingAdjustmentSec) * 1000;
+
+          if (isOrnamentExtra[gi]) {
+            // 装飾展開ノーツ: 直前のX座標を継承
+            const prevX = mapping.length > 0
+              ? mapping[mapping.length - 1].xPosition
+              : sortedX[0];
+            mapping.push({ timeMs: t, xPosition: prevX });
+          } else {
+            // 通常ノーツ: ソート済みOSMDノーツとマッピング
+            const x = osmdPtr < sortedX.length
+              ? sortedX[osmdPtr]
+              : sortedX[sortedX.length - 1];
+            mapping.push({ timeMs: t, xPosition: x });
+            osmdPtr++;
+          }
+        }
+        noteIndex = notes.length;
       } else {
-        // === 数不一致フロー (装飾音符展開等): ゲームノーツを OSMD ノーツに分配 ===
-        // ゲームノーツが多い場合: 各 OSMD ノートにゲームノーツを均等分配し、
-        // 展開された装飾ノートは同じ X 座標にマッピングする
-        if (notes.length > osmdPlayableNoteCount && osmdPlayableNoteCount > 0) {
-          const ratio = notes.length / osmdPlayableNoteCount;
-          for (let gi = 0; gi < notes.length; gi++) {
-            const osmdIdx = Math.min(
-              Math.floor(gi / ratio),
-              osmdPlayableNoteCount - 1
-            );
-            mapping.push({
-              timeMs: (notes[gi].time + timingAdjustmentSec) * 1000,
-              xPosition: osmdXPositions[osmdIdx],
-            });
-          }
-          noteIndex = notes.length;
-        } else {
-          // OSMD の方が多い場合（稀）: OSMD ノートをゲームノーツ分だけマッピング
-          for (let i = 0; i < Math.min(osmdPlayableNoteCount, notes.length); i++) {
-            if (noteIndex < notes.length) {
-              mapping.push({
-                timeMs: (notes[noteIndex].time + timingAdjustmentSec) * 1000,
-                xPosition: osmdXPositions[i],
-              });
-              noteIndex++;
-            }
-          }
+        // === OSMDの方が多い (稀): ゲームノーツ分だけマッピング ===
+        for (let gi = 0; gi < notes.length; gi++) {
+          const si = Math.min(
+            Math.round(gi * (osmdPlayableNoteCount - 1) / Math.max(1, notes.length - 1)),
+            osmdPlayableNoteCount - 1,
+          );
+          mapping.push({
+            timeMs: (notes[gi].time + timingAdjustmentSec) * 1000,
+            xPosition: sortedX[si],
+          });
         }
+        noteIndex = notes.length;
       }
     
     // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
