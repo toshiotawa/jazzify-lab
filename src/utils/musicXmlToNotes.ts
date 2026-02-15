@@ -99,6 +99,8 @@ export function parseMusicXmlToNoteData(
 
     // 小節内の現在位置 (divisions)
     let posInDivisions = 0;
+    // 和音用: 直前の非和音ノートの開始位置を記録
+    let lastNonChordPos = 0;
 
     const elements = Array.from(measureEl.children);
 
@@ -183,8 +185,11 @@ export function parseMusicXmlToNoteData(
       const mainName = stepAlterToDisplayName(step, alter, octave);
       const duration = parseInt(noteEl.querySelector('duration')?.textContent ?? '0', 10);
 
-      // 和音でなければ note の位置を記録
-      const notePos = isChord ? posInDivisions : posInDivisions;
+      // 和音ノートは直前の非和音ノートと同じ位置（同時発音）
+      const notePos = isChord ? lastNonChordPos : posInDivisions;
+      if (!isChord) {
+        lastNonChordPos = posInDivisions;
+      }
       const noteTime = currentTimeBase + notePos * secondsPerDivision;
 
       // ---- grace notes (主音の直前) ----
