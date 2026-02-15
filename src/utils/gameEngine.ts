@@ -181,6 +181,7 @@ export class GameEngine {
       instance.pitch = source.pitch;
       instance.noteName = source.noteName;
       instance.appearTime = source.appearTime;
+      instance.hand = source.hand;
       instance.state = 'visible';
       instance.hitTime = undefined;
       instance.timingError = undefined;
