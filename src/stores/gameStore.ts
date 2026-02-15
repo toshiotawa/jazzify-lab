@@ -742,10 +742,25 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
                   const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
                   const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
-                  finalNotes = rawNotes.map((n, i) => ({
-                    ...n,
-                    noteName: reparsed[i]?.noteName ?? n.noteName,
-                  }));
+                  // (time, transposedPitch) → noteName のマップを構築
+                  const nameMap = new Map<string, string[]>();
+                  for (const rn of reparsed) {
+                    const key = `${rn.time.toFixed(4)}:${rn.pitch}`;
+                    const arr = nameMap.get(key);
+                    if (arr) { arr.push(rn.noteName ?? ''); }
+                    else { nameMap.set(key, [rn.noteName ?? '']); }
+                  }
+                  const usedCount = new Map<string, number>();
+                  finalNotes = rawNotes.map(n => {
+                    const key = `${n.time.toFixed(4)}:${n.pitch + transpose}`;
+                    const names = nameMap.get(key);
+                    if (names && names.length > 0) {
+                      const idx = usedCount.get(key) ?? 0;
+                      usedCount.set(key, idx + 1);
+                      return { ...n, noteName: names[idx % names.length] };
+                    }
+                    return n;
+                  });
                 } else if (notesAlreadyHaveNames) {
                   // MusicXML-only + 移調なし: そのまま使用
                   finalNotes = rawNotes;
@@ -1178,10 +1193,24 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                     // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
                     const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
                     const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
-                    finalNotes = notes.map((n, i) => ({
-                      ...n,
-                      noteName: reparsed[i]?.noteName ?? n.noteName,
-                    }));
+                    const nameMap = new Map<string, string[]>();
+                    for (const rn of reparsed) {
+                      const key = `${rn.time.toFixed(4)}:${rn.pitch}`;
+                      const arr = nameMap.get(key);
+                      if (arr) { arr.push(rn.noteName ?? ''); }
+                      else { nameMap.set(key, [rn.noteName ?? '']); }
+                    }
+                    const usedCount = new Map<string, number>();
+                    finalNotes = notes.map(n => {
+                      const key = `${n.time.toFixed(4)}:${n.pitch + transpose}`;
+                      const names = nameMap.get(key);
+                      if (names && names.length > 0) {
+                        const idx = usedCount.get(key) ?? 0;
+                        usedCount.set(key, idx + 1);
+                        return { ...n, noteName: names[idx % names.length] };
+                      }
+                      return n;
+                    });
                   } else if (notesAlreadyHaveNames) {
                     finalNotes = notes;
                   } else {
@@ -1509,11 +1538,26 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                    // MusicXML-only + 移調: 移調済みXMLを再パースして正しい異名同音の音名を取得
                    const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
                    const reparsed = parseMusicXmlToNoteData(finalXml, targetSong.id ?? 'xml');
-                   // 再パース結果から音名のみを元ノーツにコピー（ピッチ・タイミングは元のまま維持）
-                   finalNotes = notes.map((n, i) => ({
-                     ...n,
-                     noteName: reparsed[i]?.noteName ?? n.noteName,
-                   }));
+                   // (time, transposedPitch) → noteName のマップを構築
+                   // ソート順がピッチ変化で変わるためインデックスではなくキーでマッチ
+                   const nameMap = new Map<string, string[]>();
+                   for (const rn of reparsed) {
+                     const key = `${rn.time.toFixed(4)}:${rn.pitch}`;
+                     const arr = nameMap.get(key);
+                     if (arr) { arr.push(rn.noteName ?? ''); }
+                     else { nameMap.set(key, [rn.noteName ?? '']); }
+                   }
+                   const usedCount = new Map<string, number>();
+                   finalNotes = notes.map(n => {
+                     const key = `${n.time.toFixed(4)}:${n.pitch + transpose}`;
+                     const names = nameMap.get(key);
+                     if (names && names.length > 0) {
+                       const idx = usedCount.get(key) ?? 0;
+                       usedCount.set(key, idx + 1);
+                       return { ...n, noteName: names[idx % names.length] };
+                     }
+                     return n;
+                   });
                  } else if (notesAlreadyHaveNames) {
                    // MusicXML-only + 移調なし: そのまま使用
                    finalNotes = notes;
