@@ -378,29 +378,8 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
     return `${step.toUpperCase()}${accidental}${octave}`;
   };
 
-  // ターゲットキーのスケール音を取得（臨時記号の判定用）
-  const targetScaleNotes = getKeyScaleNotesForXml(targetKeyName);
-  const targetScaleChromaSet = new Set(
-    targetScaleNotes.map(n => Note.get(n).chroma).filter((c): c is number => c !== undefined)
-  );
-
-  /**
-   * 音がターゲットキーの調号内かどうかを判定
-   * 調号内の音は臨時記号不要、調号外の音は臨時記号必要
-   */
-  const isInKeySignature = (noteName: string): boolean => {
-    const noteInfo = Note.get(noteName);
-    if (!noteInfo || noteInfo.chroma === undefined) return false;
-    
-    // スケール内の音と同じクロマで、かつ同じ音名（文字+臨時記号）であれば調号内
-    return targetScaleNotes.some(scaleNote => {
-      const scaleInfo = Note.get(scaleNote);
-      return scaleInfo?.chroma === noteInfo.chroma && scaleNote === noteName;
-    });
-  };
-
   // Helper to write back tonal note with support for double accidentals
-  // ターゲットキーのスケールに合わせた音名を使用し、臨時記号も追加
+  // 表示用accidental要素はOSMDに自動計算させ、pitch(step/alter/octave)のみ更新する
   const applyNoteToPitch = (noteStr: string, pitchEl: Element, noteEl: Element) => {
     const parsed = Note.get(noteStr);
     if (!parsed.empty) {
@@ -441,53 +420,13 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
       if (existingAccidental) {
         existingAccidental.remove();
       }
-
-      // 臨時記号が必要かどうかを判定
-      // 調号外の音（スケール外）または調号内でも臨時記号で変化した音には臨時記号が必要
-      const finalNoteName = finalLetter + (finalAcc || '');
-      const needsAccidental = !isInKeySignature(finalNoteName);
-      
-      if (needsAccidental && finalAcc) {
-        // 臨時記号要素を追加（pitch要素の後、duration要素の前に挿入）
-        const accidentalEl = doc.createElement('accidental');
-        if (finalAcc === '#') accidentalEl.textContent = 'sharp';
-        else if (finalAcc === '##' || finalAcc === 'x') accidentalEl.textContent = 'double-sharp';
-        else if (finalAcc === 'b') accidentalEl.textContent = 'flat';
-        else if (finalAcc === 'bb') accidentalEl.textContent = 'flat-flat';
-        
-        // pitch要素の後に挿入
-        const durationEl = noteEl.querySelector('duration');
-        if (durationEl) {
-          noteEl.insertBefore(accidentalEl, durationEl);
-        } else {
-          // durationがない場合はpitchの後に追加
-          pitchEl.parentNode?.insertBefore(accidentalEl, pitchEl.nextSibling);
-        }
-      } else if (!needsAccidental && !finalAcc) {
-        // 調号内の音でナチュラルが必要な場合（元の音が臨時記号付きだった場合）
-        // この場合はナチュラル記号を追加
-        const originalStep = pitchEl.querySelector('step')?.textContent || '';
-        const originalAlter = pitchEl.querySelector('alter')?.textContent || '0';
-        if (originalAlter !== '0') {
-          const accidentalEl = doc.createElement('accidental');
-          accidentalEl.textContent = 'natural';
-          const durationEl = noteEl.querySelector('duration');
-          if (durationEl) {
-            noteEl.insertBefore(accidentalEl, durationEl);
-          } else {
-            pitchEl.parentNode?.insertBefore(accidentalEl, pitchEl.nextSibling);
-          }
-        }
-      }
     }
   };
 
-  // transpose each <note><pitch>, skipping rests and tie-stop notes
+  // transpose each <note><pitch>, skipping rests
   doc.querySelectorAll('note').forEach((noteEl) => {
     // Skip rest notes
     if (noteEl.querySelector('rest')) return;
-    // Skip tie stop (後ろ側)
-    if (Array.from(noteEl.querySelectorAll('tie')).some(t => t.getAttribute('type') === 'stop')) return;
 
     const pitchEl = noteEl.querySelector('pitch');
     if (!pitchEl) return; // safety
