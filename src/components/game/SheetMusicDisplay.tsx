@@ -198,24 +198,42 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       columns.sort((a, b) => a.mt - b.mt);
     } else {
       // フォールバック: X座標で重複除去 (タイムスタンプが取れない場合)
+      // mt にX座標そのものを使用 → BPM変換ではなく線形マッピングで対応
       const xMap = new Map<number, number>();
       for (const n of osmdNotes) {
         const key = Math.round(n.xPx);
         if (!xMap.has(key)) xMap.set(key, n.xPx);
       }
       const sorted = Array.from(xMap.values()).sort((a, b) => a - b);
-      for (let i = 0; i < sorted.length; i++) {
-        columns.push({ mt: i, xPx: sorted[i] });
+      for (const x of sorted) {
+        columns.push({ mt: x, xPx: x });
       }
+      log.warn('⚠️ OSMD timestamps not available, using X-position fallback');
     }
 
     log.info(`📐 Score columns (unique beat positions): ${columns.length}`);
 
     // ───────────────────────────────────────────────────────
-    // Step 3: 音楽時間 → 実時間 の線形校正
+    // Step 3: 音楽時間 → 実時間 の変換
     // ───────────────────────────────────────────────────────
-    // ゲームノーツの最初と最後の時間を基準に変換
-    // テンポが一定の曲では完全一致、テンポ変化があっても概ね追従する
+    // BPMベースの直接変換を使用 (2点校正の累積誤差を回避)
+    //
+    // OSMD Fraction は「全音符 = 1.0」単位:
+    //   4分音符 = 0.25, 2分音符 = 0.5, 全音符 = 1.0
+    //   4/4拍子の1小節 = 1.0
+    //
+    // 変換式: timeSec = mt × (240 / BPM) + offset
+    //   - mt: OSMD timestamp (whole-note units)
+    //   - offset: 最初のノートの実時間とのズレ
+
+    // BPM を OSMD Sheet から取得 (なければ musicXml から)
+    let bpm = 120;
+    try {
+      const sheet = (osmdRef.current as any).Sheet;
+      if (sheet?.DefaultStartTempoInBpm > 0) {
+        bpm = sheet.DefaultStartTempoInBpm;
+      }
+    } catch { /* ignore */ }
 
     if (columns.length >= 2 && notes.length >= 2) {
       const mt0 = columns[0].mt;
@@ -225,10 +243,33 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       const mtSpan = mt1 - mt0;
       const tSpan = t1 - t0;
 
+      // タイムスタンプ単位を自動判定 (whole-note vs quarter-note)
+      // BPM による変換でどちらが実際の演奏時間に近いかを判定
+      const secPerWhole = 240 / bpm;   // 全音符単位の場合
+      const secPerQuarter = 60 / bpm;  // 4分音符単位の場合
+
+      const durationAsWhole = mtSpan * secPerWhole;
+      const durationAsQuarter = mtSpan * secPerQuarter;
+
+      let secPerUnit: number;
+      if (Math.abs(durationAsWhole - tSpan) < Math.abs(durationAsQuarter - tSpan)) {
+        secPerUnit = secPerWhole;
+        log.info(`🎵 Timestamp unit: whole-notes (BPM=${bpm}, secPerUnit=${secPerUnit.toFixed(4)})`);
+      } else {
+        secPerUnit = secPerQuarter;
+        log.info(`🎵 Timestamp unit: quarter-notes (BPM=${bpm}, secPerUnit=${secPerUnit.toFixed(4)})`);
+      }
+
+      // オフセット: 最初のカラムの音楽時間と最初のゲームノーツ時間の差
+      const offset = t0 - mt0 * secPerUnit;
+
+      // 診断ログ: 最後のカラムの推定時間 vs 実際の最終ゲームノーツ時間
+      const estimatedLast = mt1 * secPerUnit + offset;
+      log.info(`🔍 校正診断: mt0=${mt0.toFixed(4)}, mt1=${mt1.toFixed(4)}, t0=${t0.toFixed(4)}, t1=${t1.toFixed(4)}`);
+      log.info(`🔍 推定最終=${estimatedLast.toFixed(4)} vs 実際最終=${t1.toFixed(4)} (差=${(estimatedLast - t1).toFixed(4)}s)`);
+
       for (const col of columns) {
-        const timeSec = mtSpan > 0
-          ? t0 + ((col.mt - mt0) / mtSpan) * tSpan
-          : t0;
+        const timeSec = col.mt * secPerUnit + offset;
         mapping.push({
           timeMs: (timeSec + timingAdjustmentSec) * 1000,
           xPosition: col.xPx,
