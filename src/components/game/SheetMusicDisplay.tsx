@@ -330,9 +330,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     setError(null);
 
       try {
-      // 既存のOSMDインスタンスをクリア（移調時の即時反映のため）
+      // 既存のOSMDインスタンスを破棄（移調時の即時反映のため）
       if (osmdRef.current) {
         osmdRef.current.clear();
+        osmdRef.current = null;
+      }
+      // コンテナ内の描画要素（canvas/svg）を完全に除去して五線の多重描画を防止
+      while (containerRef.current.firstChild) {
+        containerRef.current.removeChild(containerRef.current.firstChild);
       }
       
       const xmlWithoutLyrics = stripLyricsFromMusicXml(musicXml);
