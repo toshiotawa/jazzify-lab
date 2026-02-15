@@ -108,47 +108,62 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     const mapping: TimeMappingEntry[] = [];
     const graphicSheet = osmdRef.current.GraphicSheet;
-    
+
     if (!graphicSheet || !graphicSheet.MusicPages || graphicSheet.MusicPages.length === 0) {
       log.warn('楽譜のグラフィック情報が取得できません');
       return;
     }
 
-    let noteIndex = 0;
-    let osmdPlayableNoteCount = 0;
-    
-    log.info(`📊 OSMD Note Extraction Starting: ${notes.length} JSON notes to match`);
-    
-    // 全ての音符を走査して演奏可能なノートのみを抽出
-    const osmdPlayableNotes = [];
-    let firstBeatX: number | null = null; // 最初の小節1拍目のX座標
-    
+    const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
+
+    // ───────────────────────────────────────────────────────
+    // Step 1: OSMD playable notes を収集 (X座標 + 音楽的タイムスタンプ)
+    // ───────────────────────────────────────────────────────
+    // 2段譜では staffLine ごとに走査されるため、
+    // 同じ拍の上下段ノートは同じ musicalTime / 同じ X座標 を持つ。
+    // タイムスタンプで重複除去し「ユニークなスコアカラム」を構築することで
+    // ノート数の不一致・装飾展開・両手同時打鍵すべてに対応する。
+
+    let firstBeatX: number | null = null;
+    let osmdNoteCount = 0;
+    let hasAllTimestamps = true;
+
+    const osmdNotes: { xPx: number; mt: number }[] = [];
+
     for (const page of graphicSheet.MusicPages) {
       for (const system of page.MusicSystems) {
         for (const staffLine of system.StaffLines) {
           for (const measure of staffLine.Measures) {
             for (const staffEntry of measure.staffEntries) {
-              // 最初に見つかった StaffEntry のX座標（実質1小節目1拍目）を拾う
               const sePos = (staffEntry as any)?.PositionAndShape?.AbsolutePosition?.x;
-              if (typeof sePos === 'number') {
-                if (firstBeatX === null || sePos < firstBeatX) {
-                  firstBeatX = sePos;
-                }
+              if (typeof sePos === 'number' && (firstBeatX === null || sePos < firstBeatX)) {
+                firstBeatX = sePos;
               }
-              
+
               for (const voice of staffEntry.graphicalVoiceEntries) {
-                for (const graphicNote of voice.notes) {
-                  // isRest() が true、または sourceNote がない場合は休符と見なす
-                  if (!graphicNote.sourceNote || (graphicNote.sourceNote as any).isRest?.()) {
-                    continue;
-                  }
-                  
-                  // タイで結ばれた後続音符はスキップ (OSMDの公式な方法)
-                  if (graphicNote.sourceNote.NoteTie && !graphicNote.sourceNote.NoteTie.StartNote) {
-                    continue;
-                  }
-                  
-                  osmdPlayableNotes.push(graphicNote);
+                for (const gn of voice.notes) {
+                  if (!gn.sourceNote || (gn.sourceNote as any).isRest?.()) continue;
+                  if (gn.sourceNote.NoteTie && !gn.sourceNote.NoteTie.StartNote) continue;
+
+                  osmdNoteCount++;
+
+                  // X 座標
+                  const ps = gn.PositionAndShape as any;
+                  const nhx: number = ps?.AbsolutePosition?.x ?? 0;
+                  const bw: number = ps?.BoundingBox?.width ?? 0;
+                  const xPx = (nhx + bw / 2) * scaleFactorRef.current;
+
+                  // 音楽的タイムスタンプ (quarter note 単位)
+                  let mt = -1;
+                  try {
+                    const ts = (gn.sourceNote as any).getAbsoluteTimestamp?.();
+                    if (ts && typeof ts.RealValue === 'number') {
+                      mt = ts.RealValue;
+                    }
+                  } catch { /* ignore */ }
+
+                  if (mt < 0) hasAllTimestamps = false;
+                  osmdNotes.push({ xPx, mt });
                 }
               }
             }
@@ -156,143 +171,94 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         }
       }
     }
-    
-    osmdPlayableNoteCount = osmdPlayableNotes.length;
 
-    // マッピングを作成
-      const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
+    log.info(`📊 OSMD: ${osmdNoteCount} playable notes, ${notes.length} game notes, timestamps: ${hasAllTimestamps ? 'YES' : 'NO'}`);
 
-      // OSMD ノートの X 座標を収集
-      const osmdXPositions: number[] = [];
-      for (const graphicNote of osmdPlayableNotes) {
-        const positionAndShape = graphicNote.PositionAndShape as any;
-        const noteHeadX = positionAndShape?.AbsolutePosition?.x;
-        if (noteHeadX !== undefined) {
-          let centerX = noteHeadX;
-          if (positionAndShape?.BoundingBox?.width !== undefined) {
-            centerX += positionAndShape.BoundingBox.width / 2;
-          }
-          osmdXPositions.push(centerX * scaleFactorRef.current);
-        } else {
-          osmdXPositions.push(0);
+    // ───────────────────────────────────────────────────────
+    // Step 2: ユニークなスコアカラムを構築
+    // ───────────────────────────────────────────────────────
+    // 同じ拍位置のノート（両手・和音）は同じカラムにまとめる
+    // → 時間軸上のユニークな位置のみを残す
+
+    interface ScoreColumn { mt: number; xPx: number }
+    const columns: ScoreColumn[] = [];
+
+    if (hasAllTimestamps && osmdNotes.length > 0) {
+      // 音楽的タイムスタンプで重複除去
+      const mtMap = new Map<string, { mt: number; xPx: number }>();
+      for (const n of osmdNotes) {
+        const key = n.mt.toFixed(6);
+        if (!mtMap.has(key)) {
+          mtMap.set(key, { mt: n.mt, xPx: n.xPx });
         }
       }
+      for (const v of mtMap.values()) {
+        columns.push({ mt: v.mt, xPx: v.xPx });
+      }
+      columns.sort((a, b) => a.mt - b.mt);
+    } else {
+      // フォールバック: X座標で重複除去 (タイムスタンプが取れない場合)
+      const xMap = new Map<number, number>();
+      for (const n of osmdNotes) {
+        const key = Math.round(n.xPx);
+        if (!xMap.has(key)) xMap.set(key, n.xPx);
+      }
+      const sorted = Array.from(xMap.values()).sort((a, b) => a - b);
+      for (let i = 0; i < sorted.length; i++) {
+        columns.push({ mt: i, xPx: sorted[i] });
+      }
+    }
 
-      // --- OSMDノートをX座標でソート ---
-      // OSMDは staffLine ごとに走査するため、2段譜（ピアノ等）では
-      // 「右手全部→左手全部」の順になる。ゲームノーツは時間順で両手混在。
-      // X座標（楽譜上の左→右 ≈ 時間軸）でソートすることで時間順に揃える。
-      const sortedOsmdIndices = Array.from(
-        { length: osmdPlayableNoteCount },
-        (_, i) => i,
-      ).sort((a, b) => {
-        const xDiff = osmdXPositions[a] - osmdXPositions[b];
-        if (Math.abs(xDiff) > 0.5) return xDiff;
-        // X座標が同じ（同じ拍の上下段）場合はピッチ昇順で安定ソート
-        return a - b;
+    log.info(`📐 Score columns (unique beat positions): ${columns.length}`);
+
+    // ───────────────────────────────────────────────────────
+    // Step 3: 音楽時間 → 実時間 の線形校正
+    // ───────────────────────────────────────────────────────
+    // ゲームノーツの最初と最後の時間を基準に変換
+    // テンポが一定の曲では完全一致、テンポ変化があっても概ね追従する
+
+    if (columns.length >= 2 && notes.length >= 2) {
+      const mt0 = columns[0].mt;
+      const mt1 = columns[columns.length - 1].mt;
+      const t0 = notes[0].time;
+      const t1 = notes[notes.length - 1].time;
+      const mtSpan = mt1 - mt0;
+      const tSpan = t1 - t0;
+
+      for (const col of columns) {
+        const timeSec = mtSpan > 0
+          ? t0 + ((col.mt - mt0) / mtSpan) * tSpan
+          : t0;
+        mapping.push({
+          timeMs: (timeSec + timingAdjustmentSec) * 1000,
+          xPosition: col.xPx,
+        });
+      }
+    } else if (columns.length > 0 && notes.length > 0) {
+      mapping.push({
+        timeMs: (notes[0].time + timingAdjustmentSec) * 1000,
+        xPosition: columns[0].xPx,
       });
+    }
 
-      // ソート済みX座標配列
-      const sortedX = sortedOsmdIndices.map((i) => osmdXPositions[i]);
-
-      if (osmdPlayableNoteCount === notes.length) {
-        // === 数一致: ソート済み OSMD ノートとゲームノーツを 1:1 マッピング ===
-        for (let i = 0; i < osmdPlayableNoteCount; i++) {
-          mapping.push({
-            timeMs: (notes[i].time + timingAdjustmentSec) * 1000,
-            xPosition: sortedX[i],
-          });
-        }
-        noteIndex = notes.length;
-      } else if (notes.length > osmdPlayableNoteCount && osmdPlayableNoteCount > 0) {
-        // === ゲームノーツが多い (装飾音符展開): ===
-        // 装飾展開で追加されたノーツを特定し、親ノートと同じX座標にマッピング。
-        // 非装飾ノーツは1:1でソート済みOSMDノーツにマッピング。
-        const extraCount = notes.length - osmdPlayableNoteCount;
-
-        // --- 装飾展開ノーツの検出 ---
-        // 連続するゲームノーツ間の時間差が最も小さいものが装飾展開ノーツ
-        // (モルデント: 0.03〜0.06s, 通常16分音符: 0.125s 以上)
-        const isOrnamentExtra = new Array<boolean>(notes.length).fill(false);
-
-        if (extraCount > 0) {
-          const deltas: { idx: number; delta: number }[] = [];
-          for (let i = 1; i < notes.length; i++) {
-            deltas.push({
-              idx: i,
-              delta: Math.abs(notes[i].time - notes[i - 1].time),
-            });
-          }
-          // 時間差が小さい順にソートし、extraCount 個を装飾ノーツとしてマーク
-          deltas.sort((a, b) => a.delta - b.delta);
-          const markCount = Math.min(extraCount, deltas.length);
-          for (let i = 0; i < markCount; i++) {
-            isOrnamentExtra[deltas[i].idx] = true;
-          }
-        }
-
-        // --- マッピング構築 ---
-        // 非装飾ノーツ → ソート済みOSMDノーツと1:1
-        // 装飾ノーツ → 直前のマッピングエントリと同じX座標
-        let osmdPtr = 0;
-        for (let gi = 0; gi < notes.length; gi++) {
-          const t = (notes[gi].time + timingAdjustmentSec) * 1000;
-
-          if (isOrnamentExtra[gi]) {
-            // 装飾展開ノーツ: 直前のX座標を継承
-            const prevX = mapping.length > 0
-              ? mapping[mapping.length - 1].xPosition
-              : sortedX[0];
-            mapping.push({ timeMs: t, xPosition: prevX });
-          } else {
-            // 通常ノーツ: ソート済みOSMDノーツとマッピング
-            const x = osmdPtr < sortedX.length
-              ? sortedX[osmdPtr]
-              : sortedX[sortedX.length - 1];
-            mapping.push({ timeMs: t, xPosition: x });
-            osmdPtr++;
-          }
-        }
-        noteIndex = notes.length;
-      } else {
-        // === OSMDの方が多い (稀): ゲームノーツ分だけマッピング ===
-        for (let gi = 0; gi < notes.length; gi++) {
-          const si = Math.min(
-            Math.round(gi * (osmdPlayableNoteCount - 1) / Math.max(1, notes.length - 1)),
-            osmdPlayableNoteCount - 1,
-          );
-          mapping.push({
-            timeMs: (notes[gi].time + timingAdjustmentSec) * 1000,
-            xPosition: sortedX[si],
-          });
-        }
-        noteIndex = notes.length;
-      }
-    
-    // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
-    if (firstBeatX !== null) {
+    // 0ms アンカーを先頭に追加
+    if (firstBeatX !== null && (mapping.length === 0 || mapping[0].timeMs > 0)) {
       mapping.unshift({
         timeMs: 0,
-        xPosition: firstBeatX * scaleFactorRef.current
+        xPosition: firstBeatX * scaleFactorRef.current,
       });
-      log.info(`✅ 小節頭アンカー追加: 0ms → X=${firstBeatX * scaleFactorRef.current}px`);
     }
-    
-    log.info(`📊 OSMD Note Extraction Summary:
-    OSMD playable notes: ${osmdPlayableNoteCount}
-    JSON notes count: ${notes.length}
-    Mapped notes: ${mapping.length}
-    Match status: ${osmdPlayableNoteCount === notes.length ? '✅ Perfect match!' : '❌ Mismatch!'}`);
-    
-    if (osmdPlayableNoteCount !== notes.length) {
-      log.error(`ノート数の不一致: OSMD(${osmdPlayableNoteCount}) vs JSON(${notes.length}). プレイヘッドがずれる可能性があります。`);
-    }
-    
-    timeMappingRef.current = mapping; // refを更新
+
+    // 時間順で安定ソート
+    mapping.sort((a, b) => a.timeMs - b.timeMs);
+
+    log.info(`✅ タイムマッピング完成: ${mapping.length} entries (${osmdNoteCount} OSMD notes → ${columns.length} columns → ${mapping.length} mapping entries)`);
+
+    timeMappingRef.current = mapping;
     mappingCursorRef.current = 0;
     lastRenderedIndexRef.current = -1;
     lastScrollXRef.current = 0;
-    }, [notes, settings.timingAdjustment]);
+  }, [notes, settings.timingAdjustment]);
 
   const loadAndRenderSheet = useCallback(async () => {
     if (!shouldRenderSheet) {
@@ -578,7 +544,19 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       // targetEntryが存在しない場合のガード処理を追加
       if (!targetEntry) return;
 
-        const scrollX = Math.max(0, targetEntry.xPosition - playheadPosition);
+      // エントリ間の線形補間でスムーズスクロール
+      // (ユニークカラムベースのマッピングはエントリ数が少ないため補間が重要)
+      let xPos = targetEntry.xPosition;
+      if (activeIndex + 1 < mapping.length) {
+        const nextEntry = mapping[activeIndex + 1];
+        const span = nextEntry.timeMs - targetEntry.timeMs;
+        if (span > 0) {
+          const progress = Math.min(1, Math.max(0, (currentTimeMs - targetEntry.timeMs) / span));
+          xPos += progress * (nextEntry.xPosition - targetEntry.xPosition);
+        }
+      }
+
+        const scrollX = Math.max(0, xPos - playheadPosition);
 
       const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
       const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
@@ -593,7 +571,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
         lastScrollXRef.current = scrollX;
       }
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || (!isPlaying && needsScrollUpdate)) {
+        if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
           const wrapper = scoreWrapperRef.current;
           const scrollContainer = scrollContainerRef.current;
           if (isPlaying) {
