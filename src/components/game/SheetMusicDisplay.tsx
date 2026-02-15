@@ -358,8 +358,10 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       log.info(`🎼 OSMD簡易表示: ${settings.simpleDisplayMode ? 'ON' : 'OFF'}, 音名スタイル: ${settings.noteNameStyle}, リズム譜: ${useRhythmNotation ? 'ON' : 'OFF'}`);
       
       // OSMDインスタンスを毎回新規作成（移調時の確実な反映のため）
+      // autoResize: false にして wrapper 幅変更による自動再描画を防止
+      // （autoResize だと updateWrapperWidth 後のサブピクセル再描画で五線が二重になる）
         const options: IOSMDOptions = {
-          autoResize: true,
+          autoResize: false,
           backend: 'canvas',
           drawTitle: false,
           drawComposer: false,
