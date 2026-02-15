@@ -1,6 +1,7 @@
 import { parseChordName, buildChordNotes } from '@/utils/chord-utils';
 import type { ChordProgressionDataItem } from '@/components/fantasy/TaikoNoteSystem';
 import { note as parseNote } from 'tonal';
+import { isGraceNote } from './musicXmlOrnamentExpander';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
@@ -85,6 +86,12 @@ export function convertMusicXmlToProgressionData(
 
       if (el.tagName === 'note') {
         const noteEl = el;
+
+        // 装飾音符 (grace note) はスキップ (duration なし)
+        if (isGraceNote(noteEl)) {
+          continue;
+        }
+
         // 休符はスキップ（位置は進める）
         if (noteEl.querySelector('rest')) {
           const dur = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);

@@ -290,10 +290,10 @@ const App: React.FC = () => {
     case '#performance':
     case '#play-lesson':
     case '#play-mission':
-      MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
+      MainContent = isFree ? <Dashboard /> : <GameScreen />;
       break;
     default:
-      MainContent = isStandardGlobal || isFree ? <Dashboard /> : <GameScreen />;
+      MainContent = isFree ? <Dashboard /> : <GameScreen />;
       break;
   }
 

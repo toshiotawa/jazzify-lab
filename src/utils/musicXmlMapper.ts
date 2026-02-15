@@ -2,24 +2,41 @@ import type { NoteData, ChordSymbol, ChordInfo } from '@/types';
 import { Note, Interval, transpose, note as parseNote } from 'tonal';
 import { transposeKey } from './chord-utils';
 import { toDisplayName, type DisplayOpts } from './display-note';
+import {
+  detectOrnaments,
+  expandOrnament,
+  isGraceNote,
+  collectGraceNotesBefore,
+  expandGraceNotes,
+  getKeyFifths,
+  stepAlterOctaveToMidi,
+  stepAlterToDisplayName,
+} from './musicXmlOrnamentExpander';
 
 /**
  * Extract playable note names from transposed MusicXML document.
- * Skips rests and tie-stop notes to match JSON note structure.
+ * Skips rests, tie-stop notes, and grace notes to match JSON note structure.
+ * 装飾記号 (ornaments) は展開せずスキップし、JSON側のノーツ数と一致させる。
  */
 export function extractPlayableNoteNames(doc: Document): string[] {
   const names: string[] = [];
   let totalNotes = 0;
   let skippedRests = 0;
   let skippedTies = 0;
+  let skippedGrace = 0;
   
   doc.querySelectorAll('note').forEach((noteEl) => {
     totalNotes++;
+
+    // Skip grace notes (装飾音符はJSON側に含まれないため)
+    if (isGraceNote(noteEl)) {
+      skippedGrace++;
+      return;
+    }
     
     // Skip rest notes
     if (noteEl.querySelector('rest')) {
       skippedRests++;
-      console.log(`⏸️ Skipping rest at position ${totalNotes}`);
       return;
     }
     
@@ -27,13 +44,11 @@ export function extractPlayableNoteNames(doc: Document): string[] {
     const ties = Array.from(noteEl.querySelectorAll('tie'));
     if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
       skippedTies++;
-      console.log(`🔗 Skipping tie-stop at position ${totalNotes}`);
       return;
     }
 
     const pitchEl = noteEl.querySelector('pitch');
     if (!pitchEl) {
-      console.warn(`⚠️ Note without pitch at position ${totalNotes}`);
       return;
     }
 
@@ -51,15 +66,69 @@ export function extractPlayableNoteNames(doc: Document): string[] {
 
     const noteName = `${step}${accidental}${octave}`;
     names.push(noteName);
-    console.log(`🎵 Extracted note ${names.length}: ${noteName} (position ${totalNotes})`);
   });
   
-  console.log(`📊 MusicXML Note Extraction Summary:
-    Total notes in XML: ${totalNotes}
-    Skipped rests: ${skippedRests}
-    Skipped ties: ${skippedTies}
-    Extracted playable notes: ${names.length}`);
-  
+  return names;
+}
+
+/**
+ * Extract playable note names WITH ornament expansion.
+ * Used for MusicXML-only flow where notes are generated from XML.
+ * 装飾記号を展開し、全てのノーツの音名を返す。
+ */
+export function extractPlayableNoteNamesWithOrnaments(doc: Document): string[] {
+  const keyFifths = getKeyFifths(doc);
+  const useFlatNames = keyFifths < 0;
+  const names: string[] = [];
+
+  const measures = doc.querySelectorAll('part > measure');
+  measures.forEach((measureEl) => {
+    const elements = Array.from(measureEl.children);
+    for (let idx = 0; idx < elements.length; idx++) {
+      const el = elements[idx];
+      if (el.tagName !== 'note') continue;
+
+      // Skip grace notes (handled via collectGraceNotesBefore)
+      if (isGraceNote(el)) continue;
+
+      // Skip rests
+      if (el.querySelector('rest')) continue;
+
+      // Skip tie-stop only
+      const ties = Array.from(el.querySelectorAll('tie'));
+      if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
+        continue;
+      }
+
+      const pitchEl = el.querySelector('pitch');
+      if (!pitchEl) continue;
+
+      const step = pitchEl.querySelector('step')?.textContent ?? 'C';
+      const alter = parseInt(pitchEl.querySelector('alter')?.textContent ?? '0', 10);
+      const octave = parseInt(pitchEl.querySelector('octave')?.textContent ?? '4', 10);
+      const mainPitch = stepAlterOctaveToMidi(step, alter, octave);
+      const mainName = stepAlterToDisplayName(step, alter, octave);
+      const duration = parseInt(el.querySelector('duration')?.textContent ?? '4', 10);
+
+      // Grace notes before this note
+      const graceNotes = collectGraceNotesBefore(elements, idx);
+      for (const gn of graceNotes) {
+        names.push(gn.noteName);
+      }
+
+      // Ornament expansion
+      const ornament = detectOrnaments(el);
+      if (ornament) {
+        const expanded = expandOrnament(ornament, mainPitch, mainName, duration, keyFifths, useFlatNames);
+        for (const en of expanded) {
+          names.push(en.noteName);
+        }
+      } else {
+        names.push(mainName);
+      }
+    }
+  });
+
   return names;
 }
 

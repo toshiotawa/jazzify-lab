@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
-import { addSongWithFiles, fetchSongs, deleteSong, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
+import { addSongWithFiles, fetchSongs, deleteSong, updateSongGlobalAvailable, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
 import { useToast } from '@/stores/toastStore';
 
 interface SongFormData {
@@ -15,6 +15,8 @@ interface SongFormData {
   hide_sheet_music?: boolean;
   /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
+  /** standard_global プランで遊べるかどうか */
+  global_available?: boolean;
 }
 
 const SongManager: React.FC = () => {
@@ -57,8 +59,9 @@ const SongManager: React.FC = () => {
   }, [activeListTab]);
 
   const onSubmit = async (values: SongFormData) => {
-    if (!values.jsonFile?.[0]) {
-      toast.error('JSONファイルは必須です');
+    // JSONまたはMusicXMLのいずれかが必要
+    if (!values.jsonFile?.[0] && !values.xmlFile?.[0]) {
+      toast.error('JSONファイルまたはMusicXMLファイルのいずれかは必須です');
       return;
     }
 
@@ -89,6 +92,7 @@ const SongManager: React.FC = () => {
         usage_type: activeFormTab,
         hide_sheet_music: values.hide_sheet_music ?? false,
         use_rhythm_notation: values.use_rhythm_notation ?? false,
+        global_available: values.global_available ?? false,
       }, files);
 
       console.log('アップロード成功:', result);
@@ -201,19 +205,33 @@ const SongManager: React.FC = () => {
           </label>
         </div>
 
+        <div className="divider">Global プラン</div>
+
+        <div className="form-control">
+          <label className="label cursor-pointer justify-start gap-3">
+            <input 
+              type="checkbox" 
+              className="checkbox checkbox-accent" 
+              {...register('global_available')}
+            />
+            <span className="label-text">Global プランで遊べる</span>
+            <span className="text-xs text-gray-400">（standard_global ユーザーに公開）</span>
+          </label>
+        </div>
+
         {/* ファイルアップロード */}
         <div className="divider">ファイル</div>
 
         <div>
           <label className="block text-sm font-medium mb-1">
-            JSONファイル * 
-            <span className="text-xs text-gray-400 ml-2">ノーツデータ</span>
+            JSONファイル
+            <span className="text-xs text-gray-400 ml-2">ノーツデータ（MusicXMLのみの場合は不要）</span>
           </label>
           <input 
             type="file" 
             accept=".json,application/json"
             className="file-input file-input-bordered w-full" 
-            {...register('jsonFile', { required: true })}
+            {...register('jsonFile')}
           />
           {watchedFiles[2]?.[0] && (
             <p className="text-xs text-gray-400 mt-1">
@@ -298,7 +316,27 @@ const SongManager: React.FC = () => {
                     {s.xml_url && <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded">XML</span>}
                     {s.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
                     {s.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
+                    {s.global_available && <span className="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded">Global</span>}
                   </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <label className="label cursor-pointer gap-1" title="Globalプランで遊べる">
+                    <span className="text-xs text-gray-400">G</span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-xs toggle-accent"
+                      checked={s.global_available ?? false}
+                      onChange={async (e) => {
+                        try {
+                          await updateSongGlobalAvailable(s.id, e.target.checked);
+                          toast.success(e.target.checked ? 'Globalに公開しました' : 'Global非公開にしました');
+                          await loadSongs(activeListTab);
+                        } catch (err: any) {
+                          toast.error('更新に失敗しました');
+                        }
+                      }}
+                    />
+                  </label>
                 </div>
                 <button className="btn btn-xs btn-error ml-2 flex-shrink-0" onClick={async () => {
                   if (!confirm(`「${s.title}」を削除しますか？`)) return;

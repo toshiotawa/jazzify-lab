@@ -10,7 +10,7 @@ export interface Song {
   artist?: string;
   bpm?: number; // 使用しない
   difficulty?: number; // 使用しない
-  json_data?: any; // 旧data フィールド（インライン JSON用）
+  json_data?: any; // 旧data フィールド（インライン JSON用）— MusicXMLのみの場合はnull
   audio_url?: string;
   xml_url?: string;
   json_url?: string;
@@ -22,6 +22,8 @@ export interface Song {
   hide_sheet_music?: boolean;
   /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
+  /** standard_global プランでプレイ可能かどうか */
+  global_available?: boolean;
 }
 
 export interface SongFiles {
@@ -69,15 +71,13 @@ export async function addSongWithFiles(
   console.log('addSongWithFiles開始:', song);
   console.log('認証ユーザーID:', userId);
   
-  // JSONファイルの内容を読み込んで検証
-  let jsonData = null;
+  // JSONファイルの内容を読み込んで検証（MusicXMLのみの場合はnull）
+  let jsonData: any = null;
   if (files.jsonFile) {
     try {
       const text = await files.jsonFile.text();
       jsonData = JSON.parse(text);
-      console.log('JSONファイル解析成功:', jsonData);
     } catch (e) {
-      console.error('JSONファイル解析エラー:', e);
       throw new Error('JSONファイルの形式が不正です');
     }
   }
@@ -238,4 +238,41 @@ export function rankAllowed(userRank: MembershipRank, songRank: MembershipRank) 
 export async function fetchAccessibleSongs(userRank: MembershipRank, usageType?: SongUsageType): Promise<Song[]> {
   const all = await fetchSongs(usageType);
   return all.filter(s => rankAllowed(userRank, s.min_rank as MembershipRank));
+}
+
+/**
+ * standard_global プラン向け: global_available=true の曲のみ取得
+ */
+export async function fetchGlobalAvailableSongs(usageType?: SongUsageType): Promise<Song[]> {
+  const key = `songs:global:${usageType || 'all'}`;
+  const { data, error } = await fetchWithCache(
+    key,
+    async () => {
+      let query = getSupabaseClient()
+        .from('songs')
+        .select('*')
+        .eq('global_available', true)
+        .order('created_at', { ascending: false });
+      if (usageType) {
+        query = query.eq('usage_type', usageType);
+      }
+      return query;
+    },
+    1000 * 60,
+  );
+  if (error) throw error;
+  return data as Song[];
+}
+
+/**
+ * 曲の global_available フラグを更新
+ */
+export async function updateSongGlobalAvailable(id: string, globalAvailable: boolean): Promise<void> {
+  const supabase = getSupabaseClient();
+  const { error } = await supabase
+    .from('songs')
+    .update({ global_available: globalAvailable })
+    .eq('id', id);
+  if (error) throw error;
+  clearSupabaseCache();
 } 

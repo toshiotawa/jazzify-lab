@@ -9,7 +9,7 @@ import ResizeHandle from '@/components/ui/ResizeHandle';
 import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
+import { fetchSongs, fetchGlobalAvailableSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -547,10 +547,15 @@ const SongSelectionScreen: React.FC = () => {
   const [sortBy, setSortBy] = React.useState<'artist' | 'title'>('artist');
   const [searchTerm, setSearchTerm] = React.useState('');
   
+  const isStandardGlobal = profile?.rank === 'standard_global';
+
   React.useEffect(() => {
     (async () => {
       try {
-        const allSongs = await fetchSongs('general');
+        // standard_global プランの場合は global_available=true の曲のみ取得
+        const allSongs = isStandardGlobal
+          ? await fetchGlobalAvailableSongs('general')
+          : await fetchSongs('general');
         setDbSongs(allSongs);
         
         // ユーザー統計を取得
@@ -560,15 +565,10 @@ const SongSelectionScreen: React.FC = () => {
         setSongStats(statsMap);
       }
       } catch (e) {
-        console.error('🔍 [DEBUG] 曲一覧取得失敗', e);
-        console.error('🔍 [DEBUG] Error details:', {
-          message: e instanceof Error ? e.message : 'Unknown error',
-          stack: e instanceof Error ? e.stack : undefined,
-          user: user ? { id: user.id, email: user.email } : null
-        });
+        console.error('曲一覧取得失敗', e);
       }
     })();
-  }, [profile, user]);
+  }, [profile, user, isStandardGlobal]);
 
   // 楽曲ソート機能
   const sortedSongs = React.useMemo(() => {
@@ -674,77 +674,85 @@ const SongSelectionScreen: React.FC = () => {
                   gameActions.clearSong();
                   
                   try {
+                    let mapped: any[];
+
                     // JSONデータの取得（json_urlがある場合はそちらを優先）
-                    let notesData: any;
-                    if (song.json_url) {
-                      const response = await fetch(song.json_url);
-                      if (!response.ok) {
-                        throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
+                    const hasJson = !!(song.json_url || song.json_data);
+
+                    if (hasJson) {
+                      // ---- 既存フロー: JSON からノーツを取得 ----
+                      let notesData: any;
+                      if (song.json_url) {
+                        const response = await fetch(song.json_url);
+                        if (!response.ok) {
+                          throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
+                        }
+                        const responseText = await response.text();
+                        if (responseText.trim().startsWith('<')) {
+                          throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                        }
+                        try {
+                          notesData = JSON.parse(responseText);
+                        } catch (parseError) {
+                          throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+                        }
+                      } else {
+                        notesData = song.json_data;
                       }
-                      
-                      // レスポンスの内容をチェック
-                      const contentType = response.headers.get('content-type');
-                      if (!contentType || !contentType.includes('application/json')) {
-                        console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
+                      const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+                      if (!notes || !Array.isArray(notes)) {
+                        throw new Error('ノーツデータの形式が不正です');
                       }
-                      
-                      const responseText = await response.text();
-                      
-                      // HTMLが返されている場合の検出
-                      if (responseText.trim().startsWith('<')) {
-                        throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                      mapped = notes.map((n: any, idx: number) => ({
+                        id: `${song.id}-${idx}`,
+                        time: n.time,
+                        pitch: n.pitch,
+                      }));
+
+                    } else if (song.xml_url) {
+                      // ---- MusicXML-only フロー: MusicXMLからノーツを生成 ----
+                      const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+                      const xmlResponse = await fetch(song.xml_url);
+                      if (!xmlResponse.ok) {
+                        throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
                       }
-                      
-                      try {
-                        notesData = JSON.parse(responseText);
-                      } catch (parseError) {
-                        console.error('JSON解析エラー:', parseError);
-                        console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
-                        throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
+                      const xmlText = await xmlResponse.text();
+                      if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
+                        throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
                       }
-                    } else if (song.json_data) {
-                      notesData = song.json_data;
+                      mapped = parseMusicXmlToNoteData(xmlText, song.id);
+
                     } else {
-                      throw new Error('曲のノーツデータがありません');
+                      throw new Error('曲のノーツデータがありません（JSONまたはMusicXMLが必要です）');
                     }
-                    
-                    // notes配列の抽出
-                    const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-                    if (!notes || !Array.isArray(notes)) {
-                      throw new Error('ノーツデータの形式が不正です');
-                    }
-                    
-                    const mapped = notes.map((n: any, idx: number) => ({ 
-                      id: `${song.id}-${idx}`, 
-                      time: n.time, 
-                      pitch: n.pitch 
-                    }));
                     
                     // 音声ファイルの長さを取得（audio_urlがある場合）
                     let duration = 60; // デフォルト値
                     if (song.audio_url) {
                       try {
                         const audio = new Audio(song.audio_url);
-                        // CORS対応: Supabaseストレージからの音声ファイル用
                         audio.crossOrigin = 'anonymous';
-                        await new Promise((resolve, reject) => {
+                        await new Promise((resolve) => {
                             const loadedHandler = () => {
                               duration = Math.floor(audio.duration) || 60;
                               resolve(void 0);
                             };
-                          const errorHandler = (e: any) => {
-                            console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用', e);
+                          const errorHandler = () => {
                             resolve(void 0);
                           };
-                          
                           audio.addEventListener('loadedmetadata', loadedHandler);
                           audio.addEventListener('error', errorHandler);
-                          
-                          setTimeout(() => resolve(void 0), 3000); // タイムアウト
+                          setTimeout(() => resolve(void 0), 3000);
                           audio.load();
                         });
-                      } catch (e) {
-                        console.warn('音声ファイルの処理中にエラー:', e);
+                      } catch {
+                        // 音声ファイルの処理エラーは無視
+                      }
+                    } else if (!hasJson && song.xml_url) {
+                      // MusicXML-only: 最後のノートの時間から推定
+                      const lastNote = mapped[mapped.length - 1];
+                      if (lastNote) {
+                        duration = Math.ceil(lastNote.time + 4);
                       }
                     }
                     

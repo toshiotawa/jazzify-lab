@@ -21,7 +21,9 @@ import {
   FaMagic,
   FaHatWizard,
   FaList,
-  FaEdit
+  FaEdit,
+  FaSkull,
+  FaGuitar
 } from 'react-icons/fa';
 import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -54,6 +56,10 @@ const Dashboard: React.FC = () => {
   const xpProgressLabel = isEnglishCopy ? 'XP to next level' : '次レベルまで';
   const fantasyQuickTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
   const fantasyQuickDescription = isEnglishCopy ? 'RPG-style chord practice game' : 'RPG風のコード練習ゲーム';
+  const legendQuickTitle = isEnglishCopy ? 'Legend Mode' : 'レジェンドモード';
+  const legendQuickDescription = isEnglishCopy ? 'Practice with real songs' : '楽曲を選んで練習を開始';
+  const survivalQuickTitle = isEnglishCopy ? 'Survival Mode' : 'サバイバルモード';
+  const survivalQuickDescription = isEnglishCopy ? 'Survive as long as you can!' : '生存時間を競うサバイバル';
   const guestHeading = isEnglishCopy ? 'Guest mode' : 'ゲストプレイ中';
   const guestBodyLine1 = isEnglishCopy ? 'You are currently playing as a guest.' : '現在ゲストとしてプレイしています。';
   const guestBodyLine2 = isEnglishCopy ? 'Sign in to unlock more features.' : 'ログインすると、より多くの機能をご利用いただけます。';
@@ -404,29 +410,27 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaBullseye className="w-6 h-6 text-orange-400" />
-                    <h3 className="text-lg font-semibold">今日のミッション</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Daily Missions' : '今日のミッション'}</h3>
                   </div>
                   <p className="text-sm text-gray-400">
-                    日替わりの課題に挑戦して経験値を獲得しよう
+                    {isEnglishCopy ? 'Challenge daily missions and earn XP' : '日替わりの課題に挑戦して経験値を獲得しよう'}
                   </p>
                 </button>
                 )}
 
-                {/* 曲練習 */}
-                {!isStandardGlobal && (
+                {/* レジェンドモード（全プラン共通） */}
                 <button
                   onClick={() => { window.location.hash = '#songs'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
+                  className="bg-gradient-to-br from-green-800 to-emerald-800 rounded-lg p-6 border border-green-600 hover:border-green-400 transition-colors text-left relative overflow-hidden"
                 >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaMusic className="w-6 h-6 text-green-400" />
-                    <h3 className="text-lg font-semibold">レジェンドモード</h3>
+                  <div className="flex items-center space-x-3 mb-3 relative z-10">
+                    <FaMusic className="w-6 h-6 text-green-300" />
+                    <h3 className="text-lg font-semibold text-white">{legendQuickTitle}</h3>
                   </div>
-                  <p className="text-sm text-gray-400">
-                    楽曲を選んで練習を開始
+                  <p className="text-sm text-green-100 relative z-10">
+                    {legendQuickDescription}
                   </p>
                 </button>
-                )}
 
                 {/* レッスン */}
                 {!isStandardGlobal && (
@@ -436,10 +440,10 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaTrophy className="w-6 h-6 text-purple-400" />
-                    <h3 className="text-lg font-semibold">レッスン</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Lessons' : 'レッスン'}</h3>
                   </div>
                   <p className="text-sm text-gray-400">
-                    ジャズ理論を学習
+                    {isEnglishCopy ? 'Learn jazz theory' : 'ジャズ理論を学習'}
                   </p>
                 </button>
                 )}
@@ -452,10 +456,10 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaList className="w-6 h-6 text-yellow-400" />
-                    <h3 className="text-lg font-semibold">ランキング</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Ranking' : 'ランキング'}</h3>
                   </div>
                   <p className="text-sm text-gray-400">
-                    みんなの成績をチェック
+                    {isEnglishCopy ? 'Check everyone\'s scores' : 'みんなの成績をチェック'}
                   </p>
                 </button>
                 )}
@@ -468,10 +472,10 @@ const Dashboard: React.FC = () => {
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaEdit className="w-6 h-6 text-pink-400" />
-                    <h3 className="text-lg font-semibold">日記</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Diary' : '日記'}</h3>
                   </div>
                   <p className="text-sm text-gray-400">
-                    今日の練習を記録
+                    {isEnglishCopy ? 'Record today\'s practice' : '今日の練習を記録'}
                   </p>
                 </button>
                 )}
@@ -487,10 +491,23 @@ const Dashboard: React.FC = () => {
                     <div className="flex items-center space-x-3 mb-3 relative z-10">
                       <FaMagic className="w-6 h-6 text-yellow-400" />
                       <h3 className="text-lg font-semibold text-white">{fantasyQuickTitle}</h3>
-                      <span className="bg-yellow-400 text-black text-xs px-2 py-1 rounded-full font-bold">NEW</span>
                     </div>
                     <p className="text-sm text-purple-100 relative z-10">
                       {fantasyQuickDescription}
+                    </p>
+                  </button>
+
+                  {/* サバイバルモード */}
+                  <button
+                    onClick={() => { window.location.hash = '#survival'; }}
+                    className="bg-gradient-to-br from-red-800 to-orange-800 rounded-lg p-6 border border-red-600 hover:border-red-400 transition-colors text-left relative overflow-hidden"
+                  >
+                    <div className="flex items-center space-x-3 mb-3 relative z-10">
+                      <FaSkull className="w-6 h-6 text-red-300" />
+                      <h3 className="text-lg font-semibold text-white">{survivalQuickTitle}</h3>
+                    </div>
+                    <p className="text-sm text-red-100 relative z-10">
+                      {survivalQuickDescription}
                     </p>
                   </button>
               </div>

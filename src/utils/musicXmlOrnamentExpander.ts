@@ -1,0 +1,382 @@
+/**
+ * MusicXML 装飾音符展開ユーティリティ
+ *
+ * トリル (trill-mark)、モルデント (mordent)、逆モルデント (inverted-mordent)、
+ * ターン (turn)、遅延ターン (delayed-turn)、シェイク (shake)、波線 (wavy-line)、
+ * および装飾音符 (grace notes) を実際のノート列に展開する。
+ */
+
+// ========== 型定義 ==========
+
+export type OrnamentType =
+  | 'mordent'
+  | 'inverted-mordent'
+  | 'trill-mark'
+  | 'turn'
+  | 'delayed-turn'
+  | 'shake'
+  | 'wavy-line';
+
+export interface OrnamentInfo {
+  type: OrnamentType;
+  long?: boolean;
+  /** 補助音の変化記号 (accidental-mark) */
+  accidentalMark?: number;
+}
+
+/** 展開後の個別ノート */
+export interface ExpandedNote {
+  pitch: number;           // MIDI番号
+  durationDivisions: number; // divisions単位の長さ
+  isOrnament: boolean;     // 装飾ノートかどうか
+  noteName: string;        // 表示用音名 (例: "C4", "D#5")
+}
+
+/** 装飾音符 (grace note) 情報 */
+export interface GraceNoteInfo {
+  pitch: number;
+  noteName: string;
+  /** grace要素の slash 属性 */
+  isSlash: boolean;
+}
+
+// ========== 定数 ==========
+
+const STEP_SEMITONES: Record<string, number> = {
+  C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11,
+};
+
+const SHARPS_ORDER = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLATS_ORDER = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+// MIDI→音名 (シャープ表記優先)
+const PITCH_CLASS_NAMES_SHARP = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const PITCH_CLASS_NAMES_FLAT = ['C', 'Db', 'D', 'Eb', 'E', 'F', 'Gb', 'G', 'Ab', 'A', 'Bb', 'B'];
+
+// ========== 公開関数 ==========
+
+/** step / alter / octave → MIDIノート番号 */
+export function stepAlterOctaveToMidi(step: string, alter: number, octave: number): number {
+  const base = STEP_SEMITONES[step.toUpperCase()] ?? 0;
+  return (octave + 1) * 12 + base + alter;
+}
+
+/** MIDIノート番号 → 表示用音名 (例: "C4", "Eb3") */
+export function midiToNoteName(midi: number, useFlatNames = false): string {
+  const pitchClass = ((midi % 12) + 12) % 12;
+  const octave = Math.floor(midi / 12) - 1;
+  const names = useFlatNames ? PITCH_CLASS_NAMES_FLAT : PITCH_CLASS_NAMES_SHARP;
+  return `${names[pitchClass]}${octave}`;
+}
+
+/** step + alter → 表示用音名 (オクターブ付き) */
+export function stepAlterToDisplayName(step: string, alter: number, octave: number): string {
+  let acc = '';
+  if (alter > 0) acc = '#'.repeat(alter);
+  else if (alter < 0) acc = 'b'.repeat(-alter);
+  return `${step}${acc}${octave}`;
+}
+
+/** MusicXMLドキュメントから最初のキー情報 (fifths) を取得 */
+export function getKeyFifths(doc: Document): number {
+  const fifthsEl = doc.querySelector('key fifths');
+  if (fifthsEl?.textContent) {
+    const v = parseInt(fifthsEl.textContent, 10);
+    if (!isNaN(v)) return v;
+  }
+  return 0;
+}
+
+/**
+ * 調号に基づくスケール音のピッチクラスセットを生成
+ * @param fifths fifths値 (0=C major, 1=G major, -1=F major, ...)
+ */
+export function buildScalePitchClasses(fifths: number): Set<number> {
+  const scale = new Set([0, 2, 4, 5, 7, 9, 11]); // C major
+  if (fifths > 0) {
+    for (let i = 0; i < Math.min(fifths, 7); i++) {
+      const natural = STEP_SEMITONES[SHARPS_ORDER[i]];
+      scale.delete(natural);
+      scale.add((natural + 1) % 12);
+    }
+  } else if (fifths < 0) {
+    for (let i = 0; i < Math.min(-fifths, 7); i++) {
+      const natural = STEP_SEMITONES[FLATS_ORDER[i]];
+      scale.delete(natural);
+      scale.add((natural + 11) % 12); // -1 mod 12
+    }
+  }
+  return scale;
+}
+
+/** スケール内での上隣接音を取得 */
+export function getUpperNeighbor(midiPitch: number, fifths: number): number {
+  const scale = buildScalePitchClasses(fifths);
+  for (let i = 1; i <= 3; i++) {
+    if (scale.has((midiPitch + i) % 12)) return midiPitch + i;
+  }
+  return midiPitch + 2; // フォールバック: 全音
+}
+
+/** スケール内での下隣接音を取得 */
+export function getLowerNeighbor(midiPitch: number, fifths: number): number {
+  const scale = buildScalePitchClasses(fifths);
+  for (let i = 1; i <= 3; i++) {
+    if (scale.has(((midiPitch - i) % 12 + 12) % 12)) return midiPitch - i;
+  }
+  return midiPitch - 2; // フォールバック: 全音
+}
+
+// ========== 装飾記号検出 ==========
+
+/**
+ * MusicXMLの <note> 要素から装飾記号を検出
+ */
+export function detectOrnaments(noteEl: Element): OrnamentInfo | null {
+  const ornaments = noteEl.querySelector('ornaments');
+  if (!ornaments) return null;
+
+  // accidental-mark の取得
+  const accMarkEl = ornaments.querySelector('accidental-mark');
+  let accidentalMark: number | undefined;
+  if (accMarkEl?.textContent) {
+    switch (accMarkEl.textContent.trim()) {
+      case 'sharp': accidentalMark = 1; break;
+      case 'flat': accidentalMark = -1; break;
+      case 'natural': accidentalMark = 0; break;
+      case 'double-sharp': accidentalMark = 2; break;
+      case 'double-flat': accidentalMark = -2; break;
+    }
+  }
+
+  // 各装飾タイプを優先順に検出
+  const mordentEl = ornaments.querySelector('mordent');
+  if (mordentEl) {
+    const long = mordentEl.getAttribute('long') === 'yes';
+    return { type: 'mordent', long, accidentalMark };
+  }
+
+  const invertedMordentEl = ornaments.querySelector('inverted-mordent');
+  if (invertedMordentEl) {
+    const long = invertedMordentEl.getAttribute('long') === 'yes';
+    return { type: 'inverted-mordent', long, accidentalMark };
+  }
+
+  if (ornaments.querySelector('trill-mark')) {
+    return { type: 'trill-mark', accidentalMark };
+  }
+
+  const turnEl = ornaments.querySelector('turn');
+  if (turnEl) {
+    return { type: 'turn', accidentalMark };
+  }
+
+  const delayedTurnEl = ornaments.querySelector('delayed-turn');
+  if (delayedTurnEl) {
+    return { type: 'delayed-turn', accidentalMark };
+  }
+
+  if (ornaments.querySelector('shake')) {
+    return { type: 'shake', accidentalMark };
+  }
+
+  // wavy-line は通常 trill の延長を示す
+  const wavyLine = ornaments.querySelector('wavy-line');
+  if (wavyLine && wavyLine.getAttribute('type') === 'start') {
+    return { type: 'wavy-line', accidentalMark };
+  }
+
+  return null;
+}
+
+/**
+ * MusicXMLの <note> 要素が装飾音符 (grace note) かどうか判定
+ */
+export function isGraceNote(noteEl: Element): boolean {
+  return noteEl.querySelector('grace') !== null;
+}
+
+/**
+ * 連続する grace note 群を収集 (指定インデックスの前方)
+ * @param elements 小節内の全要素配列
+ * @param mainNoteIndex 主音のインデックス
+ */
+export function collectGraceNotesBefore(
+  elements: Element[],
+  mainNoteIndex: number
+): GraceNoteInfo[] {
+  const graceNotes: GraceNoteInfo[] = [];
+
+  for (let i = mainNoteIndex - 1; i >= 0; i--) {
+    const el = elements[i];
+    if (el.tagName !== 'note') break;
+    if (!isGraceNote(el)) break;
+    if (el.querySelector('rest')) continue;
+
+    const pitchEl = el.querySelector('pitch');
+    if (!pitchEl) continue;
+
+    const step = pitchEl.querySelector('step')?.textContent ?? 'C';
+    const alter = parseInt(pitchEl.querySelector('alter')?.textContent ?? '0', 10);
+    const octave = parseInt(pitchEl.querySelector('octave')?.textContent ?? '4', 10);
+    const midi = stepAlterOctaveToMidi(step, alter, octave);
+    const isSlash = el.querySelector('grace')?.getAttribute('slash') === 'yes';
+
+    graceNotes.unshift({
+      pitch: midi,
+      noteName: stepAlterToDisplayName(step, alter, octave),
+      isSlash,
+    });
+  }
+
+  return graceNotes;
+}
+
+// ========== 装飾音符展開 ==========
+
+/**
+ * 装飾記号を実際のノート列に展開
+ *
+ * @param ornament 検出された装飾記号情報
+ * @param mainPitch 主音の MIDI番号
+ * @param mainNoteName 主音の表示名
+ * @param durationDivisions 主音の duration (divisions 単位)
+ * @param keyFifths 調号 (fifths 値)
+ * @param useFlatNames フラット表記を使うか
+ */
+export function expandOrnament(
+  ornament: OrnamentInfo,
+  mainPitch: number,
+  mainNoteName: string,
+  durationDivisions: number,
+  keyFifths: number,
+  useFlatNames = false,
+): ExpandedNote[] {
+  // 補助音のピッチ計算
+  let upper: number;
+  let lower: number;
+
+  if (ornament.accidentalMark !== undefined) {
+    // accidental-mark が指定されている場合
+    upper = mainPitch + (ornament.accidentalMark >= 0 ? Math.max(1, ornament.accidentalMark + 1) : 2);
+    lower = mainPitch - (ornament.accidentalMark <= 0 ? Math.max(1, -ornament.accidentalMark + 1) : 2);
+  } else {
+    upper = getUpperNeighbor(mainPitch, keyFifths);
+    lower = getLowerNeighbor(mainPitch, keyFifths);
+  }
+
+  const upperName = midiToNoteName(upper, useFlatNames);
+  const lowerName = midiToNoteName(lower, useFlatNames);
+
+  // 装飾ノートの最小 duration (全体の 1/4 を目安)
+  const ornUnit = Math.max(1, Math.floor(durationDivisions / 4));
+
+  switch (ornament.type) {
+    case 'mordent': {
+      // 主音 → 下隣接音 → 主音
+      const rem = durationDivisions - 2 * ornUnit;
+      return [
+        { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: ornUnit, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
+      ];
+    }
+
+    case 'inverted-mordent': {
+      // 主音 → 上隣接音 → 主音
+      const rem = durationDivisions - 2 * ornUnit;
+      return [
+        { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: ornUnit, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
+      ];
+    }
+
+    case 'trill-mark':
+    case 'wavy-line':
+    case 'shake': {
+      // 主音と上隣接音の交互 (trill / wavy-line / shake)
+      const trillUnit = Math.max(1, Math.floor(durationDivisions / 8));
+      const notes: ExpandedNote[] = [];
+      let remaining = durationDivisions;
+      let isUpper = false;
+      while (remaining > 0) {
+        const d = Math.min(trillUnit, remaining);
+        notes.push({
+          pitch: isUpper ? upper : mainPitch,
+          durationDivisions: d,
+          isOrnament: true,
+          noteName: isUpper ? upperName : mainNoteName,
+        });
+        remaining -= d;
+        isUpper = !isUpper;
+      }
+      return notes;
+    }
+
+    case 'turn': {
+      // 上→主→下→主
+      const tUnit = Math.max(1, Math.floor(durationDivisions / 4));
+      const rem = durationDivisions - 3 * tUnit;
+      return [
+        { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
+      ];
+    }
+
+    case 'delayed-turn': {
+      // 主音(前半) → 上→主→下→主
+      const half = Math.floor(durationDivisions / 2);
+      const tUnit = Math.max(1, Math.floor(half / 4));
+      const turnRem = durationDivisions - half - 3 * tUnit;
+      return [
+        { pitch: mainPitch, durationDivisions: half, isOrnament: false, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, turnRem), isOrnament: false, noteName: mainNoteName },
+      ];
+    }
+
+    default:
+      return [{
+        pitch: mainPitch,
+        durationDivisions,
+        isOrnament: false,
+        noteName: mainNoteName,
+      }];
+  }
+}
+
+/**
+ * grace notes を ExpandedNote[] に変換
+ * @param graceNotes 装飾音符情報配列
+ * @param mainNoteDuration 主音の duration (divisions)
+ * @returns [graceExpandedNotes, 主音から差し引く divisions]
+ */
+export function expandGraceNotes(
+  graceNotes: GraceNoteInfo[],
+  mainNoteDuration: number,
+): [ExpandedNote[], number] {
+  if (graceNotes.length === 0) return [[], 0];
+
+  // 各 grace note に割り当てる duration:
+  // 主音の 1/8 を上限として均等割り
+  const graceTotal = Math.min(
+    Math.floor(mainNoteDuration / 4),
+    Math.max(graceNotes.length, 1),
+  );
+  const eachDur = Math.max(1, Math.floor(graceTotal / graceNotes.length));
+  const actualTotal = eachDur * graceNotes.length;
+
+  const expanded: ExpandedNote[] = graceNotes.map((g) => ({
+    pitch: g.pitch,
+    durationDivisions: eachDur,
+    isOrnament: true,
+    noteName: g.noteName,
+  }));
+
+  return [expanded, actualTotal];
+}
