@@ -54,6 +54,10 @@ interface KeyGeometry {
   height: number;
 }
 
+// 3D効果用の定数
+const KEY_3D_DEPTH = 8; // 鍵盤の奥行き（px）
+const KEY_PRESSED_OFFSET = 4; // 押下時の沈み込み（px）
+
 interface PointerState {
   midi: number | null;
   pointerType: PointerEvent['pointerType'];
@@ -763,7 +767,18 @@ export class PIXINotesRendererInstance {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
-    this.drawKeyHighlights(ctx);
+    
+    // 描画順序（立体感を出すため）:
+    // 1. 白鍵本体
+    // 2. 白鍵ハイライト
+    // 3. 黒鍵本体（白鍵ハイライトの上に重なる）
+    // 4. 黒鍵ハイライト
+    // 5. 音名ラベル
+    this.drawDynamicWhiteKeys(ctx);
+    this.drawWhiteKeyHighlights(ctx);
+    this.drawDynamicBlackKeys(ctx);
+    this.drawBlackKeyHighlights(ctx);
+    this.drawKeyLabels(ctx);
     this.drawChordOverlay(ctx);
   }
 
@@ -824,33 +839,134 @@ export class PIXINotesRendererInstance {
     }
 
   private drawStaticKeys(ctx: CanvasRenderingContext2D): void {
+    // 静的背景は鍵盤のベースのみ描画（3D効果は動的レイヤーで）
     ctx.save();
-    ctx.strokeStyle = 'rgba(15,23,42,0.35)';
-    ctx.lineWidth = 1;
+    ctx.fillStyle = '#1a1a2e';
+    ctx.fillRect(0, this.settings.hitLineY, this.width, this.settings.pianoHeight);
+    ctx.restore();
+  }
+
+  /**
+   * 3D効果付きの白鍵を描画（動的レイヤー）
+   * 押下状態に応じて沈み込み効果を適用（上端固定、手前が沈む）
+   */
+  private drawDynamicWhiteKeys(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    
+    const keyTop = this.settings.hitLineY;
+    const pianoHeight = this.settings.pianoHeight;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
+
+    // 押下された白鍵の側面を先に描画（背景として）
+    for (let i = 0; i < this.whiteKeyOrder.length; i++) {
+      const midi = this.whiteKeyOrder[i];
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      if (isPressed) {
+        // 隣の鍵盤の押下状態をチェック
+        const leftMidi = i > 0 ? this.whiteKeyOrder[i - 1] : null;
+        const rightMidi = i < this.whiteKeyOrder.length - 1 ? this.whiteKeyOrder[i + 1] : null;
+        const leftPressed = leftMidi !== null && this.highlightedKeys.has(leftMidi);
+        const rightPressed = rightMidi !== null && this.highlightedKeys.has(rightMidi);
+        
+        this.drawWhiteKeySideFaces(ctx, key, keyTop, pianoHeight, pressedOffset, leftPressed, rightPressed);
+      }
+    }
+
+    // 白鍵を描画
     for (const midi of this.whiteKeyOrder) {
       const key = this.keyGeometries.get(midi);
       if (!key) continue;
-      const keyTop = this.settings.hitLineY;
-      const keyBottom = keyTop + this.settings.pianoHeight;
-      const radius = Math.min(6, key.width * 0.25);
-      const whiteGradient = ctx.createLinearGradient(key.x, keyTop, key.x, keyBottom);
-      whiteGradient.addColorStop(0, '#fdfdfd');
-      whiteGradient.addColorStop(0.45, '#e2e8f0');
-      whiteGradient.addColorStop(1, '#cbd5f5');
-      ctx.save();
+
+      const isPressed = this.highlightedKeys.has(midi);
+      // 上端は固定、押下時は手前の側面が短くなる
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+
+      this.draw3DWhiteKey(ctx, key, keyTop, pianoHeight, 0, currentDepth, isPressed);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 3D効果付きの黒鍵を描画（動的レイヤー）
+   * 上端固定、手前が沈む
+   */
+  private drawDynamicBlackKeys(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    
+    const keyTop = this.settings.hitLineY;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
+
+    // 押下された黒鍵の側面を先に描画
+    for (const midi of this.blackKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      if (isPressed) {
+        this.drawBlackKeySideFaces(ctx, key, keyTop, pressedOffset);
+      }
+    }
+
+    // 黒鍵を描画（白鍵の上に）
+    for (const midi of this.blackKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      // 上端は固定、押下時は手前の側面が短くなる
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+
+      this.draw3DBlackKey(ctx, key, keyTop, 0, currentDepth, isPressed);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 押下された白鍵の左右の側面を描画（上端固定）
+   * 隣の鍵盤との段差を表現
+   */
+  private drawWhiteKeySideFaces(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    pianoHeight: number,
+    pressedOffset: number,
+    leftPressed: boolean,
+    rightPressed: boolean
+  ): void {
+    const x = key.x;
+    const w = key.width;
+    // 押下時の鍵盤下端位置
+    const pressedBottom = keyTop + pianoHeight - (KEY_3D_DEPTH - KEY_PRESSED_OFFSET);
+    // 通常時の鍵盤下端位置
+    const normalBottom = keyTop + pianoHeight - KEY_3D_DEPTH;
+
+    // 左側面を描画（左隣が押下されていない場合）
+    // 押下された鍵盤は沈んでいるので、隣の鍵盤との間に段差ができる
+    if (!leftPressed) {
+      const sideHeight = pressedOffset;
+      ctx.fillStyle = '#7a8a9a';
       ctx.beginPath();
-      this.drawRoundedRectPath(ctx, key.x, keyTop, key.width, this.settings.pianoHeight, radius);
+      ctx.moveTo(x, normalBottom);
+      ctx.lineTo(x, pressedBottom);
+      ctx.lineTo(x + 2, pressedBottom);
+      ctx.lineTo(x + 2, normalBottom);
       ctx.closePath();
-      ctx.fillStyle = whiteGradient;
       ctx.fill();
-      ctx.save();
-      ctx.clip();
-      ctx.fillStyle = 'rgba(255,255,255,0.35)';
-      ctx.fillRect(key.x + 0.5, keyTop + 1, key.width - 1, 1.5);
-      ctx.fillStyle = 'rgba(15,23,42,0.12)';
-      ctx.fillRect(key.x + key.width - 1.4, keyTop + 4, 1.4, this.settings.pianoHeight - 8);
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+      
+      // 左側面の境界線
+      ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, normalBottom);
+      ctx.lineTo(x, pressedBottom);
       ctx.stroke();
       
       // 白鍵の音名表示（noteNameStyle設定に従う）
@@ -873,37 +989,230 @@ export class PIXINotesRendererInstance {
       
       ctx.restore();
     }
-    for (const midi of this.blackKeyOrder) {
-      const key = this.keyGeometries.get(midi);
-      if (!key) continue;
-      const keyTop = this.settings.hitLineY;
-      const keyBottom = keyTop + key.height;
-      const radius = Math.min(6, key.width * 0.45);
-      const blackGradient = ctx.createLinearGradient(key.x, keyTop, key.x + key.width, keyBottom);
-      blackGradient.addColorStop(0, '#0b1220');
-      blackGradient.addColorStop(0.5, '#1f2937');
-      blackGradient.addColorStop(1, '#05060a');
-      ctx.save();
+
+    // 右側面を描画（右隣が押下されていない場合）
+    if (!rightPressed) {
+      const sideHeight = pressedOffset;
+      ctx.fillStyle = '#6a7a8a';
       ctx.beginPath();
-      this.drawRoundedRectPath(ctx, key.x, keyTop, key.width, key.height, radius);
+      ctx.moveTo(x + w, normalBottom);
+      ctx.lineTo(x + w, pressedBottom);
+      ctx.lineTo(x + w - 2, pressedBottom);
+      ctx.lineTo(x + w - 2, normalBottom);
       ctx.closePath();
-      ctx.fillStyle = blackGradient;
       ctx.fill();
-      ctx.save();
-      ctx.clip();
-      const glossHeight = Math.min(6, key.height * 0.35);
-      ctx.fillStyle = 'rgba(255,255,255,0.18)';
-      ctx.fillRect(key.x + 1, keyTop + 1, key.width - 2, glossHeight);
-      const sideHighlightWidth = Math.max(1, key.width * 0.22);
-      ctx.fillStyle = 'rgba(255,255,255,0.12)';
-      ctx.fillRect(key.x + 0.5, keyTop + 2, sideHighlightWidth, key.height - 4);
-      ctx.fillStyle = 'rgba(0,0,0,0.45)';
-      ctx.fillRect(key.x + 0.5, keyBottom - 3, key.width - 1, 3);
-      ctx.restore();
-      ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+      
+      // 右側面の境界線
+      ctx.strokeStyle = 'rgba(15,23,42,0.3)';
+      ctx.lineWidth = 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x + w, normalBottom);
+      ctx.lineTo(x + w, pressedBottom);
       ctx.stroke();
-      ctx.restore();
     }
+  }
+
+  /**
+   * 押下された黒鍵の左右の側面を描画（上端固定）
+   */
+  private drawBlackKeySideFaces(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    pressedOffset: number
+  ): void {
+    const x = key.x;
+    const w = key.width;
+    // 押下時の鍵盤下端位置
+    const pressedBottom = keyTop + key.height - (KEY_3D_DEPTH - KEY_PRESSED_OFFSET);
+    // 通常時の鍵盤下端位置
+    const normalBottom = keyTop + key.height - KEY_3D_DEPTH;
+
+    // 左側面（段差部分）
+    ctx.fillStyle = '#0a0a12';
+    ctx.beginPath();
+    ctx.moveTo(x, normalBottom);
+    ctx.lineTo(x, pressedBottom);
+    ctx.lineTo(x + 1.5, pressedBottom);
+    ctx.lineTo(x + 1.5, normalBottom);
+    ctx.closePath();
+    ctx.fill();
+
+    // 右側面（段差部分）
+    ctx.fillStyle = '#050508';
+    ctx.beginPath();
+    ctx.moveTo(x + w, normalBottom);
+    ctx.lineTo(x + w, pressedBottom);
+    ctx.lineTo(x + w - 1.5, pressedBottom);
+    ctx.lineTo(x + w - 1.5, normalBottom);
+    ctx.closePath();
+    ctx.fill();
+
+    // 境界線
+    ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+    ctx.lineWidth = 0.5;
+    ctx.beginPath();
+    ctx.moveTo(x, normalBottom);
+    ctx.lineTo(x, pressedBottom);
+    ctx.moveTo(x + w, normalBottom);
+    ctx.lineTo(x + w, pressedBottom);
+    ctx.stroke();
+  }
+
+  /**
+   * 3D白鍵を描画
+   */
+  private draw3DWhiteKey(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    pianoHeight: number,
+    yOffset: number,
+    depth: number,
+    isPressed: boolean
+  ): void {
+    const x = key.x;
+    const y = keyTop + yOffset;
+    const w = key.width;
+    const h = pianoHeight - depth;
+    const radius = Math.min(6, w * 0.25);
+
+    // 手前の側面（底面）を描画
+    if (depth > 0) {
+      const frontGradient = ctx.createLinearGradient(x, y + h, x, y + h + depth);
+      frontGradient.addColorStop(0, '#b8c4d0');
+      frontGradient.addColorStop(0.5, '#8a9aaa');
+      frontGradient.addColorStop(1, '#6b7a8a');
+      ctx.fillStyle = frontGradient;
+      ctx.beginPath();
+      ctx.moveTo(x, y + h);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w, y + h + depth);
+      ctx.lineTo(x, y + h + depth);
+      ctx.closePath();
+      ctx.fill();
+
+      // 側面の境界線
+      ctx.strokeStyle = 'rgba(15,23,42,0.25)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // 鍵盤上面
+    const topGradient = ctx.createLinearGradient(x, y, x, y + h);
+    if (isPressed) {
+      topGradient.addColorStop(0, '#e8eaf0');
+      topGradient.addColorStop(0.45, '#d0d8e0');
+      topGradient.addColorStop(1, '#b8c5d5');
+    } else {
+      topGradient.addColorStop(0, '#fdfdfd');
+      topGradient.addColorStop(0.45, '#e2e8f0');
+      topGradient.addColorStop(1, '#cbd5f5');
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    this.drawRoundedRectPath(ctx, x, y, w, h, radius);
+    ctx.closePath();
+    ctx.fillStyle = topGradient;
+    ctx.fill();
+
+    // 上面のハイライト
+    ctx.save();
+    ctx.clip();
+    if (!isPressed) {
+      ctx.fillStyle = 'rgba(255,255,255,0.35)';
+      ctx.fillRect(x + 0.5, y + 1, w - 1, 1.5);
+    }
+    // 右端の影
+    ctx.fillStyle = 'rgba(15,23,42,0.12)';
+    ctx.fillRect(x + w - 1.4, y + 4, 1.4, h - 8);
+    ctx.restore();
+
+    // 境界線
+    ctx.strokeStyle = 'rgba(15,23,42,0.35)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  /**
+   * 3D黒鍵を描画
+   */
+  private draw3DBlackKey(
+    ctx: CanvasRenderingContext2D,
+    key: KeyGeometry,
+    keyTop: number,
+    yOffset: number,
+    depth: number,
+    isPressed: boolean
+  ): void {
+    const x = key.x;
+    const y = keyTop + yOffset;
+    const w = key.width;
+    const h = key.height - depth;
+    const radius = Math.min(6, w * 0.45);
+
+    // 手前の側面を描画
+    if (depth > 0) {
+      const frontGradient = ctx.createLinearGradient(x, y + h, x, y + h + depth);
+      frontGradient.addColorStop(0, '#1a1a2e');
+      frontGradient.addColorStop(0.5, '#0f0f1a');
+      frontGradient.addColorStop(1, '#050508');
+      ctx.fillStyle = frontGradient;
+      ctx.beginPath();
+      ctx.moveTo(x, y + h);
+      ctx.lineTo(x + w, y + h);
+      ctx.lineTo(x + w, y + h + depth);
+      ctx.lineTo(x, y + h + depth);
+      ctx.closePath();
+      ctx.fill();
+
+      // 側面の境界線
+      ctx.strokeStyle = 'rgba(0,0,0,0.5)';
+      ctx.lineWidth = 0.5;
+      ctx.stroke();
+    }
+
+    // 鍵盤上面
+    const topGradient = ctx.createLinearGradient(x, y, x + w, y + h);
+    if (isPressed) {
+      topGradient.addColorStop(0, '#1a2030');
+      topGradient.addColorStop(0.5, '#2a3a4a');
+      topGradient.addColorStop(1, '#101520');
+    } else {
+      topGradient.addColorStop(0, '#0b1220');
+      topGradient.addColorStop(0.5, '#1f2937');
+      topGradient.addColorStop(1, '#05060a');
+    }
+
+    ctx.save();
+    ctx.beginPath();
+    this.drawRoundedRectPath(ctx, x, y, w, h, radius);
+    ctx.closePath();
+    ctx.fillStyle = topGradient;
+    ctx.fill();
+
+    // 光沢効果
+    ctx.save();
+    ctx.clip();
+    if (!isPressed) {
+      const glossHeight = Math.min(6, h * 0.35);
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.fillRect(x + 1, y + 1, w - 2, glossHeight);
+      const sideHighlightWidth = Math.max(1, w * 0.22);
+      ctx.fillStyle = 'rgba(255,255,255,0.12)';
+      ctx.fillRect(x + 0.5, y + 2, sideHighlightWidth, h - 4);
+    }
+    // 下端の影
+    ctx.fillStyle = 'rgba(0,0,0,0.45)';
+    ctx.fillRect(x + 0.5, y + h - 3, w - 1, 3);
+    ctx.restore();
+
+    // 境界線
+    ctx.strokeStyle = 'rgba(0,0,0,0.65)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -967,7 +1276,65 @@ export class PIXINotesRendererInstance {
     }
   }
 
-  private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
+  /**
+   * 白鍵のハイライトを描画（上端固定）
+   */
+  private drawWhiteKeyHighlights(ctx: CanvasRenderingContext2D): void {
+    ctx.save();
+    const keyTop = this.settings.hitLineY;
+    const pianoHeight = this.settings.pianoHeight;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
+
+    const drawHighlight = (midi: number, color: string, alpha?: number): void => {
+      const geometry = this.keyGeometries.get(midi);
+      if (!geometry || geometry.isBlack) return;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      // 上端は固定
+      const y = keyTop;
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+      const h = pianoHeight - currentDepth;
+      const radius = Math.min(6, geometry.width * 0.25);
+
+      ctx.fillStyle = color;
+      ctx.globalAlpha = alpha ?? 0.35;
+      
+      // 3D形状に合わせたハイライト
+      ctx.beginPath();
+      this.drawRoundedRectPath(ctx, geometry.x, y, geometry.width, h, radius);
+      ctx.closePath();
+      ctx.fill();
+      
+      // 手前の側面にもハイライトを適用
+      if (currentDepth > 0) {
+        ctx.globalAlpha = (alpha ?? 0.35) * 0.6;
+        ctx.beginPath();
+        ctx.moveTo(geometry.x, y + h);
+        ctx.lineTo(geometry.x + geometry.width, y + h);
+        ctx.lineTo(geometry.x + geometry.width, y + h + currentDepth);
+        ctx.lineTo(geometry.x, y + h + currentDepth);
+        ctx.closePath();
+        ctx.fill();
+      }
+      
+      ctx.globalAlpha = 1;
+    };
+
+    // ガイドハイライト（緑色）
+    this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
+    // 正解済みハイライト（赤色）
+    this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
+    // アクティブハイライト（オレンジ）
+    this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
+
+    ctx.restore();
+  }
+
+  /**
+   * 黒鍵のハイライトを描画（上端固定）
+   */
+  private drawBlackKeyHighlights(ctx: CanvasRenderingContext2D): void {
     ctx.save();
     const top = this.settings.hitLineY;
     const height = this.settings.pianoHeight;
@@ -1030,13 +1397,97 @@ export class PIXINotesRendererInstance {
       
       ctx.globalAlpha = 1;
     };
+
     // ガイドハイライト（緑色）
     this.guideHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.guideKey));
-    // 正解済みハイライト（赤色）- ガイドより上に描画
+    // 正解済みハイライト（赤色）
     this.correctHighlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.correctKey, 0.6));
-    // アクティブハイライト（オレンジ）- 最前面
+    // アクティブハイライト（オレンジ）
     this.highlightedKeys.forEach((midi) => drawHighlight(midi, this.colors.activeKey));
+
     ctx.restore();
+  }
+
+  /**
+   * 鍵盤に音名を表示（上端固定）
+   */
+  private drawKeyLabels(ctx: CanvasRenderingContext2D): void {
+    if (this.settings.noteNameStyle === 'off') return;
+
+    ctx.save();
+    const keyTop = this.settings.hitLineY;
+    const pianoHeight = this.settings.pianoHeight;
+    const depth = KEY_3D_DEPTH;
+    const pressedOffset = KEY_PRESSED_OFFSET;
+
+    // 白鍵の音名
+    for (const midi of this.whiteKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      // 上端は固定
+      const y = keyTop;
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+      const h = pianoHeight - currentDepth;
+
+      const label = this.getKeyLabel(midi);
+      if (!label) continue;
+
+      const fontSize = Math.max(10, Math.min(14, key.width * 0.45));
+      ctx.font = `600 ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(30, 41, 59, 0.8)';
+      ctx.fillText(label, key.x + key.width / 2, y + h - 6);
+    }
+
+    // 黒鍵の音名
+    for (const midi of this.blackKeyOrder) {
+      const key = this.keyGeometries.get(midi);
+      if (!key) continue;
+
+      const isPressed = this.highlightedKeys.has(midi);
+      // 上端は固定
+      const y = keyTop;
+      const currentDepth = isPressed ? depth - pressedOffset : depth;
+      const h = key.height - currentDepth;
+
+      const label = this.getKeyLabel(midi);
+      if (!label) continue;
+
+      const fontSize = Math.max(8, Math.min(11, key.width * 0.45));
+      ctx.font = `600 ${fontSize}px 'Inter', 'Noto Sans JP', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'bottom';
+      ctx.fillStyle = 'rgba(248, 250, 252, 0.85)';
+      ctx.fillText(label, key.x + key.width / 2, y + h - 4);
+    }
+
+    ctx.restore();
+  }
+
+  /**
+   * 鍵盤用の音名ラベルを取得
+   */
+  private getKeyLabel(midi: number): string | null {
+    if (this.settings.noteNameStyle === 'off') return null;
+    
+    const transposedMidi = midi + this.settings.transpose;
+    const noteName = this.midiToNoteName(transposedMidi);
+    if (!noteName) return null;
+
+    const baseName = this.trimOctave(noteName);
+    
+    if (this.settings.noteNameStyle === 'solfege') {
+      return this.toSolfege(baseName);
+    }
+    
+    if (this.settings.simpleDisplayMode) {
+      return this.simplifyNoteName(baseName);
+    }
+    
+    return baseName;
   }
 
   private drawChordOverlay(ctx: CanvasRenderingContext2D): void {
