@@ -721,7 +721,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 
                 // HTMLが返されている場合の検出（XML読み込み時）
                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
-                  console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                 }
                 
@@ -731,24 +730,36 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 // XML解析エラーのチェック
                 const parseError = xmlDoc.querySelector('parsererror');
                 if (parseError) {
-                  console.warn('⚠️ MusicXML解析エラー:', parseError.textContent);
                   throw new Error('MusicXMLファイルの解析に失敗しました');
                 }
                 
-                const noteNames = extractPlayableNoteNames(xmlDoc);
-                finalNotes = mergeJsonWithNames(rawNotes, noteNames);
+                // MusicXML-only フロー判定:
+                // parseMusicXmlToNoteData で生成されたノーツは既に noteName を持つ。
+                // この場合、音名マージと時間再計算をスキップする（数が合わず壊れるため）。
+                const notesAlreadyHaveNames = rawNotes.length > 0 && rawNotes.every(n => !!n.noteName);
                 
-                // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
-                finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                if (notesAlreadyHaveNames) {
+                  // MusicXML-only: 音名・時間は parseMusicXmlToNoteData で既に設定済み
+                  // XMLは譜面表示用にのみ使用
+                  finalNotes = rawNotes;
+                } else {
+                  // JSON+XML フロー: 従来通り音名マージと時間再計算を行う
+                  const noteNames = extractPlayableNoteNames(xmlDoc);
+                  finalNotes = mergeJsonWithNames(rawNotes, noteNames);
+                  finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                }
                 
-                // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
-                finalChords = extractChordProgressions(xmlDoc, notes);
-                
-                console.log(`🎵 MusicXML音名マージ完了: ${noteNames.length}音名 → ${finalNotes.length}ノーツ`);
-                console.log(`🎵 コードネーム抽出完了: ${finalChords.length}コード`);
+                // コードネーム情報を抽出（両フロー共通）
+                // extractChordProgressions は内部で extractNotePositions を使うため
+                // MusicXML-onlyの場合はノーツ数不一致でも部分的に動作する
+                try {
+                  finalChords = extractChordProgressions(xmlDoc, finalNotes);
+                } catch {
+                  finalChords = [];
+                }
               } catch (error) {
-                console.warn('⚠️ MusicXML音名抽出に失敗:', error);
-                finalXml = null; // エラー時はnullに
+                console.warn('⚠️ MusicXML処理に失敗:', error);
+                finalXml = null;
               }
             }
             return { finalNotes, finalXml, finalChords };

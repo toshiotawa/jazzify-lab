@@ -161,30 +161,64 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     // マッピングを作成
       const timingAdjustmentSec = (settings.timingAdjustment ?? 0) / 1000;
+
+      // OSMD ノートの X 座標を収集
+      const osmdXPositions: number[] = [];
       for (const graphicNote of osmdPlayableNotes) {
-                  if (noteIndex < notes.length) {
-                    const note = notes[noteIndex];
-                    // 音符の中心X座標を計算
-                    const positionAndShape = graphicNote.PositionAndShape as any;
-                    const noteHeadX = positionAndShape?.AbsolutePosition?.x;
-
-                    if (noteHeadX !== undefined) {
-                      let centerX = noteHeadX;
-                      // BoundingBox が存在し、widthが定義されている場合のみ幅を考慮して中心を計算
-                      if (positionAndShape?.BoundingBox?.width !== undefined) {
-                        const noteHeadWidth = positionAndShape.BoundingBox.width;
-                        centerX += noteHeadWidth / 2;
-                      }
-
-                        mapping.push({
-                          timeMs: (note.time + timingAdjustmentSec) * 1000,
-                          // 動的に計算したスケール係数を使用
-                          xPosition: centerX * scaleFactorRef.current
-                        });
-                    }
-                    noteIndex++;
+        const positionAndShape = graphicNote.PositionAndShape as any;
+        const noteHeadX = positionAndShape?.AbsolutePosition?.x;
+        if (noteHeadX !== undefined) {
+          let centerX = noteHeadX;
+          if (positionAndShape?.BoundingBox?.width !== undefined) {
+            centerX += positionAndShape.BoundingBox.width / 2;
+          }
+          osmdXPositions.push(centerX * scaleFactorRef.current);
+        } else {
+          osmdXPositions.push(0);
+        }
       }
-    }
+
+      if (osmdPlayableNoteCount === notes.length) {
+        // === 通常フロー: 1:1 index マッピング ===
+        for (let i = 0; i < osmdPlayableNoteCount; i++) {
+          if (noteIndex < notes.length) {
+            mapping.push({
+              timeMs: (notes[noteIndex].time + timingAdjustmentSec) * 1000,
+              xPosition: osmdXPositions[i],
+            });
+            noteIndex++;
+          }
+        }
+      } else {
+        // === 数不一致フロー (装飾音符展開等): ゲームノーツを OSMD ノーツに分配 ===
+        // ゲームノーツが多い場合: 各 OSMD ノートにゲームノーツを均等分配し、
+        // 展開された装飾ノートは同じ X 座標にマッピングする
+        if (notes.length > osmdPlayableNoteCount && osmdPlayableNoteCount > 0) {
+          const ratio = notes.length / osmdPlayableNoteCount;
+          for (let gi = 0; gi < notes.length; gi++) {
+            const osmdIdx = Math.min(
+              Math.floor(gi / ratio),
+              osmdPlayableNoteCount - 1
+            );
+            mapping.push({
+              timeMs: (notes[gi].time + timingAdjustmentSec) * 1000,
+              xPosition: osmdXPositions[osmdIdx],
+            });
+          }
+          noteIndex = notes.length;
+        } else {
+          // OSMD の方が多い場合（稀）: OSMD ノートをゲームノーツ分だけマッピング
+          for (let i = 0; i < Math.min(osmdPlayableNoteCount, notes.length); i++) {
+            if (noteIndex < notes.length) {
+              mapping.push({
+                timeMs: (notes[noteIndex].time + timingAdjustmentSec) * 1000,
+                xPosition: osmdXPositions[i],
+              });
+              noteIndex++;
+            }
+          }
+        }
+      }
     
     // 0ms → 1小節目1拍目（小節頭）のアンカーを先頭に追加
     if (firstBeatX !== null) {
