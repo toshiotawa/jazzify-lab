@@ -1205,22 +1205,25 @@ useEffect(() => {
   
   // 練習モードガイド: キーハイライト処理はPIXIRenderer側で直接実行
   
-  // トランスポーズに合わせてオーディオのピッチを変更（tempo も変わるが簡易実装）
+  // トランスポーズ変更時: 再生中なら現在位置から再開して PitchShift を正しく再構築
+  const prevTransposeRef = useRef(settings.transpose);
   useEffect(() => {
-    if (!pitchShiftRef.current) {
-      return;
-    }
-    if (settings.transpose === 0) {
-      try {
-        pitchShiftRef.current.dispose();
-      } catch (err) {
-        log.warn('PitchShift dispose failed', err);
+    if (prevTransposeRef.current === settings.transpose) return;
+    prevTransposeRef.current = settings.transpose;
+
+    if (isPlayingRef.current && bufferSourceRef.current && audioContextRef.current) {
+      // 現在の再生位置を取得してから再開
+      const currentPos = getTimelineTime();
+      playFromOffset(currentPos);
+    } else if (pitchShiftRef.current) {
+      // 停止中は PitchShift ノードのみ更新
+      if (settings.transpose === 0) {
+        disposePitchShiftNode();
+      } else {
+        (pitchShiftRef.current as any).pitch = getEffectivePitchShift();
       }
-      pitchShiftRef.current = null;
-      return;
     }
-    (pitchShiftRef.current as any).pitch = settings.transpose;
-    }, [settings.transpose]);
+  }, [settings.transpose, disposePitchShiftNode, getEffectivePitchShift, getTimelineTime, playFromOffset]);
   
   // ゲームエリアのリサイズ対応（ResizeObserver 使用）
   useEffect(() => {

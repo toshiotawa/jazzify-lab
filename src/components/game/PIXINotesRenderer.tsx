@@ -1094,8 +1094,11 @@ export class PIXINotesRendererInstance {
   }
 
   private resolveNoteName(note: ActiveNote): string | null {
-    const preferredName = note.noteName ? this.trimOctave(note.noteName) : null;
-    const englishName = preferredName ? this.normalizeToEnglish(preferredName) : this.midiToNoteName(note.pitch + this.settings.transpose);
+    // 移調中は MIDI 番号から音名を再計算（元の noteName は移調前の名前のため）
+    const transposedMidi = note.pitch + this.settings.transpose;
+    const englishName = (this.settings.transpose === 0 && note.noteName)
+      ? this.normalizeToEnglish(this.trimOctave(note.noteName))
+      : this.midiToNoteName(transposedMidi);
     if (!englishName) return null;
     if (this.settings.simpleDisplayMode) {
       return this.simplifyNoteName(englishName);

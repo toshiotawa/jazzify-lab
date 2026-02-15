@@ -1429,12 +1429,19 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const { updateEngineSettings, currentSong, rawNotes, settings } = get();
           const clamped = Math.max(-12, Math.min(12, semitones));
 
+          // 即座にUI上の移調値を反映（非同期処理完了を待たない）
+          set(state => { state.settings.transpose = clamped; });
+          updateEngineSettings();
+
           // 処理がなければ早期リターン
           if (!currentSong || rawNotes.length === 0) {
-            set(state => { state.settings.transpose = clamped; });
-            updateEngineSettings();
             return;
           }
+
+          // 処理中ガード: 連続呼び出し時は最新の値のみ処理
+          // _transposeVersion をインクリメントし、処理完了時に一致チェック
+          const version = ((get() as any)._transposeVersion ?? 0) + 1;
+          set(state => { (state as any)._transposeVersion = version; });
 
           // 楽曲データ処理ロジック
           const _processSongData = async (targetSong: SongMetadata, notes: NoteData[], transpose: number) => {
@@ -1470,14 +1477,27 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                    throw new Error('MusicXMLファイルの解析に失敗しました');
                  }
                  
-                 const noteNames = extractPlayableNoteNames(xmlDoc);
-                 finalNotes = mergeJsonWithNames(notes, noteNames);
+                 // MusicXML-only フロー判定
+                 const notesAlreadyHaveNames = notes.length > 0 && notes.every(n => !!n.noteName);
                  
-                 // ノーツ時間を小節ベースで再計算（プレイヘッド精度向上）
-                 finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                 if (notesAlreadyHaveNames) {
+                   // MusicXML-only: rawNotes のタイミング・ピッチはそのまま使用
+                   // ピッチは PIXINotesRenderer 側で settings.transpose を加算
+                   // 音名は resolveNoteName が MIDI + transpose から再計算
+                   finalNotes = notes;
+                 } else {
+                   // JSON+XML フロー: 音名マージと時間再計算
+                   const noteNames = extractPlayableNoteNames(xmlDoc);
+                   finalNotes = mergeJsonWithNames(notes, noteNames);
+                   finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                 }
                  
-                 // コードネーム情報を抽出（XMLが既に移調済みなので追加移調は不要）
-                 finalChords = extractChordProgressions(xmlDoc, notes);
+                 // コードネーム情報を抽出
+                 try {
+                   finalChords = extractChordProgressions(xmlDoc, finalNotes);
+                 } catch {
+                   finalChords = [];
+                 }
                } catch (error) {
                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                  finalXml = null;
@@ -1493,8 +1513,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           
           const { finalNotes, finalXml, finalChords } = await _processSongData(currentSong, rawNotes, totalTranspose);
 
+          // 処理中に新しい呼び出しがあった場合は結果を破棄
+          if ((get() as any)._transposeVersion !== version) {
+            return;
+          }
+
           set((state) => {
-            state.settings.transpose = clamped;
             state.notes = finalNotes;
             state.musicXml = finalXml;
             state.chords = finalChords;
@@ -1502,12 +1526,8 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             // GameEngineにも更新を通知
             if (state.gameEngine) {
               state.gameEngine.loadSong(finalNotes);
-              console.log(`🎵 GameEngineに移調後のノートを再ロード: ${finalNotes.length}ノーツ`);
             }
           });
-          
-          updateEngineSettings();
-          console.log(`🎵 Transpose changed to ${clamped}, song re-processed without playback interruption.`);
         },
         
         // 練習モードガイド制御
