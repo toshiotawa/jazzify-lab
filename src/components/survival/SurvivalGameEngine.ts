@@ -683,10 +683,11 @@ export const getVectorFromAngle = (angle: number): { x: number; y: number } => {
 };
 
 // ===== 攻撃処理 =====
-// A列（遠距離）弾丸のダメージ計算（A ATK +1 で約10ダメージ増加、初期状態で10-14維持）
+// A列（遠距離）弾丸のダメージ計算（A ATK +1 で約5ダメージ増加）
 const INITIAL_A_ATK = 10;  // 初期A ATK値
-const A_ATK_DAMAGE_MULTIPLIER = 10;  // A ATK +1あたりのダメージ増加量
+const A_ATK_DAMAGE_MULTIPLIER = 5;  // A ATK +1あたりのダメージ増加量
 const A_BASE_DAMAGE = 14;  // 基本ダメージ（初期A ATKでのダメージ）
+const A_PROJECTILE_MAX_RANGE = 900; // A弾の最大射程（px）
 
 export const calculateAProjectileDamage = (aAtk: number): number => {
   // 初期状態（aAtk=10）でA_BASE_DAMAGE、+1ごとにA_ATK_DAMAGE_MULTIPLIER増加
@@ -722,6 +723,7 @@ export const createProjectile = (
   y: player.y,
   direction,
   damage,
+  remainingRange: A_PROJECTILE_MAX_RANGE,
   penetrating: player.skills.aPenetration,
   hitEnemies: new Set(),
 });
@@ -737,6 +739,7 @@ export const createProjectileFromAngle = (
   y: player.y,
   direction: 'right', // 互換性のため（実際の移動はangleで計算）
   damage,
+  remainingRange: A_PROJECTILE_MAX_RANGE,
   penetrating: player.skills.aPenetration,
   hitEnemies: new Set(),
   angle, // 弾丸の移動方向（ラジアン）
@@ -747,6 +750,7 @@ export const updateProjectiles = (
   deltaTime: number
 ): Projectile[] => {
   const PROJECTILE_SPEED = 500;
+  const travelDistance = PROJECTILE_SPEED * deltaTime;
   
   return projectiles
     .map(proj => {
@@ -761,9 +765,11 @@ export const updateProjectiles = (
         ...proj,
         x: proj.x + vec.x * PROJECTILE_SPEED * deltaTime,
         y: proj.y + vec.y * PROJECTILE_SPEED * deltaTime,
+        remainingRange: proj.remainingRange - travelDistance,
       };
     })
     .filter(proj => 
+      proj.remainingRange > 0 &&
       proj.x > 0 && proj.x < MAP_CONFIG.width &&
       proj.y > 0 && proj.y < MAP_CONFIG.height
     );
@@ -916,7 +922,7 @@ const ALL_BONUSES: BonusDefinition[] = [
   { type: 'b_knockback', displayName: 'ノックバック+', description: '近接攻撃のノックバック距離増加', icon: '💨' },
   { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
   { type: 'b_deflect', displayName: '拳でかきけす', description: '近接攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
-  { type: 'multi_hit', displayName: '多段攻撃', description: '攻撃回数増加', icon: '✨', maxLevel: 3 },
+  { type: 'multi_hit', displayName: '近距離多段ヒット', description: '近距離攻撃の攻撃回数増加', icon: '✨', maxLevel: 3 },
   { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
   { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
   { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },

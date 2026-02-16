@@ -153,6 +153,7 @@ export interface Projectile {
   direction: Direction;
   angle?: number;            // 移動角度（ラジアン）- 時計方向システム用
   damage: number;
+  remainingRange: number;    // 残り射程（px）
   penetrating: boolean;
   hitEnemies: Set<string>;   // 貫通時に既にヒットした敵のID
 }

@@ -879,33 +879,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
           });
           newState.projectiles = [...prev.projectiles, ...newProjectiles];
-          
-          // 多段攻撃処理（A列）
-          const multiHitLevel = prev.player.skills.multiHitLevel;
-          if (multiHitLevel > 0) {
-            for (let hit = 1; hit <= multiHitLevel; hit++) {
-              setTimeout(() => {
-                setGameState(gs => {
-                  // ゲーム中断中は発動しない
-                  if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
-                  
-                  // 時計方向システム
-                  const multiBulletCount = gs.player.stats.aBulletCount || 1;
-                  const multiBaseAngle = getDirectionAngle(gs.player.direction);
-                  const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
-                  
-                  const additionalProjectiles = multiBulletAngles.map((angle) => {
-                    return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
-                  });
-                  
-                  return {
-                    ...gs,
-                    projectiles: [...gs.projectiles, ...additionalProjectiles],
-                  };
-                });
-              }, hit * 200); // 0.2秒ごと
-            }
-          }
         } else if (slotType === 'B') {
           if (isLiraMagicMode) {
             const availableMagics = Object.entries(prev.player.magics)
@@ -1294,32 +1267,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
         });
         newState.projectiles = [...prev.projectiles, ...newProjectiles];
-        
-        // 多段攻撃処理（A列・タップ）
-        const tapMultiHitLevel = prev.player.skills.multiHitLevel;
-        if (tapMultiHitLevel > 0) {
-          for (let hit = 1; hit <= tapMultiHitLevel; hit++) {
-            setTimeout(() => {
-              setGameState(gs => {
-                if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
-                
-                // 時計方向システム
-                const multiBulletCount = gs.player.stats.aBulletCount || 1;
-                const multiBaseAngle = getDirectionAngle(gs.player.direction);
-                const multiBulletAngles = getClockwiseBulletAngles(multiBulletCount, multiBaseAngle);
-                
-                const additionalProjectiles = multiBulletAngles.map((angle) => {
-                  return createProjectileFromAngle(gs.player, angle, calculateAProjectileDamage(gs.player.stats.aAtk));
-                });
-                
-                return {
-                  ...gs,
-                  projectiles: [...gs.projectiles, ...additionalProjectiles],
-                };
-              });
-            }, hit * 200);  // 0.2秒ごと
-          }
-        }
       
     } else if (slotType === 'B') {
       if (isLiraMagicMode) {
