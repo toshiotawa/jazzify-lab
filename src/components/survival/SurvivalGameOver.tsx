@@ -16,6 +16,7 @@ import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
   difficulty: SurvivalDifficulty;
+  characterId?: string | null;
   onRetry: () => void;
   onBackToSelect: () => void;
   onBackToMenu: () => void;
@@ -35,6 +36,7 @@ const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
 const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   result,
   difficulty,
+  characterId = null,
   onRetry,
   onBackToSelect,
   onBackToMenu,
@@ -57,12 +59,13 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         try {
           const key = 'survival_high_scores';
           const saved = localStorage.getItem(key);
-          const scores: Record<string, { survivalTime: number; finalLevel: number; enemiesDefeated: number }> = 
+          const scores: Record<string, { survivalTime: number; finalLevel: number; enemiesDefeated: number }> =
             saved ? JSON.parse(saved) : {};
+          const scoreKey = `${difficulty}:${characterId ?? 'default'}`;
           
-          const existing = scores[difficulty];
+          const existing = scores[scoreKey];
           if (!existing || existing.survivalTime < survivalTime) {
-            scores[difficulty] = {
+            scores[scoreKey] = {
               survivalTime,
               finalLevel: result.finalLevel,
               enemiesDefeated: result.enemiesDefeated,
@@ -88,7 +91,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             difficulty,
             survivalTime,
             result.finalLevel,
-            result.enemiesDefeated
+            result.enemiesDefeated,
+            characterId
           );
           // APIから返されたフラグでハイスコア更新を判定
           setIsNewHighScore(isNew);
@@ -128,7 +132,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     };
     
     saveHighScoreAndAddXp();
-  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile]);
+  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile, characterId]);
   
   // 時間フォーマット（60分以上の場合はh:mm:ss形式）
   const formatTime = (seconds: number): string => {

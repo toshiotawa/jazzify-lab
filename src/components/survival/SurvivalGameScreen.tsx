@@ -1815,7 +1815,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         
         // キャラクター固有: HP回復
-        if (character && character.hpRegenPerSecond > 0) {
+        // 既にHPが0以下なら死亡確定として回復させない（ゲームオーバー判定を優先）
+        if (newState.player.stats.hp > 0 && character && character.hpRegenPerSecond > 0) {
           const regenAmount = character.hpRegenPerSecond * deltaTime;
           newState.player.stats.hp = Math.min(
             newState.player.stats.maxHp,
@@ -2634,6 +2635,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         <SurvivalGameOver
           result={result}
           difficulty={difficulty}
+          characterId={character?.id ?? null}
           onRetry={handleRetry}
           onBackToSelect={onBackToSelect}
           onBackToMenu={onBackToMenu}

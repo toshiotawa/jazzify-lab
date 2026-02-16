@@ -9,6 +9,7 @@ export interface SurvivalHighScore {
   id: string;
   userId: string;
   difficulty: SurvivalDifficulty;
+  characterId: string | null;
   survivalTimeSeconds: number;
   finalLevel: number;
   enemiesDefeated: number;
@@ -41,6 +42,47 @@ export interface UserBestSurvivalTime {
   bestDifficulty: SurvivalDifficulty | null;
 }
 
+let hasCharacterColumnCache: boolean | null = null;
+
+const isCharacterColumnMissingError = (error: { code?: string; message?: string } | null): boolean => {
+  if (!error) {
+    return false;
+  }
+  if (error.code === '42703' || error.code === 'PGRST204') {
+    return true;
+  }
+  return (error.message ?? '').includes('character_id');
+};
+
+const isCharacterConflictTargetError = (error: { code?: string; message?: string } | null): boolean => {
+  if (!error) {
+    return false;
+  }
+  if (error.code === '42P10') {
+    return true;
+  }
+  return (error.message ?? '').includes('ON CONFLICT');
+};
+
+async function hasCharacterColumn(supabase: ReturnType<typeof getSupabaseClient>): Promise<boolean> {
+  if (hasCharacterColumnCache !== null) {
+    return hasCharacterColumnCache;
+  }
+  const { error } = await supabase
+    .from('survival_high_scores')
+    .select('character_id')
+    .limit(1);
+  if (isCharacterColumnMissingError(error)) {
+    hasCharacterColumnCache = false;
+    return false;
+  }
+  if (error) {
+    throw error;
+  }
+  hasCharacterColumnCache = true;
+  return true;
+}
+
 /**
  * ユーザーのサバイバルハイスコアを保存/更新
  */
@@ -49,18 +91,26 @@ export async function upsertSurvivalHighScore(
   difficulty: SurvivalDifficulty,
   survivalTimeSeconds: number,
   finalLevel: number,
-  enemiesDefeated: number
+  enemiesDefeated: number,
+  characterId: string | null = null
 ): Promise<SurvivalHighScoreResult> {
   const supabase = getSupabaseClient();
   
   try {
+    const canUseCharacterScope = await hasCharacterColumn(supabase);
+
     // 既存のスコアを取得
-    const { data: existing, error: selectError } = await supabase
+    let existingQuery = supabase
       .from('survival_high_scores')
       .select('*')
       .eq('user_id', userId)
-      .eq('difficulty', difficulty)
-      .maybeSingle();
+      .eq('difficulty', difficulty);
+    if (canUseCharacterScope) {
+      existingQuery = characterId
+        ? existingQuery.eq('character_id', characterId)
+        : existingQuery.is('character_id', null);
+    }
+    const { data: existing, error: selectError } = await existingQuery.maybeSingle();
     
     if (selectError) {
       console.error('Failed to fetch existing survival high score:', selectError);
@@ -75,20 +125,36 @@ export async function upsertSurvivalHighScore(
       };
     }
     
-    const { data, error } = await supabase
+    const basePayload: Record<string, unknown> = {
+      user_id: userId,
+      difficulty,
+      survival_time_seconds: survivalTimeSeconds,
+      final_level: finalLevel,
+      enemies_defeated: enemiesDefeated,
+      updated_at: new Date().toISOString(),
+    };
+    const preferredPayload = canUseCharacterScope
+      ? { ...basePayload, character_id: characterId }
+      : basePayload;
+    let { data, error } = await supabase
       .from('survival_high_scores')
-      .upsert({
-        user_id: userId,
-        difficulty,
-        survival_time_seconds: survivalTimeSeconds,
-        final_level: finalLevel,
-        enemies_defeated: enemiesDefeated,
-        updated_at: new Date().toISOString(),
-      }, {
-        onConflict: 'user_id,difficulty'
+      .upsert(preferredPayload, {
+        onConflict: canUseCharacterScope ? 'user_id,difficulty,character_id' : 'user_id,difficulty'
       })
       .select()
       .single();
+
+    if (error && canUseCharacterScope && isCharacterConflictTargetError(error)) {
+      const fallback = await supabase
+        .from('survival_high_scores')
+        .upsert(basePayload, {
+          onConflict: 'user_id,difficulty'
+        })
+        .select()
+        .single();
+      data = fallback.data;
+      error = fallback.error;
+    }
     
     if (error) {
       console.error('Failed to upsert survival high score:', error);
@@ -110,12 +176,16 @@ export async function upsertSurvivalHighScore(
  */
 export async function fetchUserSurvivalHighScores(userId: string): Promise<SurvivalHighScore[]> {
   const supabase = getSupabaseClient();
-  
-  const { data, error } = await supabase
+  const canUseCharacterScope = await hasCharacterColumn(supabase).catch(() => false);
+  let query = supabase
     .from('survival_high_scores')
     .select('*')
     .eq('user_id', userId)
     .order('survival_time_seconds', { ascending: false });
+  if (canUseCharacterScope) {
+    query = query.order('character_id', { ascending: true });
+  }
+  const { data, error } = await query;
   
   if (error) throw error;
   return (data ?? []).map(convertHighScore);
@@ -282,6 +352,7 @@ function convertHighScore(row: Record<string, unknown>): SurvivalHighScore {
     id: row.id as string,
     userId: row.user_id as string,
     difficulty: row.difficulty as SurvivalDifficulty,
+    characterId: typeof row.character_id === 'string' ? row.character_id : null,
     survivalTimeSeconds: Number(row.survival_time_seconds) || 0,
     finalLevel: Number(row.final_level) || 1,
     enemiesDefeated: Number(row.enemies_defeated) || 0,

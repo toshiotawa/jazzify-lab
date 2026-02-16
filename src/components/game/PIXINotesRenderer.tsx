@@ -62,11 +62,30 @@ interface PointerState {
   isScrolling: boolean;
 }
 
+interface NoteRenderSnapshot {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+}
+
+interface NoteVanishEffect {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  color: string;
+  startedAtMs: number;
+}
+
 const MIN_MIDI = 21;
 const MAX_MIDI = 108;
 const TOTAL_WHITE_KEYS = 52;
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const NOTE_VANISH_EFFECT_DURATION_MS = 90;
+const NOTE_VANISH_EFFECT_MAX_COUNT = 24;
 
 const JAPANESE_NOTE_MAP: Record<string, string> = {
   C: 'ド',
@@ -185,6 +204,9 @@ export class PIXINotesRendererInstance {
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
+  private readonly noteRenderSnapshots = new Map<string, NoteRenderSnapshot>();
+  private readonly noteRenderSnapshotIds = new Set<string>();
+  private readonly vanishEffects: NoteVanishEffect[] = [];
   
   // 🚀 パフォーマンス最適化: レンダリング頻度制御
   private lastRenderTime = 0;
@@ -354,6 +376,9 @@ export class PIXINotesRendererInstance {
     this.correctHighlightedKeys.clear();
     this.pointerStates.clear();
     this.backgroundCanvas = null;
+    this.noteRenderSnapshots.clear();
+    this.noteRenderSnapshotIds.clear();
+    this.vanishEffects.length = 0;
   }
 
   get view(): HTMLCanvasElement {
@@ -763,6 +788,7 @@ export class PIXINotesRendererInstance {
       this.drawHitLine(ctx);
     }
     this.drawNotes(ctx);
+    this.drawVanishEffects(ctx, performance.now());
     this.drawKeyHighlights(ctx);
     this.drawChordOverlay(ctx);
   }
@@ -939,6 +965,9 @@ export class PIXINotesRendererInstance {
   }
 
   private drawNotes(ctx: CanvasRenderingContext2D): void {
+    const snapshotIds = this.noteRenderSnapshotIds;
+    snapshotIds.clear();
+
     for (let i = 0; i < this.noteBuffer.length; i += 1) {
       const note = this.noteBuffer[i];
       if (!note || note.state === 'completed') continue;
@@ -950,7 +979,8 @@ export class PIXINotesRendererInstance {
       const height = this.settings.noteHeight;
       const x = geometry.x + geometry.width / 2 - width / 2;
       const y = noteY - height;
-      ctx.fillStyle = this.getStateColor(note.state, geometry.isBlack, note.hand);
+      const noteColor = this.getStateColor(note.state, geometry.isBlack, note.hand);
+      ctx.fillStyle = noteColor;
       ctx.fillRect(x, y, width, height);
       if (note.state === 'missed') {
         ctx.strokeStyle = 'rgba(248,113,113,0.5)';
@@ -964,6 +994,75 @@ export class PIXINotesRendererInstance {
         ctx.textBaseline = 'bottom';
         ctx.fillText(label, geometry.x + geometry.width / 2, y - 2);
       }
+
+      snapshotIds.add(note.id);
+      const snapshot = this.noteRenderSnapshots.get(note.id);
+      if (snapshot) {
+        snapshot.x = x;
+        snapshot.y = y;
+        snapshot.width = width;
+        snapshot.height = height;
+        snapshot.color = noteColor;
+      } else {
+        this.noteRenderSnapshots.set(note.id, {
+          x,
+          y,
+          width,
+          height,
+          color: noteColor,
+        });
+      }
+    }
+
+    if (this.noteRenderSnapshots.size === 0) {
+      return;
+    }
+    for (const [noteId, snapshot] of this.noteRenderSnapshots) {
+      if (snapshotIds.has(noteId)) {
+        continue;
+      }
+      this.pushVanishEffect(snapshot);
+      this.noteRenderSnapshots.delete(noteId);
+    }
+  }
+
+  private pushVanishEffect(snapshot: NoteRenderSnapshot): void {
+    if (this.vanishEffects.length >= NOTE_VANISH_EFFECT_MAX_COUNT) {
+      this.vanishEffects.shift();
+    }
+    this.vanishEffects.push({
+      ...snapshot,
+      startedAtMs: performance.now(),
+    });
+  }
+
+  private drawVanishEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
+    if (this.vanishEffects.length === 0) {
+      return;
+    }
+    let writeIndex = 0;
+    ctx.save();
+    for (let i = 0; i < this.vanishEffects.length; i += 1) {
+      const effect = this.vanishEffects[i];
+      const elapsed = nowMs - effect.startedAtMs;
+      if (elapsed >= NOTE_VANISH_EFFECT_DURATION_MS) {
+        continue;
+      }
+      const progress = elapsed / NOTE_VANISH_EFFECT_DURATION_MS;
+      const shrinkX = effect.width * progress * 0.15;
+      const drawWidth = Math.max(1, effect.width - shrinkX * 2);
+      const drawHeight = Math.max(1, effect.height * (1 - progress * 0.35));
+      const drawX = effect.x + shrinkX;
+      const drawY = effect.y + (effect.height - drawHeight) * 0.35;
+      ctx.globalAlpha = (1 - progress) * 0.18;
+      ctx.fillStyle = effect.color;
+      ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
+      this.vanishEffects[writeIndex] = effect;
+      writeIndex += 1;
+    }
+    ctx.restore();
+    if (writeIndex !== this.vanishEffects.length) {
+      this.vanishEffects.length = writeIndex;
     }
   }
 
@@ -1065,22 +1164,22 @@ export class PIXINotesRendererInstance {
     ctx.restore();
   }
 
-  private getStateColor(state: ActiveNote['state'], isBlack: boolean, hand?: ActiveNote['hand']): string {
+  private getStateColor(state: ActiveNote['state'], _isBlack: boolean, hand?: ActiveNote['hand']): string {
     if (state === 'hit' || state === 'good' || state === 'perfect') {
       return this.colors.hit;
     }
     if (state === 'missed') {
       return this.colors.missed;
     }
-    // hand 情報があれば色分け
+    // hand 情報でのみ色分け（白鍵/黒鍵での色分けは行わない）
     if (hand === 'left') {
-      return isBlack ? this.colors.leftHandBlack : this.colors.leftHand;
+      return this.colors.leftHandBlack;
     }
     if (hand === 'both') {
-      return isBlack ? this.colors.bothHandsBlack : this.colors.bothHands;
+      return this.colors.bothHandsBlack;
     }
     // 'right' またはデフォルト
-    return isBlack ? this.colors.rightHandBlack : this.colors.rightHand;
+    return this.colors.rightHandBlack;
   }
 
   private getNoteLabel(note: ActiveNote): string | null {

@@ -213,6 +213,18 @@ interface SurvivalStageSelectProps {
 }
 
 const DIFFICULTIES: SurvivalDifficulty[] = ['veryeasy', 'easy', 'normal', 'hard', 'extreme'];
+const DEFAULT_CHARACTER_SCORE_KEY = 'default';
+const HIGH_SCORE_STORAGE_KEY = 'survival_high_scores';
+type CharacterScopedHighScores = Record<string, SurvivalHighScore>;
+
+const isSurvivalDifficulty = (value: string): value is SurvivalDifficulty =>
+  DIFFICULTIES.includes(value as SurvivalDifficulty);
+
+const toCharacterScoreKey = (characterId: string | null | undefined): string =>
+  characterId && characterId.length > 0 ? characterId : DEFAULT_CHARACTER_SCORE_KEY;
+
+const buildCharacterHighScoreKey = (difficulty: SurvivalDifficulty, characterKey: string): string =>
+  `${difficulty}:${characterKey}`;
 
 const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   onStageSelect,
@@ -225,13 +237,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   // 状態管理
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DEFAULT_DIFFICULTY_CONFIGS);
   const [characters, setCharacters] = useState<SurvivalCharacter[]>([]);
-  const [highScores, setHighScores] = useState<Record<SurvivalDifficulty, SurvivalHighScore | null>>({
-    veryeasy: null,
-    easy: null,
-    normal: null,
-    hard: null,
-    extreme: null,
-  });
+  const [highScores, setHighScores] = useState<CharacterScopedHighScores>({});
   const [loading, setLoading] = useState(true);
   const [expandedDifficulty, setExpandedDifficulty] = useState<SurvivalDifficulty | null>('veryeasy');
 
@@ -271,29 +277,42 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         // キャラクター取得失敗
       }
 
-      // ハイスコアを取得
-      const loadFromLocalStorage = (): Record<SurvivalDifficulty, SurvivalHighScore | null> => {
-        const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-          veryeasy: null, easy: null, normal: null, hard: null, extreme: null,
-        };
+      // ハイスコアを取得（難易度×キャラクター単位）
+      const loadFromLocalStorage = (): CharacterScopedHighScores => {
+        const scoreMap: CharacterScopedHighScores = {};
         try {
-          const saved = localStorage.getItem('survival_high_scores');
-          if (saved) {
-            const parsed = JSON.parse(saved);
-            Object.entries(parsed).forEach(([key, value]) => {
-              const diff = key as SurvivalDifficulty;
-              if (value && typeof value === 'object') {
-                const v = value as Record<string, unknown>;
-                scoreMap[diff] = {
-                  id: '', userId: '', difficulty: diff,
-                  survivalTimeSeconds: Number(v.survivalTime) || 0,
-                  finalLevel: Number(v.finalLevel) || 1,
-                  enemiesDefeated: Number(v.enemiesDefeated) || 0,
-                  createdAt: '', updatedAt: '',
-                };
-              }
-            });
+          const saved = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
+          if (!saved) {
+            return scoreMap;
           }
+          const parsed = JSON.parse(saved) as Record<string, unknown>;
+          Object.entries(parsed).forEach(([rawKey, value]) => {
+            if (!value || typeof value !== 'object') {
+              return;
+            }
+            const [rawDifficulty, rawCharacterKey] = rawKey.split(':');
+            if (!isSurvivalDifficulty(rawDifficulty)) {
+              return;
+            }
+            const normalizedCharacterKey = toCharacterScoreKey(rawCharacterKey);
+            const v = value as Record<string, unknown>;
+            const nextScore: SurvivalHighScore = {
+              id: '',
+              userId: '',
+              difficulty: rawDifficulty,
+              characterId: normalizedCharacterKey === DEFAULT_CHARACTER_SCORE_KEY ? null : normalizedCharacterKey,
+              survivalTimeSeconds: Number(v.survivalTime) || 0,
+              finalLevel: Number(v.finalLevel) || 1,
+              enemiesDefeated: Number(v.enemiesDefeated) || 0,
+              createdAt: '',
+              updatedAt: '',
+            };
+            const key = buildCharacterHighScoreKey(rawDifficulty, normalizedCharacterKey);
+            const existing = scoreMap[key];
+            if (!existing || nextScore.survivalTimeSeconds > existing.survivalTimeSeconds) {
+              scoreMap[key] = nextScore;
+            }
+          });
         } catch {
           // ignore
         }
@@ -305,17 +324,19 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       if (profile && !isGuest) {
         try {
           const scores = await fetchUserSurvivalHighScores(profile.id);
-          const scoreMap: Record<SurvivalDifficulty, SurvivalHighScore | null> = {
-            veryeasy: null, easy: null, normal: null, hard: null, extreme: null,
-          };
-          scores.forEach(score => { scoreMap[score.difficulty] = score; });
-          (DIFFICULTIES).forEach(diff => {
-            const dbScore = scoreMap[diff];
-            const localScore = localScores[diff];
-            if (!dbScore && localScore) {
-              scoreMap[diff] = localScore;
-            } else if (dbScore && localScore && localScore.survivalTimeSeconds > dbScore.survivalTimeSeconds) {
-              scoreMap[diff] = localScore;
+          const scoreMap: CharacterScopedHighScores = {};
+          scores.forEach((score) => {
+            const characterKey = toCharacterScoreKey(score.characterId);
+            const key = buildCharacterHighScoreKey(score.difficulty, characterKey);
+            const existing = scoreMap[key];
+            if (!existing || score.survivalTimeSeconds > existing.survivalTimeSeconds) {
+              scoreMap[key] = score;
+            }
+          });
+          Object.entries(localScores).forEach(([key, localScore]) => {
+            const dbScore = scoreMap[key];
+            if (!dbScore || localScore.survivalTimeSeconds > dbScore.survivalTimeSeconds) {
+              scoreMap[key] = localScore;
             }
           });
           setHighScores(scoreMap);
@@ -410,7 +431,6 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             const colors = DIFFICULTY_COLORS[difficulty];
             const icon = DIFFICULTY_ICONS[difficulty];
             const isExpanded = expandedDifficulty === difficulty;
-            const score = highScores[difficulty];
 
             return (
               <div key={difficulty}>
@@ -438,16 +458,6 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                     <p className="text-gray-400 text-sm font-sans mt-1">
                       {isEnglishCopy ? DIFFICULTY_DESCRIPTIONS_EN[difficulty] : config.description}
                     </p>
-                    {/* ハイスコア表示 */}
-                    {score && score.survivalTimeSeconds > 0 && (
-                      <div className="mt-1 flex items-center gap-4 text-xs text-gray-400">
-                        <span className="text-yellow-400 font-semibold">
-                          Best: {formatTime(score.survivalTimeSeconds)}
-                        </span>
-                        <span>Lv.{score.finalLevel}</span>
-                        <span>{score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}</span>
-                      </div>
-                    )}
                   </div>
                   <div className={cn(
                     'flex-shrink-0 text-xl text-gray-400 transition-transform duration-200',
@@ -465,63 +475,78 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                     'bg-black/30'
                   )}>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                      {characters.map((character) => (
-                        <button
-                          key={`${difficulty}-${character.id}`}
-                          onClick={() => handleCharacterSelect(difficulty, character)}
-                          className={cn(
-                            'relative rounded-xl border overflow-hidden transition-all duration-200',
-                            'hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20',
-                            'bg-gradient-to-b from-gray-800/80 to-gray-900/80',
-                            'border-gray-600/50 hover:border-purple-400/60',
-                            'p-3 flex flex-col items-center gap-2 text-center'
-                          )}
-                        >
-                          {/* アバター画像 */}
-                          <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-gray-700/50 flex-shrink-0 border-2 border-gray-600/50">
-                            <img
-                              src={character.avatarUrl}
-                              alt={character.name}
-                              className="w-full h-full object-cover"
-                              loading="lazy"
-                            />
-                          </div>
-
-                          {/* キャラ名 */}
-                          <h3 className="text-sm sm:text-base font-bold text-white font-sans leading-tight">
-                            {isEnglishCopy ? (character.nameEn || character.name) : character.name}
-                          </h3>
-
-                          {/* 能力説明 */}
-                          <p className="text-[10px] sm:text-xs text-gray-400 font-sans leading-tight line-clamp-2">
-                            {isEnglishCopy ? (character.descriptionEn || character.description) : character.description}
-                          </p>
-
-                          {/* 特殊タグ */}
-                          <div className="flex flex-wrap gap-1 justify-center">
-                            {character.noMagic && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-900/60 text-red-300 font-sans">
-                                {isEnglishCopy ? 'No Magic' : '魔法不可'}
-                              </span>
+                      {characters.map((character) => {
+                        const score = highScores[buildCharacterHighScoreKey(difficulty, character.id)];
+                        return (
+                          <button
+                            key={`${difficulty}-${character.id}`}
+                            onClick={() => handleCharacterSelect(difficulty, character)}
+                            className={cn(
+                              'relative rounded-xl border overflow-hidden transition-all duration-200',
+                              'hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20',
+                              'bg-gradient-to-b from-gray-800/80 to-gray-900/80',
+                              'border-gray-600/50 hover:border-purple-400/60',
+                              'p-3 flex flex-col items-center gap-2 text-center'
                             )}
-                            {character.permanentEffects.length > 0 && character.permanentEffects.map((eff, i) => (
-                              <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-900/60 text-purple-300 font-sans">
-                                {eff.type === 'hint' ? 'HINT' : eff.type === 'buffer' ? `Buffer Lv${eff.level}` : eff.type}
-                              </span>
-                            ))}
-                            {character.initialSkills.autoSelect && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 font-sans">
-                                Auto
-                              </span>
+                          >
+                            {/* アバター画像 */}
+                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-gray-700/50 flex-shrink-0 border-2 border-gray-600/50">
+                              <img
+                                src={character.avatarUrl}
+                                alt={character.name}
+                                className="w-full h-full object-cover"
+                                loading="lazy"
+                              />
+                            </div>
+
+                            {/* キャラ名 */}
+                            <h3 className="text-sm sm:text-base font-bold text-white font-sans leading-tight">
+                              {isEnglishCopy ? (character.nameEn || character.name) : character.name}
+                            </h3>
+
+                            {/* 能力説明 */}
+                            <p className="text-[10px] sm:text-xs text-gray-400 font-sans leading-tight whitespace-pre-wrap break-words">
+                              {isEnglishCopy ? (character.descriptionEn || character.description) : character.description}
+                            </p>
+
+                            {/* キャラ別ハイスコア */}
+                            {score && score.survivalTimeSeconds > 0 && (
+                              <div className="w-full rounded-md border border-yellow-400/20 bg-black/30 px-2 py-1 text-[10px] sm:text-xs">
+                                <div className="font-semibold text-yellow-400">
+                                  {isEnglishCopy ? 'Best' : 'ベスト'}: {formatTime(score.survivalTimeSeconds)}
+                                </div>
+                                <div className="text-gray-400">
+                                  Lv.{score.finalLevel} / {score.enemiesDefeated} {isEnglishCopy ? 'kills' : '撃破'}
+                                </div>
+                              </div>
                             )}
-                            {character.hpRegenPerSecond > 0 && (
-                              <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-900/60 text-green-300 font-sans">
-                                HP Regen
-                              </span>
-                            )}
-                          </div>
-                        </button>
-                      ))}
+
+                            {/* 特殊タグ */}
+                            <div className="flex flex-wrap gap-1 justify-center">
+                              {character.noMagic && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-900/60 text-red-300 font-sans">
+                                  {isEnglishCopy ? 'No Magic' : '魔法不可'}
+                                </span>
+                              )}
+                              {character.permanentEffects.length > 0 && character.permanentEffects.map((eff, i) => (
+                                <span key={i} className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-900/60 text-purple-300 font-sans">
+                                  {eff.type === 'hint' ? 'HINT' : eff.type === 'buffer' ? `Buffer Lv${eff.level}` : eff.type}
+                                </span>
+                              ))}
+                              {character.initialSkills.autoSelect && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 font-sans">
+                                  Auto
+                                </span>
+                              )}
+                              {character.hpRegenPerSecond > 0 && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-green-900/60 text-green-300 font-sans">
+                                  HP Regen
+                                </span>
+                              )}
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
                 )}
