@@ -702,6 +702,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
   const charExcludedBonuses = character?.excludedBonuses;
   const charNoMagic = character?.noMagic;
+  const isLiraMagicMode = character?.name === 'リラ' || character?.nameEn === 'Lira';
 
   // レベルアップボーナス選択処理
   const handleLevelUpBonusSelect = useCallback((option: LevelUpBonus) => {
@@ -904,7 +905,45 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
         } else if (slotType === 'B') {
-          // 近接攻撃 - 衝撃波エフェクト追加
+          if (isLiraMagicMode) {
+            const availableMagics = Object.entries(prev.player.magics)
+              .filter(([_, level]) => level > 0);
+            
+            if (availableMagics.length > 0 && prev.cSlotCooldown <= 0) {
+              const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+              const result = castMagic(
+                magicType as Parameters<typeof castMagic>[0],
+                level,
+                prev.player,
+                prev.enemies
+              );
+              
+              newState.enemies = result.enemies;
+              newState.player = result.player;
+              newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+              const condMultipliers = getConditionalSkillMultipliers(prev.player);
+              const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1 / 3) : 1;
+              newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+              
+              if (magicType === 'thunder') {
+                const castTime = Date.now();
+                const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                  id: `lightning_${castTime}_${index}_${enemy.id}`,
+                  x: enemy.x,
+                  y: enemy.y,
+                  startTime: castTime,
+                  duration: THUNDER_LIGHTNING_DURATION_MS,
+                }));
+                setLightningEffects((effects) => {
+                  const merged = [...effects, ...newLightning];
+                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                    : merged;
+                });
+              }
+            }
+          } else {
+            // 近接攻撃 - 衝撃波エフェクト追加
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
           const totalRange = baseRange + bonusRange;
@@ -958,6 +997,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const condMultB = getConditionalSkillMultipliers(prev.player);
               // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
               const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
+              const luckResultB = checkLuck(prev.player.stats.luck);
               
               const damage = calculateDamage(
                 baseBDamage,
@@ -967,14 +1007,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 enemy.statusEffects.some(e => e.type === 'debuffer'),
                 getBufferLevel(prev.player.statusEffects),
                 getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk
+                prev.player.stats.cAtk,
+                luckResultB.doubleDamage
               );
               
               // ノックバック（近接は強め）
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               
-              newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+              newState.damageTexts.push(createDamageText(
+                enemy.x,
+                enemy.y,
+                damage,
+                luckResultB.doubleDamage,
+                luckResultB.doubleDamage ? '#ffd700' : undefined
+              ));
               
               return {
                 ...enemy,
@@ -1048,6 +1095,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       const condMultBMulti = getConditionalSkillMultipliers(gs.player);
                       // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
                       const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier);
+                      const luckResultBMulti = checkLuck(gs.player.stats.luck);
                       
                       const damage = calculateDamage(
                         baseBDamage,
@@ -1057,13 +1105,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                         enemy.statusEffects.some(e => e.type === 'debuffer'),
                         getBufferLevel(gs.player.statusEffects),
                         getDebufferLevel(enemy.statusEffects),
-                        gs.player.stats.cAtk
+                        gs.player.stats.cAtk,
+                        luckResultBMulti.doubleDamage
                       );
                       
                       const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
                       const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
                       
-                      newDamageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+                      newDamageTexts.push(createDamageText(
+                        enemy.x,
+                        enemy.y,
+                        damage,
+                        luckResultBMulti.doubleDamage,
+                        luckResultBMulti.doubleDamage ? '#ffd700' : undefined
+                      ));
                       
                       return {
                         ...enemy,
@@ -1086,6 +1141,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               });
             }, hit * 200); // 0.2秒ごと
           }
+        }
         }
         
       } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
@@ -1199,7 +1255,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isLiraMagicMode]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -1258,7 +1314,45 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       
     } else if (slotType === 'B') {
-      // 近接攻撃 - 衝撃波エフェクト追加
+      if (isLiraMagicMode) {
+        const availableMagics = Object.entries(prev.player.magics)
+          .filter(([_, level]) => level > 0);
+        
+        if (availableMagics.length > 0 && prev.cSlotCooldown <= 0) {
+          const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+          const result = castMagic(
+            magicType as Parameters<typeof castMagic>[0],
+            level,
+            prev.player,
+            prev.enemies
+          );
+          
+          newState.enemies = result.enemies;
+          newState.player = result.player;
+          newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+          const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+          const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1 / 3) : 1;
+          newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+          
+          if (magicType === 'thunder') {
+            const castTime = Date.now();
+            const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+              id: `lightning_${castTime}_${index}_${enemy.id}`,
+              x: enemy.x,
+              y: enemy.y,
+              startTime: castTime,
+              duration: THUNDER_LIGHTNING_DURATION_MS,
+            }));
+            setLightningEffects((effects) => {
+              const merged = [...effects, ...newLightning];
+              return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                : merged;
+            });
+          }
+        }
+      } else {
+        // 近接攻撃 - 衝撃波エフェクト追加
       const baseRange = 80;
       const bonusRange = prev.player.skills.bRangeBonus * 20;
       const totalRange = baseRange + bonusRange;
@@ -1311,6 +1405,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const condMultBTap = getConditionalSkillMultipliers(prev.player);
           // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
           const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier);
+          const luckResultBTap = checkLuck(prev.player.stats.luck);
           
           const damage = calculateDamage(
             baseBDamage,
@@ -1320,13 +1415,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             enemy.statusEffects.some(e => e.type === 'debuffer'),
             getBufferLevel(prev.player.statusEffects),
             getDebufferLevel(enemy.statusEffects),
-            prev.player.stats.cAtk
+            prev.player.stats.cAtk,
+            luckResultBTap.doubleDamage
           );
           
           const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
           const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
           
-          newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+          newState.damageTexts.push(createDamageText(
+            enemy.x,
+            enemy.y,
+            damage,
+            luckResultBTap.doubleDamage,
+            luckResultBTap.doubleDamage ? '#ffd700' : undefined
+          ));
           
           return {
             ...enemy,
@@ -1398,6 +1500,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
                     // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
                     const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier);
+                    const luckResultBTapMulti = checkLuck(gs.player.stats.luck);
                     
                     const damage = calculateDamage(
                       baseBDamage,
@@ -1407,13 +1510,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       enemy.statusEffects.some(e => e.type === 'debuffer'),
                       getBufferLevel(gs.player.statusEffects),
                       getDebufferLevel(enemy.statusEffects),
-                      gs.player.stats.cAtk
+                      gs.player.stats.cAtk,
+                      luckResultBTapMulti.doubleDamage
                     );
                     
                     const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
                     const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
                     
-                    newDamageTexts.push(createDamageText(enemy.x, enemy.y, damage));
+                    newDamageTexts.push(createDamageText(
+                      enemy.x,
+                      enemy.y,
+                      damage,
+                      luckResultBTapMulti.doubleDamage,
+                      luckResultBTapMulti.doubleDamage ? '#ffd700' : undefined
+                    ));
                     
                     return {
                       ...enemy,
@@ -1436,6 +1546,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             });
           }, hit * 200);  // 0.2秒ごと
         }
+      }
       }
       
     } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
@@ -1518,7 +1629,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return newState;
   });
-}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp]);
+}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isLiraMagicMode]);
   
   // ゲームループ
   // 注意: isLevelingUp中もゲームは継続（一時停止しない）

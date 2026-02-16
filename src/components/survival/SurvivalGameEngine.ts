@@ -1217,7 +1217,7 @@ export const castMagic = (
         
         const damage = calculateDamage(
           Math.floor(cMagicDamage * condMultipliers.atkMultiplier), 0, enemy.stats.def,
-          isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+          isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk, luck.doubleDamage
         );
         damageTexts.push(createDamageText(enemy.x, enemy.y, damage));
         return {
@@ -1261,7 +1261,7 @@ export const castMagic = (
           
           const damage = calculateDamage(
             fireDamage, 0, enemy.stats.def,
-            isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk
+            isBuffed, isDebuffed, bufferLevel, debufferLevel, player.stats.cAtk, luck.doubleDamage
           );
           damageTexts.push(createDamageText(enemy.x, enemy.y, damage, false, '#ff6b35'));
           return {
