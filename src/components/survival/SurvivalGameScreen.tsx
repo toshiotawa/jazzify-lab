@@ -913,23 +913,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
               const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+              const castPlayer = newState.player;
+              const castEnemies = newState.enemies;
               const result = castMagic(
                 magicType as Parameters<typeof castMagic>[0],
                 level,
-                prev.player,
-                prev.enemies
+                castPlayer,
+                castEnemies
               );
               
               newState.enemies = result.enemies;
               newState.player = result.player;
-              newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-              const condMultipliers = getConditionalSkillMultipliers(prev.player);
+              newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+              const condMultipliers = getConditionalSkillMultipliers(castPlayer);
               const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1 / 3) : 1;
-              newState.bSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+              newState.bSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
               
               if (magicType === 'thunder') {
                 const castTime = Date.now();
-                const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
                   id: `lightning_${castTime}_${index}_${enemy.id}`,
                   x: enemy.x,
                   y: enemy.y,
@@ -1153,25 +1155,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           if (availableMagics.length > 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+            const castPlayer = newState.player;
+            const castEnemies = newState.enemies;
             const result = castMagic(
               magicType as Parameters<typeof castMagic>[0],
               level,
-              prev.player,
-              prev.enemies
+              castPlayer,
+              castEnemies
             );
             
             newState.enemies = result.enemies;
             newState.player = result.player;
-            newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+            newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
             // 背水の陣・絶好調の効果を適用したクールダウン（C列のみ）
-            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            const condMultipliers = getConditionalSkillMultipliers(castPlayer);
             const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
-            newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            newState.cSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
               const castTime = Date.now();
-              const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
                 id: `lightning_${castTime}_${index}_${enemy.id}`,
                 x: enemy.x,
                 y: enemy.y,
@@ -1193,25 +1197,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           if (availableMagics.length > 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+            const castPlayer = newState.player;
+            const castEnemies = newState.enemies;
             const result = castMagic(
               magicType as Parameters<typeof castMagic>[0],
               level,
-              prev.player,
-              prev.enemies
+              castPlayer,
+              castEnemies
             );
             
             newState.enemies = result.enemies;
             newState.player = result.player;
-            newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
+            newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
             // 背水の陣・絶好調の効果を適用したクールダウン（D列のみ）
-            const condMultipliers = getConditionalSkillMultipliers(prev.player);
+            const condMultipliers = getConditionalSkillMultipliers(castPlayer);
             const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1/3) : 1;
-            newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+            newState.dSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
               const castTime = Date.now();
-              const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
                 id: `lightning_${castTime}_${index}_${enemy.id}`,
                 x: enemy.x,
                 y: enemy.y,
@@ -1322,23 +1328,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
           const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+          const castPlayer = newState.player;
+          const castEnemies = newState.enemies;
           const result = castMagic(
             magicType as Parameters<typeof castMagic>[0],
             level,
-            prev.player,
-            prev.enemies
+            castPlayer,
+            castEnemies
           );
           
           newState.enemies = result.enemies;
           newState.player = result.player;
-          newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-          const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+          newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+          const condMultipliersTap = getConditionalSkillMultipliers(castPlayer);
           const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1 / 3) : 1;
-          newState.bSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+          newState.bSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
           
           if (magicType === 'thunder') {
             const castTime = Date.now();
-            const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+            const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
               id: `lightning_${castTime}_${index}_${enemy.id}`,
               x: enemy.x,
               y: enemy.y,
@@ -1558,23 +1566,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (availableMagics.length > 0) {
         const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const castPlayer = newState.player;
+        const castEnemies = newState.enemies;
         const result = castMagic(
           magicType as Parameters<typeof castMagic>[0],
           level,
-          prev.player,
-          prev.enemies
+          castPlayer,
+          castEnemies
         );
         
         newState.enemies = result.enemies;
         newState.player = result.player;
-        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+        const condMultipliersTap = getConditionalSkillMultipliers(castPlayer);
         const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
-        newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        newState.cSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
           const castTime = Date.now();
-          const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+          const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
             id: `lightning_${castTime}_${index}_${enemy.id}`,
             x: enemy.x,
             y: enemy.y,
@@ -1596,23 +1606,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       if (availableMagics.length > 0) {
         const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+        const castPlayer = newState.player;
+        const castEnemies = newState.enemies;
         const result = castMagic(
           magicType as Parameters<typeof castMagic>[0],
           level,
-          prev.player,
-          prev.enemies
+          castPlayer,
+          castEnemies
         );
         
         newState.enemies = result.enemies;
         newState.player = result.player;
-        newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
-        const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
+        newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+        const condMultipliersTap = getConditionalSkillMultipliers(castPlayer);
         const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1/3) : 1;
-        newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+        newState.dSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
           const castTime = Date.now();
-          const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+          const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
             id: `lightning_${castTime}_${index}_${enemy.id}`,
             x: enemy.x,
             y: enemy.y,
