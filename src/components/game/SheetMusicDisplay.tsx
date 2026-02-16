@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector } from '@/stores/helpers';
+import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -50,13 +51,15 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
   // ホイールスクロール制御用
   const [isHovered, setIsHovered] = useState(false);
   
-  const { currentTime, isPlaying, notes, musicXml, settings, currentSong } = useGameSelector((s) => ({
-    currentTime: s.currentTime,
+  // 🚀 パフォーマンス最適化: currentTime を useGameSelector から除外
+  // currentTime は毎秒30回更新されるため、React再レンダリングの主要なボトルネック
+  // 代わりに rAF ループと直接ストア購読で DOM を更新する
+  const { isPlaying, notes, musicXml, settings, currentSong } = useGameSelector((s) => ({
     isPlaying: s.isPlaying,
     notes: s.notes,
     musicXml: s.musicXml,
-    settings: s.settings, // 簡易表示設定を取得
-    currentSong: s.currentSong, // 楽曲固有の設定を取得
+    settings: s.settings,
+    currentSong: s.currentSong,
   }));
   // 楽曲の hide_sheet_music が true の場合、ユーザー設定に関係なく楽譜を非表示
   const shouldRenderSheet = settings.showSheetMusic && !currentSong?.hide_sheet_music;
@@ -546,119 +549,123 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }
   }, [isPlaying, shouldRenderSheet]);
 
-  // 音符の時刻とX座標のマッピングを作成
-    // 注: 以下のコードは transform 方式のスクロールでは効果が薄く、意図しないジャンプの原因になるためコメントアウト
-    // useEffect(() => {
-    //   if (isPlaying && scrollContainerRef.current) {
-    //     scrollContainerRef.current.scrollLeft = 0;
-    //     log.info('🎵 楽譜スクロールを開始位置にリセット');
-    //   }
-    // }, [isPlaying]);
+  // 🚀 パフォーマンス最適化: スクロール位置更新を React レンダリングから切り離す
+  // useEffect(currentTime) の代わりに rAF ループ + 直接ストア購読で DOM を更新
+  const scrollRafRef = useRef<number | null>(null);
 
-    // currentTimeが変更されるたびにスクロール位置を更新（音符単位でジャンプ）
-    useEffect(() => {
-      const mapping = timeMappingRef.current;
-      if (!shouldRenderSheet || mapping.length === 0 || !scoreWrapperRef.current) {
-        prevTimeRef.current = currentTime; // 早期returnでも更新
-        return;
+  const applyScrollPosition = useCallback((currentTime: number, isCurrentlyPlaying: boolean) => {
+    const mapping = timeMappingRef.current;
+    if (mapping.length === 0 || !scoreWrapperRef.current) {
+      prevTimeRef.current = currentTime;
+      return;
+    }
+
+    const PAUSE_PROTECTION_MS = 200;
+    const timeSincePause = performance.now() - pauseProtectionTimestampRef.current;
+    if (!isCurrentlyPlaying && timeSincePause < PAUSE_PROTECTION_MS) {
+      prevTimeRef.current = currentTime;
+      return;
+    }
+
+    const currentTimeMs = currentTime * 1000;
+
+    // バイナリサーチ: currentTimeMs 以下の最大 timeMs を持つインデックスを探す
+    let low = 0;
+    let high = mapping.length - 1;
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      if (mapping[mid].timeMs <= currentTimeMs) {
+        low = mid + 1;
+      } else {
+        high = mid - 1;
       }
-      
-      // 一時停止直後の保護期間中はスクロール更新をスキップ
-      // （isPlayingのuseEffectで設定したスクロール位置を上書きしないため）
-      const PAUSE_PROTECTION_MS = 200; // 一時停止後200msは更新をスキップ
-      const timeSincePause = performance.now() - pauseProtectionTimestampRef.current;
-      if (!isPlaying && timeSincePause < PAUSE_PROTECTION_MS) {
-        prevTimeRef.current = currentTime;
-        return;
+    }
+    const activeIndex = Math.max(0, Math.min(low - 1, mapping.length - 1));
+
+    mappingCursorRef.current = activeIndex;
+
+    const targetEntry = mapping[activeIndex];
+    if (!targetEntry) return;
+
+    let xPos = targetEntry.xPosition;
+    if (activeIndex + 1 < mapping.length) {
+      const nextEntry = mapping[activeIndex + 1];
+      const span = nextEntry.timeMs - targetEntry.timeMs;
+      if (span > 0) {
+        const progress = Math.min(1, Math.max(0, (currentTimeMs - targetEntry.timeMs) / span));
+        xPos += progress * (nextEntry.xPosition - targetEntry.xPosition);
       }
+    }
 
-      const currentTimeMs = currentTime * 1000;
+    const scrollX = Math.max(0, xPos - PLAYHEAD_POSITION_PX);
 
-      // 修正箇所: インデックス検索ロジックの簡素化と修正
-      const findActiveIndex = () => {
-        let low = 0;
-        let high = mapping.length - 1;
-        
-        // currentTimeMs 以下の最大の timeMs を持つインデックスを探す（UpperBound の変形）
-        while (low <= high) {
-          const mid = Math.floor((low + high) / 2);
-          if (mapping[mid].timeMs <= currentTimeMs) {
-            low = mid + 1;
-          } else {
-            high = mid - 1;
-          }
+    const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
+    const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
+
+    const prev = prevTimeRef.current;
+    const seekingBack = currentTime < prev - 0.1;
+    const forceAtZero = currentTime < 0.02;
+
+    if (isCurrentlyPlaying) {
+      lastScrollXRef.current = scrollX;
+    }
+
+    if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
+      const wrapper = scoreWrapperRef.current;
+      const scrollContainer = scrollContainerRef.current;
+      if (isCurrentlyPlaying) {
+        if (wrapper) {
+          wrapper.style.transform = `translateX(-${scrollX}px)`;
         }
-        // low は「次に演奏されるべき音符」のインデックスになっているため、
-        // その1つ前が「現在演奏中の音符」となります。
-        return low - 1;
-      };
-
-      // 計算されたインデックスを取得（範囲外ならクランプ）
-      const rawIndex = findActiveIndex();
-      const activeIndex = Math.max(0, Math.min(rawIndex, mapping.length - 1));
-
-      mappingCursorRef.current = activeIndex;
-
-        const targetEntry = mapping[activeIndex];
-        const playheadPosition = PLAYHEAD_POSITION_PX;
-      
-      // targetEntryが存在しない場合のガード処理を追加
-      if (!targetEntry) return;
-
-      // エントリ間の線形補間でスムーズスクロール
-      // (ユニークカラムベースのマッピングはエントリ数が少ないため補間が重要)
-      let xPos = targetEntry.xPosition;
-      if (activeIndex + 1 < mapping.length) {
-        const nextEntry = mapping[activeIndex + 1];
-        const span = nextEntry.timeMs - targetEntry.timeMs;
-        if (span > 0) {
-          const progress = Math.min(1, Math.max(0, (currentTimeMs - targetEntry.timeMs) / span));
-          xPos += progress * (nextEntry.xPosition - targetEntry.xPosition);
+        if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
+          scrollContainer.scrollLeft = 0;
+        }
+      } else if (scrollContainer) {
+        if (wrapper) {
+          wrapper.style.transform = 'translateX(0px)';
+        }
+        if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
+          scrollContainer.scrollLeft = scrollX;
         }
       }
-
-        const scrollX = Math.max(0, xPos - playheadPosition);
-
-      const needsIndexUpdate = activeIndex !== lastRenderedIndexRef.current;
-      const needsScrollUpdate = Math.abs(scrollX - lastScrollXRef.current) > 0.5;
-
-      // 巻き戻しや0秒付近へジャンプした時は、再生中でも強制更新
-      const prev = prevTimeRef.current;
-      const seekingBack = currentTime < prev - 0.1; // 100ms以上の巻き戻し
-      const forceAtZero = currentTime < 0.02;       // 0秒付近
-
-      // 再生中は常にlastScrollXRefを更新（一時停止時に正確な位置を保持するため）
-      if (isPlaying) {
+      lastRenderedIndexRef.current = activeIndex;
+      if (!isCurrentlyPlaying) {
         lastScrollXRef.current = scrollX;
       }
+    }
 
-        if (needsIndexUpdate || seekingBack || forceAtZero || needsScrollUpdate) {
-          const wrapper = scoreWrapperRef.current;
-          const scrollContainer = scrollContainerRef.current;
-          if (isPlaying) {
-            if (wrapper) {
-              wrapper.style.transform = `translateX(-${scrollX}px)`;
-            }
-            if (scrollContainer && Math.abs(scrollContainer.scrollLeft) > 0.5) {
-              scrollContainer.scrollLeft = 0;
-            }
-          } else if (scrollContainer) {
-            if (wrapper) {
-              wrapper.style.transform = 'translateX(0px)';
-            }
-            if (Math.abs(scrollContainer.scrollLeft - scrollX) > 0.5) {
-              scrollContainer.scrollLeft = scrollX;
-            }
-          }
-          lastRenderedIndexRef.current = activeIndex;
-          // 停止中のみここで更新（再生中は上で常時更新済み）
-          if (!isPlaying) {
-            lastScrollXRef.current = scrollX;
-          }
+    prevTimeRef.current = currentTime;
+  }, []);
+
+  // 🚀 rAF ベースのスクロール更新ループ（再生中）/ ストア直接購読（停止中）
+  useEffect(() => {
+    if (!shouldRenderSheet) return;
+
+    if (isPlaying) {
+      // 再生中: requestAnimationFrame でフレームごとに直接 DOM 更新
+      const scrollLoop = () => {
+        const time = useGameStore.getState().currentTime;
+        applyScrollPosition(time, true);
+        scrollRafRef.current = requestAnimationFrame(scrollLoop);
+      };
+      scrollRafRef.current = requestAnimationFrame(scrollLoop);
+
+      return () => {
+        if (scrollRafRef.current !== null) {
+          cancelAnimationFrame(scrollRafRef.current);
+          scrollRafRef.current = null;
         }
+      };
+    }
 
-      prevTimeRef.current = currentTime;
-    }, [currentTime, isPlaying, notes, shouldRenderSheet]);
+    // 停止中: ストア購読でシーク操作に即応（React再レンダリングなし）
+    applyScrollPosition(useGameStore.getState().currentTime, false);
+    const unsubscribe = useGameStore.subscribe(
+      (state) => state.currentTime,
+      (time) => applyScrollPosition(time, false)
+    );
+    return unsubscribe;
+  }, [isPlaying, shouldRenderSheet, applyScrollPosition]);
 
     // ホイールスクロール制御
   useEffect(() => {

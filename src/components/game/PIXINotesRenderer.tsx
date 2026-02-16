@@ -206,7 +206,10 @@ export class PIXINotesRendererInstance {
   private chordText = '';
   private readonly noteRenderSnapshots = new Map<string, NoteRenderSnapshot>();
   private readonly noteRenderSnapshotIds = new Set<string>();
-  private readonly vanishEffects: NoteVanishEffect[] = [];
+  // 🚀 GC最適化: vanishEffects をリングバッファに変更（shift() O(n) → O(1)）
+  private readonly vanishEffects: NoteVanishEffect[] = new Array(NOTE_VANISH_EFFECT_MAX_COUNT);
+  private vanishWriteIndex = 0;
+  private vanishCount = 0;
   
   // 🚀 パフォーマンス最適化: レンダリング頻度制御
   private lastRenderTime = 0;
@@ -378,7 +381,8 @@ export class PIXINotesRendererInstance {
     this.backgroundCanvas = null;
     this.noteRenderSnapshots.clear();
     this.noteRenderSnapshotIds.clear();
-    this.vanishEffects.length = 0;
+    this.vanishWriteIndex = 0;
+    this.vanishCount = 0;
   }
 
   get view(): HTMLCanvasElement {
@@ -1027,27 +1031,46 @@ export class PIXINotesRendererInstance {
   }
 
   private pushVanishEffect(snapshot: NoteRenderSnapshot): void {
-    if (this.vanishEffects.length >= NOTE_VANISH_EFFECT_MAX_COUNT) {
-      this.vanishEffects.shift();
+    // 🚀 リングバッファ方式: shift() を排除して O(1) 挿入
+    const idx = this.vanishWriteIndex;
+    const existing = this.vanishEffects[idx];
+    if (existing) {
+      existing.x = snapshot.x;
+      existing.y = snapshot.y;
+      existing.width = snapshot.width;
+      existing.height = snapshot.height;
+      existing.color = snapshot.color;
+      existing.startedAtMs = performance.now();
+    } else {
+      this.vanishEffects[idx] = {
+        x: snapshot.x,
+        y: snapshot.y,
+        width: snapshot.width,
+        height: snapshot.height,
+        color: snapshot.color,
+        startedAtMs: performance.now(),
+      };
     }
-    this.vanishEffects.push({
-      ...snapshot,
-      startedAtMs: performance.now(),
-    });
+    this.vanishWriteIndex = (idx + 1) % NOTE_VANISH_EFFECT_MAX_COUNT;
+    if (this.vanishCount < NOTE_VANISH_EFFECT_MAX_COUNT) {
+      this.vanishCount += 1;
+    }
   }
 
   private drawVanishEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
-    if (this.vanishEffects.length === 0) {
+    if (this.vanishCount === 0) {
       return;
     }
-    let writeIndex = 0;
     ctx.save();
-    for (let i = 0; i < this.vanishEffects.length; i += 1) {
+    let activeCount = 0;
+    for (let i = 0; i < NOTE_VANISH_EFFECT_MAX_COUNT; i += 1) {
       const effect = this.vanishEffects[i];
+      if (!effect) continue;
       const elapsed = nowMs - effect.startedAtMs;
       if (elapsed >= NOTE_VANISH_EFFECT_DURATION_MS) {
         continue;
       }
+      activeCount += 1;
       const progress = elapsed / NOTE_VANISH_EFFECT_DURATION_MS;
       const shrinkX = effect.width * progress * 0.15;
       const drawWidth = Math.max(1, effect.width - shrinkX * 2);
@@ -1057,12 +1080,11 @@ export class PIXINotesRendererInstance {
       ctx.globalAlpha = (1 - progress) * 0.18;
       ctx.fillStyle = effect.color;
       ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
-      this.vanishEffects[writeIndex] = effect;
-      writeIndex += 1;
     }
     ctx.restore();
-    if (writeIndex !== this.vanishEffects.length) {
-      this.vanishEffects.length = writeIndex;
+    // 全エフェクト終了時にカウントをリセット
+    if (activeCount === 0) {
+      this.vanishCount = 0;
     }
   }
 

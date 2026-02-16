@@ -580,7 +580,10 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
   return goodCount * 1000;
 };
 
-const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 30;
+// 🚀 パフォーマンス最適化: ストア更新頻度を最適化
+// SheetMusicDisplay は rAF ループで直接読み取るため、ストア更新は UI 表示用のみ
+// 20fps（50ms間隔）でシークバーやタイマー表示に十分な更新頻度を維持
+const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 20;
 let lastCurrentTimeDispatch = 0;
 
 // ===== ストア作成 =====
@@ -621,19 +624,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 }
               }
               
-              if (storeSnapshot.settings.showFPS) {
-                set((state) => {
-                  state.debug.renderTime = performance.now() % 1000;
-                });
-              }
-
               const shouldDispatchTime =
                 data.currentTime < lastCurrentTimeDispatch ||
                 data.currentTime - lastCurrentTimeDispatch >= CURRENT_TIME_DISPATCH_INTERVAL;
               if (shouldDispatchTime) {
                 lastCurrentTimeDispatch = data.currentTime;
+                // 🚀 FPSデバッグ更新と currentTime 更新を単一の set() にまとめる
                 set((state) => {
                   state.currentTime = data.currentTime;
+                  if (storeSnapshot.settings.showFPS) {
+                    state.debug.renderTime = performance.now() % 1000;
+                  }
                 });
               }
             });
