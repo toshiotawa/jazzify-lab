@@ -267,6 +267,7 @@ export const createInitialGameState = (
       createEmptyCodeSlot('D'),
     ],
   },
+  bSlotCooldown: 0,
   cSlotCooldown: 0,
   dSlotCooldown: 0,
   levelUpOptions: [],
@@ -890,7 +891,15 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
 };
 
 // ===== レベルアップボーナス生成 =====
-const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: string; icon: string; maxLevel?: number }> = [
+type BonusDefinition = {
+  type: BonusType;
+  displayName: string;
+  description: string;
+  icon: string;
+  maxLevel?: number;
+};
+
+const ALL_BONUSES: BonusDefinition[] = [
   // ステータス系
   { type: 'a_atk', displayName: '遠距離 ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
   { type: 'b_atk', displayName: '近接 ATK +1', description: '近接攻撃力アップ（+10ダメージ）', icon: '👊' },
@@ -922,23 +931,40 @@ const ALL_BONUSES: Array<{ type: BonusType; displayName: string; description: st
   { type: 'magic_hint', displayName: 'HINT', description: 'ヒント魔法', icon: '💡', maxLevel: 3 },
 ];
 
-export const generateLevelUpOptions = (
+const getCurrentBonusLevel = (player: PlayerState, type: BonusType): number => {
+  switch (type) {
+    case 'b_knockback': return player.skills.bKnockbackBonus;
+    case 'b_range': return player.skills.bRangeBonus;
+    case 'multi_hit': return player.skills.multiHitLevel;
+    case 'exp_bonus': return player.skills.expBonusLevel;
+    case 'reload_magic': return player.stats.reloadMagic;
+    case 'luck_pendant': return player.stats.luck;
+    case 'magic_thunder': return player.magics.thunder;
+    case 'magic_ice': return player.magics.ice;
+    case 'magic_fire': return player.magics.fire;
+    case 'magic_heal': return player.magics.heal;
+    case 'magic_buffer': return player.magics.buffer;
+    case 'magic_debuffer': return player.magics.debuffer;
+    case 'magic_hint': return player.magics.hint;
+    default: return 0;
+  }
+};
+
+const getAvailableBonuses = (
   player: PlayerState,
-  allowedChords: string[],
   excludedBonuses?: string[],
   noMagic?: boolean
-): LevelUpBonus[] => {
-  // 取得可能なボーナスをフィルタリング
-  const available = ALL_BONUSES.filter(bonus => {
-    // キャラクター固有の除外ボーナスチェック
+): BonusDefinition[] => {
+  return ALL_BONUSES.filter((bonus) => {
     if (excludedBonuses && excludedBonuses.includes(bonus.type)) return false;
-    // 魔法不可キャラの場合、魔法関連ボーナスを除外
-    if (noMagic && (
-      bonus.type.startsWith('magic_') ||
-      bonus.type === 'c_atk' ||
-      bonus.type === 'reload_magic'
-    )) return false;
-    // 上限チェック
+    if (
+      noMagic &&
+      (bonus.type.startsWith('magic_') ||
+        bonus.type === 'c_atk' ||
+        bonus.type === 'reload_magic')
+    ) {
+      return false;
+    }
     if (bonus.maxLevel) {
       switch (bonus.type) {
         case 'a_penetration':
@@ -973,10 +999,43 @@ export const generateLevelUpOptions = (
           return player.magics.debuffer < bonus.maxLevel;
         case 'magic_hint':
           return player.magics.hint < bonus.maxLevel;
+        default:
+          break;
       }
     }
     return true;
   });
+};
+
+export const generateAutoSelectBonus = (
+  player: PlayerState,
+  allowedChords: string[],
+  excludedBonuses?: string[],
+  noMagic?: boolean
+): LevelUpBonus | null => {
+  const available = getAvailableBonuses(player, excludedBonuses, noMagic);
+  if (available.length === 0) {
+    return null;
+  }
+  const selectedBonus = available[Math.floor(Math.random() * available.length)];
+  const chord = selectRandomChord(allowedChords);
+  if (!chord) {
+    return null;
+  }
+  return {
+    ...selectedBonus,
+    chord,
+    currentLevel: getCurrentBonusLevel(player, selectedBonus.type),
+  };
+};
+
+export const generateLevelUpOptions = (
+  player: PlayerState,
+  allowedChords: string[],
+  excludedBonuses?: string[],
+  noMagic?: boolean
+): LevelUpBonus[] => {
+  const available = getAvailableBonuses(player, excludedBonuses, noMagic);
   
   // ランダムに3つ選択
   const shuffled = [...available].sort(() => Math.random() - 0.5);
@@ -986,26 +1045,6 @@ export const generateLevelUpOptions = (
   const usedChordIds: string[] = [];
   const result: LevelUpBonus[] = [];
   
-  // 現在のスキルレベルを取得するヘルパー関数
-  const getCurrentLevel = (type: string): number => {
-    switch (type) {
-      case 'b_knockback': return player.skills.bKnockbackBonus;
-      case 'b_range': return player.skills.bRangeBonus;
-      case 'multi_hit': return player.skills.multiHitLevel;
-      case 'exp_bonus': return player.skills.expBonusLevel;
-      case 'reload_magic': return player.stats.reloadMagic;
-      case 'luck_pendant': return player.stats.luck;
-      case 'magic_thunder': return player.magics.thunder;
-      case 'magic_ice': return player.magics.ice;
-      case 'magic_fire': return player.magics.fire;
-      case 'magic_heal': return player.magics.heal;
-      case 'magic_buffer': return player.magics.buffer;
-      case 'magic_debuffer': return player.magics.debuffer;
-      case 'magic_hint': return player.magics.hint;
-      default: return 0;
-    }
-  };
-  
   for (const bonus of selected) {
     const chord = selectRandomChord(allowedChords, usedChordIds);
     if (chord) {
@@ -1013,7 +1052,7 @@ export const generateLevelUpOptions = (
       result.push({
         ...bonus,
         chord,
-        currentLevel: getCurrentLevel(bonus.type),  // 現在のスキルレベルを追加
+        currentLevel: getCurrentBonusLevel(player, bonus.type),
       });
     }
   }
@@ -1029,6 +1068,7 @@ export const generateLevelUpOptions = (
       result.push({
         ...bonus,
         chord,
+        currentLevel: getCurrentBonusLevel(player, bonus.type),
       });
     } else {
       break;

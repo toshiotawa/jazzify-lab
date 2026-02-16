@@ -11,9 +11,11 @@ interface SurvivalCodeSlotsProps {
   currentSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   nextSlots: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   hintSlotIndex: number | null;  // ヒント表示中のスロット（0=A, 1=B, 2=C, 3=D）
+  bSlotCooldown: number;  // B列のクールダウン
   cSlotCooldown: number;  // C列のクールダウン
   dSlotCooldown: number;  // D列のクールダウン
   hasMagic: boolean;
+  isLiraMagicMode?: boolean;
 }
 
 // ===== スロットタイプの色設定 =====
@@ -57,10 +59,17 @@ interface SlotDisplayProps {
   slot: CodeSlot;
   nextSlot: CodeSlot;
   isHinted: boolean;
-  isMagicOnCooldown?: boolean;  // C列の魔法がクールダウン中か
+  isMagicOnCooldown?: boolean;  // 対象列の魔法がクールダウン中か
+  isLiraMagicMode?: boolean;
 }
 
-const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isMagicOnCooldown = false }) => {
+const SlotDisplay: React.FC<SlotDisplayProps> = ({
+  slot,
+  nextSlot,
+  isHinted,
+  isMagicOnCooldown = false,
+  isLiraMagicMode = false,
+}) => {
   const colors = SLOT_COLORS[slot.type];
   const timerPercent = (slot.timer / SLOT_TIMEOUT) * 100;
   
@@ -69,8 +78,11 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
   const correctCount = slot.correctNotes.length;
   const progressPercent = totalNotes > 0 ? (correctCount / totalNotes) * 100 : 0;
   
-  // C列またはD列で魔法がクールダウン中の場合は灰色表示
-  const isDisabledByCooldown = (slot.type === 'C' || slot.type === 'D') && slot.isEnabled && isMagicOnCooldown;
+  const isBMagicSlot = slot.type === 'B' && isLiraMagicMode;
+  // C/D列、またはリラ時のB列でクールダウン中の場合は灰色表示
+  const isDisabledByCooldown =
+    ((slot.type === 'C' || slot.type === 'D' || isBMagicSlot) && slot.isEnabled && isMagicOnCooldown);
+  const slotLabel = isBMagicSlot ? '🪄 B' : colors.label;
   
   return (
     <div className="flex flex-col items-center gap-1">
@@ -90,7 +102,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({ slot, nextSlot, isHinted, isM
       >
         {/* ラベル */}
         <div className="absolute top-1 left-1 text-xs font-sans opacity-70">
-          {colors.label}
+          {slotLabel}
         </div>
         
         {/* コード名 */}
@@ -161,13 +173,16 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
   currentSlots,
   nextSlots,
   hintSlotIndex,
+  bSlotCooldown,
   cSlotCooldown,
   dSlotCooldown,
   hasMagic,
+  isLiraMagicMode = false,
 }) => {
   // 各スロットのクールダウン状態を判定
   const getSlotCooldown = (index: number): boolean => {
     if (!hasMagic) return false;
+    if (index === 1 && isLiraMagicMode) return bSlotCooldown > 0;  // リラ時B列
     if (index === 2) return cSlotCooldown > 0;  // C列
     if (index === 3) return dSlotCooldown > 0;  // D列
     return false;  // A, B列はクールダウンなし
@@ -184,6 +199,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
             nextSlot={nextSlots[index]}
             isHinted={hintSlotIndex === index}
             isMagicOnCooldown={getSlotCooldown(index)}
+            isLiraMagicMode={isLiraMagicMode}
           />
         ))}
       </div>

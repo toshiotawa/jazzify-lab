@@ -35,6 +35,7 @@ import {
   calculateAProjectileDamage,
   calculateBMeleeDamage,
   generateLevelUpOptions,
+  generateAutoSelectBonus,
   applyLevelUpBonus,
   applyCharacterToPlayerState,
   applyLevel10Bonuses,
@@ -828,7 +829,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
         
-        // C列はcSlotCooldown、D列はdSlotCooldownをチェック（それぞれ独立）
+        // リラ時のB列、およびC/D列はクールダウンをチェック（それぞれ独立）
+        if (index === 1 && isLiraMagicMode && prev.bSlotCooldown > 0) return slot;
         if (index === 2 && prev.cSlotCooldown > 0) return slot;
         if (index === 3 && prev.dSlotCooldown > 0) return slot;
         
@@ -909,7 +911,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const availableMagics = Object.entries(prev.player.magics)
               .filter(([_, level]) => level > 0);
             
-            if (availableMagics.length > 0 && prev.cSlotCooldown <= 0) {
+            if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
               const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
               const result = castMagic(
                 magicType as Parameters<typeof castMagic>[0],
@@ -923,7 +925,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
               const condMultipliers = getConditionalSkillMultipliers(prev.player);
               const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1 / 3) : 1;
-              newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+              newState.bSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
               
               if (magicType === 'thunder') {
                 const castTime = Date.now();
@@ -1318,7 +1320,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const availableMagics = Object.entries(prev.player.magics)
           .filter(([_, level]) => level > 0);
         
-        if (availableMagics.length > 0 && prev.cSlotCooldown <= 0) {
+        if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
           const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
           const result = castMagic(
             magicType as Parameters<typeof castMagic>[0],
@@ -1332,7 +1334,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.damageTexts = [...prev.damageTexts, ...result.damageTexts];
           const condMultipliersTap = getConditionalSkillMultipliers(prev.player);
           const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1 / 3) : 1;
-          newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+          newState.bSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
           
           if (magicType === 'thunder') {
             const castTime = Date.now();
@@ -1902,14 +1904,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const acquiredBonuses: LevelUpBonus[] = [];
             
             for (let i = 0; i < levelUpCount; i++) {
-              const options = generateLevelUpOptions(currentPlayer, config.allowedChords, charExcludedBonuses, charNoMagic);
-              if (options.length > 0) {
-                // ランダムに1つ選択
-                const randomIndex = Math.floor(Math.random() * options.length);
-                const selectedBonus = options[randomIndex];
-                currentPlayer = applyLevelUpBonus(currentPlayer, selectedBonus);
-                acquiredBonuses.push(selectedBonus);
+              const selectedBonus = generateAutoSelectBonus(
+                currentPlayer,
+                config.allowedChords,
+                charExcludedBonuses,
+                charNoMagic
+              );
+              if (!selectedBonus) {
+                break;
               }
+              currentPlayer = applyLevelUpBonus(currentPlayer, selectedBonus);
+              acquiredBonuses.push(selectedBonus);
             }
             newState.player = currentPlayer;
             
@@ -2086,7 +2091,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return { ...slot, timer: newTimer };
         }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
-        // 魔法クールダウン更新（C列とD列で独立）
+        // 魔法クールダウン更新（リラ時B列、およびC/D列で独立）
+        if (newState.bSlotCooldown > 0) {
+          newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
+        }
         if (newState.cSlotCooldown > 0) {
           newState.cSlotCooldown = Math.max(0, newState.cSlotCooldown - deltaTime);
         }
@@ -2347,6 +2355,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
     const availableSlots: number[] = [];
     for (let i = 0; i < 2; i++) {  // A列とB列のみ（C列は除外）
+      if (isLiraMagicMode && i === 1 && gameState.bSlotCooldown > 0) {
+        continue;
+      }
       if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
         availableSlots.push(i);
       }
@@ -2713,9 +2724,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           currentSlots={gameState.codeSlots.current}
           nextSlots={gameState.codeSlots.next}
           hintSlotIndex={getHintSlotIndex()}
+          bSlotCooldown={gameState.bSlotCooldown}
           cSlotCooldown={gameState.cSlotCooldown}
           dSlotCooldown={gameState.dSlotCooldown}
           hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
+          isLiraMagicMode={isLiraMagicMode}
         />
       </div>
       
