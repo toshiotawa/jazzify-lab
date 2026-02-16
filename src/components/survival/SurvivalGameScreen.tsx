@@ -334,7 +334,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
   // レベルアップ時の正解ノートをrefで管理（setGameState内から最新値を参照するため）
-  const emptyCorrectNotes = () => Array.from({ length: charBonusChoiceCount }, () => [] as number[]);
+  const bonusChoiceCount = character?.bonusChoiceCount ?? 3;
+  const emptyCorrectNotes = () => Array.from({ length: bonusChoiceCount }, () => [] as number[]);
   const levelUpCorrectNotesRef = useRef<number[][]>(emptyCorrectNotes());
   // UIの再レンダリング用のステート（refと同期）
   const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>(emptyCorrectNotes());
@@ -704,7 +705,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
   const charExcludedBonuses = character?.excludedBonuses;
   const charNoMagic = character?.noMagic;
-  const charBonusChoiceCount = character?.bonusChoiceCount ?? 3;
   const isLiraMagicMode = character?.name === 'リラ' || character?.nameEn === 'Lira';
   const isAbColumnMagicMode = character?.abColumnMagic ?? false;
   const isAMagicSlot = isAbColumnMagicMode;
@@ -731,7 +731,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       };
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
+        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount);
         levelUpCorrectNotesRef.current = emptyCorrectNotes();
         setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
@@ -754,7 +754,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount]);
   
   // レベルアップタイムアウト処理
   const handleLevelUpTimeout = useCallback(() => {
@@ -764,7 +764,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
+        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount);
         levelUpCorrectNotesRef.current = emptyCorrectNotes();
         setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
@@ -783,7 +783,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount]);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
@@ -2016,7 +2016,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
           } else {
             // 新しくレベルアップを開始
-            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
+            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount);
             newState.isLevelingUp = true;
             newState.levelUpOptions = options;
             newState.pendingLevelUps = levelUpCount;
