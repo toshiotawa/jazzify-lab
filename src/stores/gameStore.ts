@@ -580,10 +580,9 @@ const calculateScore = (goodCount: number, _maxCombo: number, _accuracy: number)
   return goodCount * 1000;
 };
 
-// 🚀 パフォーマンス最適化: ストア更新頻度を最適化
-// SheetMusicDisplay は rAF ループで直接読み取るため、ストア更新は UI 表示用のみ
-// 20fps（50ms間隔）でシークバーやタイマー表示に十分な更新頻度を維持
-const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 20;
+// ストアの currentTime 更新間隔（UIコンポーネント用: シークバー、タイマー表示等）
+// SheetMusicDisplay は rAF + GameEngine 直接読み取りのためストア更新に依存しない
+const CURRENT_TIME_DISPATCH_INTERVAL = 1 / 30;
 let lastCurrentTimeDispatch = 0;
 
 // ===== ストア作成 =====

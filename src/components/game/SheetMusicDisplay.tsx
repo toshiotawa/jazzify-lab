@@ -643,8 +643,14 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
 
     if (isPlaying) {
       // 再生中: requestAnimationFrame でフレームごとに直接 DOM 更新
+      // GameEngine から直接 currentTime を取得（AudioContext ベースの60fps精度）
+      // ストア経由では 20fps スロットルが掛かり、スクロールが小刻みになるため
       const scrollLoop = () => {
-        const time = useGameStore.getState().currentTime;
+        const store = useGameStore.getState();
+        const engine = store.gameEngine;
+        const time = engine
+          ? engine.getState().currentTime
+          : store.currentTime;
         applyScrollPosition(time, true);
         scrollRafRef.current = requestAnimationFrame(scrollLoop);
       };
