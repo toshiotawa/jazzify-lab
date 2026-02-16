@@ -78,6 +78,12 @@ interface VirtualStickProps {
   onDirectionChange: (keys: Set<string>) => void;
 }
 
+const THUNDER_LIGHTNING_DURATION_MS = 260;
+const MAX_THUNDER_LIGHTNING_PER_CAST = 8;
+const MAX_ACTIVE_THUNDER_LIGHTNING = 24;
+const FIRE_AURA_PROJECTILE_ERASE_BASE_RADIUS = 60;
+const FIRE_AURA_PROJECTILE_ERASE_PER_LEVEL = 8;
+
 const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
   const stickRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -1106,14 +1112,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
-              const newLightning = prev.enemies.map(enemy => ({
-                id: `lightning_${Date.now()}_${enemy.id}`,
+              const castTime = Date.now();
+              const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                id: `lightning_${castTime}_${index}_${enemy.id}`,
                 x: enemy.x,
                 y: enemy.y,
-                startTime: Date.now(),
-                duration: 500,
+                startTime: castTime,
+                duration: THUNDER_LIGHTNING_DURATION_MS,
               }));
-              setLightningEffects(le => [...le, ...newLightning]);
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
             }
           }
         } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1140,14 +1152,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
-              const newLightning = prev.enemies.map(enemy => ({
-                id: `lightning_${Date.now()}_${enemy.id}`,
+              const castTime = Date.now();
+              const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                id: `lightning_${castTime}_${index}_${enemy.id}`,
                 x: enemy.x,
                 y: enemy.y,
-                startTime: Date.now(),
-                duration: 500,
+                startTime: castTime,
+                duration: THUNDER_LIGHTNING_DURATION_MS,
               }));
-              setLightningEffects(le => [...le, ...newLightning]);
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
             }
           }
         }
@@ -1442,14 +1460,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.cSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
-          const newLightning = prev.enemies.map(enemy => ({
-            id: `lightning_${Date.now()}_${enemy.id}`,
+          const castTime = Date.now();
+          const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+            id: `lightning_${castTime}_${index}_${enemy.id}`,
             x: enemy.x,
             y: enemy.y,
-            startTime: Date.now(),
-            duration: 500,
+            startTime: castTime,
+            duration: THUNDER_LIGHTNING_DURATION_MS,
           }));
-          setLightningEffects(le => [...le, ...newLightning]);
+          setLightningEffects((effects) => {
+            const merged = [...effects, ...newLightning];
+            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+              : merged;
+          });
         }
       }
     } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1474,14 +1498,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.dSlotCooldown = getMagicCooldown(prev.player.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
-          const newLightning = prev.enemies.map(enemy => ({
-            id: `lightning_${Date.now()}_${enemy.id}`,
+          const castTime = Date.now();
+          const newLightning = prev.enemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+            id: `lightning_${castTime}_${index}_${enemy.id}`,
             x: enemy.x,
             y: enemy.y,
-            startTime: Date.now(),
-            duration: 500,
+            startTime: castTime,
+            duration: THUNDER_LIGHTNING_DURATION_MS,
           }));
-          setLightningEffects(le => [...le, ...newLightning]);
+          setLightningEffects((effects) => {
+            const merged = [...effects, ...newLightning];
+            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+              : merged;
+          });
         }
       }
     }
@@ -1646,6 +1676,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 敵の弾丸更新
         newState.enemyProjectiles = updateEnemyProjectiles(prev.enemyProjectiles, deltaTime);
+
+        // FIREの渦に触れた敵弾を消去
+        const fireStatus = newState.player.statusEffects.find((effect) => effect.type === 'fire');
+        if (fireStatus) {
+          const fireLevel = fireStatus.level ?? Math.max(1, newState.player.magics.fire);
+          const fireAuraRadius =
+            FIRE_AURA_PROJECTILE_ERASE_BASE_RADIUS +
+            Math.max(0, fireLevel - 1) * FIRE_AURA_PROJECTILE_ERASE_PER_LEVEL;
+          const fireAuraRadiusSq = fireAuraRadius * fireAuraRadius;
+          newState.enemyProjectiles = newState.enemyProjectiles.filter((proj) => {
+            const dx = proj.x - newState.player.x;
+            const dy = proj.y - newState.player.y;
+            return dx * dx + dy * dy > fireAuraRadiusSq;
+          });
+        }
         
         // 敵の弾丸とプレイヤーの当たり判定（小さめ）
         const ENEMY_PROJECTILE_HIT_RADIUS = 15;

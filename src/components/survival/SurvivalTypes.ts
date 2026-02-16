@@ -425,7 +425,7 @@ export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（�
 export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
 
 export const MAP_CONFIG: MapConfig = {
-  width: 1600,
-  height: 1200,
+  width: 4800,
+  height: 3600,
   tileSize: 32,
 };

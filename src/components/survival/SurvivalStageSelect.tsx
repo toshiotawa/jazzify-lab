@@ -215,6 +215,7 @@ interface SurvivalStageSelectProps {
 const DIFFICULTIES: SurvivalDifficulty[] = ['veryeasy', 'easy', 'normal', 'hard', 'extreme'];
 const DEFAULT_CHARACTER_SCORE_KEY = 'default';
 const HIGH_SCORE_STORAGE_KEY = 'survival_high_scores';
+const TWENTY_MINUTES_SECONDS = 20 * 60;
 type CharacterScopedHighScores = Record<string, SurvivalHighScore>;
 
 const isSurvivalDifficulty = (value: string): value is SurvivalDifficulty =>
@@ -410,8 +411,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </h1>
             <p className="text-gray-400 text-sm sm:text-base font-sans">
               {isEnglishCopy
-                ? 'Choose your character and difficulty!'
-                : 'キャラクターと難易度を選んで挑戦！'}
+                ? 'Choose your character and difficulty! Survive for 20 minutes!'
+                : 'キャラクターと難易度を選んで挑戦！20分間生き残れ！'}
             </p>
           </div>
           <button
@@ -477,15 +478,18 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
                       {characters.map((character) => {
                         const score = highScores[buildCharacterHighScoreKey(difficulty, character.id)];
+                        const hasTwentyMinuteClear = (score?.survivalTimeSeconds ?? 0) >= TWENTY_MINUTES_SECONDS;
                         return (
                           <button
                             key={`${difficulty}-${character.id}`}
                             onClick={() => handleCharacterSelect(difficulty, character)}
                             className={cn(
                               'relative rounded-xl border overflow-hidden transition-all duration-200',
-                              'hover:scale-105 hover:shadow-lg hover:shadow-purple-500/20',
+                              'hover:scale-105 hover:shadow-lg',
                               'bg-gradient-to-b from-gray-800/80 to-gray-900/80',
-                              'border-gray-600/50 hover:border-purple-400/60',
+                              hasTwentyMinuteClear
+                                ? 'border-yellow-400/90 hover:border-yellow-300 shadow-yellow-500/20'
+                                : 'border-gray-600/50 hover:border-purple-400/60 hover:shadow-purple-500/20',
                               'p-3 flex flex-col items-center gap-2 text-center'
                             )}
                           >
@@ -571,6 +575,28 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               <span className="bg-gray-700 px-2 py-1 rounded text-lg">🎹</span>
               <span>{isEnglishCopy ? 'Play chords to attack' : 'コードを演奏して攻撃'}</span>
             </div>
+          </div>
+          <div className="mt-4 border-t border-gray-700/70 pt-3 space-y-2 text-xs sm:text-sm text-gray-300 font-sans">
+            <p>
+              {isEnglishCopy
+                ? 'Status Effects: ICE freezes enemies, FIRE burns nearby targets, BUFFER/DEBUFFER strengthen or weaken combat.'
+                : 'ステータス異常: ICEは敵を凍結、FIREは周囲に継続ダメージ、BUFFER/DEBUFFERは強化・弱体化を行います。'}
+            </p>
+            <p>
+              {isEnglishCopy
+                ? 'Stats: A/B/C ATK increase ranged/melee/magic power, SPEED boosts movement, DEF reduces damage, TIME extends effect duration, RELOAD shortens magic cooldown, LUCK raises lucky effect chance.'
+                : '能力値: A/B/C ATKは遠距離/近接/魔法火力、SPEEDは移動速度、DEFは被ダメ軽減、TIMEは効果時間延長、RELOADは魔法再使用短縮、LUCKは幸運効果の発動率に影響します。'}
+            </p>
+            <p>
+              {isEnglishCopy
+                ? 'Skills: Penetration, Multi-Hit, Knockback, and conditional boosts like Haisui/Excellent tune your build.'
+                : 'スキル: 貫通・多段攻撃・ノックバックや、背水の陣/絶好調などの条件付き強化でビルドを伸ばせます。'}
+            </p>
+            <p>
+              {isEnglishCopy
+                ? 'Magic: THUNDER (lightning), ICE (freeze), FIRE (flame vortex), HEAL (recover), BUFFER/DEBUFFER, and HINT (guide support).'
+                : '魔法: THUNDER（雷）、ICE（凍結）、FIRE（炎渦）、HEAL（回復）、BUFFER/DEBUFFER、HINT（入力補助）を使えます。'}
+            </p>
           </div>
         </div>
       </div>

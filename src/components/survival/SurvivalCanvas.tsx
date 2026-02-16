@@ -123,6 +123,8 @@ const ENEMY_ICONS: Record<string, string> = {
 // ===== プレイヤーアバター画像パス =====
 const PLAYER_AVATAR_PATH = '/default_avater/default-avater.png';
 const PLAYER_SIZE = 32;  // プレイヤーの表示サイズ
+const LIGHTNING_SEGMENT_COUNT = 4;
+const LIGHTNING_SCREEN_PADDING = 120;
 
 // ===== 弾丸アイコン =====
 const PROJECTILE_ICON = '✨';
@@ -648,54 +650,51 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       const screenX = lightning.x - camera.x;
       const screenY = lightning.y - camera.y;
+
+      // 画面外エフェクトは描画しない（演出のみ軽量化）
+      if (
+        screenX < -LIGHTNING_SCREEN_PADDING ||
+        screenX > viewportWidth + LIGHTNING_SCREEN_PADDING ||
+        screenY < -LIGHTNING_SCREEN_PADDING ||
+        screenY > viewportHeight + LIGHTNING_SCREEN_PADDING
+      ) {
+        return;
+      }
       
-      // 雷の稲妻を描画（画面上端から敵位置へ）
-      ctx.globalAlpha = alpha;
-      ctx.strokeStyle = '#ffff00';
-      ctx.lineWidth = 3 + (1 - progress) * 3;
-      ctx.shadowColor = '#ffff00';
-      ctx.shadowBlur = 20;
-      
-      // ジグザグの稲妻を描画
+      // 軽量版: 本線1本のみ（分岐・ブラー・全画面フラッシュなし）
+      const startY = -20;
+      const segmentHeight = (screenY - startY) / LIGHTNING_SEGMENT_COUNT;
+      ctx.globalAlpha = alpha * 0.9;
+      ctx.strokeStyle = '#ffe066';
+      ctx.lineWidth = 2.5 - progress * 1.2;
       ctx.beginPath();
-      const startY = -50;  // 画面上端から
-      const endY = screenY;
-      const segments = 8;
-      const segmentHeight = (endY - startY) / segments;
-      
       ctx.moveTo(screenX, startY);
-      for (let i = 1; i <= segments; i++) {
-        const x = screenX + (Math.random() - 0.5) * 40 * (1 - i / segments);
+      for (let i = 1; i <= LIGHTNING_SEGMENT_COUNT; i++) {
+        const jitterBase = (LIGHTNING_SEGMENT_COUNT - i) * 4;
+        const jitter =
+          i === LIGHTNING_SEGMENT_COUNT
+            ? 0
+            : Math.sin(lightning.startTime * 0.02 + i * 1.37) * jitterBase;
+        const x = screenX + jitter;
         const y = startY + segmentHeight * i;
         ctx.lineTo(x, y);
       }
       ctx.stroke();
       
-      // 追加の細い分岐
-      if (Math.random() < 0.5) {
-        ctx.lineWidth = 1;
-        ctx.beginPath();
-        const branchY = startY + segmentHeight * Math.floor(Math.random() * 4 + 2);
-        ctx.moveTo(screenX, branchY);
-        ctx.lineTo(screenX + (Math.random() - 0.5) * 60, branchY + segmentHeight * 2);
-        ctx.stroke();
-      }
-      
-      ctx.shadowBlur = 0;
+      // 着弾点の小さな発光のみ追加
+      ctx.globalAlpha = alpha * 0.35;
+      ctx.fillStyle = '#fff3a1';
+      ctx.beginPath();
+      ctx.arc(screenX, screenY, 7 * (1 - progress * 0.4), 0, Math.PI * 2);
+      ctx.fill();
       
       // 雷アイコン
-      ctx.font = '24px sans-serif';
+      ctx.globalAlpha = alpha;
+      ctx.font = '18px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('⚡', screenX, screenY);
-      
-      // フラッシュ効果（画面全体）
-      if (progress < 0.1) {
-        ctx.globalAlpha = 0.2 * (1 - progress / 0.1);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(0, 0, viewportWidth, viewportHeight);
-      }
-      
+
       ctx.globalAlpha = 1;
     });
 
