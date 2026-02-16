@@ -165,6 +165,8 @@ const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacte
   excludedBonuses: row.excludedBonuses,
   permanentEffects: row.permanentEffects,
   noMagic: row.noMagic,
+  abColumnMagic: row.abColumnMagic,
+  bonusChoiceCount: row.bonusChoiceCount,
   hpRegenPerSecond: row.hpRegenPerSecond,
   description: row.description,
   descriptionEn: row.descriptionEn,
@@ -537,6 +539,16 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                                   {eff.type === 'hint' ? 'HINT' : eff.type === 'buffer' ? `Buffer Lv${eff.level}` : eff.type}
                                 </span>
                               ))}
+                              {character.abColumnMagic && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-900/60 text-indigo-300 font-sans">
+                                  {isEnglishCopy ? 'AB Magic' : 'AB列魔法'}
+                                </span>
+                              )}
+                              {character.bonusChoiceCount > 3 && (
+                                <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-yellow-900/60 text-yellow-300 font-sans">
+                                  {isEnglishCopy ? `${character.bonusChoiceCount} Choices` : `${character.bonusChoiceCount}択`}
+                                </span>
+                              )}
                               {character.initialSkills.autoSelect && (
                                 <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-cyan-900/60 text-cyan-300 font-sans">
                                   Auto
@@ -560,44 +572,275 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         </div>
       </div>
 
-      {/* 操作説明 */}
+      {/* ゲーム攻略ガイド */}
       <div className="px-4 sm:px-6 pb-6">
-        <div className="max-w-4xl mx-auto bg-black/40 rounded-xl p-4 border border-gray-700">
-          <h3 className="text-lg font-bold text-white mb-3 font-sans">
-            {isEnglishCopy ? 'CONTROLS' : '操作方法'}
-          </h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-sm text-gray-300 font-sans">
-            <div className="flex items-center gap-2">
-              <span className="bg-gray-700 px-2 py-1 rounded">W A S D</span>
-              <span>{isEnglishCopy ? 'Move' : '移動'}</span>
+        <div className="max-w-4xl mx-auto space-y-4">
+
+          {/* セクションタイトル */}
+          <h2 className="text-xl sm:text-2xl font-bold text-white font-sans text-center flex items-center justify-center gap-2">
+            <span className="text-yellow-400">📖</span>
+            {isEnglishCopy ? 'SURVIVAL GUIDE' : 'サバイバル攻略ガイド'}
+          </h2>
+
+          {/* 基本操作 */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-blue-500/30">
+            <h3 className="text-base font-bold text-blue-400 mb-3 font-sans flex items-center gap-2">
+              🎮 {isEnglishCopy ? 'Controls' : '基本操作'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm text-gray-300 font-sans">
+              <div className="flex items-center gap-2 bg-black/30 rounded-lg p-2">
+                <span className="bg-gray-700 px-2 py-1 rounded font-mono text-xs">W A S D</span>
+                <span>{isEnglishCopy ? 'Move your character' : 'キャラクター移動'}</span>
+              </div>
+              <div className="flex items-center gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-xl">🎹</span>
+                <span>{isEnglishCopy ? 'Play chords to attack' : 'コード演奏で攻撃発動'}</span>
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="bg-gray-700 px-2 py-1 rounded text-lg">🎹</span>
-              <span>{isEnglishCopy ? 'Play chords to attack' : 'コードを演奏して攻撃'}</span>
-            </div>
-          </div>
-          <div className="mt-4 border-t border-gray-700/70 pt-3 space-y-2 text-xs sm:text-sm text-gray-300 font-sans">
-            <p>
+            <p className="mt-2 text-xs text-gray-400 font-sans">
               {isEnglishCopy
-                ? 'Status Effects: ICE freezes enemies, FIRE burns nearby targets, BUFFER/DEBUFFER strengthen or weaken combat.'
-                : 'ステータス異常: ICEは敵を凍結、FIREは周囲に継続ダメージ、BUFFER/DEBUFFERは強化・弱体化を行います。'}
-            </p>
-            <p>
-              {isEnglishCopy
-                ? 'Stats: A/B/C ATK increase ranged/melee/magic power, SPEED boosts movement, DEF reduces damage, TIME extends effect duration, RELOAD shortens magic cooldown, LUCK raises lucky effect chance.'
-                : '能力値: A/B/C ATKは遠距離/近接/魔法火力、SPEEDは移動速度、DEFは被ダメ軽減、TIMEは効果時間延長、RELOADは魔法再使用短縮、LUCKは幸運効果の発動率に影響します。'}
-            </p>
-            <p>
-              {isEnglishCopy
-                ? 'Skills: Penetration, Multi-Hit, Knockback, and conditional boosts like Haisui/Excellent tune your build.'
-                : 'スキル: 貫通・多段攻撃・ノックバックや、背水の陣/絶好調などの条件付き強化でビルドを伸ばせます。'}
-            </p>
-            <p>
-              {isEnglishCopy
-                ? 'Magic: THUNDER (lightning), ICE (freeze), FIRE (flame vortex), HEAL (recover), BUFFER/DEBUFFER, and HINT (guide support).'
-                : '魔法: THUNDER（雷）、ICE（凍結）、FIRE（炎渦）、HEAL（回復）、BUFFER/DEBUFFER、HINT（入力補助）を使えます。'}
+                ? 'Complete a chord shown in a slot (A/B/C/D) to trigger its skill. Each slot has a 10-second timer - unfinished chords reset automatically.'
+                : '画面下のスロット（A/B/C/D列）に表示されたコードの構成音をすべて弾くとスキルが発動します。各スロットには10秒のタイマーがあり、時間切れで自動リセットされます。'}
             </p>
           </div>
+
+          {/* WAVEシステム */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-red-500/30">
+            <h3 className="text-base font-bold text-red-400 mb-3 font-sans flex items-center gap-2">
+              🌊 {isEnglishCopy ? 'WAVE System' : 'WAVEシステム'}
+            </h3>
+            <div className="space-y-2 text-sm text-gray-300 font-sans">
+              <div className="grid grid-cols-2 gap-2">
+                <div className="bg-black/30 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-red-400">2:00</div>
+                  <div className="text-xs text-gray-500">{isEnglishCopy ? 'Time per WAVE' : '1WAVEの制限時間'}</div>
+                </div>
+                <div className="bg-black/30 rounded-lg p-2 text-center">
+                  <div className="text-lg font-bold text-red-400">20</div>
+                  <div className="text-xs text-gray-500">{isEnglishCopy ? 'Kill quota per WAVE' : '1WAVEの撃破ノルマ'}</div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                {isEnglishCopy
+                  ? 'Each WAVE lasts 2 minutes. You must defeat 20 enemies within the time limit. Failure to meet the quota results in Game Over. Enemies get stronger each WAVE.'
+                  : '各WAVEは2分間。制限時間内に20体の敵を撃破するとノルマ達成です。ノルマ未達成でゲームオーバー。WAVEが進むごとに敵が強くなります。'}
+              </p>
+            </div>
+          </div>
+
+          {/* 4スロットシステム */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-purple-500/30">
+            <h3 className="text-base font-bold text-purple-400 mb-3 font-sans flex items-center gap-2">
+              🎵 {isEnglishCopy ? 'Slot System (A/B/C/D)' : 'スロットシステム（A/B/C/D列）'}
+            </h3>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-sans">
+              <div className="bg-blue-900/30 rounded-lg p-2 border border-blue-500/20">
+                <div className="font-bold text-blue-400 mb-1">🔫 A列</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Ranged shots' : '遠距離弾'}</div>
+                <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Clockwise bullets' : '時計方向に弾を発射'}</div>
+              </div>
+              <div className="bg-orange-900/30 rounded-lg p-2 border border-orange-500/20">
+                <div className="font-bold text-orange-400 mb-1">👊 B列</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Melee attack' : '近接攻撃'}</div>
+                <div className="text-gray-500 mt-1">{isEnglishCopy ? 'AoE + knockback' : '範囲攻撃＋ノックバック'}</div>
+              </div>
+              <div className="bg-purple-900/30 rounded-lg p-2 border border-purple-500/20">
+                <div className="font-bold text-purple-400 mb-1">🪄 C列</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Magic (unlockable)' : '魔法（解放制）'}</div>
+                <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Random magic' : 'ランダム魔法発動'}</div>
+              </div>
+              <div className="bg-pink-900/30 rounded-lg p-2 border border-pink-500/20">
+                <div className="font-bold text-pink-400 mb-1">✨ D列</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Magic (unlockable)' : '魔法（解放制）'}</div>
+                <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Random magic' : 'ランダム魔法発動'}</div>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-gray-400 font-sans">
+              {isEnglishCopy
+                ? 'C/D slots unlock when you acquire magic skills via level-up. Some characters convert A/B slots to magic too.'
+                : 'C/D列はレベルアップで魔法を取得すると解放されます。キャラクターによってはA/B列も魔法化されます。魔法スロットにはクールダウンがあります（基本10秒、RELOAD値で短縮）。'}
+            </p>
+          </div>
+
+          {/* 能力値の詳細 */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-green-500/30">
+            <h3 className="text-base font-bold text-green-400 mb-3 font-sans flex items-center gap-2">
+              📊 {isEnglishCopy ? 'Stats Details' : '能力値の詳細'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans">
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-blue-400 font-bold min-w-[80px]">A ATK</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 ranged damage' : '+1ごとに遠距離ダメージ+10'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-orange-400 font-bold min-w-[80px]">B ATK</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 melee damage' : '+1ごとに近接ダメージ+10'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-purple-400 font-bold min-w-[80px]">C ATK</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 magic damage, boosts Buffer/Debuffer' : '+1ごとに魔法ダメージ+10。バフ・デバフ効果も強化'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-green-400 font-bold min-w-[80px]">SPEED</span>
+                <span className="text-gray-300">{isEnglishCopy ? 'Movement speed' : '移動速度。高いほど敵を避けやすい'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-gray-300 font-bold min-w-[80px]">DEF</span>
+                <span className="text-gray-300">{isEnglishCopy ? 'Reduces incoming damage' : '被ダメージ軽減（DEF×0.5を減算）'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-cyan-400 font-bold min-w-[80px]">TIME</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +2sec effect duration' : '+1ごとに魔法効果時間+2秒'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-yellow-400 font-bold min-w-[80px]">RELOAD</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = -1sec cooldown (min 5sec)' : '+1ごとにクールダウン-1秒（最短5秒）'}</span>
+              </div>
+              <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
+                <span className="text-emerald-400 font-bold min-w-[80px]">LUCK</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +1% lucky chance (base 10%, max 50%)' : '+1ごとに幸運率+1%（基本10%、最大50%）'}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* 運（LUCK）の詳細 */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-emerald-500/30">
+            <h3 className="text-base font-bold text-emerald-400 mb-3 font-sans flex items-center gap-2">
+              🍀 {isEnglishCopy ? 'Luck System' : '幸運（LUCK）システム'}
+            </h3>
+            <p className="text-xs text-gray-400 font-sans mb-2">
+              {isEnglishCopy
+                ? 'Each action has a chance to trigger a Lucky effect. Base 10% + LUCK × 1% (capped at 50% with LUCK 40).'
+                : '攻撃や魔法発動時に一定確率で「幸運」が発動します。基本確率10%＋LUCK値×1%（LUCK 40で最大50%）。'}
+            </p>
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-sans">
+              <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
+                <div className="text-emerald-400 font-bold">x2</div>
+                <div className="text-gray-400">{isEnglishCopy ? 'Damage' : 'ダメージ2倍'}</div>
+              </div>
+              <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
+                <div className="text-emerald-400 font-bold">0</div>
+                <div className="text-gray-400">{isEnglishCopy ? 'No damage taken' : '被ダメージ0'}</div>
+              </div>
+              <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
+                <div className="text-emerald-400 font-bold">x1/3</div>
+                <div className="text-gray-400">{isEnglishCopy ? 'Reload time' : '魔法リロード1/3'}</div>
+              </div>
+              <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
+                <div className="text-emerald-400 font-bold">x2</div>
+                <div className="text-gray-400">{isEnglishCopy ? 'Effect duration' : '効果時間2倍'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 魔法スキル */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-indigo-500/30">
+            <h3 className="text-base font-bold text-indigo-400 mb-3 font-sans flex items-center gap-2">
+              🪄 {isEnglishCopy ? 'Magic Skills' : '魔法スキル詳細'}
+            </h3>
+            <p className="text-xs text-gray-400 font-sans mb-2">
+              {isEnglishCopy
+                ? 'Magic can be leveled up to Lv3. Higher levels increase damage/effects and base duration (5/10/15 sec). TIME stat adds +2 sec per point.'
+                : '魔法はLv3まで強化可能。レベルが上がると基礎効果時間が延長（5→10→15秒）し、ダメージや効果が増加します。TIME値は+1につき効果時間+2秒。'}
+            </p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans">
+              <div className="bg-yellow-900/20 rounded-lg p-2 border border-yellow-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>⚡</span><span className="font-bold text-yellow-400">THUNDER</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Hits ALL enemies. Damage: 30/50/70 + C ATK' : '全敵にダメージ。威力: 30/50/70＋C ATKボーナス'}</div>
+              </div>
+              <div className="bg-cyan-900/20 rounded-lg p-2 border border-cyan-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>❄️</span><span className="font-bold text-cyan-400">ICE</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Freezes all enemies. Duration scales with level' : '全敵を凍結。効果時間はレベルとTIMEで延長'}</div>
+              </div>
+              <div className="bg-red-900/20 rounded-lg p-2 border border-red-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>🔥</span><span className="font-bold text-red-400">FIRE</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Flame vortex around you. AoE: 130/160/190px. Damage: 25/40/55 + C ATK' : '周囲に炎の渦。範囲: 130/160/190px。威力: 25/40/55＋C ATK'}</div>
+              </div>
+              <div className="bg-green-900/20 rounded-lg p-2 border border-green-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>💚</span><span className="font-bold text-green-400">HEAL</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Recover HP. Amount: 30/40/50% of max HP' : 'HP回復。回復量: 最大HPの30/40/50%'}</div>
+              </div>
+              <div className="bg-blue-900/20 rounded-lg p-2 border border-blue-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>⬆️</span><span className="font-bold text-blue-400">BUFFER</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Damage multiplier: 1.5x/2.0x/2.5x + C ATK bonus' : '攻撃倍率: 1.5/2.0/2.5倍＋C ATK×0.03加算'}</div>
+              </div>
+              <div className="bg-violet-900/20 rounded-lg p-2 border border-violet-500/20">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>⬇️</span><span className="font-bold text-violet-400">DEBUFFER</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Reduce enemy DEF & boost damage: Lv1: DEF 50%, 1.3x / Lv3: DEF 10%, 1.9x' : '敵DEF低下＋ダメージ増加。Lv1: DEF50%/1.3倍 → Lv3: DEF10%/1.9倍'}</div>
+              </div>
+              <div className="bg-amber-900/20 rounded-lg p-2 border border-amber-500/20 sm:col-span-2">
+                <div className="flex items-center gap-1 mb-1">
+                  <span>💡</span><span className="font-bold text-amber-400">HINT</span>
+                </div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Shows chord notes on keyboard. Highlights the current slot\'s composition notes.' : 'コードの構成音を鍵盤上にハイライト表示。入力中のスロットの構成音がわかるようになります。'}</div>
+              </div>
+            </div>
+          </div>
+
+          {/* 条件付きスキル */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-amber-500/30">
+            <h3 className="text-base font-bold text-amber-400 mb-3 font-sans flex items-center gap-2">
+              ⚔️ {isEnglishCopy ? 'Conditional Skills' : '条件付きスキル'}
+            </h3>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs font-sans">
+              <div className="bg-red-900/20 rounded-lg p-3 border border-red-500/20">
+                <div className="flex items-center gap-1 mb-2">
+                  <span>🩸</span><span className="font-bold text-red-400">{isEnglishCopy ? 'Haisui no Jin' : '背水の陣'}</span>
+                </div>
+                <div className="text-gray-400 mb-1">{isEnglishCopy ? 'Trigger: HP ≤ 15%' : '発動条件: HP 15%以下'}</div>
+                <ul className="text-gray-300 space-y-0.5 list-disc list-inside">
+                  <li>{isEnglishCopy ? 'ATK x2.0' : 'ABC攻撃力 2.0倍'}</li>
+                  <li>{isEnglishCopy ? 'SPEED +10' : 'SPEED +10'}</li>
+                  <li>{isEnglishCopy ? 'RELOAD x0.5' : 'リロード半減'}</li>
+                  <li>{isEnglishCopy ? 'TIME x2' : '効果時間2倍'}</li>
+                  <li className="text-red-400">{isEnglishCopy ? 'DEF = 0' : 'DEF 0（防御なし）'}</li>
+                </ul>
+              </div>
+              <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-500/20">
+                <div className="flex items-center gap-1 mb-2">
+                  <span>😊</span><span className="font-bold text-yellow-400">{isEnglishCopy ? 'Peak Condition' : '絶好調'}</span>
+                </div>
+                <div className="text-gray-400 mb-1">{isEnglishCopy ? 'Trigger: HP = MAX' : '発動条件: HP満タン'}</div>
+                <ul className="text-gray-300 space-y-0.5 list-disc list-inside">
+                  <li>{isEnglishCopy ? 'ATK x1.3' : 'ABC攻撃力 1.3倍'}</li>
+                  <li>{isEnglishCopy ? 'TIME x2' : '効果時間2倍'}</li>
+                  <li>{isEnglishCopy ? 'RELOAD x0.5' : 'リロード半減'}</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          {/* レベルアップ */}
+          <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-yellow-500/30">
+            <h3 className="text-base font-bold text-yellow-400 mb-3 font-sans flex items-center gap-2">
+              ⭐ {isEnglishCopy ? 'Level Up' : 'レベルアップ'}
+            </h3>
+            <div className="space-y-2 text-xs text-gray-300 font-sans">
+              <p>
+                {isEnglishCopy
+                  ? 'Defeat enemies to drop EXP coins. Collect them to level up. Each level-up lets you choose a bonus from 3 options (some characters get 5 options). Play the shown chord to select. 10-second time limit - no pick = no bonus.'
+                  : '敵を倒すとEXPコインが出現。拾うと経験値が溜まりレベルアップします。レベルアップ時に3つ（キャラによっては5つ）のボーナスから1つ選択できます。表示されたコードを演奏して選択。10秒で時間切れ（ボーナスなし）。'}
+              </p>
+              <p>
+                {isEnglishCopy
+                  ? 'Every 10 levels, character-specific bonuses are automatically applied. Build your stats and skills strategically!'
+                  : 'レベル10ごとにキャラクター固有のボーナスが自動付与されます。ステータスとスキルを戦略的に育てましょう！'}
+              </p>
+            </div>
+          </div>
+
         </div>
       </div>
 

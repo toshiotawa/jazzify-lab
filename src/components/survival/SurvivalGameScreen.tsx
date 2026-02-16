@@ -334,9 +334,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
   // レベルアップ時の正解ノートをrefで管理（setGameState内から最新値を参照するため）
-  const levelUpCorrectNotesRef = useRef<number[][]>([[], [], []]);
+  const emptyCorrectNotes = () => Array.from({ length: charBonusChoiceCount }, () => [] as number[]);
+  const levelUpCorrectNotesRef = useRef<number[][]>(emptyCorrectNotes());
   // UIの再レンダリング用のステート（refと同期）
-  const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>([[], [], []]);
+  const [levelUpCorrectNotes, setLevelUpCorrectNotes] = useState<number[][]>(emptyCorrectNotes());
   
   // 衝撃波エフェクト
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
@@ -703,7 +704,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // キャラクター固有のボーナス除外リストとnoMagicフラグ
   const charExcludedBonuses = character?.excludedBonuses;
   const charNoMagic = character?.noMagic;
+  const charBonusChoiceCount = character?.bonusChoiceCount ?? 3;
   const isLiraMagicMode = character?.name === 'リラ' || character?.nameEn === 'Lira';
+  const isAbColumnMagicMode = character?.abColumnMagic ?? false;
+  const isAMagicSlot = isAbColumnMagicMode;
+  const isBMagicSlot = isLiraMagicMode || isAbColumnMagicMode;
 
   // レベルアップボーナス選択処理
   const handleLevelUpBonusSelect = useCallback((option: LevelUpBonus) => {
@@ -726,9 +731,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       };
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords, charExcludedBonuses, charNoMagic);
-        levelUpCorrectNotesRef.current = [[], [], []];
-        setLevelUpCorrectNotes([[], [], []]);
+        const newOptions = generateLevelUpOptions(newPlayer, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
+        levelUpCorrectNotesRef.current = emptyCorrectNotes();
+        setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
           ...gs,
           player: newPlayer,
@@ -737,8 +742,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           codeSlots: newCodeSlots,
         };
       } else {
-        levelUpCorrectNotesRef.current = [[], [], []];
-        setLevelUpCorrectNotes([[], [], []]);
+        levelUpCorrectNotesRef.current = emptyCorrectNotes();
+        setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
           ...gs,
           player: newPlayer,
@@ -749,7 +754,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount]);
   
   // レベルアップタイムアウト処理
   const handleLevelUpTimeout = useCallback(() => {
@@ -759,17 +764,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
       if (newPendingLevelUps > 0) {
-        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords, charExcludedBonuses, charNoMagic);
-        levelUpCorrectNotesRef.current = [[], [], []];
-        setLevelUpCorrectNotes([[], [], []]);
+        const newOptions = generateLevelUpOptions(gs.player, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
+        levelUpCorrectNotesRef.current = emptyCorrectNotes();
+        setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
           ...gs,
           pendingLevelUps: newPendingLevelUps,
           levelUpOptions: newOptions,
         };
       } else {
-        levelUpCorrectNotesRef.current = [[], [], []];
-        setLevelUpCorrectNotes([[], [], []]);
+        levelUpCorrectNotesRef.current = emptyCorrectNotes();
+        setLevelUpCorrectNotes(emptyCorrectNotes());
         return {
           ...gs,
           pendingLevelUps: 0,
@@ -778,7 +783,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic]);
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount]);
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
@@ -829,8 +834,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
         
-        // リラ時のB列、およびC/D列はクールダウンをチェック（それぞれ独立）
-        if (index === 1 && isLiraMagicMode && prev.bSlotCooldown > 0) return slot;
+        // 魔法スロットのクールダウンをチェック（A/B/C/Dで独立）
+        if (index === 0 && isAMagicSlot && prev.aSlotCooldown > 0) return slot;
+        if (index === 1 && isBMagicSlot && prev.bSlotCooldown > 0) return slot;
         if (index === 2 && prev.cSlotCooldown > 0) return slot;
         if (index === 3 && prev.dSlotCooldown > 0) return slot;
         
@@ -869,18 +875,60 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 攻撃処理
         if (slotType === 'A') {
-          // 遠距離弾発射 - 時計方向システム
-          const bulletCount = prev.player.stats.aBulletCount || 1;
-          const baseAngle = getDirectionAngle(prev.player.direction);
-          const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-          
-          // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
-          const newProjectiles = bulletAngles.map((angle) => {
-            return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
-          });
-          newState.projectiles = [...prev.projectiles, ...newProjectiles];
+          if (isAMagicSlot) {
+            // A列魔法モード: ランダム魔法発動
+            const availableMagics = Object.entries(prev.player.magics)
+              .filter(([_, level]) => level > 0);
+            
+            if (availableMagics.length > 0 && prev.aSlotCooldown <= 0) {
+              const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+              const castPlayer = newState.player;
+              const castEnemies = newState.enemies;
+              const result = castMagic(
+                magicType as Parameters<typeof castMagic>[0],
+                level,
+                castPlayer,
+                castEnemies
+              );
+              
+              newState.enemies = result.enemies;
+              newState.player = result.player;
+              newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+              const condMultipliers = getConditionalSkillMultipliers(castPlayer);
+              const luckReloadMultiplier = result.luckResult?.reloadReduction ? (1 / 3) : 1;
+              newState.aSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
+              
+              if (magicType === 'thunder') {
+                const castTime = Date.now();
+                const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                  id: `lightning_${castTime}_${index}_${enemy.id}`,
+                  x: enemy.x,
+                  y: enemy.y,
+                  startTime: castTime,
+                  duration: THUNDER_LIGHTNING_DURATION_MS,
+                }));
+                setLightningEffects((effects) => {
+                  const merged = [...effects, ...newLightning];
+                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                    : merged;
+                });
+              }
+            }
+          } else {
+            // 遠距離弾発射 - 時計方向システム
+            const bulletCount = prev.player.stats.aBulletCount || 1;
+            const baseAngle = getDirectionAngle(prev.player.direction);
+            const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
+            
+            // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+            const newProjectiles = bulletAngles.map((angle) => {
+              return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
+            });
+            newState.projectiles = [...prev.projectiles, ...newProjectiles];
+          }
         } else if (slotType === 'B') {
-          if (isLiraMagicMode) {
+          if (isBMagicSlot) {
             const availableMagics = Object.entries(prev.player.magics)
               .filter(([_, level]) => level > 0);
             
@@ -1236,7 +1284,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isLiraMagicMode]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -1257,19 +1305,61 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // 攻撃処理
       if (slotType === 'A') {
-        // 遠距離弾発射 - 時計方向システム
-        const bulletCount = prev.player.stats.aBulletCount || 1;
-        const baseAngle = getDirectionAngle(prev.player.direction);
-        const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
-        
-        // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
-        const newProjectiles = bulletAngles.map((angle) => {
-          return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
-        });
-        newState.projectiles = [...prev.projectiles, ...newProjectiles];
+        if (isAMagicSlot) {
+          // A列魔法モード: ランダム魔法発動（タップ）
+          const availableMagics = Object.entries(prev.player.magics)
+            .filter(([_, level]) => level > 0);
+          
+          if (availableMagics.length > 0 && prev.aSlotCooldown <= 0) {
+            const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
+            const castPlayer = newState.player;
+            const castEnemies = newState.enemies;
+            const result = castMagic(
+              magicType as Parameters<typeof castMagic>[0],
+              level,
+              castPlayer,
+              castEnemies
+            );
+            
+            newState.enemies = result.enemies;
+            newState.player = result.player;
+            newState.damageTexts = [...newState.damageTexts, ...result.damageTexts];
+            const condMultipliersTap = getConditionalSkillMultipliers(castPlayer);
+            const luckReloadMultiplierTap = result.luckResult?.reloadReduction ? (1 / 3) : 1;
+            newState.aSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
+            
+            if (magicType === 'thunder') {
+              const castTime = Date.now();
+              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
+                id: `lightning_${castTime}_${index}_${enemy.id}`,
+                x: enemy.x,
+                y: enemy.y,
+                startTime: castTime,
+                duration: THUNDER_LIGHTNING_DURATION_MS,
+              }));
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
+            }
+          }
+        } else {
+          // 遠距離弾発射 - 時計方向システム
+          const bulletCount = prev.player.stats.aBulletCount || 1;
+          const baseAngle = getDirectionAngle(prev.player.direction);
+          const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
+          
+          // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
+          const newProjectiles = bulletAngles.map((angle) => {
+            return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
+          });
+          newState.projectiles = [...prev.projectiles, ...newProjectiles];
+        }
       
     } else if (slotType === 'B') {
-      if (isLiraMagicMode) {
+      if (isBMagicSlot) {
         const availableMagics = Object.entries(prev.player.magics)
           .filter(([_, level]) => level > 0);
         
@@ -1590,7 +1680,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return newState;
   });
-}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isLiraMagicMode]);
+}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isAMagicSlot, isBMagicSlot]);
   
   // ゲームループ
   // 注意: isLevelingUp中もゲームは継続（一時停止しない）
@@ -1926,11 +2016,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.pendingLevelUps = newState.pendingLevelUps + levelUpCount;
           } else {
             // 新しくレベルアップを開始
-            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords, charExcludedBonuses, charNoMagic);
+            const options = generateLevelUpOptions(playerAfterCoins, config.allowedChords, charExcludedBonuses, charNoMagic, charBonusChoiceCount);
             newState.isLevelingUp = true;
             newState.levelUpOptions = options;
             newState.pendingLevelUps = levelUpCount;
-            setLevelUpCorrectNotes([[], [], []]);
+            setLevelUpCorrectNotes(emptyCorrectNotes());
           }
         }
         
@@ -2050,7 +2140,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return { ...slot, timer: newTimer };
         }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
-        // 魔法クールダウン更新（リラ時B列、およびC/D列で独立）
+        // 魔法クールダウン更新（A/B/C/D列で独立）
+        if (newState.aSlotCooldown > 0) {
+          newState.aSlotCooldown = Math.max(0, newState.aSlotCooldown - deltaTime);
+        }
         if (newState.bSlotCooldown > 0) {
           newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
         }
@@ -2199,7 +2292,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setShockwaves([]);
     setLightningEffects([]);
     setSkillNotifications([]);
-    setLevelUpCorrectNotes([[], [], []]);
+    setLevelUpCorrectNotes(emptyCorrectNotes());
     const initial = createInitialGameState(difficulty, config);
     // キャラクター能力を再適用
     if (character) {
@@ -2314,7 +2407,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     // 有効で未完了のスロットを収集（A=0, B=1のみ、C=2は除外）
     const availableSlots: number[] = [];
     for (let i = 0; i < 2; i++) {  // A列とB列のみ（C列は除外）
-      if (isLiraMagicMode && i === 1 && gameState.bSlotCooldown > 0) {
+      if (isAMagicSlot && i === 0 && gameState.aSlotCooldown > 0) {
+        continue;
+      }
+      if (isBMagicSlot && i === 1 && gameState.bSlotCooldown > 0) {
         continue;
       }
       if (gameState.codeSlots.current[i].isEnabled && !gameState.codeSlots.current[i].isCompleted) {
@@ -2683,11 +2779,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           currentSlots={gameState.codeSlots.current}
           nextSlots={gameState.codeSlots.next}
           hintSlotIndex={getHintSlotIndex()}
+          aSlotCooldown={gameState.aSlotCooldown}
           bSlotCooldown={gameState.bSlotCooldown}
           cSlotCooldown={gameState.cSlotCooldown}
           dSlotCooldown={gameState.dSlotCooldown}
           hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
-          isLiraMagicMode={isLiraMagicMode}
+          isAMagicSlot={isAMagicSlot}
+          isBMagicSlot={isBMagicSlot}
         />
       </div>
       

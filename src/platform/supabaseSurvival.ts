@@ -289,6 +289,8 @@ export interface SurvivalCharacterRow {
   excludedBonuses: string[];
   permanentEffects: Array<{ type: string; level: number }>;
   noMagic: boolean;
+  abColumnMagic: boolean;
+  bonusChoiceCount: number;
   hpRegenPerSecond: number;
   description: string | null;
   descriptionEn: string | null;
@@ -341,6 +343,8 @@ function convertCharacter(row: Record<string, unknown>): SurvivalCharacterRow {
     excludedBonuses: (row.excluded_bonuses as string[]) || [],
     permanentEffects: (row.permanent_effects as Array<{ type: string; level: number }>) || [],
     noMagic: Boolean(row.no_magic),
+    abColumnMagic: Boolean(row.ab_column_magic),
+    bonusChoiceCount: Number(row.bonus_choice_count) || 3,
     hpRegenPerSecond: Number(row.hp_regen_per_second) || 0,
     description: (row.description as string) || null,
     descriptionEn: (row.description_en as string) || null,

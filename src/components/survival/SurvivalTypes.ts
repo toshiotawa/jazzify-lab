@@ -330,7 +330,8 @@ export interface SurvivalGameState {
     next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
   };
   
-  // 魔法クールダウン（B/C/Dで独立）
+  // 魔法クールダウン（A/B/C/Dで独立）
+  aSlotCooldown: number;     // A列の残りクールダウン（秒）
   bSlotCooldown: number;     // B列の残りクールダウン（秒）
   cSlotCooldown: number;     // C列の残りクールダウン（秒）
   dSlotCooldown: number;     // D列の残りクールダウン（秒）
@@ -415,6 +416,8 @@ export interface SurvivalCharacter {
   excludedBonuses: string[];          // BonusType[] に相当
   permanentEffects: CharacterPermanentEffect[];
   noMagic: boolean;
+  abColumnMagic: boolean;       // AB列を魔法スロット化
+  bonusChoiceCount: number;     // レベルアップ時の選択肢数（デフォルト3）
   hpRegenPerSecond: number;
   description: string | null;
   descriptionEn: string | null;

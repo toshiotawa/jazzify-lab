@@ -267,6 +267,7 @@ export const createInitialGameState = (
       createEmptyCodeSlot('D'),
     ],
   },
+  aSlotCooldown: 0,
   bSlotCooldown: 0,
   cSlotCooldown: 0,
   dSlotCooldown: 0,
@@ -1039,13 +1040,14 @@ export const generateLevelUpOptions = (
   player: PlayerState,
   allowedChords: string[],
   excludedBonuses?: string[],
-  noMagic?: boolean
+  noMagic?: boolean,
+  choiceCount: number = 3
 ): LevelUpBonus[] => {
   const available = getAvailableBonuses(player, excludedBonuses, noMagic);
   
-  // ランダムに3つ選択
+  // ランダムにchoiceCount個選択
   const shuffled = [...available].sort(() => Math.random() - 0.5);
-  const selected = shuffled.slice(0, 3);
+  const selected = shuffled.slice(0, choiceCount);
   
   // コードを割り当て（重複しないように）
   const usedChordIds: string[] = [];
@@ -1063,8 +1065,8 @@ export const generateLevelUpOptions = (
     }
   }
   
-  // 有効なオプションが3つ未満の場合、重複を許可して再試行
-  while (result.length < 3 && result.length < selected.length) {
+  // 有効なオプションがchoiceCount未満の場合、重複を許可して再試行
+  while (result.length < choiceCount && result.length < selected.length) {
     const remainingBonuses = selected.filter(b => !result.some(r => r.type === b.type));
     if (remainingBonuses.length === 0) break;
     

@@ -173,12 +173,12 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/90 backdrop-blur-sm overflow-y-auto">
-      <div className="max-w-2xl w-full mx-4 my-8 p-6 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-red-500 shadow-2xl">
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/90 backdrop-blur-sm overflow-y-auto py-4">
+      <div className="max-w-2xl w-full mx-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-red-500 shadow-2xl">
         {/* ヘッダー */}
-        <div className="text-center mb-6">
-          <div className="text-6xl mb-4">💀</div>
-          <div className="text-4xl font-bold text-red-500 font-sans mb-2">
+        <div className="text-center mb-3">
+          <div className="text-4xl mb-2">💀</div>
+          <div className="text-3xl font-bold text-red-500 font-sans mb-1">
             GAME OVER
           </div>
           
@@ -218,43 +218,43 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         </div>
         
         {/* メイン結果 */}
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">⏱️</div>
-            <div className="text-2xl font-bold text-white font-sans">
+        <div className="grid grid-cols-3 gap-3 mb-4">
+          <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
+            <div className="text-2xl mb-1">⏱️</div>
+            <div className="text-xl font-bold text-white font-sans">
               {formatTime(result.survivalTime)}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] text-gray-400">
               {isEnglishCopy ? 'Survival Time' : '生存時間'}
             </div>
           </div>
           
-          <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">⭐</div>
-            <div className="text-2xl font-bold text-yellow-400 font-sans">
+          <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
+            <div className="text-2xl mb-1">⭐</div>
+            <div className="text-xl font-bold text-yellow-400 font-sans">
               Lv.{result.finalLevel}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] text-gray-400">
               {isEnglishCopy ? 'Final Level' : '最終レベル'}
             </div>
           </div>
           
-          <div className="bg-black/40 rounded-xl p-4 text-center border border-gray-700">
-            <div className="text-3xl mb-2">💀</div>
-            <div className="text-2xl font-bold text-red-400 font-sans">
+          <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
+            <div className="text-2xl mb-1">💀</div>
+            <div className="text-xl font-bold text-red-400 font-sans">
               {result.enemiesDefeated}
             </div>
-            <div className="text-xs text-gray-400">
+            <div className="text-[10px] text-gray-400">
               {isEnglishCopy ? 'Enemies Defeated' : '撃破数'}
             </div>
           </div>
         </div>
         
         {/* ステータスカード */}
-        <div className="grid grid-cols-2 gap-4 mb-6">
+        <div className="grid grid-cols-2 gap-3 mb-4">
           {/* 最終ステータス */}
-          <div className="bg-black/40 rounded-xl p-4 border border-gray-700">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
+          <div className="bg-black/40 rounded-xl p-3 border border-gray-700">
+            <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
               📊 {isEnglishCopy ? 'Final Stats' : '最終ステータス'}
             </div>
             <div className="grid grid-cols-2 gap-2 text-sm font-sans">
@@ -286,8 +286,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           </div>
           
           {/* 取得スキル */}
-          <div className="bg-black/40 rounded-xl p-4 border border-gray-700">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
+          <div className="bg-black/40 rounded-xl p-3 border border-gray-700">
+            <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
               ⚡ {isEnglishCopy ? 'Acquired Skills' : '取得スキル'}
             </div>
             {acquiredSkills.length > 0 ? (
@@ -309,8 +309,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         
         {/* 取得魔法 */}
         {acquiredMagics.length > 0 && (
-          <div className="bg-black/40 rounded-xl p-4 border border-gray-700 mb-6">
-            <div className="text-sm font-bold text-gray-300 mb-3 font-sans">
+          <div className="bg-black/40 rounded-xl p-3 border border-gray-700 mb-4">
+            <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
               🪄 {isEnglishCopy ? 'Acquired Magic' : '取得魔法'}
             </div>
             <div className="flex flex-wrap gap-3">
@@ -329,7 +329,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         )}
         
         {/* 獲得経験値 */}
-        <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 rounded-xl p-4 border border-yellow-500/30 mb-6">
+        <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 rounded-xl p-3 border border-yellow-500/30 mb-4">
           <div className="flex items-center justify-between">
             <div className="text-sm text-yellow-300 font-sans">
               ✨ {isEnglishCopy ? 'Earned XP' : '獲得経験値'}
@@ -346,14 +346,14 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         </div>
         
         {/* アクションボタン */}
-        <div className="flex flex-col gap-3">
+        <div className="flex flex-col gap-2">
           <button
             onClick={onRetry}
-            className="w-full py-3 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-lg font-sans transition-colors"
+            className="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-base font-sans transition-colors"
           >
             {isEnglishCopy ? 'RETRY' : 'リトライ'}
           </button>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             <button
               onClick={onBackToSelect}
               className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"

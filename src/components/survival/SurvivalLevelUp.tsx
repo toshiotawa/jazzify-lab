@@ -152,7 +152,10 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
 
   return (
     <div className="fixed bottom-[140px] left-1/2 -translate-x-1/2 z-40 pointer-events-none">
-      <div className="max-w-3xl w-full mx-4 p-3 bg-black/70 backdrop-blur-sm rounded-xl border border-yellow-500/50 pointer-events-auto">
+      <div className={cn(
+        'w-full mx-4 p-3 bg-black/70 backdrop-blur-sm rounded-xl border border-yellow-500/50 pointer-events-auto',
+        options.length > 3 ? 'max-w-4xl' : 'max-w-3xl'
+      )}>
         {/* ヘッダー - コンパクト */}
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-2">
@@ -182,13 +185,17 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
           </div>
         </div>
         
-        {/* 選択肢 - 横並びコンパクト */}
-        <div className="flex gap-2">
+        {/* 選択肢 - 横並びコンパクト（5つ以上にも対応） */}
+        <div className={cn(
+          'flex gap-2',
+          options.length > 3 && 'gap-1'
+        )}>
           {options.map((option, index) => {
             const progress = getProgress(index);
             const isComplete = progress >= 100;
             const hasValidChord = option?.chord?.notes != null;
             const isSelected = selectedBonus?.type === option.type;
+            const isCompact = options.length > 3;
             
             return (
               <div
@@ -202,7 +209,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                   }
                 }}
                 className={cn(
-                  'relative flex-1 p-2 rounded-lg border transition-all',
+                  'relative flex-1 rounded-lg border transition-all',
+                  isCompact ? 'p-1.5' : 'p-2',
                   'bg-gradient-to-br from-gray-700/80 to-gray-800/80',
                   isComplete || isSelected
                     ? 'border-yellow-400 shadow-lg shadow-yellow-500/20'
@@ -213,10 +221,14 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 )}
               >
                 {/* アイコンと名前 */}
-                <div className="flex items-center gap-2 mb-1">
-                  <span className="text-xl">{option.icon}</span>
+                <div className={cn(
+                  'flex items-center gap-1 mb-1',
+                  isCompact && 'gap-0.5'
+                )}>
+                  <span className={isCompact ? 'text-base' : 'text-xl'}>{option.icon}</span>
                   <span className={cn(
-                    'text-sm font-bold font-sans',
+                    'font-bold font-sans truncate',
+                    isCompact ? 'text-xs' : 'text-sm',
                     isComplete || isSelected ? 'text-yellow-300' : 'text-white'
                   )}>
                     {option.displayName}
@@ -225,12 +237,16 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                 
                 {/* 選択用コード */}
                 <div className={cn(
-                  'py-1 px-2 rounded text-center',
+                  'rounded text-center',
+                  isCompact ? 'py-0.5 px-1' : 'py-1 px-2',
                   'bg-black/40',
                   isComplete ? 'text-yellow-400' : 'text-white',
                   !hasValidChord && 'text-red-400'
                 )}>
-                  <span className="text-base font-bold font-sans">
+                  <span className={cn(
+                    'font-bold font-sans',
+                    isCompact ? 'text-sm' : 'text-base'
+                  )}>
                     {hasValidChord ? option.chord.displayName : '---'}
                   </span>
                 </div>
