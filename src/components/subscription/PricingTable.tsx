@@ -57,8 +57,9 @@ const PricingTable: React.FC = () => {
           const { url } = await response.json();
           window.location.href = url;
         } else {
-          const error = await response.json().catch(() => ({ error: 'グローバルプランの取得に失敗しました' }));
-          alert(`エラー: ${error.error}`);
+          const err = await response.json().catch(() => ({ error: 'グローバルプランの取得に失敗しました', details: '' }));
+          const msg = [err.error, err.details].filter(Boolean).join(': ');
+          alert(msg || 'エラーが発生しました');
         }
       } catch (error) {
         console.error('LemonSqueezy link error:', error);

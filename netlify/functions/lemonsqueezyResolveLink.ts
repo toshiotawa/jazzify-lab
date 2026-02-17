@@ -97,7 +97,15 @@ const createCheckout = async (params: {
   });
 
   if (!res.ok) {
-    throw new Error(`Failed to create checkout: ${res.status} ${res.statusText}`);
+    const errBody = await res.text();
+    let errDetail: string;
+    try {
+      const parsed = JSON.parse(errBody) as { errors?: Array<{ detail?: string; title?: string }> };
+      errDetail = parsed.errors?.map((e) => e.detail || e.title).filter(Boolean).join('; ') || errBody;
+    } catch {
+      errDetail = errBody || res.statusText;
+    }
+    throw new Error(`LemonSqueezy checkout failed (${res.status}): ${errDetail}`);
   }
 
   const json = (await res.json()) as LemonCheckoutCreateResponse;
@@ -185,6 +193,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     }
 
     const userId = auth.data.user.id;
+    const userEmail = auth.data.user.email ?? auth.data.user.user_metadata?.email ?? '';
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
       .select('email, rank, country, lemon_customer_id, lemon_trial_used')
@@ -193,6 +202,11 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
 
     if (profileError || !profile) {
       return { statusCode: 500, headers: responseHeaders, body: JSON.stringify({ error: 'Failed to fetch user profile' }) };
+    }
+
+    const email = (profile.email ?? userEmail ?? '').trim();
+    if (!email) {
+      return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Email is required for checkout. Please set your email in account settings.' }) };
     }
 
     const isJapan = profile.country === 'JP';
@@ -207,23 +221,23 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
 
     if (hasSubscription) {
       via = 'portal';
-      const customerId = profile.lemon_customer_id || (profile.email ? await resolveCustomerIdByEmail(profile.email) : null);
+      const customerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
       if (!customerId) {
         // 既存顧客IDが見当たらない場合はチェックアウトにフォールバック
-        url = await createCheckout({ email: profile.email, userId, trial: false });
+        url = await createCheckout({ email, userId, trial: false });
         via = 'checkout';
       } else {
         url = await getCustomerPortalUrl(customerId);
         if (!url) {
           // ポータルURLが取得できない場合はCheckoutにフォールバック
-          url = await createCheckout({ email: profile.email, userId, trial: false });
+          url = await createCheckout({ email, userId, trial: false });
           via = 'checkout';
         }
       }
     } else {
       // サブスクなし → トライアル未使用ならトライアル付き、使用済みならなし
       const trial = profile.lemon_trial_used === true ? false : true;
-      url = await createCheckout({ email: profile.email, userId, trial });
+      url = await createCheckout({ email, userId, trial });
       via = 'checkout';
     }
 

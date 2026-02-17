@@ -533,7 +533,9 @@ const AccountPage: React.FC = () => {
                                   alert(isEnglishCopy ? 'No subscription found. Please select a plan.' : 'まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
                                   window.location.href = '/main#pricing';
                                 } else {
-                                  alert(isEnglishCopy ? 'Failed to open subscription management' : 'サブスクリプション管理画面の表示に失敗しました');
+                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
+                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open subscription management' : 'サブスクリプション管理画面の表示に失敗しました');
+                                  alert(msg);
                                 }
                               }
                             } catch (error) {
@@ -568,7 +570,9 @@ const AccountPage: React.FC = () => {
                                   const { url } = await response.json();
                                   window.location.href = url;
                                 } else {
-                                  alert(isEnglishCopy ? 'Failed to generate checkout page' : '購入ページの生成に失敗しました');
+                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
+                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to generate checkout page' : '購入ページの生成に失敗しました');
+                                  alert(msg);
                                 }
                               } catch (error) {
                                 alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
@@ -614,7 +618,9 @@ const AccountPage: React.FC = () => {
                                   alert(isEnglishCopy ? 'No subscription found. Please select a plan.' : 'まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
                                   window.location.href = '/main#pricing';
                                 } else {
-                                  alert(isEnglishCopy ? 'Failed to open Customer Portal' : 'Customer Portalの表示に失敗しました');
+                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
+                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open Customer Portal' : 'Customer Portalの表示に失敗しました');
+                                  alert(msg);
                                 }
                               }
                             } catch (e) {
