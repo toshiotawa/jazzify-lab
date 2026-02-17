@@ -421,6 +421,7 @@ export interface SurvivalCharacter {
   abColumnMagic: boolean;       // AB列を魔法スロット化
   bonusChoiceCount: number;     // レベルアップ時の選択肢数（デフォルト3）
   hpRegenPerSecond: number;
+  autoCollectExp: boolean;      // 敵撃破時に経験値を自動取得（コイン不要）
   description: string | null;
   descriptionEn: string | null;
 }

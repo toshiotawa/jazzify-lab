@@ -1928,19 +1928,47 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
         
-        // 死んだ敵を処理 - コインをドロップ
+        // 自動経験値取得でのレベルアップ追跡用
+        let autoCollectLeveledUp = false;
+        let autoCollectLevelUpCount = 0;
+        let autoCollectOldLevel = newState.player.level;
+        
+        // 死んだ敵を処理 - コインをドロップ or 自動経験値取得
         const defeatedEnemies = newState.enemies.filter(e => e.stats.hp <= 0);
         newState.enemies = newState.enemies.filter(e => e.stats.hp > 0);
         
         if (defeatedEnemies.length > 0) {
-          // コインをスポーン（上限チェック付き）
-          defeatedEnemies.forEach(enemy => {
-            if (newState.coins.length < MAX_COINS) {
-              const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
-              const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
-              newState.coins = [...newState.coins, ...allowedCoins];
+          const isAutoCollect = character?.autoCollectExp ?? false;
+          
+          if (isAutoCollect) {
+            // 自動経験値取得: コインを生成せず直接経験値を付与
+            const expBonus = newState.player.skills.expBonusLevel;
+            let totalDirectExp = 0;
+            defeatedEnemies.forEach(enemy => {
+              const baseExp = enemy.isBoss ? 50 : 10;
+              totalDirectExp += Math.floor(baseExp * config.expMultiplier) + expBonus;
+            });
+            if (totalDirectExp > 0) {
+              const levelBefore = newState.player.level;
+              const { player: expPlayer, leveledUp: directLevelUp, levelUpCount: directLevelUpCount } = addExp(newState.player, totalDirectExp);
+              newState.player = expPlayer;
+              // 自動取得分のレベルアップをautoCollectLevelUpに蓄積
+              if (directLevelUp) {
+                autoCollectLeveledUp = true;
+                autoCollectLevelUpCount += directLevelUpCount;
+                autoCollectOldLevel = Math.min(autoCollectOldLevel, levelBefore);
+              }
             }
-          });
+          } else {
+            // コインをスポーン（上限チェック付き）
+            defeatedEnemies.forEach(enemy => {
+              if (newState.coins.length < MAX_COINS) {
+                const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
+                const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
+                newState.coins = [...newState.coins, ...allowedCoins];
+              }
+            });
+          }
           newState.enemiesDefeated += defeatedEnemies.length;
           
           // WAVEキル数を更新
@@ -1951,16 +1979,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         
         // コイン拾得処理
-        const { player: playerAfterCoins, remainingCoins, leveledUp, levelUpCount } = collectCoins(
+        const { player: playerAfterCoins, remainingCoins, leveledUp: coinLeveledUp, levelUpCount: coinLevelUpCount } = collectCoins(
           newState.player,
           newState.coins
         );
         newState.player = playerAfterCoins;
         newState.coins = remainingCoins;
         
+        // 自動経験値取得 + コイン拾得の合算レベルアップ判定
+        const leveledUp = coinLeveledUp || autoCollectLeveledUp;
+        const levelUpCount = coinLevelUpCount + autoCollectLevelUpCount;
+        
         // キャラクターレベル5ボーナス判定
         if (leveledUp && levelUpCount > 0 && character && character.level10Bonuses.length > 0) {
-          const oldLevel = playerAfterCoins.level - levelUpCount;
+          const oldLevel = autoCollectLeveledUp
+            ? Math.min(autoCollectOldLevel, playerAfterCoins.level - coinLevelUpCount)
+            : playerAfterCoins.level - coinLevelUpCount;
           const newLevel = playerAfterCoins.level;
           // レベル5の倍数を跨いだ回数をチェック
           const oldMilestone = Math.floor(oldLevel / 5);

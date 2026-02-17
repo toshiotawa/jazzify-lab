@@ -292,6 +292,7 @@ export interface SurvivalCharacterRow {
   abColumnMagic: boolean;
   bonusChoiceCount: number;
   hpRegenPerSecond: number;
+  autoCollectExp: boolean;
   description: string | null;
   descriptionEn: string | null;
 }
@@ -346,6 +347,7 @@ function convertCharacter(row: Record<string, unknown>): SurvivalCharacterRow {
     abColumnMagic: Boolean(row.ab_column_magic),
     bonusChoiceCount: Number(row.bonus_choice_count) || 3,
     hpRegenPerSecond: Number(row.hp_regen_per_second) || 0,
+    autoCollectExp: Boolean(row.auto_collect_exp),
     description: (row.description as string) || null,
     descriptionEn: (row.description_en as string) || null,
   };

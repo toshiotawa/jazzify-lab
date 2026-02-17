@@ -168,6 +168,7 @@ const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacte
   abColumnMagic: row.abColumnMagic,
   bonusChoiceCount: row.bonusChoiceCount,
   hpRegenPerSecond: row.hpRegenPerSecond,
+  autoCollectExp: row.autoCollectExp,
   description: row.description,
   descriptionEn: row.descriptionEn,
 });

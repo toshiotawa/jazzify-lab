@@ -1205,14 +1205,10 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 
 // ===== 経験値計算 =====
 // 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
-// レベル50以降は必要経験値が5倍になる
 const EXP_CAP_LEVEL = 20;
-const EXP_HIGH_LEVEL_THRESHOLD = 50;
-const EXP_HIGH_LEVEL_MULTIPLIER = 2;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
-  const baseExp = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
-  return level >= EXP_HIGH_LEVEL_THRESHOLD ? baseExp * EXP_HIGH_LEVEL_MULTIPLIER : baseExp;
+  return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
