@@ -23,20 +23,23 @@ interface LemonCheckoutCreateResponse {
 
 type LinkVia = 'checkout' | 'portal';
 
-const getSupabaseServiceClient = (): SupabaseClient =>
-  createClient(process.env.SUPABASE_URL as string, process.env.SUPABASE_SERVICE_ROLE_KEY as string);
+const ensureEnv = (key: string): string => {
+  const val = process.env[key];
+  if (!val) throw new Error(`Missing environment variable: ${key}`);
+  return val;
+};
+
+const getSupabaseServiceClient = (): SupabaseClient => {
+  const url = ensureEnv('SUPABASE_URL');
+  const key = ensureEnv('SUPABASE_SERVICE_ROLE_KEY');
+  return createClient(url, key);
+};
 
 const responseHeaders: Record<string, string> = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
   'Content-Type': 'application/json',
-};
-
-const ensureEnv = (key: string): string => {
-  const val = process.env[key];
-  if (!val) throw new Error(`Missing environment variable: ${key}`);
-  return val;
 };
 
 const createCheckout = async (params: {
