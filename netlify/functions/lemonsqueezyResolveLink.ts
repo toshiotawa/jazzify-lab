@@ -67,6 +67,7 @@ const createCheckout = async (params: {
         },
         checkout_options: {
           embed: false,
+          skip_trial: !params.trial,
         },
         product_options: {
           redirect_url: `${siteUrl}/#dashboard`,
