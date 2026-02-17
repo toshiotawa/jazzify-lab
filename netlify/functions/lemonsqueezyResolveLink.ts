@@ -56,8 +56,6 @@ const createCheckout = async (params: {
     data: {
       type: 'checkouts',
       attributes: {
-        store_id: Number(storeId),
-        variant_id: Number(variantId),
         checkout_data: {
           email: params.email,
           custom: {
@@ -66,9 +64,24 @@ const createCheckout = async (params: {
         },
         checkout_options: {
           embed: false,
-          accept_marketing: false,
         },
-        redirect_url: `${siteUrl}/#account`,
+        product_options: {
+          redirect_url: `${siteUrl}/#account`,
+        },
+      },
+      relationships: {
+        store: {
+          data: {
+            type: 'stores',
+            id: storeId,
+          },
+        },
+        variant: {
+          data: {
+            type: 'variants',
+            id: variantId,
+          },
+        },
       },
     },
   };
@@ -77,7 +90,7 @@ const createCheckout = async (params: {
     method: 'POST',
     headers: {
       Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
+      'Content-Type': 'application/vnd.api+json',
       Accept: 'application/vnd.api+json',
     },
     body: JSON.stringify(payload),

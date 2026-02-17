@@ -88,6 +88,7 @@ const AccountPage: React.FC = () => {
     normalizedCountry === 'JAPAN';
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
+    country: profile?.country,
     geoCountryHint: geoCountry,
   });
   const rankLabel = isEnglishCopy ? RANK_LABEL_EN : RANK_LABEL;
@@ -369,7 +370,7 @@ const AccountPage: React.FC = () => {
                     await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
                     await useAuthStore.getState().fetchProfile();
                   } catch (err){
-                    alert('アップロード失敗: '+(err instanceof Error ? err.message : String(err)));
+                    alert((isEnglishCopy ? 'Upload failed: ' : 'アップロード失敗: ')+(err instanceof Error ? err.message : String(err)));
                   } finally {
                     setAvatarUploading(false);
                   }
@@ -477,7 +478,7 @@ const AccountPage: React.FC = () => {
                   </button>
                   {emailMessage && (
                     <div className={`text-xs p-2 rounded ${
-                      emailMessage.includes('送信しました') ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
+                      (emailMessage.includes('送信しました') || emailMessage.includes('sent')) ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
                     }`}>
                       {emailMessage}
                     </div>
