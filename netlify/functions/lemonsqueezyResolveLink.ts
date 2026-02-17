@@ -69,7 +69,7 @@ const createCheckout = async (params: {
           embed: false,
         },
         product_options: {
-          redirect_url: `${siteUrl}/#account`,
+          redirect_url: `${siteUrl}/#dashboard`,
         },
       },
       relationships: {
@@ -238,8 +238,21 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
         }
       }
     } else {
-      // サブスクなし → トライアル未使用ならトライアル付き、使用済みならなし
-      const trial = profile.lemon_trial_used === true ? false : true;
+      // サブスクなし → DB + LemonSqueezy API の二重チェックでトライアル判定
+      let trial = true;
+      if (profile.lemon_trial_used === true) {
+        // DB 上で使用済み → トライアルなし
+        trial = false;
+      } else {
+        // DB 上は未使用 → LS 顧客の存在を確認（webhook 取りこぼし対策）
+        const existingCustomerId = profile.lemon_customer_id || (await resolveCustomerIdByEmail(email));
+        if (existingCustomerId) {
+          // LS 上に顧客が存在 → 過去に購入完了歴あり → トライアルなし
+          trial = false;
+          // DB を同期しておく
+          await supabase.from('profiles').update({ lemon_trial_used: true, lemon_customer_id: existingCustomerId }).eq('id', userId);
+        }
+      }
       url = await createCheckout({ email, userId, trial });
       via = 'checkout';
     }
