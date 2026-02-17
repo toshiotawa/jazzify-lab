@@ -1707,8 +1707,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 時間更新
         newState.elapsedTime = prev.elapsedTime + deltaTime;
         
-        // プレイヤー移動
-        newState.player = updatePlayerPosition(prev.player, combinedKeys, deltaTime);
+        // プレイヤー移動（常に新しいオブジェクトを生成し、shared referenceによるミューテーション汚染を防止）
+        const movedPlayer = updatePlayerPosition(prev.player, combinedKeys, deltaTime);
+        newState.player = {
+          ...movedPlayer,
+          stats: { ...movedPlayer.stats },
+          statusEffects: [...movedPlayer.statusEffects],
+        };
         
         // 敵移動（WAVE倍率適用）
         const waveSpeedMult = getWaveSpeedMultiplier(prev.wave.currentWave);
@@ -1717,8 +1722,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 弾丸更新
         newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
         
-        // 弾丸と敵の当たり判定（軽いノックバック追加）
-        const hitResults: { enemyId: string; damage: number; projId: string; isLucky: boolean }[] = [];
+        // 弾丸と敵の当たり判定（イミュータブル）
+        const hitResults: { enemyId: string; damage: number; projId: string; isLucky: boolean; knockbackX: number; knockbackY: number }[] = [];
+        const hitEnemyUpdates = new Set<string>();
         newState.projectiles.forEach(proj => {
           newState.enemies.forEach(enemy => {
             if (proj.hitEnemies.has(enemy.id)) return;
@@ -1727,12 +1733,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const dy = enemy.y - proj.y;
             const dist = Math.sqrt(dx * dx + dy * dy);
             
-            if (dist < 25) {  // 当たり判定を少し大きく
-              // 背水の陣・絶好調の攻撃力倍率
+            if (dist < 25) {
               const condMultA = getConditionalSkillMultipliers(prev.player);
               const effectiveADamage = Math.floor(proj.damage * condMultA.atkMultiplier);
-              
-              // 運の判定（ダメージ2倍の可能性）
               const luckResultHit = checkLuck(prev.player.stats.luck);
               
               const damage = calculateDamage(
@@ -1744,31 +1747,54 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 getBufferLevel(prev.player.statusEffects),
                 getDebufferLevel(enemy.statusEffects),
                 prev.player.stats.cAtk,
-                luckResultHit.doubleDamage  // 運発動時ダメージ2倍
+                luckResultHit.doubleDamage
               );
-              hitResults.push({ enemyId: enemy.id, damage, projId: proj.id, isLucky: luckResultHit.doubleDamage });
-              proj.hitEnemies.add(enemy.id);
-              
-              // A列ヒット時の軽いノックバック
               const dirVec = getDirectionVector(proj.direction);
               const knockbackForce = 80;
-              enemy.knockbackVelocity = {
-                x: dirVec.x * knockbackForce,
-                y: dirVec.y * knockbackForce,
-              };
+              hitResults.push({
+                enemyId: enemy.id,
+                damage,
+                projId: proj.id,
+                isLucky: luckResultHit.doubleDamage,
+                knockbackX: dirVec.x * knockbackForce,
+                knockbackY: dirVec.y * knockbackForce,
+              });
+              hitEnemyUpdates.add(enemy.id);
+              proj.hitEnemies.add(enemy.id);
             }
           });
         });
         
-        // ダメージ適用
-        hitResults.forEach(({ enemyId, damage, isLucky }) => {
-          const enemy = newState.enemies.find(e => e.id === enemyId);
-          if (enemy) {
-            enemy.stats.hp = Math.max(0, enemy.stats.hp - damage);
-            // 運発動時は金色で表示
-            newState.damageTexts.push(createDamageText(enemy.x, enemy.y, damage, isLucky, isLucky ? '#ffd700' : undefined));
-          }
-        });
+        // ダメージ適用（イミュータブルに新しいオブジェクトを生成）
+        if (hitResults.length > 0) {
+          const damageMap = new Map<string, { totalDamage: number; knockbackX: number; knockbackY: number; isLucky: boolean }>();
+          hitResults.forEach(({ enemyId, damage, isLucky, knockbackX, knockbackY }) => {
+            const existing = damageMap.get(enemyId);
+            if (existing) {
+              existing.totalDamage += damage;
+              existing.knockbackX = knockbackX;
+              existing.knockbackY = knockbackY;
+              existing.isLucky = existing.isLucky || isLucky;
+            } else {
+              damageMap.set(enemyId, { totalDamage: damage, knockbackX, knockbackY, isLucky });
+            }
+          });
+          
+          newState.enemies = newState.enemies.map(enemy => {
+            const hit = damageMap.get(enemy.id);
+            if (hit) {
+              newState.damageTexts.push(createDamageText(
+                enemy.x, enemy.y, hit.totalDamage, hit.isLucky, hit.isLucky ? '#ffd700' : undefined
+              ));
+              return {
+                ...enemy,
+                stats: { ...enemy.stats, hp: Math.max(0, enemy.stats.hp - hit.totalDamage) },
+                knockbackVelocity: { x: hit.knockbackX, y: hit.knockbackY },
+              };
+            }
+            return enemy;
+          });
+        }
         
         // 貫通でない弾を削除
         newState.projectiles = newState.projectiles.filter(proj => {
@@ -1805,28 +1831,33 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           });
         }
         
-        // 敵の攻撃（体当たり）
+        // 敵の攻撃（体当たり）- イミュータブルに蓄積
+        let contactDamageTotal = 0;
         newState.enemies.forEach(enemy => {
           const dx = enemy.x - newState.player.x;
           const dy = enemy.y - newState.player.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           
           if (dist < 30) {
-            // 運の判定（敵ダメージ0の可能性）
             const luckResultContact = checkLuck(newState.player.stats.luck);
-            if (luckResultContact.noDamageTaken) {
-              // 運発動: ダメージ0（ラッキー表示）
-              // 何も起きない（ダメージを受けない）
-            } else {
+            if (!luckResultContact.noDamageTaken) {
               const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-              // 背水の陣のDEF=0効果
               const condMult = getConditionalSkillMultipliers(newState.player);
               const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
               const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
-              newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage * deltaTime * 2);
+              contactDamageTotal += damage * deltaTime * 2;
             }
           }
         });
+        if (contactDamageTotal > 0) {
+          newState.player = {
+            ...newState.player,
+            stats: {
+              ...newState.player.stats,
+              hp: Math.max(0, newState.player.stats.hp - contactDamageTotal),
+            },
+          };
+        }
         
         // 敵の射撃処理
         newState.enemies.forEach(enemy => {
@@ -1854,34 +1885,40 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           });
         }
         
-        // 敵の弾丸とプレイヤーの当たり判定（小さめ）
+        // 敵の弾丸とプレイヤーの当たり判定（小さめ）- イミュータブル
         const ENEMY_PROJECTILE_HIT_RADIUS = 15;
+        let projDamageTotal = 0;
         newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
           const dx = proj.x - newState.player.x;
           const dy = proj.y - newState.player.y;
           const dist = Math.sqrt(dx * dx + dy * dy);
           
           if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
-            // 運の判定（敵ダメージ0の可能性）
             const luckResultProj = checkLuck(newState.player.stats.luck);
             if (luckResultProj.noDamageTaken) {
-              // 運発動: ダメージ0（弾は消えるがダメージなし）
-              newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, 0, false, '#ffd700'));  // 金色で0表示
-              return false;  // 弾を削除
+              newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, 0, false, '#ffd700'));
+              return false;
             }
             
-            // プレイヤーにダメージ
             const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            // 背水の陣のDEF=0効果
             const condMultProj = getConditionalSkillMultipliers(newState.player);
             const effectiveDefProj = condMultProj.defOverride !== null ? condMultProj.defOverride : newState.player.stats.def;
             const damage = Math.max(1, Math.floor(proj.damage - effectiveDefProj * defMultiplier * 0.3));
-            newState.player.stats.hp = Math.max(0, newState.player.stats.hp - damage);
+            projDamageTotal += damage;
             newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, damage));
-            return false;  // 弾を削除
+            return false;
           }
-          return true;  // 弾を残す
+          return true;
         });
+        if (projDamageTotal > 0) {
+          newState.player = {
+            ...newState.player,
+            stats: {
+              ...newState.player.stats,
+              hp: Math.max(0, newState.player.stats.hp - projDamageTotal),
+            },
+          };
+        }
         
         // 死んだ敵を処理 - コインをドロップ
         const defeatedEnemies = newState.enemies.filter(e => e.stats.hp <= 0);
