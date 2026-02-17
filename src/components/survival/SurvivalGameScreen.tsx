@@ -789,12 +789,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleNoteInput = useCallback((note: number) => {
     // 通常のコード入力処理
     // 注意: gameStateを直接参照せず、setGameState内でprevを使用して最新の状態を取得する
-    let pendingLightning: LightningEffect[] = [];
-    
     setGameState(prev => {
-      // Strict Mode再呼び出し対策: 前回の副作用データをリセット
-      pendingLightning = [];
-      
       // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
       
@@ -912,7 +907,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   startTime: castTime,
                   duration: THUNDER_LIGHTNING_DURATION_MS,
                 }));
-                pendingLightning = [...pendingLightning, ...newLightning];
+                setLightningEffects((effects) => {
+                  const merged = [...effects, ...newLightning];
+                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                    : merged;
+                });
               }
             }
           } else {
@@ -959,7 +959,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   startTime: castTime,
                   duration: THUNDER_LIGHTNING_DURATION_MS,
                 }));
-                pendingLightning = [...pendingLightning, ...newLightning];
+                setLightningEffects((effects) => {
+                  const merged = [...effects, ...newLightning];
+                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                    : merged;
+                });
               }
             }
           } else {
@@ -1198,7 +1203,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 startTime: castTime,
                 duration: THUNDER_LIGHTNING_DURATION_MS,
               }));
-              pendingLightning = [...pendingLightning, ...newLightning];
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
             }
           }
         } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1235,7 +1245,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 startTime: castTime,
                 duration: THUNDER_LIGHTNING_DURATION_MS,
               }));
-              pendingLightning = [...pendingLightning, ...newLightning];
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
             }
           }
         }
@@ -1269,16 +1284,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-    
-    // 副作用をsetGameStateコールバックの外で適用（Strict Mode対策）
-    if (pendingLightning.length > 0) {
-      setLightningEffects((effects) => {
-        const merged = [...effects, ...pendingLightning];
-        return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-          ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-          : merged;
-      });
-    }
   }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -1292,12 +1297,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
     
-    let pendingLightningTap: LightningEffect[] = [];
-    
     setGameState(prev => {
-      // Strict Mode再呼び出し対策: 前回の副作用データをリセット
-      pendingLightningTap = [];
-      
       const newState = { ...prev };
       const slot = prev.codeSlots.current[slotIndex];
       
@@ -1337,7 +1337,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 startTime: castTime,
                 duration: THUNDER_LIGHTNING_DURATION_MS,
               }));
-              pendingLightningTap = [...pendingLightningTap, ...newLightning];
+              setLightningEffects((effects) => {
+                const merged = [...effects, ...newLightning];
+                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                  : merged;
+              });
             }
           }
         } else {
@@ -1385,7 +1390,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               startTime: castTime,
               duration: THUNDER_LIGHTNING_DURATION_MS,
             }));
-            pendingLightningTap = [...pendingLightningTap, ...newLightning];
+            setLightningEffects((effects) => {
+              const merged = [...effects, ...newLightning];
+              return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+                ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+                : merged;
+            });
           }
         }
       } else {
@@ -1618,7 +1628,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             startTime: castTime,
             duration: THUNDER_LIGHTNING_DURATION_MS,
           }));
-          pendingLightningTap = [...pendingLightningTap, ...newLightning];
+          setLightningEffects((effects) => {
+            const merged = [...effects, ...newLightning];
+            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+              : merged;
+          });
         }
       }
     } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1653,23 +1668,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             startTime: castTime,
             duration: THUNDER_LIGHTNING_DURATION_MS,
           }));
-          pendingLightningTap = [...pendingLightningTap, ...newLightning];
+          setLightningEffects((effects) => {
+            const merged = [...effects, ...newLightning];
+            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+              : merged;
+          });
         }
       }
     }
     
     return newState;
   });
-  
-  // 副作用をsetGameStateコールバックの外で適用（Strict Mode対策）
-  if (pendingLightningTap.length > 0) {
-    setLightningEffects((effects) => {
-      const merged = [...effects, ...pendingLightningTap];
-      return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-        ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-        : merged;
-    });
-  }
 }, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isAMagicSlot, isBMagicSlot]);
   
   // ゲームループ
