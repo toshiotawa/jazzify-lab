@@ -400,10 +400,10 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const base = baseStats[type];
   const totalMultiplier = multiplier * (1 + timeBonus);
   
-  // WAVEごとの敵HP加算（+50/WAVE、5の倍数WAVEでは+500）
+  // WAVEごとの敵HP加算（+50/WAVE、5の倍数では+500、10の倍数では+1000）
   let waveHpBonus = 0;
   for (let w = 2; w <= waveNumber; w++) {
-    waveHpBonus += (w % 5 === 0) ? 500 : 50;
+    waveHpBonus += (w % 10 === 0) ? 1000 : (w % 5 === 0) ? 500 : 50;
   }
   
   const baseHp = Math.floor(base.hp * totalMultiplier) + waveHpBonus;
