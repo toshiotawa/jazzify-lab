@@ -295,7 +295,7 @@ export interface WaveState {
 }
 
 export const WAVE_BASE_QUOTA = 20;       // 基本ノルマ（固定）
-export const WAVE_DURATION = 120;        // WAVE時間（秒 = 2分）
+export const WAVE_DURATION = 60;         // WAVE時間（秒 = 1分）
 export const WAVE_QUOTA_INCREMENT = 0;   // WAVEごとのノルマ増加量（0 = 固定）
 
 // ===== ゲーム状態 =====
@@ -430,7 +430,7 @@ export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（�
 export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
 
 export const MAP_CONFIG: MapConfig = {
-  width: 4800,
-  height: 3600,
+  width: 1600,
+  height: 1200,
   tileSize: 32,
 };

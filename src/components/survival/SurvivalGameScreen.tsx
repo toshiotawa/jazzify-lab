@@ -2113,7 +2113,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.player.x,
               newState.player.y,
               newState.elapsedTime,
-              config
+              config,
+              newState.wave.currentWave
             );
             newState.enemies.push(newEnemy);
           }
@@ -2242,7 +2243,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // WAVEチェック
         const waveElapsedTime = newState.elapsedTime - newState.wave.waveStartTime;
         
-        // WAVEノルマ達成マーク（ノルマ達成しても2分経つまでは同じWAVEに留まる）
+        // WAVEノルマ達成マーク（ノルマ達成しても1分経つまでは同じWAVEに留まる）
         if (newState.wave.waveKills >= newState.wave.waveQuota && !newState.wave.waveCompleted) {
           newState.wave = {
             ...newState.wave,
@@ -2250,7 +2251,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
         
-        // 2分経過後にWAVE進行チェック
+        // 1分経過後にWAVE進行チェック
         if (waveElapsedTime >= WAVE_DURATION) {
           // ノルマ未達成でゲームオーバー
           if (!newState.wave.waveCompleted) {

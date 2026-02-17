@@ -54,7 +54,7 @@ export const MAX_PROJECTILES = 200;      // 弾丸の最大数
 export const MAX_COINS = 300;            // コインの最大数
 
 // HP上限値
-const MAX_HP_CAP = 5000;
+const MAX_HP_CAP = 1000;
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -376,34 +376,38 @@ export const initializeCodeSlots = (
 // ===== 敵生成 =====
 const ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'skeleton', 'zombie', 'bat', 'ghost', 'orc', 'demon', 'dragon'];
 
-const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: number) => {
+const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: number, waveNumber: number = 1) => {
   // 時間経過による強化（30秒ごとに15%強化、10分以降はさらに加速）
   const baseTimeBonus = Math.floor(elapsedTime / 30) * 0.15;
   // 10分（600秒）以降は追加で強化
-  const lateGameBonus = elapsedTime >= 600 ? (elapsedTime - 600) / 120 * 0.3 : 0;  // 2分ごとに30%追加
+  const lateGameBonus = elapsedTime >= 600 ? (elapsedTime - 600) / 60 * 0.3 : 0;  // 1分ごとに30%追加
   const timeBonus = baseTimeBonus + lateGameBonus;
   
+  // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
-    slime: { atk: 5, def: 2, hp: 30, speed: 0.8 },
-    goblin: { atk: 8, def: 3, hp: 40, speed: 1.0 },
-    skeleton: { atk: 10, def: 5, hp: 50, speed: 0.9 },
-    zombie: { atk: 12, def: 4, hp: 60, speed: 0.6 },
-    bat: { atk: 6, def: 2, hp: 25, speed: 1.4 },
-    ghost: { atk: 15, def: 1, hp: 35, speed: 1.1 },
-    orc: { atk: 18, def: 8, hp: 80, speed: 0.7 },
-    demon: { atk: 25, def: 10, hp: 100, speed: 0.9 },
-    dragon: { atk: 35, def: 15, hp: 150, speed: 0.8 },
-    boss: { atk: 50, def: 20, hp: 300, speed: 0.6 },
+    slime: { atk: 5, def: 2, hp: 60, speed: 0.8 },
+    goblin: { atk: 8, def: 3, hp: 80, speed: 1.0 },
+    skeleton: { atk: 10, def: 5, hp: 100, speed: 0.9 },
+    zombie: { atk: 12, def: 4, hp: 120, speed: 0.6 },
+    bat: { atk: 6, def: 2, hp: 50, speed: 1.4 },
+    ghost: { atk: 15, def: 1, hp: 70, speed: 1.1 },
+    orc: { atk: 18, def: 8, hp: 160, speed: 0.7 },
+    demon: { atk: 25, def: 10, hp: 200, speed: 0.9 },
+    dragon: { atk: 35, def: 15, hp: 300, speed: 0.8 },
+    boss: { atk: 50, def: 20, hp: 600, speed: 0.6 },
   };
   
   const base = baseStats[type];
   const totalMultiplier = multiplier * (1 + timeBonus);
   
+  // WAVEごとにHPを2倍にする（WAVE 1: x1, WAVE 2: x2, WAVE 3: x4, ...）
+  const waveHpMultiplier = Math.pow(2, waveNumber - 1);
+  
   return {
     atk: Math.floor(base.atk * totalMultiplier),
     def: Math.floor(base.def * totalMultiplier),
-    hp: Math.floor(base.hp * totalMultiplier),
-    maxHp: Math.floor(base.hp * totalMultiplier),
+    hp: Math.floor(base.hp * totalMultiplier * waveHpMultiplier),
+    maxHp: Math.floor(base.hp * totalMultiplier * waveHpMultiplier),
     speed: base.speed,
   };
 };
@@ -412,7 +416,8 @@ export const spawnEnemy = (
   playerX: number,
   playerY: number,
   elapsedTime: number,
-  config: DifficultyConfig
+  config: DifficultyConfig,
+  waveNumber: number = 1
 ): EnemyState => {
   // プレイヤーから一定距離離れた位置にスポーン
   const spawnDistance = 400 + Math.random() * 200;
@@ -465,16 +470,16 @@ export const spawnEnemy = (
   
   const type = ENEMY_TYPES[typeIndex];
   
-  // ボス出現確率：2分以降5%、10分以降10%
+  // ボス出現確率：1分以降5%、10分以降10%
   const bossChance = isLateGame ? 0.10 : 0.05;
-  const isBoss = Math.random() < bossChance && elapsedTime > 120;
+  const isBoss = Math.random() < bossChance && elapsedTime > 60;
   
   return {
     id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     type,
     x,
     y,
-    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 2 : config.enemyStatMultiplier),
+    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 5 : config.enemyStatMultiplier, waveNumber),
     statusEffects: [],
     isBoss,
   };
@@ -1194,10 +1199,14 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 
 // ===== 経験値計算 =====
 // 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
+// レベル50以降は必要経験値が5倍になる
 const EXP_CAP_LEVEL = 20;
+const EXP_HIGH_LEVEL_THRESHOLD = 50;
+const EXP_HIGH_LEVEL_MULTIPLIER = 5;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
-  return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
+  const baseExp = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
+  return level >= EXP_HIGH_LEVEL_THRESHOLD ? baseExp * EXP_HIGH_LEVEL_MULTIPLIER : baseExp;
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
