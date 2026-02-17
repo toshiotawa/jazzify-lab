@@ -179,6 +179,8 @@ interface DebugSkillSettings {
   expBonusLevel?: number;     // 獲得経験値+1（上限10）
   haisuiNoJin?: boolean;      // 背水の陣（上限1）
   zekkouchou?: boolean;       // 絶好調（上限1）
+  alwaysHaisuiNoJin?: boolean; // 常時背水の陣（HP条件無視）
+  alwaysZekkouchou?: boolean;  // 常時絶好調（HP条件無視）
 }
 
 interface SurvivalGameScreenProps {
@@ -327,6 +329,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.zekkouchou !== undefined) {
           initial.player.skills.zekkouchou = skills.zekkouchou;
+        }
+        if (skills.alwaysHaisuiNoJin !== undefined) {
+          initial.player.skills.alwaysHaisuiNoJin = skills.alwaysHaisuiNoJin;
+        }
+        if (skills.alwaysZekkouchou !== undefined) {
+          initial.player.skills.alwaysZekkouchou = skills.alwaysZekkouchou;
         }
       }
     }
@@ -1950,13 +1958,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.player = playerAfterCoins;
         newState.coins = remainingCoins;
         
-        // キャラクターレベル10ボーナス判定
+        // キャラクターレベル5ボーナス判定
         if (leveledUp && levelUpCount > 0 && character && character.level10Bonuses.length > 0) {
           const oldLevel = playerAfterCoins.level - levelUpCount;
           const newLevel = playerAfterCoins.level;
-          // レベル10の倍数を跨いだ回数をチェック
-          const oldMilestone = Math.floor(oldLevel / 10);
-          const newMilestone = Math.floor(newLevel / 10);
+          // レベル5の倍数を跨いだ回数をチェック
+          const oldMilestone = Math.floor(oldLevel / 5);
+          const newMilestone = Math.floor(newLevel / 5);
           if (newMilestone > oldMilestone) {
             const milestoneCount = newMilestone - oldMilestone;
             let charPlayer = newState.player;
@@ -1971,9 +1979,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             if (allMessages.length > 0) {
               const now = Date.now();
               const notifications = allMessages.map((msg, idx) => ({
-                id: `lv10_${now}_${idx}`,
+                id: `lv5_${now}_${idx}`,
                 icon: '⭐',
-                displayName: `Lv${newMilestone * 10}: ${msg}`,
+                displayName: `Lv${newMilestone * 5}: ${msg}`,
                 startTime: now + idx * 400,
               }));
               setSkillNotifications(prev => [...prev, ...notifications]);
@@ -2427,6 +2435,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         if (skills.zekkouchou !== undefined) {
           initial.player.skills.zekkouchou = skills.zekkouchou;
+        }
+        if (skills.alwaysHaisuiNoJin !== undefined) {
+          initial.player.skills.alwaysHaisuiNoJin = skills.alwaysHaisuiNoJin;
+        }
+        if (skills.alwaysZekkouchou !== undefined) {
+          initial.player.skills.alwaysZekkouchou = skills.alwaysZekkouchou;
         }
       }
     }

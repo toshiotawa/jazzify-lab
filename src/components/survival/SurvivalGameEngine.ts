@@ -83,6 +83,8 @@ const createInitialPlayerState = (): PlayerState => ({
     expBonusLevel: 0,
     haisuiNoJin: false,
     zekkouchou: false,
+    alwaysHaisuiNoJin: false,
+    alwaysZekkouchou: false,
     autoSelect: false,  // オート選択
   },
   magics: {
@@ -134,6 +136,8 @@ export const applyCharacterToPlayerState = (
   if (skills.expBonusLevel !== undefined) p.skills.expBonusLevel = skills.expBonusLevel;
   if (skills.haisuiNoJin !== undefined) p.skills.haisuiNoJin = skills.haisuiNoJin;
   if (skills.zekkouchou !== undefined) p.skills.zekkouchou = skills.zekkouchou;
+  if (skills.alwaysHaisuiNoJin !== undefined) p.skills.alwaysHaisuiNoJin = skills.alwaysHaisuiNoJin;
+  if (skills.alwaysZekkouchou !== undefined) p.skills.alwaysZekkouchou = skills.alwaysZekkouchou;
   if (skills.autoSelect !== undefined) p.skills.autoSelect = skills.autoSelect;
 
   // 初期魔法適用
@@ -884,8 +888,8 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
   defOverride: number | null; // DEFの上書き（nullなら上書きなし）
 } => {
   const hpPercent = player.stats.hp / player.stats.maxHp;
-  const hasHaisui = player.skills.haisuiNoJin && hpPercent <= 0.15;
-  const hasZekkouchou = player.skills.zekkouchou && player.stats.hp >= player.stats.maxHp;
+  const hasHaisui = player.skills.haisuiNoJin && (player.skills.alwaysHaisuiNoJin || hpPercent <= 0.15);
+  const hasZekkouchou = player.skills.zekkouchou && (player.skills.alwaysZekkouchou || player.stats.hp >= player.stats.maxHp);
   
   let atkMultiplier = 1;
   let timeMultiplier = 1;

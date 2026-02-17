@@ -83,6 +83,8 @@ export interface SpecialSkills {
   expBonusLevel: number;      // 獲得経験値+1（レベル0-10）
   haisuiNoJin: boolean;       // 背水の陣（HP15%以下で強化）
   zekkouchou: boolean;        // 絶好調（HP満タンで強化）
+  alwaysHaisuiNoJin: boolean; // 常時背水の陣（HP条件無視）
+  alwaysZekkouchou: boolean;  // 常時絶好調（HP条件無視）
   autoSelect: boolean;        // オート選択（レベルアップボーナスを自動選択）
 }
 
