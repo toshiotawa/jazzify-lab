@@ -53,6 +53,9 @@ export const MAX_ENEMIES = Infinity;     // 敵の最大数（制限なし）
 export const MAX_PROJECTILES = 200;      // 弾丸の最大数
 export const MAX_COINS = 300;            // コインの最大数
 
+// HP上限値
+const MAX_HP_CAP = 5000;
+
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
   x: MAP_CONFIG.width / 2,
@@ -159,11 +162,16 @@ export const applyLevel10Bonuses = (
 
   for (const bonus of bonuses) {
     switch (bonus.type) {
-      case 'max_hp_flat':
-        p.stats.maxHp += bonus.value;
-        p.stats.hp += bonus.value;
-        messages.push(`HP +${bonus.value}`);
+      case 'max_hp_flat': {
+        const prevMaxHp = p.stats.maxHp;
+        p.stats.maxHp = Math.min(MAX_HP_CAP, p.stats.maxHp + bonus.value);
+        const actualIncrease = p.stats.maxHp - prevMaxHp;
+        if (actualIncrease > 0) {
+          p.stats.hp += actualIncrease;
+          messages.push(`HP +${actualIncrease}`);
+        }
         break;
+      }
       case 'exp_bonus': {
         const maxVal = bonus.max ?? 10;
         if (p.skills.expBonusLevel < maxVal) {
@@ -972,6 +980,10 @@ const getAvailableBonuses = (
     ) {
       return false;
     }
+    // HP上限チェック: maxHpがMAX_HP_CAP以上なら最大HPボーナスを除外
+    if (bonus.type === 'max_hp' && player.stats.maxHp >= MAX_HP_CAP) {
+      return false;
+    }
     if (bonus.maxLevel) {
       switch (bonus.type) {
         case 'a_penetration':
@@ -1110,7 +1122,7 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.stats.reloadMagic = Math.min(20, newPlayer.stats.reloadMagic + 1);
       break;
     case 'max_hp':
-      newPlayer.stats.maxHp = Math.floor(newPlayer.stats.maxHp * 1.2);
+      newPlayer.stats.maxHp = Math.min(MAX_HP_CAP, Math.floor(newPlayer.stats.maxHp * 1.2));
       newPlayer.stats.hp = Math.min(newPlayer.stats.hp + Math.floor(newPlayer.stats.maxHp * 0.2), newPlayer.stats.maxHp);
       break;
     case 'def':

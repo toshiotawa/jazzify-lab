@@ -486,17 +486,26 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                             key={`${difficulty}-${character.id}`}
                             onClick={() => handleCharacterSelect(difficulty, character)}
                             className={cn(
-                              'relative rounded-xl border overflow-hidden transition-all duration-200',
+                              'relative rounded-xl overflow-hidden transition-all duration-200',
                               'hover:scale-105 hover:shadow-lg',
-                              'bg-gradient-to-b from-gray-800/80 to-gray-900/80',
                               hasTwentyMinuteClear
-                                ? 'border-yellow-400/90 hover:border-yellow-300 shadow-yellow-500/20'
-                                : 'border-gray-600/50 hover:border-purple-400/60 hover:shadow-purple-500/20',
+                                ? 'border-2 border-yellow-400 shadow-[0_0_12px_2px_rgba(250,204,21,0.4)] hover:shadow-[0_0_18px_4px_rgba(250,204,21,0.5)] bg-gradient-to-b from-yellow-900/30 via-gray-800/80 to-gray-900/80 hover:border-yellow-300'
+                                : 'border border-gray-600/50 hover:border-purple-400/60 hover:shadow-purple-500/20 bg-gradient-to-b from-gray-800/80 to-gray-900/80',
                               'p-3 flex flex-col items-center gap-2 text-center'
                             )}
                           >
+                            {/* 20分クリアバッジ */}
+                            {hasTwentyMinuteClear && (
+                              <div className="absolute top-1 right-1 text-base leading-none" title="20min+">👑</div>
+                            )}
+
                             {/* アバター画像 */}
-                            <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden bg-gray-700/50 flex-shrink-0 border-2 border-gray-600/50">
+                            <div className={cn(
+                              'w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden flex-shrink-0 border-2',
+                              hasTwentyMinuteClear
+                                ? 'border-yellow-400/80 ring-2 ring-yellow-400/30'
+                                : 'border-gray-600/50 bg-gray-700/50'
+                            )}>
                               <img
                                 src={character.avatarUrl}
                                 alt={character.name}
