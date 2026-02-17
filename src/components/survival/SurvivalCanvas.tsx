@@ -122,7 +122,7 @@ const ENEMY_ICONS: Record<string, string> = {
 
 // ===== プレイヤーアバター画像パス =====
 const PLAYER_AVATAR_PATH = '/default_avater/default-avater.png';
-const PLAYER_SIZE = 32;  // プレイヤーの表示サイズ
+const PLAYER_SIZE = 48;  // プレイヤーの表示サイズ（当たり判定はGameEngine側で別管理）
 const LIGHTNING_SEGMENT_COUNT = 4;
 const LIGHTNING_SCREEN_PADDING = 120;
 
