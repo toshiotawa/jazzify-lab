@@ -49,9 +49,9 @@ const createCheckout = async (params: {
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
   const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
-  const variantId = params.trial
-    ? ensureEnv('LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL')
-    : ensureEnv('LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL');
+  const trialVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL || '';
+  const normalVariantId = ensureEnv('LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL');
+  const variantId = (params.trial && trialVariantId) ? trialVariantId : normalVariantId;
 
   const siteUrl = ensureEnv('SITE_URL');
 
@@ -108,7 +108,7 @@ const createCheckout = async (params: {
     } catch {
       errDetail = errBody || res.statusText;
     }
-    throw new Error(`LemonSqueezy checkout failed (${res.status}): ${errDetail}`);
+    throw new Error(`LemonSqueezy checkout failed (${res.status}): ${errDetail} [store=${storeId}, variant=${variantId}, trial=${params.trial}]`);
   }
 
   const json = (await res.json()) as LemonCheckoutCreateResponse;
