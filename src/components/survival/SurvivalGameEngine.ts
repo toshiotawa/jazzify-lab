@@ -631,7 +631,7 @@ export const getCorrectNotes = (inputNotes: number[], targetChord: ChordDefiniti
 // 弾数に応じて時計方向に弾を配置
 // 1個目: 12時（前方）
 // 2個目以降: 2時間間隔（30度）で交互に追加
-// 12等分完了後: 1分（0.5度）ずつ追加
+// 1周完了後: 15度ずつオフセットして次の周回（前周の隙間を埋める）
 export const getClockwiseBulletAngles = (bulletCount: number, baseAngle: number): number[] => {
   const angles: number[] = [];
   
@@ -639,7 +639,7 @@ export const getClockwiseBulletAngles = (bulletCount: number, baseAngle: number)
   
   // 30度 = 2時間分の角度
   const hourAngle = Math.PI / 6; // 30度
-  const minuteAngle = Math.PI / 360; // 0.5度
+  const minuteAngle = Math.PI / 12; // 15度（前周の中間を埋める）
   
   // 12時方向（基準方向）から開始
   angles.push(baseAngle);
