@@ -400,8 +400,8 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const base = baseStats[type];
   const totalMultiplier = multiplier * (1 + timeBonus);
   
-  // WAVEごとにHPを2倍にする（WAVE 1: x1, WAVE 2: x2, WAVE 3: x4, ...）
-  const waveHpMultiplier = Math.pow(2, waveNumber - 1);
+  // WAVEごとにHPを1.5倍にする（WAVE 1: x1, WAVE 2: x1.5, WAVE 3: x2.25, ...）
+  const waveHpMultiplier = Math.pow(1.5, waveNumber - 1);
   
   return {
     atk: Math.floor(base.atk * totalMultiplier),
@@ -479,7 +479,7 @@ export const spawnEnemy = (
     type,
     x,
     y,
-    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 5 : config.enemyStatMultiplier, waveNumber),
+    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 2 : config.enemyStatMultiplier, waveNumber),
     statusEffects: [],
     isBoss,
   };
@@ -1202,7 +1202,7 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 // レベル50以降は必要経験値が5倍になる
 const EXP_CAP_LEVEL = 20;
 const EXP_HIGH_LEVEL_THRESHOLD = 50;
-const EXP_HIGH_LEVEL_MULTIPLIER = 5;
+const EXP_HIGH_LEVEL_MULTIPLIER = 2;
 export const calculateExpToNextLevel = (level: number): number => {
   const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
   const baseExp = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
