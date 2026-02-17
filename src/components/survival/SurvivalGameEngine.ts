@@ -400,14 +400,19 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const base = baseStats[type];
   const totalMultiplier = multiplier * (1 + timeBonus);
   
-  // WAVEごとにHPを1.5倍にする（WAVE 1: x1, WAVE 2: x1.5, WAVE 3: x2.25, ...）
-  const waveHpMultiplier = Math.pow(1.5, waveNumber - 1);
+  // WAVEごとの敵HP加算（+50/WAVE、5の倍数WAVEでは+500）
+  let waveHpBonus = 0;
+  for (let w = 2; w <= waveNumber; w++) {
+    waveHpBonus += (w % 5 === 0) ? 500 : 50;
+  }
+  
+  const baseHp = Math.floor(base.hp * totalMultiplier) + waveHpBonus;
   
   return {
     atk: Math.floor(base.atk * totalMultiplier),
     def: Math.floor(base.def * totalMultiplier),
-    hp: Math.floor(base.hp * totalMultiplier * waveHpMultiplier),
-    maxHp: Math.floor(base.hp * totalMultiplier * waveHpMultiplier),
+    hp: baseHp,
+    maxHp: baseHp,
     speed: base.speed,
   };
 };
