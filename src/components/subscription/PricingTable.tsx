@@ -308,6 +308,17 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
             </tbody>
           </table>
         </div>
+
+        {mode === 'view' && (
+          <div className="text-center mt-8">
+            <button
+              className="btn btn-outline"
+              onClick={() => { window.history.back(); }}
+            >
+              戻る
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
