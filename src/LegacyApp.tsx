@@ -260,6 +260,9 @@ const App: React.FC = () => {
     case '#pricing':
       MainContent = <PricingTable />;
       break;
+    case '#plan-comparison':
+      MainContent = <PricingTable mode="view" />;
+      break;
     case '#admin-songs':
     case '#admin-fantasy-bgm':
     case '#admin-fantasy-stages':

@@ -20,7 +20,105 @@ const PLAN_PRICES: Record<'standard' | 'premium' | 'platinum' | 'black', PlanPri
   },
 };
 
-const PricingTable: React.FC = () => {
+type PlanKey = 'free' | 'standard' | 'premium' | 'platinum' | 'black';
+
+interface PlanColumn {
+  key: PlanKey;
+  name: string;
+  price: string;
+  priceSuffix: string;
+  badge?: string;
+  badgeClass?: string;
+  headerClass?: string;
+}
+
+const PLANS: PlanColumn[] = [
+  {
+    key: 'free',
+    name: 'フリー',
+    price: '¥0',
+    priceSuffix: '',
+    headerClass: 'bg-slate-800',
+  },
+  {
+    key: 'standard',
+    name: 'スタンダード',
+    price: '¥2,980',
+    priceSuffix: '/月',
+    headerClass: 'bg-slate-800',
+  },
+  {
+    key: 'premium',
+    name: 'プレミアム',
+    price: '¥8,980',
+    priceSuffix: '/月',
+    badge: 'おすすめ',
+    badgeClass: 'bg-primary-500 text-white',
+    headerClass: 'bg-slate-800 border-t-2 border-primary-500',
+  },
+  {
+    key: 'platinum',
+    name: 'プラチナ',
+    price: '¥14,800',
+    priceSuffix: '/月',
+    headerClass: 'bg-slate-800',
+  },
+  {
+    key: 'black',
+    name: 'ブラック',
+    price: '¥19,800',
+    priceSuffix: '/月',
+    badge: '最上位',
+    badgeClass: 'bg-slate-200 text-black',
+    headerClass: 'bg-gradient-to-br from-slate-900 via-slate-800 to-black',
+  },
+];
+
+interface FeatureRow {
+  label: string;
+  values: Record<PlanKey, string>;
+}
+
+const FEATURES: FeatureRow[] = [
+  {
+    label: 'コミュニティ機能\n(日記・ランキング)',
+    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+  },
+  {
+    label: 'ミッション',
+    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+  },
+  {
+    label: 'ファンタジー',
+    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+  },
+  {
+    label: 'レジェンド',
+    values: { free: '×', standard: '5曲', premium: '無制限', platinum: '無制限', black: '無制限' },
+  },
+  {
+    label: 'サバイバル',
+    values: { free: '×', standard: '1キャラ', premium: '無制限', platinum: '無制限', black: '無制限' },
+  },
+  {
+    label: 'レッスン',
+    values: { free: '×', standard: '1コースのみ', premium: '無制限', platinum: '無制限', black: '無制限' },
+  },
+  {
+    label: 'レッスンブロックの\n手動解放',
+    values: { free: '×', standard: '×', premium: '無制限', platinum: '月10ブロック', black: '月10ブロック' },
+  },
+  {
+    label: 'LINEでの課題添削',
+    values: { free: '×', standard: '×', premium: '×', platinum: '×', black: '○' },
+  },
+];
+
+interface Props {
+  mode?: 'checkout' | 'view';
+}
+
+const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const { profile } = useAuthStore();
   const [loading, setLoading] = useState<string | null>(null);
   const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
@@ -29,7 +127,6 @@ const PricingTable: React.FC = () => {
     normalizedCountry === 'JP' ||
     normalizedCountry === 'JPN' ||
     normalizedCountry === 'JAPAN';
-
 
   const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum' | 'black') => {
     if (!profile) {
@@ -92,7 +189,7 @@ const PricingTable: React.FC = () => {
 
       if (response.ok) {
         const { url } = await response.json();
-        window.location.href = url; // Stripe Checkoutにリダイレクト
+        window.location.href = url;
       } else {
         const error = await response.json();
         alert(`エラー: ${error.error}`);
@@ -105,125 +202,112 @@ const PricingTable: React.FC = () => {
     }
   };
 
+  const renderCellValue = (value: string) => {
+    if (value === '○') {
+      return <span className="text-green-400 text-lg font-bold">○</span>;
+    }
+    if (value === '×') {
+      return <span className="text-red-400 text-lg font-bold">×</span>;
+    }
+    return <span className="text-white text-sm font-medium">{value}</span>;
+  };
+
   return (
     <div className="w-full h-full overflow-auto">
-      <div className="w-full max-w-4xl mx-auto p-6">
-      <div className="text-center mb-8">
-        <h2 className="text-3xl font-bold text-white mb-4">プランを選択</h2>
-        <p className="text-gray-300 mb-6">
-          Jazz Learning Gameのプレミアム機能をご利用ください
-        </p>
-        <p className="text-gray-400 text-xs">
-          ※ Standard(Global) は海外向けの限定機能プランです（本画面からの購入対象外）。
-        </p>
-
-        {/* 7日間無料トライアル */}
-        <div className="text-sm text-green-400">すべての有料プランに7日間（1週間）無料トライアル</div>
-      </div>
-
-        {/* カスタムプラン表示 */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-5 gap-6 mb-12">
-        {/* フリープラン */}
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-white mb-2">フリー</h3>
-            <div className="text-3xl font-bold text-white mb-4">¥0</div>
-            <p className="text-gray-400 text-sm mb-6">基本機能のみ</p>
-            <button 
-              className="btn btn-outline w-full"
-              disabled
-            >
-              現在のプラン
-            </button>
-          </div>
+      <div className="w-full max-w-7xl mx-auto p-6">
+        <div className="text-center mb-8">
+          <h2 className="text-3xl font-bold text-white mb-4">
+            {mode === 'checkout' ? 'プランを選択' : 'プラン比較'}
+          </h2>
+          <p className="text-gray-300 mb-4">
+            Jazz Learning Gameのプレミアム機能をご利用ください
+          </p>
+          {!isJapanUser && (
+            <p className="text-sm text-yellow-400 mb-2">
+              ※ Standard(Global) は海外向けの限定機能プランです（本画面からの購入対象外）。
+            </p>
+          )}
+          <div className="text-sm text-green-400">すべての有料プランに7日間（1週間）無料トライアル</div>
         </div>
 
-        {/* スタンダードプラン */}
-        <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-white mb-2">スタンダード</h3>
-            <div className="text-3xl font-bold text-white mb-1">¥1,980</div>
-            <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
-            <button 
-              className="btn btn-primary w-full"
-              onClick={() => handlePlanSelect('standard')}
-              disabled={loading === 'standard'}
-            >
-              {loading === 'standard' ? '処理中...' : '選択する'}
-            </button>
-          </div>
+        {/* 比較テーブル */}
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse">
+            {/* プランヘッダー */}
+            <thead>
+              <tr>
+                <th className="p-3 text-left bg-slate-900 border border-slate-700 min-w-[140px]">
+                  <span className="text-gray-400 text-sm">機能</span>
+                </th>
+                {PLANS.map((plan) => (
+                  <th
+                    key={plan.key}
+                    className={`p-4 text-center border border-slate-700 min-w-[130px] ${plan.headerClass}`}
+                  >
+                    {plan.badge && (
+                      <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 ${plan.badgeClass}`}>
+                        {plan.badge}
+                      </span>
+                    )}
+                    <div className="text-lg font-semibold text-white">{plan.name}</div>
+                    <div className="text-2xl font-bold text-white mt-1">
+                      {plan.price}
+                      {plan.priceSuffix && (
+                        <span className="text-xs text-gray-400 font-normal">{plan.priceSuffix}</span>
+                      )}
+                    </div>
+                    {plan.key !== 'free' && (
+                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    )}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            {/* 機能行 */}
+            <tbody>
+              {FEATURES.map((feature, idx) => (
+                <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/50' : 'bg-slate-800/30'}>
+                  <td className="p-3 border border-slate-700 text-sm text-gray-300 font-medium whitespace-pre-line">
+                    {feature.label}
+                  </td>
+                  {PLANS.map((plan) => (
+                    <td
+                      key={plan.key}
+                      className="p-3 border border-slate-700 text-center"
+                    >
+                      {renderCellValue(feature.values[plan.key])}
+                    </td>
+                  ))}
+                </tr>
+              ))}
+
+              {/* 選択ボタン行 */}
+              {mode === 'checkout' && (
+                <tr>
+                  <td className="p-3 border border-slate-700 bg-slate-900" />
+                  {PLANS.map((plan) => (
+                    <td key={plan.key} className="p-4 border border-slate-700 text-center bg-slate-900">
+                      {plan.key === 'free' ? (
+                        <button className="btn btn-outline btn-sm w-full opacity-60" disabled>
+                          現在のプラン
+                        </button>
+                      ) : (
+                        <button
+                          className="btn btn-primary btn-sm w-full"
+                          onClick={() => handlePlanSelect(plan.key as 'standard' | 'premium' | 'platinum' | 'black')}
+                          disabled={loading === plan.key}
+                        >
+                          {loading === plan.key ? '処理中...' : '選択する'}
+                        </button>
+                      )}
+                    </td>
+                  ))}
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
-
-        {/* プレミアムプラン */}
-        <div className="bg-slate-800 rounded-lg p-6 border border-primary-500 relative">
-          <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-            <span className="bg-primary-500 text-white px-3 py-1 rounded-full text-xs font-medium">
-              おすすめ
-            </span>
-          </div>
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-white mb-2">プレミアム</h3>
-            <div className="text-3xl font-bold text-white mb-1">¥8,980</div>
-            <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
-            <button 
-              className="btn btn-primary w-full"
-              onClick={() => handlePlanSelect('premium')}
-              disabled={loading === 'premium'}
-            >
-              {loading === 'premium' ? '処理中...' : '選択する'}
-            </button>
-          </div>
-        </div>
-
-          {/* プラチナプラン */}
-          <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
-          <div className="text-center">
-            <h3 className="text-xl font-semibold text-white mb-2">プラチナ</h3>
-            <div className="text-3xl font-bold text-white mb-1">¥14,800</div>
-            <div className="text-sm text-gray-400 mb-2">月額</div>
-            <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
-            <button 
-              className="btn btn-primary w-full"
-              onClick={() => handlePlanSelect('platinum')}
-              disabled={loading === 'platinum'}
-            >
-              {loading === 'platinum' ? '処理中...' : '選択する'}
-            </button>
-          </div>
-        </div>
-
-          {/* ブラックプラン */}
-          <div className="bg-gradient-to-br from-slate-900 via-slate-900 to-black rounded-lg p-6 border border-slate-600 relative">
-            <div className="absolute -top-3 left-1/2 transform -translate-x-1/2">
-              <span className="bg-slate-200 text-black px-3 py-1 rounded-full text-xs font-medium">
-                最上位
-              </span>
-            </div>
-            <div className="text-center">
-              <h3 className="text-xl font-semibold text-slate-100 mb-2">ブラック</h3>
-              <div className="text-3xl font-bold text-white mb-1">¥19,800</div>
-              <div className="text-sm text-gray-400 mb-2">月額</div>
-              <div className="text-sm text-green-400 mb-4">7日間無料トライアル</div>
-              <ul className="space-y-3 text-sm text-gray-300 mb-6 text-left">
-                <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
-                <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
-                <li><i className="fas fa-check text-green-400 mr-2"></i>エグゼクティブコンシェルジュ</li>
-                <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
-                <li><i className="fas fa-check text-green-400 mr-2"></i>ブラックデスク（最優先サポート）</li>
-              </ul>
-              <button 
-                className="btn btn-primary w-full"
-                onClick={() => handlePlanSelect('black')}
-                disabled={loading === 'black'}
-              >
-                {loading === 'black' ? '処理中...' : '選択する'}
-              </button>
-            </div>
-          </div>
-      </div>
-
       </div>
     </div>
   );

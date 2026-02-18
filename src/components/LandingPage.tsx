@@ -646,79 +646,77 @@ const LandingPage: React.FC = () => {
 
         {/* Pricing Section */}
         <section id="pricing" className="py-20 story-gradient" data-animate="slide-right text-up">
-          <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" />
               料金プラン
             </h2>
+            <p className="text-center text-sm text-green-400 mb-10">すべての有料プランに7日間（1週間）無料トライアル</p>
 
-              <div className="grid lg:grid-cols-5 gap-6 max-w-6xl mx-auto" data-animate="alt-cards text-up">
-              {/* Free Plan */}
-              <div className="pricing-card rounded-2xl p-8 text-center">
-                <h3 className="text-2xl font-bold text-gray-300 mb-4">フリー</h3>
-                <div className="text-4xl font-bold text-white mb-6">¥0<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-0">
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>基本レッスン（10回まで）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（Lv.5まで）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>練習日記（月5投稿）</li>
-                  <li><i className="fas fa-times text-red-400 mr-2"></i>レジェンドモード</li>
-                  <li><i className="fas fa-times text-red-400 mr-2"></i>MIDI接続</li>
-                </ul>
-              </div>
-
-              {/* Standard Plan */}
-              <div className="pricing-card rounded-2xl p-8 text-center">
-                <h3 className="text-2xl font-bold text-blue-300 mb-4">スタンダード</h3>
-                <div className="text-4xl font-bold text-white mb-6">¥980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-0">
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>基本レッスン（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>練習日記（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>レジェンドモード（3曲まで）</li>
-                  <li><i className="fas fa-times text-red-400 mr-2"></i>MIDI接続</li>
-                </ul>
-              </div>
-
-              {/* Premium Plan */}
-              <div className="pricing-card premium rounded-2xl p-8 text-center transform scale-105">
-                <div className="bg-gradient-to-r from-yellow-400 to-orange-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">おすすめ</div>
-                <h3 className="text-2xl font-bold text-yellow-300 mb-4">プレミアム</h3>
-                <div className="text-4xl font-bold text-white mb-6">¥1,980<span className="text-sm text-gray-400">/月</span></div>
-                <ul className="space-y-3 text-sm text-gray-400 mb-0">
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>全レッスン（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>ファンタジーモード（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>コミュニティ機能（全て）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>レジェンドモード（無制限）</li>
-                  <li><i className="fas fa-check text-green-400 mr-2"></i>MIDI接続</li>
-                </ul>
-              </div>
-
-                {/* Platinum Plan */}
-                <div className="pricing-card rounded-2xl p-8 text-center">
-                  <h3 className="text-2xl font-bold text-purple-300 mb-4">プラチナ</h3>
-                  <div className="text-4xl font-bold text-white mb-6">¥2,980<span className="text-sm text-gray-400">/月</span></div>
-                  <ul className="space-y-3 text-sm text-gray-400 mb-0">
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>専用コンシェルジュ</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>優先サポート</li>
-                  </ul>
-                </div>
-
-                {/* Black Plan */}
-                <div className="pricing-card rounded-2xl p-8 text-center border border-slate-600 bg-slate-900/80">
-                  <div className="bg-slate-200 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">最上位</div>
-                  <h3 className="text-2xl font-bold text-gray-100 mb-4">ブラック</h3>
-                  <div className="text-4xl font-bold text-white mb-6">¥19,800<span className="text-sm text-gray-400">/月</span></div>
-                  <ul className="space-y-3 text-sm text-gray-300 mb-0">
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>全機能（無制限）</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>個人レッスン（月2回）</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>エグゼクティブコンシェルジュ</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>楽譜ダウンロード</li>
-                    <li><i className="fas fa-check text-green-400 mr-2"></i>ブラックデスク（最優先サポート）</li>
-                  </ul>
-                </div>
+            <div className="overflow-x-auto" data-animate="alt-cards text-up">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="p-3 text-left bg-slate-900/80 border border-slate-700 min-w-[140px]">
+                      <span className="text-gray-400 text-sm">機能</span>
+                    </th>
+                    {/* フリー */}
+                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
+                      <div className="text-lg font-semibold text-white">フリー</div>
+                      <div className="text-2xl font-bold text-white mt-1">¥0</div>
+                    </th>
+                    {/* スタンダード */}
+                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
+                      <div className="text-lg font-semibold text-white">スタンダード</div>
+                      <div className="text-2xl font-bold text-white mt-1">¥2,980<span className="text-xs text-gray-400 font-normal">/月</span></div>
+                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    </th>
+                    {/* プレミアム */}
+                    <th className="p-4 text-center border border-slate-700 border-t-2 border-t-purple-500 min-w-[120px] bg-slate-800/80">
+                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-black">おすすめ</span>
+                      <div className="text-lg font-semibold text-white">プレミアム</div>
+                      <div className="text-2xl font-bold text-white mt-1">¥8,980<span className="text-xs text-gray-400 font-normal">/月</span></div>
+                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    </th>
+                    {/* プラチナ */}
+                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
+                      <div className="text-lg font-semibold text-white">プラチナ</div>
+                      <div className="text-2xl font-bold text-white mt-1">¥14,800<span className="text-xs text-gray-400 font-normal">/月</span></div>
+                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    </th>
+                    {/* ブラック */}
+                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-gradient-to-br from-slate-900/80 via-slate-800/80 to-black/80">
+                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 bg-slate-200 text-black">最上位</span>
+                      <div className="text-lg font-semibold text-white">ブラック</div>
+                      <div className="text-2xl font-bold text-white mt-1">¥19,800<span className="text-xs text-gray-400 font-normal">/月</span></div>
+                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {([
+                    { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○', '○', '○', '○'] },
+                    { label: 'ミッション', values: ['×', '○', '○', '○', '○'] },
+                    { label: 'ファンタジー', values: ['×', '○', '○', '○', '○'] },
+                    { label: 'レジェンド', values: ['×', '5曲', '無制限', '無制限', '無制限'] },
+                    { label: 'サバイバル', values: ['×', '1キャラ', '無制限', '無制限', '無制限'] },
+                    { label: 'レッスン', values: ['×', '1コースのみ', '無制限', '無制限', '無制限'] },
+                    { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '無制限', '月10ブロック', '月10ブロック'] },
+                    { label: 'LINEでの課題添削', values: ['×', '×', '×', '×', '○'] },
+                  ] as { label: string; values: string[] }[]).map((row, idx) => (
+                    <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-800/20'}>
+                      <td className="p-3 border border-slate-700 text-sm text-gray-300 font-medium whitespace-pre-line">{row.label}</td>
+                      {row.values.map((v, i) => (
+                        <td key={i} className="p-3 border border-slate-700 text-center">
+                          {v === '○' ? <span className="text-green-400 text-lg font-bold">○</span>
+                            : v === '×' ? <span className="text-red-400 text-lg font-bold">×</span>
+                            : <span className="text-white text-sm font-medium">{v}</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </section>
