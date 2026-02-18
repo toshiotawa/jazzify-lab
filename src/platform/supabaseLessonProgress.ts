@@ -363,6 +363,43 @@ async function checkAndUnlockNextBlock(userId: string, courseId: string, complet
 }
 
 /**
+ * ユーザー自身によるブロック手動解放（プラチナ/ブラック限定、クレジット消費）
+ * @returns 残りクレジット数
+ */
+export async function manualUnlockBlock(courseId: string, blockNumber: number): Promise<number> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .rpc('manual_unlock_block', {
+      p_course_id: courseId,
+      p_block_number: blockNumber,
+    });
+
+  if (error) {
+    throw new Error(`ブロックの手動解放に失敗しました: ${error.message}`);
+  }
+
+  clearSupabaseCache();
+  return data as number;
+}
+
+/**
+ * ブロック解放クレジット残数を取得
+ */
+export async function fetchBlockUnlockCredits(): Promise<number> {
+  const supabase = getSupabaseClient();
+
+  const { data, error } = await supabase
+    .rpc('get_block_unlock_credits');
+
+  if (error) {
+    throw new Error(`クレジット取得に失敗しました: ${error.message}`);
+  }
+
+  return (data as number) ?? 0;
+}
+
+/**
  * レッスンの要件を取得
  */
 export async function fetchLessonRequirements(lessonId: string): Promise<LessonRequirement[]> {

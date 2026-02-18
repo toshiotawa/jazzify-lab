@@ -207,6 +207,38 @@ const updateUserSubscription = async (
   }
 };
 
+const PLATINUM_OR_BLACK: ReadonlySet<MembershipRank> = new Set(['platinum', 'black']);
+
+const addBlockUnlockCreditsIfEligible = async (
+  subscription: Stripe.Subscription,
+  billingReason: string | null
+) => {
+  const profile = await getProfileByCustomerId(subscription.customer as string);
+  if (!profile) return;
+
+  const priceId = subscription.items.data[0]?.price.id;
+  const rank = priceId ? await resolveMembershipRank(priceId) : 'free';
+
+  if (!PLATINUM_OR_BLACK.has(rank)) return;
+
+  const isNewOrRenewal =
+    billingReason === 'subscription_create' ||
+    billingReason === 'subscription_cycle';
+
+  if (!isNewOrRenewal) return;
+
+  const { error } = await supabase.rpc('add_block_unlock_credits', {
+    p_user_id: profile.id,
+    p_credits: 10,
+  });
+
+  if (error) {
+    console.error('Error adding block unlock credits:', error);
+  } else {
+    console.log(`Added 10 block unlock credits for user ${profile.id} (reason: ${billingReason})`);
+  }
+};
+
 const cancelInvoiceDuringTrial = async (
   invoiceRef: string | Stripe.Invoice | null | undefined,
   preservedTrialEndMs: number
@@ -465,9 +497,9 @@ export const handler = async (event, context) => {
       case 'invoice.payment_succeeded': {
         const invoice = stripeEvent.data.object as Stripe.Invoice;
         if (invoice.subscription) {
-          // 支払い成功時は現在のサブスクリプション情報を再取得して更新
           const subscription = await stripe.subscriptions.retrieve(invoice.subscription as string);
           await updateUserSubscription(subscription);
+          await addBlockUnlockCreditsIfEligible(subscription, invoice.billing_reason ?? null);
         }
         break;
       }

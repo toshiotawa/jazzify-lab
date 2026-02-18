@@ -1,9 +1,9 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse, manualUnlockCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll, manualUnlockBlock, fetchBlockUnlockCredits } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -12,12 +12,13 @@ import {
   FaUnlock,
   FaCheck, 
   FaStar, 
-  FaGraduationCap
+  FaGraduationCap,
+  FaLockOpen
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
-import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import { buildLessonAccessGraph, LessonAccessGraph, isPlatinumOrBlack } from '@/utils/lessonAccess';
 
 /**
  * レッスン学習画面
@@ -37,6 +38,15 @@ const LessonPage: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const mainAreaRef = useRef<HTMLDivElement>(null);
+  const userIsPlatinumOrBlack = isPlatinumOrBlack(profile?.rank);
+
+  // 手動解放モーダル関連
+  const [courseUnlockModalTarget, setCourseUnlockModalTarget] = useState<Course | null>(null);
+  const [blockUnlockModalTarget, setBlockUnlockModalTarget] = useState<{ courseId: string; blockNumber: number } | null>(null);
+  const [blockUnlockConfirmStep, setBlockUnlockConfirmStep] = useState<'first' | 'final'>('first');
+  const [blockUnlockCredits, setBlockUnlockCredits] = useState<number>(0);
+  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
+  const [unlockProcessing, setUnlockProcessing] = useState(false);
   const lessonAccessGraph = useMemo<LessonAccessGraph>(() => {
     if (lessons.length === 0) {
       return { lessonStates: {}, blockStates: {} };
@@ -140,6 +150,61 @@ const LessonPage: React.FC = () => {
     };
   }, [open, selectedCourse, profile?.isAdmin, profile?.rank]);
 
+  const loadCredits = useCallback(async () => {
+    if (!userIsPlatinumOrBlack) return;
+    try {
+      const credits = await fetchBlockUnlockCredits();
+      setBlockUnlockCredits(credits);
+    } catch {
+      setBlockUnlockCredits(0);
+    }
+  }, [userIsPlatinumOrBlack]);
+
+  const handleCourseManualUnlock = useCallback(async (course: Course) => {
+    if (!userIsPlatinumOrBlack || unlockProcessing) return;
+    setUnlockProcessing(true);
+    try {
+      await manualUnlockCourse(course.id);
+      toast.success(`「${course.title}」を手動で解放しました`);
+      setCourseUnlockModalTarget(null);
+      await loadData();
+      setSelectedCourse(course);
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'コースの解放に失敗しました');
+    } finally {
+      setUnlockProcessing(false);
+    }
+  }, [userIsPlatinumOrBlack, unlockProcessing]);
+
+  const handleBlockManualUnlock = useCallback(async () => {
+    if (!blockUnlockModalTarget || !userIsPlatinumOrBlack || unlockProcessing) return;
+    setUnlockProcessing(true);
+    try {
+      const remaining = await manualUnlockBlock(blockUnlockModalTarget.courseId, blockUnlockModalTarget.blockNumber);
+      setBlockUnlockCredits(remaining);
+      toast.success(`ブロック ${blockUnlockModalTarget.blockNumber} を手動で解放しました`);
+      setBlockUnlockModalTarget(null);
+      setBlockUnlockConfirmStep('first');
+      if (selectedCourse) {
+        await loadLessons(selectedCourse.id);
+      }
+    } catch (e: unknown) {
+      toast.error(e instanceof Error ? e.message : 'ブロックの解放に失敗しました');
+    } finally {
+      setUnlockProcessing(false);
+    }
+  }, [blockUnlockModalTarget, userIsPlatinumOrBlack, unlockProcessing, selectedCourse]);
+
+  const openBlockUnlockModal = useCallback(async (courseId: string, blockNumber: number) => {
+    if (userIsPlatinumOrBlack) {
+      await loadCredits();
+      setBlockUnlockModalTarget({ courseId, blockNumber });
+      setBlockUnlockConfirmStep('first');
+    } else {
+      setUpgradeModalOpen(true);
+    }
+  }, [userIsPlatinumOrBlack, loadCredits]);
+
   const loadData = async () => {
     setLoading(true);
     try {
@@ -188,6 +253,11 @@ const LessonPage: React.FC = () => {
         }
       }
       
+      // クレジット取得
+      if (userIsPlatinumOrBlack) {
+        loadCredits();
+      }
+
       // アクセス可能な最初のコースを選択
       const firstAccessibleCourse = sortedCourses.find(course => {
         const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
@@ -424,6 +494,13 @@ const LessonPage: React.FC = () => {
                                   mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }, 50);
                               }
+                            } else if (
+                              userIsPlatinumOrBlack &&
+                              !manualLockBadgeVisible &&
+                              accessResult.rankAllows &&
+                              !accessResult.prerequisitesMet
+                            ) {
+                              setCourseUnlockModalTarget(course);
                             } else {
                               toast.warning(accessResult.reason || 'このコースにはアクセスできません');
                             }
@@ -440,7 +517,7 @@ const LessonPage: React.FC = () => {
                               {manualUnlockBadgeVisible && (
                                 <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
                                   <FaUnlock className="text-xs" />
-                                  管理者解放
+                                  手動解放
                                 </span>
                               )}
                               {manualLockBadgeVisible && (
@@ -543,9 +620,13 @@ const LessonPage: React.FC = () => {
                             const isBlockUnlocked = blockState?.isUnlocked ?? false;
                             const isBlockCompleted = blockState?.isCompleted ?? false;
                             const manualBadgeVisible = blockState?.manualUnlockApplied === true;
+                            const manualUnlockSuppressed = blockState?.manualUnlockSuppressed === true;
+                            const isNaturallyUnlocked = blockState?.isNaturallyUnlocked ?? false;
+                            const showManualUnlockBadge = manualBadgeVisible || manualUnlockSuppressed;
+                            const showUnlockButton = !isBlockUnlocked && !isBlockCompleted && !showManualUnlockBadge && !isNaturallyUnlocked && blockNum > 1;
 
                             return (
-                              <div key={blockNum} className="bg-slate-800 rounded-lg p-4">
+                              <div key={blockNum} className="bg-slate-800 rounded-lg p-4 relative">
                                 <div className="flex items-center justify-between mb-4">
                                   <h4 className="text-lg font-semibold text-white">
                                     ブロック {blockNum}
@@ -562,10 +643,24 @@ const LessonPage: React.FC = () => {
                                         <FaLock className="mr-1" /> 未解放 - 前のブロックを完了してください
                                       </span>
                                     )}
-                                    {manualBadgeVisible && (
+                                    {showManualUnlockBadge && (
                                       <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                                        <FaUnlock /> 管理者解放
+                                        <FaUnlock /> 手動解放
                                       </span>
+                                    )}
+                                    {showUnlockButton && (
+                                      <button
+                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 hover:bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
+                                        onClick={(e) => {
+                                          e.stopPropagation();
+                                          if (selectedCourse) {
+                                            openBlockUnlockModal(selectedCourse.id, blockNum);
+                                          }
+                                        }}
+                                      >
+                                        <FaLockOpen className="text-xs" />
+                                        解放
+                                      </button>
                                     )}
                                   </div>
                                 </div>
@@ -652,6 +747,183 @@ const LessonPage: React.FC = () => {
           )}
         </div>
       </div>
+
+      {/* コース手動解放モーダル（プラチナ/ブラック用） */}
+      {courseUnlockModalTarget && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+          onClick={() => setCourseUnlockModalTarget(null)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-amber-600/20 flex items-center justify-center">
+                <FaLockOpen className="text-amber-400 text-lg" />
+              </div>
+              <h3 className="text-lg font-bold text-white">コースを手動で解放しますか？</h3>
+            </div>
+            <p className="text-gray-300 text-sm mb-2">
+              「{courseUnlockModalTarget.title}」を手動で解放します。
+            </p>
+            <p className="text-gray-400 text-xs mb-6">
+              ブロック1も自動的に解放されます。コースの解放に回数制限はありません。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
+                onClick={() => setCourseUnlockModalTarget(null)}
+                disabled={unlockProcessing}
+              >
+                いいえ
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                onClick={() => handleCourseManualUnlock(courseUnlockModalTarget)}
+                disabled={unlockProcessing}
+              >
+                {unlockProcessing ? '処理中...' : 'はい'}
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* ブロック手動解放モーダル（プラチナ/ブラック用・二重確認） */}
+      {blockUnlockModalTarget && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+          onClick={() => {
+            setBlockUnlockModalTarget(null);
+            setBlockUnlockConfirmStep('first');
+          }}
+        >
+          <div
+            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {blockUnlockConfirmStep === 'first' ? (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-amber-600/20 flex items-center justify-center">
+                    <FaLockOpen className="text-amber-400 text-lg" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">このブロックを解放しますか？</h3>
+                </div>
+                <div className="bg-slate-800 rounded-lg p-3 mb-4 border border-slate-700">
+                  <p className="text-amber-400 text-sm font-semibold">
+                    残り解放可能回数: {blockUnlockCredits}
+                  </p>
+                </div>
+                <p className="text-gray-300 text-sm mb-6">
+                  ブロック {blockUnlockModalTarget.blockNumber} を手動で解放します。
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
+                    onClick={() => {
+                      setBlockUnlockModalTarget(null);
+                      setBlockUnlockConfirmStep('first');
+                    }}
+                  >
+                    いいえ
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                    onClick={() => setBlockUnlockConfirmStep('final')}
+                    disabled={blockUnlockCredits <= 0}
+                  >
+                    はい
+                  </button>
+                </div>
+                {blockUnlockCredits <= 0 && (
+                  <p className="text-red-400 text-xs mt-3 text-center">
+                    解放可能回数が不足しています。次のサブスクリプション更新で10回分追加されます。
+                  </p>
+                )}
+              </>
+            ) : (
+              <>
+                <div className="flex items-center gap-3 mb-4">
+                  <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center">
+                    <FaLockOpen className="text-red-400 text-lg" />
+                  </div>
+                  <h3 className="text-lg font-bold text-white">本当に解放しますか？</h3>
+                </div>
+                <p className="text-red-300 text-sm mb-6">
+                  この動作は取り消しできません。解放可能回数が1回消費されます。
+                </p>
+                <div className="flex gap-3 justify-end">
+                  <button
+                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
+                    onClick={() => {
+                      setBlockUnlockModalTarget(null);
+                      setBlockUnlockConfirmStep('first');
+                    }}
+                    disabled={unlockProcessing}
+                  >
+                    いいえ
+                  </button>
+                  <button
+                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
+                    onClick={handleBlockManualUnlock}
+                    disabled={unlockProcessing}
+                  >
+                    {unlockProcessing ? '処理中...' : 'はい'}
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>,
+        document.body
+      )}
+
+      {/* アップグレード案内モーダル（スタンダード/プレミアム用） */}
+      {upgradeModalOpen && createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+          onClick={() => setUpgradeModalOpen(false)}
+        >
+          <div
+            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center">
+                <FaLock className="text-blue-400 text-lg" />
+              </div>
+              <h3 className="text-lg font-bold text-white">ブロックの解放</h3>
+            </div>
+            <p className="text-gray-300 text-sm mb-2">
+              前のブロックをクリアしてください。
+            </p>
+            <p className="text-gray-400 text-sm mb-6">
+              プラチナプラン以上でブロック解放が手動で行えます。
+            </p>
+            <div className="flex gap-3 justify-end">
+              <button
+                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
+                onClick={() => setUpgradeModalOpen(false)}
+              >
+                キャンセル
+              </button>
+              <button
+                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
+                onClick={() => {
+                  setUpgradeModalOpen(false);
+                  window.location.hash = '#account';
+                }}
+              >
+                アップグレード
+              </button>
+            </div>
+          </div>
+        </div>,
+        document.body
+      )}
     </div>
   );
 };

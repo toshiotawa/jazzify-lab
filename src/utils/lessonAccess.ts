@@ -8,6 +8,11 @@ const PREMIUM_RANKS: ReadonlySet<MembershipRank> = new Set([
   'black',
 ]);
 
+const PLATINUM_OR_BLACK_RANKS: ReadonlySet<MembershipRank> = new Set([
+  'platinum',
+  'black',
+]);
+
 const DEFAULT_RANK: MembershipRank = 'free';
 
 export const isPremiumRank = (rank?: MembershipRank | null): boolean => {
@@ -15,6 +20,13 @@ export const isPremiumRank = (rank?: MembershipRank | null): boolean => {
     return false;
   }
   return PREMIUM_RANKS.has(rank);
+};
+
+export const isPlatinumOrBlack = (rank?: MembershipRank | null): boolean => {
+  if (!rank) {
+    return false;
+  }
+  return PLATINUM_OR_BLACK_RANKS.has(rank);
 };
 
 export const normalizeRank = (rank?: MembershipRank | null): MembershipRank => {

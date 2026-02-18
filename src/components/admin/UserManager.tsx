@@ -677,7 +677,7 @@ const UserManager: React.FC = () => {
                                   {blockStatus.manualUnlockApplied && (
                                     <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
                                       <FaUnlock className="text-[10px]" />
-                                      管理者解放
+                                      手動解放
                                     </span>
                                   )}
                               </div>

@@ -383,5 +383,22 @@ export async function unlockDependentCourses(userId: string): Promise<void> {
   clearCacheByPattern(/^courses/);
 }
 
+/**
+ * ユーザー自身によるコース手動解放（プラチナ/ブラック限定、回数無制限）
+ */
+export async function manualUnlockCourse(courseId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .rpc('manual_unlock_course', {
+      p_course_id: courseId,
+    });
+
+  if (error) {
+    throw new Error(`コースの手動解放に失敗しました: ${error.message}`);
+  }
+
+  clearCacheByPattern(/^courses/);
+  clearCacheByPattern(/^user_course_unlock_status/);
+}
+
 export { clearCacheByPattern as clearSupabaseCache };
 export { checkCoursePrerequisites } from '@/utils/lessonAccess';
