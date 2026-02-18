@@ -583,6 +583,12 @@ const AccountPage: React.FC = () => {
                           </button>
                         </div>
                       )}
+                      <button
+                        className="btn btn-sm btn-outline w-full mt-2"
+                        onClick={() => { window.location.href = '/main#plan-comparison'; }}
+                      >
+                        {isEnglishCopy ? 'Compare Plans' : 'プラン比較表を見る'}
+                      </button>
                     </div>
                   </div>
 
