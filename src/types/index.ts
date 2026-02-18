@@ -56,6 +56,7 @@ export interface ActiveNote extends NoteData {
   timingError?: number;
   y?: number; // 描画用Y座標（PIXI.js用）
   previousY?: number; // 前フレームのY座標（判定ライン通過検出用）
+  _lastLogicY?: number; // ロジック更新時のY座標（フレームスキップ耐性のある通過検出用）
   judged?: boolean; // Miss判定の重複を防ぐフラグ
   crossingLogged?: boolean; // 判定ライン通過ログの重複を防ぐフラグ
 }

@@ -167,6 +167,7 @@ export class GameEngine {
     note.hitTime = undefined;
     note.timingError = undefined;
     note.previousY = undefined;
+    note._lastLogicY = undefined;
     note.y = undefined;
     note.judged = false;
     note.crossingLogged = false;
@@ -186,6 +187,7 @@ export class GameEngine {
       instance.hitTime = undefined;
       instance.timingError = undefined;
       instance.previousY = undefined;
+      instance._lastLogicY = undefined;
       instance.y = baseY;
       instance.judged = false;
       instance.crossingLogged = false;
@@ -708,8 +710,6 @@ export class GameEngine {
         // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
         const latestNote = this.activeNotes.get(noteId) || note;
         if (isRecentNote && latestNote.state !== note.state) {
-          // ログ削除: FPS最適化のため
-          // devLog.debug(`🔀 STEP1後の状態変化: ${noteId} - ${note.state} → ${latestNote.state}`);
         }
         
         const updatedNote = this.updateNoteState(latestNote, currentTime, timingAdjSec);
@@ -729,12 +729,14 @@ export class GameEngine {
         }
         
         if (updatedNote.state === 'completed') {
-          // 削除対象としてマーク（ループ中の削除を避ける）
           notesToDelete.push(noteId);
           
           if (isRecentNote) {
           }
         }
+
+        // ロジック更新時のY座標を記録（次回ロジック更新での通過検出に使用）
+        updatedNote._lastLogicY = updatedNote.y;
     }
     
       // バッチ削除（ループ後に実行）
@@ -787,10 +789,6 @@ export class GameEngine {
       return note;
     }
     
-    // 前フレームのY座標を保存してから新しいY座標を計算
-    note.previousY = note.y;
-    note.y = this.calculateNoteY(note, currentTime);
-    
     return note;
   }
 
@@ -801,14 +799,15 @@ export class GameEngine {
     const hitLineY = screenHeight - pianoHeight; // 判定ライン位置
 
     const noteCenter = (note.y || 0);
-    const prevNoteCenter = (note.previousY || 0);
+    const prevLogicY = (note._lastLogicY ?? note.previousY ?? 0);
     
     // ▼ crossing 判定用の "表示上の" 到達時刻を利用
     const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
     
-    // 判定ラインを通過した瞬間を検出（中心がラインに到達したフレームも含む）
-    if (note.previousY !== undefined && 
-        prevNoteCenter <= hitLineY && 
+    // 判定ラインを通過した瞬間を検出
+    // _lastLogicY: 前回ロジック更新時のY座標を使用し、フレームスキップによる取りこぼしを防止
+    if ((note._lastLogicY !== undefined || note.previousY !== undefined) && 
+        prevLogicY <= hitLineY && 
         noteCenter >= hitLineY &&
         note.state === 'visible' &&
         !note.crossingLogged) { // 重複ログ防止
