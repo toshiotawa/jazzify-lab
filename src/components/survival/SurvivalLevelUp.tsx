@@ -8,6 +8,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { cn } from '@/utils/cn';
 import { LevelUpBonus } from './SurvivalTypes';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
@@ -33,9 +36,13 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   correctNotes,
   tapSelectionEnabled = false,
 }) => {
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
-  const [inputEnabled, setInputEnabled] = useState(false);  // 入力受付状態
-  const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);  // 選択されたボーナス
+  const [inputEnabled, setInputEnabled] = useState(false);
+  const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);
   const timeoutCalledRef = React.useRef(false);
   
   // pendingLevelUpsが変わったらタイマーと入力状態をリセット
@@ -231,7 +238,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
                     isCompact ? 'text-xs' : 'text-sm',
                     isComplete || isSelected ? 'text-yellow-300' : 'text-white'
                   )}>
-                    {option.displayName}
+                    {isEnglishCopy && option.displayNameEn ? option.displayNameEn : option.displayName}
                   </span>
                 </div>
                 
@@ -274,7 +281,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
         {/* 操作説明 - 最小化 */}
         {!inputEnabled && (
           <div className="mt-2 text-center text-xs text-yellow-400 animate-pulse font-sans">
-            ⏳ 準備中...
+            ⏳ {isEnglishCopy ? 'Get ready...' : '準備中...'}
           </div>
         )}
       </div>

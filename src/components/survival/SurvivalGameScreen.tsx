@@ -2671,7 +2671,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           {/* WAVEノルマ表示 */}
           <div className="flex items-center gap-2">
             <div className="flex flex-col items-center text-xs">
-              <span className="text-gray-400">残り</span>
+              <span className="text-gray-400">{isEnglishCopy ? 'Left' : '残り'}</span>
               <span className={cn(
                 'font-bold',
                 gameState.wave.waveKills >= gameState.wave.waveQuota 
@@ -2680,11 +2680,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     ? 'text-red-400'
                     : 'text-white'
               )}>
-                {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}体
+                {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
               </span>
             </div>
             <div className="flex flex-col items-center text-xs">
-              <span className="text-gray-400">制限</span>
+              <span className="text-gray-400">{isEnglishCopy ? 'Limit' : '制限'}</span>
               <span className={cn(
                 'font-bold',
                 (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 

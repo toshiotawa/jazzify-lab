@@ -920,41 +920,43 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
 type BonusDefinition = {
   type: BonusType;
   displayName: string;
+  displayNameEn: string;
   description: string;
+  descriptionEn: string;
   icon: string;
   maxLevel?: number;
 };
 
 const ALL_BONUSES: BonusDefinition[] = [
   // ステータス系
-  { type: 'a_atk', displayName: '遠距離 ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', icon: '🔫' },
-  { type: 'b_atk', displayName: '近接 ATK +1', description: '近接攻撃力アップ（+10ダメージ）', icon: '👊' },
-  { type: 'c_atk', displayName: '魔法 ATK +1', description: '魔法攻撃力アップ（+10ダメージ）', icon: '🪄' },
-  { type: 'speed', displayName: 'SPEED +1', description: '移動速度アップ', icon: '👟' },
-  { type: 'reload_magic', displayName: 'RELOAD +1', description: '魔法リロード短縮', icon: '⏱️', maxLevel: 20 },
-  { type: 'max_hp', displayName: 'HP +20%', description: '最大HPアップ', icon: '❤️' },
-  { type: 'def', displayName: 'DEF +1', description: '防御力アップ', icon: '🛡️' },
-  { type: 'time', displayName: 'TIME +1', description: '効果時間+2秒', icon: '⏰' },
-  { type: 'a_bullet', displayName: '遠距離弾数 +2', description: '時計方向に弾を追加', icon: '💫' },
-  { type: 'luck_pendant', displayName: '幸運のペンダント', description: '運+1%（ダメージ2倍等の確率UP）', icon: '🍀', maxLevel: 40 },
+  { type: 'a_atk', displayName: '遠距離 ATK +1', displayNameEn: 'Ranged ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', descriptionEn: 'Ranged attack power up (+10 damage)', icon: '🔫' },
+  { type: 'b_atk', displayName: '近接 ATK +1', displayNameEn: 'Melee ATK +1', description: '近接攻撃力アップ（+10ダメージ）', descriptionEn: 'Melee attack power up (+10 damage)', icon: '👊' },
+  { type: 'c_atk', displayName: '魔法 ATK +1', displayNameEn: 'Magic ATK +1', description: '魔法攻撃力アップ（+10ダメージ）', descriptionEn: 'Magic attack power up (+10 damage)', icon: '🪄' },
+  { type: 'speed', displayName: 'SPEED +1', displayNameEn: 'SPEED +1', description: '移動速度アップ', descriptionEn: 'Movement speed up', icon: '👟' },
+  { type: 'reload_magic', displayName: 'RELOAD +1', displayNameEn: 'RELOAD +1', description: '魔法リロード短縮', descriptionEn: 'Magic cooldown reduction', icon: '⏱️', maxLevel: 20 },
+  { type: 'max_hp', displayName: 'HP +20%', displayNameEn: 'HP +20%', description: '最大HPアップ', descriptionEn: 'Max HP up', icon: '❤️' },
+  { type: 'def', displayName: 'DEF +1', displayNameEn: 'DEF +1', description: '防御力アップ', descriptionEn: 'Defense up', icon: '🛡️' },
+  { type: 'time', displayName: 'TIME +1', displayNameEn: 'TIME +1', description: '効果時間+2秒', descriptionEn: 'Effect duration +2s', icon: '⏰' },
+  { type: 'a_bullet', displayName: '遠距離弾数 +2', displayNameEn: 'Bullets +2', description: '時計方向に弾を追加', descriptionEn: 'Add clockwise bullets', icon: '💫' },
+  { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+1%（ダメージ2倍等の確率UP）', descriptionEn: 'Luck +1% (chance for 2x damage, etc.)', icon: '🍀', maxLevel: 40 },
   // 特殊系
-  { type: 'a_penetration', displayName: '貫通', description: '遠距離弾が敵を貫通', icon: '➡️', maxLevel: 1 },
-  { type: 'b_knockback', displayName: 'ノックバック+', description: '近接攻撃のノックバック距離増加', icon: '💨' },
-  { type: 'b_range', displayName: '攻撃範囲+', description: '近接攻撃範囲拡大', icon: '📐' },
-  { type: 'b_deflect', displayName: '拳でかきけす', description: '近接攻撃で敵弾消去', icon: '✊', maxLevel: 1 },
-  { type: 'multi_hit', displayName: '近距離多段ヒット', description: '近距離攻撃の攻撃回数増加', icon: '✨', maxLevel: 3 },
-  { type: 'exp_bonus', displayName: '経験値+1', description: 'コイン獲得経験値+1', icon: '💰', maxLevel: 10 },
-  { type: 'haisui_no_jin', displayName: '背水の陣', description: 'HP15%以下で大幅強化', icon: '🩸', maxLevel: 1 },
-  { type: 'zekkouchou', displayName: '絶好調', description: 'HP満タンで攻撃強化', icon: '😊', maxLevel: 1 },
-  { type: 'auto_select', displayName: 'オート選択', description: 'レベルアップボーナスを自動選択', icon: '🤖', maxLevel: 1 },
+  { type: 'a_penetration', displayName: '貫通', displayNameEn: 'Penetration', description: '遠距離弾が敵を貫通', descriptionEn: 'Ranged bullets pierce enemies', icon: '➡️', maxLevel: 1 },
+  { type: 'b_knockback', displayName: 'ノックバック+', displayNameEn: 'Knockback+', description: '近接攻撃のノックバック距離増加', descriptionEn: 'Increase melee knockback distance', icon: '💨' },
+  { type: 'b_range', displayName: '攻撃範囲+', displayNameEn: 'Attack Range+', description: '近接攻撃範囲拡大', descriptionEn: 'Expand melee attack range', icon: '📐' },
+  { type: 'b_deflect', displayName: '拳でかきけす', displayNameEn: 'Deflect', description: '近接攻撃で敵弾消去', descriptionEn: 'Destroy enemy bullets with melee', icon: '✊', maxLevel: 1 },
+  { type: 'multi_hit', displayName: '近距離多段ヒット', displayNameEn: 'Multi-Hit', description: '近距離攻撃の攻撃回数増加', descriptionEn: 'Increase melee hit count', icon: '✨', maxLevel: 3 },
+  { type: 'exp_bonus', displayName: '経験値+1', displayNameEn: 'EXP +1', description: 'コイン獲得経験値+1', descriptionEn: 'Coin EXP +1', icon: '💰', maxLevel: 10 },
+  { type: 'haisui_no_jin', displayName: '背水の陣', displayNameEn: 'Last Stand', description: 'HP15%以下で大幅強化', descriptionEn: 'Major boost when HP ≤ 15%', icon: '🩸', maxLevel: 1 },
+  { type: 'zekkouchou', displayName: '絶好調', displayNameEn: 'Peak Condition', description: 'HP満タンで攻撃強化', descriptionEn: 'Attack boost at full HP', icon: '😊', maxLevel: 1 },
+  { type: 'auto_select', displayName: 'オート選択', displayNameEn: 'Auto Select', description: 'レベルアップボーナスを自動選択', descriptionEn: 'Auto-select level-up bonus', icon: '🤖', maxLevel: 1 },
   // 魔法系
-  { type: 'magic_thunder', displayName: 'THUNDER', description: '雷魔法', icon: '⚡', maxLevel: 3 },
-  { type: 'magic_ice', displayName: 'ICE', description: '氷魔法', icon: '❄️', maxLevel: 3 },
-  { type: 'magic_fire', displayName: 'FIRE', description: '炎魔法', icon: '🔥', maxLevel: 3 },
-  { type: 'magic_heal', displayName: 'HEAL', description: '回復魔法', icon: '💚', maxLevel: 3 },
-  { type: 'magic_buffer', displayName: 'BUFFER', description: 'バフ魔法', icon: '⬆️', maxLevel: 3 },
-  { type: 'magic_debuffer', displayName: 'DEBUFFER', description: 'デバフ魔法', icon: '⬇️', maxLevel: 3 },
-  { type: 'magic_hint', displayName: 'HINT', description: 'ヒント魔法', icon: '💡', maxLevel: 3 },
+  { type: 'magic_thunder', displayName: 'THUNDER', displayNameEn: 'THUNDER', description: '雷魔法', descriptionEn: 'Thunder magic', icon: '⚡', maxLevel: 3 },
+  { type: 'magic_ice', displayName: 'ICE', displayNameEn: 'ICE', description: '氷魔法', descriptionEn: 'Ice magic', icon: '❄️', maxLevel: 3 },
+  { type: 'magic_fire', displayName: 'FIRE', displayNameEn: 'FIRE', description: '炎魔法', descriptionEn: 'Fire magic', icon: '🔥', maxLevel: 3 },
+  { type: 'magic_heal', displayName: 'HEAL', displayNameEn: 'HEAL', description: '回復魔法', descriptionEn: 'Heal magic', icon: '💚', maxLevel: 3 },
+  { type: 'magic_buffer', displayName: 'BUFFER', displayNameEn: 'BUFFER', description: 'バフ魔法', descriptionEn: 'Buffer magic', icon: '⬆️', maxLevel: 3 },
+  { type: 'magic_debuffer', displayName: 'DEBUFFER', displayNameEn: 'DEBUFFER', description: 'デバフ魔法', descriptionEn: 'Debuffer magic', icon: '⬇️', maxLevel: 3 },
+  { type: 'magic_hint', displayName: 'HINT', displayNameEn: 'HINT', description: 'ヒント魔法', descriptionEn: 'Hint magic', icon: '💡', maxLevel: 3 },
 ];
 
 const getCurrentBonusLevel = (player: PlayerState, type: BonusType): number => {

@@ -219,7 +219,9 @@ export type BonusType =
 export interface LevelUpBonus {
   type: BonusType;
   displayName: string;
+  displayNameEn?: string;
   description: string;
+  descriptionEn?: string;
   icon: string;
   chord: ChordDefinition;    // 選択用コード
   maxLevel?: number;         // 上限レベル（なければ無限）
@@ -363,6 +365,7 @@ export interface DifficultyConfig {
   difficulty: SurvivalDifficulty;
   displayName: string;
   description: string;
+  descriptionEn?: string;
   allowedChords: string[];   // 出題コード
   enemySpawnRate: number;    // 敵出現間隔（秒）
   enemySpawnCount: number;   // 1回の出現数

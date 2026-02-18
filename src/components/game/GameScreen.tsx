@@ -14,6 +14,8 @@ import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import KeyClearsModal from '@/components/ui/KeyClearsModal';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 /**
  * メインゲーム画面コンポーネント
@@ -541,6 +543,8 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children }) => {
 const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
   const { profile, user } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
@@ -604,9 +608,9 @@ const SongSelectionScreen: React.FC = () => {
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
       <div className="max-w-6xl mx-auto">
         <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-white">レジェンドモード</h2>
+          <h2 className="text-xl sm:text-2xl font-bold text-white">{isEnglishCopy ? 'Legend Mode' : 'レジェンドモード'}</h2>
           <div className="text-sm text-gray-400">
-            {sortedSongs.length} 曲
+            {sortedSongs.length} {isEnglishCopy ? 'songs' : '曲'}
           </div>
         </div>
 
@@ -614,10 +618,10 @@ const SongSelectionScreen: React.FC = () => {
         <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
           <div className="flex items-center space-x-2 mb-1">
             <FaMusic className="text-green-400" />
-            <h3 className="text-sm font-semibold">楽曲を選んで練習しましょう</h3>
+            <h3 className="text-sm font-semibold">{isEnglishCopy ? 'Choose a song to practice' : '楽曲を選んで練習しましょう'}</h3>
           </div>
           <p className="text-gray-300 text-xs sm:text-sm">
-            ソートや検索で楽曲を絞り込み、選択すると練習画面に移動します。自分のペースで練習を進めましょう。
+            {isEnglishCopy ? 'Filter songs by sorting or searching. Select a song to start practicing at your own pace.' : 'ソートや検索で楽曲を絞り込み、選択すると練習画面に移動します。自分のペースで練習を進めましょう。'}
           </p>
         </div>
         
@@ -625,24 +629,24 @@ const SongSelectionScreen: React.FC = () => {
 
         <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
           <div className="flex items-center space-x-2 whitespace-nowrap">
-            <label className="text-sm text-gray-300">ソート:</label>
+            <label className="text-sm text-gray-300">{isEnglishCopy ? 'Sort:' : 'ソート:'}</label>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value as 'artist' | 'title')}
               className="select select-sm bg-slate-700 text-white border-slate-600"
             >
-              <option value="artist">アーティスト順</option>
-              <option value="title">タイトル順</option>
+              <option value="artist">{isEnglishCopy ? 'By Artist' : 'アーティスト順'}</option>
+              <option value="title">{isEnglishCopy ? 'By Title' : 'タイトル順'}</option>
             </select>
           </div>
 
           <div className="flex items-center space-x-2 flex-1 min-w-[200px]">
-            <label className="text-sm text-gray-300">検索:</label>
+            <label className="text-sm text-gray-300">{isEnglishCopy ? 'Search:' : '検索:'}</label>
             <input
               type="text"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder="曲名・アーティストで検索"
+              placeholder={isEnglishCopy ? 'Search by title or artist' : '曲名・アーティストで検索'}
               className="input input-sm bg-slate-700 text-white border-slate-600 w-full"
             />
           </div>
@@ -813,9 +817,9 @@ const SongSelectionScreen: React.FC = () => {
         {lockedSong && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={()=>setLockedSong(null)}>
             <div className="bg-slate-800 p-6 rounded-lg text-white space-y-4" onClick={e=>e.stopPropagation()}>
-              <h4 className="text-lg font-bold text-center">この曲はプレイできません</h4>
-              <p className="text-center">{lockedSong.title} は {lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。</p>
-              <button className="btn btn-sm btn-primary w-full" onClick={()=>setLockedSong(null)}>閉じる</button>
+              <h4 className="text-lg font-bold text-center">{isEnglishCopy ? 'Song Locked' : 'この曲はプレイできません'}</h4>
+              <p className="text-center">{isEnglishCopy ? `${lockedSong.title} requires ${lockedSong.min_rank.toUpperCase()} plan or higher.` : `${lockedSong.title} は ${lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。`}</p>
+              <button className="btn btn-sm btn-primary w-full" onClick={()=>setLockedSong(null)}>{isEnglishCopy ? 'Close' : '閉じる'}</button>
             </div>
           </div>
         )}
@@ -836,6 +840,9 @@ const GamePlayScreen: React.FC = () => {
     missionContext: s.missionContext
   }));
   const gameActions = useGameActions();
+  const { profile: gpProfile } = useAuthStore();
+  const gpGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: gpProfile?.rank, country: gpProfile?.country ?? gpGeoCountry });
   
   // 楽譜エリアの高さ比率を管理（パーセンテージ）
   const [sheetMusicHeightPercentage, setSheetMusicHeightPercentage] = useState(30);
@@ -850,13 +857,13 @@ const GamePlayScreen: React.FC = () => {
       <div className="flex-1 flex items-center justify-center">
         <div className="text-center">
           <div className="text-6xl mb-4">🎵</div>
-          <h3 className="text-xl text-gray-300 mb-4">楽曲を選択してください</h3>
+          <h3 className="text-xl text-gray-300 mb-4">{isEnglishCopy ? 'Select a song' : '楽曲を選択してください'}</h3>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
                 onClick={() => gameActions.setCurrentTab('songs')}
                 className="btn btn-primary"
               >
-                楽曲選択に移動
+                {isEnglishCopy ? 'Go to Song Selection' : '楽曲選択に移動'}
               </button>
               <button
                 onClick={async () => {
@@ -864,13 +871,13 @@ const GamePlayScreen: React.FC = () => {
                     const { initializeAudioSystem } = await import('@/utils/MidiController');
                     await initializeAudioSystem();
                   } catch (error) {
-                    console.error('❌ Manual audio system initialization failed:', error);
-                    alert('音声システムの初期化に失敗しました。ページを再読み込みしてください。');
+                    console.error('Manual audio system initialization failed:', error);
+                    alert(isEnglishCopy ? 'Failed to initialize audio system. Please reload the page.' : '音声システムの初期化に失敗しました。ページを再読み込みしてください。');
                   }
                 }}
                 className="btn btn-secondary text-sm"
               >
-                音声システム初期化
+                {isEnglishCopy ? 'Initialize Audio' : '音声システム初期化'}
               </button>
             </div>
         </div>
@@ -940,6 +947,9 @@ const ModeToggleButton: React.FC = () => {
     mode: s.mode
   }));
   const gameActions = useGameActions();
+  const { profile: mtProfile } = useAuthStore();
+  const mtGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: mtProfile?.rank, country: mtProfile?.country ?? mtGeoCountry });
 
   return (
     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
@@ -957,9 +967,9 @@ const ModeToggleButton: React.FC = () => {
               : 'bg-gradient-to-br from-gray-500/60 to-gray-700/60 hover:from-gray-400/70 hover:to-gray-600/70 text-gray-200 border-gray-400/40'
             }
           `}
-          title="練習モード（リハーサル）"
+          title={isEnglishCopy ? 'Practice Mode (Rehearsal)' : '練習モード（リハーサル）'}
         >
-          リハ
+          {isEnglishCopy ? 'Rehrs' : 'リハ'}
         </button>
         
         {/* ステージボタン */}
@@ -975,9 +985,9 @@ const ModeToggleButton: React.FC = () => {
               : 'bg-gradient-to-br from-gray-500/60 to-gray-700/60 hover:from-gray-400/70 hover:to-gray-600/70 text-gray-200 border-gray-400/40'
             }
           `}
-          title="本番モード（ステージ）"
+          title={isEnglishCopy ? 'Performance Mode (Stage)' : '本番モード（ステージ）'}
         >
-          ステージ
+          {isEnglishCopy ? 'Stage' : 'ステージ'}
         </button>
       </div>
     </div>
@@ -991,6 +1001,9 @@ const LessonBackButton: React.FC = () => {
   const { lessonContext } = useGameSelector((s) => ({
     lessonContext: s.lessonContext
   }));
+  const { profile: lbProfile } = useAuthStore();
+  const lbGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: lbProfile?.rank, country: lbProfile?.country ?? lbGeoCountry });
 
   // レッスンコンテキストがない場合は何も表示しない
   if (!lessonContext) {
@@ -1013,10 +1026,10 @@ const LessonBackButton: React.FC = () => {
           text-white border border-gray-400/60
           flex items-center space-x-2
         "
-        title="レッスンに戻る"
+        title={isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る'}
       >
         <FaArrowLeft className="w-3 h-3" />
-        <span>レッスンに戻る</span>
+        <span>{isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る'}</span>
       </button>
     </div>
   );
@@ -1029,6 +1042,9 @@ const MissionBackButton: React.FC = () => {
   const { missionContext } = useGameSelector((s) => ({
     missionContext: s.missionContext
   }));
+  const { profile: mbProfile } = useAuthStore();
+  const mbGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: mbProfile?.rank, country: mbProfile?.country ?? mbGeoCountry });
 
   // ミッションコンテキストがない場合は何も表示しない
   if (!missionContext) {
@@ -1051,10 +1067,10 @@ const MissionBackButton: React.FC = () => {
           text-white border border-gray-400/60
           flex items-center space-x-2
         "
-        title="ミッションに戻る"
+        title={isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る'}
       >
         <FaArrowLeft className="w-3 h-3" />
-        <span>ミッションに戻る</span>
+        <span>{isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る'}</span>
       </button>
     </div>
   );
@@ -1073,6 +1089,9 @@ interface SongListItemProps {
 const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, onSelect }) => {
   const [isLoading, setIsLoading] = React.useState(false);
   const [showKeyClearsModal, setShowKeyClearsModal] = React.useState(false);
+  const { profile: slProfile } = useAuthStore();
+  const slGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: slProfile?.rank, country: slProfile?.country ?? slGeoCountry });
 
 
 
@@ -1121,10 +1140,10 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
               <span className="text-xs text-red-400">🔒</span>
             )}
             {isLoading && (
-              <span className="text-xs text-blue-400">読み込み中...</span>
+              <span className="text-xs text-blue-400">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</span>
             )}
           </div>
-          <p className="text-gray-400 text-sm truncate">{song.artist || '不明'}</p>
+          <p className="text-gray-400 text-sm truncate">{song.artist || (isEnglishCopy ? 'Unknown' : '不明')}</p>
         </div>
 
                   {/* 楽曲詳細情報 */}
@@ -1155,20 +1174,20 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
                   e.stopPropagation();
                   setShowKeyClearsModal(true);
                 }}
-                title="キー別クリア回数を表示"
+                title={isEnglishCopy ? 'Show clears by key' : 'キー別クリア回数を表示'}
               >
-                <span className="text-gray-500">クリア回数:</span>
-                <span className="font-mono text-green-400 underline decoration-dotted underline-offset-2">{s.clear_count}回</span>
+                <span className="text-gray-500">{isEnglishCopy ? 'Clears:' : 'クリア回数:'}</span>
+                <span className="font-mono text-green-400 underline decoration-dotted underline-offset-2">{s.clear_count}{isEnglishCopy ? '' : '回'}</span>
               </button>
               {s.best_rank && (
                 <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">最高ランク:</span>
+                  <span className="text-gray-500">{isEnglishCopy ? 'Best Rank:' : '最高ランク:'}</span>
                   <span className="font-mono text-yellow-400">{s.best_rank}</span>
                 </div>
               )}
               {s.best_score && (
                 <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">ハイスコア:</span>
+                  <span className="text-gray-500">{isEnglishCopy ? 'High Score:' : 'ハイスコア:'}</span>
                   <span className="font-mono text-blue-400">{s.best_score.toLocaleString()}</span>
                 </div>
               )}
@@ -1177,7 +1196,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
             {/* B-rank+ clear count progress */}
             <div className="space-y-1">
               <div className="flex items-center justify-between">
-                <span className="text-gray-500">Bランク以上クリア:</span>
+                <span className="text-gray-500">{isEnglishCopy ? 'B-rank+ Clears:' : 'Bランク以上クリア:'}</span>
                 <span className="font-mono text-blue-400">{s.b_rank_plus_count || 0}/50</span>
               </div>
               <div className="w-full bg-gray-700 rounded-full h-2.5">
@@ -1189,7 +1208,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
               {(s.b_rank_plus_count || 0) >= 50 && (
                 <div className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
                   <FaAward className="text-emerald-400" />
-                  目標達成！
+                  {isEnglishCopy ? 'Goal Achieved!' : '目標達成！'}
                 </div>
               )}
             </div>
@@ -1205,7 +1224,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
           tabIndex={-1}
         >
           <span>▶</span>
-          <span className="hidden sm:inline">プレイ</span>
+          <span className="hidden sm:inline">{isEnglishCopy ? 'Play' : 'プレイ'}</span>
         </button>
       </div>
 
@@ -1213,7 +1232,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
       <KeyClearsModal
         isOpen={showKeyClearsModal}
         onClose={() => setShowKeyClearsModal(false)}
-        songTitle={song.title || '不明な曲'}
+        songTitle={song.title || (isEnglishCopy ? 'Unknown Song' : '不明な曲')}
         keyClears={stats?.key_clears || {}}
       />
     </div>
@@ -1269,6 +1288,9 @@ const SettingsPanel: React.FC = () => {
     missionContext: s.missionContext
   }));
   const gameActions = useGameActions();
+  const { profile: spProfile } = useAuthStore();
+  const spGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: spProfile?.rank, country: spProfile?.country ?? spGeoCountry });
   
   // 本番モード + レッスンコンテキスト時の課題条件制限フラグ
   const isStageWithLessonConstraints = mode === 'performance' && lessonContext;
@@ -1313,7 +1335,7 @@ const SettingsPanel: React.FC = () => {
   
   // 設定をリセットする関数
   const handleResetSettings = () => {
-    if (window.confirm('設定をデフォルトにリセットしますか？この操作は取り消せません。')) {
+    if (window.confirm(isEnglishCopy ? 'Reset settings to default? This cannot be undone.' : '設定をデフォルトにリセットしますか？この操作は取り消せません。')) {
       gameActions.resetSettings();
       setHasStoredSettings(false);
     }
@@ -1321,14 +1343,14 @@ const SettingsPanel: React.FC = () => {
   
   // ローカルストレージをクリアする関数
   const handleClearStorage = () => {
-    if (window.confirm('保存された設定を削除しますか？この操作は取り消せません。')) {
+    if (window.confirm(isEnglishCopy ? 'Delete saved settings? This cannot be undone.' : '保存された設定を削除しますか？この操作は取り消せません。')) {
       try {
         localStorage.removeItem('jazzgame_settings');
         setHasStoredSettings(false);
-        alert('保存された設定を削除しました。');
+        alert(isEnglishCopy ? 'Saved settings have been deleted.' : '保存された設定を削除しました。');
       } catch (error) {
-        console.error('ローカルストレージの削除に失敗:', error);
-        alert('設定の削除に失敗しました。');
+        console.error('Failed to delete localStorage:', error);
+        alert(isEnglishCopy ? 'Failed to delete settings.' : '設定の削除に失敗しました。');
       }
     }
   };
@@ -1352,7 +1374,7 @@ const SettingsPanel: React.FC = () => {
       <div className="modal-content">
         <div className="card-header">
           <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold text-white">設定</h2>
+            <h2 className="text-xl font-bold text-white">{isEnglishCopy ? 'Settings' : '設定'}</h2>
             <button
               onClick={() => gameActions.setSettingsOpen(false)}
               className="text-gray-400 hover:text-white text-2xl leading-none"
@@ -1369,61 +1391,61 @@ const SettingsPanel: React.FC = () => {
               <div className="flex items-center space-x-2 mb-2">
                 <span className="text-xl">🎯</span>
                 <h3 className="text-lg font-bold text-amber-300">
-                  本番モード - 課題条件適用中
-                  {isStageWithLessonConstraints && '（レッスン）'}
-                  {isStageWithMissionConstraints && '（ミッション）'}
+                  {isEnglishCopy ? 'Stage Mode - Constraints Active' : '本番モード - 課題条件適用中'}
+                  {isStageWithLessonConstraints && (isEnglishCopy ? ' (Lesson)' : '（レッスン）')}
+                  {isStageWithMissionConstraints && (isEnglishCopy ? ' (Mission)' : '（ミッション）')}
                 </h3>
               </div>
               <div className="text-sm text-amber-200 space-y-1">
                 <p>
-                  {isStageWithLessonConstraints && 'レッスンの課題条件に従って設定が固定されています。'}
-                  {isStageWithMissionConstraints && 'ミッションの課題条件に従って設定が固定されています。'}
+                  {isStageWithLessonConstraints && (isEnglishCopy ? 'Settings are locked by lesson constraints.' : 'レッスンの課題条件に従って設定が固定されています。')}
+                  {isStageWithMissionConstraints && (isEnglishCopy ? 'Settings are locked by mission constraints.' : 'ミッションの課題条件に従って設定が固定されています。')}
                 </p>
                 <div className="mt-2 grid grid-cols-1 gap-2 text-xs">
                   {(lessonContext?.clearConditions.key !== undefined || missionContext?.clearConditions?.key !== undefined) && (
                     <div className="flex justify-between">
-                      <span>キー設定:</span>
+                      <span>{isEnglishCopy ? 'Key:' : 'キー設定:'}</span>
                       <span className="font-mono text-amber-300">
                         {(() => {
                           const key = lessonContext?.clearConditions.key ?? missionContext?.clearConditions?.key ?? 0;
                           return key > 0 ? `+${key}` : key;
-                        })()}半音
+                        })()}{isEnglishCopy ? ' semitones' : '半音'}
                       </span>
                     </div>
                   )}
                   {(lessonContext?.clearConditions.speed !== undefined || missionContext?.clearConditions?.speed !== undefined) && (
                     <div className="flex justify-between">
-                      <span>再生速度:</span>
+                      <span>{isEnglishCopy ? 'Speed:' : '再生速度:'}</span>
                       <span className="font-mono text-amber-300">
-                        {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上
+                        {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}x{isEnglishCopy ? ' or higher' : '倍速以上'}
                       </span>
                     </div>
                   )}
                   {(lessonContext?.clearConditions.rank || missionContext?.clearConditions?.rank) && (
                     <div className="flex justify-between">
-                      <span>必要ランク:</span>
+                      <span>{isEnglishCopy ? 'Required Rank:' : '必要ランク:'}</span>
                       <span className="font-mono text-amber-300">
-                        {lessonContext?.clearConditions.rank ?? missionContext?.clearConditions?.rank ?? 'B'}以上
+                        {lessonContext?.clearConditions.rank ?? missionContext?.clearConditions?.rank ?? 'B'}{isEnglishCopy ? ' or higher' : '以上'}
                       </span>
                     </div>
                   )}
                   
                   {(lessonContext?.clearConditions.notation_setting || missionContext?.clearConditions?.notation_setting) && (
                     <div className="flex justify-between">
-                      <span>楽譜表示:</span>
+                      <span>{isEnglishCopy ? 'Notation:' : '楽譜表示:'}</span>
                       <span className="font-mono text-amber-300">
                         {(() => {
                           const notation = lessonContext?.clearConditions.notation_setting ?? missionContext?.clearConditions?.notation_setting;
-                          return notation === 'notes_chords' ? 'ノート+コード' :
-                                 notation === 'chords_only' ? 'コードのみ' :
-                                 'ノート+コード';
+                          return notation === 'notes_chords' ? (isEnglishCopy ? 'Notes + Chords' : 'ノート+コード') :
+                                 notation === 'chords_only' ? (isEnglishCopy ? 'Chords Only' : 'コードのみ') :
+                                 (isEnglishCopy ? 'Notes + Chords' : 'ノート+コード');
                         })()}
                       </span>
                     </div>
                   )}
                 </div>
                 <div className="mt-3 text-xs text-amber-400">
-                  💡 練習モードに切り替えると設定を自由に変更できます
+                  {isEnglishCopy ? '💡 Switch to Practice mode to freely change settings' : '💡 練習モードに切り替えると設定を自由に変更できます'}
                 </div>
               </div>
             </div>
@@ -1434,10 +1456,10 @@ const SettingsPanel: React.FC = () => {
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium text-gray-300 mb-1">
-                    入力方式
+                    {isEnglishCopy ? 'Input Method' : '入力方式'}
                   </label>
                   <p className="text-xs text-gray-400 mb-3">
-                    MIDI（キーボード）または音声入力（マイク）を選択できます。
+                    {isEnglishCopy ? 'Choose MIDI (keyboard) or voice input (microphone).' : 'MIDI（キーボード）または音声入力（マイク）を選択できます。'}
                   </p>
                   <div className="flex gap-2">
                     <button
@@ -1460,7 +1482,7 @@ const SettingsPanel: React.FC = () => {
                           : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                       }`}
                     >
-                      🎤 音声
+                      🎤 {isEnglishCopy ? 'Voice' : '音声'}
                     </button>
                   </div>
                 </div>
@@ -1468,7 +1490,7 @@ const SettingsPanel: React.FC = () => {
                 {/* MIDI デバイス設定 */}
                 {settings.inputMethod === 'midi' && (
                   <div className="bg-blue-900 bg-opacity-20 p-4 rounded-lg border border-blue-700 border-opacity-30">
-                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 MIDI デバイス設定</h4>
+                    <h4 className="text-sm font-medium text-blue-200 mb-3">🎹 {isEnglishCopy ? 'MIDI Device Settings' : 'MIDI デバイス設定'}</h4>
                     <MidiDeviceSelector
                       value={settings.selectedMidiDevice}
                       onChange={(deviceId: string | null) => gameActions.updateSettings({ selectedMidiDevice: deviceId })}
@@ -1479,9 +1501,9 @@ const SettingsPanel: React.FC = () => {
                 {/* 音声入力デバイス設定 */}
                 {settings.inputMethod === 'voice' && (
                   <div className="bg-purple-900 bg-opacity-20 p-4 rounded-lg border border-purple-700 border-opacity-30">
-                    <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 音声入力設定</h4>
+                    <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 {isEnglishCopy ? 'Voice Input Settings' : '音声入力設定'}</h4>
                     <p className="text-xs text-gray-400 mb-3">
-                      マイクを使用してピッチを検出します。iOS/Android対応。
+                      {isEnglishCopy ? 'Detect pitch using a microphone. Works on iOS/Android.' : 'マイクを使用してピッチを検出します。iOS/Android対応。'}
                     </p>
                     <AudioDeviceSelector
                       value={settings.selectedAudioDevice}
@@ -1493,9 +1515,9 @@ const SettingsPanel: React.FC = () => {
 
               {/* 音声出力デバイス設定（プレイバック） */}
               <div className="bg-slate-900 bg-opacity-20 p-4 rounded-lg border border-slate-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-slate-200 mb-3">🔈 音声出力（プレイバック）</h4>
+                <h4 className="text-sm font-medium text-slate-200 mb-3">🔈 {isEnglishCopy ? 'Audio Output (Playback)' : '音声出力（プレイバック）'}</h4>
                 <p className="text-xs text-gray-400 mb-3">
-                  対応ブラウザでは再生の出力先を選択できます（iOS Safari では未対応の場合があります）。
+                  {isEnglishCopy ? 'Select playback output device on supported browsers (may not work on iOS Safari).' : '対応ブラウザでは再生の出力先を選択できます（iOS Safari では未対応の場合があります）。'}
                 </p>
                 <AudioOutputDeviceSelector
                   value={settings.selectedAudioOutputDevice}
@@ -1507,7 +1529,7 @@ const SettingsPanel: React.FC = () => {
             <div className="space-y-3">
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  音楽音量: {Math.round(settings.musicVolume * 100)}%
+                  {isEnglishCopy ? 'Music Volume' : '音楽音量'}: {Math.round(settings.musicVolume * 100)}%
                 </label>
                 <input
                   type="range"
@@ -1524,7 +1546,7 @@ const SettingsPanel: React.FC = () => {
               
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  MIDI音量: {Math.round(settings.midiVolume * 100)}%
+                  {isEnglishCopy ? 'MIDI Volume' : 'MIDI音量'}: {Math.round(settings.midiVolume * 100)}%
                 </label>
                 <input
                   type="range"
@@ -1553,7 +1575,7 @@ const SettingsPanel: React.FC = () => {
             {/* ノーツスピード */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                ノーツスピード: {settings.notesSpeed}x
+                {isEnglishCopy ? 'Notes Speed' : 'ノーツスピード'}: {settings.notesSpeed}x
               </label>
               <input
                 type="range"
@@ -1571,18 +1593,20 @@ const SettingsPanel: React.FC = () => {
             {/* 再生スピード */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                再生スピード: {Math.round(settings.playbackSpeed * 100)}%
+                {isEnglishCopy ? 'Playback Speed' : '再生スピード'}: {Math.round(settings.playbackSpeed * 100)}%
                 {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
                  (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
-                    最低{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速
+                    {isEnglishCopy ? `Min ${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}x` : `最低${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速`}
                   </span>
                 )}
               </label>
               {(isStageWithLessonConstraints && lessonContext?.clearConditions.speed !== undefined) || 
                (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined) && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
-                  🎯 課題条件: {lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上が必要（本番モードでは{lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上で変更可能）
+                  {isEnglishCopy
+                    ? `🎯 Constraint: ${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}x speed or higher required (adjustable above ${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}x in Stage mode)`
+                    : `🎯 課題条件: ${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上が必要（本番モードでは${lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0}倍速以上で変更可能）`}
                 </div>
               )}
               <input
@@ -1604,10 +1628,10 @@ const SettingsPanel: React.FC = () => {
             {/* 判定タイミング調整 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                表示タイミング調整 (判定も同期): {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
+                {isEnglishCopy ? 'Timing Adjustment (display & judgment)' : '表示タイミング調整 (判定も同期)'}: {settings.timingAdjustment > 0 ? '+' : ''}{settings.timingAdjustment}ms
               </label>
               <div className="text-xs text-gray-400 mb-2">
-                ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）
+                {isEnglishCopy ? 'Adjust note display and judgment timing (earlier: -, later: +)' : 'ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）'}
               </div>
               <input
                 type="range"
@@ -1621,16 +1645,16 @@ const SettingsPanel: React.FC = () => {
                 className="slider"
               />
               <div className="flex justify-between text-xs text-gray-500 mt-1">
-                <span>-400ms (早く)</span>
+                <span>-400ms {isEnglishCopy ? '(earlier)' : '(早く)'}</span>
                 <span>0ms</span>
-                <span>+400ms (遅く)</span>
+                <span>+400ms {isEnglishCopy ? '(later)' : '(遅く)'}</span>
               </div>
             </div>
 
             {/* オクターブ違い許容設定 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                オクターブ違いの音を正解にする
+                {isEnglishCopy ? 'Accept octave-shifted notes as correct' : 'オクターブ違いの音を正解にする'}
               </label>
               <div className="flex items-center space-x-4 mt-1">
                 <label className="flex items-center space-x-1 cursor-pointer">
@@ -1661,18 +1685,18 @@ const SettingsPanel: React.FC = () => {
             {/* 移調楽器設定 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                移調楽器設定
+                {isEnglishCopy ? 'Transposing Instrument' : '移調楽器設定'}
                 {(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
                  (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
-                    本番モード固定
+                    {isEnglishCopy ? 'Locked in Stage' : '本番モード固定'}
                   </span>
                 )}
               </label>
               {(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
                (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined) && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
-                  🎯 課題条件: キー設定が固定されています（本番モードでは変更不可）
+                  {isEnglishCopy ? '🎯 Constraint: Key setting is locked (cannot change in Stage mode)' : '🎯 課題条件: キー設定が固定されています（本番モードでは変更不可）'}
                 </div>
               )}
               <select
@@ -1685,22 +1709,22 @@ const SettingsPanel: React.FC = () => {
                 disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.key !== undefined) || 
                          (isStageWithMissionConstraints && missionContext?.clearConditions?.key !== undefined)}
               >
-                <option value="concert_pitch">コンサートピッチ（移調なし）</option>
-                <option value="bb_major_2nd">in Bb (長2度上) ソプラノサックス、トランペット、クラリネット</option>
-                <option value="bb_major_9th">in Bb (1オクターブ+長2度上) テナーサックス</option>
-                <option value="eb_major_6th">in Eb (長6度上) アルトサックス</option>
-                <option value="eb_major_13th">in Eb (1オクターブ+長6度上) バリトンサックス</option>
+                <option value="concert_pitch">{isEnglishCopy ? 'Concert Pitch (no transposition)' : 'コンサートピッチ（移調なし）'}</option>
+                <option value="bb_major_2nd">{isEnglishCopy ? 'in Bb (M2 up) Soprano Sax, Trumpet, Clarinet' : 'in Bb (長2度上) ソプラノサックス、トランペット、クラリネット'}</option>
+                <option value="bb_major_9th">{isEnglishCopy ? 'in Bb (oct+M2 up) Tenor Sax' : 'in Bb (1オクターブ+長2度上) テナーサックス'}</option>
+                <option value="eb_major_6th">{isEnglishCopy ? 'in Eb (M6 up) Alto Sax' : 'in Eb (長6度上) アルトサックス'}</option>
+                <option value="eb_major_13th">{isEnglishCopy ? 'in Eb (oct+M6 up) Baritone Sax' : 'in Eb (1オクターブ+長6度上) バリトンサックス'}</option>
               </select>
               <div className="text-xs text-gray-400 mt-1">
-                選択した楽器に応じて楽譜が移調されます。鍵盤はコンサートピッチ（C調）のまま表示されます。<br/>
-                <span className="text-yellow-300">+半音数 = 楽譜がその分高く移調されます</span>
+                {isEnglishCopy ? 'Sheet music is transposed for the selected instrument. The keyboard stays in concert pitch.' : '選択した楽器に応じて楽譜が移調されます。鍵盤はコンサートピッチ（C調）のまま表示されます。'}<br/>
+                <span className="text-yellow-300">{isEnglishCopy ? '+semitones = sheet music is transposed up by that amount' : '+半音数 = 楽譜がその分高く移調されます'}</span>
               </div>
             </div>
 
             {/* 簡易表示ON/OFF */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                簡易表示
+                {isEnglishCopy ? 'Simplified Display' : '簡易表示'}
               </label>
               <div className="flex items-center space-x-4 mt-1">
                 <label className="flex items-center space-x-1 cursor-pointer">
@@ -1727,15 +1751,15 @@ const SettingsPanel: React.FC = () => {
                 </label>
               </div>
               <div className="text-xs text-gray-400 mt-1">
-                ONにすると、複雑な音名（異名同音、ダブルシャープ等）が基本的な音名に変換されて表示されます。<br />
-                <strong>PIXIノーツ、鍵盤、OSMD楽譜</strong>のすべてに適用されます。
+                {isEnglishCopy ? 'When ON, complex note names (enharmonics, double sharps, etc.) are simplified.' : 'ONにすると、複雑な音名（異名同音、ダブルシャープ等）が基本的な音名に変換されて表示されます。'}<br />
+                <strong>{isEnglishCopy ? 'Applied to PIXI notes, keyboard, and OSMD sheet music.' : 'PIXIノーツ、鍵盤、OSMD楽譜のすべてに適用されます。'}</strong>
               </div>
             </div>
 
             {/* 音名表示設定 */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                音名表示（鍵盤・ノーツ共通）
+                {isEnglishCopy ? 'Note Names (keyboard & notes)' : '音名表示（鍵盤・ノーツ共通）'}
               </label>
               <select
                 value={settings.noteNameStyle}
@@ -1743,12 +1767,12 @@ const SettingsPanel: React.FC = () => {
                 className="select select-bordered w-full max-w-xs bg-gray-800 text-white mb-2"
               >
                 <option value="off">OFF</option>
-                <option value="abc">英語 (C, D, E...)</option>
-                <option value="solfege">ドレミ</option>
+                <option value="abc">{isEnglishCopy ? 'English (C, D, E...)' : '英語 (C, D, E...)'}</option>
+                <option value="solfege">{isEnglishCopy ? 'Solfege (Do, Re, Mi...)' : 'ドレミ'}</option>
               </select>
               <div className="text-xs text-gray-400 mt-1">
                 {settings.transposingInstrument !== 'concert_pitch' && 
-                  <div>音名は{getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。</div>
+                  <div>{isEnglishCopy ? `Note names are transposed for ${getTransposingInstrumentName(settings.transposingInstrument)}.` : `音名は${getTransposingInstrumentName(settings.transposingInstrument)}用に移調されて表示されます。`}</div>
                 }
               </div>
             </div>
@@ -1756,25 +1780,25 @@ const SettingsPanel: React.FC = () => {
             {/* 楽譜表示モード */}
             <div>
               <label className="block text-sm font-medium text-gray-300 mb-2">
-                楽譜表示
+                {isEnglishCopy ? 'Sheet Music' : '楽譜表示'}
                 {(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
                  (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting) && (
                   <span className="ml-2 text-xs text-amber-400 bg-amber-900/20 px-2 py-1 rounded">
-                    本番モード固定
+                    {isEnglishCopy ? 'Locked in Stage' : '本番モード固定'}
                   </span>
                 )}
               </label>
               {(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
                (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting) && (
                 <div className="text-xs text-amber-300 mb-2 bg-amber-900/10 p-2 rounded border border-amber-600/30">
-                  🎯 課題条件: {
+                  {isEnglishCopy ? '🎯 Constraint: ' : '🎯 課題条件: '}{
                     (() => {
                       const notation = lessonContext?.clearConditions.notation_setting ?? missionContext?.clearConditions?.notation_setting;
-                      return notation === 'notes_chords' ? 'ノート+コード表示' :
-                             notation === 'chords_only' ? 'コードのみ表示' :
-                             'ノート+コード表示';
+                      return notation === 'notes_chords' ? (isEnglishCopy ? 'Notes + Chords display' : 'ノート+コード表示') :
+                             notation === 'chords_only' ? (isEnglishCopy ? 'Chords Only display' : 'コードのみ表示') :
+                             (isEnglishCopy ? 'Notes + Chords display' : 'ノート+コード表示');
                     })()
-                  }が必要（本番モードでは固定）
+                  }{isEnglishCopy ? ' required (locked in Stage mode)' : 'が必要（本番モードでは固定）'}
                 </div>
               )}
               <div className="flex items-center space-x-4 mt-1">
@@ -1792,7 +1816,7 @@ const SettingsPanel: React.FC = () => {
                     disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined) || 
                              (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting !== undefined)}
                   />
-                  <span className="text-sm text-gray-300">ノート+コード</span>
+                  <span className="text-sm text-gray-300">{isEnglishCopy ? 'Notes + Chords' : 'ノート+コード'}</span>
                 </label>
                 <label className={`flex items-center space-x-1 ${((isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting) || 
                                                                  (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting)) ? 'cursor-not-allowed opacity-60' : 'cursor-pointer'}`}>
@@ -1808,7 +1832,7 @@ const SettingsPanel: React.FC = () => {
                     disabled={(isStageWithLessonConstraints && lessonContext?.clearConditions.notation_setting !== undefined) || 
                              (isStageWithMissionConstraints && missionContext?.clearConditions?.notation_setting !== undefined)}
                   />
-                  <span className="text-sm text-gray-300">コードのみ</span>
+                  <span className="text-sm text-gray-300">{isEnglishCopy ? 'Chords Only' : 'コードのみ'}</span>
                 </label>
               </div>
             </div>
@@ -1817,7 +1841,7 @@ const SettingsPanel: React.FC = () => {
             {mode === 'practice' && (
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">
-                  練習モードガイド
+                  {isEnglishCopy ? 'Practice Mode Guide' : '練習モードガイド'}
                 </label>
                 <select
                   value={settings.practiceGuide ?? 'key'}
@@ -1825,36 +1849,37 @@ const SettingsPanel: React.FC = () => {
                   className="select select-bordered w-full max-w-xs bg-gray-800 text-white"
                 >
                   <option value="off">OFF</option>
-                  <option value="key_auto">鍵盤ハイライト + オートプレイ</option>
-                  <option value="key">鍵盤ハイライトのみ</option>
+                  <option value="key_auto">{isEnglishCopy ? 'Key Highlight + Autoplay' : '鍵盤ハイライト + オートプレイ'}</option>
+                  <option value="key">{isEnglishCopy ? 'Key Highlight Only' : '鍵盤ハイライトのみ'}</option>
                 </select>
                 <div className="text-xs text-gray-400 mt-1">
-                  ノーツが判定ラインを通過する際の表示ガイド（練習モード専用）
+                  {isEnglishCopy ? 'Visual guide when notes pass the judgment line (Practice mode only)' : 'ノーツが判定ラインを通過する際の表示ガイド（練習モード専用）'}
                 </div>
               </div>
             )}
 
             {/* ローカルストレージ管理セクション */}
             <div className="border-t border-gray-600 pt-4 mt-6">
-              <h3 className="text-sm font-medium text-gray-300 mb-3">💾 設定の保存・管理</h3>
+              <h3 className="text-sm font-medium text-gray-300 mb-3">💾 {isEnglishCopy ? 'Save & Manage Settings' : '設定の保存・管理'}</h3>
               
               <div className="bg-gray-800 bg-opacity-50 p-4 rounded-lg border border-gray-600">
                 <div className="space-y-3">
                   {/* 保存状態表示 */}
                   <div className="flex items-center justify-between">
-                    <span className="text-sm text-gray-300">保存状態:</span>
+                    <span className="text-sm text-gray-300">{isEnglishCopy ? 'Save Status:' : '保存状態:'}</span>
                     <span className={`text-xs px-2 py-1 rounded ${
                       hasStoredSettings 
                         ? 'bg-green-600 text-green-100' 
                         : 'bg-gray-600 text-gray-300'
                     }`}>
-                      {hasStoredSettings ? '設定が保存されています' : '設定は保存されていません'}
+                      {hasStoredSettings ? (isEnglishCopy ? 'Settings saved' : '設定が保存されています') : (isEnglishCopy ? 'No saved settings' : '設定は保存されていません')}
                     </span>
                   </div>
                   
                   <div className="text-xs text-gray-400">
-                    設定は自動的にローカルストレージに保存されます（再生速度・楽譜表示設定は除く）。
-                    ブラウザを閉じても設定が保持されます。楽譜表示は曲を開く度にデフォルト（ノーツ+コード）になります。
+                    {isEnglishCopy
+                      ? 'Settings are auto-saved to local storage (except playback speed & sheet music). Settings persist after closing the browser. Sheet music resets to default (Notes + Chords) each time a song is opened.'
+                      : '設定は自動的にローカルストレージに保存されます（再生速度・楽譜表示設定は除く）。ブラウザを閉じても設定が保持されます。楽譜表示は曲を開く度にデフォルト（ノーツ+コード）になります。'}
                   </div>
                   
                   {/* 操作ボタン */}
@@ -1863,7 +1888,7 @@ const SettingsPanel: React.FC = () => {
                       onClick={handleResetSettings}
                       className="btn btn-sm btn-outline btn-warning"
                     >
-                      🔄 デフォルトにリセット
+                      🔄 {isEnglishCopy ? 'Reset to Default' : 'デフォルトにリセット'}
                     </button>
                     
                     {hasStoredSettings && (
@@ -1871,7 +1896,7 @@ const SettingsPanel: React.FC = () => {
                         onClick={handleClearStorage}
                         className="btn btn-sm btn-outline btn-error"
                       >
-                        🗑️ 保存データ削除
+                        🗑️ {isEnglishCopy ? 'Delete Saved Data' : '保存データ削除'}
                       </button>
                     )}
                   </div>
@@ -1889,21 +1914,21 @@ const SettingsPanel: React.FC = () => {
  * ヘッダー右端ボタン群
  */
 const HeaderRightControls: React.FC = () => {
-  const { user } = useAuthStore();
+  const { user, profile: hrcProfile } = useAuthStore();
+  const hrcGeoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: hrcProfile?.rank, country: hrcProfile?.country ?? hrcGeoCountry });
 
   if (!user) {
-    // 未ログイン
     return (
       <div className="flex items-center space-x-4">
-        <a href="#login" className="btn btn-sm btn-outline">会員登録 / ログイン</a>
+        <a href="#login" className="btn btn-sm btn-outline">{isEnglishCopy ? 'Sign up / Log in' : '会員登録 / ログイン'}</a>
       </div>
     );
   }
 
   return (
     <div className="flex items-center space-x-4">
-      {/* アカウント */}
-      <a href="#account" className="btn btn-sm btn-primary">アカウント</a>
+      <a href="#account" className="btn btn-sm btn-primary">{isEnglishCopy ? 'Account' : 'アカウント'}</a>
     </div>
   );
 };

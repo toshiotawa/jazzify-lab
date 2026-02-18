@@ -152,14 +152,14 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   
   // 取得したスキル一覧
   const acquiredSkills: Array<{ name: string; value: string | number }> = [];
-  if (result.skills.aPenetration) acquiredSkills.push({ name: '貫通', value: '✓' });
-  if (result.skills.bKnockbackBonus > 0) acquiredSkills.push({ name: 'ノックバック', value: `+${result.skills.bKnockbackBonus}` });
-  if (result.skills.bRangeBonus > 0) acquiredSkills.push({ name: '攻撃範囲', value: `+${result.skills.bRangeBonus}` });
-  if (result.skills.bDeflect) acquiredSkills.push({ name: '拳でかきけす', value: '✓' });
-  if (result.skills.multiHitLevel > 0) acquiredSkills.push({ name: '多段攻撃', value: `Lv.${result.skills.multiHitLevel}` });
-  if (result.skills.expBonusLevel > 0) acquiredSkills.push({ name: '獲得経験値+', value: `Lv.${result.skills.expBonusLevel}` });
-  if (result.skills.haisuiNoJin) acquiredSkills.push({ name: '背水の陣', value: '✓' });
-  if (result.skills.zekkouchou) acquiredSkills.push({ name: '絶好調', value: '✓' });
+  if (result.skills.aPenetration) acquiredSkills.push({ name: isEnglishCopy ? 'Penetration' : '貫通', value: '✓' });
+  if (result.skills.bKnockbackBonus > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Knockback' : 'ノックバック', value: `+${result.skills.bKnockbackBonus}` });
+  if (result.skills.bRangeBonus > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Atk Range' : '攻撃範囲', value: `+${result.skills.bRangeBonus}` });
+  if (result.skills.bDeflect) acquiredSkills.push({ name: isEnglishCopy ? 'Deflect' : '拳でかきけす', value: '✓' });
+  if (result.skills.multiHitLevel > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Multi-Hit' : '多段攻撃', value: `Lv.${result.skills.multiHitLevel}` });
+  if (result.skills.expBonusLevel > 0) acquiredSkills.push({ name: isEnglishCopy ? 'EXP+' : '獲得経験値+', value: `Lv.${result.skills.expBonusLevel}` });
+  if (result.skills.haisuiNoJin) acquiredSkills.push({ name: isEnglishCopy ? 'Last Stand' : '背水の陣', value: '✓' });
+  if (result.skills.zekkouchou) acquiredSkills.push({ name: isEnglishCopy ? 'Peak Condition' : '絶好調', value: '✓' });
   
   // 魔法アイコン
   const MAGIC_ICONS: Record<string, string> = {

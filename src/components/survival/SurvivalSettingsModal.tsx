@@ -8,6 +8,9 @@ import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { bgmManager } from '@/utils/BGMManager';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { useGameStore } from '@/stores/gameStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface SurvivalSettingsModalProps {
   isOpen: boolean;
@@ -21,6 +24,9 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   isMidiConnected = false,
 }) => {
   const { settings, updateSettings } = useGameStore();
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   
   const [midiDeviceId, setMidiDeviceId] = useState<string | null>(settings.selectedMidiDevice ?? null);
   const [volume, setVolume] = useState<number>(settings.midiVolume ?? 0.8);
@@ -61,7 +67,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
       >
         <div className="flex justify-between items-center mb-4 sticky top-0 bg-gray-800 pb-2">
           <h2 className="text-xl font-bold text-white">
-            サバイバルモード設定
+            {isEnglishCopy ? 'Survival Mode Settings' : 'サバイバルモード設定'}
           </h2>
           <button
             onClick={onClose}
@@ -75,7 +81,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
           {/* MIDIデバイス設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              MIDIデバイス
+              {isEnglishCopy ? 'MIDI Device' : 'MIDIデバイス'}
             </label>
             <MidiDeviceSelector
               value={midiDeviceId}
@@ -83,14 +89,14 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
               className="w-full"
             />
             <div className="mt-1 text-xs text-gray-400">
-              {isMidiConnected ? '✅ 接続済み' : '❌ 未接続'}
+              {isMidiConnected ? (isEnglishCopy ? '✅ Connected' : '✅ 接続済み') : (isEnglishCopy ? '❌ Not connected' : '❌ 未接続')}
             </div>
           </div>
 
           {/* ピアノ音量設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              ピアノ音量: {Math.round(volume * 100)}%
+              {isEnglishCopy ? 'Piano Volume' : 'ピアノ音量'}: {Math.round(volume * 100)}%
             </label>
             <input
               type="range"
@@ -109,7 +115,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
           >
-            閉じる
+            {isEnglishCopy ? 'Close' : '閉じる'}
           </button>
         </div>
       </div>
