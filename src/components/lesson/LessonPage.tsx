@@ -441,11 +441,11 @@ const LessonPage: React.FC = () => {
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
-      <div className="flex-1 p-4 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
-        <div className="bg-slate-900 text-white flex flex-col min-h-0">
+      <div className="flex-1 p-4 overflow-y-auto md:overflow-hidden flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="flex-1 bg-slate-900 text-white flex flex-col min-h-0 overflow-hidden">
 
           {/* ページ説明 */}
-          <div className="px-6 pb-4">
+          <div className="shrink-0 px-6 pb-4">
             <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
               <div className="flex items-center space-x-2 mb-1">
                 <FaGraduationCap className="text-blue-400" />
@@ -462,13 +462,13 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row min-h-0">
+            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
               {/* コース一覧サイドバー */}
-              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col overflow-hidden min-h-0 md:h-full">
-                <div className="p-4 border-b border-slate-700">
+              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col min-h-0 overflow-hidden">
+                <div className="shrink-0 p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
+                  <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
                     {courses.map((course: Course) => {
                       const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
                       const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
@@ -598,7 +598,7 @@ const LessonPage: React.FC = () => {
               <div ref={mainAreaRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
                 {selectedCourse ? (
                   <>
-                    <div className="p-6 border-b border-slate-700">
+                    <div className="shrink-0 p-6 border-b border-slate-700">
                       <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
                         {selectedCourse.title}
                         {selectedCourse.premium_only && (
@@ -612,7 +612,7 @@ const LessonPage: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch', overscrollBehavior: 'contain', touchAction: 'pan-y' }}>
+                    <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
                         <div className="space-y-6">
                           {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                             const blockNum = parseInt(blockNumber);
