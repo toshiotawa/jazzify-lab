@@ -898,7 +898,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               {isEnglishCopy ? 'Character Locked' : 'キャラクター制限'}
             </h3>
             <p className="mt-3 text-sm text-gray-200 font-sans">
-              {isEnglishCopy ? 'Only Premium plan or higher can select this character.' : 'プレミア以上のみ選択できます。'}
+              {isEnglishCopy ? 'Only Premium plan or higher can select this character.' : 'プレミアプラン以上でプレイできます。'}
             </p>
             <div className="mt-5 flex justify-end">
               <button
