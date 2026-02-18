@@ -235,6 +235,13 @@ const toCharacterScoreKey = (characterId: string | null | undefined): string =>
 const buildCharacterHighScoreKey = (difficulty: SurvivalDifficulty, characterKey: string): string =>
   `${difficulty}:${characterKey}`;
 
+const isFaiCharacter = (character: SurvivalCharacter): boolean => {
+  const normalizedName = character.name.trim();
+  const normalizedNameEn = (character.nameEn ?? '').trim().toLowerCase();
+  const normalizedId = character.id.trim().toLowerCase();
+  return normalizedName === 'ファイ' || normalizedNameEn === 'fai' || normalizedId === 'fai';
+};
+
 const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   onStageSelect,
   onBackToMenu,
@@ -242,6 +249,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isDomesticStandard = profile?.rank === 'standard';
 
   // 状態管理
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DEFAULT_DIFFICULTY_CONFIGS);
@@ -249,6 +257,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   const [highScores, setHighScores] = useState<CharacterScopedHighScores>({});
   const [loading, setLoading] = useState(true);
   const [expandedDifficulty, setExpandedDifficulty] = useState<SurvivalDifficulty | null>('veryeasy');
+  const [isPlanRestrictionModalOpen, setIsPlanRestrictionModalOpen] = useState(false);
+  const isCharacterSelectable = useCallback((character: SurvivalCharacter): boolean => {
+    if (!isDomesticStandard) {
+      return true;
+    }
+    return isFaiCharacter(character);
+  }, [isDomesticStandard]);
 
   // データ読み込み
   const loadData = useCallback(async () => {
@@ -381,6 +396,11 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
   // キャラクター選択時の処理
   const handleCharacterSelect = async (difficulty: SurvivalDifficulty, character: SurvivalCharacter) => {
+    if (!isCharacterSelectable(character)) {
+      setIsPlanRestrictionModalOpen(true);
+      return;
+    }
+
     try {
       await FantasySoundManager.unlock();
       await initializeAudioSystem();
@@ -858,6 +878,40 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 
         </div>
       </div>
+
+      {/* プラン制限モーダル（国内スタンダードのみ） */}
+      {isPlanRestrictionModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <button
+            type="button"
+            aria-label={isEnglishCopy ? 'Close modal' : 'モーダルを閉じる'}
+            className="absolute inset-0 bg-black/70"
+            onClick={() => setIsPlanRestrictionModalOpen(false)}
+          />
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="survival-plan-restriction-title"
+            className="relative w-full max-w-sm rounded-xl border border-yellow-500/40 bg-gray-900 p-5 text-white shadow-xl"
+          >
+            <h3 id="survival-plan-restriction-title" className="text-lg font-bold text-yellow-300 font-sans">
+              {isEnglishCopy ? 'Character Locked' : 'キャラクター制限'}
+            </h3>
+            <p className="mt-3 text-sm text-gray-200 font-sans">
+              {isEnglishCopy ? 'Only Premium plan or higher can select this character.' : 'プレミア以上のみ選択できます。'}
+            </p>
+            <div className="mt-5 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setIsPlanRestrictionModalOpen(false)}
+                className="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-yellow-400"
+              >
+                OK
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* フッター */}
       <div className="text-center text-white text-xs sm:text-sm opacity-50 pb-6 font-sans">

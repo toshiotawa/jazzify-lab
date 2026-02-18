@@ -353,6 +353,29 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
+  const appendThunderEffectsFromDamageTexts = useCallback((damageTexts: SurvivalGameState['damageTexts']) => {
+    if (damageTexts.length === 0) {
+      return;
+    }
+
+    const castTime = Date.now();
+    const newLightning = damageTexts
+      .slice(0, MAX_THUNDER_LIGHTNING_PER_CAST)
+      .map((damageText, index) => ({
+        id: `lightning_${castTime}_${index}_${Math.random().toString(36).slice(2, 8)}`,
+        x: damageText.x,
+        y: damageText.y,
+        startTime: castTime,
+        duration: THUNDER_LIGHTNING_DURATION_MS,
+      }));
+
+    setLightningEffects((effects) => {
+      const merged = [...effects, ...newLightning];
+      return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
+        ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
+        : merged;
+    });
+  }, []);
   
   // オート選択で取得したスキル通知
   interface SkillNotification {
@@ -907,20 +930,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.aSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
               
               if (magicType === 'thunder') {
-                const castTime = Date.now();
-                const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-                  id: `lightning_${castTime}_${index}_${enemy.id}`,
-                  x: enemy.x,
-                  y: enemy.y,
-                  startTime: castTime,
-                  duration: THUNDER_LIGHTNING_DURATION_MS,
-                }));
-                setLightningEffects((effects) => {
-                  const merged = [...effects, ...newLightning];
-                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                    : merged;
-                });
+                appendThunderEffectsFromDamageTexts(result.damageTexts);
               }
             }
           } else {
@@ -959,20 +969,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.bSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliers.reloadMultiplier * luckReloadMultiplier;
               
               if (magicType === 'thunder') {
-                const castTime = Date.now();
-                const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-                  id: `lightning_${castTime}_${index}_${enemy.id}`,
-                  x: enemy.x,
-                  y: enemy.y,
-                  startTime: castTime,
-                  duration: THUNDER_LIGHTNING_DURATION_MS,
-                }));
-                setLightningEffects((effects) => {
-                  const merged = [...effects, ...newLightning];
-                  return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                    ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                    : merged;
-                });
+                appendThunderEffectsFromDamageTexts(result.damageTexts);
               }
             }
           } else {
@@ -1203,20 +1200,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
-              const castTime = Date.now();
-              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-                id: `lightning_${castTime}_${index}_${enemy.id}`,
-                x: enemy.x,
-                y: enemy.y,
-                startTime: castTime,
-                duration: THUNDER_LIGHTNING_DURATION_MS,
-              }));
-              setLightningEffects((effects) => {
-                const merged = [...effects, ...newLightning];
-                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                  : merged;
-              });
+              appendThunderEffectsFromDamageTexts(result.damageTexts);
             }
           }
         } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1245,20 +1229,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             
             // サンダーの場合は雷エフェクトを追加
             if (magicType === 'thunder') {
-              const castTime = Date.now();
-              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-                id: `lightning_${castTime}_${index}_${enemy.id}`,
-                x: enemy.x,
-                y: enemy.y,
-                startTime: castTime,
-                duration: THUNDER_LIGHTNING_DURATION_MS,
-              }));
-              setLightningEffects((effects) => {
-                const merged = [...effects, ...newLightning];
-                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                  : merged;
-              });
+              appendThunderEffectsFromDamageTexts(result.damageTexts);
             }
           }
         }
@@ -1292,7 +1263,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot]);
+  }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // handleNoteInputが更新されるたびにrefを更新
   useEffect(() => {
@@ -1337,20 +1308,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.aSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
             
             if (magicType === 'thunder') {
-              const castTime = Date.now();
-              const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-                id: `lightning_${castTime}_${index}_${enemy.id}`,
-                x: enemy.x,
-                y: enemy.y,
-                startTime: castTime,
-                duration: THUNDER_LIGHTNING_DURATION_MS,
-              }));
-              setLightningEffects((effects) => {
-                const merged = [...effects, ...newLightning];
-                return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                  ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                  : merged;
-              });
+              appendThunderEffectsFromDamageTexts(result.damageTexts);
             }
           }
         } else {
@@ -1390,20 +1348,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.bSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
           
           if (magicType === 'thunder') {
-            const castTime = Date.now();
-            const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-              id: `lightning_${castTime}_${index}_${enemy.id}`,
-              x: enemy.x,
-              y: enemy.y,
-              startTime: castTime,
-              duration: THUNDER_LIGHTNING_DURATION_MS,
-            }));
-            setLightningEffects((effects) => {
-              const merged = [...effects, ...newLightning];
-              return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-                ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-                : merged;
-            });
+            appendThunderEffectsFromDamageTexts(result.damageTexts);
           }
         }
       } else {
@@ -1628,20 +1573,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.cSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
-          const castTime = Date.now();
-          const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-            id: `lightning_${castTime}_${index}_${enemy.id}`,
-            x: enemy.x,
-            y: enemy.y,
-            startTime: castTime,
-            duration: THUNDER_LIGHTNING_DURATION_MS,
-          }));
-          setLightningEffects((effects) => {
-            const merged = [...effects, ...newLightning];
-            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-              : merged;
-          });
+          appendThunderEffectsFromDamageTexts(result.damageTexts);
         }
       }
     } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
@@ -1668,27 +1600,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.dSlotCooldown = getMagicCooldown(castPlayer.stats.reloadMagic) * condMultipliersTap.reloadMultiplier * luckReloadMultiplierTap;
         
         if (magicType === 'thunder') {
-          const castTime = Date.now();
-          const newLightning = castEnemies.slice(0, MAX_THUNDER_LIGHTNING_PER_CAST).map((enemy, index) => ({
-            id: `lightning_${castTime}_${index}_${enemy.id}`,
-            x: enemy.x,
-            y: enemy.y,
-            startTime: castTime,
-            duration: THUNDER_LIGHTNING_DURATION_MS,
-          }));
-          setLightningEffects((effects) => {
-            const merged = [...effects, ...newLightning];
-            return merged.length > MAX_ACTIVE_THUNDER_LIGHTNING
-              ? merged.slice(merged.length - MAX_ACTIVE_THUNDER_LIGHTNING)
-              : merged;
-          });
+          appendThunderEffectsFromDamageTexts(result.damageTexts);
         }
       }
     }
     
     return newState;
   });
-}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isAMagicSlot, isBMagicSlot]);
+}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // ゲームループ
   // 注意: isLevelingUp中もゲームは継続（一時停止しない）

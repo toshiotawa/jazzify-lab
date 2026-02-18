@@ -158,7 +158,7 @@ export const applyLevel10Bonuses = (
   player: PlayerState,
   bonuses: CharacterLevel10Bonus[]
 ): { player: PlayerState; messages: string[] } => {
-  let p = { ...player };
+  const p = { ...player };
   p.stats = { ...player.stats };
   p.skills = { ...player.skills };
   p.magics = { ...player.magics };
@@ -1280,6 +1280,10 @@ export const castMagic = (
     case 'thunder':
       // 画面上の敵にランダムダメージ（C ATK +1で10ダメージ増加）
       updatedEnemies = enemies.map(enemy => {
+        if (enemy.stats.hp <= 0) {
+          return enemy;
+        }
+
         const debufferEffect = enemy.statusEffects.find(e => e.type === 'debuffer');
         const debufferLevel = debufferEffect?.level ?? 0;
         const isDebuffed = debufferLevel > 0;
