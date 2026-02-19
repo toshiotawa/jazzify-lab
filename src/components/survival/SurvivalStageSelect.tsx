@@ -205,7 +205,6 @@ export interface DebugSettings {
     fire?: number;
     heal?: number;
     buffer?: number;
-    debuffer?: number;
     hint?: number;
   };
 }
@@ -222,7 +221,6 @@ interface SurvivalStageSelectProps {
 
 const DIFFICULTIES: SurvivalDifficulty[] = ['veryeasy', 'easy', 'normal', 'hard', 'extreme'];
 const DEFAULT_CHARACTER_SCORE_KEY = 'default';
-const HIGH_SCORE_STORAGE_KEY = 'survival_high_scores';
 const TWENTY_MINUTES_SECONDS = 20 * 60;
 type CharacterScopedHighScores = Record<string, SurvivalHighScore>;
 
@@ -301,50 +299,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         // キャラクター取得失敗
       }
 
-      // ハイスコアを取得（難易度×キャラクター単位）
-      const loadFromLocalStorage = (): CharacterScopedHighScores => {
-        const scoreMap: CharacterScopedHighScores = {};
-        try {
-          const saved = localStorage.getItem(HIGH_SCORE_STORAGE_KEY);
-          if (!saved) {
-            return scoreMap;
-          }
-          const parsed = JSON.parse(saved) as Record<string, unknown>;
-          Object.entries(parsed).forEach(([rawKey, value]) => {
-            if (!value || typeof value !== 'object') {
-              return;
-            }
-            const [rawDifficulty, rawCharacterKey] = rawKey.split(':');
-            if (!isSurvivalDifficulty(rawDifficulty)) {
-              return;
-            }
-            const normalizedCharacterKey = toCharacterScoreKey(rawCharacterKey);
-            const v = value as Record<string, unknown>;
-            const nextScore: SurvivalHighScore = {
-              id: '',
-              userId: '',
-              difficulty: rawDifficulty,
-              characterId: normalizedCharacterKey === DEFAULT_CHARACTER_SCORE_KEY ? null : normalizedCharacterKey,
-              survivalTimeSeconds: Number(v.survivalTime) || 0,
-              finalLevel: Number(v.finalLevel) || 1,
-              enemiesDefeated: Number(v.enemiesDefeated) || 0,
-              createdAt: '',
-              updatedAt: '',
-            };
-            const key = buildCharacterHighScoreKey(rawDifficulty, normalizedCharacterKey);
-            const existing = scoreMap[key];
-            if (!existing || nextScore.survivalTimeSeconds > existing.survivalTimeSeconds) {
-              scoreMap[key] = nextScore;
-            }
-          });
-        } catch {
-          // ignore
-        }
-        return scoreMap;
-      };
-
-      const localScores = loadFromLocalStorage();
-
+      // ハイスコアを取得（Supabaseのみ）
       if (profile && !isGuest) {
         try {
           const scores = await fetchUserSurvivalHighScores(profile.id);
@@ -357,18 +312,12 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               scoreMap[key] = score;
             }
           });
-          Object.entries(localScores).forEach(([key, localScore]) => {
-            const dbScore = scoreMap[key];
-            if (!dbScore || localScore.survivalTimeSeconds > dbScore.survivalTimeSeconds) {
-              scoreMap[key] = localScore;
-            }
-          });
           setHighScores(scoreMap);
         } catch {
-          setHighScores(localScores);
+          setHighScores({});
         }
       } else {
-        setHighScores(localScores);
+        setHighScores({});
       }
     } finally {
       setLoading(false);

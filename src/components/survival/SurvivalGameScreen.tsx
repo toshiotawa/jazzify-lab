@@ -68,7 +68,7 @@ import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
-import SurvivalSettingsModal from './SurvivalSettingsModal';
+import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
@@ -204,7 +204,6 @@ interface SurvivalGameScreenProps {
       fire?: number;
       heal?: number;
       buffer?: number;
-      debuffer?: number;
       hint?: number;
     };
   };
@@ -293,9 +292,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (debugSettings.magics.buffer !== undefined) {
           initial.player.magics.buffer = debugSettings.magics.buffer;
         }
-        if (debugSettings.magics.debuffer !== undefined) {
-          initial.player.magics.debuffer = debugSettings.magics.debuffer;
-        }
+
         if (debugSettings.magics.hint !== undefined) {
           initial.player.magics.hint = debugSettings.magics.hint;
         }
@@ -404,6 +401,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
   
   // handleNoteInputの最新参照を保持するref
   const handleNoteInputRef = useRef<(note: number) => void>(() => {});
@@ -1726,7 +1724,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return !hitResults.some(h => h.projId === proj.id);
         });
         
-        // 炎オーラダメージ（FIRE魔法）
+        // 炎オーラダメージ（FIRE魔法） - 当たった敵にデバフ付与
         if (prev.player.statusEffects.some(e => e.type === 'fire')) {
           newState.enemies = newState.enemies.map(enemy => {
             const dx = enemy.x - newState.player.x;
@@ -1746,8 +1744,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   hp: Math.max(0, enemy.stats.hp - damage),
                 },
                 statusEffects: [
-                  ...enemy.statusEffects.filter(e => e.type !== 'fire'),
-                  { type: 'fire' as const, duration: 3, startTime: Date.now(), level: fireLevel },
+                  ...enemy.statusEffects.filter(e => e.type !== 'debuffer'),
+                  { type: 'debuffer' as const, duration: 3, startTime: Date.now(), level: fireLevel },
                 ],
               };
             }
@@ -1925,8 +1923,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               allMessages.push(...messages);
             }
             newState.player = charPlayer;
-            // 能力値アップメッセージを通知
-            if (allMessages.length > 0) {
+            // 能力値アップメッセージを通知（設定で有効な場合のみ）
+            if (allMessages.length > 0 && displaySettings.showCharacterBonusPopup) {
               const now = Date.now();
               const notifications = allMessages.map((msg, idx) => ({
                 id: `lv5_${now}_${idx}`,
@@ -1995,15 +1993,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 };
                 playSound();
                 
-                // 取得スキル通知を追加（各スキルをずらして表示）
-                const now = Date.now();
-                const notifications = acquiredBonuses.map((bonus, idx) => ({
-                  id: `skill_${now}_${idx}`,
-                  icon: bonus.icon,
-                  displayName: bonus.displayName,
-                  startTime: now + idx * 300, // 300msずつずらす
-                }));
-                setSkillNotifications(prev => [...prev, ...notifications]);
+                // 取得スキル通知を追加（設定で有効な場合のみ）
+                if (displaySettings.showAutoSelectPopup) {
+                  const now = Date.now();
+                  const notifications = acquiredBonuses.map((bonus, idx) => ({
+                    id: `skill_${now}_${idx}`,
+                    icon: bonus.icon,
+                    displayName: bonus.displayName,
+                    startTime: now + idx * 300,
+                  }));
+                  setSkillNotifications(prev => [...prev, ...notifications]);
+                }
               }, 0);
             }
           } else if (newState.isLevelingUp) {
@@ -2348,9 +2348,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (debugSettings.magics.buffer !== undefined) {
           initial.player.magics.buffer = debugSettings.magics.buffer;
         }
-        if (debugSettings.magics.debuffer !== undefined) {
-          initial.player.magics.debuffer = debugSettings.magics.debuffer;
-        }
+
         if (debugSettings.magics.hint !== undefined) {
           initial.player.magics.hint = debugSettings.magics.hint;
         }
@@ -2877,6 +2875,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         isOpen={isSettingsOpen}
         onClose={() => setIsSettingsOpen(false)}
         isMidiConnected={isMidiConnected}
+        displaySettings={displaySettings}
+        onDisplaySettingsChange={setDisplaySettings}
       />
     </div>
   );

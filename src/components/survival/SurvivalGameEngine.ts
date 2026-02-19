@@ -43,7 +43,9 @@ const PROJECTILE_SIZE = 8;
 const ITEM_SIZE = 24;
 
 const BASE_PLAYER_SPEED = 150;  // px/秒
+const MAX_PLAYER_SPEED = 600;  // プレイヤー速度上限（px/秒）
 const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
+const MAX_ENEMY_SPEED = 400;   // 敵速度上限（px/秒）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
 const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
@@ -51,7 +53,7 @@ const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増�
 // パフォーマンス向上用の上限値
 export const MAX_ENEMIES = Infinity;     // 敵の最大数（制限なし）
 export const MAX_PROJECTILES = 200;      // 弾丸の最大数
-export const MAX_COINS = 300;            // コインの最大数
+export const MAX_COINS = Infinity;       // コインの最大数（制限なし）
 
 // HP上限値
 const MAX_HP_CAP = 1000;
@@ -93,7 +95,6 @@ const createInitialPlayerState = (): PlayerState => ({
     fire: 0,
     heal: 0,
     buffer: 0,
-    debuffer: 0,
     hint: 0,
   },
   statusEffects: [],
@@ -147,7 +148,6 @@ export const applyCharacterToPlayerState = (
   if (magics.fire !== undefined) p.magics.fire = magics.fire;
   if (magics.heal !== undefined) p.magics.heal = magics.heal;
   if (magics.buffer !== undefined) p.magics.buffer = magics.buffer;
-  if (magics.debuffer !== undefined) p.magics.debuffer = magics.debuffer;
   if (magics.hint !== undefined) p.magics.hint = magics.hint;
 
   return p;
@@ -298,8 +298,8 @@ export const calculateWaveQuota = (waveNumber: number): number => {
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
-  // WAVEが進むごとに敵が20%ずつ速くなる（より高速化）
-  return 1 + (waveNumber - 1) * 0.2;
+  // WAVEが進むごとに敵が20%ずつ速くなる（最大5倍 = WAVE21で頭打ち）
+  return Math.min(5, 1 + (waveNumber - 1) * 0.2);
 };
 
 // ===== コード生成 =====
@@ -404,8 +404,17 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const base = baseStats[type];
   const totalMultiplier = multiplier * (1 + timeBonus);
   
-  // WAVE10ごとに敵HP+1000
-  const waveHpBonus = Math.floor(waveNumber / 10) * 1000;
+  // WAVEごとのHP大幅ボーナス（段階的に増加）
+  let waveHpBonus = 0;
+  if (waveNumber >= 40) {
+    waveHpBonus = 1000 + 10000 + 100000 + 100000; // 211,000
+  } else if (waveNumber >= 30) {
+    waveHpBonus = 1000 + 10000 + 100000; // 111,000
+  } else if (waveNumber >= 20) {
+    waveHpBonus = 1000 + 10000; // 11,000
+  } else if (waveNumber >= 10) {
+    waveHpBonus = 1000;
+  }
   
   const baseHp = Math.floor(base.hp * totalMultiplier) + waveHpBonus;
   
@@ -425,16 +434,30 @@ export const spawnEnemy = (
   config: DifficultyConfig,
   waveNumber: number = 1
 ): EnemyState => {
-  // プレイヤーから一定距離離れた位置にスポーン
-  const spawnDistance = 400 + Math.random() * 200;
-  const angle = Math.random() * Math.PI * 2;
+  // フィールドの端のギリギリ外側にスポーン（ヌッと現れる演出）
+  const side = Math.floor(Math.random() * 4); // 0:上, 1:下, 2:左, 3:右
+  const margin = ENEMY_SIZE * 0.8; // 端から少しだけはみ出す量
+  let x: number;
+  let y: number;
   
-  let x = playerX + Math.cos(angle) * spawnDistance;
-  let y = playerY + Math.sin(angle) * spawnDistance;
-  
-  // マップ範囲内に収める
-  x = Math.max(ENEMY_SIZE, Math.min(MAP_CONFIG.width - ENEMY_SIZE, x));
-  y = Math.max(ENEMY_SIZE, Math.min(MAP_CONFIG.height - ENEMY_SIZE, y));
+  switch (side) {
+    case 0: // 上端の外
+      x = Math.random() * MAP_CONFIG.width;
+      y = -margin;
+      break;
+    case 1: // 下端の外
+      x = Math.random() * MAP_CONFIG.width;
+      y = MAP_CONFIG.height + margin;
+      break;
+    case 2: // 左端の外
+      x = -margin;
+      y = Math.random() * MAP_CONFIG.height;
+      break;
+    default: // 右端の外
+      x = MAP_CONFIG.width + margin;
+      y = Math.random() * MAP_CONFIG.height;
+      break;
+  }
   
   // 経過時間に応じて敵タイプの上限を上げる（1分ごとに1タイプ解禁）
   const maxTypeIndex = Math.min(
@@ -526,12 +549,11 @@ export const updatePlayerPosition = (
   dx /= length;
   dy /= length;
   
-  // 速度計算（バフ込み）
+  // 速度計算（バフ込み、上限あり）
   const speedMultiplier = player.statusEffects.some(e => e.type === 'speed_up') ? 2 : 1;
-  // 背水の陣のSPEEDボーナス
   const conditionalMultipliers = getConditionalSkillMultipliers(player);
   const totalSpeed = player.stats.speed + conditionalMultipliers.speedBonus;
-  const speed = BASE_PLAYER_SPEED * (1 + totalSpeed * 0.1) * speedMultiplier;
+  const speed = Math.min(MAX_PLAYER_SPEED, BASE_PLAYER_SPEED * (1 + totalSpeed * 0.1) * speedMultiplier);
   
   // 新しい位置
   let newX = player.x + dx * speed * deltaTime;
@@ -566,10 +588,8 @@ export const updateEnemyPositions = (
       return enemy;
     }
     
-    // やけど状態なら速度半減
-    const burnedMultiplier = enemy.statusEffects.some(e => e.type === 'fire') ? 0.5 : 1;
-    // デバフ状態
-    const debuffMultiplier = enemy.statusEffects.some(e => e.type === 'debuffer') ? 0.7 : 1;
+    // デバフ状態（FIRE渦・元デバッファー統合）
+    const debuffMultiplier = enemy.statusEffects.some(e => e.type === 'debuffer') ? 0.5 : 1;
     
     // プレイヤーに向かって移動
     const dx = playerX - enemy.x;
@@ -579,7 +599,7 @@ export const updateEnemyPositions = (
     if (distance < 1) return enemy;
     
     // WAVE倍率を適用
-    const speed = BASE_ENEMY_SPEED * enemy.stats.speed * burnedMultiplier * debuffMultiplier * waveSpeedMultiplier;
+    const speed = Math.min(MAX_ENEMY_SPEED, BASE_ENEMY_SPEED * enemy.stats.speed * waveSpeedMultiplier) * debuffMultiplier;
     const moveX = (dx / distance) * speed * deltaTime;
     const moveY = (dy / distance) * speed * deltaTime;
     
@@ -592,9 +612,10 @@ export const updateEnemyPositions = (
       newY += enemy.knockbackVelocity.y * deltaTime;
     }
     
-    // マップ範囲内に制限
-    newX = Math.max(ENEMY_SIZE / 2, Math.min(MAP_CONFIG.width - ENEMY_SIZE / 2, newX));
-    newY = Math.max(ENEMY_SIZE / 2, Math.min(MAP_CONFIG.height - ENEMY_SIZE / 2, newY));
+    // マップ範囲内に制限（外からの進入を許容するためマージン付き）
+    const enemyMargin = ENEMY_SIZE * 2;
+    newX = Math.max(-enemyMargin, Math.min(MAP_CONFIG.width + enemyMargin, newX));
+    newY = Math.max(-enemyMargin, Math.min(MAP_CONFIG.height + enemyMargin, newY));
     
     return {
       ...enemy,
@@ -952,10 +973,9 @@ const ALL_BONUSES: BonusDefinition[] = [
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', displayNameEn: 'THUNDER', description: '雷魔法', descriptionEn: 'Thunder magic', icon: '⚡', maxLevel: 3 },
   { type: 'magic_ice', displayName: 'ICE', displayNameEn: 'ICE', description: '氷魔法', descriptionEn: 'Ice magic', icon: '❄️', maxLevel: 3 },
-  { type: 'magic_fire', displayName: 'FIRE', displayNameEn: 'FIRE', description: '炎魔法', descriptionEn: 'Fire magic', icon: '🔥', maxLevel: 3 },
+  { type: 'magic_fire', displayName: 'FIRE', displayNameEn: 'FIRE', description: '炎の渦で敵にダメージ+デバフ', descriptionEn: 'Fire vortex: damage + debuff enemies', icon: '🔥', maxLevel: 3 },
   { type: 'magic_heal', displayName: 'HEAL', displayNameEn: 'HEAL', description: '回復魔法', descriptionEn: 'Heal magic', icon: '💚', maxLevel: 3 },
   { type: 'magic_buffer', displayName: 'BUFFER', displayNameEn: 'BUFFER', description: 'バフ魔法', descriptionEn: 'Buffer magic', icon: '⬆️', maxLevel: 3 },
-  { type: 'magic_debuffer', displayName: 'DEBUFFER', displayNameEn: 'DEBUFFER', description: 'デバフ魔法', descriptionEn: 'Debuffer magic', icon: '⬇️', maxLevel: 3 },
   { type: 'magic_hint', displayName: 'HINT', displayNameEn: 'HINT', description: 'ヒント魔法', descriptionEn: 'Hint magic', icon: '💡', maxLevel: 3 },
 ];
 
@@ -972,7 +992,6 @@ const getCurrentBonusLevel = (player: PlayerState, type: BonusType): number => {
     case 'magic_fire': return player.magics.fire;
     case 'magic_heal': return player.magics.heal;
     case 'magic_buffer': return player.magics.buffer;
-    case 'magic_debuffer': return player.magics.debuffer;
     case 'magic_hint': return player.magics.hint;
     default: return 0;
   }
@@ -1027,8 +1046,6 @@ const getAvailableBonuses = (
           return player.magics.heal < bonus.maxLevel;
         case 'magic_buffer':
           return player.magics.buffer < bonus.maxLevel;
-        case 'magic_debuffer':
-          return player.magics.debuffer < bonus.maxLevel;
         case 'magic_hint':
           return player.magics.hint < bonus.maxLevel;
         default:
@@ -1194,9 +1211,6 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
     case 'magic_buffer':
       newPlayer.magics.buffer = Math.min(3, newPlayer.magics.buffer + 1);
       break;
-    case 'magic_debuffer':
-      newPlayer.magics.debuffer = Math.min(3, newPlayer.magics.debuffer + 1);
-      break;
     case 'magic_hint':
       newPlayer.magics.hint = Math.min(3, newPlayer.magics.hint + 1);
       break;
@@ -1246,7 +1260,6 @@ const MAGIC_DISPLAY_NAMES: Record<MagicType, string> = {
   fire: 'FIRE',
   heal: 'HEAL',
   buffer: 'BUFFER',
-  debuffer: 'DEBUFFER',
   hint: 'HINT',
 };
 
@@ -1256,7 +1269,6 @@ const MAGIC_DISPLAY_COLORS: Record<MagicType, string> = {
   fire: '#ff6347',
   heal: '#4ade80',
   buffer: '#ffa500',
-  debuffer: '#9b59b6',
   hint: '#00bfff',
 };
 
@@ -1431,17 +1443,6 @@ export const castMagic = (
           { type: 'buffer' as const, duration: totalDuration, startTime: Date.now(), level },
         ],
       };
-      break;
-      
-    case 'debuffer':
-      // 敵にデバフ
-      updatedEnemies = enemies.map(enemy => ({
-        ...enemy,
-        statusEffects: [
-          ...enemy.statusEffects.filter(e => e.type !== 'debuffer'),
-          { type: 'debuffer' as const, duration: totalDuration, startTime: Date.now(), level },
-        ],
-      }));
       break;
       
     case 'hint':

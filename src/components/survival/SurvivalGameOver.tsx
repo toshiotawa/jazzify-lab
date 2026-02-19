@@ -49,42 +49,12 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   const [xpAdded, setXpAdded] = useState(false);
   
-  // ハイスコア保存とXP付与（ローカルストレージとデータベースの両方に保存）
+  // ハイスコア保存とXP付与（Supabaseのみ）
   useEffect(() => {
     const saveHighScoreAndAddXp = async () => {
       const survivalTime = Math.floor(result.survivalTime);
       
-      // ローカルストレージに常に保存（バックアップとして）
-      const saveToLocalStorage = () => {
-        try {
-          const key = 'survival_high_scores';
-          const saved = localStorage.getItem(key);
-          const scores: Record<string, { survivalTime: number; finalLevel: number; enemiesDefeated: number }> =
-            saved ? JSON.parse(saved) : {};
-          const scoreKey = `${difficulty}:${characterId ?? 'default'}`;
-          
-          const existing = scores[scoreKey];
-          if (!existing || existing.survivalTime < survivalTime) {
-            scores[scoreKey] = {
-              survivalTime,
-              finalLevel: result.finalLevel,
-              enemiesDefeated: result.enemiesDefeated,
-            };
-            localStorage.setItem(key, JSON.stringify(scores));
-            return true; // ハイスコア更新
-          }
-          return false;
-        } catch (error) {
-          console.error('Failed to save local high score:', error);
-          return false;
-        }
-      };
-      
-      // ローカルストレージに保存
-      const localHighScore = saveToLocalStorage();
-      
       if (profile && !isGuest) {
-        // ログインユーザー: Supabaseにも保存を試みる
         try {
           const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
             profile.id,
@@ -94,23 +64,16 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             result.enemiesDefeated,
             characterId
           );
-          // APIから返されたフラグでハイスコア更新を判定
           setIsNewHighScore(isNew);
-          
-          // ハイスコア保存後にユーザー統計キャッシュをクリア
-          // これにより、ダッシュボードやプロフィールカードに最新のスコアが反映される
           clearUserStatsCache(profile.id);
-        } catch (error) {
-          console.error('Failed to save high score to database:', error);
-          // データベース保存に失敗しても、ローカルストレージの結果を使用
-          setIsNewHighScore(localHighScore);
+        } catch {
+          // DB保存失敗
         }
         
-        // XPをプロフィールに付与（一度だけ）
         if (!xpAdded && result.earnedXp > 0) {
           try {
             await addXp({
-              songId: null,  // サバイバルモードは曲なし
+              songId: null,
               baseXp: result.earnedXp,
               speedMultiplier: 1,
               rankMultiplier: 1,
@@ -119,15 +82,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               reason: `survival_${difficulty}_${Math.floor(survivalTime / 60)}min`,
             });
             setXpAdded(true);
-            // プロフィールを更新して新しいXPを反映
             await fetchProfile({ forceRefresh: true });
-          } catch (error) {
-            console.error('Failed to add XP:', error);
+          } catch {
+            // XP付与失敗
           }
         }
-      } else {
-        // ゲスト: ローカルストレージの結果のみ
-        setIsNewHighScore(localHighScore);
       }
     };
     

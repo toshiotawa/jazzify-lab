@@ -13,7 +13,7 @@ export type Direction = 'up' | 'down' | 'left' | 'right' |
 
 // ===== ステータス異常 =====
 export type StatusEffect = 
-  | 'fire'      // 炎（やけど）
+  | 'fire'      // 炎（FIREの渦バフ - プレイヤー用）
   | 'ice'       // 氷（凍結）
   | 'buffer'    // バフ
   | 'debuffer'  // デバフ
@@ -40,7 +40,6 @@ export type MagicType =
   | 'fire'      // 炎
   | 'heal'      // 回復
   | 'buffer'    // バフ
-  | 'debuffer'  // デバフ
   | 'hint';     // ヒント
 
 export interface MagicDefinition {
@@ -95,7 +94,6 @@ export interface AcquiredMagics {
   fire: number;
   heal: number;
   buffer: number;
-  debuffer: number;
   hint: number;
 }
 
@@ -213,7 +211,6 @@ export type BonusType =
   | 'magic_fire'
   | 'magic_heal'
   | 'magic_buffer'
-  | 'magic_debuffer'
   | 'magic_hint';
 
 export interface LevelUpBonus {
@@ -437,7 +434,7 @@ export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（�
 export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
 
 export const MAP_CONFIG: MapConfig = {
-  width: 1600,
-  height: 1200,
+  width: 4800,
+  height: 3600,
   tileSize: 32,
 };
