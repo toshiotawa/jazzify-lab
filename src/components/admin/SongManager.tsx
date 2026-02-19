@@ -1,51 +1,35 @@
 /// <reference types="vite/client" />
 import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { addSongWithFiles, fetchSongs, deleteSong, updateSong, updateSongGlobalAvailable, updateSongSortOrders, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
-import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
-import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
-import { CSS } from '@dnd-kit/utilities';
+import { addSongWithFiles, fetchSongs, deleteSong, updateSong, updateSongGlobalAvailable, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
 import { useToast } from '@/stores/toastStore';
 
 interface SongFormData {
   title: string;
   artist?: string;
   min_rank: 'free' | 'standard' | 'premium' | 'platinum' | 'black';
-  difficulty?: number;
   audioFile?: FileList;
   xmlFile?: FileList;
   jsonFile?: FileList;
+  /** MusicXMLがあっても譜面を表示しない */
   hide_sheet_music?: boolean;
+  /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
+  /** standard_global プランで遊べるかどうか */
   global_available?: boolean;
-  phrase?: boolean;
-  jazz_piano?: boolean;
-  classic_piano?: boolean;
 }
 
 interface EditFormData {
   title: string;
   artist: string;
   min_rank: 'free' | 'standard' | 'premium' | 'platinum' | 'black';
-  difficulty: number;
   hide_sheet_music: boolean;
   use_rhythm_notation: boolean;
   global_available: boolean;
-  phrase: boolean;
-  jazz_piano: boolean;
-  classic_piano: boolean;
   audioFile?: FileList;
   xmlFile?: FileList;
   jsonFile?: FileList;
 }
-
-const StarRating: React.FC<{ value: number }> = ({ value }) => (
-  <span className="inline-flex gap-0.5">
-    {[1, 2, 3, 4, 5].map(i => (
-      <span key={i} className={i <= value ? 'text-yellow-400' : 'text-gray-600'}>&#9733;</span>
-    ))}
-  </span>
-);
 
 const SongManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -55,41 +39,9 @@ const SongManager: React.FC = () => {
   const [activeListTab, setActiveListTab] = useState<SongUsageType>('general');
   const [editingSong, setEditingSong] = useState<Song | null>(null);
   const [editUploading, setEditUploading] = useState(false);
-  const [orderChanged, setOrderChanged] = useState(false);
-  const [savingOrder, setSavingOrder] = useState(false);
   const { register, handleSubmit, reset, watch } = useForm<SongFormData>();
   const { register: editRegister, handleSubmit: editHandleSubmit, reset: editReset, watch: editWatch, setValue: editSetValue } = useForm<EditFormData>();
   const toast = useToast();
-
-  const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
-  );
-
-  const handleDragEnd = useCallback((event: DragEndEvent) => {
-    const { active, over } = event;
-    if (!over || active.id === over.id) return;
-    setSongs(prev => {
-      const oldIndex = prev.findIndex(s => s.id === active.id);
-      const newIndex = prev.findIndex(s => s.id === over.id);
-      return arrayMove(prev, oldIndex, newIndex);
-    });
-    setOrderChanged(true);
-  }, []);
-
-  const handleSaveOrder = useCallback(async () => {
-    setSavingOrder(true);
-    try {
-      const orders = songs.map((s, i) => ({ id: s.id, sort_order: i }));
-      await updateSongSortOrders(orders);
-      toast.success('表示順を保存しました');
-      setOrderChanged(false);
-    } catch {
-      toast.error('表示順の保存に失敗しました');
-    } finally {
-      setSavingOrder(false);
-    }
-  }, [songs, toast]);
 
   const openEditModal = useCallback((song: Song) => {
     setEditingSong(song);
@@ -97,13 +49,9 @@ const SongManager: React.FC = () => {
       title: song.title,
       artist: song.artist ?? '',
       min_rank: song.min_rank as EditFormData['min_rank'],
-      difficulty: song.difficulty ?? 0,
       hide_sheet_music: song.hide_sheet_music ?? false,
       use_rhythm_notation: song.use_rhythm_notation ?? false,
       global_available: song.global_available ?? false,
-      phrase: song.phrase ?? false,
-      jazz_piano: song.jazz_piano ?? false,
-      classic_piano: song.classic_piano ?? false,
     });
   }, [editReset]);
 
@@ -138,13 +86,9 @@ const SongManager: React.FC = () => {
         title: values.title,
         artist: values.artist || undefined,
         min_rank: values.min_rank,
-        difficulty: values.difficulty || undefined,
         hide_sheet_music: values.hide_sheet_music,
         use_rhythm_notation: values.use_rhythm_notation,
         global_available: values.global_available,
-        phrase: values.phrase,
-        jazz_piano: values.jazz_piano,
-        classic_piano: values.classic_piano,
       };
 
       if (jsonData !== undefined) {
@@ -181,10 +125,9 @@ const SongManager: React.FC = () => {
     setLoading(true);
     try {
       const data = await fetchSongs(usageType);
-      data.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
       setSongs(data);
-      setOrderChanged(false);
     } catch (e: any) {
+      console.error(`[${usageType}] 曲一覧読み込みエラー:`, e);
       toast.error('曲一覧の読み込みに失敗しました');
     } finally {
       setLoading(false);
@@ -228,14 +171,10 @@ const SongManager: React.FC = () => {
         title: values.title,
         artist: values.artist,
         min_rank: values.min_rank,
-        difficulty: values.difficulty || undefined,
         usage_type: activeFormTab,
         hide_sheet_music: values.hide_sheet_music ?? false,
         use_rhythm_notation: values.use_rhythm_notation ?? false,
         global_available: values.global_available ?? false,
-        phrase: values.phrase ?? false,
-        jazz_piano: values.jazz_piano ?? false,
-        classic_piano: values.classic_piano ?? false,
       }, files);
 
       console.log('アップロード成功:', result);
@@ -319,45 +258,6 @@ const SongManager: React.FC = () => {
             <option value="platinum">プラチナ</option>
             <option value="black">ブラック</option>
           </select>
-        </div>
-
-        <div>
-          <label className="block text-sm font-medium mb-1">難易度（1-5）</label>
-          <select
-            className="select select-bordered w-full text-white"
-            {...register('difficulty', { valueAsNumber: true })}
-            defaultValue={0}
-          >
-            <option value={0}>未設定</option>
-            <option value={1}>&#9733; (1)</option>
-            <option value={2}>&#9733;&#9733; (2)</option>
-            <option value={3}>&#9733;&#9733;&#9733; (3)</option>
-            <option value={4}>&#9733;&#9733;&#9733;&#9733; (4)</option>
-            <option value={5}>&#9733;&#9733;&#9733;&#9733;&#9733; (5)</option>
-          </select>
-        </div>
-
-        <div className="divider">曲カテゴリ</div>
-
-        <div className="form-control">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-secondary" {...register('phrase')} />
-            <span className="label-text">Phrase</span>
-          </label>
-        </div>
-
-        <div className="form-control">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-secondary" {...register('jazz_piano')} />
-            <span className="label-text">Jazz Piano</span>
-          </label>
-        </div>
-
-        <div className="form-control">
-          <label className="label cursor-pointer justify-start gap-3">
-            <input type="checkbox" className="checkbox checkbox-secondary" {...register('classic_piano')} />
-            <span className="label-text">Classic Piano</span>
-          </label>
         </div>
 
         {/* 楽譜表示オプション */}
@@ -476,58 +376,71 @@ const SongManager: React.FC = () => {
 
       <div className="divider my-8"></div>
 
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="text-xl font-bold">曲一覧</h3>
-        {orderChanged && (
-          <button
-            className="btn btn-sm btn-success"
-            onClick={handleSaveOrder}
-            disabled={savingOrder}
-          >
-            {savingOrder ? <><span className="loading loading-spinner loading-xs"></span>保存中...</> : '表示順を保存'}
-          </button>
-        )}
-      </div>
+      <h3 className="text-xl font-bold mb-4">曲一覧</h3>
       <div className="tabs tabs-boxed mb-4 bg-slate-800/50">
         <a className={`tab ${activeListTab === 'general' ? 'tab-active' : ''}`} onClick={() => setActiveListTab('general')}>通常曲</a>
         <a className={`tab ${activeListTab === 'lesson' ? 'tab-active' : ''}`} onClick={() => setActiveListTab('lesson')}>レッスン曲</a>
       </div>
-      <p className="text-xs text-gray-400 mb-2">ドラッグで並び替え → 「表示順を保存」で反映されます</p>
       {loading ? <p className="text-gray-400">Loading...</p> : (
-        <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
-          <SortableContext items={songs.map(s => s.id)} strategy={verticalListSortingStrategy}>
-            <div className="bg-slate-800/50 rounded-lg overflow-hidden">
-              <ul className="divide-y divide-slate-700">
-                {songs.map(s => (
-                  <SortableSongItem
-                    key={s.id}
-                    song={s}
-                    onEdit={() => openEditModal(s)}
-                    onDelete={async () => {
-                      if (!confirm(`「${s.title}」を削除しますか？`)) return;
-                      try {
-                        await deleteSong(s.id);
-                        toast.success('曲を削除しました');
-                        await loadSongs(activeListTab);
-                      } catch {
-                        toast.error('曲の削除に失敗しました');
-                      }
-                    }}
-                    onToggleGlobal={async (checked: boolean) => {
-                      try {
-                        await updateSongGlobalAvailable(s.id, checked);
-                        toast.success(checked ? 'Globalに公開しました' : 'Global非公開にしました');
-                        await loadSongs(activeListTab);
-                      } catch {
-                        toast.error('更新に失敗しました');
-                      }
-                    }}
-                  />
-                ))}
-              </ul>
-            </div>
-          </SortableContext>
-        </DndContext>
+        <div className="bg-slate-800/50 rounded-lg overflow-hidden">
+          <ul className="divide-y divide-slate-700">
+            {songs.map(s => (
+              <li key={s.id} className="flex items-center justify-between p-3 hover:bg-slate-700/50 transition-colors">
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{s.title}</p>
+                  <p className="text-xs text-gray-400 truncate">
+                    {s.artist && `${s.artist} • `}
+                    {s.min_rank}
+                  </p>
+                  <div className="flex gap-2 mt-1 flex-wrap">
+                    {s.json_url && <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">JSON</span>}
+                    {s.audio_url && <span className="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">MP3</span>}
+                    {s.xml_url && <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded">XML</span>}
+                    {s.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
+                    {s.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
+                    {s.global_available && <span className="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded">Global</span>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 flex-shrink-0 ml-2">
+                  <label className="label cursor-pointer gap-1" title="Globalプランで遊べる">
+                    <span className="text-xs text-gray-400">G</span>
+                    <input
+                      type="checkbox"
+                      className="toggle toggle-xs toggle-accent"
+                      checked={s.global_available ?? false}
+                      onChange={async (e) => {
+                        try {
+                          await updateSongGlobalAvailable(s.id, e.target.checked);
+                          toast.success(e.target.checked ? 'Globalに公開しました' : 'Global非公開にしました');
+                          await loadSongs(activeListTab);
+                        } catch (err: any) {
+                          toast.error('更新に失敗しました');
+                        }
+                      }}
+                    />
+                  </label>
+                </div>
+                <button
+                  className="btn btn-xs btn-info ml-2 flex-shrink-0"
+                  onClick={() => openEditModal(s)}
+                  aria-label={`${s.title}を編集`}
+                >
+                  編集
+                </button>
+                <button className="btn btn-xs btn-error ml-2 flex-shrink-0" onClick={async () => {
+                  if (!confirm(`「${s.title}」を削除しますか？`)) return;
+                  try {
+                    await deleteSong(s.id);
+                    toast.success('曲を削除しました');
+                    await loadSongs(activeListTab);
+                  } catch (e: any) {
+                    toast.error('曲の削除に失敗しました');
+                  }
+                }}>削除</button>
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
 
       {/* 編集モーダル */}
@@ -566,44 +479,6 @@ const SongManager: React.FC = () => {
                   <option value="platinum">プラチナ</option>
                   <option value="black">ブラック</option>
                 </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">難易度（1-5）</label>
-                <select
-                  className="select select-bordered w-full text-white"
-                  {...editRegister('difficulty', { valueAsNumber: true })}
-                >
-                  <option value={0}>未設定</option>
-                  <option value={1}>&#9733; (1)</option>
-                  <option value={2}>&#9733;&#9733; (2)</option>
-                  <option value={3}>&#9733;&#9733;&#9733; (3)</option>
-                  <option value={4}>&#9733;&#9733;&#9733;&#9733; (4)</option>
-                  <option value={5}>&#9733;&#9733;&#9733;&#9733;&#9733; (5)</option>
-                </select>
-              </div>
-
-              <div className="divider text-xs">曲カテゴリ</div>
-
-              <div className="form-control">
-                <label className="label cursor-pointer justify-start gap-3">
-                  <input type="checkbox" className="checkbox checkbox-secondary" {...editRegister('phrase')} />
-                  <span className="label-text">Phrase</span>
-                </label>
-              </div>
-
-              <div className="form-control">
-                <label className="label cursor-pointer justify-start gap-3">
-                  <input type="checkbox" className="checkbox checkbox-secondary" {...editRegister('jazz_piano')} />
-                  <span className="label-text">Jazz Piano</span>
-                </label>
-              </div>
-
-              <div className="form-control">
-                <label className="label cursor-pointer justify-start gap-3">
-                  <input type="checkbox" className="checkbox checkbox-secondary" {...editRegister('classic_piano')} />
-                  <span className="label-text">Classic Piano</span>
-                </label>
               </div>
 
               <div className="divider text-xs">楽譜表示オプション</div>
@@ -732,79 +607,4 @@ const SongManager: React.FC = () => {
   );
 };
 
-interface SortableSongItemProps {
-  song: Song;
-  onEdit: () => void;
-  onDelete: () => void;
-  onToggleGlobal: (checked: boolean) => void;
-}
-
-const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDelete, onToggleGlobal }) => {
-  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id });
-
-  const style = {
-    transform: CSS.Transform.toString(transform),
-    transition,
-    opacity: isDragging ? 0.5 : 1,
-  };
-
-  return (
-    <li ref={setNodeRef} style={style} className="flex items-center justify-between p-3 hover:bg-slate-700/50 transition-colors">
-      <button
-        className="cursor-grab active:cursor-grabbing p-1 mr-2 text-gray-500 hover:text-gray-300 flex-shrink-0 touch-none"
-        {...attributes}
-        {...listeners}
-        aria-label="並び替え"
-      >
-        &#9776;
-      </button>
-      <div className="min-w-0 flex-1">
-        <div className="flex items-center gap-2">
-          <p className="font-medium truncate">{song.title}</p>
-          {song.difficulty != null && song.difficulty > 0 && <StarRating value={song.difficulty} />}
-        </div>
-        <p className="text-xs text-gray-400 truncate">
-          {song.artist && `${song.artist} • `}
-          {song.min_rank}
-        </p>
-        <div className="flex gap-2 mt-1 flex-wrap">
-          {song.json_url && <span className="text-xs bg-blue-600/20 text-blue-400 px-2 py-0.5 rounded">JSON</span>}
-          {song.audio_url && <span className="text-xs bg-green-600/20 text-green-400 px-2 py-0.5 rounded">MP3</span>}
-          {song.xml_url && <span className="text-xs bg-purple-600/20 text-purple-400 px-2 py-0.5 rounded">XML</span>}
-          {song.phrase && <span className="text-xs bg-pink-600/20 text-pink-400 px-2 py-0.5 rounded">Phrase</span>}
-          {song.jazz_piano && <span className="text-xs bg-amber-600/20 text-amber-400 px-2 py-0.5 rounded">Jazz Piano</span>}
-          {song.classic_piano && <span className="text-xs bg-indigo-600/20 text-indigo-400 px-2 py-0.5 rounded">Classic Piano</span>}
-          {song.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
-          {song.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
-          {song.global_available && <span className="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded">Global</span>}
-        </div>
-      </div>
-      <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-        <label className="label cursor-pointer gap-1" title="Globalプランで遊べる">
-          <span className="text-xs text-gray-400">G</span>
-          <input
-            type="checkbox"
-            className="toggle toggle-xs toggle-accent"
-            checked={song.global_available ?? false}
-            onChange={(e) => onToggleGlobal(e.target.checked)}
-          />
-        </label>
-      </div>
-      <button
-        className="btn btn-xs btn-info ml-2 flex-shrink-0"
-        onClick={onEdit}
-        aria-label={`${song.title}を編集`}
-      >
-        編集
-      </button>
-      <button
-        className="btn btn-xs btn-error ml-2 flex-shrink-0"
-        onClick={onDelete}
-      >
-        削除
-      </button>
-    </li>
-  );
-};
-
-export default SongManager;
+export default SongManager; 
