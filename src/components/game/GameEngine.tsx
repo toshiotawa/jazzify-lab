@@ -62,7 +62,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       currentSong,
       settings,
       mode,
-      lastKeyHighlight,
       isSettingsOpen,
       resultModalOpen
     } = useGameSelector((state) => ({
@@ -71,7 +70,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       currentSong: state.currentSong,
       settings: state.settings,
       mode: state.mode,
-      lastKeyHighlight: state.lastKeyHighlight,
       isSettingsOpen: state.isSettingsOpen,
       resultModalOpen: state.resultModalOpen
     }));
@@ -90,7 +88,6 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       updateSettings,
       updateTime,
       pause,
-    setLastKeyHighlight,
     openResultModal
   } = useGameActions();
   
@@ -1150,41 +1147,22 @@ useEffect(() => {
   }, [currentSong, gameEngine, initializeGameEngine, destroyGameEngine]);
   
   // 練習モードガイド: GameEngineのキーハイライトコールバック設定
+  // React state を経由せず pixiRendererRef で直接ハイライトすることで、
+  // 同時ノート（左手＋右手）が同一フレームで通過してもすべてハイライトされる
   useEffect(() => {
     if (gameEngine) {
-      // GameEngine から渡される timestamp は AudioContext のタイムラインを基準としているため、
-      // React 側のパフォーマンスタイムラインと整合しない場合がある。
-      // UI 側では performance.now() ベースで扱うことで、過去 0.5s 以内かどうかを正しく判定できるようにする。
       gameEngine.setKeyHighlightCallback((pitch: number, _timestamp: number) => {
-        // performance.now() は ms 単位なので秒に変換
-        const wallClockSec = performance.now() / 1000;
-        setLastKeyHighlight(pitch, wallClockSec);
-      });
-      log.info('🎹 練習モードガイド: GameEngineキーハイライトコールバック設定完了');
-    }
-  }, [gameEngine, setLastKeyHighlight]);
-  
-  // 練習モードガイド: キーハイライト処理
-  useEffect(() => {
-    if (lastKeyHighlight && pixiRenderer && settings.practiceGuide !== 'off' && isPlaying) {
-      const { pitch, timestamp } = lastKeyHighlight;
-      const currentTimestamp = performance.now() / 1000;
-      
-      // タイムスタンプが新しい場合のみハイライトを実行（重複防止）
-      if (currentTimestamp - timestamp < 0.5) { // 0.5秒以内の通知のみ処理
-        
-        // キーをハイライト
-        pixiRenderer.highlightKey(pitch, true);
-        
-        // 一定時間後にハイライトを解除
+        if (!isPlayingRef.current) return;
+        const renderer = pixiRendererRef.current;
+        if (!renderer) return;
+        renderer.highlightKey(pitch, true);
         setTimeout(() => {
-          if (pixiRenderer) {
-            pixiRenderer.highlightKey(pitch, false);
-          }
-        }, 150); // 150ms後にハイライト解除（マウスクリックと同じ長さ）
-      }
+          const r = pixiRendererRef.current;
+          if (r) r.highlightKey(pitch, false);
+        }, 150);
+      });
     }
-  }, [lastKeyHighlight, pixiRenderer, settings.practiceGuide, isPlaying]);
+  }, [gameEngine]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {

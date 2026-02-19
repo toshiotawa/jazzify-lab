@@ -79,13 +79,22 @@ interface NoteVanishEffect {
   startedAtMs: number;
 }
 
+interface LaneFlashEffect {
+  laneX: number;
+  laneWidth: number;
+  color: string;
+  startedAtMs: number;
+}
+
 const MIN_MIDI = 21;
 const MAX_MIDI = 108;
 const TOTAL_WHITE_KEYS = 52;
 const BLACK_KEY_OFFSETS = new Set([1, 3, 6, 8, 10]);
 const NOTE_NAMES = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-const NOTE_VANISH_EFFECT_DURATION_MS = 90;
+const NOTE_VANISH_EFFECT_DURATION_MS = 180;
 const NOTE_VANISH_EFFECT_MAX_COUNT = 24;
+const LANE_FLASH_DURATION_MS = 160;
+const LANE_FLASH_MAX_COUNT = 16;
 
 const JAPANESE_NOTE_MAP: Record<string, string> = {
   C: 'ド',
@@ -210,6 +219,9 @@ export class PIXINotesRendererInstance {
   private readonly vanishEffects: NoteVanishEffect[] = new Array(NOTE_VANISH_EFFECT_MAX_COUNT);
   private vanishWriteIndex = 0;
   private vanishCount = 0;
+  private readonly laneFlashEffects: LaneFlashEffect[] = new Array(LANE_FLASH_MAX_COUNT);
+  private laneFlashWriteIndex = 0;
+  private laneFlashCount = 0;
   
   // 🚀 パフォーマンス最適化: レンダリング頻度制御
   private lastRenderTime = 0;
@@ -383,6 +395,8 @@ export class PIXINotesRendererInstance {
     this.noteRenderSnapshotIds.clear();
     this.vanishWriteIndex = 0;
     this.vanishCount = 0;
+    this.laneFlashWriteIndex = 0;
+    this.laneFlashCount = 0;
   }
 
   get view(): HTMLCanvasElement {
@@ -1031,6 +1045,7 @@ export class PIXINotesRendererInstance {
   }
 
   private pushVanishEffect(snapshot: NoteRenderSnapshot): void {
+    const now = performance.now();
     // 🚀 リングバッファ方式: shift() を排除して O(1) 挿入
     const idx = this.vanishWriteIndex;
     const existing = this.vanishEffects[idx];
@@ -1040,7 +1055,7 @@ export class PIXINotesRendererInstance {
       existing.width = snapshot.width;
       existing.height = snapshot.height;
       existing.color = snapshot.color;
-      existing.startedAtMs = performance.now();
+      existing.startedAtMs = now;
     } else {
       this.vanishEffects[idx] = {
         x: snapshot.x,
@@ -1048,44 +1063,84 @@ export class PIXINotesRendererInstance {
         width: snapshot.width,
         height: snapshot.height,
         color: snapshot.color,
-        startedAtMs: performance.now(),
+        startedAtMs: now,
       };
     }
     this.vanishWriteIndex = (idx + 1) % NOTE_VANISH_EFFECT_MAX_COUNT;
     if (this.vanishCount < NOTE_VANISH_EFFECT_MAX_COUNT) {
       this.vanishCount += 1;
     }
+
+    this.pushLaneFlash(snapshot.x, snapshot.width, snapshot.color, now);
+  }
+
+  private pushLaneFlash(x: number, width: number, color: string, now: number): void {
+    const fi = this.laneFlashWriteIndex;
+    const ef = this.laneFlashEffects[fi];
+    if (ef) {
+      ef.laneX = x;
+      ef.laneWidth = width;
+      ef.color = color;
+      ef.startedAtMs = now;
+    } else {
+      this.laneFlashEffects[fi] = { laneX: x, laneWidth: width, color, startedAtMs: now };
+    }
+    this.laneFlashWriteIndex = (fi + 1) % LANE_FLASH_MAX_COUNT;
+    if (this.laneFlashCount < LANE_FLASH_MAX_COUNT) {
+      this.laneFlashCount += 1;
+    }
   }
 
   private drawVanishEffects(ctx: CanvasRenderingContext2D, nowMs: number): void {
-    if (this.vanishCount === 0) {
+    if (this.vanishCount === 0 && this.laneFlashCount === 0) {
       return;
     }
     ctx.save();
-    let activeCount = 0;
+
+    // レーンフラッシュ（ノーツ背後のレーン列が一瞬光る）
+    let flashActive = 0;
+    if (this.laneFlashCount > 0) {
+      const hitY = this.settings.hitLineY;
+      for (let i = 0; i < LANE_FLASH_MAX_COUNT; i += 1) {
+        const fl = this.laneFlashEffects[i];
+        if (!fl) continue;
+        const elapsed = nowMs - fl.startedAtMs;
+        if (elapsed >= LANE_FLASH_DURATION_MS) continue;
+        flashActive += 1;
+        const p = elapsed / LANE_FLASH_DURATION_MS;
+        const alpha = (1 - p * p) * 0.18;
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = fl.color;
+        ctx.fillRect(fl.laneX, 0, fl.laneWidth, hitY);
+      }
+      if (flashActive === 0) {
+        this.laneFlashCount = 0;
+      }
+    }
+
+    // ノーツ消失エフェクト（拡散フェード）
+    let vanishActive = 0;
     for (let i = 0; i < NOTE_VANISH_EFFECT_MAX_COUNT; i += 1) {
       const effect = this.vanishEffects[i];
       if (!effect) continue;
       const elapsed = nowMs - effect.startedAtMs;
-      if (elapsed >= NOTE_VANISH_EFFECT_DURATION_MS) {
-        continue;
-      }
-      activeCount += 1;
+      if (elapsed >= NOTE_VANISH_EFFECT_DURATION_MS) continue;
+      vanishActive += 1;
       const progress = elapsed / NOTE_VANISH_EFFECT_DURATION_MS;
-      const shrinkX = effect.width * progress * 0.15;
-      const drawWidth = Math.max(1, effect.width - shrinkX * 2);
-      const drawHeight = Math.max(1, effect.height * (1 - progress * 0.35));
-      const drawX = effect.x + shrinkX;
-      const drawY = effect.y + (effect.height - drawHeight) * 0.35;
-      ctx.globalAlpha = (1 - progress) * 0.18;
+      const expand = effect.width * progress * 0.3;
+      const drawWidth = Math.max(1, effect.width + expand * 2);
+      const drawHeight = Math.max(1, effect.height * (1 - progress * 0.3));
+      const drawX = effect.x - expand;
+      const drawY = effect.y + (effect.height - drawHeight) * 0.5;
+      ctx.globalAlpha = (1 - progress) * 0.45;
       ctx.fillStyle = effect.color;
       ctx.fillRect(drawX, drawY, drawWidth, drawHeight);
     }
-    ctx.restore();
-    // 全エフェクト終了時にカウントをリセット
-    if (activeCount === 0) {
+    if (vanishActive === 0) {
       this.vanishCount = 0;
     }
+
+    ctx.restore();
   }
 
   private drawKeyHighlights(ctx: CanvasRenderingContext2D): void {
