@@ -634,9 +634,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       ctx.globalAlpha = alpha;
       ctx.fillStyle = dmg.color;
-      ctx.font = 'bold 16px monospace';
+      const displayText = dmg.text ?? dmg.damage.toString();
+      ctx.font = dmg.text ? 'bold 18px monospace' : 'bold 16px monospace';
       ctx.textAlign = 'center';
-      ctx.fillText(dmg.damage.toString(), screenX, screenY);
+      ctx.fillText(displayText, screenX, screenY);
       ctx.globalAlpha = 1;
     });
 

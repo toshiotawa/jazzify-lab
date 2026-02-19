@@ -1239,6 +1239,50 @@ export const createDamageText = (x: number, y: number, damage: number, isCritica
   duration: 1000,
 });
 
+// ===== 魔法名表示 =====
+const MAGIC_DISPLAY_NAMES: Record<MagicType, string> = {
+  thunder: 'THUNDER',
+  ice: 'ICE',
+  fire: 'FIRE',
+  heal: 'HEAL',
+  buffer: 'BUFFER',
+  debuffer: 'DEBUFFER',
+  hint: 'HINT',
+};
+
+const MAGIC_DISPLAY_COLORS: Record<MagicType, string> = {
+  thunder: '#ffd700',
+  ice: '#87ceeb',
+  fire: '#ff6347',
+  heal: '#4ade80',
+  buffer: '#ffa500',
+  debuffer: '#9b59b6',
+  hint: '#00bfff',
+};
+
+export const createMagicNameText = (x: number, y: number, magicType: MagicType): DamageText => ({
+  id: `magic_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+  x,
+  y: y - 40,
+  damage: 0,
+  text: MAGIC_DISPLAY_NAMES[magicType],
+  color: MAGIC_DISPLAY_COLORS[magicType],
+  startTime: Date.now(),
+  duration: 1500,
+});
+
+// ===== 抽選可能な魔法取得（効果継続中の魔法を除外） =====
+export const getAvailableMagics = (player: PlayerState): [string, number][] => {
+  const activeEffectTypes = new Set(player.statusEffects.map(e => e.type));
+  return Object.entries(player.magics)
+    .filter(([magicType, level]) => {
+      if (level <= 0) return false;
+      if ((magicType === 'buffer' || magicType === 'hint') && activeEffectTypes.has(magicType as ActiveStatusEffect['type'])) return false;
+      if (magicType === 'heal' && player.stats.hp >= player.stats.maxHp) return false;
+      return true;
+    });
+};
+
 // ===== マジッククールダウン計算 =====
 export const getMagicCooldown = (reloadMagic: number): number => {
   // RELOAD +1で1秒短縮（0.5秒→1秒に変更）
@@ -1411,6 +1455,8 @@ export const castMagic = (
       };
       break;
   }
+  
+  damageTexts.push(createMagicNameText(player.x, player.y, magicType));
   
   return { enemies: updatedEnemies, player: updatedPlayer, damageTexts, luckResult: luck };
 };

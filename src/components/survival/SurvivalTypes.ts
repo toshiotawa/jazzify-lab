@@ -251,6 +251,7 @@ export interface DamageText {
   x: number;
   y: number;
   damage: number;
+  text?: string;
   color: string;
   startTime: number;
   duration: number;

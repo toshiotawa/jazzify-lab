@@ -56,6 +56,7 @@ import {
   updateEnemyProjectiles,
   getConditionalSkillMultipliers,
   checkLuck,
+  getAvailableMagics,
   MAX_ENEMIES,
   MAX_PROJECTILES,
   MAX_COINS,
@@ -908,8 +909,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (slotType === 'A') {
           if (isAMagicSlot) {
             // A列魔法モード: ランダム魔法発動
-            const availableMagics = Object.entries(prev.player.magics)
-              .filter(([_, level]) => level > 0);
+            const availableMagics = getAvailableMagics(prev.player);
             
             if (availableMagics.length > 0 && prev.aSlotCooldown <= 0) {
               const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -947,8 +947,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         } else if (slotType === 'B') {
           if (isBMagicSlot) {
-            const availableMagics = Object.entries(prev.player.magics)
-              .filter(([_, level]) => level > 0);
+            const availableMagics = getAvailableMagics(prev.player);
             
             if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
               const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1176,8 +1175,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
       } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
           // C列魔法発動
-          const availableMagics = Object.entries(prev.player.magics)
-            .filter(([_, level]) => level > 0);
+          const availableMagics = getAvailableMagics(prev.player);
           
           if (availableMagics.length > 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1205,8 +1203,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
           // D列魔法発動
-          const availableMagics = Object.entries(prev.player.magics)
-            .filter(([_, level]) => level > 0);
+          const availableMagics = getAvailableMagics(prev.player);
           
           if (availableMagics.length > 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1286,8 +1283,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (slotType === 'A') {
         if (isAMagicSlot) {
           // A列魔法モード: ランダム魔法発動（タップ）
-          const availableMagics = Object.entries(prev.player.magics)
-            .filter(([_, level]) => level > 0);
+          const availableMagics = getAvailableMagics(prev.player);
           
           if (availableMagics.length > 0 && prev.aSlotCooldown <= 0) {
             const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1326,8 +1322,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
     } else if (slotType === 'B') {
       if (isBMagicSlot) {
-        const availableMagics = Object.entries(prev.player.magics)
-          .filter(([_, level]) => level > 0);
+        const availableMagics = getAvailableMagics(prev.player);
         
         if (availableMagics.length > 0 && prev.bSlotCooldown <= 0) {
           const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1551,8 +1546,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
     } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
       // C列魔法発動（タップ）
-      const availableMagics = Object.entries(prev.player.magics)
-        .filter(([_, level]) => level > 0);
+      const availableMagics = getAvailableMagics(prev.player);
       
       if (availableMagics.length > 0) {
         const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
@@ -1578,8 +1572,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     } else if (slotType === 'D' && prev.dSlotCooldown <= 0) {
       // D列魔法発動（タップ）
-      const availableMagics = Object.entries(prev.player.magics)
-        .filter(([_, level]) => level > 0);
+      const availableMagics = getAvailableMagics(prev.player);
       
       if (availableMagics.length > 0) {
         const [magicType, level] = availableMagics[Math.floor(Math.random() * availableMagics.length)];
