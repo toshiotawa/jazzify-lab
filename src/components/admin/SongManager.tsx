@@ -39,13 +39,34 @@ interface EditFormData {
   jsonFile?: FileList;
 }
 
-const StarRating: React.FC<{ value: number }> = ({ value }) => (
-  <span className="inline-flex gap-0.5">
-    {[1, 2, 3, 4, 5].map(i => (
-      <span key={i} className={i <= value ? 'text-yellow-400' : 'text-gray-600'}>&#9733;</span>
-    ))}
-  </span>
-);
+const getDifficultyLabel = (value: number) => {
+  if (value === 1) return 'Very Easy';
+  if (value === 2) return 'Easy';
+  if (value === 3) return 'Normal';
+  if (value === 4) return 'Hard';
+  if (value === 5) return 'Very Hard';
+  return '';
+};
+
+const getDifficultyBadgeClass = (value: number) => {
+  if (value === 1) return 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/40';
+  if (value === 2) return 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/40';
+  if (value === 3) return 'bg-violet-500/15 text-violet-300 border border-violet-400/40';
+  if (value === 4) return 'bg-orange-500/15 text-orange-300 border border-orange-400/40';
+  if (value === 5) return 'bg-rose-500/15 text-rose-300 border border-rose-400/40';
+  return 'bg-slate-600/20 text-slate-300 border border-slate-500/40';
+};
+
+const DifficultyBadge: React.FC<{ value: number }> = ({ value }) => {
+  const label = getDifficultyLabel(value);
+  if (!label) return null;
+
+  return (
+    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getDifficultyBadgeClass(value)}`}>
+      {label}
+    </span>
+  );
+};
 
 const SongManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
@@ -329,11 +350,11 @@ const SongManager: React.FC = () => {
             defaultValue={0}
           >
             <option value={0}>未設定</option>
-            <option value={1}>&#9733; (1)</option>
-            <option value={2}>&#9733;&#9733; (2)</option>
-            <option value={3}>&#9733;&#9733;&#9733; (3)</option>
-            <option value={4}>&#9733;&#9733;&#9733;&#9733; (4)</option>
-            <option value={5}>&#9733;&#9733;&#9733;&#9733;&#9733; (5)</option>
+            <option value={1}>Very Easy (1)</option>
+            <option value={2}>Easy (2)</option>
+            <option value={3}>Normal (3)</option>
+            <option value={4}>Hard (4)</option>
+            <option value={5}>Very Hard (5)</option>
           </select>
         </div>
 
@@ -575,11 +596,11 @@ const SongManager: React.FC = () => {
                   {...editRegister('difficulty', { valueAsNumber: true })}
                 >
                   <option value={0}>未設定</option>
-                  <option value={1}>&#9733; (1)</option>
-                  <option value={2}>&#9733;&#9733; (2)</option>
-                  <option value={3}>&#9733;&#9733;&#9733; (3)</option>
-                  <option value={4}>&#9733;&#9733;&#9733;&#9733; (4)</option>
-                  <option value={5}>&#9733;&#9733;&#9733;&#9733;&#9733; (5)</option>
+                  <option value={1}>Very Easy (1)</option>
+                  <option value={2}>Easy (2)</option>
+                  <option value={3}>Normal (3)</option>
+                  <option value={4}>Hard (4)</option>
+                  <option value={5}>Very Hard (5)</option>
                 </select>
               </div>
 
@@ -761,7 +782,7 @@ const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDel
       <div className="min-w-0 flex-1">
         <div className="flex items-center gap-2">
           <p className="font-medium truncate">{song.title}</p>
-          {song.difficulty != null && song.difficulty > 0 && <StarRating value={song.difficulty} />}
+          {song.difficulty != null && song.difficulty > 0 && <DifficultyBadge value={song.difficulty} />}
         </div>
         <p className="text-xs text-gray-400 truncate">
           {song.artist && `${song.artist} • `}

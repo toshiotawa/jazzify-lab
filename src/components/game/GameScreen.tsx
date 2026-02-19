@@ -1115,6 +1115,24 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
     }
   };
 
+  const getDifficultyLabel = (value?: number) => {
+    if (value === 1) return 'Very Easy';
+    if (value === 2) return 'Easy';
+    if (value === 3) return 'Normal';
+    if (value === 4) return 'Hard';
+    if (value === 5) return 'Very Hard';
+    return '';
+  };
+
+  const getDifficultyBadgeClass = (value?: number) => {
+    if (value === 1) return 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/40';
+    if (value === 2) return 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/40';
+    if (value === 3) return 'bg-violet-500/15 text-violet-300 border border-violet-400/40';
+    if (value === 4) return 'bg-orange-500/15 text-orange-300 border border-orange-400/40';
+    if (value === 5) return 'bg-rose-500/15 text-rose-300 border border-rose-400/40';
+    return 'bg-slate-600/20 text-slate-300 border border-slate-500/40';
+  };
+
   const handleClick = async () => {
     if (isLoading || !accessible) return;
     
@@ -1139,10 +1157,8 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
           <div className="flex items-center space-x-2 mb-1">
             <h3 className="font-semibold text-white truncate">{song.title}</h3>
             {song.difficulty != null && song.difficulty > 0 && (
-              <span className="inline-flex gap-0.5 flex-shrink-0">
-                {[1, 2, 3, 4, 5].map(i => (
-                  <span key={i} className={`text-xs ${i <= song.difficulty! ? 'text-yellow-400' : 'text-gray-600'}`}>&#9733;</span>
-                ))}
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getDifficultyBadgeClass(song.difficulty)}`}>
+                {getDifficultyLabel(song.difficulty)}
               </span>
             )}
             {!accessible && (
