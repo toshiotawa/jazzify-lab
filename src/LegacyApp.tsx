@@ -196,7 +196,7 @@ const App: React.FC = () => {
   }
 
   // 専用ページ (#account / #mypage) 表示中は他コンテンツを隠す
-  if (hash === '#account') {
+  if (hash.startsWith('#account')) {
     return (
       <>
         <AccountPage />

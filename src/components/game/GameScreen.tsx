@@ -854,7 +854,7 @@ const SongSelectionScreen: React.FC = () => {
                   className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
                   onClick={() => {
                     setLockedSong(null);
-                    window.location.hash = '#account';
+                    window.location.hash = '#account?tab=subscription';
                   }}
                 >
                   {isEnglishCopy ? 'Upgrade Plan' : 'プランのアップグレード'}

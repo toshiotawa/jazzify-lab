@@ -905,7 +905,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 type="button"
                 onClick={() => {
                   setIsPlanRestrictionModalOpen(false);
-                  window.location.hash = '#account';
+                  window.location.hash = '#account?tab=subscription';
                 }}
                 className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
               >
