@@ -11,7 +11,7 @@ import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs, fetchGlobalAvailableSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
-import { FaArrowLeft, FaAward, FaMusic } from 'react-icons/fa';
+import { FaArrowLeft, FaAward, FaLock, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import KeyClearsModal from '@/components/ui/KeyClearsModal';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -817,11 +817,49 @@ const SongSelectionScreen: React.FC = () => {
         </div>
 
         {lockedSong && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70" onClick={()=>setLockedSong(null)}>
-            <div className="bg-slate-800 p-6 rounded-lg text-white space-y-4" onClick={e=>e.stopPropagation()}>
-              <h4 className="text-lg font-bold text-center">{isEnglishCopy ? 'Song Locked' : 'この曲はプレイできません'}</h4>
-              <p className="text-center">{isEnglishCopy ? `${lockedSong.title} requires ${lockedSong.min_rank.toUpperCase()} plan or higher.` : `${lockedSong.title} は ${lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。`}</p>
-              <button className="btn btn-sm btn-primary w-full" onClick={()=>setLockedSong(null)}>{isEnglishCopy ? 'Close' : '閉じる'}</button>
+          <div
+            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
+            onClick={() => setLockedSong(null)}
+          >
+            <div
+              className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center">
+                  <FaLock className="text-blue-400 text-lg" />
+                </div>
+                <h3 className="text-lg font-bold text-white">
+                  {isEnglishCopy ? 'Song Locked' : 'この曲はプレイできません'}
+                </h3>
+              </div>
+              <p className="text-gray-300 text-sm mb-2">
+                {isEnglishCopy
+                  ? `${lockedSong.title} requires ${lockedSong.min_rank.toUpperCase()} plan or higher.`
+                  : `${lockedSong.title} は ${lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。`}
+              </p>
+              <p className="text-gray-400 text-sm mb-6">
+                {isEnglishCopy
+                  ? 'Upgrade your plan to unlock this song.'
+                  : 'プランのアップグレードでこの曲を解放できます。'}
+              </p>
+              <div className="flex gap-3 justify-end">
+                <button
+                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
+                  onClick={() => setLockedSong(null)}
+                >
+                  {isEnglishCopy ? 'Cancel' : 'キャンセル'}
+                </button>
+                <button
+                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
+                  onClick={() => {
+                    setLockedSong(null);
+                    window.location.hash = '#account';
+                  }}
+                >
+                  {isEnglishCopy ? 'Upgrade Plan' : 'プランのアップグレード'}
+                </button>
+              </div>
             </div>
           </div>
         )}

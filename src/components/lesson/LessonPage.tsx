@@ -917,7 +917,7 @@ const LessonPage: React.FC = () => {
                   window.location.hash = '#account';
                 }}
               >
-                アップグレード
+                プランのアップグレード
               </button>
             </div>
           </div>

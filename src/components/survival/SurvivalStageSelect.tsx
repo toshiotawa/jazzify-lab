@@ -900,13 +900,23 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             <p className="mt-3 text-sm text-gray-200 font-sans">
               {isEnglishCopy ? 'Only Premium plan or higher can select this character.' : 'ファイ以外のキャラクターはプレミアムプラン以上のみ選択できます。'}
             </p>
-            <div className="mt-5 flex justify-end">
+            <div className="mt-5 flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => {
+                  setIsPlanRestrictionModalOpen(false);
+                  window.location.hash = '#account';
+                }}
+                className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-blue-500"
+              >
+                {isEnglishCopy ? 'Upgrade Plan' : 'プランのアップグレード'}
+              </button>
               <button
                 type="button"
                 onClick={() => setIsPlanRestrictionModalOpen(false)}
                 className="rounded-lg bg-yellow-500 px-4 py-2 text-sm font-semibold text-black transition-colors hover:bg-yellow-400"
               >
-                OK
+                {isEnglishCopy ? 'Close' : '閉じる'}
               </button>
             </div>
           </div>
