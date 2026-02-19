@@ -860,6 +860,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       // 各スロットをチェック - 完了したすべてのスロットを追跡
       const completedSlotIndices: number[] = [];
+      const availableMagicsForSlot = getAvailableMagics(prev.player);
       
       newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || !slot.chord) return slot;
@@ -871,6 +872,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (index === 1 && isBMagicSlot && prev.bSlotCooldown > 0) return slot;
         if (index === 2 && prev.cSlotCooldown > 0) return slot;
         if (index === 3 && prev.dSlotCooldown > 0) return slot;
+        
+        const isMagicSlot = (index === 0 && isAMagicSlot) || (index === 1 && isBMagicSlot) || index === 2 || index === 3;
+        if (isMagicSlot && availableMagicsForSlot.length === 0) return slot;
         
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
