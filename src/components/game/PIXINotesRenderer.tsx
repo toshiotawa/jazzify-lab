@@ -154,15 +154,15 @@ const createDefaultSettings = (): RendererSettings => ({
     guideKey: '#22C55E',
     correctKey: '#EF4444',
     background: '#05060A',
-    // 右手: 青系
-    rightHand: '#4A90E2',
-    rightHandBlack: '#2C5282',
-    // 左手: 緑系
-    leftHand: '#38B2AC',
-    leftHandBlack: '#276B68',
-    // 両手ユニゾン: 金/オレンジ系
-    bothHands: '#ECC94B',
-    bothHandsBlack: '#B7860B',
+    // 右手: スカイブルー
+    rightHand: '#93C5FD',
+    rightHandBlack: '#60A5FA',
+    // 左手: ローズピンク
+    leftHand: '#F9A8D4',
+    leftHandBlack: '#F472B6',
+    // 両手ユニゾン: バイオレット
+    bothHands: '#C4B5FD',
+    bothHandsBlack: '#A78BFA',
   },
   noteNameStyle: 'off',
   simpleDisplayMode: false,
