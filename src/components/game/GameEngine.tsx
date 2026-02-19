@@ -1161,8 +1161,23 @@ useEffect(() => {
           if (r) r.highlightKey(pitch, false);
         }, 150);
       });
+
+      gameEngine.setAutoPlayNoteCallback((pitch: number, durationSec: number) => {
+        if (!isPlayingRef.current) return;
+        const releaseMs = Math.max(50, durationSec * 1000 - 30);
+        const module = midiModuleRef.current;
+        if (module) {
+          void module.playNote(pitch, 80).catch(() => {});
+          setTimeout(() => module.stopNote(pitch), releaseMs);
+          return;
+        }
+        void ensureMidiModule().then((m) => {
+          void m.playNote(pitch, 80).catch(() => {});
+          setTimeout(() => m.stopNote(pitch), releaseMs);
+        }).catch(() => {});
+      });
     }
-  }, [gameEngine]);
+  }, [gameEngine, ensureMidiModule]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {

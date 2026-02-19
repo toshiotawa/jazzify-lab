@@ -82,6 +82,7 @@ export class GameEngine {
   private readonly updateListeners = new Set<(data: GameEngineUpdate) => void>();
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
+  private onAutoPlayNote?: (pitch: number, durationSec: number) => void; // オートプレイ音声再生用
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   private rafHandle: number | ReturnType<typeof setTimeout> | null = null;
@@ -108,6 +109,10 @@ export class GameEngine {
   
   setKeyHighlightCallback(callback: (pitch: number, timestamp: number) => void): void {
     this.onKeyHighlight = callback;
+  }
+
+  setAutoPlayNoteCallback(callback: (pitch: number, durationSec: number) => void): void {
+    this.onAutoPlayNote = callback;
   }
   
   private getHardwareLatency(): number {
@@ -848,6 +853,12 @@ export class GameEngine {
           
           // 判定処理を実行（これによりノーツが'hit'状態になりスコアも更新される）
           const judgment = this.processHit(autoHit);
+          
+          // ピアノ音を自動再生（音価情報があれば渡す、なければ0.3秒フォールバック）
+          if (this.onAutoPlayNote) {
+            const noteDuration = note.duration ?? 0.3;
+            this.onAutoPlayNote(effectivePitch, noteDuration);
+          }
           // ログ削除: FPS最適化のため
           // devLog.debug(`✨ オートプレイ判定完了: ${judgment.type} - ノート ${note.id} を "${judgment.type}" 判定`);
           

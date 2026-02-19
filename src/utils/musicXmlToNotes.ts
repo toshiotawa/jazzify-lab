@@ -186,6 +186,7 @@ interface RawParsedNote {
   noteName: string;   // 例 "C4"
   isOrnament: boolean;
   staff: number;      // MusicXML staff番号 (1=右手, 2=左手)
+  durationSec: number; // 秒単位の音価
 }
 
 // ========== 公開API ==========
@@ -397,6 +398,7 @@ export function parseMusicXmlToNoteData(
           noteName: gn.noteName,
           isOrnament: true,
           staff: noteStaff,
+          durationSec: divisionsToSeconds(graceAbsDiv, gn.durationDivisions, tempo, divisionsPerQuarter),
         });
         graceOffset += gn.durationDivisions;
       }
@@ -422,6 +424,7 @@ export function parseMusicXmlToNoteData(
             noteName: en.noteName,
             isOrnament: en.isOrnament,
             staff: noteStaff,
+            durationSec: divisionsToSeconds(absDivisionsBase + notePos + offset, en.durationDivisions, tempo, divisionsPerQuarter),
           });
           offset += en.durationDivisions;
         }
@@ -433,6 +436,7 @@ export function parseMusicXmlToNoteData(
           noteName: mainName,
           isOrnament: false,
           staff: noteStaff,
+          durationSec: divisionsToSeconds(absDivisionsBase + notePos, effectiveDuration, tempo, divisionsPerQuarter),
         });
       }
 
@@ -476,6 +480,7 @@ export function parseMusicXmlToNoteData(
     id: `${songId}-${i}`,
     time: Math.max(0, n.time),
     pitch: n.pitch,
+    duration: n.durationSec > 0 ? n.durationSec : undefined,
     noteName: n.noteName,
     hand: toHand(n),
   }));
