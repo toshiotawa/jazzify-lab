@@ -1172,7 +1172,11 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
   };
 
   const handleClick = async () => {
-    if (isLoading || !accessible) return;
+    if (isLoading) return;
+    if (!accessible) {
+      onSelect();
+      return;
+    }
     
     setIsLoading(true);
     try {
