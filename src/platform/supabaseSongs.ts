@@ -8,9 +8,9 @@ export interface Song {
   id: string;
   title: string;
   artist?: string;
-  bpm?: number; // 使用しない
-  difficulty?: number; // 使用しない
-  json_data?: any; // 旧data フィールド（インライン JSON用）— MusicXMLのみの場合はnull
+  bpm?: number;
+  difficulty?: number;
+  json_data?: any;
   audio_url?: string;
   xml_url?: string;
   json_url?: string;
@@ -18,12 +18,13 @@ export interface Song {
   is_public: boolean;
   usage_type: SongUsageType;
   created_by: string;
-  /** MusicXMLがあっても譜面を表示しない */
   hide_sheet_music?: boolean;
-  /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
-  /** standard_global プランでプレイ可能かどうか */
   global_available?: boolean;
+  sort_order?: number;
+  phrase?: boolean;
+  jazz_piano?: boolean;
+  classic_piano?: boolean;
 }
 
 export interface SongFiles {
@@ -274,5 +275,20 @@ export async function updateSongGlobalAvailable(id: string, globalAvailable: boo
     .update({ global_available: globalAvailable })
     .eq('id', id);
   if (error) throw error;
+  clearSupabaseCache();
+}
+
+/**
+ * 曲の sort_order を一括更新（ドラッグ並び替え用）
+ */
+export async function updateSongSortOrders(orders: { id: string; sort_order: number }[]): Promise<void> {
+  const supabase = getSupabaseClient();
+  for (const { id, sort_order } of orders) {
+    const { error } = await supabase
+      .from('songs')
+      .update({ sort_order })
+      .eq('id', id);
+    if (error) throw error;
+  }
   clearSupabaseCache();
 } 

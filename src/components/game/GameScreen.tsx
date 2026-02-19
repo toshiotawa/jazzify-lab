@@ -548,7 +548,7 @@ const SongSelectionScreen: React.FC = () => {
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
-  const [sortBy, setSortBy] = React.useState<'artist' | 'title'>('artist');
+  const [sortBy, setSortBy] = React.useState<'default' | 'artist' | 'title'>('default');
   const [searchTerm, setSearchTerm] = React.useState('');
   
   const isStandardGlobal = profile?.rank === 'standard_global';
@@ -587,10 +587,11 @@ const SongSelectionScreen: React.FC = () => {
       ));
     }
     
-    // ソート
     sorted.sort((a, b) => {
+      if (sortBy === 'default') {
+        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
+      }
       if (sortBy === 'artist') {
-        // アーティスト順 → タイトル順
         const artistCompare = (a.artist || '').localeCompare(b.artist || '');
         if (artistCompare !== 0) return artistCompare;
         return (a.title || '').localeCompare(b.title || '');
@@ -632,9 +633,10 @@ const SongSelectionScreen: React.FC = () => {
             <label className="text-sm text-gray-300">{isEnglishCopy ? 'Sort:' : 'ソート:'}</label>
             <select
               value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'artist' | 'title')}
+              onChange={(e) => setSortBy(e.target.value as 'default' | 'artist' | 'title')}
               className="select select-sm bg-slate-700 text-white border-slate-600"
             >
+              <option value="default">{isEnglishCopy ? 'Default' : 'デフォルト'}</option>
               <option value="artist">{isEnglishCopy ? 'By Artist' : 'アーティスト順'}</option>
               <option value="title">{isEnglishCopy ? 'By Title' : 'タイトル順'}</option>
             </select>
@@ -1136,6 +1138,13 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
         <div className="flex-1 min-w-0">
           <div className="flex items-center space-x-2 mb-1">
             <h3 className="font-semibold text-white truncate">{song.title}</h3>
+            {song.difficulty != null && song.difficulty > 0 && (
+              <span className="inline-flex gap-0.5 flex-shrink-0">
+                {[1, 2, 3, 4, 5].map(i => (
+                  <span key={i} className={`text-xs ${i <= song.difficulty! ? 'text-yellow-400' : 'text-gray-600'}`}>&#9733;</span>
+                ))}
+              </span>
+            )}
             {!accessible && (
               <span className="text-xs text-red-400">🔒</span>
             )}
@@ -1143,7 +1152,12 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
               <span className="text-xs text-blue-400">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</span>
             )}
           </div>
-          <p className="text-gray-400 text-sm truncate">{song.artist || (isEnglishCopy ? 'Unknown' : '不明')}</p>
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <p className="text-gray-400 text-sm truncate">{song.artist || (isEnglishCopy ? 'Unknown' : '不明')}</p>
+            {song.phrase && <span className="text-xs bg-pink-600/20 text-pink-400 px-1.5 py-0.5 rounded">Phrase</span>}
+            {song.jazz_piano && <span className="text-xs bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded">Jazz Piano</span>}
+            {song.classic_piano && <span className="text-xs bg-indigo-600/20 text-indigo-400 px-1.5 py-0.5 rounded">Classic Piano</span>}
+          </div>
         </div>
 
                   {/* 楽曲詳細情報 */}
