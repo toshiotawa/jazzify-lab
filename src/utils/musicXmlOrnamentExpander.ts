@@ -285,22 +285,22 @@ export function expandOrnament(
 
   switch (ornament.type) {
     case 'mordent': {
-      // 主音(32分) → 下隣接音(残り - 32分) → 主音(32分)
-      const mid = Math.max(1, durationDivisions - 2 * thirtySecond);
+      // 主音(32分) → 下隣接音(32分) → 主音(残り)
+      const remaining = Math.max(1, durationDivisions - 2 * thirtySecond);
       return [
         { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
-        { pitch: lower, durationDivisions: mid, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, durationDivisions - thirtySecond - mid), isOrnament: false, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: thirtySecond, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: remaining, isOrnament: false, noteName: mainNoteName },
       ];
     }
 
     case 'inverted-mordent': {
-      // 主音(32分) → 上隣接音(残り - 32分) → 主音(32分)
-      const mid = Math.max(1, durationDivisions - 2 * thirtySecond);
+      // 主音(32分) → 上隣接音(32分) → 主音(残り)
+      const remaining = Math.max(1, durationDivisions - 2 * thirtySecond);
       return [
         { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
-        { pitch: upper, durationDivisions: mid, isOrnament: true, noteName: upperName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, durationDivisions - thirtySecond - mid), isOrnament: false, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: thirtySecond, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: remaining, isOrnament: false, noteName: mainNoteName },
       ];
     }
 
