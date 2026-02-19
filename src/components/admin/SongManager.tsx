@@ -1,7 +1,7 @@
 /// <reference types="vite/client" />
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
-import { addSongWithFiles, fetchSongs, deleteSong, updateSongGlobalAvailable, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
+import { addSongWithFiles, fetchSongs, deleteSong, updateSong, updateSongGlobalAvailable, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
 import { useToast } from '@/stores/toastStore';
 
 interface SongFormData {
@@ -19,14 +19,96 @@ interface SongFormData {
   global_available?: boolean;
 }
 
+interface EditFormData {
+  title: string;
+  artist: string;
+  min_rank: 'free' | 'standard' | 'premium' | 'platinum' | 'black';
+  hide_sheet_music: boolean;
+  use_rhythm_notation: boolean;
+  global_available: boolean;
+  audioFile?: FileList;
+  xmlFile?: FileList;
+  jsonFile?: FileList;
+}
+
 const SongManager: React.FC = () => {
   const [songs, setSongs] = useState<Song[]>([]);
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState(false);
   const [activeFormTab, setActiveFormTab] = useState<SongUsageType>('general');
   const [activeListTab, setActiveListTab] = useState<SongUsageType>('general');
+  const [editingSong, setEditingSong] = useState<Song | null>(null);
+  const [editUploading, setEditUploading] = useState(false);
   const { register, handleSubmit, reset, watch } = useForm<SongFormData>();
+  const { register: editRegister, handleSubmit: editHandleSubmit, reset: editReset, watch: editWatch, setValue: editSetValue } = useForm<EditFormData>();
   const toast = useToast();
+
+  const openEditModal = useCallback((song: Song) => {
+    setEditingSong(song);
+    editReset({
+      title: song.title,
+      artist: song.artist ?? '',
+      min_rank: song.min_rank as EditFormData['min_rank'],
+      hide_sheet_music: song.hide_sheet_music ?? false,
+      use_rhythm_notation: song.use_rhythm_notation ?? false,
+      global_available: song.global_available ?? false,
+    });
+  }, [editReset]);
+
+  const closeEditModal = useCallback(() => {
+    setEditingSong(null);
+    editReset();
+  }, [editReset]);
+
+  const onEditSubmit = useCallback(async (values: EditFormData) => {
+    if (!editingSong) return;
+    setEditUploading(true);
+    try {
+      const files: SongFiles = {
+        audioFile: values.audioFile?.[0],
+        xmlFile: values.xmlFile?.[0],
+        jsonFile: values.jsonFile?.[0],
+      };
+
+      let jsonData: any = undefined;
+      if (files.jsonFile) {
+        try {
+          const text = await files.jsonFile.text();
+          jsonData = JSON.parse(text);
+        } catch {
+          toast.error('JSONファイルの形式が不正です');
+          setEditUploading(false);
+          return;
+        }
+      }
+
+      const updates: Partial<Omit<Song, 'id' | 'created_by'>> = {
+        title: values.title,
+        artist: values.artist || undefined,
+        min_rank: values.min_rank,
+        hide_sheet_music: values.hide_sheet_music,
+        use_rhythm_notation: values.use_rhythm_notation,
+        global_available: values.global_available,
+      };
+
+      if (jsonData !== undefined) {
+        updates.json_data = jsonData;
+      }
+
+      const hasFiles = files.audioFile || files.xmlFile || files.jsonFile;
+      await updateSong(editingSong.id, updates, hasFiles ? files : undefined);
+
+      toast.success('曲を更新しました');
+      closeEditModal();
+      await loadSongs(activeListTab);
+    } catch (e: any) {
+      toast.error(`曲の更新に失敗しました: ${e.message || ''}`);
+    } finally {
+      setEditUploading(false);
+    }
+  }, [editingSong, activeListTab, closeEditModal, toast]);
+
+  const editWatchedFiles = editWatch(['audioFile', 'xmlFile', 'jsonFile']);
 
   // フォームの値を監視
   const watchedFiles = watch(['audioFile', 'xmlFile', 'jsonFile']);
@@ -338,6 +420,13 @@ const SongManager: React.FC = () => {
                     />
                   </label>
                 </div>
+                <button
+                  className="btn btn-xs btn-info ml-2 flex-shrink-0"
+                  onClick={() => openEditModal(s)}
+                  aria-label={`${s.title}を編集`}
+                >
+                  編集
+                </button>
                 <button className="btn btn-xs btn-error ml-2 flex-shrink-0" onClick={async () => {
                   if (!confirm(`「${s.title}」を削除しますか？`)) return;
                   try {
@@ -345,13 +434,173 @@ const SongManager: React.FC = () => {
                     toast.success('曲を削除しました');
                     await loadSongs(activeListTab);
                   } catch (e: any) {
-                    console.error('曲の削除エラー:', e);
                     toast.error('曲の削除に失敗しました');
                   }
                 }}>削除</button>
               </li>
             ))}
           </ul>
+        </div>
+      )}
+
+      {/* 編集モーダル */}
+      {editingSong && (
+        <div className="modal modal-open">
+          <div className="modal-box max-w-lg bg-slate-900">
+            <h3 className="font-bold text-lg mb-4">曲を編集</h3>
+            <form className="space-y-4" onSubmit={editHandleSubmit(onEditSubmit)}>
+              <div>
+                <label className="block text-sm font-medium mb-1">タイトル *</label>
+                <input
+                  className="input input-bordered w-full text-white"
+                  placeholder="曲のタイトル"
+                  {...editRegister('title', { required: true })}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">アーティスト</label>
+                <input
+                  className="input input-bordered w-full text-white"
+                  placeholder="アーティスト名（任意）"
+                  {...editRegister('artist')}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">最低ランク</label>
+                <select
+                  className="select select-bordered w-full text-white"
+                  {...editRegister('min_rank')}
+                >
+                  <option value="free">フリー</option>
+                  <option value="standard">スタンダード</option>
+                  <option value="premium">プレミアム</option>
+                  <option value="platinum">プラチナ</option>
+                  <option value="black">ブラック</option>
+                </select>
+              </div>
+
+              <div className="divider text-xs">楽譜表示オプション</div>
+
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary"
+                    {...editRegister('hide_sheet_music')}
+                  />
+                  <span className="label-text">譜面を表示しない</span>
+                </label>
+              </div>
+
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-primary"
+                    {...editRegister('use_rhythm_notation')}
+                  />
+                  <span className="label-text">リズム譜モード</span>
+                </label>
+              </div>
+
+              <div className="divider text-xs">Global プラン</div>
+
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-accent"
+                    {...editRegister('global_available')}
+                  />
+                  <span className="label-text">Global プランで遊べる</span>
+                </label>
+              </div>
+
+              <div className="divider text-xs">ファイル差し替え（変更時のみ選択）</div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  JSONファイル
+                  {editingSong.json_url && <span className="text-xs text-blue-400 ml-2">アップロード済み</span>}
+                </label>
+                <input
+                  type="file"
+                  accept=".json,application/json"
+                  className="file-input file-input-bordered file-input-sm w-full"
+                  {...editRegister('jsonFile')}
+                />
+                {editWatchedFiles[2]?.[0] && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {editWatchedFiles[2][0].name} ({formatFileSize(editWatchedFiles[2][0].size)})
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  MP3ファイル
+                  {editingSong.audio_url && <span className="text-xs text-green-400 ml-2">アップロード済み</span>}
+                </label>
+                <input
+                  type="file"
+                  accept=".mp3,audio/mpeg"
+                  className="file-input file-input-bordered file-input-sm w-full"
+                  {...editRegister('audioFile')}
+                />
+                {editWatchedFiles[0]?.[0] && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {editWatchedFiles[0][0].name} ({formatFileSize(editWatchedFiles[0][0].size)})
+                  </p>
+                )}
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-1">
+                  MusicXMLファイル
+                  {editingSong.xml_url && <span className="text-xs text-purple-400 ml-2">アップロード済み</span>}
+                </label>
+                <input
+                  type="file"
+                  accept=".xml,.musicxml,application/xml"
+                  className="file-input file-input-bordered file-input-sm w-full"
+                  {...editRegister('xmlFile')}
+                />
+                {editWatchedFiles[1]?.[0] && (
+                  <p className="text-xs text-gray-400 mt-1">
+                    {editWatchedFiles[1][0].name} ({formatFileSize(editWatchedFiles[1][0].size)})
+                  </p>
+                )}
+              </div>
+
+              <div className="modal-action">
+                <button
+                  type="button"
+                  className="btn btn-ghost"
+                  onClick={closeEditModal}
+                  disabled={editUploading}
+                >
+                  キャンセル
+                </button>
+                <button
+                  type="submit"
+                  className="btn btn-primary"
+                  disabled={editUploading}
+                >
+                  {editUploading ? (
+                    <>
+                      <span className="loading loading-spinner loading-sm"></span>
+                      保存中...
+                    </>
+                  ) : (
+                    '保存'
+                  )}
+                </button>
+              </div>
+            </form>
+          </div>
+          <div className="modal-backdrop" onClick={closeEditModal}></div>
         </div>
       )}
     </div>
