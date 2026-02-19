@@ -271,25 +271,32 @@ export function expandOrnament(
   // 装飾ノートの最小 duration (全体の 1/4 を目安)
   const ornUnit = Math.max(1, Math.floor(durationDivisions / 4));
 
+  // clampLast: 展開後の合計が durationDivisions を超えないよう最後のノートを制限
+  const clampLast = (notes: ExpandedNote[]): ExpandedNote[] => {
+    let used = 0;
+    for (let i = 0; i < notes.length - 1; i += 1) used += notes[i].durationDivisions;
+    const last = notes[notes.length - 1];
+    last.durationDivisions = Math.max(1, durationDivisions - used);
+    return notes;
+  };
+
   switch (ornament.type) {
     case 'mordent': {
       // 主音 → 下隣接音 → 主音
-      const rem = durationDivisions - 2 * ornUnit;
-      return [
+      return clampLast([
         { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
         { pitch: lower, durationDivisions: ornUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
-      ];
+        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
+      ]);
     }
 
     case 'inverted-mordent': {
       // 主音 → 上隣接音 → 主音
-      const rem = durationDivisions - 2 * ornUnit;
-      return [
+      return clampLast([
         { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
         { pitch: upper, durationDivisions: ornUnit, isOrnament: true, noteName: upperName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
-      ];
+        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
+      ]);
     }
 
     case 'trill-mark':
@@ -317,27 +324,25 @@ export function expandOrnament(
     case 'turn': {
       // 上→主→下→主
       const tUnit = Math.max(1, Math.floor(durationDivisions / 4));
-      const rem = durationDivisions - 3 * tUnit;
-      return [
+      return clampLast([
         { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
         { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
         { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, rem), isOrnament: false, noteName: mainNoteName },
-      ];
+        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
+      ]);
     }
 
     case 'delayed-turn': {
       // 主音(前半) → 上→主→下→主
       const half = Math.floor(durationDivisions / 2);
       const tUnit = Math.max(1, Math.floor(half / 4));
-      const turnRem = durationDivisions - half - 3 * tUnit;
-      return [
+      return clampLast([
         { pitch: mainPitch, durationDivisions: half, isOrnament: false, noteName: mainNoteName },
         { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
         { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
         { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: Math.max(1, turnRem), isOrnament: false, noteName: mainNoteName },
-      ];
+        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
+      ]);
     }
 
     default:
@@ -379,4 +384,24 @@ export function expandGraceNotes(
   }));
 
   return [expanded, actualTotal];
+}
+
+/**
+ * <tie> と <notations><tied> の両方からタイ情報を取得する。
+ * 一部の MusicXML は <tie> を省略し <tied> のみ記述するため、両方をチェックする。
+ */
+export function getTieTypes(noteEl: Element): { hasStart: boolean; hasStop: boolean } {
+  let hasStart = false;
+  let hasStop = false;
+  for (const t of noteEl.querySelectorAll('tie')) {
+    const type = t.getAttribute('type');
+    if (type === 'start') hasStart = true;
+    if (type === 'stop') hasStop = true;
+  }
+  for (const t of noteEl.querySelectorAll('notations > tied')) {
+    const type = t.getAttribute('type');
+    if (type === 'start') hasStart = true;
+    if (type === 'stop') hasStop = true;
+  }
+  return { hasStart, hasStop };
 }

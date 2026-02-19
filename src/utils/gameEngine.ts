@@ -13,7 +13,6 @@ import type {
   GameScore,
   JudgmentResult
 } from '@/types';
-import { unifiedFrameController } from './performanceOptimizer';
 import { log, devLog } from './logger';
 
 type InternalNote = NoteData & { _wasProcessed?: boolean };
@@ -969,13 +968,7 @@ export class GameEngine {
       return;
     }
     
-    const frameStartTime = timestamp || this.now();
-    
-    // 🚀 簡略化されたフレームスキップ判定
-    if (unifiedFrameController.shouldSkipFrame(frameStartTime, 'logic')) {
-      this.scheduleNextFrame();
-      return;
-    }
+    const _frameStartTime = timestamp || this.now();
     
     const currentTime = this.getCurrentTime();
     const activeNotes = this.updateNotes(currentTime);

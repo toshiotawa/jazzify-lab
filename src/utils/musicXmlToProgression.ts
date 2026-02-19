@@ -1,7 +1,7 @@
 import { parseChordName, buildChordNotes } from '@/utils/chord-utils';
 import type { ChordProgressionDataItem } from '@/components/fantasy/TaikoNoteSystem';
 import { note as parseNote } from 'tonal';
-import { isGraceNote } from './musicXmlOrnamentExpander';
+import { isGraceNote, getTieTypes } from './musicXmlOrnamentExpander';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
@@ -109,9 +109,7 @@ export function convertMusicXmlToProgressionData(
 
         // タイ処理: グループの先頭ノートが tie-stop のみ（tie-start なし）の場合、
         // タイで繋がれた後続音符なのでスキップする（位置は進める）
-        const leadTies = Array.from(noteEl.querySelectorAll('tie'));
-        const hasTieStop = leadTies.some(t => t.getAttribute('type') === 'stop');
-        const hasTieStart = leadTies.some(t => t.getAttribute('type') === 'start');
+        const { hasStart: hasTieStart, hasStop: hasTieStop } = getTieTypes(noteEl);
         if (hasTieStop && !hasTieStart) {
           const dur = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);
           currentPos += isNaN(dur) ? 0 : dur;

@@ -22,7 +22,161 @@ import {
   isGraceNote,
   collectGraceNotesBefore,
   expandGraceNotes,
+  getTieTypes,
 } from './musicXmlOrnamentExpander';
+
+// ========== テンポマップ ==========
+
+interface TempoEvent {
+  /** 楽譜上の絶対位置（divisions の累積値） */
+  absDivisions: number;
+  /** テンポ (BPM) */
+  tempo: number;
+}
+
+interface RitRegion {
+  /** 減速開始位置（divisions の累積値） */
+  startDiv: number;
+  /** 減速終了位置（divisions の累積値） */
+  endDiv: number;
+  /** 開始時テンポ */
+  startTempo: number;
+  /** 終了時テンポ */
+  endTempo: number;
+}
+
+/**
+ * パス1: MusicXML を走査してテンポイベント + rit/rall 減速区間を収集する。
+ * 即時テンポ変更（<sound tempo>）とテキスト指示（"rit." "rall."）の両方を扱う。
+ */
+function buildTempoMap(measures: Element[]): { tempoEvents: TempoEvent[]; ritRegions: RitRegion[] } {
+  const tempoEvents: TempoEvent[] = [];
+  const ritRegions: RitRegion[] = [];
+  let divisionsPerQuarter = 1;
+  let beatsPerMeasure = 4;
+  let beatType = 4;
+  let currentTempo = 120;
+  let absDivisions = 0;
+  let ritStartDiv: number | null = null;
+  let ritStartTempo = 0;
+
+  const RIT_RE = /\b(rit|rall|ritard|rallent)/i;
+  const ATEMPO_RE = /\ba\s*tempo\b/i;
+
+  for (const measureEl of measures) {
+    const divEl = measureEl.querySelector('attributes > divisions');
+    if (divEl?.textContent) {
+      const v = parseInt(divEl.textContent, 10);
+      if (!isNaN(v) && v > 0) divisionsPerQuarter = v;
+    }
+    const timeEl = measureEl.querySelector('attributes > time');
+    if (timeEl) {
+      const b = parseInt(timeEl.querySelector('beats')?.textContent ?? '', 10);
+      const bt = parseInt(timeEl.querySelector('beat-type')?.textContent ?? '', 10);
+      if (!isNaN(b) && b > 0) beatsPerMeasure = b;
+      if (!isNaN(bt) && bt > 0) beatType = bt;
+    }
+
+    const measureDivisions = (beatsPerMeasure / beatType) * 4 * divisionsPerQuarter;
+    let posInDivisions = 0;
+
+    for (const el of measureEl.children) {
+      const absPos = absDivisions + posInDivisions;
+
+      if (el.tagName === 'sound') {
+        const t = parseFloat(el.getAttribute('tempo') ?? '');
+        if (!isNaN(t) && t > 0) {
+          if (ritStartDiv !== null) {
+            ritRegions.push({ startDiv: ritStartDiv, endDiv: absPos, startTempo: ritStartTempo, endTempo: t });
+            ritStartDiv = null;
+          }
+          currentTempo = t;
+          tempoEvents.push({ absDivisions: absPos, tempo: t });
+        }
+        continue;
+      }
+
+      if (el.tagName === 'direction') {
+        const dirSound = el.querySelector('sound[tempo]');
+        if (dirSound) {
+          const t = parseFloat(dirSound.getAttribute('tempo') ?? '');
+          if (!isNaN(t) && t > 0) {
+            if (ritStartDiv !== null) {
+              ritRegions.push({ startDiv: ritStartDiv, endDiv: absPos, startTempo: ritStartTempo, endTempo: t });
+              ritStartDiv = null;
+            }
+            currentTempo = t;
+            tempoEvents.push({ absDivisions: absPos, tempo: t });
+          }
+        }
+        const wordsEls = el.querySelectorAll('direction-type words');
+        for (const w of wordsEls) {
+          const text = w.textContent ?? '';
+          if (ATEMPO_RE.test(text)) {
+            if (ritStartDiv !== null) {
+              ritRegions.push({ startDiv: ritStartDiv, endDiv: absPos, startTempo: ritStartTempo, endTempo: currentTempo });
+              ritStartDiv = null;
+            }
+          } else if (RIT_RE.test(text) && ritStartDiv === null) {
+            ritStartDiv = absPos;
+            ritStartTempo = currentTempo;
+          }
+        }
+        continue;
+      }
+
+      if (el.tagName === 'backup') {
+        const dur = parseInt(el.querySelector('duration')?.textContent ?? '0', 10);
+        posInDivisions -= isNaN(dur) ? 0 : dur;
+        continue;
+      }
+      if (el.tagName === 'forward') {
+        const dur = parseInt(el.querySelector('duration')?.textContent ?? '0', 10);
+        posInDivisions += isNaN(dur) ? 0 : dur;
+        continue;
+      }
+      if (el.tagName === 'note' && !el.querySelector('chord')) {
+        if (!isGraceNote(el)) {
+          const dur = parseInt(el.querySelector('duration')?.textContent ?? '0', 10);
+          posInDivisions += isNaN(dur) ? 0 : dur;
+        }
+      }
+    }
+
+    absDivisions += measureDivisions;
+  }
+
+  // 未閉の rit 区間: 小節末まで70%に減速
+  if (ritStartDiv !== null) {
+    ritRegions.push({
+      startDiv: ritStartDiv,
+      endDiv: absDivisions,
+      startTempo: ritStartTempo,
+      endTempo: ritStartTempo * 0.7,
+    });
+  }
+
+  return { tempoEvents, ritRegions };
+}
+
+/**
+ * 指定位置のテンポを取得する。rit/rall 区間内なら線形補間を行う。
+ */
+function getTempoAtPosition(
+  absDiv: number,
+  baseTempo: number,
+  ritRegions: RitRegion[],
+): number {
+  for (const r of ritRegions) {
+    if (absDiv >= r.startDiv && absDiv <= r.endDiv) {
+      const span = r.endDiv - r.startDiv;
+      if (span <= 0) return r.endTempo;
+      const progress = (absDiv - r.startDiv) / span;
+      return r.startTempo + (r.endTempo - r.startTempo) * progress;
+    }
+  }
+  return baseTempo;
+}
 
 // ========== 内部型 ==========
 
@@ -58,14 +212,46 @@ export function parseMusicXmlToNoteData(
   const useFlatNames = keyFifths < 0;
   const measures = Array.from(doc.querySelectorAll('part > measure'));
 
+  // パス1: テンポマップ構築（rit/rall 減速区間を含む）
+  const { ritRegions } = buildTempoMap(measures);
+
   // 全体の状態
   let divisionsPerQuarter = 1; // <divisions>
   let tempo = 120;             // BPM (quarter / min)
   let currentTimeBase = 0;     // 小節先頭の絶対時刻 (秒)
+  let absDivisionsBase = 0;    // 小節先頭の絶対 division 位置
 
   // 拍子計算用
   let beatsPerMeasure = 4;
   let beatType = 4;
+
+  /**
+   * 絶対 division 位置から秒数を算出する。
+   * rit/rall 区間内では線形補間したテンポを使い、1-division ステップで積分する。
+   * 区間外は一定テンポで一括計算する。
+   */
+  const divisionsToSeconds = (startAbsDiv: number, count: number, baseTempo: number, dpq: number): number => {
+    if (count <= 0) return 0;
+    // rit 区間に掛かるか簡易チェック
+    let inRit = false;
+    for (const r of ritRegions) {
+      if (startAbsDiv + count > r.startDiv && startAbsDiv < r.endDiv) {
+        inRit = true;
+        break;
+      }
+    }
+    if (!inRit) {
+      return count * (60.0 / (baseTempo * dpq));
+    }
+    // rit 区間を含むので 1-division ステップで積分
+    let seconds = 0;
+    for (let d = 0; d < count; d += 1) {
+      const pos = startAbsDiv + d;
+      const localTempo = getTempoAtPosition(pos, baseTempo, ritRegions);
+      seconds += 60.0 / (localTempo * dpq);
+    }
+    return seconds;
+  };
 
   const collected: RawParsedNote[] = [];
 
@@ -92,7 +278,7 @@ export function parseMusicXmlToNoteData(
       if (!isNaN(t) && t > 0) tempo = t;
     }
 
-    // 1 division あたりの秒数
+    // 1 division あたりの秒数（rit 区間外のフォールバック用）
     const secondsPerDivision = 60.0 / (tempo * divisionsPerQuarter);
 
     // 小節の長さ (divisions)
@@ -158,9 +344,7 @@ export function parseMusicXmlToNoteData(
       const isChord = noteEl.querySelector('chord') !== null;
 
       // タイ処理: stop のみ(start なし) → スキップ
-      const ties = Array.from(noteEl.querySelectorAll('tie'));
-      const hasTieStop = ties.some((t) => t.getAttribute('type') === 'stop');
-      const hasTieStart = ties.some((t) => t.getAttribute('type') === 'start');
+      const { hasStart: hasTieStart, hasStop: hasTieStop } = getTieTypes(noteEl);
       if (hasTieStop && !hasTieStart) {
         if (!isChord) {
           const dur = parseInt(noteEl.querySelector('duration')?.textContent ?? '0', 10);
@@ -196,7 +380,7 @@ export function parseMusicXmlToNoteData(
       if (!isChord) {
         lastNonChordPos = posInDivisions;
       }
-      const noteTime = currentTimeBase + notePos * secondsPerDivision;
+      const noteTime = currentTimeBase + divisionsToSeconds(absDivisionsBase, notePos, tempo, divisionsPerQuarter);
 
       // ---- grace notes (主音の直前) ----
       const graceNotes = collectGraceNotesBefore(elements, idx);
@@ -206,8 +390,9 @@ export function parseMusicXmlToNoteData(
       // grace note を追加
       let graceOffset = 0;
       for (const gn of graceExpanded) {
+        const graceAbsDiv = absDivisionsBase + notePos - graceDivStolen + graceOffset;
         collected.push({
-          time: noteTime - (graceDivStolen - graceOffset) * secondsPerDivision,
+          time: noteTime - divisionsToSeconds(graceAbsDiv, graceDivStolen - graceOffset, tempo, divisionsPerQuarter),
           pitch: gn.pitch,
           noteName: gn.noteName,
           isOrnament: true,
@@ -231,7 +416,7 @@ export function parseMusicXmlToNoteData(
         let offset = 0;
         for (const en of expanded) {
           collected.push({
-            time: noteTime + offset * secondsPerDivision,
+            time: noteTime + divisionsToSeconds(absDivisionsBase + notePos, offset, tempo, divisionsPerQuarter),
             pitch: en.pitch,
             noteName: en.noteName,
             isOrnament: en.isOrnament,
@@ -256,8 +441,9 @@ export function parseMusicXmlToNoteData(
       }
     }
 
-    // 小節終了: 次の小節の開始時刻を計算
-    currentTimeBase += measureDivisions * secondsPerDivision;
+    // 小節終了: 次の小節の開始時刻を計算（rit 区間を考慮）
+    currentTimeBase += divisionsToSeconds(absDivisionsBase, measureDivisions, tempo, divisionsPerQuarter);
+    absDivisionsBase += measureDivisions;
   }
 
   // 時間順にソート (同時刻はピッチ昇順)

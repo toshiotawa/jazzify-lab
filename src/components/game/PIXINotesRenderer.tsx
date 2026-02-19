@@ -263,7 +263,7 @@ export class PIXINotesRendererInstance {
       this.noteBuffer[i] = notes[i];
     }
     
-    this.requestRenderThrottled();
+    this.requestRender();
   }
 
   updateSettings(newSettings: Partial<RendererSettings>): void {

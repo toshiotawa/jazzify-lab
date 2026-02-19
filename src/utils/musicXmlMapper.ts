@@ -11,6 +11,7 @@ import {
   getKeyFifths,
   stepAlterOctaveToMidi,
   stepAlterToDisplayName,
+  getTieTypes,
 } from './musicXmlOrnamentExpander';
 
 /**
@@ -41,8 +42,8 @@ export function extractPlayableNoteNames(doc: Document): string[] {
     }
     
     // Skip tie stop (後ろ側)
-    const ties = Array.from(noteEl.querySelectorAll('tie'));
-    if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
+    const { hasStart: tieStart, hasStop: tieStop } = getTieTypes(noteEl);
+    if (tieStop && !tieStart) {
       skippedTies++;
       return;
     }
@@ -95,8 +96,8 @@ export function extractPlayableNoteNamesWithOrnaments(doc: Document): string[] {
       if (el.querySelector('rest')) continue;
 
       // Skip tie-stop only
-      const ties = Array.from(el.querySelectorAll('tie'));
-      if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
+      const { hasStart: tStart, hasStop: tStop } = getTieTypes(el);
+      if (tStop && !tStart) {
         continue;
       }
 
@@ -198,9 +199,8 @@ function extractNotePositions(doc: Document): MusicXmlNotePosition[] {
       }
       
       // Skip tie stop (後ろ側)
-      const ties = Array.from(noteEl.querySelectorAll('tie'));
-      if (ties.some(t => t.getAttribute('type') === 'stop' && !ties.some(t2 => t2.getAttribute('type') === 'start'))) {
-        // タイの後ろ側でも位置は進める
+      const { hasStart: npTieStart, hasStop: npTieStop } = getTieTypes(noteEl);
+      if (npTieStop && !npTieStart) {
         const durationEl = noteEl.querySelector('duration');
         if (durationEl) {
           currentPosition += parseInt(durationEl.textContent || '0', 10);
