@@ -190,6 +190,7 @@ export class GameEngine {
       instance.id = source.id;
       instance.time = source.time;
       instance.pitch = source.pitch;
+      instance.duration = source.duration;
       instance.noteName = source.noteName;
       instance.appearTime = source.appearTime;
       instance.hand = source.hand;
