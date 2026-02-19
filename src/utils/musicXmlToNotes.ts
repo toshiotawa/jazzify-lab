@@ -412,6 +412,7 @@ export function parseMusicXmlToNoteData(
           effectiveDuration,
           keyFifths,
           useFlatNames,
+          divisionsPerQuarter,
         );
         let offset = 0;
         for (const en of expanded) {

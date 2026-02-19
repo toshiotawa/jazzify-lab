@@ -251,6 +251,7 @@ export function expandOrnament(
   durationDivisions: number,
   keyFifths: number,
   useFlatNames = false,
+  divisionsPerQuarter = 1,
 ): ExpandedNote[] {
   // 補助音のピッチ計算
   let upper: number;
@@ -268,7 +269,9 @@ export function expandOrnament(
   const upperName = midiToNoteName(upper, useFlatNames);
   const lowerName = midiToNoteName(lower, useFlatNames);
 
-  // 装飾ノートの最小 duration (全体の 1/4 を目安)
+  // 32分音符 = 1拍(quarter)の1/8
+  const thirtySecond = Math.max(1, Math.round(divisionsPerQuarter / 8));
+  // 装飾ノートの最小 duration (全体の 1/4 を目安、trill/turn 用)
   const ornUnit = Math.max(1, Math.floor(durationDivisions / 4));
 
   // clampLast: 展開後の合計が durationDivisions を超えないよう最後のノートを制限
@@ -282,21 +285,23 @@ export function expandOrnament(
 
   switch (ornament.type) {
     case 'mordent': {
-      // 主音 → 下隣接音 → 主音
-      return clampLast([
-        { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
-        { pitch: lower, durationDivisions: ornUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
-      ]);
+      // 主音(32分) → 下隣接音(残り - 32分) → 主音(32分)
+      const mid = Math.max(1, durationDivisions - 2 * thirtySecond);
+      return [
+        { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: mid, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, durationDivisions - thirtySecond - mid), isOrnament: false, noteName: mainNoteName },
+      ];
     }
 
     case 'inverted-mordent': {
-      // 主音 → 上隣接音 → 主音
-      return clampLast([
-        { pitch: mainPitch, durationDivisions: ornUnit, isOrnament: true, noteName: mainNoteName },
-        { pitch: upper, durationDivisions: ornUnit, isOrnament: true, noteName: upperName },
-        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
-      ]);
+      // 主音(32分) → 上隣接音(残り - 32分) → 主音(32分)
+      const mid = Math.max(1, durationDivisions - 2 * thirtySecond);
+      return [
+        { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: mid, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: Math.max(1, durationDivisions - thirtySecond - mid), isOrnament: false, noteName: mainNoteName },
+      ];
     }
 
     case 'trill-mark':

@@ -80,6 +80,8 @@ export function extractPlayableNoteNames(doc: Document): string[] {
 export function extractPlayableNoteNamesWithOrnaments(doc: Document): string[] {
   const keyFifths = getKeyFifths(doc);
   const useFlatNames = keyFifths < 0;
+  const divisionsEl = doc.querySelector('part > measure > attributes > divisions');
+  const divisionsPerQuarter = divisionsEl ? parseInt(divisionsEl.textContent ?? '1', 10) : 1;
   const names: string[] = [];
 
   const measures = doc.querySelectorAll('part > measure');
@@ -120,7 +122,7 @@ export function extractPlayableNoteNamesWithOrnaments(doc: Document): string[] {
       // Ornament expansion
       const ornament = detectOrnaments(el);
       if (ornament) {
-        const expanded = expandOrnament(ornament, mainPitch, mainName, duration, keyFifths, useFlatNames);
+        const expanded = expandOrnament(ornament, mainPitch, mainName, duration, keyFifths, useFlatNames, divisionsPerQuarter);
         for (const en of expanded) {
           names.push(en.noteName);
         }
