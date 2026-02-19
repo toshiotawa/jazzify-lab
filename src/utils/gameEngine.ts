@@ -111,9 +111,15 @@ export class GameEngine {
     this.onKeyHighlight = callback;
   }
   
-  // ★ 追加: 設定値を秒へ変換して返すヘルパー
+  private getHardwareLatency(): number {
+    if (!this.audioContext) return 0;
+    return (this.audioContext.baseLatency || 0) + (this.audioContext.outputLatency || 0);
+  }
+
   private getTimingAdjSec(): number {
-    return (this.settings.timingAdjustment ?? 0) / 1000;
+    const manualAdj = (this.settings.timingAdjustment ?? 0) / 1000;
+    const speed = this.settings.playbackSpeed ?? 1;
+    return manualAdj + this.getHardwareLatency() * speed;
   }
 
   private getAdjustedNoteTime(note: NoteData, timingAdjSec?: number): number {
