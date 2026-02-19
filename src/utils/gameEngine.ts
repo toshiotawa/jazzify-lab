@@ -252,7 +252,10 @@ export class GameEngine {
       // 🔧 修正: 再生速度を考慮したresume計算
       // pausedTimeは論理時間なので、実時間に変換してからstartTimeを計算
       const realTimeElapsed = this.pausedTime / (this.settings.playbackSpeed ?? 1);
-      this.startTime = this.audioContext.currentTime - realTimeElapsed;
+      this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
+      
+      // ログ削除: FPS最適化のため
+      // devLog.debug(`🔄 GameEngine.resume: ${this.pausedTime.toFixed(2)}s`);
     }
     this.startGameLoop();
   }
@@ -271,8 +274,11 @@ export class GameEngine {
     }
     const safeTime = Math.max(0, time);
     
+    // 🔧 修正: 再生速度を考慮したstartTime計算
+    // safeTimeは論理時間、audioContext.currentTimeは実時間のため、
+    // 論理時間を実時間に変換してからオフセットを計算する
     const realTimeElapsed = safeTime / (this.settings.playbackSpeed ?? 1);
-    this.startTime = this.audioContext.currentTime - realTimeElapsed;
+    this.startTime = this.audioContext.currentTime - realTimeElapsed - this.latencyOffset;
     this.pausedTime = 0;
     
     // **完全なアクティブノーツリセット**
