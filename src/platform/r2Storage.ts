@@ -105,7 +105,7 @@ export async function uploadSongFile(
   
   await client.send(command);
   
-  return `${PUBLIC_URL}/${key}`;
+  return `${PUBLIC_URL}/${key}?v=${Date.now()}`;
 }
 
 // 曲ファイルの削除
