@@ -600,14 +600,14 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   <div className="text-xs text-gray-500">{isEnglishCopy ? 'Time per WAVE' : '1WAVEの制限時間'}</div>
                 </div>
                 <div className="bg-black/30 rounded-lg p-2 text-center">
-                  <div className="text-lg font-bold text-red-400">20</div>
+                  <div className="text-lg font-bold text-red-400">5~50</div>
                   <div className="text-xs text-gray-500">{isEnglishCopy ? 'Kill quota per WAVE' : '1WAVEの撃破ノルマ'}</div>
                 </div>
               </div>
               <p className="text-xs text-gray-400">
                 {isEnglishCopy
-                  ? 'Each WAVE lasts 1 minute. You must defeat 20 enemies within the time limit. Failure to meet the quota results in Game Over. Enemies get stronger each WAVE.'
-                  : '各WAVEは1分間。制限時間内に20体の敵を撃破するとノルマ達成です。ノルマ未達成でゲームオーバー。WAVEが進むごとに敵が強くなります。'}
+                  ? 'Each WAVE lasts 1 minute. WAVE 1-9: 5 kills, WAVE 10-19: 20 kills, WAVE 20+: 50 kills. Failure to meet the quota results in Game Over. Enemies get stronger each WAVE.'
+                  : '各WAVEは1分間。WAVE1~9は5体、WAVE10~19は20体、WAVE20以降は50体が撃破ノルマです。ノルマ未達成でゲームオーバー。WAVEが進むごとに敵が強くなります。'}
               </p>
             </div>
           </div>

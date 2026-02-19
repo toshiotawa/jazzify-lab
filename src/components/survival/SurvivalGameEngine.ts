@@ -28,9 +28,7 @@ import {
   MAGIC_BASE_COOLDOWN,
   MAGIC_MIN_COOLDOWN,
   MAP_CONFIG,
-  WAVE_BASE_QUOTA,
   WAVE_DURATION,
-  WAVE_QUOTA_INCREMENT,
 } from './SurvivalTypes';
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
@@ -246,7 +244,7 @@ const createInitialWaveState = (): WaveState => ({
   currentWave: 1,
   waveStartTime: 0,
   waveKills: 0,
-  waveQuota: WAVE_BASE_QUOTA,
+  waveQuota: calculateWaveQuota(1),
   waveDuration: WAVE_DURATION,
   waveCompleted: false,
 });
@@ -294,7 +292,9 @@ export const createInitialGameState = (
 
 // ===== WAVEヘルパー関数 =====
 export const calculateWaveQuota = (waveNumber: number): number => {
-  return WAVE_BASE_QUOTA + (waveNumber - 1) * WAVE_QUOTA_INCREMENT;
+  if (waveNumber >= 20) return 50;
+  if (waveNumber >= 10) return 20;
+  return 5;
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
