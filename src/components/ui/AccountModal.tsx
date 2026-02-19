@@ -48,11 +48,7 @@ const AccountPage: React.FC = () => {
   } = useAuthStore();
   const pushToast = useToastStore(state => state.push);
   const [open, setOpen] = useState(() => window.location.hash.startsWith('#account'));
-  const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>(() => {
-    const hash = window.location.hash;
-    if (hash.includes('tab=subscription')) return 'subscription';
-    return 'profile';
-  });
+  const [activeTab, setActiveTab] = useState<'profile' | 'subscription'>('profile');
   const [bio, setBio] = useState(profile?.bio || '');
   const [saving, setSaving] = useState(false);
   const [twitterHandle, setTwitterHandle] = useState(profile?.twitter_handle?.replace(/^@/, '') || '');
@@ -96,17 +92,18 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const rankLabel = isEnglishCopy ? RANK_LABEL_EN : RANK_LABEL;
-  // ハッシュ変更で開閉
+  // ハッシュ変更で開閉＋タブ同期
   useEffect(() => {
-    const handler = () => {
+    const syncFromHash = () => {
       const h = window.location.hash;
       setOpen(h.startsWith('#account'));
       if (h.includes('tab=subscription')) {
         setActiveTab('subscription');
       }
     };
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
+    syncFromHash();
+    window.addEventListener('hashchange', syncFromHash);
+    return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
 
   // Stripe Checkout など外部遷移から戻った際に最新プロフィールを取得（即時反映）
