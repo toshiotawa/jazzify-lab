@@ -553,8 +553,11 @@ class BGMManager {
       return
     }
 
+    const bufferDuration = this.tonePlayer.buffer?.duration ?? Infinity
+    const clampedLoopEnd = Math.min(loopEndVal, bufferDuration)
+
     this.tonePlayer.loopStart = loopBeginVal
-    this.tonePlayer.loopEnd = loopEndVal
+    this.tonePlayer.loopEnd = clampedLoopEnd
 
     const startTime = Tone.now()
     this.tonePlayer.start(startTime, 0)
