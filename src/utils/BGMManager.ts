@@ -41,6 +41,9 @@ class BGMManager {
   private playInitiatedAt = 0 // play()が呼ばれたperformance.now()
   private isLoadingAudio = false // 非同期BGMロード中フラグ
 
+  // デコード済みバッファキャッシュ（セクション切り替え高速化用）
+  private preloadedBuffers: Map<string, any> = new Map() // url -> ToneAudioBuffer
+
   /**
    * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
    * - M1開始を0秒として返す（カウントイン中は負値）
@@ -184,19 +187,16 @@ class BGMManager {
   }
 
   /**
-   * 次のセクションのBGMを事前フェッチしブラウザキャッシュに入れる。
-   * Tone.js/WebAudioが同じURLをロードする際にキャッシュヒットし高速化する。
+   * 次のセクションのBGMを事前にフェッチ+デコードしキャッシュに格納。
+   * _playTonePitchShift がキャッシュ済みバッファを検出すると即座に再生開始できる。
    */
   preloadAudio(url: string) {
-    if (!url) return
-    try {
-      const link = document.createElement('link')
-      link.rel = 'prefetch'
-      link.as = 'fetch'
-      link.href = url
-      link.crossOrigin = 'anonymous'
-      document.head.appendChild(link)
-    } catch {}
+    if (!url || this.preloadedBuffers.has(url)) return
+    import('tone').then(Tone => {
+      const buf = new Tone.ToneAudioBuffer(url, () => {
+        this.preloadedBuffers.set(url, buf)
+      })
+    }).catch(() => {})
   }
 
   setVolume(v: number) {
@@ -554,15 +554,24 @@ class BGMManager {
     }).toDestination()
     this.toneGain = new Tone.Gain(volume).connect(this.tonePitchShift)
 
-    await new Promise<void>((resolve, reject) => {
+    const cachedBuffer = this.preloadedBuffers.get(url)
+    if (cachedBuffer && cachedBuffer.loaded) {
       this.tonePlayer = new Tone.Player({
-        url: url,
+        url: cachedBuffer,
         loop: loopFlag,
         playbackRate: rate,
-        onload: () => resolve(),
-        onerror: (err: Error) => reject(err),
       }).connect(this.toneGain)
-    })
+    } else {
+      await new Promise<void>((resolve, reject) => {
+        this.tonePlayer = new Tone.Player({
+          url: url,
+          loop: loopFlag,
+          playbackRate: rate,
+          onload: () => resolve(),
+          onerror: (err: Error) => reject(err),
+        }).connect(this.toneGain)
+      })
+    }
 
     if (gen !== this.playGeneration) {
       this.disposeToneChain()
