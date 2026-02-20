@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   DailyChallengeRankingEntry,
   fetchDailyChallengeRanking,
@@ -24,13 +24,6 @@ const DIFFICULTIES: { key: DailyChallengeDifficulty; label: string; labelEn: str
 
 const PAGE_SIZE = 50;
 
-const toLocalDateString = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
-
 const DailyChallengeRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#daily-challenge-ranking');
   const [entries, setEntries] = useState<DailyChallengeRankingEntry[]>([]);
@@ -39,8 +32,6 @@ const DailyChallengeRanking: React.FC = () => {
   const [hasMore, setHasMore] = useState(true);
   const [pageOffset, setPageOffset] = useState(0);
 
-  const today = useMemo(() => toLocalDateString(new Date()), []);
-  const [selectedDate, setSelectedDate] = useState(today);
   const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('super_beginner');
 
   const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
@@ -56,11 +47,11 @@ const DailyChallengeRanking: React.FC = () => {
     return () => window.removeEventListener('hashchange', handler);
   }, []);
 
-  const loadData = useCallback(async (diff: DailyChallengeDifficulty, date: string, offset: number, append: boolean) => {
+  const loadData = useCallback(async (diff: DailyChallengeDifficulty, offset: number, append: boolean) => {
     if (!append) setLoading(true);
     else setLoadingMore(true);
     try {
-      const data = await fetchDailyChallengeRanking(diff, date, PAGE_SIZE, offset);
+      const data = await fetchDailyChallengeRanking(diff, PAGE_SIZE, offset);
       setEntries(prev => {
         if (!append) return data;
         const existIds = new Set(prev.map(e => e.user_id));
@@ -79,29 +70,29 @@ const DailyChallengeRanking: React.FC = () => {
       setEntries([]);
       setPageOffset(0);
       setHasMore(true);
-      loadData(difficulty, selectedDate, 0, false);
+      loadData(difficulty, 0, false);
     }
-  }, [open, user, isGuest, difficulty, selectedDate, loadData]);
+  }, [open, user, isGuest, difficulty, loadData]);
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
-    loadData(difficulty, selectedDate, pageOffset, true);
+    loadData(difficulty, pageOffset, true);
   };
 
   const scrollToMyRow = async () => {
     if (!user) return;
     try {
-      const rank = await fetchUserDailyChallengeRank(difficulty, user.id, selectedDate);
+      const rank = await fetchUserDailyChallengeRank(difficulty, user.id);
       if (!rank || rank <= 0) {
-        alert(isEnglishCopy ? 'You have no record for this date/difficulty.' : 'この日/難易度の記録がありません。');
+        alert(isEnglishCopy ? 'You have no record for this difficulty.' : 'この難易度の記録がありません。');
         return;
       }
       const targetOffset = Math.floor((rank - 1) / PAGE_SIZE) * PAGE_SIZE;
-      const page = await fetchDailyChallengeRanking(difficulty, selectedDate, PAGE_SIZE, targetOffset);
+      const page = await fetchDailyChallengeRanking(difficulty, PAGE_SIZE, targetOffset);
       setEntries(prev => {
         const map = new Map(prev.map(e => [e.user_id, e] as const));
         page.forEach(e => map.set(e.user_id, e));
-        return Array.from(map.values()).sort((a, b) => b.score - a.score);
+        return Array.from(map.values()).sort((a, b) => b.best_score - a.best_score);
       });
       setTimeout(() => {
         const el = document.querySelector(`[data-dc-user-id="${user.id}"]`);
@@ -184,18 +175,6 @@ const DailyChallengeRanking: React.FC = () => {
           </h2>
         </div>
 
-        {/* 日付セレクタ */}
-        <div className="flex items-center gap-3 mb-3">
-          <label className="text-sm text-gray-300">{isEnglishCopy ? 'Date' : '日付'}</label>
-          <input
-            type="date"
-            value={selectedDate}
-            max={today}
-            onChange={(e) => setSelectedDate(e.target.value)}
-            className="input input-sm input-bordered bg-slate-800 text-white"
-          />
-        </div>
-
         {/* 難易度タブ */}
         <div className="flex flex-wrap gap-2 mb-4">
           {DIFFICULTIES.map(d => (
@@ -237,13 +216,14 @@ const DailyChallengeRanking: React.FC = () => {
           </p>
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse min-w-[500px] sm:min-w-full">
+            <table className="w-full text-sm border-collapse min-w-[560px] sm:min-w-full">
               <thead>
                 <tr className="border-b border-slate-700 text-left">
                   <th className="py-3 px-2 min-w-[2.5rem]">#</th>
                   <th className="py-3 px-2 min-w-[10rem]">{isEnglishCopy ? 'User' : 'ユーザー'}</th>
                   <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>
-                  <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Score' : 'スコア'}</th>
+                  <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Best Score' : 'ハイスコア'}</th>
+                  <th className="py-3 px-2 min-w-[3rem]">{isEnglishCopy ? 'Plays' : '回数'}</th>
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>
                 </tr>
               </thead>
@@ -297,7 +277,8 @@ const DailyChallengeRanking: React.FC = () => {
                           )}
                         </div>
                       </td>
-                      <td className="py-3 px-2 text-yellow-300 font-mono font-bold">{e.score}</td>
+                      <td className="py-3 px-2 text-yellow-300 font-mono font-bold">{e.best_score}</td>
+                      <td className="py-3 px-2 text-gray-300">{e.play_count}</td>
                       <td className="py-3 px-2">
                         <div className="flex items-center space-x-1">
                           {getRankIcon(e.rank)}

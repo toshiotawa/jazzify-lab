@@ -341,20 +341,18 @@ export interface DailyChallengeRankingEntry {
   level: number;
   rank: string;
   selected_title?: string;
-  score: number;
-  played_on: string;
+  best_score: number;
+  play_count: number;
 }
 
 export async function fetchDailyChallengeRanking(
   difficulty: string,
-  playedOn: string,
   limit = 50,
   offset = 0,
 ): Promise<DailyChallengeRankingEntry[]> {
   const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_daily_challenge_ranking_by_date', {
+    .rpc('rpc_get_daily_challenge_highscore_ranking', {
       p_difficulty: difficulty,
-      p_date: playedOn,
       limit_count: limit,
       offset_count: offset,
     });
@@ -366,21 +364,19 @@ export async function fetchDailyChallengeRanking(
     level: Number(r.level) || 0,
     rank: (r.rank as string) || 'free',
     selected_title: (r.selected_title as string) || undefined,
-    score: Number(r.score) || 0,
-    played_on: r.played_on as string,
+    best_score: Number(r.best_score) || 0,
+    play_count: Number(r.play_count) || 0,
   }));
 }
 
 export async function fetchUserDailyChallengeRank(
   difficulty: string,
   userId: string,
-  playedOn: string,
 ): Promise<number | null> {
   const { data, error } = await getSupabaseClient()
-    .rpc('rpc_get_user_daily_challenge_rank', {
+    .rpc('rpc_get_user_daily_challenge_highscore_rank', {
       p_difficulty: difficulty,
       target_user_id: userId,
-      p_played_on: playedOn,
     });
   if (error) throw error;
   return (data as number | null) ?? null;
