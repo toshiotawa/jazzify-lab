@@ -261,3 +261,73 @@ export async function fetchUserLessonRank(userId: string): Promise<number | null
   if (error) throw error;
   return (data as number | null) ?? null;
 }
+
+// ===== サバイバルランキング =====
+
+export interface SurvivalRankingEntry {
+  user_id: string;
+  nickname: string;
+  avatar_url?: string;
+  level: number;
+  rank: string;
+  twitter_handle?: string;
+  selected_title?: string;
+  character_id?: string;
+  character_name?: string;
+  character_avatar_url?: string;
+  survival_time_seconds: number;
+  final_level: number;
+  enemies_defeated: number;
+}
+
+export async function fetchSurvivalRanking(
+  difficulty: string,
+  characterId: string | null = null,
+  limit = 50,
+  offset = 0
+): Promise<SurvivalRankingEntry[]> {
+  const params: Record<string, unknown> = {
+    p_difficulty: difficulty,
+    limit_count: limit,
+    offset_count: offset,
+  };
+  if (characterId) {
+    params.p_character_id = characterId;
+  }
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_survival_ranking', params);
+  if (error) throw error;
+  return ((data ?? []) as Record<string, unknown>[]).map((r) => ({
+    user_id: r.user_id as string,
+    nickname: r.nickname as string,
+    avatar_url: (r.avatar_url as string) || undefined,
+    level: Number(r.level) || 0,
+    rank: (r.rank as string) || 'free',
+    twitter_handle: (r.twitter_handle as string) || undefined,
+    selected_title: (r.selected_title as string) || undefined,
+    character_id: (r.character_id as string) || undefined,
+    character_name: (r.character_name as string) || undefined,
+    character_avatar_url: (r.character_avatar_url as string) || undefined,
+    survival_time_seconds: Number(r.survival_time_seconds) || 0,
+    final_level: Number(r.final_level) || 0,
+    enemies_defeated: Number(r.enemies_defeated) || 0,
+  }));
+}
+
+export async function fetchUserSurvivalRank(
+  difficulty: string,
+  characterId: string | null,
+  userId: string
+): Promise<number | null> {
+  const params: Record<string, unknown> = {
+    p_difficulty: difficulty,
+    target_user_id: userId,
+  };
+  if (characterId) {
+    params.p_character_id = characterId;
+  }
+  const { data, error } = await getSupabaseClient()
+    .rpc('rpc_get_user_survival_rank', params);
+  if (error) throw error;
+  return (data as number | null) ?? null;
+}

@@ -325,14 +325,10 @@ const LevelRanking: React.FC = () => {
                 </>
               )}
               <button
-                onClick={() => setSortKey('survival')}
-                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  sortKey === 'survival'
-                    ? 'bg-primary-600 text-white'
-                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                }`}
+                onClick={() => { window.location.hash = '#survival-ranking'; }}
+                className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-800 text-white hover:bg-red-700"
               >
-                Survival
+                Survival →
               </button>
             </div>
             
