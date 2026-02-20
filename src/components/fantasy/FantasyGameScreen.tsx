@@ -1506,7 +1506,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
     // progressionモードかどうかを判定
-    const isProgressionMode = stage.mode.startsWith('progression');
+    const isProgressionMode = stage.mode.startsWith('progression') || stage.mode === 'timing_combining';
     
     return (
       <div className="min-h-[var(--dvh,100dvh)] bg-black flex items-center justify-center fantasy-game-screen overflow-y-auto">
