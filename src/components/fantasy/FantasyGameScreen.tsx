@@ -533,12 +533,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
+  // timing_combining: 現在のセクションのmusicXmlを取得
+  const currentSectionMusicXml = useMemo(() => {
+    if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
+      return gameState.combinedSections[gameState.currentSectionIndex]?.musicXml ?? null;
+    }
+    return stage.musicXml ?? null;
+  }, [stage.mode, stage.musicXml, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+
   const showSheetMusicForTiming = useMemo(() => {
     return (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && 
            gameState.isTaikoMode && 
            gameState.taikoNotes.length > 0 &&
-           !!stage.musicXml;
-  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, stage.musicXml]);
+           !!currentSectionMusicXml;
+  }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, currentSectionMusicXml]);
   
   
   // 楽譜表示エリアの高さを画面サイズに応じて調整
@@ -962,6 +970,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
   // 移調設定用のref
   const transposeSettingsRef = useRef(gameState.transposeSettings);
+  // timing_combining 用のref
+  const isCombiningModeRef = useRef(gameState.isCombiningMode);
+  const combinedSectionsRef = useRef(gameState.combinedSections);
+  const currentSectionIndexRef = useRef(gameState.currentSectionIndex);
   const originalTaikoNotesRef = useRef(gameState.originalTaikoNotes);
   const currentTransposeOffsetRef = useRef(gameState.currentTransposeOffset);
   const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
@@ -975,7 +987,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     originalTaikoNotesRef.current = gameState.originalTaikoNotes;
     currentTransposeOffsetRef.current = gameState.currentTransposeOffset;
     taikoLoopCycleRef.current = gameState.taikoLoopCycle;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle]);
+    isCombiningModeRef.current = gameState.isCombiningMode;
+    combinedSectionsRef.current = gameState.combinedSections;
+    currentSectionIndexRef.current = gameState.currentSectionIndex;
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
@@ -1091,6 +1106,72 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
+      
+      // ===== timing_combining: ループなし・セクション単位で描画 =====
+      const isCombining = isCombiningModeRef.current;
+      const combinedSections = combinedSectionsRef.current;
+      const currentSectionIdx = currentSectionIndexRef.current;
+      
+      if (isCombining && combinedSections.length > 0) {
+        const section = combinedSections[currentSectionIdx];
+        if (section) {
+          const currentNoteIndex = stateNoteIndex;
+          const isAwaitingLoop = stateAwaitingLoop;
+          const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+          
+          // 現在のセクション内のノーツを表示（normalizedTime = currentTimeそのまま）
+          if (!isAwaitingLoop) {
+            for (let i = section.globalNoteStartIndex; i < section.globalNoteEndIndex; i++) {
+              if (i < currentNoteIndex) continue;
+              const note = taikoNotes[i];
+              if (!note) continue;
+              const timeUntilHit = note.hitTime - currentTime;
+              if (timeUntilHit < -0.35) continue;
+              if (timeUntilHit > lookAheadTime) break;
+              const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+              notesToDisplay.push({
+                id: note.id,
+                chord: note.chord.displayName,
+                x,
+                noteNames: getDisplayNoteNames(note)
+              });
+            }
+          }
+          
+          // セクション末尾: 次のセクションのノーツを先読み表示
+          const sectionSecPerMeasure = (60 / section.bpm) * section.timeSignature;
+          const sectionPlayDuration = section.measureCount * sectionSecPerMeasure;
+          const timeToSectionEnd = sectionPlayDuration - currentTime;
+          const nextSectionIdx = currentSectionIdx + 1;
+          
+          if (timeToSectionEnd < lookAheadTime && nextSectionIdx < combinedSections.length) {
+            const nextSection = combinedSections[nextSectionIdx];
+            const nextCountInSec = nextSection.countInMeasures * (60 / nextSection.bpm) * nextSection.timeSignature;
+            
+            for (let i = nextSection.globalNoteStartIndex; i < nextSection.globalNoteEndIndex; i++) {
+              const note = taikoNotes[i];
+              if (!note) continue;
+              // 次セクションのノーツ: 現在セクション末尾 + カウントイン + hitTime
+              const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
+              if (virtualTime > lookAheadTime) break;
+              if (virtualTime < -0.35) continue;
+              const x = judgeLinePos.x + virtualTime * noteSpeed;
+              notesToDisplay.push({
+                id: `next_${note.id}`,
+                chord: note.chord.displayName,
+                x,
+                noteNames: getDisplayNoteNames(note)
+              });
+            }
+          }
+          
+          fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+          fantasyPixiInstance.updateOverlayText(null);
+          animationId = requestAnimationFrame(updateTaikoNotes);
+          return;
+        }
+      }
+      // ===== ここまで timing_combining =====
       
       // 現在の時間をループ内0..Tへ正規化
       const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
@@ -1903,11 +1984,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           <FantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
-            musicXml={stage.musicXml || ''}
-            bpm={stage.bpm || 120}
-            timeSignature={stage.timeSignature || 4}
-            measureCount={stage.measureCount || 8}
-            countInMeasures={stage.countInMeasures || 0}
+            musicXml={currentSectionMusicXml || ''}
+            bpm={
+              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
+                ? gameState.combinedSections[gameState.currentSectionIndex].bpm
+                : (stage.bpm || 120)
+            }
+            timeSignature={
+              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
+                ? gameState.combinedSections[gameState.currentSectionIndex].timeSignature
+                : (stage.timeSignature || 4)
+            }
+            measureCount={
+              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
+                ? gameState.combinedSections[gameState.currentSectionIndex].measureCount
+                : (stage.measureCount || 8)
+            }
+            countInMeasures={
+              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
+                ? gameState.combinedSections[gameState.currentSectionIndex].countInMeasures
+                : (stage.countInMeasures || 0)
+            }
             transposeOffset={gameState.currentTransposeOffset || 0}
             nextTransposeOffset={
               // 移調設定がある場合、次のループの移調オフセットを計算
