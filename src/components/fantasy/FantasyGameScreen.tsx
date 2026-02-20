@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -548,6 +548,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            !!currentSectionMusicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, currentSectionMusicXml]);
   
+  // timing_combining: 次セクションの楽譜情報（背景プリレンダリング用）
+  const nextSectionSheetInfo = useMemo(() => {
+    if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode) return null;
+    const nextIdx = gameState.currentSectionIndex + 1;
+    const ns = gameState.combinedSections[nextIdx];
+    if (!ns?.musicXml) return null;
+    return { musicXml: ns.musicXml, bpm: ns.bpm, timeSignature: ns.timeSignature };
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+  
   
   // 楽譜表示エリアの高さを画面サイズに応じて調整
   useEffect(() => {
@@ -988,7 +997,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
   
   // taikoNotes/currentNoteIndex/awaitingLoopStart/移調設定が変更されたらrefを更新（アニメーションループはそのまま継続）
-  useEffect(() => {
+  // useLayoutEffect: ペイント前に同期的にrefを更新し、セクション切り替え時の1-2フレーム遅延を排除
+  useLayoutEffect(() => {
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
@@ -2042,6 +2052,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
             disablePreview={gameState.isCombiningMode}
             simpleMode={currentSimpleNoteName}
+            nextMusicXml={nextSectionSheetInfo?.musicXml}
+            nextBpm={nextSectionSheetInfo?.bpm}
+            nextTimeSignature={nextSectionSheetInfo?.timeSignature}
             className="w-full h-full"
           />
         </div>
