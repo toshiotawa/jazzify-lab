@@ -584,16 +584,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const playbackRate = selectedSpeedMultiplier;
     
     // 初回再生時のピッチシフト
-    // 移調設定がある場合（repeatKeyChangeが'off'でない場合）、
-    // Tone.jsを使用するために0.001などの小さな値を設定してピッチシフトを有効化
-    // これにより、後からsetPitchShiftでピッチを変更できるようになる
-    let initialPitchShift = gameState.currentTransposeOffset || 0;
+    // transposeSettingsから直接計算し、currentTransposeOffset状態値のフォールバックも用意
+    let initialPitchShift = gameState.transposeSettings
+      ? (gameState.transposeSettings.keyOffset || gameState.currentTransposeOffset || 0)
+      : (gameState.currentTransposeOffset || 0);
     
     // repeatKeyChangeが設定されている場合、Tone.jsを強制的に使用
     // 初回は移調なし(0)でも、ループ後に移調が必要になるため
     if (gameState.transposeSettings && gameState.transposeSettings.repeatKeyChange !== 'off') {
-      // 0だとTone.jsが使われないので、0.001を設定してTone.jsを有効化
-      // （ほぼ聴こえない差だが、setPitchShiftが動作するようになる）
       if (initialPitchShift === 0) {
         initialPitchShift = 0.001;
       }

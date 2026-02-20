@@ -2161,6 +2161,18 @@ export const useFantasyGameEngine = ({
               // BGM切り替えリクエストをrefに記録（setGameState外で実行）
               const nextBgmUrl = nextSection.bgmUrl;
               if (nextBgmUrl) {
+                const sectionPitchShift = prevState.transposeSettings
+                  ? calculateTransposeOffset(
+                      prevState.transposeSettings.keyOffset,
+                      prevState.combinedFullLoopCount,
+                      prevState.transposeSettings.repeatKeyChange
+                    )
+                  : prevState.currentTransposeOffset;
+                
+                if (sectionPitchShift !== 0) {
+                  bgmManager.setPitchShift(sectionPitchShift);
+                }
+                
                 pendingBgmRef.current = {
                   url: nextBgmUrl,
                   bpm: nextSection.bpm,
@@ -2169,7 +2181,7 @@ export const useFantasyGameEngine = ({
                   countIn: nextSection.countInMeasures,
                   volume: 0.7,
                   speedMul: stage.speedMultiplier || 1.0,
-                  pitchShift: prevState.currentTransposeOffset,
+                  pitchShift: sectionPitchShift,
                 };
               }
               
