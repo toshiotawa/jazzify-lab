@@ -506,9 +506,15 @@ class BGMManager {
 
   // ─────────────────────────────────────────────
   // Tone.js PitchShift 実装（iOS対応）
-  // 毎回新しいチェーンを作成し、Promiseベースでロード完了を待つ
+  // 毎回新しいチェーンを作成、コンストラクタURL + onload Promise で確実にロード
   private async _playTonePitchShift(url: string, volume: number): Promise<void> {
     const gen = this.playGeneration
+    const pitchValue = this.pitchShift
+    const loopFlag = !this.noLoop
+    const rate = this.playbackRate
+    const loopBeginVal = this.loopBegin
+    const loopEndVal = this.loopEnd
+
     const Tone = await import('tone')
     await Tone.start()
 
@@ -526,26 +532,29 @@ class BGMManager {
     this.disposeToneChain()
 
     this.tonePitchShift = new Tone.PitchShift({
-      pitch: this.pitchShift,
+      pitch: pitchValue,
       windowSize: pitchShiftWindowSize,
       delayTime: pitchShiftDelayTime
     }).toDestination()
     this.toneGain = new Tone.Gain(volume).connect(this.tonePitchShift)
 
-    this.tonePlayer = new Tone.Player({
-      loop: !this.noLoop,
-      playbackRate: this.playbackRate,
-    }).connect(this.toneGain)
-
-    await this.tonePlayer.load(url)
+    await new Promise<void>((resolve, reject) => {
+      this.tonePlayer = new Tone.Player({
+        url: url,
+        loop: loopFlag,
+        playbackRate: rate,
+        onload: () => resolve(),
+        onerror: (err: Error) => reject(err),
+      }).connect(this.toneGain)
+    })
 
     if (gen !== this.playGeneration) {
       this.disposeToneChain()
       return
     }
 
-    this.tonePlayer.loopStart = this.loopBegin
-    this.tonePlayer.loopEnd = this.loopEnd
+    this.tonePlayer.loopStart = loopBeginVal
+    this.tonePlayer.loopEnd = loopEndVal
 
     const startTime = Tone.now()
     this.tonePlayer.start(startTime, 0)
@@ -554,8 +563,8 @@ class BGMManager {
     this.startTime = performance.now()
     this.waStartAt = startTime + this.pitchShiftLatency
     console.log('🎵 BGM再生開始 (Tone.js PitchShift):', {
-      url, bpm: this.bpm, pitchShift: this.pitchShift,
-      loopBegin: this.loopBegin, loopEnd: this.loopEnd,
+      url, bpm: this.bpm, pitchShift: pitchValue,
+      loopBegin: loopBeginVal, loopEnd: loopEndVal,
       pitchShiftLatency: this.pitchShiftLatency.toFixed(3),
     })
   }
