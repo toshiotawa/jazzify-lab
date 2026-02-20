@@ -801,11 +801,6 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
 
-  // timing_combining: setGameState内からBGM再生を分離するためのref
-  const pendingBgmRef = useRef<{
-    url: string; bpm: number; timeSig: number; measureCount: number;
-    countIn: number; volume: number; speedMul: number; pitchShift: number;
-  } | null>(null);
   
   // timing_combining 専用の入力判定（コード完成判定・ダメージ・エフェクト対応版）
   const handleCombiningModeInput = useCallback((
@@ -2078,17 +2073,6 @@ export const useFantasyGameEngine = ({
     if (needsTimer) {
       const timer = setInterval(() => {
         updateEnemyGauge();
-        // timing_combining: setGameState外でBGM切り替えを実行
-        // pendingBgmRef.currentへの代入はsetStateコールバック内でも同期的に実行される
-        const pending = pendingBgmRef.current;
-        if (pending) {
-          pendingBgmRef.current = null;
-          const pitchShift = typeof pending.pitchShift === 'number' ? pending.pitchShift : 0;
-          bgmManager.play(
-            pending.url, pending.bpm, pending.timeSig, pending.measureCount,
-            pending.countIn, pending.volume, pending.speedMul, pitchShift, true
-          );
-        }
       }, 50); // 50ms間隔で更新（セクション切り替え検出の高速化）
       setEnemyGaugeTimer(timer);
     }
@@ -2160,7 +2144,7 @@ export const useFantasyGameEngine = ({
               const firstNextNote = nextNotes[0];
               const secondNextNote = nextNotes.length > 1 ? nextNotes[1] : firstNextNote;
               
-              // BGM切り替えリクエストをrefに記録（setGameState外で実行）
+              // BGM即時切り替え（遅延なし）
               const nextBgmUrl = nextSection.bgmUrl;
               if (nextBgmUrl) {
                 const sectionPitchShift = prevState.transposeSettings
@@ -2171,20 +2155,11 @@ export const useFantasyGameEngine = ({
                     )
                   : prevState.currentTransposeOffset;
                 
-                if (sectionPitchShift !== 0) {
-                  bgmManager.setPitchShift(sectionPitchShift);
-                }
-                
-                pendingBgmRef.current = {
-                  url: nextBgmUrl,
-                  bpm: nextSection.bpm,
-                  timeSig: nextSection.timeSignature,
-                  measureCount: nextSection.measureCount,
-                  countIn: nextSection.countInMeasures,
-                  volume: 0.7,
-                  speedMul: stage.speedMultiplier || 1.0,
-                  pitchShift: sectionPitchShift,
-                };
+                bgmManager.play(
+                  nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
+                  nextSection.measureCount, nextSection.countInMeasures,
+                  0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true
+                );
               }
               
               // 次の次のセクションのBGMを事前フェッチ（切り替え高速化）
@@ -2236,21 +2211,14 @@ export const useFantasyGameEngine = ({
                   transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
                 }
                 
-                bgmManager.setPitchShift(newTransposeOffset);
-                
-                // BGM切り替えリクエストをrefに記録
+                // BGM即時切り替え（移調リスタート）
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
-                  pendingBgmRef.current = {
-                    url: firstSection.bgmUrl,
-                    bpm: firstSection.bpm,
-                    timeSig: firstSection.timeSignature,
-                    measureCount: firstSection.measureCount,
-                    countIn: firstSection.countInMeasures,
-                    volume: 0.7,
-                    speedMul: stage.speedMultiplier || 1.0,
-                    pitchShift: newTransposeOffset,
-                  };
+                  bgmManager.play(
+                    firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                    firstSection.measureCount, firstSection.countInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
+                  );
                 }
                 
                 const resetNotes = transposedNotes.map(note => ({
@@ -2285,19 +2253,14 @@ export const useFantasyGameEngine = ({
                 };
               }
               
-              // 移調設定なし: BGM切り替えリクエストをrefに記録
+              // 移調設定なし: BGM即時切り替え
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
-                pendingBgmRef.current = {
-                  url: firstSection.bgmUrl,
-                  bpm: firstSection.bpm,
-                  timeSig: firstSection.timeSignature,
-                  measureCount: firstSection.measureCount,
-                  countIn: firstSection.countInMeasures,
-                  volume: 0.7,
-                  speedMul: stage.speedMultiplier || 1.0,
-                  pitchShift: prevState.currentTransposeOffset,
-                };
+                bgmManager.play(
+                  firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                  firstSection.measureCount, firstSection.countInMeasures,
+                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
+                );
               }
               
               const resetNotes = prevState.taikoNotes.map(note => ({
