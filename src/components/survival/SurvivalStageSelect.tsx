@@ -21,14 +21,18 @@ import { FaSkull, FaStar, FaFire, FaBolt } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 
+// 全17ルート（#♭含む）
+const R17 = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+const allRoots = (suffix: string) => R17.map(r => suffix === '_note' ? `${r}_note` : `${r}${suffix}`);
+
 // デフォルト難易度設定（DB取得前のフォールバック）
 const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'veryeasy',
     displayName: 'Very Easy',
-    description: '入門向け。単音ノーツのみで練習。',
-    descriptionEn: 'Beginner. Single notes only.',
-    allowedChords: ['C_note', 'D_note', 'E_note', 'F_note', 'G_note', 'A_note', 'B_note'],
+    description: '入門向け。単音ノーツ（#♭含む全17音）。',
+    descriptionEn: 'Beginner. All single notes incl. sharps/flats.',
+    allowedChords: allRoots('_note'),
     enemySpawnRate: 3,
     enemySpawnCount: 2,
     enemyStatMultiplier: 0.8,
@@ -40,9 +44,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
     displayName: 'Easy',
-    description: '初心者向け。基本的なメジャー・マイナーコードのみ。',
-    descriptionEn: 'Novice. Basic major/minor chords only.',
-    allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em'],
+    description: '初心者向け。メジャー・マイナートライアド全ルート。',
+    descriptionEn: 'Novice. Major/minor triads, all roots.',
+    allowedChords: [...allRoots(''), ...allRoots('m')],
     enemySpawnRate: 3,
     enemySpawnCount: 2,
     enemyStatMultiplier: 1.0,
@@ -54,9 +58,13 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'normal',
     displayName: 'Normal',
-    description: '標準的な難易度。セブンスコードが追加。',
-    descriptionEn: 'Standard difficulty. Seventh chords added.',
-    allowedChords: ['C', 'G', 'Am', 'F', 'Dm', 'Em', 'G7', 'C7', 'Am7', 'Dm7'],
+    description: '4和音全ルート（M7, m7, 7, m7b5, mM7, dim7, aug7, 6, m6）。',
+    descriptionEn: 'All 4-note chords, all roots.',
+    allowedChords: [
+      ...allRoots('M7'), ...allRoots('m7'), ...allRoots('7'),
+      ...allRoots('m7b5'), ...allRoots('mM7'), ...allRoots('dim7'),
+      ...allRoots('aug7'), ...allRoots('6'), ...allRoots('m6'),
+    ],
     enemySpawnRate: 2.5,
     enemySpawnCount: 3,
     enemyStatMultiplier: 1.0,
@@ -68,9 +76,13 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'hard',
     displayName: 'Hard',
-    description: '上級者向け。複雑なコードと高速な敵。',
-    descriptionEn: 'Advanced. Complex chords and fast enemies.',
-    allowedChords: ['CM7', 'G7', 'Am7', 'Dm7', 'Em7', 'FM7', 'Bm7b5', 'E7', 'A7', 'D7'],
+    description: '上級者向け。ジャズボイシング全ルート。',
+    descriptionEn: 'Advanced. Jazz voicings, all roots.',
+    allowedChords: [
+      ...allRoots('M7(9)'), ...allRoots('m7(9)'),
+      ...allRoots('7(9.13)'), ...allRoots('7(b9.b13)'),
+      ...allRoots('6(9)'), ...allRoots('m6(9)'),
+    ],
     enemySpawnRate: 2,
     enemySpawnCount: 4,
     enemyStatMultiplier: 1.0,
@@ -82,9 +94,15 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'extreme',
     displayName: 'Extreme',
-    description: 'エキスパート向け。全コードタイプ、超高速。',
-    descriptionEn: 'Expert. All chord types, extreme speed.',
-    allowedChords: ['CM7', 'Dm7', 'Em7', 'FM7', 'G7', 'Am7', 'Bm7b5', 'Cmaj9', 'Dm9', 'G13'],
+    description: 'エキスパート向け。全ジャズボイシング、超高速。',
+    descriptionEn: 'Expert. All jazz voicings, extreme speed.',
+    allowedChords: [
+      ...allRoots('M7(9)'), ...allRoots('m7(9)'),
+      ...allRoots('7(9.13)'), ...allRoots('7(b9.b13)'),
+      ...allRoots('6(9)'), ...allRoots('m6(9)'),
+      ...allRoots('7(b9.13)'), ...allRoots('7(#9.b13)'),
+      ...allRoots('m7(b5)(11)'), ...allRoots('dim(M7)'),
+    ],
     enemySpawnRate: 1.5,
     enemySpawnCount: 5,
     enemyStatMultiplier: 1.0,

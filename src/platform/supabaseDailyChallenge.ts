@@ -4,22 +4,43 @@ import type { DailyChallengeDifficulty, DailyChallengeRecord, FantasyStage } fro
 import { createFantasyStage, fetchFantasyStageByNumber, updateFantasyStage } from '@/platform/supabaseFantasyStages';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 
+const R17 = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+const allR = (s: string) => R17.map(r => s === '_note' ? `${r}_note` : `${r}${s}`);
+
 const DAILY_CHALLENGE_STAGE_NUMBERS: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: 'DC-SUPER-BEGINNER',
   beginner: 'DC-BEGINNER',
   intermediate: 'DC-INTERMEDIATE',
   advanced: 'DC-ADVANCED',
+  super_advanced: 'DC-SUPER-ADVANCED',
 };
 
 const DEFAULT_ALLOWED_CHORDS: Record<DailyChallengeDifficulty, string[]> = {
-  beginner: ['C', 'F', 'G', 'Am'],
-  intermediate: ['CM7', 'Dm7', 'G7', 'Am7', 'F7', 'Em7'],
-  advanced: ['CM7', 'Dm7', 'G7', 'C7', 'F#dim7', 'Am7', 'D7', 'G9', 'C6', 'Bm7b5'],
+  super_beginner: allR('_note'),
+  beginner: allR('_note'),
+  intermediate: [...allR(''), ...allR('m')],
+  advanced: [
+    ...allR('_ionian'), ...allR('_dorian'), ...allR('_phrygian'),
+    ...allR('_lydian'), ...allR('_mixolydian'), ...allR('_aeolian'), ...allR('_locrian'),
+    ...allR('_harmonic_minor'), ...allR('_melodic_minor'),
+    ...allR('_whole_half_diminished'), ...allR('_half_whole_diminished'),
+    ...allR('_altered'), ...allR('_lydian_dominant'),
+  ],
+  super_advanced: [
+    ...allR('M7(9)'), ...allR('m7(9)'),
+    ...allR('7(9.13)'), ...allR('7(b9.b13)'),
+    ...allR('6(9)'), ...allR('m6(9)'),
+    ...allR('7(b9.13)'), ...allR('7(#9.b13)'),
+    ...allR('m7(b5)(11)'), ...allR('dim(M7)'),
+  ],
 };
 
 const DEFAULT_STAGE_NAME: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: 'デイリーチャレンジ（超初級）',
   beginner: 'デイリーチャレンジ（初級）',
   intermediate: 'デイリーチャレンジ（中級）',
   advanced: 'デイリーチャレンジ（上級）',
+  super_advanced: 'デイリーチャレンジ（超上級）',
 };
 
 export const getDailyChallengeStageNumber = (difficulty: DailyChallengeDifficulty): string =>
@@ -30,33 +51,33 @@ export async function fetchDailyChallengeStage(difficulty: DailyChallengeDifficu
   return await fetchFantasyStageByNumber(stageNumber, 'basic');
 }
 
-export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyChallengeDifficulty, FantasyStage>> {
-  const results = await Promise.all([
-    fetchDailyChallengeStage('beginner'),
-    fetchDailyChallengeStage('intermediate'),
-    fetchDailyChallengeStage('advanced'),
-  ]);
+const DAILY_CHALLENGE_DESCRIPTIONS: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: '単音ノーツ（#♭含む全17音）を聴き取り！',
+  beginner: '楽譜の読み方モード。ト音記号・ヘ音記号、#♭全て。',
+  intermediate: 'メジャー・マイナートライアド全ルートに挑戦！',
+  advanced: 'チャーチモード7種、Harm.Minor、Mel.Minor、W.H Dim、H.W Dim、Alt、Lyd 7th。',
+  super_advanced: 'ジャズボイシング全ルート。M7(9), m7(9), 7(9.13)等。',
+};
 
-  const byDifficulty: Partial<Record<DailyChallengeDifficulty, FantasyStage | null>> = {
-    beginner: results[0],
-    intermediate: results[1],
-    advanced: results[2],
-  };
+export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyChallengeDifficulty, FantasyStage>> {
+  const allDiffs = Object.keys(DAILY_CHALLENGE_STAGE_NUMBERS) as DailyChallengeDifficulty[];
+  const results = await Promise.all(allDiffs.map(d => fetchDailyChallengeStage(d)));
+
+  const byDifficulty: Partial<Record<DailyChallengeDifficulty, FantasyStage | null>> = {};
+  allDiffs.forEach((d, i) => { byDifficulty[d] = results[i]; });
 
   const created: Partial<Record<DailyChallengeDifficulty, FantasyStage>> = {};
-  const toCreate = (Object.keys(DAILY_CHALLENGE_STAGE_NUMBERS) as DailyChallengeDifficulty[]).filter(
-    (d) => !byDifficulty[d],
-  );
+  const toCreate = allDiffs.filter((d) => !byDifficulty[d]);
 
   for (const difficulty of toCreate) {
+    const isSheetMusic = difficulty === 'beginner';
     const payload = {
       stage_number: getDailyChallengeStageNumber(difficulty),
       name: DEFAULT_STAGE_NAME[difficulty],
-      description: '2分間でどれだけ多く倒せるかに挑戦！',
+      description: DAILY_CHALLENGE_DESCRIPTIONS[difficulty],
       mode: 'single' as const,
       usage_type: 'fantasy' as const,
       stage_tier: 'basic' as const,
-      // 固定ルール（デイリーチャレンジ仕様）
       max_hp: 1,
       enemy_gauge_seconds: 9999,
       enemy_count: 9999,
@@ -69,6 +90,7 @@ export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyCha
       bgm_url: null,
       mp3_url: null,
       play_root_on_correct: true,
+      ...(isSheetMusic ? { is_sheet_music_mode: true, sheet_music_clef: 'both' } : {}),
     };
     const s = await createFantasyStage(payload);
     created[difficulty] = s;
@@ -76,11 +98,11 @@ export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyCha
 
   clearCacheByPattern(/^fantasy_stages:/);
 
-  return {
-    beginner: (created.beginner ?? byDifficulty.beginner)!,
-    intermediate: (created.intermediate ?? byDifficulty.intermediate)!,
-    advanced: (created.advanced ?? byDifficulty.advanced)!,
-  };
+  const out = {} as Record<DailyChallengeDifficulty, FantasyStage>;
+  for (const d of allDiffs) {
+    out[d] = (created[d] ?? byDifficulty[d])!;
+  }
+  return out;
 }
 
 export async function updateDailyChallengeStageSettings(args: {

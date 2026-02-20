@@ -600,7 +600,7 @@ export interface FantasyStageClear {
 
 // ===== デイリーチャレンジ（日次記録） =====
 
-export type DailyChallengeDifficulty = 'beginner' | 'intermediate' | 'advanced';
+export type DailyChallengeDifficulty = 'super_beginner' | 'beginner' | 'intermediate' | 'advanced' | 'super_advanced';
 
 export interface DailyChallengeRecord {
   id: string;

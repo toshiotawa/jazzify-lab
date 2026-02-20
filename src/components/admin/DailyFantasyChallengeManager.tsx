@@ -9,9 +9,11 @@ type DifficultyForm = {
 };
 
 const difficultyLabel: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: '超初級',
   beginner: '初級',
   intermediate: '中級',
   advanced: '上級',
+  super_advanced: '超上級',
 };
 
 const parseChordList = (text: string): string[] => {
@@ -33,9 +35,11 @@ const DailyFantasyChallengeManager: React.FC = () => {
   const [stages, setStages] = useState<Record<DailyChallengeDifficulty, FantasyStage> | null>(null);
 
   const [forms, setForms] = useState<Record<DailyChallengeDifficulty, DifficultyForm>>({
+    super_beginner: { allowedChordsText: '', bgmUrl: '' },
     beginner: { allowedChordsText: '', bgmUrl: '' },
     intermediate: { allowedChordsText: '', bgmUrl: '' },
     advanced: { allowedChordsText: '', bgmUrl: '' },
+    super_advanced: { allowedChordsText: '', bgmUrl: '' },
   });
 
   const load = useCallback(async () => {
@@ -43,19 +47,16 @@ const DailyFantasyChallengeManager: React.FC = () => {
     try {
       const s = await ensureDailyChallengeStagesExist();
       setStages(s);
+      const buildForm = (stage: typeof s[keyof typeof s]): DifficultyForm => ({
+        allowedChordsText: allowedChordsToText(stage.allowed_chords),
+        bgmUrl: (stage.bgm_url || stage.mp3_url || '') ?? '',
+      });
       setForms({
-        beginner: {
-          allowedChordsText: allowedChordsToText(s.beginner.allowed_chords),
-          bgmUrl: (s.beginner.bgm_url || s.beginner.mp3_url || '') ?? '',
-        },
-        intermediate: {
-          allowedChordsText: allowedChordsToText(s.intermediate.allowed_chords),
-          bgmUrl: (s.intermediate.bgm_url || s.intermediate.mp3_url || '') ?? '',
-        },
-        advanced: {
-          allowedChordsText: allowedChordsToText(s.advanced.allowed_chords),
-          bgmUrl: (s.advanced.bgm_url || s.advanced.mp3_url || '') ?? '',
-        },
+        super_beginner: buildForm(s.super_beginner),
+        beginner: buildForm(s.beginner),
+        intermediate: buildForm(s.intermediate),
+        advanced: buildForm(s.advanced),
+        super_advanced: buildForm(s.super_advanced),
       });
     } catch {
       pushToast('デイリーチャレンジ設定の読み込みに失敗しました', 'error');
@@ -69,7 +70,7 @@ const DailyFantasyChallengeManager: React.FC = () => {
   }, [load]);
 
   const difficulties = useMemo(
-    () => ['beginner', 'intermediate', 'advanced'] as const,
+    () => ['super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced'] as const,
     [],
   );
 
@@ -86,7 +87,7 @@ const DailyFantasyChallengeManager: React.FC = () => {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 lg:grid-cols-3 xl:grid-cols-5 gap-4">
         {difficulties.map((difficulty) => {
           const form = forms[difficulty];
           const stage = stages?.[difficulty];

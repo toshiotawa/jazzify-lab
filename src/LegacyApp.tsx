@@ -22,6 +22,7 @@ import InformationPage from '@/components/information/InformationPage';
 import LevelRanking from '@/components/ranking/LevelRanking';
 import MissionRanking from '@/components/ranking/MissionRanking';
 import SurvivalRanking from '@/components/ranking/SurvivalRanking';
+import DailyChallengeRanking from '@/components/ranking/DailyChallengeRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
@@ -257,6 +258,9 @@ const App: React.FC = () => {
       break;
     case '#survival-ranking':
       MainContent = isFree ? <Dashboard /> : <SurvivalRanking />;
+      break;
+    case '#daily-challenge-ranking':
+      MainContent = isFree ? <Dashboard /> : <DailyChallengeRanking />;
       break;
     case '#information':
       MainContent = isFree ? <Dashboard /> : <InformationPage />;

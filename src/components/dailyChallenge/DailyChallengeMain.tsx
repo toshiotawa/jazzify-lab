@@ -20,18 +20,26 @@ const toLocalDateString = (d: Date): string => {
   return `${y}-${m}-${day}`;
 };
 
+const VALID_DIFFICULTIES: DailyChallengeDifficulty[] = [
+  'super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced',
+];
+
 const parseDifficulty = (hash: string): DailyChallengeDifficulty | null => {
   const params = new URLSearchParams(hash.split('?')[1] || '');
   const raw = params.get('difficulty');
-  if (raw === 'beginner' || raw === 'intermediate' || raw === 'advanced') return raw;
+  if (VALID_DIFFICULTIES.includes(raw as DailyChallengeDifficulty)) return raw as DailyChallengeDifficulty;
   return null;
 };
 
-const difficultyLabel = (d: DailyChallengeDifficulty): string => {
-  if (d === 'beginner') return '初級';
-  if (d === 'intermediate') return '中級';
-  return '上級';
+const DIFFICULTY_LABELS: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: '超初級',
+  beginner: '初級',
+  intermediate: '中級',
+  advanced: '上級',
+  super_advanced: '超上級',
 };
+
+const difficultyLabel = (d: DailyChallengeDifficulty): string => DIFFICULTY_LABELS[d];
 
 const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
   const bgmUrl = dbStage.bgm_url || dbStage.mp3_url || undefined;

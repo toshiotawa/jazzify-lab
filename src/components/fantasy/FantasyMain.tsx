@@ -474,7 +474,7 @@ const FantasyMain: React.FC = () => {
               // 現在の進捗を取得
               const { data: currentProgress, error: fetchError } = await supabase
                 .from('fantasy_user_progress')
-                .select('current_stage_number_basic, current_stage_number_advanced')
+                .select('current_stage_number_basic, current_stage_number_advanced, current_stage_number_phrases')
                 .eq('user_id', profile.id)
                 .maybeSingle();
               
@@ -482,10 +482,14 @@ const FantasyMain: React.FC = () => {
                 devLog.error('進捗取得エラー:', fetchError);
               }
               
-              // 現在地より進んでいる場合のみ更新
-              const currentValue = tier === 'advanced'
-                ? (currentProgress?.current_stage_number_advanced || '1-1')
-                : (currentProgress?.current_stage_number_basic || '1-1');
+              // ティア別の進捗カラムマッピング
+              const tierColumnMap: Record<string, string> = {
+                advanced: 'current_stage_number_advanced',
+                phrases: 'current_stage_number_phrases',
+                basic: 'current_stage_number_basic',
+              };
+              const progressColumn = tierColumnMap[tier] || 'current_stage_number_basic';
+              const currentValue = (currentProgress as Record<string, string | null>)?.[progressColumn] || '1-1';
               
               const [currR, currS] = currentValue.split('-').map(Number);
               const [nextR, nextS] = nextStageNumber.split('-').map(Number);
@@ -494,14 +498,12 @@ const FantasyMain: React.FC = () => {
               devLog.debug('🎮 進捗更新判定:', {
                 currentValue,
                 nextStageNumber,
+                tier,
                 shouldUpdate
               });
               
               if (shouldUpdate) {
-                // upsertを使用してレコードがない場合も対応
-                const updateData = tier === 'advanced'
-                  ? { current_stage_number_advanced: nextStageNumber }
-                  : { current_stage_number_basic: nextStageNumber };
+                const updateData = { [progressColumn]: nextStageNumber };
                 
                 const { error: updateError } = await supabase
                   .from('fantasy_user_progress')
@@ -665,7 +667,7 @@ const FantasyMain: React.FC = () => {
         .from('fantasy_stages')
         .select('*')
         .eq('stage_number', nextStageNumber)
-        .eq('stage_tier', ((currentStage as any).tier === 'advanced' ? 'advanced' : 'basic'))
+        .eq('stage_tier', (currentStage as any).tier || 'basic')
         .single();
       
       if (error || !nextStageData) {

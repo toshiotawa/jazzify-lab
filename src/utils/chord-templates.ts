@@ -8,7 +8,18 @@ export type ChordQuality =
   | 'maj' | 'min' | 'aug' | 'dim'
   | '7' | 'maj7' | 'm7' | 'mM7' | 'dim7' | 'aug7' | 'm7b5'
   | '6' | 'm6' | '9' | 'm9' | 'maj9' | '11' | 'm11' | '13' | 'm13'
-  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9';
+  | 'sus2' | 'sus4' | '7sus4' | 'add9' | 'madd9'
+  // ジャズボイシング（ルートレス含む）
+  | 'maj7_9'      // M7(9): 3 5 7 9
+  | 'm7_9'        // m7(9): b3 5 b7 9
+  | '7_9_13'      // 7(9.13): 3 b7 9 13
+  | '7_b9_b13'    // 7(b9.b13): 3 b7 b9 b13
+  | '6_9'         // 6(9): 3 5 6 9
+  | 'm6_9'        // m6(9): b3 5 6 9
+  | '7_b9_13'     // 7(b9.13): 3 b7 b9 13
+  | '7_s9_b13'    // 7(#9.b13): 3 b7 #9 b13
+  | 'm7b5_11'     // m7(b5)(11): R 4 b5 b9
+  | 'dimM7';      // dim(M7): R b3 b5 7
 
 /**
  * 使用可能なルート音のリスト
@@ -72,7 +83,19 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   'sus4':   ['1P', '4P', '5P'],
   '7sus4':  ['1P', '4P', '5P', '7m'],
   'add9':   ['1P', '3M', '5P', '9M'],
-  'madd9':  ['1P', '3m', '5P', '9M']
+  'madd9':  ['1P', '3m', '5P', '9M'],
+
+  // ジャズボイシング（ルートレス含む）
+  'maj7_9':   ['3M', '5P', '7M', '9M'],       // M7(9): 3 5 7 9
+  'm7_9':     ['3m', '5P', '7m', '9M'],       // m7(9): b3 5 b7 9
+  '7_9_13':   ['3M', '7m', '9M', '13M'],      // 7(9.13): 3 b7 9 13
+  '7_b9_b13': ['3M', '7m', '9m', '13m'],      // 7(b9.b13): 3 b7 b9 b13
+  '6_9':      ['3M', '5P', '6M', '9M'],       // 6(9): 3 5 6 9
+  'm6_9':     ['3m', '5P', '6M', '9M'],       // m6(9): b3 5 6 9
+  '7_b9_13':  ['3M', '7m', '9m', '13M'],      // 7(b9.13): 3 b7 b9 13
+  '7_s9_b13': ['3M', '7m', '9A', '13m'],      // 7(#9.b13): 3 b7 #9 b13
+  'm7b5_11':  ['1P', '4P', '5d', '9m'],       // m7(b5)(11): R 4 b5 b9
+  'dimM7':    ['1P', '3m', '5d', '7M'],       // dim(M7): R b3 b5 7
 };
 
 /**
@@ -312,53 +335,67 @@ export const CHORD_ALIASES: Record<string, ChordQuality> = {
 };
 
 /**
+ * 全17ルート音（白鍵7 + シャープ5 + フラット5）
+ */
+export const ALL_17_ROOTS = [
+  'C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B',
+] as const;
+
+/**
+ * 全ルート × 指定クオリティのコードマップエントリを生成
+ */
+function generateChordEntries(
+  suffix: string,
+  quality: ChordQuality,
+  roots: readonly string[] = ALL_17_ROOTS,
+): Record<string, { root: string; quality: ChordQuality }> {
+  const entries: Record<string, { root: string; quality: ChordQuality }> = {};
+  for (const root of roots) {
+    const key = suffix === '_note' ? `${root}_note` : `${root}${suffix}`;
+    entries[key] = { root, quality };
+  }
+  return entries;
+}
+
+/**
  * ファンタジーモード用コードマッピング
- * 既存のコードIDとの互換性を保つ
+ * 全17ルート × 各クオリティを自動生成
  */
 export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQuality }> = {
-  // 単音（Very Easy / 初心者用）- '_note' サフィックスで識別
-  'C_note': { root: 'C', quality: 'single' },
-  'D_note': { root: 'D', quality: 'single' },
-  'E_note': { root: 'E', quality: 'single' },
-  'F_note': { root: 'F', quality: 'single' },
-  'G_note': { root: 'G', quality: 'single' },
-  'A_note': { root: 'A', quality: 'single' },
-  'B_note': { root: 'B', quality: 'single' },
-  
-  // メジャートライアド
-  'C': { root: 'C', quality: 'maj' },
-  'F': { root: 'F', quality: 'maj' },
-  'G': { root: 'G', quality: 'maj' },
-  
-  // マイナートライアド
-  'Am': { root: 'A', quality: 'min' },
-  'Dm': { root: 'D', quality: 'min' },
-  'Em': { root: 'E', quality: 'min' },
-  
-  // ドミナント7th
-  'G7': { root: 'G', quality: '7' },
-  'C7': { root: 'C', quality: '7' },
-  'F7': { root: 'F', quality: '7' },
-  'B7': { root: 'B', quality: '7' },
-  'E7': { root: 'E', quality: '7' },
-  'A7': { root: 'A', quality: '7' },
-  'D7': { root: 'D', quality: '7' },
-  
-  // マイナー7th
-  'Am7': { root: 'A', quality: 'm7' },
-  'Dm7': { root: 'D', quality: 'm7' },
-  'Em7': { root: 'E', quality: 'm7' },
-  
-  // メジャー7th
-  'CM7': { root: 'C', quality: 'maj7' },
-  'FM7': { root: 'F', quality: 'maj7' },
-  'GM7': { root: 'G', quality: 'maj7' },
-  
-  // テンション系
-  'C6': { root: 'C', quality: '6' },
-  'Cm6': { root: 'C', quality: 'm6' },
-  'C9': { root: 'C', quality: '9' },
-  'Cm9': { root: 'C', quality: 'm9' },
-  'C11': { root: 'C', quality: '11' },
-  'C13': { root: 'C', quality: '13' }
+  // 単音（Very Easy用）- 全17音
+  ...generateChordEntries('_note', 'single'),
+
+  // トライアド
+  ...generateChordEntries('', 'maj'),
+  ...generateChordEntries('m', 'min'),
+
+  // 4和音（Normal用）
+  ...generateChordEntries('M7', 'maj7'),
+  ...generateChordEntries('m7', 'm7'),
+  ...generateChordEntries('7', '7'),
+  ...generateChordEntries('m7b5', 'm7b5'),
+  ...generateChordEntries('mM7', 'mM7'),
+  ...generateChordEntries('dim7', 'dim7'),
+  ...generateChordEntries('aug7', 'aug7'),
+  ...generateChordEntries('6', '6'),
+  ...generateChordEntries('m6', 'm6'),
+
+  // ナインス・テンション（既存互換）
+  ...generateChordEntries('9', '9'),
+  ...generateChordEntries('m9', 'm9'),
+  ...generateChordEntries('maj9', 'maj9'),
+  ...generateChordEntries('11', '11'),
+  ...generateChordEntries('13', '13'),
+
+  // ジャズボイシング（Hard / Extreme用）
+  ...generateChordEntries('M7(9)', 'maj7_9'),
+  ...generateChordEntries('m7(9)', 'm7_9'),
+  ...generateChordEntries('7(9.13)', '7_9_13'),
+  ...generateChordEntries('7(b9.b13)', '7_b9_b13'),
+  ...generateChordEntries('6(9)', '6_9'),
+  ...generateChordEntries('m6(9)', 'm6_9'),
+  ...generateChordEntries('7(b9.13)', '7_b9_13'),
+  ...generateChordEntries('7(#9.b13)', '7_s9_b13'),
+  ...generateChordEntries('m7(b5)(11)', 'm7b5_11'),
+  ...generateChordEntries('dim(M7)', 'dimM7'),
 };

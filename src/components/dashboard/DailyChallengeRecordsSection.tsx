@@ -11,15 +11,19 @@ type Period = 'week' | 'month';
 type WeekChoice = 'this_week' | 'last_week';
 
 const difficultyLabelJp: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: '超初級',
   beginner: '初級',
   intermediate: '中級',
   advanced: '上級',
+  super_advanced: '超上級',
 };
 
 const difficultyLabelEn: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: 'Super Beginner',
   beginner: 'Beginner',
   intermediate: 'Intermediate',
   advanced: 'Advanced',
+  super_advanced: 'Super Advanced',
 };
 
 const dayLabelsJp = ['月', '火', '水', '木', '金', '土', '日'] as const;
@@ -88,12 +92,12 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const notPlayedText = isEnglishCopy ? 'Not played today' : '本日は未プレイ';
   const loadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
   const noRecordsText = isEnglishCopy ? 'No records' : '記録がありません';
-  const oncePerDayText = isEnglishCopy ? 'Once per day for each difficulty (Beginner/Intermediate/Advanced can each be played)' : '1日に各難易度1回まで（初級/中級/上級はそれぞれプレイ可能）';
+  const oncePerDayText = isEnglishCopy ? 'Once per day for each difficulty (all 5 levels can each be played)' : '1日に各難易度1回まで（5段階それぞれプレイ可能）';
   const loadErrorText = isEnglishCopy ? 'Failed to load records' : '記録の読み込みに失敗しました';
 
   const [period, setPeriod] = useState<Period>('week');
   const [weekChoice, setWeekChoice] = useState<WeekChoice>('this_week');
-  const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('beginner');
+  const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('super_beginner');
 
   const oneYearAgo = useMemo(() => toLocalDateString(addDays(new Date(), -365)), []);
   const [records, setRecords] = useState<DailyChallengeRecord[]>([]);
@@ -205,11 +209,11 @@ export const DailyChallengeRecordsSection: React.FC = () => {
               </button>
             </div>
 
-            <div className="join ml-auto">
-              {(['beginner', 'intermediate', 'advanced'] as const).map((d) => (
+            <div className="flex flex-wrap gap-1 ml-auto">
+              {(['super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced'] as const).map((d) => (
                 <button
                   key={d}
-                  className={cn('btn btn-sm join-item', difficulty === d ? 'btn-active' : 'btn-outline')}
+                  className={cn('btn btn-xs', difficulty === d ? 'btn-active' : 'btn-outline')}
                   onClick={() => setDifficulty(d)}
                 >
                   {difficultyLabel[d]}
