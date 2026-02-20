@@ -2079,14 +2079,19 @@ export const useFantasyGameEngine = ({
       const timer = setInterval(() => {
         updateEnemyGauge();
         // timing_combining: setGameState外でBGM切り替えを実行
-        const pending = pendingBgmRef.current;
-        if (pending) {
-          pendingBgmRef.current = null;
-          bgmManager.play(
-            pending.url, pending.bpm, pending.timeSig, pending.measureCount,
-            pending.countIn, pending.volume, pending.speedMul, pending.pitchShift, true
-          );
-        }
+        // React 18のバッチ処理によりsetStateのコールバックが遅延するため、
+        // setTimeout(0)で次のティックまで遅延させ、pendingBgmRefが設定された後に実行する
+        setTimeout(() => {
+          const pending = pendingBgmRef.current;
+          if (pending) {
+            pendingBgmRef.current = null;
+            const pitchShift = typeof pending.pitchShift === 'number' ? pending.pitchShift : 0;
+            bgmManager.play(
+              pending.url, pending.bpm, pending.timeSig, pending.measureCount,
+              pending.countIn, pending.volume, pending.speedMul, pitchShift, true
+            );
+          }
+        }, 0);
       }, 100); // 100ms間隔で更新
       setEnemyGaugeTimer(timer);
     }
