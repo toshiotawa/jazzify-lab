@@ -106,6 +106,18 @@ type StageMode =
 
 export type FantasyPlayMode = 'challenge' | 'practice';
 
+/**
+ * React状態更新の遅延を回避するための同期オブジェクト。
+ * setGameState更新関数内でBGM切り替えと同時に更新され、
+ * アニメーションループが即座に正しいセクション情報を参照できる。
+ */
+export const combiningSync = {
+  sectionIndex: 0,
+  noteStartIndex: 0,
+  noteEndIndex: 0,
+  active: false,
+};
+
 export interface ChordDefinition {
   id: string;          // コードのID（例: 'CM7', 'G7', 'Am'）
   displayName: string; // 表示名（言語・簡易化設定に応じて変更）
@@ -1837,6 +1849,11 @@ export const useFantasyGameEngine = ({
       combinedFullLoopCount: 0,
     };
 
+    combiningSync.sectionIndex = 0;
+    combiningSync.noteStartIndex = combinedSections[0]?.globalNoteStartIndex ?? 0;
+    combiningSync.noteEndIndex = combinedSections[0]?.globalNoteEndIndex ?? 0;
+    combiningSync.active = stage.mode === 'timing_combining';
+
     setGameState(newState);
     onGameStateChange(newState);
 
@@ -2184,6 +2201,10 @@ export const useFantasyGameEngine = ({
                 }
               }
               
+              combiningSync.sectionIndex = nextSectionIdx;
+              combiningSync.noteStartIndex = nextSection.globalNoteStartIndex;
+              combiningSync.noteEndIndex = nextSection.globalNoteEndIndex;
+              
               devLog.debug('🔗 セクション遷移:', {
                 from: sectionIdx,
                 to: nextSectionIdx,
@@ -2255,6 +2276,10 @@ export const useFantasyGameEngine = ({
                 const firstNote = resetNotes[0];
                 const secondNote = resetNotes.length > 1 ? resetNotes[1] : firstNote;
                 
+                combiningSync.sectionIndex = 0;
+                combiningSync.noteStartIndex = prevState.combinedSections[0]?.globalNoteStartIndex ?? 0;
+                combiningSync.noteEndIndex = prevState.combinedSections[0]?.globalNoteEndIndex ?? 0;
+                
                 devLog.debug('🔗🎹 全セクション完了 - 移調リスタート:', {
                   loopCount: newFullLoopCount,
                   transposeOffset: newTransposeOffset,
@@ -2299,6 +2324,10 @@ export const useFantasyGameEngine = ({
                   );
                 }
               }
+              
+              combiningSync.sectionIndex = 0;
+              combiningSync.noteStartIndex = prevState.combinedSections[0]?.globalNoteStartIndex ?? 0;
+              combiningSync.noteEndIndex = prevState.combinedSections[0]?.globalNoteEndIndex ?? 0;
               
               const resetNotes = prevState.taikoNotes.map(note => ({
                 ...note,
@@ -3012,6 +3041,10 @@ export const useFantasyGameEngine = ({
   
   // ゲーム停止
   const stopGame = useCallback(() => {
+    combiningSync.active = false;
+    combiningSync.sectionIndex = 0;
+    combiningSync.noteStartIndex = 0;
+    combiningSync.noteEndIndex = 0;
     setGameState(prevState => ({
       ...prevState,
       isGameActive: false

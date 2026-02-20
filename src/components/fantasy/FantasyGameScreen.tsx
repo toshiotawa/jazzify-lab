@@ -10,7 +10,7 @@ import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobal
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode, combiningSync } from './FantasyGameEngine';
 import { 
   TaikoNote, 
   ChordProgressionDataItem,
@@ -548,14 +548,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            !!currentSectionMusicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, currentSectionMusicXml]);
   
-  // timing_combining: 次セクションの楽譜情報（背景プリレンダリング用）
+  // timing_combining: 次セクションの楽譜情報（右側に先読み表示 + 背景プリレンダリング用）
+  // 最終セクション→先頭セクション（ループ時の転調）もカバー
   const nextSectionSheetInfo = useMemo(() => {
     if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode) return null;
+    const sections = gameState.combinedSections;
+    if (sections.length === 0) return null;
+    
     const nextIdx = gameState.currentSectionIndex + 1;
-    const ns = gameState.combinedSections[nextIdx];
+    const isLastSection = nextIdx >= sections.length;
+    const ns = isLastSection ? sections[0] : sections[nextIdx];
     if (!ns?.musicXml) return null;
-    return { musicXml: ns.musicXml, bpm: ns.bpm, timeSignature: ns.timeSignature };
-  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+    
+    // 転調オフセット: 最終セクション→先頭は次ループの転調を適用、それ以外は現在のオフセット
+    let nextTranspose = gameState.currentTransposeOffset || 0;
+    if (isLastSection && gameState.transposeSettings) {
+      nextTranspose = calculateTransposeOffset(
+        gameState.transposeSettings.keyOffset,
+        (gameState.combinedFullLoopCount ?? 0) + 1,
+        gameState.transposeSettings.repeatKeyChange
+      );
+    }
+    
+    return {
+      musicXml: ns.musicXml,
+      bpm: ns.bpm,
+      timeSignature: ns.timeSignature,
+      transposeOffset: nextTranspose,
+    };
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount]);
   
   
   // 楽譜表示エリアの高さを画面サイズに応じて調整
@@ -1107,15 +1128,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
         
-        // timing_combining: 現在のセクションのノーツ範囲のみを参照
-        const isCombining = isCombiningModeRef.current;
-        const sections = combinedSectionsRef.current;
-        const secIdx = currentSectionIndexRef.current;
+        // timing_combining: combiningSync経由で即座にセクション範囲を取得
+        const isCombining = combiningSync.active;
         let startIdx = 0;
         let endIdx = taikoNotes.length;
-        if (isCombining && sections.length > 0 && sections[secIdx]) {
-          startIdx = sections[secIdx].globalNoteStartIndex;
-          endIdx = sections[secIdx].globalNoteEndIndex;
+        if (isCombining) {
+          startIdx = combiningSync.noteStartIndex;
+          endIdx = combiningSync.noteEndIndex;
         }
         
         for (let i = startIdx; i < endIdx; i++) {
@@ -1140,20 +1159,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       
       // ===== timing_combining: ループなし・セクション単位で描画 =====
-      const isCombining = isCombiningModeRef.current;
-      const combinedSections = combinedSectionsRef.current;
-      const currentSectionIdx = currentSectionIndexRef.current;
-      
-      if (isCombining && combinedSections.length > 0) {
+      // combiningSync を直接参照することでReact状態更新の遅延を回避
+      if (combiningSync.active) {
+        const combinedSections = combinedSectionsRef.current;
+        const currentSectionIdx = combiningSync.sectionIndex;
         const section = combinedSections[currentSectionIdx];
         if (section) {
           const currentNoteIndex = stateNoteIndex;
           const isAwaitingLoop = stateAwaitingLoop;
           const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
           
-          // 現在のセクション内のノーツを表示（normalizedTime = currentTimeそのまま）
+          // 現在のセクション内のノーツを表示
           if (!isAwaitingLoop) {
-            for (let i = section.globalNoteStartIndex; i < section.globalNoteEndIndex; i++) {
+            for (let i = combiningSync.noteStartIndex; i < combiningSync.noteEndIndex; i++) {
               if (i < currentNoteIndex) continue;
               const note = taikoNotes[i];
               if (!note) continue;
@@ -1183,7 +1201,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             for (let i = nextSection.globalNoteStartIndex; i < nextSection.globalNoteEndIndex; i++) {
               const note = taikoNotes[i];
               if (!note) continue;
-              // 次セクションのノーツ: 現在セクション末尾 + カウントイン + hitTime
               const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
               if (virtualTime > lookAheadTime) break;
               if (virtualTime < -0.35) continue;
@@ -2039,7 +2056,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
             transposeOffset={gameState.currentTransposeOffset || 0}
             nextTransposeOffset={
-              // timing_combining: セクションごとに曲が異なるため先読み譜面は無効
               gameState.isCombiningMode
                 ? undefined
                 : gameState.transposeSettings
@@ -2050,11 +2066,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     )
                   : undefined
             }
-            disablePreview={gameState.isCombiningMode}
+            disablePreview={gameState.isCombiningMode && !nextSectionSheetInfo}
             simpleMode={currentSimpleNoteName}
             nextMusicXml={nextSectionSheetInfo?.musicXml}
             nextBpm={nextSectionSheetInfo?.bpm}
             nextTimeSignature={nextSectionSheetInfo?.timeSignature}
+            nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
             className="w-full h-full"
           />
         </div>

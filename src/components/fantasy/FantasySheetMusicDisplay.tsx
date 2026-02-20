@@ -34,12 +34,14 @@ interface FantasySheetMusicDisplayProps {
   disablePreview?: boolean;
   /** 簡易表示モード（ダブルシャープ/ダブルフラットを変換） */
   simpleMode?: boolean;
-  /** 次セクションのmusicXml（背景プリレンダリング用） */
+  /** 次セクションのmusicXml（結合モード: 右側に連続表示） */
   nextMusicXml?: string;
-  /** 次セクションのBPM（プリレンダリング用） */
+  /** 次セクションのBPM */
   nextBpm?: number;
-  /** 次セクションの拍子（プリレンダリング用） */
+  /** 次セクションの拍子 */
   nextTimeSignature?: number;
+  /** 次セクションの移調オフセット（結合モード用、省略時はtransposeOffsetと同じ） */
+  nextSectionTransposeOffset?: number;
   className?: string;
 }
 
@@ -112,6 +114,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   nextMusicXml,
   nextBpm,
   nextTimeSignature,
+  nextSectionTransposeOffset,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -138,6 +141,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   // 12キー分のタイムマッピングキャッシュ
   const [timeMapCache, setTimeMapCache] = useState<TimeMapCache>({});
   const [isInitialized, setIsInitialized] = useState(false);
+  
+  // 次セクション（結合モード）のプリレンダリング結果
+  const [nextSectionCache, setNextSectionCache] = useState<SheetRenderCacheEntry | null>(null);
   
   // ループ情報を計算
   const loopInfo = useMemo(() => {
@@ -338,13 +344,23 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
   }, [musicXml, initializeAllSheets]);
   
-  // 次セクションの楽譜を背景でプリレンダリング（セクション切り替え時の即時表示用）
+  // 次セクションの楽譜を背景でプリレンダリング（結合モード: 右側に連続表示用）
   useEffect(() => {
-    if (!nextMusicXml || !preRenderContainerRef.current) return;
+    if (!nextMusicXml) {
+      setNextSectionCache(null);
+      return;
+    }
     const prBpm = nextBpm ?? bpm ?? 120;
     const prTimeSig = nextTimeSignature ?? timeSignature ?? 4;
     const cacheKey = getSheetCacheKey(nextMusicXml, prBpm, prTimeSig, simpleMode);
-    if (sheetRenderCache.has(cacheKey)) return;
+    
+    const cached = sheetRenderCache.get(cacheKey);
+    if (cached) {
+      setNextSectionCache(cached);
+      return;
+    }
+    
+    if (!preRenderContainerRef.current) return;
     
     const gen = ++preRenderGenRef.current;
     const xmlToRender = nextMusicXml;
@@ -368,7 +384,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         
         if (gen !== preRenderGenRef.current) return;
         const maxSheetWidth = Math.max(...Object.values(mapCache).map(m => m.sheetWidth), 0);
-        sheetRenderCache.set(cacheKey, { images: imageCache, timeMaps: mapCache, maxSheetWidth });
+        const entry: SheetRenderCacheEntry = { images: imageCache, timeMaps: mapCache, maxSheetWidth };
+        sheetRenderCache.set(cacheKey, entry);
+        setNextSectionCache(entry);
       } catch {}
     })();
   }, [nextMusicXml, nextBpm, nextTimeSignature, bpm, timeSignature, simpleMode, renderSheetForOffset]);
@@ -398,6 +416,23 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     );
     return timeMapCache[nextOffset]?.sheetWidth || sheetWidthRef.current;
   }, [timeMapCache, transposeOffset, nextTransposeOffset]);
+  
+  // 次セクション（結合モード）の画像と幅
+  const nextSectionImage = useMemo(() => {
+    if (!nextSectionCache) return null;
+    const offset = normalizeOffsetToCache(nextSectionTransposeOffset ?? transposeOffset);
+    return nextSectionCache.images[offset] ?? null;
+  }, [nextSectionCache, nextSectionTransposeOffset, transposeOffset]);
+  
+  const nextSectionSheetWidth = useMemo(() => {
+    if (!nextSectionCache) return 0;
+    const offset = normalizeOffsetToCache(nextSectionTransposeOffset ?? transposeOffset);
+    return nextSectionCache.timeMaps[offset]?.sheetWidth ?? nextSectionCache.maxSheetWidth;
+  }, [nextSectionCache, nextSectionTransposeOffset, transposeOffset]);
+  
+  // 右側に表示する譜面を決定: 結合モード次セクション > 同一曲次キー
+  const rightSheetImage = nextSectionImage ?? (disablePreview ? null : nextSheetImage);
+  const rightSheetWidth = nextSectionImage ? nextSectionSheetWidth : (disablePreview ? 0 : nextSheetWidth);
   
   // 再生位置に同期してスクロール
   // getCurrentMusicTime()は0〜loopDurationに正規化された値を返す
@@ -541,17 +576,15 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           </div>
         )}
         
-        {/* 楽譜ラッパー（2つの楽譜を並べる：現在のキー + 次のキー） */}
+        {/* 楽譜ラッパー（現在の楽譜 + 右側に次の楽譜を連続配置） */}
         <div 
           ref={scoreWrapperRef}
           className="h-full flex relative"
           style={{ 
-            width: `${wrapperWidth}px`,
+            width: `${currentSheetWidth + rightSheetWidth + WRAPPER_SCROLL_PADDING_PX}px`,
             willChange: 'transform'
           }}
         >
-          {/* Harmonyマーカーオーバーレイは音符の上のコードネームと重複するため削除 */}
-          
           {/* OSMDレンダリング用コンテナ（初期レンダリング用、その後は非表示） */}
           <div 
             ref={containerRef}
@@ -562,7 +595,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
             }}
           />
           
-          {/* 1つ目の楽譜（現在のキー） */}
+          {/* 1つ目の楽譜（現在のセクション/キー） */}
           {isInitialized && currentSheetImage && (
             <div 
               className="h-full flex items-center flex-shrink-0"
@@ -582,16 +615,16 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
             </div>
           )}
           
-          {/* 2つ目の楽譜（次のキー、先読み表示用） */}
-          {isInitialized && nextSheetImage && !disablePreview && (
+          {/* 2つ目の楽譜（次セクション or 次キーの先読み表示） */}
+          {isInitialized && rightSheetImage && (
             <div 
               className="h-full flex items-center flex-shrink-0"
               style={{ 
-                width: nextSheetWidth > 0 ? `${nextSheetWidth}px` : 'auto'
+                width: rightSheetWidth > 0 ? `${rightSheetWidth}px` : 'auto'
               }}
             >
               <img 
-                src={nextSheetImage} 
+                src={rightSheetImage} 
                 alt="" 
                 className="h-full object-contain"
                 style={{ 
