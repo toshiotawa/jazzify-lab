@@ -801,7 +801,7 @@ export const useFantasyGameEngine = ({
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
   
-  // timing_combining 専用の入力判定
+  // timing_combining 専用の入力判定（コード完成判定・ダメージ・エフェクト対応版）
   const handleCombiningModeInput = useCallback((
     prevState: FantasyGameState,
     note: number,
@@ -809,6 +809,7 @@ export const useFantasyGameEngine = ({
   ): FantasyGameState => {
     const section = prevState.combinedSections[prevState.currentSectionIndex];
     if (!section) return prevState;
+    const stage = prevState.currentStage;
     
     const noteMod12 = note % 12;
     const currentIndex = prevState.currentNoteIndex;
@@ -852,7 +853,7 @@ export const useFantasyGameEngine = ({
       const n = prevState.taikoNotes[i];
       if (!n || n.isHit || n.isMissed) continue;
       
-      let chordNotes = n.chord.notes;
+      const chordNotes = n.chord.notes;
       let includesNote = false;
       for (const cn of chordNotes) {
         if (((cn % 12) + 12) % 12 === noteMod12) {
@@ -865,7 +866,6 @@ export const useFantasyGameEngine = ({
       const isNextSection = i >= sectionEnd;
       let effectiveHitTime = n.hitTime;
       if (isNextSection) {
-        // 次セクションのノーツ: 現在セクション末尾からの距離で計算
         const nextSection = prevState.combinedSections[prevState.currentSectionIndex + 1];
         if (nextSection) {
           const nextCountInSec = nextSection.countInMeasures * (60 / nextSection.bpm) * nextSection.timeSignature;
@@ -874,7 +874,7 @@ export const useFantasyGameEngine = ({
       }
       
       const timeDiffMs = Math.abs(currentTime - effectiveHitTime) * 1000;
-      if (timeDiffMs > 300) continue; // good判定±300ms
+      if (timeDiffMs > 300) continue;
       
       if (!chosen || timeDiffMs < chosen.timeDiffMs) {
         chosen = { i, n, timeDiffMs, isNextSectionNote: isNextSection };
@@ -883,37 +883,124 @@ export const useFantasyGameEngine = ({
     
     if (!chosen) return prevState;
     
-    // ヒット処理
-    const updatedNotes = [...prevState.taikoNotes];
-    updatedNotes[chosen.i] = { ...chosen.n, isHit: true };
+    // コード完成判定（handleTaikoModeInput と同等）
+    const currentMonster = prevState.activeMonsters[0];
+    if (!currentMonster) return prevState;
     
-    let nextIndex = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
-    while (nextIndex < sectionEnd && updatedNotes[nextIndex]?.isHit) nextIndex++;
+    const effectiveChord = chosen.n.chord;
+    const targetNotesMod12: number[] = Array.from(new Set<number>(effectiveChord.notes.map((n: number) => n % 12)));
+    const newCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
+    const isChordComplete = targetNotesMod12.every((targetNote: number) => newCorrectNotes.includes(targetNote));
     
-    const isLastInSection = nextIndex >= sectionEnd;
-    const nextNote = isLastInSection
-      ? (prevState.combinedSections[prevState.currentSectionIndex + 1]
-        ? prevState.taikoNotes[prevState.combinedSections[prevState.currentSectionIndex + 1].globalNoteStartIndex]
-        : chosen.n)
-      : updatedNotes[nextIndex];
-    const nextNextNote = isLastInSection ? nextNote
-      : ((nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote);
-    
-    return {
-      ...prevState,
-      taikoNotes: updatedNotes,
-      currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
-      awaitingLoopStart: isLastInSection,
-      correctAnswers: prevState.correctAnswers + 1,
-      score: prevState.score + 1000,
-      lastNormalizedTime: currentTime,
-      activeMonsters: prevState.activeMonsters.map(m => ({
-        ...m,
-        chordTarget: nextNote?.chord ?? m.chordTarget,
-        nextChord: nextNextNote?.chord ?? m.nextChord,
-      })),
-    };
-  }, [displayOpts]);
+    if (isChordComplete) {
+      // コード完成 → ダメージ計算・エフェクト・次ノーツ遷移
+      const updatedNotes = [...prevState.taikoNotes];
+      updatedNotes[chosen.i] = { ...chosen.n, isHit: true };
+      
+      let nextIndex = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
+      while (nextIndex < sectionEnd && updatedNotes[nextIndex]?.isHit) nextIndex++;
+      
+      const isLastInSection = nextIndex >= sectionEnd;
+      const nextNote = isLastInSection
+        ? (prevState.combinedSections[prevState.currentSectionIndex + 1]
+          ? prevState.taikoNotes[prevState.combinedSections[prevState.currentSectionIndex + 1].globalNoteStartIndex]
+          : chosen.n)
+        : updatedNotes[nextIndex];
+      const nextNextNote = isLastInSection ? nextNote
+        : ((nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote);
+      
+      // ダメージ計算
+      const stageForDamage = stage!;
+      const isSpecialAttack = prevState.playerSp >= 5;
+      const baseDamage = Math.floor(Math.random() * (stageForDamage.maxDamage - stageForDamage.minDamage + 1)) + stageForDamage.minDamage;
+      const actualDamage = isSpecialAttack ? baseDamage * 2 : baseDamage;
+      const newHp = Math.max(0, currentMonster.currentHp - actualDamage);
+      const isDefeated = newHp === 0;
+      
+      // エフェクトコールバック
+      onChordCorrect(effectiveChord, isSpecialAttack, actualDamage, isDefeated, currentMonster.id);
+      
+      const newSp = isSpecialAttack ? 0 : Math.min(prevState.playerSp + 1, 5);
+      
+      // モンスター更新
+      const updatedMonsters = prevState.activeMonsters.map(m => {
+        if (m.id === currentMonster.id) {
+          return {
+            ...m,
+            currentHp: newHp,
+            correctNotes: [],
+            gauge: 0,
+            chordTarget: nextNote?.chord ?? m.chordTarget,
+            nextChord: nextNextNote?.chord ?? m.nextChord,
+            ...(isDefeated ? { defeatedAt: Date.now() } : {}),
+          };
+        }
+        return m;
+      });
+      
+      // ゲームクリア判定
+      if (isDefeated) {
+        const newEnemiesDefeated = prevState.enemiesDefeated + 1;
+        if (newEnemiesDefeated >= prevState.totalEnemies) {
+          const finalState: FantasyGameState = {
+            ...prevState,
+            taikoNotes: updatedNotes,
+            activeMonsters: [],
+            isGameActive: false,
+            isGameOver: true,
+            gameResult: 'clear' as const,
+            score: prevState.score + 100 * actualDamage,
+            playerSp: newSp,
+            enemiesDefeated: newEnemiesDefeated,
+            correctAnswers: prevState.correctAnswers + 1,
+            currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
+            awaitingLoopStart: false,
+            lastNormalizedTime: currentTime,
+          };
+          onGameComplete('clear', finalState);
+          return finalState;
+        }
+        
+        return {
+          ...prevState,
+          taikoNotes: updatedNotes,
+          activeMonsters: updatedMonsters,
+          playerSp: newSp,
+          currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
+          correctAnswers: prevState.correctAnswers + 1,
+          score: prevState.score + 100 * actualDamage,
+          enemiesDefeated: newEnemiesDefeated,
+          awaitingLoopStart: isLastInSection,
+          lastNormalizedTime: currentTime,
+        };
+      }
+      
+      return {
+        ...prevState,
+        taikoNotes: updatedNotes,
+        activeMonsters: updatedMonsters,
+        playerSp: newSp,
+        currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
+        correctAnswers: prevState.correctAnswers + 1,
+        score: prevState.score + 100 * actualDamage,
+        awaitingLoopStart: isLastInSection,
+        lastNormalizedTime: currentTime,
+      };
+    } else {
+      // コード未完成 → correctNotes のみ更新
+      const updatedMonsters = prevState.activeMonsters.map(m => {
+        if (m.id === currentMonster.id) {
+          return { ...m, correctNotes: newCorrectNotes };
+        }
+        return m;
+      });
+      return {
+        ...prevState,
+        activeMonsters: updatedMonsters,
+        lastNormalizedTime: currentTime,
+      };
+    }
+  }, [onChordCorrect, onGameComplete, displayOpts]);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((
@@ -1355,7 +1442,7 @@ export const useFantasyGameEngine = ({
     const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : stage.enemyCount;
     const enemyHp = stage.enemyHp;
     const totalQuestions = playMode === 'practice' ? Number.POSITIVE_INFINITY : totalEnemies * enemyHp;
-    const simultaneousCount = stage.mode.startsWith('progression') ? 1 : (stage.simultaneousMonsterCount || 1);
+    const simultaneousCount = (stage.mode.startsWith('progression') || stage.mode === 'timing_combining') ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = (() => {
@@ -2033,6 +2120,12 @@ export const useFantasyGameEngine = ({
             return { ...prevState, lastNormalizedTime: currentTime };
           }
           
+          // 遷移直後ガード: BGMが切り替わった直後（lastNormalizedTime === -1）は
+          // 旧BGMの時間で二重遷移しないようスキップ
+          if (prevState.lastNormalizedTime === -1) {
+            return { ...prevState, lastNormalizedTime: currentTime };
+          }
+          
           const secPerMeasure = (60 / section.bpm) * section.timeSignature;
           const sectionPlayDuration = section.measureCount * secPerMeasure;
           
@@ -2041,7 +2134,7 @@ export const useFantasyGameEngine = ({
             const nextSectionIdx = sectionIdx + 1;
             
             if (nextSectionIdx < prevState.combinedSections.length) {
-              // 次のセクションへ遷移 — BGM切り替えはsetGameState外で行う
+              // 次のセクションへ遷移 — BGM即時切り替え
               const nextSection = prevState.combinedSections[nextSectionIdx];
               
               // 次セクション分のノーツを切り出し
@@ -2052,24 +2145,22 @@ export const useFantasyGameEngine = ({
               const firstNextNote = nextNotes[0];
               const secondNextNote = nextNotes.length > 1 ? nextNotes[1] : firstNextNote;
               
-              // BGMを次のセクションに切り替え（setGameState外で副作用実行）
-              setTimeout(() => {
-                const nextBgmUrl = nextSection.bgmUrl;
-                if (nextBgmUrl) {
-                  const speedMul = stage.speedMultiplier || 1.0;
-                  bgmManager.play(
-                    nextBgmUrl,
-                    nextSection.bpm,
-                    nextSection.timeSignature,
-                    nextSection.measureCount,
-                    nextSection.countInMeasures,
-                    0.7,
-                    speedMul,
-                    prevState.currentTransposeOffset,
-                    true // noLoop
-                  );
-                }
-              }, 0);
+              // BGMを即座に切り替え（setTimeoutなし）
+              const nextBgmUrl = nextSection.bgmUrl;
+              if (nextBgmUrl) {
+                const speedMul = stage.speedMultiplier || 1.0;
+                bgmManager.play(
+                  nextBgmUrl,
+                  nextSection.bpm,
+                  nextSection.timeSignature,
+                  nextSection.measureCount,
+                  nextSection.countInMeasures,
+                  0.7,
+                  speedMul,
+                  prevState.currentTransposeOffset,
+                  true
+                );
+              }
               
               devLog.debug('🔗 セクション遷移:', {
                 from: sectionIdx,
@@ -2085,6 +2176,7 @@ export const useFantasyGameEngine = ({
                 awaitingLoopStart: false,
                 activeMonsters: prevState.activeMonsters.map(m => ({
                   ...m,
+                  correctNotes: [],
                   chordTarget: firstNextNote?.chord ?? m.chordTarget,
                   nextChord: secondNextNote?.chord ?? m.nextChord,
                 })),
@@ -2114,24 +2206,22 @@ export const useFantasyGameEngine = ({
                 
                 bgmManager.setPitchShift(newTransposeOffset);
                 
-                // 最初のセクションのBGMを再生
+                // 最初のセクションのBGMを即座に再生
                 const firstSection = prevState.combinedSections[0];
-                setTimeout(() => {
-                  if (firstSection.bgmUrl) {
-                    const speedMul = stage.speedMultiplier || 1.0;
-                    bgmManager.play(
-                      firstSection.bgmUrl,
-                      firstSection.bpm,
-                      firstSection.timeSignature,
-                      firstSection.measureCount,
-                      firstSection.countInMeasures,
-                      0.7,
-                      speedMul,
-                      newTransposeOffset,
-                      true
-                    );
-                  }
-                }, 0);
+                if (firstSection.bgmUrl) {
+                  const speedMul = stage.speedMultiplier || 1.0;
+                  bgmManager.play(
+                    firstSection.bgmUrl,
+                    firstSection.bpm,
+                    firstSection.timeSignature,
+                    firstSection.measureCount,
+                    firstSection.countInMeasures,
+                    0.7,
+                    speedMul,
+                    newTransposeOffset,
+                    true
+                  );
+                }
                 
                 const resetNotes = transposedNotes.map(note => ({
                   ...note,
@@ -2158,6 +2248,7 @@ export const useFantasyGameEngine = ({
                   currentTransposeOffset: newTransposeOffset,
                   activeMonsters: prevState.activeMonsters.map(m => ({
                     ...m,
+                    correctNotes: [],
                     chordTarget: firstNote?.chord ?? m.chordTarget,
                     nextChord: secondNote?.chord ?? m.nextChord,
                   })),
@@ -2166,22 +2257,20 @@ export const useFantasyGameEngine = ({
               
               // 移調設定なし: 全セクションを繰り返し
               const firstSection = prevState.combinedSections[0];
-              setTimeout(() => {
-                if (firstSection.bgmUrl) {
-                  const speedMul = stage.speedMultiplier || 1.0;
-                  bgmManager.play(
-                    firstSection.bgmUrl,
-                    firstSection.bpm,
-                    firstSection.timeSignature,
-                    firstSection.measureCount,
-                    firstSection.countInMeasures,
-                    0.7,
-                    speedMul,
-                    prevState.currentTransposeOffset,
-                    true
-                  );
-                }
-              }, 0);
+              if (firstSection.bgmUrl) {
+                const speedMul = stage.speedMultiplier || 1.0;
+                bgmManager.play(
+                  firstSection.bgmUrl,
+                  firstSection.bpm,
+                  firstSection.timeSignature,
+                  firstSection.measureCount,
+                  firstSection.countInMeasures,
+                  0.7,
+                  speedMul,
+                  prevState.currentTransposeOffset,
+                  true
+                );
+              }
               
               const resetNotes = prevState.taikoNotes.map(note => ({
                 ...note,
@@ -2202,6 +2291,7 @@ export const useFantasyGameEngine = ({
                 awaitingLoopStart: false,
                 activeMonsters: prevState.activeMonsters.map(m => ({
                   ...m,
+                  correctNotes: [],
                   chordTarget: firstNote?.chord ?? m.chordTarget,
                   nextChord: secondNote?.chord ?? m.nextChord,
                 })),
