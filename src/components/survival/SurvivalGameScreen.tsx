@@ -817,15 +817,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    // 通常のコード入力処理
-    // 注意: gameStateを直接参照せず、setGameState内でprevを使用して最新の状態を取得する
+    const pendingShockwaves: ShockwaveEffect[] = [];
+    
     setGameState(prev => {
       // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
       
-      // レベルアップ中の処理
+      // レベルアップ中もボーナス選択とABCD攻撃を同時に処理
       if (prev.isLevelingUp) {
-        // 現在の正解ノートを取得して新しいノートを追加（refから最新値を取得）
         const currentCorrectNotes = levelUpCorrectNotesRef.current.map(arr => [...arr]);
         let matchedOptionIndex = -1;
         
@@ -835,32 +834,34 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const correct = getCorrectNotes([...prevNotes, note], option.chord);
             currentCorrectNotes[index] = correct;
             
-            // 完成チェック
             if (checkChordMatch(correct, option.chord)) {
               matchedOptionIndex = index;
             }
           }
         });
         
-        // refを即座に更新（次の入力で最新値を参照できるように）
         levelUpCorrectNotesRef.current = currentCorrectNotes;
-        // UIの再レンダリング用にステートも更新
-        // SurvivalLevelUp側で入力遅延と選択処理を制御するため、ここでは呼び出さない
         setTimeout(() => setLevelUpCorrectNotes([...currentCorrectNotes]), 0);
-        
-        // 注: 選択処理はSurvivalLevelUp側で行う（入力遅延制御のため）
-        return prev; // レベルアップ中は他の処理をスキップ
       }
       
-      // 以下、通常のコード入力処理
-      const newState = { ...prev };
+      // 通常のコード入力処理（レベルアップ中も実行）
+      const newState = {
+        ...prev,
+        codeSlots: {
+          current: [...prev.codeSlots.current] as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+          next: [...prev.codeSlots.next] as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+        },
+        damageTexts: [...prev.damageTexts],
+        projectiles: [...prev.projectiles],
+        enemyProjectiles: [...prev.enemyProjectiles],
+      };
       const noteMod12 = note % 12;
       
       // 各スロットをチェック - 完了したすべてのスロットを追跡
       const completedSlotIndices: number[] = [];
       const availableMagicsForSlot = getAvailableMagics(prev.player);
       
-      newState.codeSlots.current = prev.codeSlots.current.map((slot, index) => {
+      newState.codeSlots.current = newState.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || !slot.chord) return slot;
         // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
@@ -945,7 +946,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const newProjectiles = bulletAngles.map((angle) => {
               return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
             });
-            newState.projectiles = [...prev.projectiles, ...newProjectiles];
+            newState.projectiles = [...newState.projectiles, ...newProjectiles];
           }
         } else if (slotType === 'B') {
           if (isBMagicSlot) {
@@ -984,24 +985,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           // 衝撃波エフェクト追加（前方のみ大きい範囲）
           const newShockwave: ShockwaveEffect = {
-            id: `shock_${Date.now()}`,
+            id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             x: attackX,
             y: attackY,
             radius: 0,
             maxRadius: totalRange,
             startTime: Date.now(),
             duration: 300,
-            direction: prev.player.direction,  // プレイヤーの向きを追加
+            direction: prev.player.direction,
           };
-          setShockwaves(sw => [...sw, newShockwave]);
+          pendingShockwaves.push(newShockwave);
           
           // 拳でかきけす - B列攻撃で敵弾消去
           if (prev.player.skills.bDeflect) {
-            newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
               const dx = proj.x - attackX;
               const dy = proj.y - attackY;
               const dist = Math.sqrt(dx * dx + dy * dy);
-              // 攻撃範囲内の敵弾を消去
               return dist >= totalRange;
             });
           }
@@ -1046,13 +1046,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
               const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
               
-              newState.damageTexts.push(createDamageText(
+              newState.damageTexts = [...newState.damageTexts, createDamageText(
                 enemy.x,
                 enemy.y,
                 damage,
                 luckResultB.doubleDamage,
                 luckResultB.doubleDamage ? '#ffd700' : undefined
-              ));
+              )];
               
               return {
                 ...enemy,
@@ -1071,9 +1071,19 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
               setTimeout(() => {
+                const multiShockwave: ShockwaveEffect = {
+                  id: `shock_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
+                  x: 0,
+                  y: 0,
+                  radius: 0,
+                  maxRadius: 0,
+                  startTime: Date.now(),
+                  duration: 300,
+                  direction: 'right' as Direction,
+                };
+                
                 setGameState(gs => {
-                  // ゲーム中断中は発動しない
-                  if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                  if (gs.isPaused || gs.isGameOver) return gs;
                   
                   const bBaseRange = 80;
                   const bBonusRange = gs.player.skills.bRangeBonus * 20;
@@ -1082,20 +1092,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const bAttackX = gs.player.x + bDirVec.x * 40;
                   const bAttackY = gs.player.y + bDirVec.y * 40;
                   
-                  // 衝撃波エフェクト追加
-                  const multiShockwave: ShockwaveEffect = {
-                    id: `shock_multi_${Date.now()}_${hit}`,
-                    x: bAttackX,
-                    y: bAttackY,
-                    radius: 0,
-                    maxRadius: bTotalRange,
-                    startTime: Date.now(),
-                    duration: 300,
-                    direction: gs.player.direction,  // プレイヤーの向きを追加
-                  };
-                  setShockwaves(sw => [...sw, multiShockwave]);
+                  multiShockwave.x = bAttackX;
+                  multiShockwave.y = bAttackY;
+                  multiShockwave.maxRadius = bTotalRange;
+                  multiShockwave.direction = gs.player.direction;
                   
-                  // 拳でかきけす - B列多段攻撃でも敵弾消去
                   let updatedEnemyProjectiles = gs.enemyProjectiles;
                   if (gs.player.skills.bDeflect) {
                     updatedEnemyProjectiles = gs.enemyProjectiles.filter(proj => {
@@ -1114,7 +1115,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const dy = enemy.y - bAttackY;
                     const dist = Math.sqrt(dx * dx + dy * dy);
                     
-                    // 敵が前方にいるかどうか
                     const toEnemyX = enemy.x - gs.player.x;
                     const toEnemyY = enemy.y - gs.player.y;
                     const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
@@ -1122,15 +1122,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                     
                     if (dist < effectiveRange) {
-                      // 背水の陣・絶好調の攻撃力倍率
                       const condMultBMulti = getConditionalSkillMultipliers(gs.player);
-                      // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
                       const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier);
                       const luckResultBMulti = checkLuck(gs.player.stats.luck);
                       
                       const damage = calculateDamage(
                         baseBDamage,
-                        0,  // attackerAtkは0（baseBDamageに含まれる）
+                        0,
                         enemy.stats.def,
                         gs.player.statusEffects.some(e => e.type === 'buffer'),
                         enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1170,7 +1168,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   damageTexts: newDamageTexts,
                 };
               });
-            }, hit * 200); // 0.2秒ごと
+              
+              setShockwaves(sw => [...sw, multiShockwave]);
+            }, hit * 200);
           }
         }
         }
@@ -1262,6 +1262,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
+    
+    if (pendingShockwaves.length > 0) {
+      setShockwaves(sw => [...sw, ...pendingShockwaves]);
+    }
   }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -1271,20 +1275,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // タップでスキル発動（デバッグ用）
   const handleTapSkillActivation = useCallback((slotIndex: number) => {
-    if (gameState.isGameOver || gameState.isPaused || gameState.isLevelingUp) return;
+    if (gameState.isGameOver || gameState.isPaused) return;
     
     const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
+    const tapPendingShockwaves: ShockwaveEffect[] = [];
     
     setGameState(prev => {
-      const newState = { ...prev };
+      const newState = {
+        ...prev,
+        damageTexts: [...prev.damageTexts],
+        projectiles: [...prev.projectiles],
+        enemyProjectiles: [...prev.enemyProjectiles],
+      };
       const slot = prev.codeSlots.current[slotIndex];
       
       if (!slot || !slot.isEnabled) return prev;
       
-      // 攻撃処理
       if (slotType === 'A') {
         if (isAMagicSlot) {
-          // A列魔法モード: ランダム魔法発動（タップ）
           const availableMagics = getAvailableMagics(prev.player);
           
           if (availableMagics.length > 0 && prev.aSlotCooldown <= 0) {
@@ -1310,16 +1318,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
         } else {
-          // 遠距離弾発射 - 時計方向システム
           const bulletCount = prev.player.stats.aBulletCount || 1;
           const baseAngle = getDirectionAngle(prev.player.direction);
           const bulletAngles = getClockwiseBulletAngles(bulletCount, baseAngle);
           
-          // 各角度に弾を発射（A ATK +1で+10ダメージ増加）
           const newProjectiles = bulletAngles.map((angle) => {
             return createProjectileFromAngle(prev.player, angle, calculateAProjectileDamage(prev.player.stats.aAtk));
           });
-          newState.projectiles = [...prev.projectiles, ...newProjectiles];
+          newState.projectiles = [...newState.projectiles, ...newProjectiles];
         }
       
     } else if (slotType === 'B') {
@@ -1349,7 +1355,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
       } else {
-        // 近接攻撃 - 衝撃波エフェクト追加
       const baseRange = 80;
       const bonusRange = prev.player.skills.bRangeBonus * 20;
       const totalRange = baseRange + bonusRange;
@@ -1357,22 +1362,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const attackX = prev.player.x + dirVec.x * 40;
       const attackY = prev.player.y + dirVec.y * 40;
       
-      // 衝撃波エフェクト追加（前方のみ大きい範囲）
       const newShockwave: ShockwaveEffect = {
-        id: `shock_${Date.now()}`,
+        id: `shock_tap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         x: attackX,
         y: attackY,
         radius: 0,
         maxRadius: totalRange,
         startTime: Date.now(),
         duration: 300,
-        direction: prev.player.direction,  // プレイヤーの向きを追加
+        direction: prev.player.direction,
       };
-      setShockwaves(sw => [...sw, newShockwave]);
+      tapPendingShockwaves.push(newShockwave);
       
-      // 拳でかきけす - B列攻撃で敵弾消去（タップ）
       if (prev.player.skills.bDeflect) {
-        newState.enemyProjectiles = prev.enemyProjectiles.filter(proj => {
+        newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
           const dx = proj.x - attackX;
           const dy = proj.y - attackY;
           const dist = Math.sqrt(dx * dx + dy * dy);
@@ -1380,7 +1383,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         });
       }
         
-      // ノックバック力
       const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
       
       newState.enemies = newState.enemies.map(enemy => {
@@ -1388,25 +1390,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const dy = enemy.y - attackY;
         const dist = Math.sqrt(dx * dx + dy * dy);
         
-        // 敵が前方にいるかどうかをチェック（内積で判定）
         const toEnemyX = enemy.x - prev.player.x;
         const toEnemyY = enemy.y - prev.player.y;
         const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
         const isInFront = dotProduct > 0;
         
-        // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
         const effectiveRange = isInFront ? totalRange : baseRange;
         
         if (dist < effectiveRange) {
-          // 背水の陣・絶好調の攻撃力倍率
           const condMultBTap = getConditionalSkillMultipliers(prev.player);
-          // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
           const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier);
           const luckResultBTap = checkLuck(prev.player.stats.luck);
           
           const damage = calculateDamage(
             baseBDamage,
-            0,  // attackerAtkは0（baseBDamageに含まれる）
+            0,
             enemy.stats.def,
             prev.player.statusEffects.some(e => e.type === 'buffer'),
             enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1419,13 +1417,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
           const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
           
-          newState.damageTexts.push(createDamageText(
+          newState.damageTexts = [...newState.damageTexts, createDamageText(
             enemy.x,
             enemy.y,
             damage,
             luckResultBTap.doubleDamage,
             luckResultBTap.doubleDamage ? '#ffd700' : undefined
-          ));
+          )];
           
           return {
             ...enemy,
@@ -1439,13 +1437,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           return enemy;
         });
         
-        // 多段攻撃処理（B列・タップ）
         const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
         if (tapBMultiHitLevel > 0) {
           for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
             setTimeout(() => {
+              const multiShockwave: ShockwaveEffect = {
+                id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
+                x: 0,
+                y: 0,
+                radius: 0,
+                maxRadius: 0,
+                startTime: Date.now(),
+                duration: 300,
+                direction: 'right' as Direction,
+              };
+              
               setGameState(gs => {
-                if (gs.isPaused || gs.isGameOver || gs.isLevelingUp) return gs;
+                if (gs.isPaused || gs.isGameOver) return gs;
                 
                 const bBaseRange = 80;
                 const bBonusRange = gs.player.skills.bRangeBonus * 20;
@@ -1454,19 +1462,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 const bAttackX = gs.player.x + bDirVec.x * 40;
                 const bAttackY = gs.player.y + bDirVec.y * 40;
                 
-                const multiShockwave: ShockwaveEffect = {
-                  id: `shock_tap_${Date.now()}_${hit}`,
-                  x: bAttackX,
-                  y: bAttackY,
-                  radius: 0,
-                  maxRadius: bTotalRange,
-                  startTime: Date.now(),
-                  duration: 300,
-                  direction: gs.player.direction,  // プレイヤーの向きを追加
-                };
-                setShockwaves(sw => [...sw, multiShockwave]);
+                multiShockwave.x = bAttackX;
+                multiShockwave.y = bAttackY;
+                multiShockwave.maxRadius = bTotalRange;
+                multiShockwave.direction = gs.player.direction;
                 
-                // 拳でかきけす - B列多段攻撃でも敵弾消去（タップ）
                 let updatedEnemyProjectilesTap = gs.enemyProjectiles;
                 if (gs.player.skills.bDeflect) {
                   updatedEnemyProjectilesTap = gs.enemyProjectiles.filter(proj => {
@@ -1485,7 +1485,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const dy = enemy.y - bAttackY;
                   const dist = Math.sqrt(dx * dx + dy * dy);
                   
-                  // 敵が前方にいるかどうか
                   const toEnemyX = enemy.x - gs.player.x;
                   const toEnemyY = enemy.y - gs.player.y;
                   const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
@@ -1493,15 +1492,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const effectiveRange = isInFront ? bTotalRange : bBaseRange;
                   
                   if (dist < effectiveRange) {
-                    // 背水の陣・絶好調の攻撃力倍率
                     const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
-                    // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
                     const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier);
                     const luckResultBTapMulti = checkLuck(gs.player.stats.luck);
                     
                     const damage = calculateDamage(
                       baseBDamage,
-                      0,  // attackerAtkは0（baseBDamageに含まれる）
+                      0,
                       enemy.stats.def,
                       gs.player.statusEffects.some(e => e.type === 'buffer'),
                       enemy.statusEffects.some(e => e.type === 'debuffer'),
@@ -1541,7 +1538,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 damageTexts: newDamageTexts,
               };
             });
-          }, hit * 200);  // 0.2秒ごと
+            
+            setShockwaves(sw => [...sw, multiShockwave]);
+          }, hit * 200);
         }
       }
       }
@@ -1602,7 +1601,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return newState;
   });
-}, [gameState.isGameOver, gameState.isPaused, gameState.isLevelingUp, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
+  
+  if (tapPendingShockwaves.length > 0) {
+    setShockwaves(sw => [...sw, ...tapPendingShockwaves]);
+  }
+}, [gameState.isGameOver, gameState.isPaused, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // ゲームループ
   // 注意: isLevelingUp中もゲームは継続（一時停止しない）
@@ -2752,10 +2755,117 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           
           {/* ポーズ画面 */}
           {gameState.isPaused && (
-            <div className="absolute inset-0 bg-black/70 flex items-center justify-center">
-              <div className="text-center">
-                <div className="text-4xl font-bold text-white font-sans mb-4">PAUSED</div>
-                <div className="flex gap-4">
+            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20 overflow-y-auto">
+              <div className="text-center w-full max-w-md px-4 py-4">
+                <div className="text-3xl font-bold text-white font-sans mb-3">PAUSED</div>
+                
+                {/* ステータス表示 */}
+                <div className="bg-gray-900/90 rounded-lg p-3 mb-3 text-left text-sm max-h-[50vh] overflow-y-auto">
+                  {/* 基本情報 */}
+                  <div className="flex items-center justify-between mb-2 pb-2 border-b border-gray-700">
+                    <span className="text-gray-400 font-sans">Lv.{gameState.player.level}</span>
+                    <span className="text-gray-400 font-sans">WAVE {gameState.wave.currentWave}</span>
+                    <span className="font-sans">
+                      <span className="text-red-400">HP</span>{' '}
+                      <span className="text-white">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
+                    </span>
+                  </div>
+                  
+                  {/* ステータス */}
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2 pb-2 border-b border-gray-700">
+                    <div className="flex justify-between">
+                      <span className="text-blue-400 font-sans">🔫 A ATK</span>
+                      <span className="text-white font-sans">{gameState.player.stats.aAtk}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-orange-400 font-sans">👊 B ATK</span>
+                      <span className="text-white font-sans">{gameState.player.stats.bAtk}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-purple-400 font-sans">🔮 C ATK</span>
+                      <span className="text-white font-sans">{gameState.player.stats.cAtk}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-cyan-400 font-sans">🛡️ DEF</span>
+                      <span className="text-white font-sans">{gameState.player.stats.def}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-green-400 font-sans">💨 SPD</span>
+                      <span className="text-white font-sans">{gameState.player.stats.speed}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-yellow-400 font-sans">🍀 LUCK</span>
+                      <span className="text-white font-sans">{gameState.player.stats.luck}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-pink-400 font-sans">⏱️ TIME</span>
+                      <span className="text-white font-sans">{gameState.player.stats.time}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-indigo-400 font-sans">🔄 RELOAD</span>
+                      <span className="text-white font-sans">{gameState.player.stats.reloadMagic}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-blue-300 font-sans">💎 A弾数</span>
+                      <span className="text-white font-sans">{gameState.player.stats.aBulletCount}</span>
+                    </div>
+                  </div>
+                  
+                  {/* 特殊スキル */}
+                  {(() => {
+                    const sk = gameState.player.skills;
+                    const activeSkills: string[] = [];
+                    if (sk.aPenetration) activeSkills.push('🔫 貫通');
+                    if (sk.bKnockbackBonus > 0) activeSkills.push(`👊 ノックバック+${sk.bKnockbackBonus}`);
+                    if (sk.bRangeBonus > 0) activeSkills.push(`👊 範囲+${sk.bRangeBonus}`);
+                    if (sk.bDeflect) activeSkills.push('👊 弾消去');
+                    if (sk.multiHitLevel > 0) activeSkills.push(`⚔️ 多段Lv${sk.multiHitLevel}`);
+                    if (sk.expBonusLevel > 0) activeSkills.push(`✨ EXP+${sk.expBonusLevel}`);
+                    if (sk.haisuiNoJin || sk.alwaysHaisuiNoJin) activeSkills.push(`🔥 背水${sk.alwaysHaisuiNoJin ? '(常時)' : ''}`);
+                    if (sk.zekkouchou || sk.alwaysZekkouchou) activeSkills.push(`⭐ 絶好調${sk.alwaysZekkouchou ? '(常時)' : ''}`);
+                    if (sk.autoSelect) activeSkills.push('🤖 オート');
+                    
+                    if (activeSkills.length === 0) return null;
+                    return (
+                      <div className="mb-2 pb-2 border-b border-gray-700">
+                        <div className="text-gray-500 text-xs font-sans mb-1">{isEnglishCopy ? 'SKILLS' : 'スキル'}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {activeSkills.map((s, i) => (
+                            <span key={i} className="bg-gray-800 text-gray-200 px-2 py-0.5 rounded text-xs font-sans">{s}</span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                  
+                  {/* 魔法 */}
+                  {(() => {
+                    const mg = gameState.player.magics;
+                    const activeMagics: { name: string; level: number; icon: string }[] = [];
+                    if (mg.thunder > 0) activeMagics.push({ name: isEnglishCopy ? 'Thunder' : 'サンダー', level: mg.thunder, icon: '⚡' });
+                    if (mg.ice > 0) activeMagics.push({ name: isEnglishCopy ? 'Ice' : 'アイス', level: mg.ice, icon: '❄️' });
+                    if (mg.fire > 0) activeMagics.push({ name: isEnglishCopy ? 'Fire' : 'ファイア', level: mg.fire, icon: '🔥' });
+                    if (mg.heal > 0) activeMagics.push({ name: isEnglishCopy ? 'Heal' : 'ヒール', level: mg.heal, icon: '💚' });
+                    if (mg.buffer > 0) activeMagics.push({ name: isEnglishCopy ? 'Buffer' : 'バフ', level: mg.buffer, icon: '⬆️' });
+                    if (mg.hint > 0) activeMagics.push({ name: isEnglishCopy ? 'Hint' : 'ヒント', level: mg.hint, icon: '💡' });
+                    
+                    if (activeMagics.length === 0) return null;
+                    return (
+                      <div>
+                        <div className="text-gray-500 text-xs font-sans mb-1">{isEnglishCopy ? 'MAGIC' : '魔法'}</div>
+                        <div className="flex flex-wrap gap-1">
+                          {activeMagics.map((m, i) => (
+                            <span key={i} className="bg-gray-800 text-gray-200 px-2 py-0.5 rounded text-xs font-sans">
+                              {m.icon} {m.name} Lv{m.level}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                <div className="flex gap-4 justify-center">
                   <button
                     onClick={() => setGameState(prev => ({ ...prev, isPaused: false }))}
                     className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-sans text-white"
