@@ -61,6 +61,8 @@ interface StageFormValues {
   chord_progression_data: TimingRow[];
   // MusicXML（OSMD楽譜表示用）
   music_xml?: string | null;
+  // アウフタクト
+  is_auftakt: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -87,6 +89,7 @@ const defaultValues: StageFormValues = {
   music_xml: null,
   bgm_url: '',
   mp3_url: '',
+  is_auftakt: false,
 };
 
 const Section: React.FC<{ title: string; children: React.ReactNode }> = ({ title, children }) => (
@@ -194,6 +197,8 @@ const LessonFantasyStageManager: React.FC = () => {
         allowed_chords: Array.isArray(s.allowed_chords) ? s.allowed_chords : [],
         chord_progression: (Array.isArray(s.chord_progression) ? s.chord_progression : []) as any[],
         chord_progression_data: (s as any).chord_progression_data || [],
+        music_xml: (s as any).music_xml || null,
+        is_auftakt: !!(s as any).is_auftakt,
       };
       reset(v);
     } catch (e: any) {
@@ -232,6 +237,7 @@ const LessonFantasyStageManager: React.FC = () => {
       stage_tier: 'basic',  // レッスン専用は常にbasic
       usage_type: 'lesson',  // レッスン専用
       music_xml: v.music_xml || null,
+      is_auftakt: v.is_auftakt,
     };
 
     // モードに応じた不要フィールドの削除
@@ -350,6 +356,7 @@ const LessonFantasyStageManager: React.FC = () => {
         stage_tier: 'basic',  // レッスン専用は常にbasic
         usage_type: 'lesson',  // レッスン専用
         music_xml: currentValues.music_xml || null,
+        is_auftakt: currentValues.is_auftakt,
       };
       
       // 新規ステージとして作成
@@ -526,6 +533,11 @@ const LessonFantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>カウントイン小節数</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>アウフタクト（弱起）</SmallLabel>
+                  <input type="checkbox" className="toggle toggle-primary" {...register('is_auftakt')} />
+                  <p className="text-xs text-gray-400 mt-1">ONにするとカウントイン中にもノーツを配置</p>
                 </div>
                 {(mode === 'progression_order' || mode === 'progression_random') && (
                   <div>

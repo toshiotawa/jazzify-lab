@@ -79,6 +79,8 @@ interface StageFormValues {
   production_start_key: number;
   // timing_combining 用
   combined_stage_ids: string[];
+  // アウフタクト
+  is_auftakt: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -114,6 +116,8 @@ const defaultValues: StageFormValues = {
   production_start_key: 0,
   // timing_combining 用
   combined_stage_ids: [],
+  // アウフタクト
+  is_auftakt: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -339,6 +343,7 @@ const FantasyStageManager: React.FC = () => {
         // 本番モード用の転調設定
         production_repeat_transposition_mode: (s as any).production_repeat_transposition_mode || 'off',
         production_start_key: (s as any).production_start_key ?? 0,
+        is_auftakt: !!(s as any).is_auftakt,
         combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
       };
       reset(v);
@@ -385,6 +390,8 @@ const FantasyStageManager: React.FC = () => {
       production_start_key: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.production_start_key : null,
       // timing_combining 用
       combined_stage_ids: v.mode === 'timing_combining' ? v.combined_stage_ids : null,
+      // アウフタクト
+      is_auftakt: v.is_auftakt,
     };
 
     // モードに応じた不要フィールドの削除
@@ -447,6 +454,7 @@ const FantasyStageManager: React.FC = () => {
       production_repeat_transposition_mode: ((s as DbFantasyStage & { production_repeat_transposition_mode?: RepeatTranspositionMode }).production_repeat_transposition_mode || 'off') as RepeatTranspositionMode,
       production_start_key: (s as DbFantasyStage & { production_start_key?: number }).production_start_key ?? 0,
       combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
+      is_auftakt: !!(s as any).is_auftakt,
     };
   }, []);
 
@@ -580,6 +588,7 @@ const FantasyStageManager: React.FC = () => {
         // 本番モード用の転調設定
         production_repeat_transposition_mode: currentValues.production_repeat_transposition_mode || 'off',
         production_start_key: currentValues.production_start_key ?? 0,
+        is_auftakt: currentValues.is_auftakt,
       };
       
       // 新規ステージとして作成
@@ -932,6 +941,11 @@ const FantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>カウントイン小節数</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('count_in_measures', { valueAsNumber: true })} />
+                </div>
+                <div>
+                  <SmallLabel>アウフタクト（弱起）</SmallLabel>
+                  <input type="checkbox" className="toggle toggle-primary" {...register('is_auftakt')} />
+                  <p className="text-xs text-gray-400 mt-1">ONにするとカウントイン中にもノーツを配置</p>
                 </div>
                 {(mode === 'progression_order' || mode === 'progression_random') && (
                   <div>

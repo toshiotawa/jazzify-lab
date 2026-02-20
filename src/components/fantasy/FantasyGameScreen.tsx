@@ -772,6 +772,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         isSheetMusicMode: !!(cs as any).is_sheet_music_mode,
         sheetMusicClef: (cs as any).sheet_music_clef || 'treble',
         musicXml: (cs as any).music_xml,
+        isAuftakt: !!(cs as any).is_auftakt,
       }));
     }
     

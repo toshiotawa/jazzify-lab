@@ -662,6 +662,7 @@ export interface TaikoNote {
   beat: number; // 拍番号（1始まり、小数可）
   isHit: boolean; // 既にヒットされたか
   isMissed: boolean; // ミスしたか
+  isAuftaktNote?: boolean; // アウフタクトノーツ（カウントイン中のノーツ、2回目以降のループで除外）
 }
 
 // Progressionで受け取るコード指定（後方互換: string も許容）
@@ -766,6 +767,8 @@ export function judgeTimingWindow(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param intervalBeats 拍間隔
+ * @param isAuftakt アウフタクト設定（trueの場合、カウントイン小節にもノーツを生成）
  */
 export function generateBasicProgressionNotes(
   chordProgression: ChordSpec[],
@@ -774,7 +777,8 @@ export function generateBasicProgressionNotes(
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  isAuftakt: boolean = false
 ): TaikoNote[] {
   // 入力検証
   if (!chordProgression || chordProgression.length === 0) {
@@ -803,6 +807,38 @@ export function generateBasicProgressionNotes(
 
   // ノートごとの進行インデックス
   let noteIndex = 0;
+
+  // アウフタクト: カウントイン小節のノーツを負のhitTimeで生成
+  if (isAuftakt && countInMeasures > 0) {
+    for (let ci = 0; ci < countInMeasures; ci++) {
+      for (let step = 0; ; step++) {
+        const beat = 1 + step * safeIntervalBeats;
+        if (beat > timeSignature + 1e-9) break;
+
+        const spec = chordProgression[noteIndex % chordProgression.length];
+        const chord = getChordDefinition(spec);
+        if (!chord) {
+          noteIndex++;
+          continue;
+        }
+
+        const hitTime = -(countInMeasures - ci) * secPerMeasure + (beat - 1) * secPerBeat;
+
+        notes.push({
+          id: `note_ci${ci + 1}_${beat}`,
+          chord,
+          hitTime,
+          measure: ci + 1,
+          beat,
+          isHit: false,
+          isMissed: false,
+          isAuftaktNote: true,
+        });
+
+        noteIndex++;
+      }
+    }
+  }
   
   // 各小節に対して intervalBeats おきに配置（1拍目から）
   // 浮動小数の累積誤差でタイミングが崩れないよう step から beat を算出する。
@@ -847,6 +883,8 @@ export function generateBasicProgressionNotes(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param intervalBeats 拍間隔
+ * @param isAuftakt アウフタクト設定（trueの場合、カウントイン小節にもノーツを生成）
  */
 export function generateRandomProgressionNotes(
   chordPool: ChordSpec[],
@@ -855,7 +893,8 @@ export function generateRandomProgressionNotes(
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
   countInMeasures: number = 0,
-  intervalBeats: number = timeSignature
+  intervalBeats: number = timeSignature,
+  isAuftakt: boolean = false
 ): TaikoNote[] {
   if (chordPool.length === 0) return [];
 
@@ -871,6 +910,33 @@ export function generateRandomProgressionNotes(
   // 袋形式ランダムセレクターを使用
   const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
   const bagSelector = new BagRandomSelector(chordPool, specToId);
+
+  // アウフタクト: カウントイン小節のノーツを負のhitTimeで生成
+  if (isAuftakt && countInMeasures > 0) {
+    for (let ci = 0; ci < countInMeasures; ci++) {
+      for (let step = 0; ; step++) {
+        const beat = 1 + step * safeIntervalBeats;
+        if (beat > timeSignature + 1e-9) break;
+
+        const nextSpec = bagSelector.next();
+        const chord = getChordDefinition(nextSpec);
+        if (!chord) continue;
+
+        const hitTime = -(countInMeasures - ci) * secPerMeasure + (beat - 1) * secPerBeat;
+
+        notes.push({
+          id: `note_ci${ci + 1}_${beat}`,
+          chord,
+          hitTime,
+          measure: ci + 1,
+          beat,
+          isHit: false,
+          isMissed: false,
+          isAuftaktNote: true,
+        });
+      }
+    }
+  }
 
   // 各小節に対して intervalBeats おきに配置（1拍目から）
   // 浮動小数の累積誤差でタイミングが崩れないよう step から beat を算出する。
@@ -907,13 +973,15 @@ export function generateRandomProgressionNotes(
  * @param timeSignature 拍子
  * @param getChordDefinition コード定義取得関数
  * @param countInMeasures カウントイン小節数
+ * @param isAuftakt アウフタクト設定（trueの場合、bar 1〜countInMeasuresをカウントイン小節として負のhitTimeで配置）
  */
 export function parseChordProgressionData(
   progressionData: ChordProgressionDataItem[],
   bpm: number,
   timeSignature: number,
   getChordDefinition: (spec: ChordSpec) => ChordDefinition | null,
-  countInMeasures: number = 0
+  countInMeasures: number = 0,
+  isAuftakt: boolean = false
 ): TaikoNote[] {
   const notes: TaikoNote[] = [];
   const secPerBeat = 60 / bpm;
@@ -921,16 +989,22 @@ export function parseChordProgressionData(
   
   // 最大小節数を取得
   const maxBar = Math.max(...progressionData.map(item => item.bar), 0);
+
+  // アウフタクト: bar 1〜countInMeasures のノーツを負のhitTimeにシフト
+  const auftaktOffset = (isAuftakt && countInMeasures > 0) ? countInMeasures : 0;
   
   progressionData
     // 演奏用ノーツは chord が空/N.C. のものは無視（テキスト専用）
     .filter(item => item.chord && item.chord.trim() !== '' && item.chord.toUpperCase() !== 'N.C.')
     .forEach((item, index) => {
+    const isAuftaktNote = auftaktOffset > 0 && item.bar <= auftaktOffset;
+    const effectiveBar = auftaktOffset > 0 ? item.bar - auftaktOffset : item.bar;
+
     // 新方式: notes配列がある場合は複数音として処理
     if (item.notes && item.notes.length > 0) {
       const chord = buildChordFromNotes(item.notes, item.octave ?? 4, item.lyricDisplay);
       if (chord) {
-        const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+        const hitTime = (effectiveBar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
         notes.push({
           id: `note_${item.bar}_${item.beats}_${index}`,
           chord,
@@ -938,7 +1012,8 @@ export function parseChordProgressionData(
           measure: item.bar,
           beat: item.beats,
           isHit: false,
-          isMissed: false
+          isMissed: false,
+          ...(isAuftaktNote ? { isAuftaktNote: true } : {}),
         });
       }
       return;
@@ -953,14 +1028,13 @@ export function parseChordProgressionData(
     };
     const chord = getChordDefinition(spec);
     if (chord) {
-      // Measure 1 開始を0秒として計算
-      const hitTime = (item.bar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
+      const hitTime = (effectiveBar - 1) * secPerMeasure + (item.beats - 1) * secPerBeat;
       
       // lyricDisplayがある場合は、displayNameとnoteNamesを上書き
       const finalChord = item.lyricDisplay ? {
         ...chord,
         displayName: item.lyricDisplay,
-        noteNames: [item.lyricDisplay] // 太鼓ノーツ上の表示用（単一の歌詞テキスト）
+        noteNames: [item.lyricDisplay]
       } : chord;
       
       notes.push({
@@ -970,7 +1044,8 @@ export function parseChordProgressionData(
         measure: item.bar,
         beat: item.beats,
         isHit: false,
-        isMissed: false
+        isMissed: false,
+        ...(isAuftaktNote ? { isAuftaktNote: true } : {}),
       });
     }
   });

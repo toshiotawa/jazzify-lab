@@ -310,6 +310,8 @@ export interface UpsertFantasyStagePayload {
   production_start_key?: number | null;
   // timing_combining モード用
   combined_stage_ids?: string[] | null;
+  // アウフタクト（弱起）
+  is_auftakt?: boolean;
 }
 
 /**

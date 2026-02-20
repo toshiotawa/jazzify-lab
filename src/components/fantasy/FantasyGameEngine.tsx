@@ -179,6 +179,8 @@ export interface FantasyStage {
   combinedStageIds?: string[];
   // timing_combining 用: ロード済みの子ステージデータ
   combinedStages?: FantasyStage[];
+  // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
+  isAuftakt?: boolean;
 }
 
 export interface MonsterState {
@@ -1064,8 +1066,11 @@ export const useFantasyGameEngine = ({
           bgmManager.setPitchShift(newTransposeOffset);
         }
         
+        // アウフタクト: 2回目以降のループではカウントイン中のノーツを除外
+        const loopNotes = transposedNotes.filter(n => !n.isAuftaktNote);
+
         const preHitIndices = prevState.preHitNoteIndices || [];
-        const resetNotes = transposedNotes.map((tn, idx) => ({
+        const resetNotes = loopNotes.map((tn, idx) => ({
           ...tn,
           isHit: preHitIndices.includes(idx),
           isMissed: false
@@ -1609,7 +1614,8 @@ export const useFantasyGameEngine = ({
                   childBpm,
                   childTimeSig,
                   (spec) => getChordDefinition(spec, displayOpts),
-                  0
+                  childCountIn,
+                  !!childStage.isAuftakt
                 );
               }
               
@@ -1672,7 +1678,8 @@ export const useFantasyGameEngine = ({
               stage.bpm || 120,
               stage.timeSignature || 4,
               (spec) => getChordDefinition(spec, displayOpts),
-              0 // カウントインを渡す
+              stage.countInMeasures || 0,
+              !!stage.isAuftakt
             );
           }
           break;
@@ -1685,8 +1692,9 @@ export const useFantasyGameEngine = ({
             stage.bpm || 120,
             stage.timeSignature || 4,
             (spec) => getChordDefinition(spec, displayOpts),
-            0,
-            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4)
+            stage.countInMeasures || 0,
+            ((stage as any).noteIntervalBeats || (stage as any).note_interval_beats || stage.timeSignature || 4),
+            !!stage.isAuftakt
           );
           break;
 
@@ -1706,8 +1714,9 @@ export const useFantasyGameEngine = ({
                 stage.bpm || 120,
                 stage.timeSignature || 4,
                 (spec) => getChordDefinition(spec, displayOpts),
-                0,
-                (stage as any).noteIntervalBeats || (stage as any).note_interval_beats || (stage.timeSignature || 4)
+                stage.countInMeasures || 0,
+                (stage as any).noteIntervalBeats || (stage as any).note_interval_beats || (stage.timeSignature || 4),
+                !!stage.isAuftakt
               );
             }
           }
@@ -2500,11 +2509,13 @@ export const useFantasyGameEngine = ({
             console.log('🎵 BGMピッチシフト変更:', newTransposeOffset);
           }
           
+          // アウフタクト: 2回目以降のループではカウントイン中のノーツを除外
+          const loopNotes = transposedNotes.filter(n => !n.isAuftaktNote);
+
           // ノーツをリセット（先読みヒット済みノーツは維持）
           const preHitIndices = prevState.preHitNoteIndices || [];
-          const resetNotes = transposedNotes.map((note, index) => ({
+          const resetNotes = loopNotes.map((note, index) => ({
             ...note,
-            // 先読みでヒットしたノーツはisHit: trueを維持
             isHit: preHitIndices.includes(index),
             isMissed: false
           }));
@@ -2539,7 +2550,6 @@ export const useFantasyGameEngine = ({
             lastNormalizedTime: normalizedTime,
             activeMonsters: refreshedMonsters,
             currentTransposeOffset: newTransposeOffset,
-            // 先読みヒット情報をクリア（ループ開始時にリセット）
             preHitNoteIndices: []
           };
         }

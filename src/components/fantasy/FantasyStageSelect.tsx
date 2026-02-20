@@ -171,6 +171,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
           // MusicXML（OSMD楽譜表示用）
           musicXml: (stage as any).music_xml,
+          isAuftakt: !!(stage as any).is_auftakt,
         }));
         
         setStages(convertedStages);
@@ -286,6 +287,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         musicXml: (stage as any).music_xml,
         // timing_combining 用
         combinedStageIds: Array.isArray((stage as any).combined_stage_ids) ? (stage as any).combined_stage_ids : undefined,
+        isAuftakt: !!(stage as any).is_auftakt,
       }));
       
       const convertedProgress: FantasyUserProgress = {
