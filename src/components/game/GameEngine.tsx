@@ -14,6 +14,7 @@ import * as Tone from 'tone';
 import { devLog, log } from '@/utils/logger';
 import { VoiceInputController } from '@/utils/VoiceInputController';
 import { applyAudioOutputDevice } from '@/utils/audioOutput';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
 const TOTAL_WHITE_KEYS = 52;
 const VISIBLE_WHITE_KEYS = 24;
@@ -912,7 +913,10 @@ useEffect(() => {
       try {
         const midiModule = await ensureMidiModule();
         const { initializeAudioSystem, default: MIDIController } = midiModule;
-        await initializeAudioSystem();
+        await Promise.all([
+          initializeAudioSystem(),
+          FantasySoundManager.init(0.8, 0.5, true),
+        ]);
         log.info('✅ 共通音声システム初期化完了');
         
         if (!midiControllerRef.current) {
