@@ -611,9 +611,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         initialPitchShift,
         true // noLoop
       );
-      // 次のセクションのBGMを事前フェッチ（切り替え高速化）
-      if (gameState.combinedSections.length > 1 && gameState.combinedSections[1].bgmUrl) {
-        bgmManager.preloadAudio(gameState.combinedSections[1].bgmUrl);
+      // 次セクション用チェーンを完全に事前構築（ゼロラグ切り替え準備）
+      if (gameState.combinedSections.length > 1) {
+        const nextSection = gameState.combinedSections[1];
+        if (nextSection.bgmUrl) {
+          bgmManager.prepareNextSection(
+            nextSection.bgmUrl, nextSection.bpm, nextSection.timeSignature,
+            nextSection.measureCount, nextSection.countInMeasures,
+            settings.bgmVolume ?? 0.7, playbackRate, initialPitchShift, true
+          );
+        }
       }
     } else {
       bgmManager.play(

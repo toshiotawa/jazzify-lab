@@ -43,6 +43,22 @@ class BGMManager {
 
   // デコード済みバッファキャッシュ（セクション切り替え高速化用）
   private preloadedBuffers: Map<string, any> = new Map() // url -> ToneAudioBuffer
+  private preloadedWaBuffers: Map<string, AudioBuffer> = new Map() // url -> decoded AudioBuffer
+
+  // ─── 事前準備済みチェーン（次セクション即時切り替え用） ───
+  private pendingTonePlayer: any = null
+  private pendingToneGain: any = null
+  private pendingTonePitchShift: PitchShiftType | null = null
+  private pendingWaBuffer: AudioBuffer | null = null
+  private pendingHtmlAudio: HTMLAudioElement | null = null
+  private pendingUrl = ''
+  private pendingReady = false
+  private prepareGeneration = 0
+  private pendingParams: {
+    bpm: number; timeSignature: number; measureCount: number; countInMeasures: number;
+    loopBegin: number; loopEnd: number; playbackRate: number; pitchShift: number;
+    noLoop: boolean; volume: number; useTone: boolean;
+  } | null = null
 
   /**
    * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
@@ -188,15 +204,267 @@ class BGMManager {
 
   /**
    * 次のセクションのBGMを事前にフェッチ+デコードしキャッシュに格納。
-   * _playTonePitchShift がキャッシュ済みバッファを検出すると即座に再生開始できる。
+   * Tone.jsバッファとWebAudioバッファの両方をキャッシュする。
    */
   preloadAudio(url: string) {
-    if (!url || this.preloadedBuffers.has(url)) return
-    import('tone').then(Tone => {
-      const buf = new Tone.ToneAudioBuffer(url, () => {
-        this.preloadedBuffers.set(url, buf)
-      })
-    }).catch(() => {})
+    if (!url) return
+    if (!this.preloadedBuffers.has(url)) {
+      import('tone').then(Tone => {
+        const buf = new Tone.ToneAudioBuffer(url, () => {
+          this.preloadedBuffers.set(url, buf)
+        })
+      }).catch(() => {})
+    }
+    if (!this.preloadedWaBuffers.has(url)) {
+      this._preloadWaBuffer(url)
+    }
+  }
+
+  private async _preloadWaBuffer(url: string) {
+    try {
+      if (!this.waContext) {
+        this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      }
+      const resp = await fetch(url)
+      const arr = await resp.arrayBuffer()
+      const buf = await this.waContext.decodeAudioData(arr.slice(0))
+      this.preloadedWaBuffers.set(url, buf)
+    } catch {}
+  }
+
+  /**
+   * 次セクション用のオーディオチェーンを完全に事前構築する。
+   * switchToPreparedSection() で同期的に即時切り替え可能になる。
+   */
+  async prepareNextSection(
+    url: string,
+    bpm: number,
+    timeSig: number,
+    measureCount: number,
+    countIn: number,
+    volume = 0.7,
+    playbackRate = 1.0,
+    pitchShift = 0,
+    noLoop = false
+  ): Promise<void> {
+    if (!url) return
+
+    this.disposePendingChain()
+    const gen = ++this.prepareGeneration
+
+    const countInMeasures = Math.max(0, Math.floor(countIn || 0))
+    const rate = Math.max(0.25, Math.min(2.0, playbackRate))
+    const shift = Math.max(-12, Math.min(12, pitchShift))
+    const secPerBeat = 60 / bpm
+    const secPerMeas = secPerBeat * timeSig
+    const loopBegin = countInMeasures * secPerMeas
+    const loopEnd = (countInMeasures + measureCount) * secPerMeas
+    const useTone = shift !== 0
+
+    this.pendingParams = {
+      bpm, timeSignature: timeSig, measureCount, countInMeasures,
+      loopBegin, loopEnd, playbackRate: rate, pitchShift: shift,
+      noLoop, volume, useTone
+    }
+    this.pendingUrl = url
+
+    try {
+      if (useTone) {
+        const Tone = await import('tone')
+        await Tone.start()
+        const ctx = Tone.getContext()
+        if (ctx.state !== 'running') await ctx.resume()
+        if (gen !== this.prepareGeneration) return
+
+        this.pendingTonePitchShift = new Tone.PitchShift({
+          pitch: shift, windowSize: 0.1, delayTime: 0.05
+        }).toDestination()
+        this.pendingToneGain = new Tone.Gain(volume).connect(this.pendingTonePitchShift)
+
+        const cachedBuffer = this.preloadedBuffers.get(url)
+        if (cachedBuffer && cachedBuffer.loaded) {
+          this.pendingTonePlayer = new Tone.Player({
+            url: cachedBuffer, loop: !noLoop, playbackRate: rate,
+          }).connect(this.pendingToneGain)
+        } else {
+          await new Promise<void>((resolve, reject) => {
+            this.pendingTonePlayer = new Tone.Player({
+              url, loop: !noLoop, playbackRate: rate,
+              onload: () => resolve(),
+              onerror: (err: Error) => reject(err),
+            }).connect(this.pendingToneGain)
+          })
+        }
+
+        if (gen !== this.prepareGeneration) { this.disposePendingChain(); return }
+
+        const bufDur = this.pendingTonePlayer.buffer?.duration ?? Infinity
+        this.pendingTonePlayer.loopStart = loopBegin
+        this.pendingTonePlayer.loopEnd = Math.min(loopEnd, bufDur)
+        if (!this.preloadedBuffers.has(url) && this.pendingTonePlayer.buffer) {
+          this.preloadedBuffers.set(url, this.pendingTonePlayer.buffer)
+        }
+      } else if (rate === 1.0) {
+        if (!this.preloadedWaBuffers.has(url)) {
+          if (!this.waContext) {
+            this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+          }
+          const resp = await fetch(url)
+          const arr = await resp.arrayBuffer()
+          const buf = await this.waContext.decodeAudioData(arr.slice(0))
+          if (gen !== this.prepareGeneration) return
+          this.preloadedWaBuffers.set(url, buf)
+        }
+        this.pendingWaBuffer = this.preloadedWaBuffers.get(url) || null
+      } else {
+        this.pendingHtmlAudio = new Audio(url)
+        this.pendingHtmlAudio.preload = 'auto'
+        this.pendingHtmlAudio.volume = Math.max(0, Math.min(1, volume))
+        this.pendingHtmlAudio.playbackRate = rate
+        this.pendingHtmlAudio.preservesPitch = true
+        await new Promise<void>((resolve) => {
+          const audio = this.pendingHtmlAudio!
+          if (audio.readyState >= 3) { resolve(); return }
+          const onReady = () => { audio.removeEventListener('canplaythrough', onReady); resolve() }
+          audio.addEventListener('canplaythrough', onReady)
+          setTimeout(resolve, 3000)
+        })
+      }
+
+      if (gen !== this.prepareGeneration) { this.disposePendingChain(); return }
+      this.pendingReady = true
+    } catch (e) {
+      console.warn('prepareNextSection failed:', e)
+      this.disposePendingChain()
+    }
+  }
+
+  /**
+   * 事前準備済みのチェーンに同期的に切り替え。
+   * 成功時true、未準備時falseを返す（falseの場合は通常のplay()を使用すること）。
+   */
+  switchToPreparedSection(): boolean {
+    if (!this.pendingReady || !this.pendingParams) return false
+
+    const p = this.pendingParams
+
+    this.bpm = p.bpm
+    this.timeSignature = p.timeSignature
+    this.measureCount = p.measureCount
+    this.countInMeasures = p.countInMeasures
+    this.loopBegin = p.loopBegin
+    this.loopEnd = p.loopEnd
+    this.toneLoopStart = p.loopBegin
+    this.toneLoopEnd = p.loopEnd
+    this.playbackRate = p.playbackRate
+    this.pitchShift = p.pitchShift
+    this.noLoop = p.noLoop
+    this.playGeneration++
+
+    if (p.useTone && this.pendingTonePlayer) {
+      const Tone = (window as any).Tone
+      const startTime = Tone?.now?.() ?? 0
+      try { this.pendingTonePlayer.start(startTime, 0) } catch (e) {
+        console.warn('switchToPreparedSection: Tone start failed', e)
+        this.disposePendingChain()
+        return false
+      }
+
+      this.disposeToneChain()
+      try { this.waSource?.stop?.() } catch {}
+      try { this.waSource?.disconnect?.() } catch {}
+      this.waSource = null; this.waBuffer = null
+      if (this.audio) { try { this.audio.pause?.() } catch {}; this.audio = null }
+
+      this.tonePlayer = this.pendingTonePlayer
+      this.toneGain = this.pendingToneGain
+      this.tonePitchShift = this.pendingTonePitchShift
+      this.pendingTonePlayer = null
+      this.pendingToneGain = null
+      this.pendingTonePitchShift = null
+
+      this.useTonePitchShift = true
+      this.isPlaying = true
+      this.isLoadingAudio = false
+      this.startTime = performance.now()
+      this.pitchShiftLatency = 0.05 + 0.1 * 0.5
+      this.waStartAt = startTime + this.pitchShiftLatency
+    } else if (!p.useTone && p.playbackRate === 1.0 && this.pendingWaBuffer) {
+      this.disposeToneChain()
+      try { this.waSource?.stop?.() } catch {}
+      try { this.waSource?.disconnect?.() } catch {}
+      this.waSource = null
+      if (this.audio) { try { this.audio.pause?.() } catch {}; this.audio = null }
+
+      this.useTonePitchShift = false
+      this.waBuffer = this.pendingWaBuffer
+      this.pendingWaBuffer = null
+
+      if (!this.waContext) {
+        this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      }
+      if (!this.waGain) {
+        this.waGain = this.waContext.createGain()
+        this.waGain.connect(this.waContext.destination)
+      }
+      this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, p.volume)), this.waContext.currentTime)
+
+      this._startWaSourceAt(0)
+      this.isPlaying = true
+      this.isLoadingAudio = false
+      this.startTime = performance.now()
+    } else if (this.pendingHtmlAudio) {
+      this.disposeToneChain()
+      try { this.waSource?.stop?.() } catch {}
+      try { this.waSource?.disconnect?.() } catch {}
+      this.waSource = null; this.waBuffer = null
+      if (this.audio) { try { this.audio.pause?.() } catch {} }
+
+      this.useTonePitchShift = false
+      this.audio = this.pendingHtmlAudio
+      this.pendingHtmlAudio = null
+      this.audio.currentTime = 0
+      this.isPlaying = true
+      this.isLoadingAudio = false
+      this.startTime = performance.now()
+      this.audio.play().catch(() => {})
+    } else {
+      this.disposePendingChain()
+      return false
+    }
+
+    this.pendingParams = null
+    this.pendingUrl = ''
+    this.pendingReady = false
+    this.playInitiatedAt = performance.now()
+    return true
+  }
+
+  isPreparedSectionReady(): boolean { return this.pendingReady }
+
+  private disposePendingChain() {
+    if (this.pendingTonePlayer) {
+      try { this.pendingTonePlayer.stop() } catch {}
+      try { this.pendingTonePlayer.dispose() } catch {}
+      this.pendingTonePlayer = null
+    }
+    if (this.pendingToneGain) {
+      try { this.pendingToneGain.dispose() } catch {}
+      this.pendingToneGain = null
+    }
+    if (this.pendingTonePitchShift) {
+      try { this.pendingTonePitchShift.dispose() } catch {}
+      this.pendingTonePitchShift = null
+    }
+    this.pendingWaBuffer = null
+    if (this.pendingHtmlAudio) {
+      try { this.pendingHtmlAudio.pause() } catch {}
+      try { (this.pendingHtmlAudio as any).src = '' } catch {}
+      this.pendingHtmlAudio = null
+    }
+    this.pendingReady = false
+    this.pendingParams = null
+    this.pendingUrl = ''
   }
 
   setVolume(v: number) {
@@ -214,6 +482,7 @@ class BGMManager {
     this.loopScheduled = false
     this.noLoop = false
     this.playGeneration++
+    this.disposePendingChain()
     if (this.sectionEndCheckId !== null) {
       clearInterval(this.sectionEndCheckId)
       this.sectionEndCheckId = null
@@ -632,10 +901,16 @@ class BGMManager {
     }
     this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, volume)), this.waContext.currentTime)
 
-    const resp = await fetch(url)
-    const arr = await resp.arrayBuffer()
-    const buf = await this.waContext.decodeAudioData(arr.slice(0))
-    this.waBuffer = buf
+    const cachedWa = this.preloadedWaBuffers.get(url)
+    if (cachedWa) {
+      this.waBuffer = cachedWa
+    } else {
+      const resp = await fetch(url)
+      const arr = await resp.arrayBuffer()
+      const buf = await this.waContext.decodeAudioData(arr.slice(0))
+      this.waBuffer = buf
+      this.preloadedWaBuffers.set(url, buf)
+    }
 
     // ループポイントを設定（サンプル精度）
     this._startWaSourceAt(0)

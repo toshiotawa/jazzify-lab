@@ -2144,7 +2144,7 @@ export const useFantasyGameEngine = ({
               const firstNextNote = nextNotes[0];
               const secondNextNote = nextNotes.length > 1 ? nextNotes[1] : firstNextNote;
               
-              // BGM即時切り替え（遅延なし）
+              // BGM即時切り替え: 事前準備済みチェーンで同期的に切り替え（ゼロラグ）
               const nextBgmUrl = nextSection.bgmUrl;
               if (nextBgmUrl) {
                 const sectionPitchShift = prevState.transposeSettings
@@ -2155,18 +2155,33 @@ export const useFantasyGameEngine = ({
                     )
                   : prevState.currentTransposeOffset;
                 
-                bgmManager.play(
-                  nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
-                  nextSection.measureCount, nextSection.countInMeasures,
-                  0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true
-                );
+                if (!bgmManager.switchToPreparedSection()) {
+                  bgmManager.play(
+                    nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
+                    nextSection.measureCount, nextSection.countInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true
+                  );
+                }
               }
               
-              // 次の次のセクションのBGMを事前フェッチ（切り替え高速化）
+              // 次の次のセクション用チェーンを事前構築（ゼロラグ切り替え準備）
               const preloadIdx = nextSectionIdx + 1;
               if (preloadIdx < prevState.combinedSections.length) {
-                const preloadUrl = prevState.combinedSections[preloadIdx].bgmUrl;
-                if (preloadUrl) bgmManager.preloadAudio(preloadUrl);
+                const preloadSection = prevState.combinedSections[preloadIdx];
+                if (preloadSection.bgmUrl) {
+                  const preloadPitchShift = prevState.transposeSettings
+                    ? calculateTransposeOffset(
+                        prevState.transposeSettings.keyOffset,
+                        prevState.combinedFullLoopCount,
+                        prevState.transposeSettings.repeatKeyChange
+                      )
+                    : prevState.currentTransposeOffset;
+                  bgmManager.prepareNextSection(
+                    preloadSection.bgmUrl, preloadSection.bpm, preloadSection.timeSignature,
+                    preloadSection.measureCount, preloadSection.countInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, preloadPitchShift, true
+                  );
+                }
               }
               
               devLog.debug('🔗 セクション遷移:', {
@@ -2220,6 +2235,17 @@ export const useFantasyGameEngine = ({
                     0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
                   );
                 }
+                // リスタート後、次セクション用チェーンを事前構築
+                if (prevState.combinedSections.length > 1) {
+                  const ns = prevState.combinedSections[1];
+                  if (ns.bgmUrl) {
+                    bgmManager.prepareNextSection(
+                      ns.bgmUrl, ns.bpm, ns.timeSignature,
+                      ns.measureCount, ns.countInMeasures,
+                      0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
+                    );
+                  }
+                }
                 
                 const resetNotes = transposedNotes.map(note => ({
                   ...note,
@@ -2261,6 +2287,17 @@ export const useFantasyGameEngine = ({
                   firstSection.measureCount, firstSection.countInMeasures,
                   0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
                 );
+              }
+              // リスタート後、次セクション用チェーンを事前構築
+              if (prevState.combinedSections.length > 1) {
+                const ns = prevState.combinedSections[1];
+                if (ns.bgmUrl) {
+                  bgmManager.prepareNextSection(
+                    ns.bgmUrl, ns.bpm, ns.timeSignature,
+                    ns.measureCount, ns.countInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
+                  );
+                }
               }
               
               const resetNotes = prevState.taikoNotes.map(note => ({
