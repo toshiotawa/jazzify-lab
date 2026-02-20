@@ -1087,9 +1087,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         displayWrapPending = false;
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
         const maxPreCountNotes = 6;
-        for (let i = 0; i < taikoNotes.length; i++) {
+        
+        // timing_combining: 現在のセクションのノーツ範囲のみを参照
+        const isCombining = isCombiningModeRef.current;
+        const sections = combinedSectionsRef.current;
+        const secIdx = currentSectionIndexRef.current;
+        let startIdx = 0;
+        let endIdx = taikoNotes.length;
+        if (isCombining && sections.length > 0 && sections[secIdx]) {
+          startIdx = sections[secIdx].globalNoteStartIndex;
+          endIdx = sections[secIdx].globalNoteEndIndex;
+        }
+        
+        for (let i = startIdx; i < endIdx; i++) {
           const note = taikoNotes[i];
-          const timeUntilHit = note.hitTime - currentTime; // currentTime は負値
+          if (!note) continue;
+          const timeUntilHit = note.hitTime - currentTime;
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
@@ -2007,15 +2020,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
             transposeOffset={gameState.currentTransposeOffset || 0}
             nextTransposeOffset={
-              // 移調設定がある場合、次のループの移調オフセットを計算
-              gameState.transposeSettings
-                ? calculateTransposeOffset(
-                    gameState.transposeSettings.keyOffset,
-                    (gameState.taikoLoopCycle ?? 0) + 1,
-                    gameState.transposeSettings.repeatKeyChange
-                  )
-                : undefined
+              // timing_combining: セクションごとに曲が異なるため先読み譜面は無効
+              gameState.isCombiningMode
+                ? undefined
+                : gameState.transposeSettings
+                  ? calculateTransposeOffset(
+                      gameState.transposeSettings.keyOffset,
+                      (gameState.taikoLoopCycle ?? 0) + 1,
+                      gameState.transposeSettings.repeatKeyChange
+                    )
+                  : undefined
             }
+            disablePreview={gameState.isCombiningMode}
             simpleMode={currentSimpleNoteName}
             className="w-full h-full"
           />

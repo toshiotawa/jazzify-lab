@@ -30,6 +30,8 @@ interface FantasySheetMusicDisplayProps {
   transposeOffset?: number;
   /** 次のループの移調オフセット（0 ~ 11） */
   nextTransposeOffset?: number;
+  /** 先読み譜面の表示を無効化 */
+  disablePreview?: boolean;
   /** 簡易表示モード（ダブルシャープ/ダブルフラットを変換） */
   simpleMode?: boolean;
   className?: string;
@@ -83,6 +85,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   countInMeasures = 0,
   transposeOffset = 0,
   nextTransposeOffset,
+  disablePreview = false,
   simpleMode = false,
   className
 }) => {
@@ -517,7 +520,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           )}
           
           {/* 2つ目の楽譜（次のキー、先読み表示用） */}
-          {isInitialized && nextSheetImage && (
+          {isInitialized && nextSheetImage && !disablePreview && (
             <div 
               className="h-full flex items-center flex-shrink-0"
               style={{ 
