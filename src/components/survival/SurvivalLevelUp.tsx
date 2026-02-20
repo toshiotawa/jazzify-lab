@@ -46,6 +46,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   const [inputEnabled, setInputEnabled] = useState(false);
   const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);
   const timeoutCalledRef = useRef(false);
+  const selectionMadeRef = useRef(false);
 
   // ドラッグ移動（モジュールレベル変数で位置を永続化）
   const [position, setPosition] = useState(persistedPosition);
@@ -81,6 +82,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     setInputEnabled(false);
     setSelectedBonus(null);
     timeoutCalledRef.current = false;
+    selectionMadeRef.current = false;
 
     const playLevelUpSound = async () => {
       try {
@@ -107,7 +109,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   }, [pendingLevelUps]);
 
   const handleSelect = useCallback((bonus: LevelUpBonus) => {
-    if (!inputEnabled || selectedBonus) return;
+    if (!inputEnabled || selectedBonus || selectionMadeRef.current) return;
+    selectionMadeRef.current = true;
     setSelectedBonus(bonus);
     setTimeout(() => {
       onSelect(bonus);
@@ -154,7 +157,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   }, [validOptions.length, onTimeout]);
 
   React.useEffect(() => {
-    if (!inputEnabled || selectedBonus) return;
+    if (!inputEnabled || selectedBonus || selectionMadeRef.current) return;
     for (let i = 0; i < options.length; i++) {
       const progress = getProgress(i);
       if (progress >= 100 && options[i]?.chord?.notes) {

@@ -406,14 +406,21 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   
   // WAVEごとのHP大幅ボーナス（段階的に増加）
   let waveHpBonus = 0;
+  if (waveNumber >= 5) {
+    const wavesIn5to9 = Math.min(waveNumber, 9) - 4;
+    waveHpBonus += wavesIn5to9 * 300;
+  }
+  if (waveNumber >= 10) {
+    waveHpBonus += 2000;
+  }
+  if (waveNumber >= 20) {
+    waveHpBonus += 100000;
+  }
+  if (waveNumber >= 30) {
+    waveHpBonus += 100000;
+  }
   if (waveNumber >= 40) {
-    waveHpBonus = 1000 + 10000 + 100000 + 100000; // 211,000
-  } else if (waveNumber >= 30) {
-    waveHpBonus = 1000 + 10000 + 100000; // 111,000
-  } else if (waveNumber >= 20) {
-    waveHpBonus = 1000 + 10000; // 11,000
-  } else if (waveNumber >= 10) {
-    waveHpBonus = 1000;
+    waveHpBonus += 100000;
   }
   
   const baseHp = Math.floor(base.hp * totalMultiplier) + waveHpBonus;
@@ -962,8 +969,8 @@ const ALL_BONUSES: BonusDefinition[] = [
   { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+1%（ダメージ2倍等の確率UP）', descriptionEn: 'Luck +1% (chance for 2x damage, etc.)', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', displayNameEn: 'Penetration', description: '遠距離弾が敵を貫通', descriptionEn: 'Ranged bullets pierce enemies', icon: '➡️', maxLevel: 1 },
-  { type: 'b_knockback', displayName: 'ノックバック+', displayNameEn: 'Knockback+', description: '近接攻撃のノックバック距離増加', descriptionEn: 'Increase melee knockback distance', icon: '💨' },
-  { type: 'b_range', displayName: '攻撃範囲+', displayNameEn: 'Attack Range+', description: '近接攻撃範囲拡大', descriptionEn: 'Expand melee attack range', icon: '📐' },
+  { type: 'b_knockback', displayName: 'ノックバック+', displayNameEn: 'Knockback+', description: '近接攻撃のノックバック距離増加', descriptionEn: 'Increase melee knockback distance', icon: '💨', maxLevel: 10 },
+  { type: 'b_range', displayName: '攻撃範囲+', displayNameEn: 'Attack Range+', description: '近接攻撃範囲拡大', descriptionEn: 'Expand melee attack range', icon: '📐', maxLevel: 10 },
   { type: 'b_deflect', displayName: '拳でかきけす', displayNameEn: 'Deflect', description: '近接攻撃で敵弾消去', descriptionEn: 'Destroy enemy bullets with melee', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '近距離多段ヒット', displayNameEn: 'Multi-Hit', description: '近距離攻撃の攻撃回数増加', descriptionEn: 'Increase melee hit count', icon: '✨', maxLevel: 3 },
   { type: 'exp_bonus', displayName: '経験値+1', displayNameEn: 'EXP +1', description: 'コイン獲得経験値+1', descriptionEn: 'Coin EXP +1', icon: '💰', maxLevel: 10 },
@@ -1022,6 +1029,10 @@ const getAvailableBonuses = (
           return !player.skills.aPenetration;
         case 'b_deflect':
           return !player.skills.bDeflect;
+        case 'b_knockback':
+          return player.skills.bKnockbackBonus < bonus.maxLevel;
+        case 'b_range':
+          return player.skills.bRangeBonus < bonus.maxLevel;
         case 'multi_hit':
           return player.skills.multiHitLevel < bonus.maxLevel;
         case 'exp_bonus':
