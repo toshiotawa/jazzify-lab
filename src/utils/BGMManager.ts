@@ -36,6 +36,10 @@ class BGMManager {
   private toneLoopEnd: number = 0
   private useTonePitchShift = false // Tone.jsを使用するかどうか
   private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
+  
+  // 非同期ロード中のフォールバック時間計算用
+  private playInitiatedAt = 0 // play()が呼ばれたperformance.now()
+  private isLoadingAudio = false // 非同期BGMロード中フラグ
 
   /**
    * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
@@ -106,6 +110,10 @@ class BGMManager {
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
     this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
     this.noLoop = noLoop
+    
+    // 非同期ロード中のフォールバック: play()時点からの経過時間でカウントインを模擬
+    this.playInitiatedAt = performance.now()
+    this.isLoadingAudio = true
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -187,6 +195,7 @@ class BGMManager {
 
   stop() {
     this.isPlaying = false
+    this.isLoadingAudio = false
     this.loopScheduled = false
     this.useTonePitchShift = false
     this.noLoop = false
@@ -320,6 +329,15 @@ class BGMManager {
         return this.normalizeMusicTime(musicTime)
       }
     }
+    
+    // 非同期BGMロード中: performance.now()ベースでカウントイン時間を模擬
+    // これにより Tone.js/WebAudio のロード中もノーツ描画が進み、ゲームが固まらない
+    if (this.isLoadingAudio && this.playInitiatedAt > 0) {
+      const elapsedMs = performance.now() - this.playInitiatedAt
+      const elapsedSec = (elapsedMs / 1000) * this.playbackRate
+      return this.normalizeMusicTime(elapsedSec)
+    }
+    
     return 0
   }
   
@@ -537,6 +555,7 @@ class BGMManager {
         // 再生開始
         this.tonePlayer.start(startTime, 0)
         this.isPlaying = true
+        this.isLoadingAudio = false
         this.startTime = performance.now()
         // waStartAtにPitchShiftの遅延を加算して補正
         // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
@@ -585,6 +604,7 @@ class BGMManager {
     // ループポイントを設定（サンプル精度）
     this._startWaSourceAt(0)
     this.isPlaying = true
+    this.isLoadingAudio = false
     this.startTime = performance.now()
     console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
   }
