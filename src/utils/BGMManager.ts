@@ -100,7 +100,9 @@ class BGMManager {
     if (!url) return
     
     // 既存のオーディオをクリーンアップ
-    this.stop()
+    // pitchShift使用時はTone.jsチェーンを保持して再利用
+    const keepToneChain = pitchShift !== 0 && this.tonePitchShift !== null
+    this.stopPlayer(keepToneChain)
     
     // パラメータを保存
     this.bpm = bpm
@@ -193,11 +195,11 @@ class BGMManager {
     }
   }
 
-  stop() {
+  // Tone.jsチェーンを保持するかどうかを制御する軽量停止
+  private stopPlayer(keepToneChain = false) {
     this.isPlaying = false
     this.isLoadingAudio = false
     this.loopScheduled = false
-    this.useTonePitchShift = false
     this.noLoop = false
     if (this.sectionEndCheckId !== null) {
       clearInterval(this.sectionEndCheckId)
@@ -244,12 +246,23 @@ class BGMManager {
           this.tonePlayer = null
         }
       } catch {}
-      try {
-        if (this.tonePitchShift) {
-          this.tonePitchShift.dispose()
-          this.tonePitchShift = null
-        }
-      } catch {}
+      
+      if (!keepToneChain) {
+        // 完全停止: PitchShift/Gainチェーンも破棄
+        this.useTonePitchShift = false
+        try {
+          if (this.toneGain) {
+            this.toneGain.dispose()
+            this.toneGain = null
+          }
+        } catch {}
+        try {
+          if (this.tonePitchShift) {
+            this.tonePitchShift.dispose()
+            this.tonePitchShift = null
+          }
+        } catch {}
+      }
     } catch (e) {
       console.warn('BGMManager.stop safe stop failed:', e)
     } finally {
@@ -257,6 +270,10 @@ class BGMManager {
       this.audio = null
       console.log('🔇 BGM停止・クリーンアップ完了')
     }
+  }
+
+  stop() {
+    this.stopPlayer(false)
   }
   
   private handleError = (e: Event) => {
@@ -509,36 +526,42 @@ class BGMManager {
     }
   }
 
+  // Tone.js GainNode（PitchShiftチェーン再利用時に保持）
+  private toneGain: any = null
+
   // ─────────────────────────────────────────────
   // Tone.js PitchShift 実装（iOS対応）
+  // PitchShiftチェーンを再利用し、Playerのみ差し替える
   private async _playTonePitchShift(url: string, volume: number): Promise<void> {
-    // Tone.jsを動的インポート
     const Tone = await import('tone')
-    
-    // AudioContextを起動
     await Tone.start()
     
-    // PitchShiftの設定
-    // windowSize: FFT窓サイズ（秒）- 音質に影響
-    // delayTime: 処理遅延（秒）- これがオーディオ出力の遅延になる
-    const pitchShiftWindowSize = 0.1  // 100ms
-    const pitchShiftDelayTime = 0.05  // 50ms
-    
-    // PitchShiftの総遅延を計算（delayTime + windowSize/2 程度の処理遅延）
-    // 実測値に基づいて調整可能
+    const pitchShiftWindowSize = 0.1
+    const pitchShiftDelayTime = 0.05
     this.pitchShiftLatency = pitchShiftDelayTime + (pitchShiftWindowSize * 0.5)
     
-    // PitchShiftノードを作成
-    this.tonePitchShift = new Tone.PitchShift({
-      pitch: this.pitchShift,
-      windowSize: pitchShiftWindowSize,
-      delayTime: pitchShiftDelayTime
-    }).toDestination()
+    // 既存のPlayerを停止・破棄（PitchShiftチェーンは残す）
+    if (this.tonePlayer) {
+      try { this.tonePlayer.stop() } catch {}
+      try { this.tonePlayer.dispose() } catch {}
+      this.tonePlayer = null
+    }
     
-    // ボリューム調整（PitchShiftの前に挿入）
-    const gainNode = new Tone.Gain(volume).connect(this.tonePitchShift)
+    // PitchShift + Gainチェーンが存在しなければ作成、あれば再利用
+    if (!this.tonePitchShift) {
+      this.tonePitchShift = new Tone.PitchShift({
+        pitch: this.pitchShift,
+        windowSize: pitchShiftWindowSize,
+        delayTime: pitchShiftDelayTime
+      }).toDestination()
+      this.toneGain = new Tone.Gain(volume).connect(this.tonePitchShift)
+    } else {
+      // ピッチとボリュームを更新
+      try { (this.tonePitchShift as any).pitch = this.pitchShift } catch {}
+      try { if (this.toneGain) (this.toneGain as any).gain.value = volume } catch {}
+    }
     
-    // Playerを作成（ループ対応）
+    // 新しいPlayerを作成して既存チェーンに接続
     this.tonePlayer = new Tone.Player({
       url: url,
       loop: !this.noLoop,
@@ -546,19 +569,14 @@ class BGMManager {
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
         
-        // ループポイントをロード後に明示的に設定（Tone.jsの仕様対応）
         this.tonePlayer.loopStart = this.loopBegin
         this.tonePlayer.loopEnd = this.loopEnd
         
-        // 再生開始時刻を先に記録（start()呼び出し前に）
         const startTime = Tone.now()
-        // 再生開始
         this.tonePlayer.start(startTime, 0)
         this.isPlaying = true
         this.isLoadingAudio = false
         this.startTime = performance.now()
-        // waStartAtにPitchShiftの遅延を加算して補正
-        // オーディオが遅れて出力されるため、開始時刻を遅らせることで時間計算を補正
         this.waStartAt = startTime + this.pitchShiftLatency
         console.log('🎵 BGM再生開始 (Tone.js PitchShift):', { 
           url, 
@@ -572,9 +590,7 @@ class BGMManager {
           note: `PitchShift遅延 ${(this.pitchShiftLatency * 1000).toFixed(0)}ms を補正`
         })
       }
-    }).connect(gainNode)
-    
-    // Tone.jsのTransportを使用しない（シンプルなPlayer.loopを使用）
+    }).connect(this.toneGain)
   }
   
   // ─────────────────────────────────────────────
