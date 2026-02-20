@@ -27,7 +27,7 @@ BEGIN
     p.nickname,
     p.avatar_url,
     p.level,
-    p.rank,
+    p.rank::text,
     p.twitter_handle,
     p.selected_title,
     s.character_id,
