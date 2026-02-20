@@ -183,6 +183,22 @@ class BGMManager {
     return this.pitchShift
   }
 
+  /**
+   * 次のセクションのBGMを事前フェッチしブラウザキャッシュに入れる。
+   * Tone.js/WebAudioが同じURLをロードする際にキャッシュヒットし高速化する。
+   */
+  preloadAudio(url: string) {
+    if (!url) return
+    try {
+      const link = document.createElement('link')
+      link.rel = 'prefetch'
+      link.as = 'fetch'
+      link.href = url
+      link.crossOrigin = 'anonymous'
+      document.head.appendChild(link)
+    } catch {}
+  }
+
   setVolume(v: number) {
     if (this.audio) {
       this.audio.volume = Math.max(0, Math.min(1, v))

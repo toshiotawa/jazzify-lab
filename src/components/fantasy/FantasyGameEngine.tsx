@@ -2079,20 +2079,17 @@ export const useFantasyGameEngine = ({
       const timer = setInterval(() => {
         updateEnemyGauge();
         // timing_combining: setGameState外でBGM切り替えを実行
-        // React 18のバッチ処理によりsetStateのコールバックが遅延するため、
-        // setTimeout(0)で次のティックまで遅延させ、pendingBgmRefが設定された後に実行する
-        setTimeout(() => {
-          const pending = pendingBgmRef.current;
-          if (pending) {
-            pendingBgmRef.current = null;
-            const pitchShift = typeof pending.pitchShift === 'number' ? pending.pitchShift : 0;
-            bgmManager.play(
-              pending.url, pending.bpm, pending.timeSig, pending.measureCount,
-              pending.countIn, pending.volume, pending.speedMul, pitchShift, true
-            );
-          }
-        }, 0);
-      }, 100); // 100ms間隔で更新
+        // pendingBgmRef.currentへの代入はsetStateコールバック内でも同期的に実行される
+        const pending = pendingBgmRef.current;
+        if (pending) {
+          pendingBgmRef.current = null;
+          const pitchShift = typeof pending.pitchShift === 'number' ? pending.pitchShift : 0;
+          bgmManager.play(
+            pending.url, pending.bpm, pending.timeSig, pending.measureCount,
+            pending.countIn, pending.volume, pending.speedMul, pitchShift, true
+          );
+        }
+      }, 50); // 50ms間隔で更新（セクション切り替え検出の高速化）
       setEnemyGaugeTimer(timer);
     }
     
@@ -2188,6 +2185,13 @@ export const useFantasyGameEngine = ({
                   speedMul: stage.speedMultiplier || 1.0,
                   pitchShift: sectionPitchShift,
                 };
+              }
+              
+              // 次の次のセクションのBGMを事前フェッチ（切り替え高速化）
+              const preloadIdx = nextSectionIdx + 1;
+              if (preloadIdx < prevState.combinedSections.length) {
+                const preloadUrl = prevState.combinedSections[preloadIdx].bgmUrl;
+                if (preloadUrl) bgmManager.preloadAudio(preloadUrl);
               }
               
               devLog.debug('🔗 セクション遷移:', {

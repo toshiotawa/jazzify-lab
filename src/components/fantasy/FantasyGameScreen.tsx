@@ -611,6 +611,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         initialPitchShift,
         true // noLoop
       );
+      // 次のセクションのBGMを事前フェッチ（切り替え高速化）
+      if (gameState.combinedSections.length > 1 && gameState.combinedSections[1].bgmUrl) {
+        bgmManager.preloadAudio(gameState.combinedSections[1].bgmUrl);
+      }
     } else {
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
