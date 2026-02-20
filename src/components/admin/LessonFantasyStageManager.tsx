@@ -16,7 +16,7 @@ import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFanta
 import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
-type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
+type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
 
 // progression_timing 用の行
 interface TimingRow {
@@ -249,7 +249,7 @@ const LessonFantasyStageManager: React.FC = () => {
       delete base.chord_progression;
       delete base.chord_progression_data;
     }
-    if (v.mode === 'progression_timing') {
+    if (v.mode === 'progression_timing' || v.mode === 'timing_combining') {
       delete base.note_interval_beats;
     }
     return base;
@@ -266,7 +266,7 @@ const LessonFantasyStageManager: React.FC = () => {
       if (v.mode === 'progression_order' && (!v.chord_progression || v.chord_progression.length === 0)) {
         return toast.error('順番モードではコード進行を1つ以上追加してください');
       }
-      if ((v.mode === 'progression_order' || v.mode === 'progression_random' || v.mode === 'progression_timing')) {
+      if ((v.mode === 'progression_order' || v.mode === 'progression_random' || v.mode === 'progression_timing' || v.mode === 'timing_combining')) {
         if (!v.bpm || !v.time_signature) {
           return toast.error('リズム系モードでは BPM と 拍子 は必須です');
         }

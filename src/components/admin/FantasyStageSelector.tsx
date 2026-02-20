@@ -127,7 +127,7 @@ export const FantasyStageSelector: React.FC<FantasyStageSelectorProps> = ({
                   </div>
                   <div className="flex flex-wrap gap-2 mt-2">
                     <span className="text-xs px-2 py-1 bg-gray-100 rounded">
-                      モード: {stage.mode === 'single' ? 'シングル' : stage.mode === 'progression_order' ? 'リズム・順番' : stage.mode === 'progression_random' ? 'リズム・ランダム' : stage.mode === 'progression_timing' ? 'リズム・カスタム' : 'プログレッション'}
+                      モード: {stage.mode === 'single' ? 'シングル' : stage.mode === 'progression_order' ? 'リズム・順番' : stage.mode === 'progression_random' ? 'リズム・ランダム' : stage.mode === 'progression_timing' ? 'リズム・カスタム' : stage.mode === 'timing_combining' ? '結合' : 'プログレッション'}
                     </span>
                     <span className="text-xs px-2 py-1 bg-purple-100 text-purple-700 rounded">
                       種別: {stage.stage_tier === 'advanced' ? 'Advanced' : 'Basic'}

@@ -45,7 +45,7 @@ const ResultPracticeSettings: React.FC<ResultPracticeSettingsProps> = ({
   const [transposeKeyOffset, setTransposeKeyOffset] = useState(0);
   const [repeatKeyChange, setRepeatKeyChange] = useState<RepeatKeyChange>('off');
   
-  const isTimingMode = currentStage.mode === 'progression_timing';
+  const isTimingMode = currentStage.mode === 'progression_timing' || currentStage.mode === 'timing_combining';
   
   return (
     <div className="w-full space-y-2">
@@ -278,7 +278,7 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: (['single','progression_order','progression_random','progression_timing'] as const).includes(stage.mode as any)
+            mode: (['single','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
               ? (stage.mode as any)
               : 'progression',
             allowedChords: stage.allowed_chords,
@@ -298,6 +298,7 @@ const FantasyMain: React.FC = () => {
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
             musicXml: (stage as any).music_xml,
+            combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -327,7 +328,7 @@ const FantasyMain: React.FC = () => {
           enemyHp: stage.enemy_hp,
           minDamage: stage.min_damage,
           maxDamage: stage.max_damage,
-          mode: (['single','progression_order','progression_random','progression_timing'] as const).includes(stage.mode as any)
+          mode: (['single','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
             ? (stage.mode as any)
             : 'progression',
           allowedChords: stage.allowed_chords,
@@ -347,6 +348,7 @@ const FantasyMain: React.FC = () => {
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
           musicXml: (stage as any).music_xml,
+          combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -684,7 +686,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing',
+        mode: nextStageData.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         chordProgressionData: (nextStageData as any).chord_progression_data,
@@ -705,6 +707,7 @@ const FantasyMain: React.FC = () => {
         // 楽譜モード
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
         sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
+        combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
       };
 
       setGameResult(null);

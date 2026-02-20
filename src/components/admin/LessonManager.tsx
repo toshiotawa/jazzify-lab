@@ -1097,7 +1097,7 @@ export const LessonManager: React.FC = () => {
                   const selectedStage = selectedStageId 
                     ? availableFantasyStages.find(s => s.id === selectedStageId)
                     : null;
-                  if (selectedStage?.mode === 'progression_timing') {
+                  if (selectedStage?.mode === 'progression_timing' || selectedStage?.mode === 'timing_combining') {
                     return (
                       <div className="mt-4 p-3 bg-purple-900/20 border border-purple-500/30 rounded-lg">
                         <h5 className="text-sm font-semibold text-purple-300 mb-2">転調設定の上書き（timingモード専用）</h5>

@@ -10,7 +10,7 @@ import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobal
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, type FantasyPlayMode } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode } from './FantasyGameEngine';
 import { 
   TaikoNote, 
   ChordProgressionDataItem,
@@ -534,7 +534,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
   const showSheetMusicForTiming = useMemo(() => {
-    return stage.mode === 'progression_timing' && 
+    return (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && 
            gameState.isTaikoMode && 
            gameState.taikoNotes.length > 0 &&
            !!stage.musicXml;
@@ -591,16 +591,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     }
     
-    bgmManager.play(
-      stage.bgmUrl ?? '/demo-1.mp3',
-      stage.bpm || 120,
-      stage.timeSignature || 4,
-      stage.measureCount ?? 8,
-      stage.countInMeasures ?? 0,
-      settings.bgmVolume ?? 0.7,
-      playbackRate,
-      initialPitchShift
-    );
+    // timing_combining: 最初のセクションのBGMをnoLoopで再生
+    if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
+      const firstSection = gameState.combinedSections[0];
+      bgmManager.play(
+        firstSection.bgmUrl ?? '/demo-1.mp3',
+        firstSection.bpm,
+        firstSection.timeSignature,
+        firstSection.measureCount,
+        firstSection.countInMeasures,
+        settings.bgmVolume ?? 0.7,
+        playbackRate,
+        initialPitchShift,
+        true // noLoop
+      );
+    } else {
+      bgmManager.play(
+        stage.bgmUrl ?? '/demo-1.mp3',
+        stage.bpm || 120,
+        stage.timeSignature || 4,
+        stage.measureCount ?? 8,
+        stage.countInMeasures ?? 0,
+        settings.bgmVolume ?? 0.7,
+        playbackRate,
+        initialPitchShift
+      );
+    }
 
     return () => bgmManager.stop();
   }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
@@ -638,8 +654,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       (baseStage as any).speedMultiplier = speedMultiplier;
     }
     
-    // 移調設定を適用（progression_timingモードの場合のみ）
-    if (transposeSettings && stage.mode === 'progression_timing') {
+    // 移調設定を適用（progression_timingまたはtiming_combiningモードの場合のみ）
+    if (transposeSettings && (stage.mode === 'progression_timing' || stage.mode === 'timing_combining')) {
       (baseStage as any).transposeSettings = transposeSettings;
     }
     
@@ -664,15 +680,54 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setIsReady(true);
     setIsGameReady(false); // リセット
     
-    // 移調設定を構築（練習モードかつprogression_timingの場合のみ）
+    // 移調設定を構築（練習モードかつprogression_timingまたはtiming_combiningの場合のみ）
     const transposeSettings: TransposeSettings | undefined = 
-      (mode === 'practice' && stage.mode === 'progression_timing' && transposeOpts)
+      (mode === 'practice' && (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && transposeOpts)
         ? { keyOffset: transposeOpts.keyOffset, repeatKeyChange: transposeOpts.repeatKeyChange }
         : undefined;
     
     // 🚀 画像プリロードを含むゲーム初期化を待機
     // Ready画面表示中にロードが完了する
     const stageWithSettings = buildInitStage(speedMultiplier, transposeSettings);
+    
+    // timing_combining: 子ステージデータをDBからロードしてstageに注入
+    if (stageWithSettings.mode === 'timing_combining' && stageWithSettings.combinedStageIds && stageWithSettings.combinedStageIds.length > 0) {
+      const { fetchFantasyStagesByIds } = await import('@/platform/supabaseFantasyStages');
+      const childStagesRaw = await fetchFantasyStagesByIds(stageWithSettings.combinedStageIds);
+      stageWithSettings.combinedStages = childStagesRaw.map(cs => ({
+        id: cs.id,
+        stageNumber: (cs as any).stage_number,
+        name: cs.name,
+        name_en: (cs as any).name_en,
+        description: cs.description,
+        description_en: (cs as any).description_en,
+        maxHp: (cs as any).max_hp,
+        enemyGaugeSeconds: (cs as any).enemy_gauge_seconds,
+        enemyCount: (cs as any).enemy_count,
+        enemyHp: (cs as any).enemy_hp,
+        minDamage: (cs as any).min_damage,
+        maxDamage: (cs as any).max_damage,
+        mode: 'progression_timing' as const,
+        allowedChords: (cs as any).allowed_chords || [],
+        chordProgression: (cs as any).chord_progression,
+        chordProgressionData: (cs as any).chord_progression_data,
+        showSheetMusic: false,
+        showGuide: (cs as any).show_guide,
+        simultaneousMonsterCount: (cs as any).simultaneous_monster_count || 1,
+        monsterIcon: 'dragon',
+        bpm: (cs as any).bpm || 120,
+        bgmUrl: (cs as any).bgm_url || (cs as any).mp3_url,
+        measureCount: (cs as any).measure_count,
+        countInMeasures: (cs as any).count_in_measures || 0,
+        timeSignature: (cs as any).time_signature || 4,
+        noteIntervalBeats: (cs as any).note_interval_beats,
+        playRootOnCorrect: (cs as any).play_root_on_correct ?? true,
+        isSheetMusicMode: !!(cs as any).is_sheet_music_mode,
+        sheetMusicClef: (cs as any).sheet_music_clef || 'treble',
+        musicXml: (cs as any).music_xml,
+      }));
+    }
+    
     await initializeGame(stageWithSettings, mode);
     
     // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
@@ -1403,7 +1458,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 </div>
                 
                 {/* 移調練習設定（progression_timingモードの場合のみ表示） */}
-                {stage.mode === 'progression_timing' && (
+                {(stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && (
                   <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
                     <div className="text-sm text-yellow-300 font-medium">
                       🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}

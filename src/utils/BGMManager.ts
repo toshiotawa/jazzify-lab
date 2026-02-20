@@ -43,6 +43,10 @@ class BGMManager {
    * - ループ後は loopBegin〜loopEnd の範囲で正規化
    */
   private normalizeMusicTime(musicTime: number): number {
+    if (this.noLoop) {
+      // ループ無効時: M1=0として線形に返す（ループ正規化なし）
+      return musicTime - this.loopBegin
+    }
     const loopDuration = this.loopEnd - this.loopBegin
     if (loopDuration > 0 && musicTime >= this.loopEnd) {
       // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
@@ -53,6 +57,31 @@ class BGMManager {
     return musicTime - this.loopBegin
   }
 
+  // ループ無効フラグ（timing_combining用）
+  private noLoop = false
+  // セクション終了時コールバック（timing_combining用）
+  private onSectionEnd: (() => void) | null = null
+  // セクション終了チェックタイマー
+  private sectionEndCheckId: number | null = null
+
+  /**
+   * timing_combining セクション終了コールバックを設定
+   */
+  setOnSectionEnd(cb: (() => void) | null) {
+    this.onSectionEnd = cb
+  }
+
+  /**
+   * 現在のセクションの再生残り時間（M1=0起点の音楽時間がmeasureCount分の長さを超えたか）
+   */
+  isSectionComplete(): boolean {
+    if (!this.isPlaying || !this.noLoop) return false
+    const musicTime = this.getCurrentMusicTime()
+    const secPerMeasure = (60 / this.bpm) * this.timeSignature
+    const sectionDuration = this.measureCount * secPerMeasure
+    return musicTime >= sectionDuration - 0.01
+  }
+
   play(
     url: string,
     bpm: number,
@@ -61,7 +90,8 @@ class BGMManager {
     countIn: number,
     volume = 0.7,
     playbackRate = 1.0,
-    pitchShift = 0 // 半音単位のピッチシフト（-12 ~ +12）
+    pitchShift = 0, // 半音単位のピッチシフト（-12 ~ +12）
+    noLoop = false // timing_combining用: ループ無効
   ) {
     if (!url) return
     
@@ -75,6 +105,7 @@ class BGMManager {
     this.countInMeasures = Math.max(0, Math.floor(countIn || 0))
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
     this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
+    this.noLoop = noLoop
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -158,6 +189,11 @@ class BGMManager {
     this.isPlaying = false
     this.loopScheduled = false
     this.useTonePitchShift = false
+    this.noLoop = false
+    if (this.sectionEndCheckId !== null) {
+      clearInterval(this.sectionEndCheckId)
+      this.sectionEndCheckId = null
+    }
 
     try {
       if (this.loopTimeoutId !== null) {
@@ -487,7 +523,7 @@ class BGMManager {
     // Playerを作成（ループ対応）
     this.tonePlayer = new Tone.Player({
       url: url,
-      loop: true,
+      loop: !this.noLoop,
       playbackRate: this.playbackRate,
       onload: () => {
         console.log('🎵 BGM loaded (Tone.js PitchShift)')
@@ -562,9 +598,13 @@ class BGMManager {
     }
     const src = this.waContext.createBufferSource()
     src.buffer = this.waBuffer
-    src.loop = true
-    src.loopStart = this.loopBegin
-    src.loopEnd = this.loopEnd
+    if (this.noLoop) {
+      src.loop = false
+    } else {
+      src.loop = true
+      src.loopStart = this.loopBegin
+      src.loopEnd = this.loopEnd
+    }
     src.playbackRate.value = this.playbackRate // 再生速度を設定
     src.connect(this.waGain!)
 
@@ -596,43 +636,43 @@ class BGMManager {
     this.audio.addEventListener('error', this.handleError)
     this.audio.addEventListener('ended', this.handleEnded)
     
-    // timeupdate による事前スケジュール（補助）
-    this.timeUpdateHandler = () => {
-      if (!this.audio || !this.isPlaying) return
-      const currentTime = this.audio.currentTime
-      const timeToEnd = this.loopEnd - currentTime
-      if (timeToEnd < 0.08 && timeToEnd > 0 && !this.loopScheduled) {
-        this.loopScheduled = true
-        this.nextLoopTime = this.loopBegin
-        this.loopTimeoutId = window.setTimeout(() => {
-          if (this.audio && this.isPlaying) {
-            this.audio.currentTime = this.nextLoopTime
-          }
-          this.loopScheduled = false
-          this.loopTimeoutId = null
-        }, Math.max(0, timeToEnd * 1000 - 30))
-      }
-    }
-    this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
-
-    // ループ監視Interval（最終防衛ライン）
-    this.loopCheckIntervalId = window.setInterval(() => {
-      if (!this.audio || !this.isPlaying) return
-      const now = this.audio.currentTime
-      // 少し早めに巻き戻す（デコーダの遅延考慮）
-      const epsilon = 0.02
-      if (now >= this.loopEnd - epsilon) {
-        try {
-          this.audio.currentTime = this.loopBegin
-          // 再生が止まっていたら再開
-          if (this.audio.paused) {
-            void this.audio.play().catch(() => {})
-          }
-        } catch (e) {
-          // noop
+    if (!this.noLoop) {
+      // timeupdate による事前スケジュール（補助）
+      this.timeUpdateHandler = () => {
+        if (!this.audio || !this.isPlaying) return
+        const currentTime = this.audio.currentTime
+        const timeToEnd = this.loopEnd - currentTime
+        if (timeToEnd < 0.08 && timeToEnd > 0 && !this.loopScheduled) {
+          this.loopScheduled = true
+          this.nextLoopTime = this.loopBegin
+          this.loopTimeoutId = window.setTimeout(() => {
+            if (this.audio && this.isPlaying) {
+              this.audio.currentTime = this.nextLoopTime
+            }
+            this.loopScheduled = false
+            this.loopTimeoutId = null
+          }, Math.max(0, timeToEnd * 1000 - 30))
         }
       }
-    }, 25)
+      this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
+
+      // ループ監視Interval（最終防衛ライン）
+      this.loopCheckIntervalId = window.setInterval(() => {
+        if (!this.audio || !this.isPlaying) return
+        const now = this.audio.currentTime
+        const epsilon = 0.02
+        if (now >= this.loopEnd - epsilon) {
+          try {
+            this.audio.currentTime = this.loopBegin
+            if (this.audio.paused) {
+              void this.audio.play().catch(() => {})
+            }
+          } catch (e) {
+            // noop
+          }
+        }
+      }, 25)
+    }
     
     // 再生開始
     this.startTime = performance.now()

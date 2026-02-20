@@ -120,6 +120,29 @@ export async function fetchFantasyStageById(stageId: string, options?: { skipCac
 }
 
 /**
+ * 複数のステージIDで一括取得（timing_combining用）
+ * 順序は引数のids配列に従う
+ */
+export async function fetchFantasyStagesByIds(ids: string[]): Promise<FantasyStage[]> {
+  if (ids.length === 0) return [];
+  const supabase = getSupabaseClient();
+  const { data, error } = await fetchWithCache(
+    `fantasy_stages:by_ids:${ids.join(',')}`,
+    async () => await supabase
+      .from('fantasy_stages')
+      .select('*')
+      .in('id', ids),
+    1000 * 60 * 5
+  );
+  if (error) {
+    console.error('Error fetching fantasy stages by ids:', error);
+    throw error;
+  }
+  const map = new Map((data || []).map((s: FantasyStage) => [s.id, s]));
+  return ids.map(id => map.get(id)).filter((s): s is FantasyStage => !!s);
+}
+
+/**
  * ステージ番号でファンタジーステージを取得
  */
 export async function fetchFantasyStageByNumber(stageNumber: string, stageTier: 'basic' | 'advanced' = 'basic'): Promise<FantasyStage | null> {
@@ -258,7 +281,7 @@ export interface UpsertFantasyStagePayload {
   enemy_hp?: number;
   min_damage?: number;
   max_damage?: number;
-  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing';
+  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
   allowed_chords?: any[]; // ChordSpec[] or string[]
   chord_progression?: any[]; // ChordSpec[]
   chord_progression_data?: any; // JSON array
@@ -285,6 +308,8 @@ export interface UpsertFantasyStagePayload {
   // 本番モード用の転調設定（timingモード専用）
   production_repeat_transposition_mode?: RepeatTranspositionMode | null;
   production_start_key?: number | null;
+  // timing_combining モード用
+  combined_stage_ids?: string[] | null;
 }
 
 /**

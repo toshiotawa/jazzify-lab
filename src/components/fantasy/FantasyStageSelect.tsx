@@ -259,7 +259,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         enemyHp: stage.enemy_hp,
         minDamage: stage.min_damage,
         maxDamage: stage.max_damage,
-        mode: stage.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing',
+        mode: stage.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining',
         allowedChords: Array.isArray(stage.allowed_chords) ? stage.allowed_chords : [],
         chordProgression: Array.isArray(stage.chord_progression) ? stage.chord_progression : undefined,
         chordProgressionData: (stage as any).chord_progression_data,
@@ -284,6 +284,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
         // MusicXML（OSMD楽譜表示用）
         musicXml: (stage as any).music_xml,
+        // timing_combining 用
+        combinedStageIds: Array.isArray((stage as any).combined_stage_ids) ? (stage as any).combined_stage_ids : undefined,
       }));
       
       const convertedProgress: FantasyUserProgress = {
@@ -525,6 +527,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       progression_order: { label: isEnglishCopy ? 'Rhythm / Order' : 'リズム・順番', color: 'bg-green-500' },
       progression_random: { label: isEnglishCopy ? 'Rhythm / Random' : 'リズム・ランダム', color: 'bg-purple-500' },
       progression_timing: { label: isEnglishCopy ? 'Rhythm / Custom' : 'リズム・カスタム', color: 'bg-orange-500' },
+      timing_combining: { label: isEnglishCopy ? 'Combined' : '結合', color: 'bg-pink-500' },
     };
     
     const modeDisplay = modeDisplayMap[stage.mode] || { label: stage.mode, color: 'bg-gray-500' };

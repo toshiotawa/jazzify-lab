@@ -1096,7 +1096,7 @@ const AdminFantasyTrackList: React.FC<{ missionId: string }> = ({ missionId }) =
             <div className="text-sm text-white">
               {t.stage_label}
               <span className="ml-2 text-xs text-gray-300">必要クリア: {t.clears_required}回</span>
-              {t.mode === 'progression_timing' && (
+              {(t.mode === 'progression_timing' || t.mode === 'timing_combining') && (
                 <span className="ml-2 text-xs text-purple-300">
                   [転調: {formatTranspositionMode(t.override_repeat_transposition_mode)}, 
                   キー: {t.override_start_key ?? '元設定'}]
@@ -1186,7 +1186,7 @@ const FantasyTrackEditForm: React.FC<{
             className="input input-bordered input-sm w-full text-white"
           />
         </div>
-        {track.mode === 'progression_timing' && (
+        {(track.mode === 'progression_timing' || track.mode === 'timing_combining') && (
           <>
             <div>
               <label className="block text-xs text-gray-300 mb-1">リピート転調設定</label>
@@ -1271,7 +1271,7 @@ const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdde
               <label className="block text-sm mb-1">必要クリア回数</label>
               <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
             </div>
-            {selectedStage?.mode === 'progression_timing' && (
+            {(selectedStage?.mode === 'progression_timing' || selectedStage?.mode === 'timing_combining') && (
               <>
                 <div>
                   <label className="block text-sm mb-1">リピート転調設定</label>
@@ -1307,7 +1307,7 @@ const FantasyAddModal: React.FC<{ missionId: string; onClose: () => void; onAdde
               </>
             )}
           </div>
-          {selectedStage?.mode === 'progression_timing' && (
+          {(selectedStage?.mode === 'progression_timing' || selectedStage?.mode === 'timing_combining') && (
             <p className="text-xs text-gray-400">
               timingモードのステージです。転調設定と開始キーを上書きできます。
             </p>
@@ -1388,7 +1388,7 @@ const FormFantasyAddModal: React.FC<{
               <label className="block text-sm mb-1">必要クリア回数</label>
               <input type="number" min={1} value={count} onChange={(e)=>setCount(parseInt(e.target.value,10)||1)} className="input input-bordered w-full text-white" />
             </div>
-            {selectedStage?.mode === 'progression_timing' && (
+            {(selectedStage?.mode === 'progression_timing' || selectedStage?.mode === 'timing_combining') && (
               <>
                 <div>
                   <label className="block text-sm mb-1">リピート転調設定</label>
@@ -1424,7 +1424,7 @@ const FormFantasyAddModal: React.FC<{
               </>
             )}
           </div>
-          {selectedStage?.mode === 'progression_timing' && (
+          {(selectedStage?.mode === 'progression_timing' || selectedStage?.mode === 'timing_combining') && (
             <p className="text-xs text-gray-400">
               timingモードのステージです。転調設定と開始キーを上書きできます。
             </p>

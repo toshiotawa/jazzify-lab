@@ -19,7 +19,7 @@ import { CHORD_TEMPLATES, ChordQuality, INTERVAL_DEFINITIONS } from '@/utils/cho
 import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
-type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing';
+type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
 
 // progression_timing 用の行
 interface TimingRow {
@@ -77,6 +77,8 @@ interface StageFormValues {
   // 本番モード用の転調設定（timingモード専用）
   production_repeat_transposition_mode: RepeatTranspositionMode;
   production_start_key: number;
+  // timing_combining 用
+  combined_stage_ids: string[];
 }
 
 const defaultValues: StageFormValues = {
@@ -110,6 +112,8 @@ const defaultValues: StageFormValues = {
   // 本番モード用の転調設定
   production_repeat_transposition_mode: 'off',
   production_start_key: 0,
+  // timing_combining 用
+  combined_stage_ids: [],
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -335,6 +339,7 @@ const FantasyStageManager: React.FC = () => {
         // 本番モード用の転調設定
         production_repeat_transposition_mode: (s as any).production_repeat_transposition_mode || 'off',
         production_start_key: (s as any).production_start_key ?? 0,
+        combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
       };
       reset(v);
     } catch (e: any) {
@@ -376,8 +381,10 @@ const FantasyStageManager: React.FC = () => {
       required_clears_for_next: v.required_clears_for_next,
       music_xml: v.music_xml || null,
       // 本番モード用の転調設定（timingモード専用）
-      production_repeat_transposition_mode: v.mode === 'progression_timing' ? v.production_repeat_transposition_mode : null,
-      production_start_key: v.mode === 'progression_timing' ? v.production_start_key : null,
+      production_repeat_transposition_mode: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.production_repeat_transposition_mode : null,
+      production_start_key: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.production_start_key : null,
+      // timing_combining 用
+      combined_stage_ids: v.mode === 'timing_combining' ? v.combined_stage_ids : null,
     };
 
     // モードに応じた不要フィールドの削除
@@ -385,18 +392,22 @@ const FantasyStageManager: React.FC = () => {
       delete base.chord_progression;
       delete base.chord_progression_data;
       delete base.note_interval_beats;
-      // singleモードでもBGMを使用する場合はテンポ設定を保持する
-      // bpm, measure_count, time_signature, count_in_measures は保持
     }
     if (v.mode === 'progression_order') {
       delete base.chord_progression_data;
     }
     if (v.mode === 'progression_random') {
-      delete base.chord_progression; // プールは allowed_chords を使用
+      delete base.chord_progression;
       delete base.chord_progression_data;
     }
     if (v.mode === 'progression_timing') {
       delete base.note_interval_beats;
+    }
+    if (v.mode === 'timing_combining') {
+      delete base.chord_progression;
+      delete base.chord_progression_data;
+      delete base.note_interval_beats;
+      delete base.allowed_chords;
     }
     return base;
   };
@@ -435,6 +446,7 @@ const FantasyStageManager: React.FC = () => {
       // 本番モード用の転調設定
       production_repeat_transposition_mode: ((s as DbFantasyStage & { production_repeat_transposition_mode?: RepeatTranspositionMode }).production_repeat_transposition_mode || 'off') as RepeatTranspositionMode,
       production_start_key: (s as DbFantasyStage & { production_start_key?: number }).production_start_key ?? 0,
+      combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
     };
   }, []);
 
@@ -453,6 +465,11 @@ const FantasyStageManager: React.FC = () => {
       if ((v.mode === 'progression_order' || v.mode === 'progression_random' || v.mode === 'progression_timing')) {
         if (!v.bpm || !v.time_signature) {
           return toast.error('リズム系モードでは BPM と 拍子 は必須です');
+        }
+      }
+      if (v.mode === 'timing_combining') {
+        if (!v.combined_stage_ids || v.combined_stage_ids.length === 0) {
+          return toast.error('結合モードでは子ステージを1つ以上選択してください');
         }
       }
 
@@ -643,6 +660,7 @@ const FantasyStageManager: React.FC = () => {
                     <option value="progression_order">progression_order（順番）</option>
                     <option value="progression_random">progression_random（ランダム）</option>
                     <option value="progression_timing">progression_timing（カスタム）</option>
+                    <option value="timing_combining">timing_combining（結合）</option>
                   </select>
                 </div>
                 <div>
@@ -1237,8 +1255,82 @@ const FantasyStageManager: React.FC = () => {
               </Section>
             )}
 
-            {/* progression_timing 用: 本番モード転調設定 */}
-            {mode === 'progression_timing' && (
+            {/* timing_combining 用: 子ステージ選択 */}
+            {mode === 'timing_combining' && (
+              <Section title="結合するステージ（progression_timing）">
+                <p className="text-xs text-gray-400 mb-3">
+                  結合する progression_timing ステージを選択してください。上から順に演奏されます。
+                </p>
+                <div className="space-y-2">
+                  {(watch('combined_stage_ids') || []).map((stageId: string, idx: number) => {
+                    const foundStage = stages.find(s => s.id === stageId);
+                    return (
+                      <div key={stageId} className="flex items-center gap-2 bg-gray-800/50 rounded px-3 py-2">
+                        <span className="text-sm text-gray-300 w-8">{idx + 1}.</span>
+                        <span className="flex-1 text-sm text-white">
+                          {foundStage ? `${foundStage.stage_number} - ${foundStage.name}` : stageId}
+                        </span>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost"
+                          disabled={idx === 0}
+                          onClick={() => {
+                            const ids = [...(watch('combined_stage_ids') || [])];
+                            if (idx > 0) { [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]]; }
+                            setValue('combined_stage_ids', ids);
+                          }}
+                        >▲</button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost"
+                          disabled={idx === (watch('combined_stage_ids') || []).length - 1}
+                          onClick={() => {
+                            const ids = [...(watch('combined_stage_ids') || [])];
+                            if (idx < ids.length - 1) { [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]]; }
+                            setValue('combined_stage_ids', ids);
+                          }}
+                        >▼</button>
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-error"
+                          onClick={() => {
+                            const ids = (watch('combined_stage_ids') || []).filter((_: string, i: number) => i !== idx);
+                            setValue('combined_stage_ids', ids);
+                          }}
+                        >削除</button>
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-2">
+                    <select
+                      className="select select-bordered flex-1"
+                      value=""
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        if (!selectedId) return;
+                        const ids = [...(watch('combined_stage_ids') || []), selectedId];
+                        setValue('combined_stage_ids', ids);
+                      }}
+                    >
+                      <option value="">-- ステージを追加 --</option>
+                      {stages
+                        .filter(s => s.mode === 'progression_timing')
+                        .map(s => (
+                          <option key={s.id} value={s.id}>
+                            {s.stage_number} - {s.name}
+                          </option>
+                        ))}
+                    </select>
+                  </div>
+                  <p className="text-xs text-gray-400">
+                    選択数: {(watch('combined_stage_ids') || []).length} ステージ
+                  </p>
+                </div>
+              </Section>
+            )}
+
+            {/* progression_timing / timing_combining 用: 本番モード転調設定 */}
+            {(mode === 'progression_timing' || mode === 'timing_combining') && (
               <Section title="本番モード転調設定">
                 <p className="text-xs text-gray-400 mb-3">
                   本番モードでのクリア条件に使用される転調設定です。練習モードでは無視され、プレイヤーの設定が使用されます。

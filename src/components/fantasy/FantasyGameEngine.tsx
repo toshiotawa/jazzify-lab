@@ -101,7 +101,8 @@ type StageMode =
   | 'progression' // 互換用途（基本進行）
   | 'progression_order'
   | 'progression_random'
-  | 'progression_timing';
+  | 'progression_timing'
+  | 'timing_combining';
 
 export type FantasyPlayMode = 'challenge' | 'practice';
 
@@ -162,6 +163,10 @@ export interface FantasyStage {
   // 本番モード用の転調設定（timingモード専用）
   productionRepeatTranspositionMode?: ProductionRepeatTranspositionMode;
   productionStartKey?: number;
+  // timing_combining 用: 結合する子ステージIDの順序付き配列
+  combinedStageIds?: string[];
+  // timing_combining 用: ロード済みの子ステージデータ
+  combinedStages?: FantasyStage[];
 }
 
 export interface MonsterState {
@@ -177,6 +182,23 @@ export interface MonsterState {
   name: string;
   nextChord?: ChordDefinition; // 次のコード（ループ時の表示用）
   defeatedAt?: number; // 撃破されたタイムスタンプ（HP0演出後に削除するため）
+}
+
+// timing_combining 用: 各子ステージのセクション情報
+export interface CombinedSection {
+  stageId: string;
+  stageName: string;
+  bpm: number;
+  timeSignature: number;
+  measureCount: number;
+  countInMeasures: number;
+  bgmUrl?: string;
+  musicXml?: string;
+  notes: TaikoNote[]; // このセクション固有のノーツ（ローカルhitTime）
+  globalTimeOffset: number; // グローバル時間軸での開始オフセット（秒）
+  globalNoteStartIndex: number; // 統合taikoNotes配列での開始インデックス
+  globalNoteEndIndex: number; // 統合taikoNotes配列での終了インデックス（排他的）
+  sectionDuration: number; // カウントイン + 本編小節の合計時間（秒）
 }
 
 export interface FantasyGameState {
@@ -224,6 +246,11 @@ export interface FantasyGameState {
   originalTaikoNotes: TaikoNote[]; // 移調前の元のノート配列（リピート時に使用）
   // 先読みヒット管理（ループ直前に次ループのノーツをヒットした場合に記録）
   preHitNoteIndices: number[]; // 次ループで既にヒット済みとするノーツのインデックス
+  // timing_combining 用
+  isCombiningMode: boolean;
+  combinedSections: CombinedSection[]; // 各子ステージのセクション情報
+  currentSectionIndex: number; // 現在のセクションインデックス
+  combinedFullLoopCount: number; // 全セクション通しのループ回数（移調用）
 }
 
 interface FantasyGameEngineProps {
@@ -764,10 +791,129 @@ export const useFantasyGameEngine = ({
     transposeSettings: null,
     currentTransposeOffset: 0,
     originalTaikoNotes: [],
-    preHitNoteIndices: []
+    preHitNoteIndices: [],
+    // timing_combining 用
+    isCombiningMode: false,
+    combinedSections: [],
+    currentSectionIndex: 0,
+    combinedFullLoopCount: 0,
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  
+  // timing_combining 専用の入力判定
+  const handleCombiningModeInput = useCallback((
+    prevState: FantasyGameState,
+    note: number,
+    currentTime: number,
+  ): FantasyGameState => {
+    const section = prevState.combinedSections[prevState.currentSectionIndex];
+    if (!section) return prevState;
+    
+    const noteMod12 = note % 12;
+    const currentIndex = prevState.currentNoteIndex;
+    const sectionEnd = section.globalNoteEndIndex;
+    
+    // 候補: 現在のノーツと次のノーツ
+    const candidateIndices: number[] = [];
+    if (currentIndex < sectionEnd) candidateIndices.push(currentIndex);
+    if (currentIndex + 1 < sectionEnd) candidateIndices.push(currentIndex + 1);
+    
+    // セクション末尾付近: 次のセクションの先頭ノーツも先読み候補に
+    const secPerMeasure = (60 / section.bpm) * section.timeSignature;
+    const sectionPlayDuration = section.measureCount * secPerMeasure;
+    const timeToSectionEnd = sectionPlayDuration - currentTime;
+    const lookAheadJudgeTime = 4.0;
+    
+    if (timeToSectionEnd < lookAheadJudgeTime) {
+      const nextSectionIdx = prevState.currentSectionIndex + 1;
+      if (nextSectionIdx < prevState.combinedSections.length) {
+        const nextSection = prevState.combinedSections[nextSectionIdx];
+        const nextCountInSec = nextSection.countInMeasures * (60 / nextSection.bpm) * nextSection.timeSignature;
+        for (let i = nextSection.globalNoteStartIndex; i < nextSection.globalNoteEndIndex; i++) {
+          const n = prevState.taikoNotes[i];
+          if (n && n.hitTime + nextCountInSec < (lookAheadJudgeTime - timeToSectionEnd)) {
+            if (!candidateIndices.includes(i)) candidateIndices.push(i);
+          } else {
+            break;
+          }
+        }
+      }
+    }
+    
+    let chosen: {
+      i: number;
+      n: TaikoNote;
+      timeDiffMs: number;
+      isNextSectionNote: boolean;
+    } | null = null;
+    
+    for (const i of candidateIndices) {
+      const n = prevState.taikoNotes[i];
+      if (!n || n.isHit || n.isMissed) continue;
+      
+      let chordNotes = n.chord.notes;
+      let includesNote = false;
+      for (const cn of chordNotes) {
+        if (((cn % 12) + 12) % 12 === noteMod12) {
+          includesNote = true;
+          break;
+        }
+      }
+      if (!includesNote) continue;
+      
+      const isNextSection = i >= sectionEnd;
+      let effectiveHitTime = n.hitTime;
+      if (isNextSection) {
+        // 次セクションのノーツ: 現在セクション末尾からの距離で計算
+        const nextSection = prevState.combinedSections[prevState.currentSectionIndex + 1];
+        if (nextSection) {
+          const nextCountInSec = nextSection.countInMeasures * (60 / nextSection.bpm) * nextSection.timeSignature;
+          effectiveHitTime = sectionPlayDuration + nextCountInSec + n.hitTime;
+        }
+      }
+      
+      const timeDiffMs = Math.abs(currentTime - effectiveHitTime) * 1000;
+      if (timeDiffMs > 300) continue; // good判定±300ms
+      
+      if (!chosen || timeDiffMs < chosen.timeDiffMs) {
+        chosen = { i, n, timeDiffMs, isNextSectionNote: isNextSection };
+      }
+    }
+    
+    if (!chosen) return prevState;
+    
+    // ヒット処理
+    const updatedNotes = [...prevState.taikoNotes];
+    updatedNotes[chosen.i] = { ...chosen.n, isHit: true };
+    
+    let nextIndex = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
+    while (nextIndex < sectionEnd && updatedNotes[nextIndex]?.isHit) nextIndex++;
+    
+    const isLastInSection = nextIndex >= sectionEnd;
+    const nextNote = isLastInSection
+      ? (prevState.combinedSections[prevState.currentSectionIndex + 1]
+        ? prevState.taikoNotes[prevState.combinedSections[prevState.currentSectionIndex + 1].globalNoteStartIndex]
+        : chosen.n)
+      : updatedNotes[nextIndex];
+    const nextNextNote = isLastInSection ? nextNote
+      : ((nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote);
+    
+    return {
+      ...prevState,
+      taikoNotes: updatedNotes,
+      currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
+      awaitingLoopStart: isLastInSection,
+      correctAnswers: prevState.correctAnswers + 1,
+      score: prevState.score + 1000,
+      lastNormalizedTime: currentTime,
+      activeMonsters: prevState.activeMonsters.map(m => ({
+        ...m,
+        chordTarget: nextNote?.chord ?? m.chordTarget,
+        nextChord: nextNextNote?.chord ?? m.nextChord,
+      })),
+    };
+  }, [displayOpts]);
   
   // 太鼓の達人モードの入力処理
   const handleTaikoModeInput = useCallback((
@@ -777,6 +923,12 @@ export const useFantasyGameEngine = ({
   ): FantasyGameState => {
     const currentTime = inputMusicTime ?? bgmManager.getCurrentMusicTime();
     const stage = prevState.currentStage;
+    
+    // timing_combining: セクション内のローカル時間で判定
+    if (prevState.isCombiningMode && prevState.combinedSections.length > 0) {
+      return handleCombiningModeInput(prevState, note, currentTime);
+    }
+    
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
@@ -899,7 +1051,6 @@ export const useFantasyGameEngine = ({
         nextLoopCycle,
         workingState.transposeSettings.repeatKeyChange
       );
-      // 簡易モードフラグ（displayOptsがないので、true をデフォルトに）
       nextLoopTransposedNotes = transposeTaikoNotes(workingState.originalTaikoNotes, nextTransposeOffset, true);
     }
 
@@ -1324,12 +1475,85 @@ export const useFantasyGameEngine = ({
       stage.mode === 'progression' ||  // Changed from specific progression types
       stage.mode === 'progression_order' ||
       stage.mode === 'progression_random' ||
-      stage.mode === 'progression_timing';
+      stage.mode === 'progression_timing' ||
+      stage.mode === 'timing_combining';
     let taikoNotes: TaikoNote[] = [];
+    let combinedSections: CombinedSection[] = [];
     
     if (isTaikoMode) {
       // 太鼓の達人モードのノーツ生成
       switch (stage.mode) {
+        case 'timing_combining': {
+          // timing_combining: 子ステージのノーツを順次ロード済み（combinedStages経由）
+          if (stage.combinedStages && stage.combinedStages.length > 0) {
+            let globalNoteIndex = 0;
+            for (const childStage of stage.combinedStages) {
+              const childBpm = childStage.bpm || 120;
+              const childTimeSig = childStage.timeSignature || 4;
+              const childMeasureCount = childStage.measureCount || 8;
+              const childCountIn = childStage.countInMeasures || 0;
+              const secPerBeat = 60 / childBpm;
+              const secPerMeasure = secPerBeat * childTimeSig;
+              const sectionDuration = (childCountIn + childMeasureCount) * secPerMeasure;
+              
+              let sectionNotes: TaikoNote[] = [];
+              if (childStage.chordProgressionData) {
+                let progressionData: ChordProgressionDataItem[];
+                if (typeof childStage.chordProgressionData === 'string') {
+                  progressionData = parseSimpleProgressionText(childStage.chordProgressionData);
+                } else {
+                  progressionData = childStage.chordProgressionData as ChordProgressionDataItem[];
+                }
+                sectionNotes = parseChordProgressionData(
+                  progressionData,
+                  childBpm,
+                  childTimeSig,
+                  (spec) => getChordDefinition(spec, displayOpts),
+                  0
+                );
+              }
+              
+              const section: CombinedSection = {
+                stageId: childStage.id,
+                stageName: childStage.name,
+                bpm: childBpm,
+                timeSignature: childTimeSig,
+                measureCount: childMeasureCount,
+                countInMeasures: childCountIn,
+                bgmUrl: childStage.bgmUrl,
+                musicXml: childStage.musicXml,
+                notes: sectionNotes,
+                globalTimeOffset: 0,
+                globalNoteStartIndex: globalNoteIndex,
+                globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
+                sectionDuration,
+              };
+              combinedSections.push(section);
+              
+              // taikoNotesにセクションごとのノーツを追加（IDにセクション識別子を付与）
+              for (const note of sectionNotes) {
+                taikoNotes.push({
+                  ...note,
+                  id: `s${combinedSections.length - 1}_${note.id}`,
+                });
+              }
+              globalNoteIndex += sectionNotes.length;
+            }
+            
+            devLog.debug('🔗 timing_combining セクション構築完了:', {
+              sectionCount: combinedSections.length,
+              totalNotes: taikoNotes.length,
+              sections: combinedSections.map(s => ({
+                name: s.stageName,
+                bpm: s.bpm,
+                noteCount: s.notes.length,
+                duration: s.sectionDuration.toFixed(2),
+              })),
+            });
+          }
+          break;
+        }
+
         case 'progression_timing':
           // 拡張版：JSON形式のデータを解析
           if (stage.chordProgressionData) {
@@ -1434,7 +1658,7 @@ export const useFantasyGameEngine = ({
     // - 練習モード: stage.transposeSettings を使用（プレイヤー設定）
     // - 本番モード: stage.productionRepeatTranspositionMode と stage.productionStartKey を使用（ステージ設定）
     let transposeSettings: TransposeSettings | null = null;
-    if (stage.mode === 'progression_timing') {
+    if (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') {
       if (playMode === 'practice' && stage.transposeSettings) {
         // 練習モード: プレイヤーの設定を使用
         transposeSettings = stage.transposeSettings;
@@ -1517,7 +1741,12 @@ export const useFantasyGameEngine = ({
       transposeSettings,
       currentTransposeOffset,
       originalTaikoNotes,
-      preHitNoteIndices: []
+      preHitNoteIndices: [],
+      // timing_combining 用
+      isCombiningMode: stage.mode === 'timing_combining',
+      combinedSections,
+      currentSectionIndex: 0,
+      combinedFullLoopCount: 0,
     };
 
     setGameState(newState);
@@ -1792,6 +2021,267 @@ export const useFantasyGameEngine = ({
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
         const currentTime = bgmManager.getCurrentMusicTime();
         const stage = prevState.currentStage;
+        
+        // ===== timing_combining: セクション境界検出 =====
+        if (prevState.isCombiningMode && prevState.combinedSections.length > 0) {
+          const sectionIdx = prevState.currentSectionIndex;
+          const section = prevState.combinedSections[sectionIdx];
+          if (!section) return prevState;
+          
+          // カウントイン中は何もしない
+          if (currentTime < 0) {
+            return { ...prevState, lastNormalizedTime: currentTime };
+          }
+          
+          const secPerMeasure = (60 / section.bpm) * section.timeSignature;
+          const sectionPlayDuration = section.measureCount * secPerMeasure;
+          
+          // セクション末尾検出: musicTime がセクションの演奏時間を超えた
+          if (currentTime >= sectionPlayDuration - 0.05) {
+            const nextSectionIdx = sectionIdx + 1;
+            
+            if (nextSectionIdx < prevState.combinedSections.length) {
+              // 次のセクションへ遷移 — BGM切り替えはsetGameState外で行う
+              const nextSection = prevState.combinedSections[nextSectionIdx];
+              
+              // 次セクション分のノーツを切り出し
+              const nextNotes = prevState.taikoNotes.slice(
+                nextSection.globalNoteStartIndex,
+                nextSection.globalNoteEndIndex
+              );
+              const firstNextNote = nextNotes[0];
+              const secondNextNote = nextNotes.length > 1 ? nextNotes[1] : firstNextNote;
+              
+              // BGMを次のセクションに切り替え（setGameState外で副作用実行）
+              setTimeout(() => {
+                const nextBgmUrl = nextSection.bgmUrl;
+                if (nextBgmUrl) {
+                  const speedMul = stage.speedMultiplier || 1.0;
+                  bgmManager.play(
+                    nextBgmUrl,
+                    nextSection.bpm,
+                    nextSection.timeSignature,
+                    nextSection.measureCount,
+                    nextSection.countInMeasures,
+                    0.7,
+                    speedMul,
+                    prevState.currentTransposeOffset,
+                    true // noLoop
+                  );
+                }
+              }, 0);
+              
+              devLog.debug('🔗 セクション遷移:', {
+                from: sectionIdx,
+                to: nextSectionIdx,
+                name: nextSection.stageName,
+              });
+              
+              return {
+                ...prevState,
+                currentSectionIndex: nextSectionIdx,
+                currentNoteIndex: nextSection.globalNoteStartIndex,
+                lastNormalizedTime: -1,
+                awaitingLoopStart: false,
+                activeMonsters: prevState.activeMonsters.map(m => ({
+                  ...m,
+                  chordTarget: firstNextNote?.chord ?? m.chordTarget,
+                  nextChord: secondNextNote?.chord ?? m.nextChord,
+                })),
+              };
+            } else {
+              // 全セクション完了 = 1ループ完了
+              const newFullLoopCount = prevState.combinedFullLoopCount + 1;
+              
+              // 移調設定がある場合、全ループ完了後に移調を適用してリスタート
+              if (prevState.transposeSettings) {
+                const newTransposeOffset = calculateTransposeOffset(
+                  prevState.transposeSettings.keyOffset,
+                  newFullLoopCount,
+                  prevState.transposeSettings.repeatKeyChange
+                );
+                const simpleMode = displayOpts?.simple ?? true;
+                
+                // 全ノーツを移調
+                let transposedNotes = prevState.originalTaikoNotes.length > 0
+                  ? prevState.originalTaikoNotes
+                  : prevState.taikoNotes;
+                if (newTransposeOffset !== 0) {
+                  transposedNotes = transposeTaikoNotes(transposedNotes, newTransposeOffset, simpleMode);
+                } else {
+                  transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
+                }
+                
+                bgmManager.setPitchShift(newTransposeOffset);
+                
+                // 最初のセクションのBGMを再生
+                const firstSection = prevState.combinedSections[0];
+                setTimeout(() => {
+                  if (firstSection.bgmUrl) {
+                    const speedMul = stage.speedMultiplier || 1.0;
+                    bgmManager.play(
+                      firstSection.bgmUrl,
+                      firstSection.bpm,
+                      firstSection.timeSignature,
+                      firstSection.measureCount,
+                      firstSection.countInMeasures,
+                      0.7,
+                      speedMul,
+                      newTransposeOffset,
+                      true
+                    );
+                  }
+                }, 0);
+                
+                const resetNotes = transposedNotes.map(note => ({
+                  ...note,
+                  isHit: false,
+                  isMissed: false,
+                }));
+                const firstNote = resetNotes[0];
+                const secondNote = resetNotes.length > 1 ? resetNotes[1] : firstNote;
+                
+                devLog.debug('🔗🎹 全セクション完了 - 移調リスタート:', {
+                  loopCount: newFullLoopCount,
+                  transposeOffset: newTransposeOffset,
+                });
+                
+                return {
+                  ...prevState,
+                  taikoNotes: resetNotes,
+                  currentSectionIndex: 0,
+                  currentNoteIndex: 0,
+                  combinedFullLoopCount: newFullLoopCount,
+                  taikoLoopCycle: newFullLoopCount,
+                  lastNormalizedTime: -1,
+                  awaitingLoopStart: false,
+                  currentTransposeOffset: newTransposeOffset,
+                  activeMonsters: prevState.activeMonsters.map(m => ({
+                    ...m,
+                    chordTarget: firstNote?.chord ?? m.chordTarget,
+                    nextChord: secondNote?.chord ?? m.nextChord,
+                  })),
+                };
+              }
+              
+              // 移調設定なし: 全セクションを繰り返し
+              const firstSection = prevState.combinedSections[0];
+              setTimeout(() => {
+                if (firstSection.bgmUrl) {
+                  const speedMul = stage.speedMultiplier || 1.0;
+                  bgmManager.play(
+                    firstSection.bgmUrl,
+                    firstSection.bpm,
+                    firstSection.timeSignature,
+                    firstSection.measureCount,
+                    firstSection.countInMeasures,
+                    0.7,
+                    speedMul,
+                    prevState.currentTransposeOffset,
+                    true
+                  );
+                }
+              }, 0);
+              
+              const resetNotes = prevState.taikoNotes.map(note => ({
+                ...note,
+                isHit: false,
+                isMissed: false,
+              }));
+              const firstNote = resetNotes[0];
+              const secondNote = resetNotes.length > 1 ? resetNotes[1] : firstNote;
+              
+              return {
+                ...prevState,
+                taikoNotes: resetNotes,
+                currentSectionIndex: 0,
+                currentNoteIndex: 0,
+                combinedFullLoopCount: newFullLoopCount,
+                taikoLoopCycle: newFullLoopCount,
+                lastNormalizedTime: -1,
+                awaitingLoopStart: false,
+                activeMonsters: prevState.activeMonsters.map(m => ({
+                  ...m,
+                  chordTarget: firstNote?.chord ?? m.chordTarget,
+                  nextChord: secondNote?.chord ?? m.nextChord,
+                })),
+              };
+            }
+          }
+          
+          // --- セクション内の通常ミス判定 ---
+          const noteIdx = prevState.currentNoteIndex;
+          const currentNote = prevState.taikoNotes[noteIdx];
+          if (!currentNote) return { ...prevState, lastNormalizedTime: currentTime };
+          
+          if (currentNote.isHit) {
+            // ヒット済みノーツはスキップ
+            const sectionEnd = section.globalNoteEndIndex;
+            let skipIdx = noteIdx + 1;
+            while (skipIdx < sectionEnd && prevState.taikoNotes[skipIdx]?.isHit) {
+              skipIdx++;
+            }
+            if (skipIdx >= sectionEnd) {
+              // セクション内全ノーツ消化 → セクション末尾まで待機
+              return { ...prevState, awaitingLoopStart: true, lastNormalizedTime: currentTime };
+            }
+            const skipNote = prevState.taikoNotes[skipIdx];
+            const skipNextNote = (skipIdx + 1 < sectionEnd)
+              ? prevState.taikoNotes[skipIdx + 1]
+              : prevState.combinedSections[sectionIdx + 1]
+                ? prevState.taikoNotes[prevState.combinedSections[sectionIdx + 1].globalNoteStartIndex]
+                : prevState.taikoNotes[skipIdx];
+            return {
+              ...prevState,
+              currentNoteIndex: skipIdx,
+              lastNormalizedTime: currentTime,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                chordTarget: skipNote?.chord ?? m.chordTarget,
+                nextChord: skipNextNote?.chord ?? m.nextChord,
+              })),
+            };
+          }
+          
+          // ミス判定: +150ms以上経過
+          const timeDiff = currentTime - currentNote.hitTime;
+          if (timeDiff > 0.15) {
+            const sectionEnd = section.globalNoteEndIndex;
+            const updatedNotes = [...prevState.taikoNotes];
+            updatedNotes[noteIdx] = { ...currentNote, isMissed: true };
+            
+            let nextIdx = noteIdx + 1;
+            while (nextIdx < sectionEnd && updatedNotes[nextIdx]?.isHit) nextIdx++;
+            
+            const isLastInSection = nextIdx >= sectionEnd;
+            const nextNote = isLastInSection
+              ? (prevState.combinedSections[sectionIdx + 1]
+                ? prevState.taikoNotes[prevState.combinedSections[sectionIdx + 1].globalNoteStartIndex]
+                : prevState.taikoNotes[noteIdx])
+              : updatedNotes[nextIdx];
+            const nextNextNote = isLastInSection
+              ? nextNote
+              : ((nextIdx + 1 < sectionEnd) ? updatedNotes[nextIdx + 1] : nextNote);
+            
+            return {
+              ...prevState,
+              taikoNotes: updatedNotes,
+              currentNoteIndex: isLastInSection ? noteIdx : nextIdx,
+              awaitingLoopStart: isLastInSection,
+              lastNormalizedTime: currentTime,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                gauge: Math.min(m.gauge + (60 / (stage.enemyGaugeSeconds || 5)) * 0.05, m.maxHp),
+                chordTarget: nextNote?.chord ?? m.chordTarget,
+                nextChord: nextNextNote?.chord ?? m.nextChord,
+              })),
+            };
+          }
+          
+          return { ...prevState, lastNormalizedTime: currentTime };
+        }
+        // ===== ここまで timing_combining =====
+        
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
