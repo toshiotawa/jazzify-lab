@@ -26,6 +26,9 @@ const SELECTION_TIMEOUT = 10;
 const INPUT_DELAY = 0.5;
 const SELECTION_DISPLAY_TIME = 0.02;
 
+// コンポーネントのアンマウント/再マウント間でドラッグ位置を保持
+let persistedPosition = { x: 0, y: 0 };
+
 const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   options,
   onSelect,
@@ -44,8 +47,8 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);
   const timeoutCalledRef = useRef(false);
 
-  // ドラッグ移動
-  const [position, setPosition] = useState({ x: 0, y: 0 });
+  // ドラッグ移動（モジュールレベル変数で位置を永続化）
+  const [position, setPosition] = useState(persistedPosition);
   const isDraggingRef = useRef(false);
   const dragStartRef = useRef({ x: 0, y: 0 });
   const positionAtDragStartRef = useRef({ x: 0, y: 0 });
@@ -61,10 +64,12 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     if (!isDraggingRef.current) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
-    setPosition({
+    const newPos = {
       x: positionAtDragStartRef.current.x + dx,
       y: positionAtDragStartRef.current.y + dy,
-    });
+    };
+    setPosition(newPos);
+    persistedPosition = newPos;
   }, []);
 
   const handlePointerUp = useCallback(() => {
