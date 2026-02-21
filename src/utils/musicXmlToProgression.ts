@@ -35,6 +35,22 @@ export function convertMusicXmlToProgressionData(
     return step;
   };
 
+  /**
+   * 白鍵の異名同音を正規化（B#→C, E#→F, Cb→B, Fb→E）
+   * @returns { name, octaveAdjust } octaveAdjust: B#→C で +1, Cb→B で -1
+   */
+  const simplifyEnharmonic = (name: string, octave: number): { name: string; octave: number } => {
+    const map: Record<string, { name: string; octaveAdj: number }> = {
+      'B#': { name: 'C', octaveAdj: 1 },
+      'E#': { name: 'F', octaveAdj: 0 },
+      'Cb': { name: 'B', octaveAdj: -1 },
+      'Fb': { name: 'E', octaveAdj: 0 },
+    };
+    const entry = map[name];
+    if (entry) return { name: entry.name, octave: octave + entry.octaveAdj };
+    return { name, octave };
+  };
+
   const toBeats = (positionInDivs: number, divisionsPerQuarter: number): number => {
     // 1拍 = quarter 音符
     const beatOffset = divisionsPerQuarter > 0 ? positionInDivs / divisionsPerQuarter : 0;
@@ -107,10 +123,11 @@ export function convertMusicXmlToProgressionData(
           lookaheadIndex++;
         }
 
-        // タイ処理: グループの先頭ノートが tie-stop のみ（tie-start なし）の場合、
+        // タイ処理: グループの先頭ノートが tie-stop を持つ場合、
         // タイで繋がれた後続音符なのでスキップする（位置は進める）
-        const { hasStart: hasTieStart, hasStop: hasTieStop } = getTieTypes(noteEl);
-        if (hasTieStop && !hasTieStart) {
+        // tie-start + tie-stop の両方を持つ中間ノーツもスキップ対象
+        const { hasStop: hasTieStop } = getTieTypes(noteEl);
+        if (hasTieStop) {
           const dur = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);
           currentPos += isNaN(dur) ? 0 : dur;
           idx = lookaheadIndex - 1;
@@ -136,8 +153,9 @@ export function convertMusicXmlToProgressionData(
             if (!p) return null;
             const step = p.querySelector('step')?.textContent || 'C';
             const alter = parseInt(p.querySelector('alter')?.textContent || '0', 10);
-            const octave = parseInt(p.querySelector('octave')?.textContent || '4', 10);
-            const name = stepAlterToName(step, alter);
+            const rawOctave = parseInt(p.querySelector('octave')?.textContent || '4', 10);
+            const rawName = stepAlterToName(step, alter);
+            const { name, octave } = simplifyEnharmonic(rawName, rawOctave);
             const tonal = parseNote(name.replace(/x/g, '##') + String(octave));
             const midi = tonal && typeof tonal.midi === 'number' ? tonal.midi : null;
             return midi !== null ? { step: name, octave, midi } : null;

@@ -8,6 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
+import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import { 
   TaikoNote, 
@@ -314,8 +315,16 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
 
   // 単音指定のハンドリング
   if (typeof spec === 'object' && spec.type === 'note') {
-    const step = spec.chord; // 'G', 'F#' など
-    const octave = spec.octave ?? 4;
+    const rawStep = spec.chord; // 'G', 'F#' など
+    const rawOctave = spec.octave ?? 4;
+    // 白鍵の異名同音を正規化（B#→C, E#→F, Cb→B, Fb→E）
+    const enharmonicMap: Record<string, { name: string; octAdj: number }> = {
+      'B#': { name: 'C', octAdj: 1 }, 'E#': { name: 'F', octAdj: 0 },
+      'Cb': { name: 'B', octAdj: -1 }, 'Fb': { name: 'E', octAdj: 0 },
+    };
+    const eh = enharmonicMap[rawStep];
+    const step = eh ? eh.name : rawStep;
+    const octave = eh ? rawOctave + eh.octAdj : rawOctave;
     const parsed = parseNote(step.replace(/x/g, '##') + String(octave));
     const midi = parsed && typeof parsed.midi === 'number' ? parsed.midi : null;
     if (!midi) return null;
@@ -324,7 +333,7 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
       displayName: step,
       notes: [midi],
       noteNames: [step],
-      quality: 'maj', // ダミー（使用しない）
+      quality: 'maj',
       root: step
     };
   }
@@ -1173,7 +1182,7 @@ export const useFantasyGameEngine = ({
     const nearTieMs = 10;
     for (const i of candidateIndices) {
       const n = workingState.taikoNotes[i];
-      if (!n || n.isHit || n.isMissed) continue;
+      if (!n || n.isMissed) continue;
 
       // awaitingLoopStart状態または次ループ先読みノーツの場合は、仮想的なhitTimeを使用
       let effectiveHitTime = n.hitTime;
@@ -1182,6 +1191,11 @@ export const useFantasyGameEngine = ({
         i < currentIndex &&
         i <= maxPreviewIndex;
       const isNextLoopNote = workingState.awaitingLoopStart || isPreviewNote;
+
+      // isHitチェック: 次ループのノーツはスキップ
+      // （ループリセット前は全ノーツが isHit=true だが、先読みヒットとして許可する）
+      if (n.isHit && !isNextLoopNote) continue;
+
       if (isNextLoopNote) {
         effectiveHitTime = n.hitTime + loopDuration;
       }
@@ -1608,7 +1622,12 @@ export const useFantasyGameEngine = ({
               const secPerMeasure = secPerBeat * childTimeSig;
               
               let progressionData: ChordProgressionDataItem[] | null = null;
-              if (childStage.chordProgressionData) {
+              if (childStage.musicXml) {
+                progressionData = convertMusicXmlToProgressionData(
+                  childStage.musicXml,
+                  { groupSimultaneousNotes: true }
+                );
+              } else if (childStage.chordProgressionData) {
                 if (typeof childStage.chordProgressionData === 'string') {
                   progressionData = parseSimpleProgressionText(childStage.chordProgressionData);
                 } else {
@@ -1675,19 +1694,25 @@ export const useFantasyGameEngine = ({
           break;
         }
 
-        case 'progression_timing':
-          // 拡張版：JSON形式のデータを解析
-          if (stage.chordProgressionData) {
-            let progressionData: ChordProgressionDataItem[];
-            
+        case 'progression_timing': {
+          let progressionData: ChordProgressionDataItem[] | null = null;
+
+          // musicXml がある場合は常にランタイムで再パースする
+          // （タイ処理など変換ロジックの修正を既存DBデータにも即座に反映するため）
+          if (stage.musicXml) {
+            progressionData = convertMusicXmlToProgressionData(
+              stage.musicXml,
+              { groupSimultaneousNotes: true }
+            );
+          } else if (stage.chordProgressionData) {
             if (typeof stage.chordProgressionData === 'string') {
-              // 簡易テキスト形式の場合
               progressionData = parseSimpleProgressionText(stage.chordProgressionData);
             } else {
-              // JSON配列の場合
               progressionData = stage.chordProgressionData as ChordProgressionDataItem[];
             }
-            
+          }
+
+          if (progressionData) {
             taikoNotes = parseChordProgressionData(
               progressionData,
               stage.bpm || 120,
@@ -1698,6 +1723,7 @@ export const useFantasyGameEngine = ({
             );
           }
           break;
+        }
 
         case 'progression_random':
           // ランダムプログレッション：各小節ごとにランダムでコードを決定

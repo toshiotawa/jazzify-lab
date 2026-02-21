@@ -1159,8 +1159,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stageData.mode === 'progression_order' ||
       stageData.mode === 'progression_random' ||
       stageData.mode === 'progression';
+    const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
     const getDisplayNoteNames = (note: TaikoNote): string[] =>
-      useChordNameOnNotes ? [note.chord.displayName] : note.chord.noteNames;
+      useChordNameOnNotes
+        ? [note.chord.displayName]
+        : note.chord.noteNames.map(n => toDisplayName(n, displayOpts));
 
     // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
     // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
@@ -1228,12 +1231,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const lookAheadTime = 4; // 4秒先まで表示
       const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
       
-      // カウントイン中は複数ノーツを先行表示
+      // カウントイン中も本編と同じ lookAheadTime 基準でノーツを表示（制限なし）
       if (currentTime < 0) {
         lastDisplayNorm = -1;
         displayWrapPending = false;
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
-        const maxPreCountNotes = 6;
         
         // timing_combining: combiningSync経由で即座にセクション範囲を取得
         const isCombining = combiningSync.active;
@@ -1257,7 +1259,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               x,
               noteNames: getDisplayNoteNames(note)
             });
-            if (notesToDisplay.length >= maxPreCountNotes) break;
           }
         }
         fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
@@ -2414,7 +2415,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       {/* Ready オーバーレイ */}
       {isReady && (
-        <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60">
+        <div className="absolute inset-0 flex items-center justify-center z-[9998] bg-black/60 pointer-events-none">
           <span className="font-sans text-7xl text-white animate-pulse">
             Ready
           </span>

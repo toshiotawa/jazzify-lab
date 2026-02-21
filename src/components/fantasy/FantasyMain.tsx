@@ -711,6 +711,7 @@ const FantasyMain: React.FC = () => {
         // 楽譜モード
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
         sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
+        musicXml: (nextStageData as any).music_xml,
         combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
         combinedSectionRepeats: (nextStageData as any).combined_section_repeats ?? undefined,
       };
