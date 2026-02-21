@@ -79,6 +79,8 @@ interface StageFormValues {
   production_start_key: number;
   // timing_combining 用
   combined_stage_ids: string[];
+  // timing_combining 用: 各セクションのリピート回数
+  combined_section_repeats: number[];
   // アウフタクト
   is_auftakt: boolean;
 }
@@ -116,6 +118,7 @@ const defaultValues: StageFormValues = {
   production_start_key: 0,
   // timing_combining 用
   combined_stage_ids: [],
+  combined_section_repeats: [],
   // アウフタクト
   is_auftakt: false,
 };
@@ -355,6 +358,7 @@ const FantasyStageManager: React.FC = () => {
         production_start_key: (s as any).production_start_key ?? 0,
         is_auftakt: !!(s as any).is_auftakt,
         combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
+        combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
       };
       reset(v);
     } catch (e: any) {
@@ -400,6 +404,7 @@ const FantasyStageManager: React.FC = () => {
       production_start_key: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.production_start_key : null,
       // timing_combining 用
       combined_stage_ids: v.mode === 'timing_combining' ? v.combined_stage_ids : null,
+      combined_section_repeats: v.mode === 'timing_combining' ? v.combined_section_repeats : null,
       // アウフタクト
       is_auftakt: v.is_auftakt,
     };
@@ -464,6 +469,7 @@ const FantasyStageManager: React.FC = () => {
       production_repeat_transposition_mode: ((s as DbFantasyStage & { production_repeat_transposition_mode?: RepeatTranspositionMode }).production_repeat_transposition_mode || 'off') as RepeatTranspositionMode,
       production_start_key: (s as DbFantasyStage & { production_start_key?: number }).production_start_key ?? 0,
       combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
+      combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
       is_auftakt: !!(s as any).is_auftakt,
     };
   }, []);
@@ -1284,24 +1290,51 @@ const FantasyStageManager: React.FC = () => {
               <Section title="結合するステージ（progression_timing）">
                 <p className="text-xs text-gray-400 mb-3">
                   結合する progression_timing ステージを選択してください。上から順に演奏されます。
+                  リピート回数を指定すると、そのセクションを複数回演奏してから次に進みます（2回目以降はカウントイン除外）。
                 </p>
                 <div className="space-y-2">
                   {(watch('combined_stage_ids') || []).map((stageId: string, idx: number) => {
                     const foundStage = stages.find(s => s.id === stageId);
+                    const repeats = watch('combined_section_repeats') || [];
+                    const repeatCount = repeats[idx] ?? 1;
                     return (
-                      <div key={stageId} className="flex items-center gap-2 bg-gray-800/50 rounded px-3 py-2">
+                      <div key={`${stageId}_${idx}`} className="flex items-center gap-2 bg-gray-800/50 rounded px-3 py-2">
                         <span className="text-sm text-gray-300 w-8">{idx + 1}.</span>
-                        <span className="flex-1 text-sm text-white">
+                        <span className="flex-1 text-sm text-white truncate">
                           {foundStage ? `${foundStage.stage_number} - ${foundStage.name}` : stageId}
                         </span>
+                        <label className="flex items-center gap-1 text-xs text-gray-400 shrink-0">
+                          <span>×</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={99}
+                            className="input input-bordered input-xs w-14 text-center"
+                            value={repeatCount}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              const reps = [...(watch('combined_section_repeats') || [])];
+                              while (reps.length <= idx) reps.push(1);
+                              reps[idx] = val;
+                              setValue('combined_section_repeats', reps);
+                            }}
+                          />
+                          <span>回</span>
+                        </label>
                         <button
                           type="button"
                           className="btn btn-xs btn-ghost"
                           disabled={idx === 0}
                           onClick={() => {
                             const ids = [...(watch('combined_stage_ids') || [])];
-                            if (idx > 0) { [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]]; }
+                            const reps = [...(watch('combined_section_repeats') || [])];
+                            while (reps.length < ids.length) reps.push(1);
+                            if (idx > 0) {
+                              [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
+                              [reps[idx - 1], reps[idx]] = [reps[idx], reps[idx - 1]];
+                            }
                             setValue('combined_stage_ids', ids);
+                            setValue('combined_section_repeats', reps);
                           }}
                         >▲</button>
                         <button
@@ -1310,8 +1343,14 @@ const FantasyStageManager: React.FC = () => {
                           disabled={idx === (watch('combined_stage_ids') || []).length - 1}
                           onClick={() => {
                             const ids = [...(watch('combined_stage_ids') || [])];
-                            if (idx < ids.length - 1) { [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]]; }
+                            const reps = [...(watch('combined_section_repeats') || [])];
+                            while (reps.length < ids.length) reps.push(1);
+                            if (idx < ids.length - 1) {
+                              [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
+                              [reps[idx], reps[idx + 1]] = [reps[idx + 1], reps[idx]];
+                            }
                             setValue('combined_stage_ids', ids);
+                            setValue('combined_section_repeats', reps);
                           }}
                         >▼</button>
                         <button
@@ -1319,7 +1358,10 @@ const FantasyStageManager: React.FC = () => {
                           className="btn btn-xs btn-error"
                           onClick={() => {
                             const ids = (watch('combined_stage_ids') || []).filter((_: string, i: number) => i !== idx);
+                            const reps = [...(watch('combined_section_repeats') || [])];
+                            reps.splice(idx, 1);
                             setValue('combined_stage_ids', ids);
+                            setValue('combined_section_repeats', reps);
                           }}
                         >削除</button>
                       </div>
@@ -1333,7 +1375,9 @@ const FantasyStageManager: React.FC = () => {
                         const selectedId = e.target.value;
                         if (!selectedId) return;
                         const ids = [...(watch('combined_stage_ids') || []), selectedId];
+                        const reps = [...(watch('combined_section_repeats') || []), 1];
                         setValue('combined_stage_ids', ids);
+                        setValue('combined_section_repeats', reps);
                       }}
                     >
                       <option value="">-- ステージを追加 --</option>

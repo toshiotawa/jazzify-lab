@@ -179,6 +179,8 @@ export interface FantasyStage {
   combinedStageIds?: string[];
   // timing_combining 用: ロード済みの子ステージデータ
   combinedStages?: FantasyStage[];
+  // timing_combining 用: 各セクションのリピート回数（例: [1, 2, 1]）
+  combinedSectionRepeats?: number[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   isAuftakt?: boolean;
 }
@@ -1590,60 +1592,72 @@ export const useFantasyGameEngine = ({
       switch (stage.mode) {
         case 'timing_combining': {
           // timing_combining: 子ステージのノーツを順次ロード済み（combinedStages経由）
+          // リピート回数に応じてセクションを展開（2回目以降はカウントイン除外）
           if (stage.combinedStages && stage.combinedStages.length > 0) {
             let globalNoteIndex = 0;
-            for (const childStage of stage.combinedStages) {
+            const repeats = stage.combinedSectionRepeats;
+            
+            for (let stageIdx = 0; stageIdx < stage.combinedStages.length; stageIdx++) {
+              const childStage = stage.combinedStages[stageIdx];
+              const repeatCount = (repeats && repeats[stageIdx] >= 1) ? repeats[stageIdx] : 1;
               const childBpm = childStage.bpm || 120;
               const childTimeSig = childStage.timeSignature || 4;
               const childMeasureCount = childStage.measureCount || 8;
               const childCountIn = childStage.countInMeasures || 0;
               const secPerBeat = 60 / childBpm;
               const secPerMeasure = secPerBeat * childTimeSig;
-              const sectionDuration = (childCountIn + childMeasureCount) * secPerMeasure;
               
-              let sectionNotes: TaikoNote[] = [];
+              let progressionData: ChordProgressionDataItem[] | null = null;
               if (childStage.chordProgressionData) {
-                let progressionData: ChordProgressionDataItem[];
                 if (typeof childStage.chordProgressionData === 'string') {
                   progressionData = parseSimpleProgressionText(childStage.chordProgressionData);
                 } else {
                   progressionData = childStage.chordProgressionData as ChordProgressionDataItem[];
                 }
-                sectionNotes = parseChordProgressionData(
-                  progressionData,
-                  childBpm,
-                  childTimeSig,
-                  (spec) => getChordDefinition(spec, displayOpts),
-                  childCountIn,
-                  !!childStage.isAuftakt
-                );
               }
               
-              const section: CombinedSection = {
-                stageId: childStage.id,
-                stageName: childStage.name,
-                bpm: childBpm,
-                timeSignature: childTimeSig,
-                measureCount: childMeasureCount,
-                countInMeasures: childCountIn,
-                bgmUrl: childStage.bgmUrl,
-                musicXml: childStage.musicXml,
-                notes: sectionNotes,
-                globalTimeOffset: 0,
-                globalNoteStartIndex: globalNoteIndex,
-                globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
-                sectionDuration,
-              };
-              combinedSections.push(section);
-              
-              // taikoNotesにセクションごとのノーツを追加（IDにセクション識別子を付与）
-              for (const note of sectionNotes) {
-                taikoNotes.push({
-                  ...note,
-                  id: `s${combinedSections.length - 1}_${note.id}`,
-                });
+              for (let rep = 0; rep < repeatCount; rep++) {
+                const isFirstPlay = rep === 0;
+                const countIn = isFirstPlay ? childCountIn : 0;
+                const sectionDuration = (countIn + childMeasureCount) * secPerMeasure;
+                
+                let sectionNotes: TaikoNote[] = [];
+                if (progressionData) {
+                  sectionNotes = parseChordProgressionData(
+                    progressionData,
+                    childBpm,
+                    childTimeSig,
+                    (spec) => getChordDefinition(spec, displayOpts),
+                    countIn,
+                    isFirstPlay && !!childStage.isAuftakt
+                  );
+                }
+                
+                const section: CombinedSection = {
+                  stageId: childStage.id,
+                  stageName: childStage.name,
+                  bpm: childBpm,
+                  timeSignature: childTimeSig,
+                  measureCount: childMeasureCount,
+                  countInMeasures: countIn,
+                  bgmUrl: childStage.bgmUrl,
+                  musicXml: childStage.musicXml,
+                  notes: sectionNotes,
+                  globalTimeOffset: 0,
+                  globalNoteStartIndex: globalNoteIndex,
+                  globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
+                  sectionDuration,
+                };
+                combinedSections.push(section);
+                
+                for (const note of sectionNotes) {
+                  taikoNotes.push({
+                    ...note,
+                    id: `s${combinedSections.length - 1}_${note.id}`,
+                  });
+                }
+                globalNoteIndex += sectionNotes.length;
               }
-              globalNoteIndex += sectionNotes.length;
             }
             
             devLog.debug('🔗 timing_combining セクション構築完了:', {
@@ -1654,6 +1668,7 @@ export const useFantasyGameEngine = ({
                 bpm: s.bpm,
                 noteCount: s.notes.length,
                 duration: s.sectionDuration.toFixed(2),
+                countIn: s.countInMeasures,
               })),
             });
           }

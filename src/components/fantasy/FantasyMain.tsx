@@ -299,6 +299,7 @@ const FantasyMain: React.FC = () => {
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
             musicXml: (stage as any).music_xml,
             combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
+            combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -349,6 +350,7 @@ const FantasyMain: React.FC = () => {
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
           musicXml: (stage as any).music_xml,
           combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
+          combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -710,6 +712,7 @@ const FantasyMain: React.FC = () => {
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
         sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
         combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
+        combinedSectionRepeats: (nextStageData as any).combined_section_repeats ?? undefined,
       };
 
       setGameResult(null);

@@ -575,6 +575,8 @@ export interface FantasyStage {
   production_start_key?: number;
   // timing_combining モード用: 結合する子ステージIDの順序付き配列
   combined_stage_ids?: string[];
+  // timing_combining モード用: 各セクションのリピート回数（例: [1, 2, 1]）
+  combined_section_repeats?: number[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   is_auftakt?: boolean;
 }
