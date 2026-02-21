@@ -1200,4 +1200,28 @@ function convertToRhythmNotation(doc: Document): void {
   });
 
   console.log(`🎵 リズム譜変換完了: ${noteElements.length}ノーツを統一ピッチ(${RHYTHM_PITCH.step}${RHYTHM_PITCH.octave})に変換`);
-} 
+}
+
+/**
+ * MusicXMLから表示段数（staves）を判定する
+ * パートが2つ以上あるか、単一パートで<staves>2</staves>の場合は2段譜と判定
+ */
+export function countMusicXmlStaves(musicXmlText: string): number {
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(musicXmlText, 'text/xml');
+
+    const parts = doc.querySelectorAll('part');
+    if (parts.length >= 2) return 2;
+
+    const stavesEl = doc.querySelector('attributes staves');
+    if (stavesEl) {
+      const staves = parseInt(stavesEl.textContent || '1', 10);
+      if (staves >= 2) return staves;
+    }
+
+    return 1;
+  } catch {
+    return 1;
+  }
+}

@@ -20,6 +20,7 @@ import {
   calculateTransposeOffset
 } from './TaikoNoteSystem';
 import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
+import { countMusicXmlStaves } from '@/utils/musicXmlMapper';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
 import FantasySettingsModal from './FantasySettingsModal';
@@ -55,6 +56,33 @@ interface FantasyGameScreenProps {
 }
 
 // 不要な定数とインターフェースを削除（PIXI側で処理）
+
+// ===== 楽譜リサイズ設定 =====
+const SHEET_HEIGHT_STORAGE_KEY_1 = 'fantasy_sheet_height_1staff';
+const SHEET_HEIGHT_STORAGE_KEY_2 = 'fantasy_sheet_height_2staff';
+const SHEET_HEIGHT_MIN = 80;
+const SHEET_HEIGHT_MAX = 400;
+const SHEET_HEIGHT_DEFAULT_1 = 180;
+const SHEET_HEIGHT_DEFAULT_2 = 280;
+
+function loadSheetMusicHeight(staves: number): number | null {
+  try {
+    const key = staves >= 2 ? SHEET_HEIGHT_STORAGE_KEY_2 : SHEET_HEIGHT_STORAGE_KEY_1;
+    const saved = localStorage.getItem(key);
+    if (saved) {
+      const val = parseInt(saved, 10);
+      if (!isNaN(val) && val >= SHEET_HEIGHT_MIN && val <= SHEET_HEIGHT_MAX) return val;
+    }
+  } catch { /* ignore */ }
+  return null;
+}
+
+function saveSheetMusicHeight(staves: number, height: number): void {
+  try {
+    const key = staves >= 2 ? SHEET_HEIGHT_STORAGE_KEY_2 : SHEET_HEIGHT_STORAGE_KEY_1;
+    localStorage.setItem(key, String(Math.round(height)));
+  } catch { /* ignore */ }
+}
 
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
@@ -244,7 +272,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // BGM再生は gameState が確定してから制御（下でuseEffectを定義）
   
   // ★★★ 楽譜表示エリアの高さ（Progression_Timing用） ★★★
-  const [sheetMusicHeight, setSheetMusicHeight] = useState<number>(180);
+  const [sheetMusicHeight, setSheetMusicHeight] = useState<number>(SHEET_HEIGHT_DEFAULT_1);
+  const sheetMusicStavesRef = useRef<number>(1);
+  const isResizingSheetRef = useRef(false);
+  const resizeStartRef = useRef({ y: 0, height: 0 });
+  const sheetMusicHeightRef = useRef(SHEET_HEIGHT_DEFAULT_1);
+  // ユーザーが手動リサイズしたかどうか（trueなら画面リサイズ時にauto調整しない）
+  const hasUserResizedRef = useRef(false);
   
   // ★★★ 追加: 各モンスターのゲージDOM要素を保持するマップ ★★★
   const gaugeRefs = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -579,29 +613,101 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount]);
   
   
-  // 楽譜表示エリアの高さを画面サイズに応じて調整
+  // 楽譜の段数を判定（MusicXMLパート数から）
+  const currentStaves = useMemo(() => {
+    if (!currentSectionMusicXml) return 1;
+    return countMusicXmlStaves(currentSectionMusicXml);
+  }, [currentSectionMusicXml]);
+
+  // 楽譜表示エリアの初期高さを設定（段数変更・楽譜表示開始時）
   useEffect(() => {
     if (!showSheetMusicForTiming) return;
-    
+    sheetMusicStavesRef.current = currentStaves;
+
+    const saved = loadSheetMusicHeight(currentStaves);
+    if (saved !== null) {
+      hasUserResizedRef.current = true;
+      sheetMusicHeightRef.current = saved;
+      setSheetMusicHeight(saved);
+      return;
+    }
+
+    hasUserResizedRef.current = false;
+    const defaultH = currentStaves >= 2 ? SHEET_HEIGHT_DEFAULT_2 : SHEET_HEIGHT_DEFAULT_1;
+    sheetMusicHeightRef.current = defaultH;
+    setSheetMusicHeight(defaultH);
+  }, [showSheetMusicForTiming, currentStaves]);
+
+  // ユーザーが手動リサイズしていない場合のみ、画面サイズに応じて高さを自動調整
+  useEffect(() => {
+    if (!showSheetMusicForTiming || hasUserResizedRef.current) return;
+
     const updateSheetHeight = () => {
       const vh = window.innerHeight;
       const vw = window.innerWidth;
       const isLandscape = vw > vh;
       const isMobile = vw < 900;
-      
+      const is2Staff = sheetMusicStavesRef.current >= 2;
+
+      let h: number;
       if (isMobile && isLandscape) {
-        // モバイル横向き: 高さを少し抑える
-        setSheetMusicHeight(Math.min(140, Math.max(100, Math.floor(vh * 0.22))));
+        const base = is2Staff ? 180 : 100;
+        const maxH = is2Staff ? 220 : 140;
+        h = Math.min(maxH, Math.max(base, Math.floor(vh * 0.22)));
       } else {
-        // PC/タブレット: 高さを大きく確保（調号・拍子記号・音符表示のため）
-        setSheetMusicHeight(Math.min(220, Math.max(160, Math.floor(vh * 0.28))));
+        const base = is2Staff ? 220 : 160;
+        const maxH = is2Staff ? 340 : 220;
+        h = Math.min(maxH, Math.max(base, Math.floor(vh * 0.28)));
       }
+      sheetMusicHeightRef.current = h;
+      setSheetMusicHeight(h);
     };
-    
+
     updateSheetHeight();
     window.addEventListener('resize', updateSheetHeight);
     return () => window.removeEventListener('resize', updateSheetHeight);
   }, [showSheetMusicForTiming]);
+
+  // ドラッグリサイズ用イベントハンドラー（依存なしで1回だけ登録）
+  useEffect(() => {
+    const handleMove = (clientY: number) => {
+      if (!isResizingSheetRef.current) return;
+      const delta = clientY - resizeStartRef.current.y;
+      const next = Math.max(SHEET_HEIGHT_MIN, Math.min(SHEET_HEIGHT_MAX, resizeStartRef.current.height + delta));
+      sheetMusicHeightRef.current = next;
+      setSheetMusicHeight(next);
+    };
+
+    const onMouseMove = (e: MouseEvent) => {
+      if (!isResizingSheetRef.current) return;
+      e.preventDefault();
+      requestAnimationFrame(() => handleMove(e.clientY));
+    };
+    const onTouchMove = (e: TouchEvent) => {
+      if (!isResizingSheetRef.current || e.touches.length === 0) return;
+      e.preventDefault();
+      requestAnimationFrame(() => handleMove(e.touches[0].clientY));
+    };
+    const onEnd = () => {
+      if (!isResizingSheetRef.current) return;
+      isResizingSheetRef.current = false;
+      hasUserResizedRef.current = true;
+      document.body.style.cursor = '';
+      document.body.style.userSelect = '';
+      saveSheetMusicHeight(sheetMusicStavesRef.current, sheetMusicHeightRef.current);
+    };
+
+    document.addEventListener('mousemove', onMouseMove);
+    document.addEventListener('touchmove', onTouchMove, { passive: false });
+    document.addEventListener('mouseup', onEnd);
+    document.addEventListener('touchend', onEnd);
+    return () => {
+      document.removeEventListener('mousemove', onMouseMove);
+      document.removeEventListener('touchmove', onTouchMove);
+      document.removeEventListener('mouseup', onEnd);
+      document.removeEventListener('touchend', onEnd);
+    };
+  }, []);
 
   // Ready 終了後に BGM 再生（開始前画面では鳴らさない）
   // 注: currentTransposeOffsetを依存配列に含めないこと！
@@ -2075,6 +2181,46 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
             className="w-full h-full"
           />
+        </div>
+      )}
+
+      {/* ===== 楽譜リサイズハンドル ===== */}
+      {showSheetMusicForTiming && (
+        <div
+          className="relative w-full h-3 -my-1.5 z-20 cursor-row-resize group"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            isResizingSheetRef.current = true;
+            resizeStartRef.current = { y: e.clientY, height: sheetMusicHeight };
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+          }}
+          onTouchStart={(e) => {
+            if (e.touches.length === 0) return;
+            e.preventDefault();
+            isResizingSheetRef.current = true;
+            resizeStartRef.current = { y: e.touches[0].clientY, height: sheetMusicHeight };
+            document.body.style.userSelect = 'none';
+          }}
+        >
+          <div className="absolute inset-x-0 -top-2 -bottom-2" />
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-gray-700" />
+          <div
+            className={cn(
+              'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+              'w-16 h-6 rounded-full',
+              'bg-gray-700 border border-gray-600',
+              'flex items-center justify-center',
+              'transition-all duration-150',
+              'hover:bg-gray-600 hover:scale-110',
+              'group-hover:shadow-lg'
+            )}
+          >
+            <div className="flex flex-col gap-0.5">
+              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
+              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
+            </div>
+          </div>
         </div>
       )}
       
