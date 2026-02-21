@@ -106,10 +106,13 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
         </div>
         
         {/* コード名 */}
-        <div className="flex items-center justify-center h-full">
+        <div className="flex items-center justify-center h-full px-1">
           {slot.isEnabled ? (
             <span className={cn(
-              'text-2xl font-bold font-sans',
+              'font-bold font-sans leading-tight text-center break-all',
+              (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-xs' :
+              (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-sm' :
+              (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-lg' : 'text-2xl',
               slot.isCompleted ? 'text-yellow-300' : 'text-white',
               isDisabledByCooldown && 'text-gray-500'
             )}>
@@ -158,7 +161,9 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       >
         <span className="text-[10px] font-sans text-gray-500 leading-none">NEXT</span>
         <span className={cn(
-          'text-base font-bold font-sans',
+          'font-bold font-sans leading-tight text-center break-all',
+          (nextSlot.chord?.displayName?.length ?? 0) > 8 ? 'text-[10px]' :
+          (nextSlot.chord?.displayName?.length ?? 0) > 5 ? 'text-xs' : 'text-base',
           colors.text
         )}>
           {slot.isEnabled && !isDisabledByCooldown ? (nextSlot.chord?.displayName ?? '---') : '---'}
