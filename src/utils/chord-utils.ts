@@ -124,6 +124,10 @@ export function getFantasyChordNotes(chordId: string, octave: number = 4): numbe
  * @returns { root: string, quality: ChordQuality } | null
  */
 export function parseChordName(chordName: string): { root: string; quality: ChordQuality } | null {
+  // FANTASY_CHORD_MAP を最優先で参照（全ルート×全クオリティを網羅）
+  const mapped = FANTASY_CHORD_MAP[chordName];
+  if (mapped) return { root: mapped.root, quality: mapped.quality };
+
   // 単音表記の確認（例: 'C_note', 'D_note'）
   if (chordName.endsWith('_note')) {
     const root = chordName.replace('_note', '');
@@ -140,7 +144,7 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
   
   // サフィックスからクオリティを判定（エイリアスも含む）
   const qualityMap: Record<string, ChordQuality> = {
-    ...CHORD_ALIASES, // エイリアスを丸ごと吸収
+    ...CHORD_ALIASES,
     '': 'maj',
     'maj': 'maj',
     'm': 'min',
@@ -151,22 +155,38 @@ export function parseChordName(chordName: string): { root: string; quality: Chor
     'dim': 'dim',
     'dim7': 'dim7',
     'aug': 'aug',
+    'aug7': 'aug7',
     'sus2': 'sus2',
     'sus4': 'sus4',
+    '7sus4': '7sus4',
     '6': '6',
     'm6': 'm6',
     '9': '9',
     'm9': 'm9',
     'maj9': 'maj9',
     '11': '11',
-    '13': '13'
+    'm11': 'm11',
+    '13': '13',
+    'm13': 'm13',
+    'add9': 'add9',
+    'madd9': 'madd9',
+    'mM7': 'mM7',
+    'm7b5': 'm7b5',
+    // ジャズボイシング
+    'M7(9)': 'maj7_9',
+    'm7(9)': 'm7_9',
+    '7(9.13)': '7_9_13',
+    '7(b9.b13)': '7_b9_b13',
+    '6(9)': '6_9',
+    'm6(9)': 'm6_9',
+    '7(b9.13)': '7_b9_13',
+    '7(#9.b13)': '7_s9_b13',
+    'm7(b5)(11)': 'm7b5_11',
+    'dim(M7)': 'dimM7',
   };
   
   const quality = qualityMap[suffix];
-  if (!quality) {
-    console.warn(`⚠️ 未知のコードサフィックス: ${suffix} in ${chordName}`);
-    return null;
-  }
+  if (!quality) return null;
   
   return { root, quality };
 }
