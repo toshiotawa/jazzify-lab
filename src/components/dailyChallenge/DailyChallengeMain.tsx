@@ -48,7 +48,6 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
     stageNumber: dbStage.stage_number,
     name: dbStage.name,
     description: dbStage.description || '',
-    // デイリーチャレンジ固定仕様
     maxHp: 1,
     enemyGaugeSeconds: 9999,
     enemyCount: 9999,
@@ -63,6 +62,8 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
     monsterIcon: 'dragon',
     bgmUrl,
     simultaneousMonsterCount: 1,
+    isSheetMusicMode: !!(dbStage as any).is_sheet_music_mode,
+    sheetMusicClef: (dbStage as any).sheet_music_clef || 'treble',
     bpm: 120,
     playRootOnCorrect: dbStage.play_root_on_correct ?? true,
   };
