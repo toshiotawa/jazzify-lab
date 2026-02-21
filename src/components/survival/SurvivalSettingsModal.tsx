@@ -6,6 +6,7 @@
 import React, { useState, useEffect } from 'react';
 import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
 import { updateGlobalVolume } from '@/utils/MidiController';
+import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
@@ -49,6 +50,8 @@ interface SurvivalSettingsModalProps {
   isMidiConnected?: boolean;
   displaySettings: SurvivalDisplaySettings;
   onDisplaySettingsChange: (settings: SurvivalDisplaySettings) => void;
+  bgmVolume?: number;
+  onBgmVolumeChange?: (volume: number) => void;
 }
 
 const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
@@ -57,6 +60,8 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   isMidiConnected = false,
   displaySettings,
   onDisplaySettingsChange,
+  bgmVolume: bgmVolumeProp,
+  onBgmVolumeChange,
 }) => {
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore();
@@ -65,6 +70,9 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   
   const [midiDeviceId, setMidiDeviceId] = useState<string | null>(settings.selectedMidiDevice ?? null);
   const [volume, setVolume] = useState<number>(settings.midiVolume ?? 0.8);
+  const [rootVolume, setRootVolume] = useState<number>(settings.rootSoundVolume ?? 0.7);
+  const [localBgmVolume, setLocalBgmVolume] = useState<number>(bgmVolumeProp ?? 0.3);
+  const [seVolume, setSeVolume] = useState<number>(settings.soundEffectVolume ?? 0.8);
   
   useEffect(() => {
     setMidiDeviceId(settings.selectedMidiDevice ?? null);
@@ -73,6 +81,10 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   useEffect(() => {
     setVolume(settings.midiVolume ?? 0.8);
   }, [settings.midiVolume]);
+
+  useEffect(() => {
+    if (bgmVolumeProp !== undefined) setLocalBgmVolume(bgmVolumeProp);
+  }, [bgmVolumeProp]);
 
   const handleMidiDeviceChange = (deviceId: string | null) => {
     setMidiDeviceId(deviceId);
@@ -83,6 +95,23 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
     setVolume(value);
     updateSettings({ midiVolume: value });
     updateGlobalVolume(value);
+  };
+
+  const handleRootVolumeChange = (value: number) => {
+    setRootVolume(value);
+    updateSettings({ rootSoundVolume: value });
+    FantasySoundManager.setRootVolume(value);
+  };
+
+  const handleBgmVolumeChange = (value: number) => {
+    setLocalBgmVolume(value);
+    onBgmVolumeChange?.(value);
+  };
+
+  const handleSeVolumeChange = (value: number) => {
+    setSeVolume(value);
+    updateSettings({ soundEffectVolume: value });
+    FantasySoundManager.setVolume(value);
   };
 
   const handleToggle = (key: keyof SurvivalDisplaySettings) => {
@@ -145,6 +174,63 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
+          </div>
+
+          {/* 正解時ルート音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              {isEnglishCopy ? 'Root Note Volume' : '正解時ルート音量'}: {Math.round(rootVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={rootVolume}
+              onChange={(e) => handleRootVolumeChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {isEnglishCopy ? 'Volume of the root note played on correct answer' : 'コード正解時に鳴るルート音の音量'}
+            </p>
+          </div>
+
+          {/* 効果音音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              {isEnglishCopy ? 'Sound Effects Volume' : '効果音音量'}: {Math.round(seVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={seVolume}
+              onChange={(e) => handleSeVolumeChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {isEnglishCopy ? 'Volume of magic and attack sound effects' : '魔法や攻撃の効果音の音量'}
+            </p>
+          </div>
+
+          {/* BGM音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              {isEnglishCopy ? 'BGM Volume' : 'BGM音量'}: {Math.round(localBgmVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={localBgmVolume}
+              onChange={(e) => handleBgmVolumeChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              {isEnglishCopy ? 'Volume of background music' : '背景音楽の音量'}
+            </p>
           </div>
 
           {/* 区切り線 */}

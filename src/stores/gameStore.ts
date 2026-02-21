@@ -105,7 +105,7 @@ const defaultSettings: GameSettings = {
   
   // ファンタジーモード設定
   playRootSound: true,
-  rootSoundVolume: 0.5, // ← 50 %
+  rootSoundVolume: 0.7, // ← 70 %
   
   // ゲーム設定
   notesSpeed: 1.0,

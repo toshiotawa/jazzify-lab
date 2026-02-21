@@ -387,6 +387,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // BGM制御用refs
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentBgmUrlRef = useRef<string | null>(null);
+  const [bgmVolume, setBgmVolume] = useState<number>(0.3);
+  const bgmVolumeRef = useRef<number>(0.3);
   
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
@@ -467,7 +469,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 新しいBGMを作成
         const audio = new Audio(targetBgmUrl);
         audio.loop = true;
-        audio.volume = 0.2;  // 音量小さめ
+        audio.volume = bgmVolumeRef.current;
         
         bgmAudioRef.current = audio;
         currentBgmUrlRef.current = targetBgmUrl;
@@ -529,13 +531,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           await controller.initialize();
           
           // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
+          const seVol = settings.soundEffectVolume ?? 0.8;
+          const rootVol = settings.rootSoundVolume ?? 0.7;
           await Promise.all([
-            // 音声システム初期化
             initializeAudioSystem().then(() => {
-              updateGlobalVolume(0.8);
+              updateGlobalVolume(settings.midiVolume ?? 0.8);
             }),
-            // FantasySoundManagerの初期化（ルート音再生用）
-            FantasySoundManager.init(0.8, 0.5, true).then(() => {
+            FantasySoundManager.init(seVol, rootVol, true).then(() => {
               FantasySoundManager.enableRootSound(true);
             })
           ]);
@@ -2987,6 +2989,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         isMidiConnected={isMidiConnected}
         displaySettings={displaySettings}
         onDisplaySettingsChange={setDisplaySettings}
+        bgmVolume={bgmVolume}
+        onBgmVolumeChange={(v) => {
+          setBgmVolume(v);
+          bgmVolumeRef.current = v;
+          if (bgmAudioRef.current) {
+            bgmAudioRef.current.volume = v;
+          }
+        }}
       />
     </div>
   );

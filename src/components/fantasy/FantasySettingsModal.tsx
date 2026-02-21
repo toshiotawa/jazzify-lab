@@ -20,27 +20,28 @@ interface FantasySettingsModalProps {
   midiDeviceId?: string | null;
   onMidiDeviceChange?: (deviceId: string | null) => void;
   isMidiConnected?: boolean;
-  volume?: number; // ピアノ音量設定をpropsで受け取る
-  soundEffectVolume?: number; // 効果音音量設定をpropsで受け取る
-  bgmVolume?: number; // BGM音量設定をpropsで受け取る
-  noteNameLang?: DisplayLang; // 音名表示言語
-  simpleNoteName?: boolean; // 簡易表記
-  keyboardNoteNameStyle?: KeyboardNoteNameStyle; // 鍵盤上の音名表示スタイル
-  // デイリーチャレンジ用の追加props
-  isDailyChallenge?: boolean; // デイリーチャレンジモードかどうか
-  isPracticeMode?: boolean; // 練習モードかどうか
-  showKeyboardGuide?: boolean; // 鍵盤上にガイドを表示するかどうか
+  volume?: number;
+  soundEffectVolume?: number;
+  rootSoundVolume?: number;
+  bgmVolume?: number;
+  noteNameLang?: DisplayLang;
+  simpleNoteName?: boolean;
+  keyboardNoteNameStyle?: KeyboardNoteNameStyle;
+  isDailyChallenge?: boolean;
+  isPracticeMode?: boolean;
+  showKeyboardGuide?: boolean;
 }
 
 interface FantasySettings {
   midiDeviceId: string | null;
-  volume: number; // ピアノ音量
-  soundEffectVolume: number; // 効果音音量
-  bgmVolume: number; // BGM音量
-  noteNameLang: DisplayLang; // 音名表示言語
-  simpleNoteName: boolean; // 簡易表記
-  keyboardNoteNameStyle: KeyboardNoteNameStyle; // 鍵盤上の音名表示スタイル
-  showKeyboardGuide?: boolean; // 鍵盤上にガイドを表示（デイリーチャレンジ用）
+  volume: number;
+  soundEffectVolume: number;
+  rootSoundVolume: number;
+  bgmVolume: number;
+  noteNameLang: DisplayLang;
+  simpleNoteName: boolean;
+  keyboardNoteNameStyle: KeyboardNoteNameStyle;
+  showKeyboardGuide?: boolean;
 }
 
 const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
@@ -50,22 +51,23 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   midiDeviceId = null,
   onMidiDeviceChange,
   isMidiConnected = false,
-  volume = 0.8, // デフォルト80%音量
-  soundEffectVolume = 0.8, // デフォルト80%効果音音量
-  bgmVolume = 0.7, // デフォルト70%BGM音量
-  noteNameLang = 'en', // デフォルト英語表記
-  simpleNoteName = false, // デフォルト簡易表記OFF
-  keyboardNoteNameStyle = 'abc', // デフォルト英語表示
-  // デイリーチャレンジ用
+  volume = 0.8,
+  soundEffectVolume = 0.8,
+  rootSoundVolume = 0.7,
+  bgmVolume = 0.7,
+  noteNameLang = 'en',
+  simpleNoteName = false,
+  keyboardNoteNameStyle = 'abc',
   isDailyChallenge = false,
   isPracticeMode = false,
   showKeyboardGuide = false
 }) => {
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
-    volume: volume, // propsから受け取ったピアノ音量を使用
-    soundEffectVolume: soundEffectVolume, // propsから受け取った効果音音量を使用
-    bgmVolume: bgmVolume, // propsから受け取ったBGM音量を使用
+    volume: volume,
+    soundEffectVolume: soundEffectVolume,
+    rootSoundVolume: rootSoundVolume,
+    bgmVolume: bgmVolume,
     noteNameLang: noteNameLang,
     simpleNoteName: simpleNoteName,
     keyboardNoteNameStyle: keyboardNoteNameStyle,
@@ -86,6 +88,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   useEffect(() => {
     setSettings(prev => ({ ...prev, soundEffectVolume: soundEffectVolume }));
   }, [soundEffectVolume]);
+
+  // propsのrootSoundVolumeが変更されたらsettingsも更新
+  useEffect(() => {
+    setSettings(prev => ({ ...prev, rootSoundVolume: rootSoundVolume }));
+  }, [rootSoundVolume]);
 
   // propsのbgmVolumeが変更されたらsettingsも更新
   useEffect(() => {
@@ -135,8 +142,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   // 効果音音量変更ハンドラー
   const handleSoundEffectVolumeChange = (value: number) => {
     handleSettingChange('soundEffectVolume', value);
-    // FantasySoundManagerの音量も即座に更新
     FantasySoundManager.setVolume(value);
+  };
+
+  // ルート音量変更ハンドラー
+  const handleRootSoundVolumeChange = (value: number) => {
+    handleSettingChange('rootSoundVolume', value);
+    FantasySoundManager.setRootVolume(value);
   };
 
   if (!isOpen) return null;
@@ -192,6 +204,25 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               onChange={(e) => handleSettingChange('volume', parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
+          </div>
+
+          {/* 正解時ルート音量設定 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              正解時ルート音量: {Math.round(settings.rootSoundVolume * 100)}%
+            </label>
+            <input
+              type="range"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.rootSoundVolume}
+              onChange={(e) => handleRootSoundVolumeChange(parseFloat(e.target.value))}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <p className="text-xs text-gray-400 mt-1">
+              コード正解時に鳴るルート音の音量を調整できます
+            </p>
           </div>
 
           {/* 効果音音量設定 */}

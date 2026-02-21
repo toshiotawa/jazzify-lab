@@ -2377,15 +2377,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // 効果音音量設定が変更されたら、gameStoreを更新
           if (newSettings.soundEffectVolume !== undefined) {
             updateSettings({ soundEffectVolume: newSettings.soundEffectVolume });
-            // FantasySoundManagerの音量も即座に更新（静的インポート済み）
             FantasySoundManager.setVolume(newSettings.soundEffectVolume);
           }
+          
+          // ルート音量設定が変更されたら、gameStoreを更新
+          if (newSettings.rootSoundVolume !== undefined) {
+            updateSettings({ rootSoundVolume: newSettings.rootSoundVolume });
+            FantasySoundManager.setRootVolume(newSettings.rootSoundVolume);
+          }
         }}
-        // gameStoreの値を渡す
         midiDeviceId={settings.selectedMidiDevice}
-        volume={settings.midiVolume} // gameStoreのMIDI音量を渡す
-        soundEffectVolume={settings.soundEffectVolume} // gameStoreの効果音音量を渡す
-        bgmVolume={settings.bgmVolume} // gameStoreのBGM音量を渡す
+        volume={settings.midiVolume}
+        soundEffectVolume={settings.soundEffectVolume}
+        rootSoundVolume={settings.rootSoundVolume ?? 0.7}
+        bgmVolume={settings.bgmVolume}
         noteNameLang={currentNoteNameLang}
         simpleNoteName={currentSimpleNoteName}
         keyboardNoteNameStyle={keyboardNoteNameStyle}
