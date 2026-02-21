@@ -78,7 +78,8 @@
     "ts-prune": "^0.10.3",
     "typescript": "^5.9.2",
     "vite": "^5.0.8",
-    "vitest": "^4.0.16"
+    "vitest": "^4.0.16",
+    "wrangler": "^3.114.17"
   },
   "engines": {
     "node": ">=18.0.0"
