@@ -47,7 +47,7 @@ const DiaryPage: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isGuest, profile: authProfile } = useAuthStore();
+  const { user, isGuest, profile: authProfile, optimisticAvatarUrl } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
   const isStandardGlobal = authProfile?.rank === 'standard_global';
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -243,7 +243,7 @@ const DiaryPage: React.FC = () => {
                   <div className="p-4 sm:p-6 border-b border-slate-700">
                     <div className="flex items-center space-x-4">
                       <img
-                        src={profile.avatar_url || DEFAULT_AVATAR_URL}
+                        src={(userId === user?.id ? optimisticAvatarUrl : null) || profile.avatar_url || DEFAULT_AVATAR_URL}
                         alt="avatar"
                         className="w-16 h-16 rounded-full object-cover"
                       />

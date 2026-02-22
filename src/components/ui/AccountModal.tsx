@@ -46,6 +46,8 @@ const AccountPage: React.FC = () => {
     emailChangeStatus,
     clearEmailChangeStatus,
     session,
+    optimisticAvatarUrl,
+    setOptimisticAvatarUrl,
   } = useAuthStore();
   const pushToast = useToastStore(state => state.push);
   const [open, setOpen] = useState(() => window.location.hash.startsWith('#account'));
@@ -57,7 +59,6 @@ const AccountPage: React.FC = () => {
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
-  const [optimisticAvatarUrl, setOptimisticAvatarUrl] = useState<string | null>(null);
   const [nickname, setNickname] = useState(profile?.nickname || '');
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
@@ -155,7 +156,6 @@ const AccountPage: React.FC = () => {
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
   useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
   useEffect(()=>{ setNickname(profile?.nickname || ''); setNicknameEditing(false); }, [profile]);
-  useEffect(()=>{ setOptimisticAvatarUrl(null); }, [profile?.avatar_url]);
   
   // アチーブメント称号データを取得
   useEffect(() => {

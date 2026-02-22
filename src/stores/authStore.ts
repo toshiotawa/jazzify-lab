@@ -12,6 +12,7 @@ interface AuthState {
   isGuest: boolean;
   guestId: string | null;
   hasProfile: boolean;
+  optimisticAvatarUrl: string | null;
   emailChangeStatus: {
     type: 'success' | 'warning' | null;
     message: string;
@@ -57,6 +58,7 @@ interface AuthActions {
   createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
+  setOptimisticAvatarUrl: (url: string | null) => void;
 }
 
 export const useAuthStore = create<AuthState & AuthActions>()(
@@ -68,6 +70,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     isGuest: false,
     guestId: null,
     hasProfile: false,
+    optimisticAvatarUrl: null,
     emailChangeStatus: null,
     profile: null,
 
@@ -504,7 +507,8 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         
         set(state => {
           state.hasProfile = !!data && !error;
-          state.error = null; // エラー状態をクリア
+          state.error = null;
+          state.optimisticAvatarUrl = null;
           if (data && !error) {
             state.profile = {
               nickname: data.nickname,
@@ -713,6 +717,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     clearEmailChangeStatus: () => {
       set(state => {
         state.emailChangeStatus = null;
+      });
+    },
+
+    setOptimisticAvatarUrl: (url: string | null) => {
+      set(state => {
+        state.optimisticAvatarUrl = url;
       });
     },
   }))

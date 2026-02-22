@@ -45,7 +45,7 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
-    const { profile, isGuest, logout } = useAuthStore();
+    const { profile, isGuest, logout, optimisticAvatarUrl } = useAuthStore();
     const geoCountry = useGeoStore(state => state.country);
     const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
@@ -265,7 +265,7 @@ const Dashboard: React.FC = () => {
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">
                 <img
-                  src={profile.avatar_url || DEFAULT_AVATAR_URL}
+                  src={optimisticAvatarUrl || profile.avatar_url || DEFAULT_AVATAR_URL}
                   alt="avatar"
                   className="w-16 h-16 rounded-full object-cover"
                 />
