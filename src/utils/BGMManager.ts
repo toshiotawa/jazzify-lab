@@ -672,6 +672,12 @@ class BGMManager {
     return 0
   }
 
+  // #region agent log
+  private _lastGetTimePerf = 0
+  private _lastGetTimeResult = 0
+  private _stallLogCooldown = 0
+  // #endregion
+
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
       // 出力レイテンシ補正: AudioContextの報告時間はスピーカー出力より先行するため、
@@ -687,7 +693,21 @@ class BGMManager {
             const elapsedRealTime = Tone.now() - this.waStartAt - latencyCompensation
             // playbackRateを考慮した音楽的な時間（BGM先頭=0）
             const musicTime = elapsedRealTime * this.playbackRate
-            return this.normalizeMusicTime(musicTime)
+            const result = this.normalizeMusicTime(musicTime)
+            // #region agent log
+            const now = performance.now()
+            if (this._stallLogCooldown <= 0 && this._lastGetTimePerf > 0) {
+              const dtMs = now - this._lastGetTimePerf
+              const dtResult = result - this._lastGetTimeResult
+              if (dtMs > 5 && dtResult < dtMs * 0.0003 && result < 0.2) {
+                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:Tone',message:'time stall detected',data:{backend:'tone',rawTime:Tone.now(),waStartAt:this.waStartAt,latencyComp:latencyCompensation,musicTime,result,prevResult:this._lastGetTimeResult,dtMs,dtResult,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{})
+                this._stallLogCooldown = 60
+              }
+            }
+            this._lastGetTimePerf = now; this._lastGetTimeResult = result
+            if (this._stallLogCooldown > 0) this._stallLogCooldown--
+            // #endregion
+            return result
           }
         } catch {}
       }
@@ -698,7 +718,21 @@ class BGMManager {
         const elapsedRealTime = this.waContext.currentTime - this.waStartAt - latencyCompensation
         // playbackRateを考慮した音楽的な時間（BGM先頭=0）
         const musicTime = elapsedRealTime * this.playbackRate
-        return this.normalizeMusicTime(musicTime)
+        const result = this.normalizeMusicTime(musicTime)
+        // #region agent log
+        const now = performance.now()
+        if (this._stallLogCooldown <= 0 && this._lastGetTimePerf > 0) {
+          const dtMs = now - this._lastGetTimePerf
+          const dtResult = result - this._lastGetTimeResult
+          if (dtMs > 5 && dtResult < dtMs * 0.0003 && result < 0.2) {
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:WA',message:'time stall detected',data:{backend:'webaudio',ctxTime:this.waContext.currentTime,waStartAt:this.waStartAt,latencyComp:latencyCompensation,musicTime,result,prevResult:this._lastGetTimeResult,dtMs,dtResult,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{})
+            this._stallLogCooldown = 60
+          }
+        }
+        this._lastGetTimePerf = now; this._lastGetTimeResult = result
+        if (this._stallLogCooldown > 0) this._stallLogCooldown--
+        // #endregion
+        return result
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) {
