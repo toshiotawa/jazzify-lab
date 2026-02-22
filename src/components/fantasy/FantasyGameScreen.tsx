@@ -1214,6 +1214,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 全ノーツの一瞬の点滅を根本排除する。
     let lastDisplayNorm = -1;
     let displayWrapPending = false;
+    let lastAgentLogAt = 0;
+    const shouldEmitAgentLog = (minIntervalMs: number = 500): boolean => {
+      const now = Date.now();
+      if (now - lastAgentLogAt < minIntervalMs) return false;
+      lastAgentLogAt = now;
+      return true;
+    };
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -1260,6 +1267,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         for (let i = startIdx; i < endIdx; i++) {
           const note = taikoNotes[i];
           if (!note) continue;
+          if (note.isHit || preHitIndexSet.has(i)) {
+            if (shouldEmitAgentLog()) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-3',hypothesisId:'H12_FIX',location:'FantasyGameScreen.tsx:countInRender',message:'skip hit note during count-in render',data:{noteIndex:i,noteId:note.id,currentTime,isHit:note.isHit,isPreHit:preHitIndexSet.has(i)},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
+            }
+            continue;
+          }
           const timeUntilHit = note.hitTime - currentTime;
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
@@ -1321,12 +1336,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               const note = taikoNotes[i];
               if (!note) continue;
               if (note.isHit) {
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H5_FIX',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'skip hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H5',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'rendering already-hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd,noteHitTime:note.hitTime},timestamp:Date.now()})}).catch(()=>{});
-                // #endregion
+                if (shouldEmitAgentLog()) {
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H5_FIX',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'skip hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd},timestamp:Date.now()})}).catch(()=>{});
+                  // #endregion
+                  // #region agent log
+                  fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H5',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'rendering already-hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd,noteHitTime:note.hitTime},timestamp:Date.now()})}).catch(()=>{});
+                  // #endregion
+                }
                 continue;
               }
               const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
@@ -1356,6 +1373,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ★ シームレスループ: オーディオのラップを表示ループ側で即時検知
       // normalizedTime が大きく巻き戻ったらラップが発生した
       if (lastDisplayNorm >= 0 && lastDisplayNorm - normalizedTime > loopDuration * 0.5) {
+        if (!displayWrapPending && shouldEmitAgentLog()) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-3',hypothesisId:'H11',location:'FantasyGameScreen.tsx:updateTaikoNotes',message:'displayWrapPending set true',data:{lastDisplayNorm,normalizedTime,loopDuration,stateNoteIndex,stateAwaitingLoop},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
         displayWrapPending = true;
       }
       lastDisplayNorm = normalizedTime;
@@ -1363,6 +1385,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // state が追いついたらフラグをクリア
       // （stateNoteIndex が小さい = ループ先頭に戻っている、かつ awaitingLoop でない）
       if (displayWrapPending && stateNoteIndex <= 1 && !stateAwaitingLoop) {
+        if (shouldEmitAgentLog()) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-3',hypothesisId:'H11',location:'FantasyGameScreen.tsx:updateTaikoNotes',message:'displayWrapPending cleared',data:{normalizedTime,stateNoteIndex,stateAwaitingLoop},timestamp:Date.now()})}).catch(()=>{});
+          // #endregion
+        }
         displayWrapPending = false;
       }
       
@@ -1436,18 +1463,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           // すでに通常ノーツで表示しているものは重複させない
           if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
           if (preHitIndexSet.has(i)) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H3_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip pre-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote?.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,preHitCount:preHitIndices.length},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
+            if (shouldEmitAgentLog()) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H3_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip pre-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote?.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,preHitCount:preHitIndices.length},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
+            }
             continue;
           }
           if (baseNote?.isHit) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'rendering already-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-2',hypothesisId:'H6_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
-            // #endregion
+            if (shouldEmitAgentLog()) {
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'rendering already-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-2',hypothesisId:'H6_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
+              // #endregion
+            }
             continue;
           }
 
