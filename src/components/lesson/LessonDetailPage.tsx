@@ -243,8 +243,9 @@ const LessonDetailPage: React.FC = () => {
         duration: 3000,
       });
       
-      // レッスン一覧に戻る
-      window.location.hash = '#lessons';
+      // 完了状態を即座に反映（ページに留まる）
+      setLessonProgress(prev => prev ? { ...prev, completed: true, completion_date: new Date().toISOString() } : prev);
+      setAllRequirementsCompleted(true);
     } catch (e: any) {
       toast.error('完了処理に失敗しました');
       console.error('レッスン完了エラー:', e);

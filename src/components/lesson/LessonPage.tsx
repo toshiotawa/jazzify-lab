@@ -898,7 +898,7 @@ const LessonPage: React.FC = () => {
               <h3 className="text-lg font-bold text-white">ブロックの解放</h3>
             </div>
             <p className="text-gray-300 text-sm mb-2">
-              前のブロックをクリアしてください。
+              前のブロックのレッスンを全て完了してください。
             </p>
             <p className="text-gray-400 text-sm mb-6">
               プラチナプラン以上でブロック解放が手動で行えます。
