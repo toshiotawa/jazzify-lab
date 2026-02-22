@@ -749,6 +749,9 @@ class BGMManager {
           const elapsed = (now - this.htmlSeekPerfStart) / 1000
           const expected = this.htmlSeekTarget + elapsed * this.playbackRate
           if (Math.abs(rawTime - expected) < 1.0) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:seekComp:clear',message:'seek compensation cleared',data:{rawTime,expected,diff:Math.abs(rawTime-expected),seekTarget:this.htmlSeekTarget,elapsedMs:elapsed*1000},timestamp:Date.now(),hypothesisId:'H8_seekClear'})}).catch(()=>{})
+            // #endregion
             this.htmlSeekTarget = null
             this._htmlLastRawTime = expected
             this._htmlLastRawPerf = now
@@ -757,13 +760,29 @@ class BGMManager {
           }
         }
         // audio.currentTime の低更新頻度を performance.now() で連続補間
-        // 音声が先行（rawTime が上回る）場合のみリセットし、後方ジャンプを根本的に排除
-        if (rawTime > this._htmlLastRawTime) {
+        if (this._htmlLastRawTime < 0) {
+          this._htmlLastRawTime = rawTime
+          this._htmlLastRawPerf = now
+        }
+        const currentInterpolated = this._htmlLastRawTime + (now - this._htmlLastRawPerf) / 1000 * this.playbackRate
+        if (rawTime > currentInterpolated) {
           this._htmlLastRawTime = rawTime
           this._htmlLastRawPerf = now
         }
         const elapsed = (now - this._htmlLastRawPerf) / 1000
         const interpolated = this._htmlLastRawTime + elapsed * this.playbackRate
+        // #region agent log
+        if (this._stallLogCooldown <= 0) {
+          const norm = this.normalizeMusicTime(interpolated)
+          if (this._lastGetTimeResult > 0 && norm < this._lastGetTimeResult - 0.001 && this._lastGetTimeResult < this.loopEnd - this.loopBegin - 0.5) {
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:HTML',message:'backward jump detected',data:{rawTime,interpolated,norm,prevResult:this._lastGetTimeResult,_htmlLastRawTime:this._htmlLastRawTime,_htmlLastRawPerf:this._htmlLastRawPerf,currentInterpolated,htmlSeekTarget:this.htmlSeekTarget,now},timestamp:Date.now(),hypothesisId:'H8_backward'})}).catch(()=>{})
+            this._stallLogCooldown = 30
+          }
+        }
+        if (this._stallLogCooldown > 0) this._stallLogCooldown--
+        this._lastGetTimePerf = now
+        this._lastGetTimeResult = this.normalizeMusicTime(interpolated)
+        // #endregion
         return this.normalizeMusicTime(interpolated)
       }
     }
@@ -1140,8 +1159,13 @@ class BGMManager {
           this.loopTimeoutId = window.setTimeout(() => {
             if (this.audio && this.isPlaying) {
               this.audio.currentTime = this.nextLoopTime
-              this.htmlSeekTarget = this.nextLoopTime
-              this.htmlSeekPerfStart = performance.now()
+              if (this.htmlSeekTarget === null) {
+                this.htmlSeekTarget = this.nextLoopTime
+                this.htmlSeekPerfStart = performance.now()
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:timeupdate:setTimeout',message:'htmlSeekTarget SET',data:{target:this.nextLoopTime,source:'timeupdate'},timestamp:Date.now(),hypothesisId:'H8_seekGuard'})}).catch(()=>{})
+                // #endregion
+              }
             }
             this.loopScheduled = false
             this.loopTimeoutId = null
@@ -1158,8 +1182,13 @@ class BGMManager {
         if (now >= this.loopEnd - epsilon) {
           try {
             this.audio.currentTime = this.loopBegin
-            this.htmlSeekTarget = this.loopBegin
-            this.htmlSeekPerfStart = performance.now()
+            if (this.htmlSeekTarget === null) {
+              this.htmlSeekTarget = this.loopBegin
+              this.htmlSeekPerfStart = performance.now()
+              // #region agent log
+              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:setInterval',message:'htmlSeekTarget SET',data:{target:this.loopBegin,source:'setInterval'},timestamp:Date.now(),hypothesisId:'H8_seekGuard'})}).catch(()=>{})
+              // #endregion
+            }
             if (this.audio.paused) {
               void this.audio.play().catch(() => {})
             }
