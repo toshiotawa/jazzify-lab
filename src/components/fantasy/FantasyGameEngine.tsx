@@ -935,10 +935,6 @@ export const useFantasyGameEngine = ({
         : updatedNotes[nextIndex];
       const nextNextNote = isLastInSection ? nextNote
         : ((nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote);
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H5',location:'FantasyGameEngine.tsx:handleCombiningModeInput',message:'combining chord complete',data:{currentSectionIndex:prevState.currentSectionIndex,chosenIndex:chosen.i,isNextSectionNote:chosen.isNextSectionNote,currentNoteIndexBefore:currentIndex,currentNoteIndexAfter:isLastInSection?currentIndex:nextIndex,chosenNoteHitTime:chosen.n.hitTime,currentTime},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      
       // ダメージ計算
       const stageForDamage = stage!;
       const isSpecialAttack = prevState.playerSp >= 5;
@@ -1099,9 +1095,6 @@ export const useFantasyGameEngine = ({
         resetNotes.forEach((n, i) => { if (n.isHit) hitIdxs.push(i); });
         const maxHitIdx = hitIdxs.length > 0 ? Math.max(...hitIdxs) : -1;
         const effIdx = maxHitIdx >= 0 ? Math.min(maxHitIdx + 1, resetNotes.length - 1) : 0;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H1_H2',location:'FantasyGameEngine.tsx:handleTaikoModeInput:loopReset',message:'input loop reset applied',data:{lastNorm,normalizedTime,loopDuration,loopTimeDiff,preHitCount:preHitIndices.length,preHitIds:Array.from(preHitIds).slice(0,8),resetHitCount:hitIdxs.length,currentTransposeOffset:prevState.currentTransposeOffset,newTransposeOffset,taikoLoopCycleBefore:prevState.taikoLoopCycle,taikoLoopCycleAfter:newLoopCycle,effectiveIndex:effIdx},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         
         const targetNote = resetNotes[effIdx] || resetNotes[0];
         const nextTargetNote = resetNotes[(effIdx + 1) % resetNotes.length] || resetNotes[0];
@@ -1336,10 +1329,6 @@ export const useFantasyGameEngine = ({
       // 先読みヒット（ループ境界付近で次ループのノーツにヒット）の判定
       // 候補選択時に判定された isNextLoopNote を使用（awaitingLoopStart状態からの復帰は除く）
       const isPreHit = chosen.isNextLoopNote && !wasAwaitingLoop;
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3_H4',location:'FantasyGameEngine.tsx:handleTaikoModeInput:chordComplete',message:'taiko chord complete',data:{currentTime,normalizedTime,loopDuration,chosenIndex,chosenHitTime:chosenNote.hitTime,effectiveHitTime:chosen.effectiveHitTime,isNextLoopNote:chosen.isNextLoopNote,isPreHit,wasAwaitingLoop,currentNoteIndexBefore:workingState.currentNoteIndex,preHitCountBefore:(workingState.preHitNoteIndices||[]).length},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
-      
       // awaitingLoopStart状態からの復帰の場合、ノーツをリセットして次ループを開始
       let updatedTaikoNotes;
       const updatedPreHitIndices = [...(workingState.preHitNoteIndices || [])];
@@ -2571,9 +2560,6 @@ export const useFantasyGameEngine = ({
         // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ
         const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
         const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
-        // #region agent log
-        if (lastNorm === -1) { fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-4',hypothesisId:'H13',location:'FantasyGameEngine.tsx:updateEnemyGauge:afterCountIn',message:'first timer tick after count-in',data:{currentTime,normalizedTime,lastNorm,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,taikoLoopCycle:prevState.taikoLoopCycle},timestamp:Date.now()})}).catch(()=>{}); }
-        // #endregion
         // lastNormが-1（未初期化）の場合はループ境界として扱わない
         // ループ境界検出: normalizedTimeがlastNormより小さくなった場合
         // 二重処理防止: lastNorm - normalizedTimeがloopDurationの半分より大きい場合のみ（真のループ境界）
@@ -2651,9 +2637,6 @@ export const useFantasyGameEngine = ({
           
           // newNoteIndexが範囲外の場合は0にリセット
           const effectiveNoteIndex = newNoteIndex >= resetNotes.length ? 0 : newNoteIndex;
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H1_H2',location:'FantasyGameEngine.tsx:updateEnemyGauge:loopReset',message:'timer loop reset applied',data:{lastNorm,normalizedTime,loopDuration,loopTimeDiff,preHitCount:preHitIndices.length,preHitIds:Array.from(preHitIds).slice(0,8),resetHitCount:hitIndices.length,currentTransposeOffset:prevState.currentTransposeOffset,newTransposeOffset,taikoLoopCycleBefore:prevState.taikoLoopCycle,taikoLoopCycleAfter:newLoopCycle,effectiveNoteIndex},timestamp:Date.now()})}).catch(()=>{});
-          // #endregion
           
           // ターゲットコードを決定（先読みヒットがある場合は次のノーツから）
           const targetNote = resetNotes[effectiveNoteIndex] || resetNotes[0];
