@@ -400,5 +400,71 @@ export async function manualUnlockCourse(courseId: string): Promise<void> {
   clearCacheByPattern(/^user_course_unlock_status/);
 }
 
+/**
+ * チュートリアルコースのID・レッスン一覧・ユーザー進捗を一括取得
+ */
+export interface TutorialProgress {
+  courseId: string;
+  courseTitle: string;
+  totalLessons: number;
+  completedLessons: number;
+  nextLesson: { id: string; title: string; order_index: number } | null;
+}
+
+export async function fetchTutorialProgress(): Promise<TutorialProgress | null> {
+  const supabase = getSupabaseClient();
+
+  const { data: courseData, error: courseError } = await fetchWithCache(
+    'tutorial_course',
+    async () => await supabase
+      .from('courses')
+      .select('id, title')
+      .eq('is_tutorial', true)
+      .limit(1)
+      .single(),
+    60 * 60 * 1000
+  );
+
+  if (courseError || !courseData) return null;
+
+  const { data: lessons, error: lessonsError } = await fetchWithCache(
+    `tutorial_lessons_${courseData.id}`,
+    async () => await supabase
+      .from('lessons')
+      .select('id, title, order_index, block_number')
+      .eq('course_id', courseData.id)
+      .order('order_index', { ascending: true }),
+    60 * 60 * 1000
+  );
+
+  if (lessonsError || !lessons) return null;
+
+  const { getCurrentUserIdCached } = await import('./supabaseClient');
+  const uid = await getCurrentUserIdCached();
+  if (!uid) return null;
+
+  const { data: progressData, error: progressError } = await supabase
+    .from('user_lesson_progress')
+    .select('lesson_id, completed')
+    .eq('user_id', uid)
+    .eq('course_id', courseData.id)
+    .eq('completed', true);
+
+  if (progressError) return null;
+
+  const completedSet = new Set((progressData || []).map(p => p.lesson_id));
+  const completedLessons = completedSet.size;
+
+  const nextLesson = lessons.find(l => !completedSet.has(l.id)) ?? null;
+
+  return {
+    courseId: courseData.id,
+    courseTitle: courseData.title,
+    totalLessons: lessons.length,
+    completedLessons,
+    nextLesson: nextLesson ? { id: nextLesson.id, title: nextLesson.title, order_index: nextLesson.order_index } : null,
+  };
+}
+
 export { clearCacheByPattern as clearSupabaseCache };
 export { checkCoursePrerequisites } from '@/utils/lessonAccess';

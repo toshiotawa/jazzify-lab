@@ -637,6 +637,8 @@ export interface LessonSong {
   override_start_key?: number | null;
 }
 
+export type NavLinkKey = 'dashboard' | 'legend' | 'lesson' | 'fantasy' | 'survival' | 'ranking' | 'mission' | 'diary' | 'information';
+
 export interface Lesson {
   id: string;
   course_id: string;
@@ -645,6 +647,7 @@ export interface Lesson {
   assignment_description?: string;
   order_index: number;
   block_number?: number;
+  nav_links?: NavLinkKey[];
   created_at: string;
   updated_at: string;
   videos?: LessonVideo[];
@@ -674,6 +677,7 @@ export interface Course {
   lessons: Lesson[];
   order_index: number;
   premium_only?: boolean;
+  is_tutorial?: boolean;
   min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   prerequisites?: CoursePrerequisite[];
 }

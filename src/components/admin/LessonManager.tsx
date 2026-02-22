@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode } from '@/types';
+import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
@@ -59,6 +59,19 @@ export const LessonManager: React.FC = () => {
   const [videosByLesson, setVideosByLesson] = useState<Record<string, LessonVideo[]>>({});
   const videoInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [editNavLinks, setEditNavLinks] = useState<NavLinkKey[]>([]);
+
+  const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
+    { key: 'dashboard',   label: 'ダッシュボード' },
+    { key: 'legend',      label: 'レジェンド' },
+    { key: 'lesson',      label: 'レッスン' },
+    { key: 'fantasy',     label: 'ファンタジー' },
+    { key: 'survival',    label: 'サバイバル' },
+    { key: 'ranking',     label: 'ランキング' },
+    { key: 'mission',     label: 'ミッション' },
+    { key: 'diary',       label: '日記' },
+    { key: 'information', label: 'お知らせ' },
+  ];
 
   const toast = useToast();
 
@@ -181,10 +194,12 @@ export const LessonManager: React.FC = () => {
       setValue('assignment_description', lesson.assignment_description || '');
       setValue('order_index', lesson.order_index);
       setValue('block_number', lesson.block_number || 1);
+      setEditNavLinks(lesson.nav_links || []);
     } else {
       setSelectedLesson(null);
       const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 0;
       reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
+      setEditNavLinks([]);
     }
     dialogRef.current?.showModal();
   };
@@ -244,6 +259,7 @@ export const LessonManager: React.FC = () => {
         assignment_description: formData.assignment_description,
         order_index: Number(formData.order_index) || 0,
         block_number: Number(formData.block_number) || 1,
+        nav_links: editNavLinks,
       };
 
       if (selectedLesson) {
@@ -917,6 +933,29 @@ export const LessonManager: React.FC = () => {
             <div>
               <label className="label"><span className="label-text">ブロック</span></label>
               <input type="number" {...register('block_number')} className="input input-bordered w-full" />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">ナビリンク（レッスン末尾に表示）</span></label>
+              <div className="flex flex-wrap gap-2">
+                {NAV_LINK_OPTIONS.map(opt => {
+                  const checked = editNavLinks.includes(opt.key);
+                  return (
+                    <label key={opt.key} className="flex items-center gap-1 text-sm cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm"
+                        checked={checked}
+                        onChange={() => {
+                          setEditNavLinks(prev =>
+                            checked ? prev.filter(k => k !== opt.key) : [...prev, opt.key]
+                          );
+                        }}
+                      />
+                      {opt.label}
+                    </label>
+                  );
+                })}
+              </div>
             </div>
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>

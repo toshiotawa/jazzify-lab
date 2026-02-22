@@ -35,6 +35,7 @@ import { calcLevel } from '@/platform/supabaseXp';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
+import TutorialProgressSection from '@/components/dashboard/TutorialProgressSection';
 import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 /**
@@ -260,6 +261,8 @@ const Dashboard: React.FC = () => {
         <div className="max-w-6xl mx-auto space-y-6">
           {/* オープンベータ: プラン変更 UI */}
           {!isGuest && <OpenBetaPlanSwitcher />}
+          {/* チュートリアル進捗（グローバルプラン除外） */}
+          {!isGuest && !isStandardGlobal && <TutorialProgressSection />}
           {/* ユーザー情報カード */}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
