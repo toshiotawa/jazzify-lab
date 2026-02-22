@@ -57,6 +57,7 @@ const AccountPage: React.FC = () => {
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [avatarModalOpen, setAvatarModalOpen] = useState(false);
+  const [optimisticAvatarUrl, setOptimisticAvatarUrl] = useState<string | null>(null);
   const [nickname, setNickname] = useState(profile?.nickname || '');
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
@@ -154,6 +155,7 @@ const AccountPage: React.FC = () => {
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
   useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
   useEffect(()=>{ setNickname(profile?.nickname || ''); setNicknameEditing(false); }, [profile]);
+  useEffect(()=>{ setOptimisticAvatarUrl(null); }, [profile?.avatar_url]);
   
   // アチーブメント称号データを取得
   useEffect(() => {
@@ -262,7 +264,7 @@ const AccountPage: React.FC = () => {
                       aria-label={isEnglishCopy ? 'Change avatar' : 'アバターを変更'}
                     >
                       <img
-                        src={profile.avatar_url || DEFAULT_AVATAR_URL}
+                        src={optimisticAvatarUrl || profile.avatar_url || DEFAULT_AVATAR_URL}
                         alt="avatar"
                         className="w-24 h-24 rounded-full object-cover ring-2 ring-slate-600 group-hover:ring-primary-400 transition-all"
                       />
@@ -584,24 +586,26 @@ const AccountPage: React.FC = () => {
                   {/* Avatar Select Modal */}
                   <AvatarSelectModal
                     isOpen={avatarModalOpen}
-                    currentAvatarUrl={profile.avatar_url}
+                    currentAvatarUrl={optimisticAvatarUrl || profile.avatar_url}
                     isEnglishCopy={isEnglishCopy}
                     uploading={avatarUploading}
                     onClose={() => setAvatarModalOpen(false)}
                     onSelect={async (avatarPath) => {
+                      const prevUrl = profile.avatar_url;
+                      setOptimisticAvatarUrl(avatarPath);
                       setAvatarModalOpen(false);
-                      setAvatarUploading(true);
                       try {
                         await getSupabaseClient().from('profiles').update({ avatar_url: avatarPath }).eq('id', profile.id);
                         await useAuthStore.getState().fetchProfile();
                         pushToast(isEnglishCopy ? 'Avatar updated' : 'アバターを更新しました', 'success');
                       } catch (err) {
+                        setOptimisticAvatarUrl(prevUrl || null);
                         pushToast((isEnglishCopy ? 'Failed to update avatar: ' : 'アバター更新失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
-                      } finally {
-                        setAvatarUploading(false);
                       }
                     }}
                     onUpload={async (file) => {
+                      const localPreview = URL.createObjectURL(file);
+                      setOptimisticAvatarUrl(localPreview);
                       setAvatarModalOpen(false);
                       setAvatarUploading(true);
                       try {
@@ -612,8 +616,10 @@ const AccountPage: React.FC = () => {
                         await useAuthStore.getState().fetchProfile();
                         pushToast(isEnglishCopy ? 'Avatar uploaded' : 'アバターをアップロードしました', 'success');
                       } catch (err) {
+                        setOptimisticAvatarUrl(null);
                         pushToast((isEnglishCopy ? 'Upload failed: ' : 'アップロード失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
                       } finally {
+                        URL.revokeObjectURL(localPreview);
                         setAvatarUploading(false);
                       }
                     }}
