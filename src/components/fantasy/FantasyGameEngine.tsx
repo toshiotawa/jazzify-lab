@@ -1080,13 +1080,16 @@ export const useFantasyGameEngine = ({
         // アウフタクト: 2回目以降のループではカウントイン中のノーツを除外
         const loopNotes = transposedNotes.filter(n => !n.isAuftaktNote);
 
+        // 先読みヒット済みノーツをIDで照合（アウフタクトフィルタによるインデックスずれを回避）
         const preHitIndices = prevState.preHitNoteIndices || [];
-        const resetNotes = loopNotes.map((tn, idx) => ({
+        const preHitIds = new Set(preHitIndices.map(i => prevState.taikoNotes[i]?.id).filter(Boolean));
+        const resetNotes = loopNotes.map((tn) => ({
           ...tn,
-          isHit: preHitIndices.includes(idx),
+          isHit: preHitIds.has(tn.id),
           isMissed: false
         }));
-        const hitIdxs = preHitIndices.filter(i => i < resetNotes.length);
+        const hitIdxs: number[] = [];
+        resetNotes.forEach((n, i) => { if (n.isHit) hitIdxs.push(i); });
         const maxHitIdx = hitIdxs.length > 0 ? Math.max(...hitIdxs) : -1;
         const effIdx = maxHitIdx >= 0 ? Math.min(maxHitIdx + 1, resetNotes.length - 1) : 0;
         
@@ -2297,12 +2300,12 @@ export const useFantasyGameEngine = ({
                   transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
                 }
                 
-                // BGM即時切り替え（移調リスタート）
+                // BGM即時切り替え（移調リスタート）- ループ2周目以降はカウントインなし
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
                   bgmManager.play(
                     firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                    firstSection.measureCount, firstSection.countInMeasures,
+                    firstSection.measureCount, 0,
                     0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
                   );
                 }
@@ -2354,12 +2357,12 @@ export const useFantasyGameEngine = ({
                 };
               }
               
-              // 移調設定なし: BGM即時切り替え
+              // 移調設定なし: BGM即時切り替え - ループ2周目以降はカウントインなし
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
                 bgmManager.play(
                   firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                  firstSection.measureCount, firstSection.countInMeasures,
+                  firstSection.measureCount, 0,
                   0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
                 );
               }
@@ -2460,18 +2463,52 @@ export const useFantasyGameEngine = ({
               ? nextNote
               : ((nextIdx + 1 < sectionEnd) ? updatedNotes[nextIdx + 1] : nextNote);
             
+            const updatedMonsters = prevState.activeMonsters.map(m => ({
+              ...m,
+              gauge: Math.min(m.gauge + (60 / (stage.enemyGaugeSeconds || 5)) * 0.05, m.maxHp),
+              chordTarget: nextNote?.chord ?? m.chordTarget,
+              nextChord: nextNextNote?.chord ?? m.nextChord,
+            }));
+
+            // ゲージが100%に達したモンスターがいれば敵攻撃をトリガー
+            const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
+            if (attackingMonster) {
+              const { setEnrage } = useEnemyStore.getState();
+              const timers = enrageTimersRef.current;
+              const oldTimer = timers.get(attackingMonster.id);
+              if (oldTimer) clearTimeout(oldTimer);
+              setEnrage(attackingMonster.id, true);
+              const t = setTimeout(() => {
+                setEnrage(attackingMonster.id, false);
+                timers.delete(attackingMonster.id);
+              }, 500);
+              timers.set(attackingMonster.id, t);
+
+              const resetMonsters = updatedMonsters.map(m =>
+                m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
+              );
+              setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+
+              const nextState = {
+                ...prevState,
+                taikoNotes: updatedNotes,
+                currentNoteIndex: isLastInSection ? noteIdx : nextIdx,
+                awaitingLoopStart: isLastInSection,
+                lastNormalizedTime: currentTime,
+                activeMonsters: resetMonsters,
+                enemyGauge: 0,
+              };
+              onGameStateChange(nextState);
+              return nextState;
+            }
+
             return {
               ...prevState,
               taikoNotes: updatedNotes,
               currentNoteIndex: isLastInSection ? noteIdx : nextIdx,
               awaitingLoopStart: isLastInSection,
               lastNormalizedTime: currentTime,
-              activeMonsters: prevState.activeMonsters.map(m => ({
-                ...m,
-                gauge: Math.min(m.gauge + (60 / (stage.enemyGaugeSeconds || 5)) * 0.05, m.maxHp),
-                chordTarget: nextNote?.chord ?? m.chordTarget,
-                nextChord: nextNextNote?.chord ?? m.nextChord,
-              })),
+              activeMonsters: updatedMonsters,
             };
           }
           
@@ -2553,17 +2590,18 @@ export const useFantasyGameEngine = ({
           // アウフタクト: 2回目以降のループではカウントイン中のノーツを除外
           const loopNotes = transposedNotes.filter(n => !n.isAuftaktNote);
 
-          // ノーツをリセット（先読みヒット済みノーツは維持）
+          // ノーツをリセット（先読みヒット済みノーツはIDで照合して維持）
           const preHitIndices = prevState.preHitNoteIndices || [];
-          const resetNotes = loopNotes.map((note, index) => ({
+          const preHitIds = new Set(preHitIndices.map(i => prevState.taikoNotes[i]?.id).filter(Boolean));
+          const resetNotes = loopNotes.map((note) => ({
             ...note,
-            isHit: preHitIndices.includes(index),
+            isHit: preHitIds.has(note.id),
             isMissed: false
           }));
           
           // 先読みヒット済みノーツがある場合、そのノーツの次から開始
-          // それ以外は0から開始
-          const hitIndices = preHitIndices.filter(i => i < resetNotes.length);
+          const hitIndices: number[] = [];
+          resetNotes.forEach((n, i) => { if (n.isHit) hitIndices.push(i); });
           const maxHitIndex = hitIndices.length > 0 ? Math.max(...hitIndices) : -1;
           const newNoteIndex = maxHitIndex >= 0 ? maxHitIndex + 1 : 0;
           

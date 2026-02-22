@@ -287,6 +287,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         musicXml: (stage as any).music_xml,
         // timing_combining 用
         combinedStageIds: Array.isArray((stage as any).combined_stage_ids) ? (stage as any).combined_stage_ids : undefined,
+        combinedSectionRepeats: Array.isArray((stage as any).combined_section_repeats) ? (stage as any).combined_section_repeats : undefined,
         isAuftakt: !!(stage as any).is_auftakt,
       }));
       
