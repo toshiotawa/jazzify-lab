@@ -95,6 +95,7 @@ class BGMManager {
   private _htmlNextReady = false
   private _htmlLoopUrl = ''
   private _htmlLoopVolume = 0.7
+  private _htmlSwapPending = false
 
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
@@ -202,6 +203,7 @@ class BGMManager {
       this.htmlSeekPerfStart = performance.now()
       this._htmlLastRawTime = -1
       this._htmlLastRawPerf = 0
+      this._htmlSwapPending = false
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
       // #region agent log
@@ -607,6 +609,7 @@ class BGMManager {
     this.htmlSeekTarget = null
     this._htmlLastRawTime = -1
     this._htmlLastRawPerf = 0
+    this._htmlSwapPending = false
     this.playGeneration++
     this.disposePendingChain()
 
@@ -799,6 +802,23 @@ class BGMManager {
         }
         const elapsed = (now - this._htmlLastRawPerf) / 1000
         const interpolated = this._htmlLastRawTime + elapsed * this.playbackRate
+
+        // デュアル要素スワップ後の遅延リセット:
+        // normalizeMusicTimeの自然ラップが完了したら、実際のaudio位置にベースを合わせる
+        // これにより累積ドリフトを防止しつつ、ラップ時の視覚ジャンプを最小化する
+        if (this._htmlSwapPending) {
+          const normalized = this.normalizeMusicTime(interpolated)
+          const loopDuration = this.loopEnd - this.loopBegin
+          if (normalized < loopDuration * 0.5) {
+            this._htmlLastRawTime = rawTime
+            this._htmlLastRawPerf = now
+            this._htmlSwapPending = false
+          }
+          this._lastGetTimePerf = now
+          this._lastGetTimeResult = normalized
+          return normalized
+        }
+
         // #region agent log
         if (this._stallLogCooldown <= 0) {
           const norm = this.normalizeMusicTime(interpolated)
@@ -1223,29 +1243,25 @@ class BGMManager {
         if (ct >= this.loopEnd - epsilon) {
           if (this._htmlNextReady && this._htmlNextAudio) {
             const oldAudio = this.audio
+            oldAudio.volume = 0
+
             this.audio = this._htmlNextAudio
             this.audio.play().catch(() => {})
 
             this.audio.addEventListener('error', this.handleError)
             this.audio.addEventListener('ended', this.handleEnded)
 
-            // 旧要素は新要素が実際に再生を開始してからpause（音声ギャップ防止）
-            const cleanupOld = () => {
+            // 旧要素の遅延クリーンアップ
+            setTimeout(() => {
               try { oldAudio.removeEventListener('error', this.handleError) } catch {}
               try { oldAudio.removeEventListener('ended', this.handleEnded) } catch {}
               try { oldAudio.pause() } catch {}
               try { (oldAudio as any).src = '' } catch {}
-            }
-            const onPlaying = () => {
-              this.audio!.removeEventListener('playing', onPlaying)
-              cleanupOld()
-            }
-            this.audio.addEventListener('playing', onPlaying)
-            setTimeout(() => cleanupOld(), 150)
+            }, 200)
 
-            // 時間トラッキングはリセットしない！
-            // performance.now() ベースの補間がそのまま継続し、
-            // normalizeMusicTime() がループ境界で自然にラップする
+            // 時間トラッキングは即座にリセットせず、normalizeMusicTimeの自然ラップ後に
+            // 実際のaudio位置に合わせる（累積ドリフト防止 + 視覚ジャンプ最小化）
+            this._htmlSwapPending = true
             this.htmlSeekTarget = null
 
             console.warn('🔄 ループスワップ成功', { loopBegin: this.loopBegin, newCt: this.audio.currentTime })
