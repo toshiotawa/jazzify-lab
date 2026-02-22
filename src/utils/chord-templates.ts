@@ -12,12 +12,12 @@ export type ChordQuality =
   // ジャズボイシング（ルートレス含む）
   | 'maj7_9'      // M7(9): 3 5 7 9
   | 'm7_9'        // m7(9): b3 5 b7 9
-  | '7_9_13'      // 7(9.13): 3 b7 9 13
-  | '7_b9_b13'    // 7(b9.b13): 3 b7 b9 b13
+  | '7_9_6th'     // 7(9.6th): 3 6 b7 9
+  | '7_b9_b6th'   // 7(b9.b6th): 3 b6 b7 b9
   | '6_9'         // 6(9): 3 5 6 9
   | 'm6_9'        // m6(9): b3 5 6 9
-  | '7_b9_13'     // 7(b9.13): 3 b7 b9 13
-  | '7_s9_b13'    // 7(#9.b13): 3 b7 #9 b13
+  | '7_b9_6th'    // 7(b9.6th): 3 6 b7 b9
+  | '7_s9_b6th'   // 7(#9.b6th): 3 b6 b7 #9
   | 'm7b5_11'     // m7(b5)(11): R 4 b5 b9
   | 'dimM7';      // dim(M7): R b3 b5 7
 
@@ -88,12 +88,12 @@ export const CHORD_TEMPLATES: Record<ChordQuality, string[]> = {
   // ジャズボイシング（ルートレス含む）
   'maj7_9':   ['3M', '5P', '7M', '9M'],       // M7(9): 3 5 7 9
   'm7_9':     ['3m', '5P', '7m', '9M'],       // m7(9): b3 5 b7 9
-  '7_9_13':   ['3M', '7m', '9M', '6M'],       // 7(9.13): 3 b7 9 6
-  '7_b9_b13': ['3M', '7m', '9m', '6m'],       // 7(b9.b13): 3 b7 b9 b6
+  '7_9_6th':  ['3M', '6M', '7m', '9M'],       // 7(9.6th): 3 6 b7 9
+  '7_b9_b6th':['3M', '6m', '7m', '9m'],       // 7(b9.b6th): 3 b6 b7 b9
   '6_9':      ['3M', '5P', '6M', '9M'],       // 6(9): 3 5 6 9
   'm6_9':     ['3m', '5P', '6M', '9M'],       // m6(9): b3 5 6 9
-  '7_b9_13':  ['3M', '7m', '9m', '6M'],       // 7(b9.13): 3 b7 b9 6
-  '7_s9_b13': ['3M', '7m', '9A', '6m'],       // 7(#9.b13): 3 b7 #9 b6
+  '7_b9_6th': ['3M', '6M', '7m', '9m'],       // 7(b9.6th): 3 6 b7 b9
+  '7_s9_b6th':['3M', '6m', '7m', '9A'],       // 7(#9.b6th): 3 b6 b7 #9
   'm7b5_11':  ['1P', '4P', '5d', '7m'],       // m7(b5)(11): R 4 b5 b7
   'dimM7':    ['1P', '3m', '5d', '7M'],       // dim(M7): R b3 b5 7
 };
@@ -390,12 +390,18 @@ export const FANTASY_CHORD_MAP: Record<string, { root: string; quality: ChordQua
   // ジャズボイシング（Hard / Extreme用）
   ...generateChordEntries('M7(9)', 'maj7_9'),
   ...generateChordEntries('m7(9)', 'm7_9'),
-  ...generateChordEntries('7(9.13)', '7_9_13'),
-  ...generateChordEntries('7(b9.b13)', '7_b9_b13'),
+  ...generateChordEntries('7(9.6th)', '7_9_6th'),
+  ...generateChordEntries('7(b9.b6th)', '7_b9_b6th'),
   ...generateChordEntries('6(9)', '6_9'),
   ...generateChordEntries('m6(9)', 'm6_9'),
-  ...generateChordEntries('7(b9.13)', '7_b9_13'),
-  ...generateChordEntries('7(#9.b13)', '7_s9_b13'),
+  ...generateChordEntries('7(b9.6th)', '7_b9_6th'),
+  ...generateChordEntries('7(#9.b6th)', '7_s9_b6th'),
+
+  // 後方互換: 旧表記 13/b13 でもルックアップ可能にする
+  ...generateChordEntries('7(9.13)', '7_9_6th'),
+  ...generateChordEntries('7(b9.b13)', '7_b9_b6th'),
+  ...generateChordEntries('7(b9.13)', '7_b9_6th'),
+  ...generateChordEntries('7(#9.b13)', '7_s9_b6th'),
   ...generateChordEntries('m7(b5)(11)', 'm7b5_11'),
   ...generateChordEntries('dim(M7)', 'dimM7'),
 };

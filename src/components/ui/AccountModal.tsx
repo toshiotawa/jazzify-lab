@@ -55,6 +55,9 @@ const AccountPage: React.FC = () => {
   const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [nickname, setNickname] = useState(profile?.nickname || '');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
+  const [nicknameEditing, setNicknameEditing] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [emailUpdating, setEmailUpdating] = useState(false);
   const [emailMessage, setEmailMessage] = useState('');
@@ -144,6 +147,7 @@ const AccountPage: React.FC = () => {
 
   useEffect(()=>{ setBio(profile?.bio || ''); }, [profile]);
   useEffect(()=>{ setTwitterHandle(profile?.twitter_handle?.replace(/^@/, '') || ''); }, [profile]);
+  useEffect(()=>{ setNickname(profile?.nickname || ''); setNicknameEditing(false); }, [profile]);
   
   // アチーブメント称号データを取得
   useEffect(() => {
@@ -240,9 +244,61 @@ const AccountPage: React.FC = () => {
             <div className="space-y-2">
               {activeTab === 'profile' && (
                 <div className="space-y-2">
-              <div className="flex justify-between">
-                <span>{isEnglishCopy ? 'Nickname' : 'ニックネーム'}</span>
-                <span className="font-semibold">{profile.nickname}</span>
+              <div className="space-y-1">
+                <div className="flex justify-between items-center">
+                  <span>{isEnglishCopy ? 'Nickname' : 'ニックネーム'}</span>
+                  {!nicknameEditing ? (
+                    <div className="flex items-center gap-2">
+                      <span className="font-semibold">{profile.nickname}</span>
+                      <button
+                        className="text-xs text-primary-400 hover:text-primary-300 underline"
+                        onClick={() => setNicknameEditing(true)}
+                      >
+                        {isEnglishCopy ? 'Edit' : '変更'}
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2">
+                      <input
+                        className="w-36 p-1 rounded bg-slate-700 text-sm"
+                        value={nickname}
+                        onChange={e => setNickname(e.target.value)}
+                        maxLength={20}
+                        autoFocus
+                      />
+                      <button
+                        className="btn btn-xs btn-primary"
+                        disabled={nicknameSaving || !nickname.trim() || nickname.trim() === profile.nickname}
+                        onClick={async () => {
+                          const trimmed = nickname.trim();
+                          if (!trimmed || trimmed === profile.nickname) return;
+                          setNicknameSaving(true);
+                          try {
+                            await getSupabaseClient().from('profiles').update({ nickname: trimmed }).eq('id', profile.id);
+                            await useAuthStore.getState().fetchProfile();
+                            pushToast(isEnglishCopy ? 'Nickname updated' : 'ニックネームを更新しました', 'success');
+                          } catch (err) {
+                            pushToast(
+                              (isEnglishCopy ? 'Failed to update: ' : '更新失敗: ') + (err instanceof Error ? err.message : String(err)),
+                              'error'
+                            );
+                          } finally {
+                            setNicknameSaving(false);
+                            setNicknameEditing(false);
+                          }
+                        }}
+                      >
+                        {nicknameSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
+                      </button>
+                      <button
+                        className="text-xs text-gray-400 hover:text-white"
+                        onClick={() => { setNickname(profile.nickname); setNicknameEditing(false); }}
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex justify-between">
                 <span>{isEnglishCopy ? 'Email' : 'メールアドレス'}</span>

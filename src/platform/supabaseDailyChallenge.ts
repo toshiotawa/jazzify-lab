@@ -28,9 +28,9 @@ const DEFAULT_ALLOWED_CHORDS: Record<DailyChallengeDifficulty, string[]> = {
   ],
   super_advanced: [
     ...allR('M7(9)'), ...allR('m7(9)'),
-    ...allR('7(9.13)'), ...allR('7(b9.b13)'),
+    ...allR('7(9.6th)'), ...allR('7(b9.b6th)'),
     ...allR('6(9)'), ...allR('m6(9)'),
-    ...allR('7(b9.13)'), ...allR('7(#9.b13)'),
+    ...allR('7(b9.6th)'), ...allR('7(#9.b6th)'),
     ...allR('m7(b5)(11)'), ...allR('dim(M7)'),
   ],
 };
@@ -56,7 +56,7 @@ const DAILY_CHALLENGE_DESCRIPTIONS: Record<DailyChallengeDifficulty, string> = {
   beginner: '楽譜の読み方モード。ト音記号・ヘ音記号、#♭全て。',
   intermediate: 'メジャー・マイナートライアド全ルートに挑戦！',
   advanced: 'チャーチモード7種、Harm.Minor、Mel.Minor、W.H Dim、H.W Dim、Alt、Lyd 7th。',
-  super_advanced: 'ジャズボイシング全ルート。M7(9), m7(9), 7(9.13)等。',
+  super_advanced: 'ジャズボイシング全ルート。M7(9), m7(9), 7(9.6th)等。',
 };
 
 export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyChallengeDifficulty, FantasyStage>> {

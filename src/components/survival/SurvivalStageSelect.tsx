@@ -80,7 +80,7 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     descriptionEn: 'Advanced. Jazz voicings, all roots.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
-      ...allRoots('7(9.13)'), ...allRoots('7(b9.b13)'),
+      ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
       ...allRoots('6(9)'), ...allRoots('m6(9)'),
     ],
     enemySpawnRate: 2,
@@ -98,9 +98,9 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
     descriptionEn: 'Expert. All jazz voicings, extreme speed.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
-      ...allRoots('7(9.13)'), ...allRoots('7(b9.b13)'),
+      ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
       ...allRoots('6(9)'), ...allRoots('m6(9)'),
-      ...allRoots('7(b9.13)'), ...allRoots('7(#9.b13)'),
+      ...allRoots('7(b9.6th)'), ...allRoots('7(#9.b6th)'),
       ...allRoots('m7(b5)(11)'), ...allRoots('dim(M7)'),
     ],
     enemySpawnRate: 1.5,
