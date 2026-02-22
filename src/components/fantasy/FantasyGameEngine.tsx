@@ -1057,7 +1057,7 @@ export const useFantasyGameEngine = ({
     // これにより、ヒット処理とリセットのレースコンディションを根本排除する。
     let workingState = prevState;
     const lastNorm = prevState.lastNormalizedTime ?? -1;
-    if (lastNorm >= 0 && currentTime >= 0) {
+    if (lastNorm >= 0 && currentTime >= -0.01) {
       const loopTimeDiff = lastNorm - normalizedTime;
       const isSignificantJump = loopTimeDiff > loopDuration * 0.5;
       if (normalizedTime + 1e-6 < lastNorm && isSignificantJump) {

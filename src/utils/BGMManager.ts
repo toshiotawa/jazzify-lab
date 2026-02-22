@@ -707,7 +707,7 @@ class BGMManager {
         if (this.htmlSeekTarget !== null) {
           const elapsed = (performance.now() - this.htmlSeekPerfStart) / 1000
           const expected = this.htmlSeekTarget + elapsed
-          if (Math.abs(musicTime - expected) < 0.3) {
+          if (Math.abs(musicTime - expected) < 1.0) {
             this.htmlSeekTarget = null
           } else {
             return this.normalizeMusicTime(expected)

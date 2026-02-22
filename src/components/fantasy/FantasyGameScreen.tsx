@@ -1215,6 +1215,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     let lastDisplayNorm = -1;
     let displayWrapPending = false;
     let wrapAtLoopCycle = -1;
+    let lastKnownLoopCycle = -1;
     // #region agent log
     let _prevMusicTime = -999;
     let _wrapLogCooldown = 0;
@@ -1362,18 +1363,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       // ★ シームレスループ: オーディオのラップを表示ループ側で即時検知
       // normalizedTime が大きく巻き戻ったらラップが発生した
+      // ラップ検出前にループサイクルを前フレーム値として記録
+      const preCheckCycle = lastKnownLoopCycle;
+      lastKnownLoopCycle = taikoLoopCycleRef.current ?? 0;
+      
       if (lastDisplayNorm >= 0 && lastDisplayNorm - normalizedTime > loopDuration * 0.5) {
         displayWrapPending = true;
-        wrapAtLoopCycle = taikoLoopCycleRef.current ?? 0;
+        wrapAtLoopCycle = preCheckCycle;
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrap',message:'displayWrapPending SET',data:{lastDisplayNorm,normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,prevMusicTime:_prevMusicTime,loopDuration},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrap',message:'displayWrapPending SET',data:{lastDisplayNorm,normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,preCheckCycle,currentCycle:lastKnownLoopCycle,prevMusicTime:_prevMusicTime,loopDuration},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
         _wrapLogCooldown = 10;
         // #endregion
       }
       lastDisplayNorm = normalizedTime;
       
       // state が追いついたらフラグをクリア
-      // エンジン側の justLooped 処理で taikoLoopCycle がインクリメントされた = ステートリセット完了
+      // 前フレームのサイクル値と比較することで、エンジンが先にループ処理した場合も正しくクリアする
       const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
       if (displayWrapPending && currentLoopCycle > wrapAtLoopCycle) {
         // #region agent log
