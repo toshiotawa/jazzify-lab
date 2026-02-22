@@ -1316,6 +1316,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             for (let i = nextSection.globalNoteStartIndex; i < nextSection.globalNoteEndIndex; i++) {
               const note = taikoNotes[i];
               if (!note) continue;
+              if (note.isHit) {
+                // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H5',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'rendering already-hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd,noteHitTime:note.hitTime},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+              }
               const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
               if (virtualTime > lookAheadTime) break;
               if (virtualTime < -0.35) continue;
@@ -1422,6 +1427,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // すでに通常ノーツで表示しているものは重複させない
           if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
+          if (baseNote?.isHit) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'rendering already-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+          }
 
           // 次ループの仮想的なヒット時間を計算
           const virtualHitTime = note.hitTime + loopDuration;
