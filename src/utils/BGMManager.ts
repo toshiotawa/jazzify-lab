@@ -1183,22 +1183,39 @@ class BGMManager {
         if (!this.audio || !this.isPlaying) return
         const ct = this.audio.currentTime
 
-        // Phase 1: ループ終了0.8秒前に次のAudio要素を事前作成・事前シーク
-        if (ct >= this.loopEnd - 0.8 && ct < this.loopEnd && !this._htmlNextAudio) {
+        // Phase 1: ループ終了1.5秒前に次のAudio要素を事前作成
+        if (ct >= this.loopEnd - 1.5 && ct < this.loopEnd && !this._htmlNextAudio) {
           const next = new Audio(this._htmlLoopUrl)
           next.preload = 'auto'
           next.volume = this.audio.volume
           next.playbackRate = this.playbackRate
           next.preservesPitch = true
-          next.currentTime = this.loopBegin
           this._htmlNextAudio = next
           this._htmlNextReady = false
-          const onReady = () => {
+
+          const markReady = () => {
+            if (this._htmlNextReady) return
             this._htmlNextReady = true
-            next.removeEventListener('canplaythrough', onReady)
+            console.warn('🔄 次ループ要素: ready', { readyState: next.readyState, currentTime: next.currentTime, seeking: next.seeking })
           }
-          next.addEventListener('canplaythrough', onReady)
-          if (next.readyState >= 4) this._htmlNextReady = true
+
+          const doSeek = () => {
+            next.currentTime = this.loopBegin
+            next.addEventListener('seeked', () => markReady(), { once: true })
+            setTimeout(() => {
+              if (!this._htmlNextReady && next.readyState >= 2 && !next.seeking) {
+                markReady()
+              }
+            }, 300)
+          }
+
+          if (next.readyState >= 1) {
+            doSeek()
+          } else {
+            next.addEventListener('loadedmetadata', () => doSeek(), { once: true })
+          }
+
+          console.warn('🔄 次ループ要素: 作成開始', { loopBegin: this.loopBegin, ct })
         }
 
         // Phase 2: ループ境界でスワップ
@@ -1221,9 +1238,17 @@ class BGMManager {
             this._htmlLastRawPerf = performance.now()
             this.htmlSeekTarget = null
 
+            console.warn('🔄 ループスワップ成功', { loopBegin: this.loopBegin, newCt: this.audio.currentTime })
+
             this._htmlNextAudio = null
             this._htmlNextReady = false
           } else {
+            console.warn('🔄 ループスワップ失敗 → フォールバックシーク', {
+              nextReady: this._htmlNextReady,
+              hasNext: !!this._htmlNextAudio,
+              nextState: this._htmlNextAudio?.readyState,
+              nextSeeking: this._htmlNextAudio?.seeking
+            })
             try {
               this.audio.currentTime = this.loopBegin
               if (this.htmlSeekTarget === null) {
