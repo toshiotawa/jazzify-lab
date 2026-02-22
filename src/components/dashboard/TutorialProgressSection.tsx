@@ -91,10 +91,11 @@ const TutorialProgressSection: React.FC = () => {
               </div>
               <button
                 onClick={handlePlay}
-                className="shrink-0 w-10 h-10 rounded-full bg-cyan-600 hover:bg-cyan-500 flex items-center justify-center transition-colors"
+                className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
                 aria-label={`${nextLesson.title} を開始`}
               >
-                <FaPlay className="text-white text-sm ml-0.5" />
+                <FaPlay className="text-xs ml-0.5" />
+                <span>レッスンを始める</span>
               </button>
             </div>
           ) : null}
