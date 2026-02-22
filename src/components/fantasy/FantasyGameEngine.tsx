@@ -1055,7 +1055,8 @@ export const useFantasyGameEngine = ({
     // カウントイン中(currentTime<0)は normalizedTime がループ末尾付近にラップするため、
     // lastNormalizedTime に保存すると本編突入時に偽ループ境界リセットが発生する。
     // -1 を保存し、ループ境界検出の lastNorm>=0 ガードで安全にスキップさせる。
-    const lastNormToStore = currentTime < 0 ? -1 : normalizedTime;
+    // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
+    const lastNormToStore = currentTime < -0.01 ? -1 : normalizedTime;
 
     // ★ ループ境界検出: タイマー（updateEnemyGauge）に先行して、
     // 同一の setGameState 更新内でリセットを原子的に適用する。
@@ -2200,7 +2201,8 @@ export const useFantasyGameEngine = ({
           if (!section) return prevState;
           
           // カウントイン中は何もしない
-          if (currentTime < 0) {
+          // 閾値 -0.01: ループ境界の浮動小数点ノイズをカウントインと誤判定しない
+          if (currentTime < -0.01) {
             return { ...prevState, lastNormalizedTime: currentTime };
           }
           
@@ -2562,7 +2564,8 @@ export const useFantasyGameEngine = ({
         // カウントイン中はループ境界検出をスキップ
         // カウントインから本編への移行時に誤検出を防ぐ
         // lastNormalizedTime を -1 にリセットし、ラップ値残留による偽ループ検出を防止
-        if (currentTime < 0) {
+        // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
+        if (currentTime < -0.01) {
           return { ...prevState, lastNormalizedTime: -1 };
         }
         
@@ -2803,7 +2806,7 @@ export const useFantasyGameEngine = ({
         }
         
         // カウントイン中はミス判定しない
-        if (currentTime < 0) {
+        if (currentTime < -0.01) {
           return { ...prevState, lastNormalizedTime: -1 };
         }
         

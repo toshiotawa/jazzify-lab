@@ -1250,7 +1250,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
       
       // カウントイン中も本編と同じ lookAheadTime 基準でノーツを表示（制限なし）
-      if (currentTime < 0) {
+      // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
+      if (currentTime < -0.01) {
         lastDisplayNorm = -1;
         displayWrapPending = false;
         const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
