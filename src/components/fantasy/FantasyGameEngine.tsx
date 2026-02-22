@@ -1455,7 +1455,7 @@ export const useFantasyGameEngine = ({
         correctAnswers: workingState.correctAnswers + 1,
         score: workingState.score + 100 * actualDamage,
         awaitingLoopStart: false,
-        preHitNoteIndices: isPreHit ? updatedPreHitIndices : workingState.preHitNoteIndices,
+        preHitNoteIndices: (isPreHit || wasAwaitingLoop) ? updatedPreHitIndices : workingState.preHitNoteIndices,
         lastNormalizedTime: normalizedTime
       };
     } else {
