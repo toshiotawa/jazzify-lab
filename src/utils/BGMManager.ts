@@ -40,6 +40,7 @@ class BGMManager {
   // 非同期ロード中のフォールバック時間計算用
   private playInitiatedAt = 0 // play()が呼ばれたperformance.now()
   private isLoadingAudio = false // 非同期BGMロード中フラグ
+  private audioStartOffset = 0 // カウントインスキップ時の再生開始オフセット（秒）
 
   // デコード済みバッファキャッシュ（セクション切り替え高速化用）
   private preloadedBuffers: Map<string, any> = new Map() // url -> ToneAudioBuffer
@@ -57,7 +58,7 @@ class BGMManager {
   private pendingParams: {
     bpm: number; timeSignature: number; measureCount: number; countInMeasures: number;
     loopBegin: number; loopEnd: number; playbackRate: number; pitchShift: number;
-    noLoop: boolean; volume: number; useTone: boolean;
+    noLoop: boolean; volume: number; useTone: boolean; startOffset: number;
   } | null = null
 
   /**
@@ -114,7 +115,8 @@ class BGMManager {
     volume = 0.7,
     playbackRate = 1.0,
     pitchShift = 0, // 半音単位のピッチシフト（-12 ~ +12）
-    noLoop = false // timing_combining用: ループ無効
+    noLoop = false, // timing_combining用: ループ無効
+    skipCountIn = false // true: カウントイン音声をスキップしM1から再生開始
   ) {
     if (!url) return
     
@@ -129,10 +131,6 @@ class BGMManager {
     this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
     this.noLoop = noLoop
     
-    // 非同期ロード中のフォールバック: play()時点からの経過時間でカウントインを模擬
-    this.playInitiatedAt = performance.now()
-    this.isLoadingAudio = true
-    
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
@@ -140,6 +138,11 @@ class BGMManager {
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
     this.toneLoopStart = this.loopBegin
     this.toneLoopEnd = this.loopEnd
+    this.audioStartOffset = skipCountIn ? this.loopBegin : 0
+    
+    // 非同期ロード中のフォールバック: play()時点からの経過時間でカウントインを模擬
+    this.playInitiatedAt = performance.now()
+    this.isLoadingAudio = true
     
     // デバッグログ: BGM時間計算の詳細
     console.log('🎵 BGMManager.play() - 時間同期設定:', {
@@ -245,7 +248,8 @@ class BGMManager {
     volume = 0.7,
     playbackRate = 1.0,
     pitchShift = 0,
-    noLoop = false
+    noLoop = false,
+    skipCountIn = false
   ): Promise<void> {
     if (!url) return
 
@@ -260,11 +264,12 @@ class BGMManager {
     const loopBegin = countInMeasures * secPerMeas
     const loopEnd = (countInMeasures + measureCount) * secPerMeas
     const useTone = shift !== 0
+    const startOffset = skipCountIn ? loopBegin : 0
 
     this.pendingParams = {
       bpm, timeSignature: timeSig, measureCount, countInMeasures,
       loopBegin, loopEnd, playbackRate: rate, pitchShift: shift,
-      noLoop, volume, useTone
+      noLoop, volume, useTone, startOffset
     }
     this.pendingUrl = url
 
@@ -361,10 +366,12 @@ class BGMManager {
     this.noLoop = p.noLoop
     this.playGeneration++
 
+    this.audioStartOffset = p.startOffset
+
     if (p.useTone && this.pendingTonePlayer) {
       const Tone = (window as any).Tone
       const startTime = Tone?.now?.() ?? 0
-      try { this.pendingTonePlayer.start(startTime, 0) } catch (e) {
+      try { this.pendingTonePlayer.start(startTime, p.startOffset) } catch (e) {
         console.warn('switchToPreparedSection: Tone start failed', e)
         this.disposePendingChain()
         return false
@@ -388,7 +395,7 @@ class BGMManager {
       this.isLoadingAudio = false
       this.startTime = performance.now()
       this.pitchShiftLatency = 0.05 + 0.1 * 0.5
-      this.waStartAt = startTime + this.pitchShiftLatency
+      this.waStartAt = startTime + this.pitchShiftLatency - p.startOffset / this.playbackRate
     } else if (!p.useTone && p.playbackRate === 1.0 && this.pendingWaBuffer) {
       this.disposeToneChain()
       try { this.waSource?.stop?.() } catch {}
@@ -409,7 +416,7 @@ class BGMManager {
       }
       this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, p.volume)), this.waContext.currentTime)
 
-      this._startWaSourceAt(0)
+      this._startWaSourceAt(p.startOffset)
       this.isPlaying = true
       this.isLoadingAudio = false
       this.startTime = performance.now()
@@ -423,7 +430,7 @@ class BGMManager {
       this.useTonePitchShift = false
       this.audio = this.pendingHtmlAudio
       this.pendingHtmlAudio = null
-      this.audio.currentTime = 0
+      this.audio.currentTime = p.startOffset
       this.isPlaying = true
       this.isLoadingAudio = false
       this.startTime = performance.now()
@@ -611,7 +618,7 @@ class BGMManager {
     // これにより Tone.js/WebAudio のロード中もノーツ描画が進み、ゲームが固まらない
     if (this.isLoadingAudio && this.playInitiatedAt > 0) {
       const elapsedMs = performance.now() - this.playInitiatedAt
-      const elapsedSec = (elapsedMs / 1000) * this.playbackRate
+      const elapsedSec = (elapsedMs / 1000) * this.playbackRate + this.audioStartOffset
       return this.normalizeMusicTime(elapsedSec)
     }
     
@@ -854,11 +861,11 @@ class BGMManager {
     this.tonePlayer.loopEnd = clampedLoopEnd
 
     const startTime = Tone.now()
-    this.tonePlayer.start(startTime, 0)
+    this.tonePlayer.start(startTime, this.audioStartOffset)
     this.isPlaying = true
     this.isLoadingAudio = false
     this.startTime = performance.now()
-    this.waStartAt = startTime + this.pitchShiftLatency
+    this.waStartAt = startTime + this.pitchShiftLatency - this.audioStartOffset / this.playbackRate
     console.log('🎵 BGM再生開始 (Tone.js PitchShift):', {
       url, bpm: this.bpm, pitchShift: pitchValue,
       loopBegin: loopBeginVal, loopEnd: loopEndVal,
@@ -912,12 +919,12 @@ class BGMManager {
       this.preloadedWaBuffers.set(url, buf)
     }
 
-    // ループポイントを設定（サンプル精度）
-    this._startWaSourceAt(0)
+    // ループポイントを設定（サンプル精度）— skipCountIn時はloopBeginから再生開始
+    this._startWaSourceAt(this.audioStartOffset)
     this.isPlaying = true
     this.isLoadingAudio = false
     this.startTime = performance.now()
-    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures })
+    console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, startOffset: this.audioStartOffset })
   }
 
   private _startWaSourceAt(offsetSec: number) {
@@ -960,8 +967,8 @@ class BGMManager {
     this.audio.playbackRate = this.playbackRate // 再生速度を設定
     this.audio.preservesPitch = true // 速度変更時にピッチを保持
 
-    // 初回再生は0秒から（カウントインを含む）
-    this.audio.currentTime = 0
+    // skipCountIn時はloopBegin（M1）位置から、通常は0（カウントイン開始）から再生
+    this.audio.currentTime = this.audioStartOffset
     
     // エラーハンドリング
     this.audio.addEventListener('error', this.handleError)

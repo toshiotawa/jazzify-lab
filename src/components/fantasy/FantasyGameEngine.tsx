@@ -209,6 +209,7 @@ export interface CombinedSection {
   timeSignature: number;
   measureCount: number;
   countInMeasures: number;
+  audioCountInMeasures: number; // 音声ファイル内の実際のカウントイン小節数（skipCountIn判定用）
   bgmUrl?: string;
   musicXml?: string;
   notes: TaikoNote[]; // このセクション固有のノーツ（ローカルhitTime）
@@ -1662,6 +1663,7 @@ export const useFantasyGameEngine = ({
                   timeSignature: childTimeSig,
                   measureCount: childMeasureCount,
                   countInMeasures: countIn,
+                  audioCountInMeasures: childCountIn,
                   bgmUrl: childStage.bgmUrl,
                   musicXml: childStage.musicXml,
                   notes: sectionNotes,
@@ -2226,10 +2228,11 @@ export const useFantasyGameEngine = ({
                   : prevState.currentTransposeOffset;
                 
                 if (!bgmManager.switchToPreparedSection()) {
+                  const skipCI = nextSection.countInMeasures !== nextSection.audioCountInMeasures;
                   bgmManager.play(
                     nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
-                    nextSection.measureCount, nextSection.countInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true
+                    nextSection.measureCount, nextSection.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true, skipCI
                   );
                 }
               }
@@ -2246,10 +2249,11 @@ export const useFantasyGameEngine = ({
                         prevState.transposeSettings.repeatKeyChange
                       )
                     : prevState.currentTransposeOffset;
+                  const preloadSkipCI = preloadSection.countInMeasures !== preloadSection.audioCountInMeasures;
                   bgmManager.prepareNextSection(
                     preloadSection.bgmUrl, preloadSection.bpm, preloadSection.timeSignature,
-                    preloadSection.measureCount, preloadSection.countInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, preloadPitchShift, true
+                    preloadSection.measureCount, preloadSection.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, preloadPitchShift, true, preloadSkipCI
                   );
                 }
               }
@@ -2300,23 +2304,24 @@ export const useFantasyGameEngine = ({
                   transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
                 }
                 
-                // BGM即時切り替え（移調リスタート）- ループ2周目以降はカウントインなし
+                // BGM即時切り替え（移調リスタート）- ループ2周目以降はカウントインをスキップ
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
                   bgmManager.play(
                     firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                    firstSection.measureCount, 0,
-                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
+                    firstSection.measureCount, firstSection.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, true
                   );
                 }
                 // リスタート後、次セクション用チェーンを事前構築
                 if (prevState.combinedSections.length > 1) {
                   const ns = prevState.combinedSections[1];
                   if (ns.bgmUrl) {
+                    const nsSkipCI = ns.countInMeasures !== ns.audioCountInMeasures;
                     bgmManager.prepareNextSection(
                       ns.bgmUrl, ns.bpm, ns.timeSignature,
-                      ns.measureCount, ns.countInMeasures,
-                      0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true
+                      ns.measureCount, ns.audioCountInMeasures,
+                      0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, nsSkipCI
                     );
                   }
                 }
@@ -2357,23 +2362,24 @@ export const useFantasyGameEngine = ({
                 };
               }
               
-              // 移調設定なし: BGM即時切り替え - ループ2周目以降はカウントインなし
+              // 移調設定なし: BGM即時切り替え - ループ2周目以降はカウントインをスキップ
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
                 bgmManager.play(
                   firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                  firstSection.measureCount, 0,
-                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
+                  firstSection.measureCount, firstSection.audioCountInMeasures,
+                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, true
                 );
               }
               // リスタート後、次セクション用チェーンを事前構築
               if (prevState.combinedSections.length > 1) {
                 const ns = prevState.combinedSections[1];
                 if (ns.bgmUrl) {
+                  const nsSkipCI = ns.countInMeasures !== ns.audioCountInMeasures;
                   bgmManager.prepareNextSection(
                     ns.bgmUrl, ns.bpm, ns.timeSignature,
-                    ns.measureCount, ns.countInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true
+                    ns.measureCount, ns.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, nsSkipCI
                   );
                 }
               }
