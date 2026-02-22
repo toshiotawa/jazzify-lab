@@ -182,6 +182,7 @@ const FantasyMain: React.FC = () => {
   const [isLessonMode, setIsLessonMode] = useState(false);
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
   const [isMissionMode, setIsMissionMode] = useState(false);
+  const [lastPlayedTier, setLastPlayedTier] = useState<'basic' | 'advanced' | 'phrases' | null>(null);
   
   // 次ステージ開放情報
   const [nextStageUnlockInfo, setNextStageUnlockInfo] = useState<{
@@ -364,9 +365,11 @@ const FantasyMain: React.FC = () => {
     setGameResult(null);
     setShowResult(false);
     setPlayMode('challenge');
-    setPendingAutoStart(false); // 自動開始フラグをリセット（開始画面を表示）
-    setPendingSpeedMultiplier(1.0); // 速度倍率もリセット
+    setPendingAutoStart(false);
+    setPendingSpeedMultiplier(1.0);
     setGameKey(prevKey => prevKey + 1);
+    const tier = ((stage as any).tier as 'basic' | 'advanced' | 'phrases') || 'basic';
+    setLastPlayedTier(tier);
   }, []);
   
   // ゲーム完了ハンドラ
@@ -940,6 +943,7 @@ const FantasyMain: React.FC = () => {
     <FantasyStageSelect
       onStageSelect={handleStageSelect}
       onBackToMenu={handleBackToMenu}
+      initialTier={lastPlayedTier}
     />
   );
 };

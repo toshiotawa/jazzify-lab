@@ -312,6 +312,8 @@ export interface UpsertFantasyStagePayload {
   combined_stage_ids?: string[] | null;
   // timing_combining モード用: 各セクションのリピート回数
   combined_section_repeats?: number[] | null;
+  // timing_combining モード用: 各セクションの小節数制限
+  combined_section_measure_limits?: (number | null)[] | null;
   // アウフタクト（弱起）
   is_auftakt?: boolean;
 }
@@ -362,7 +364,7 @@ export async function deleteFantasyStage(id: string): Promise<void> {
  */
 export async function fetchFantasyClearedStageCountByTier(
   userId: string,
-  tier: 'basic' | 'advanced'
+  tier: 'basic' | 'advanced' | 'phrases'
 ): Promise<number> {
   const supabase = getSupabaseClient();
   // Tierに属するステージIDを取得
@@ -430,12 +432,13 @@ export async function fetchFantasyStageClearsList(userId: string): Promise<Array
  */
 export async function fetchFantasyClearedStageCounts(
   userId: string
-): Promise<{ basic: number; advanced: number; total: number }> {
-  const [basic, advanced] = await Promise.all([
+): Promise<{ basic: number; advanced: number; phrases: number; total: number }> {
+  const [basic, advanced, phrases] = await Promise.all([
     fetchFantasyClearedStageCountByTier(userId, 'basic'),
     fetchFantasyClearedStageCountByTier(userId, 'advanced'),
+    fetchFantasyClearedStageCountByTier(userId, 'phrases'),
   ]);
-  return { basic, advanced, total: basic + advanced };
+  return { basic, advanced, phrases, total: basic + advanced + phrases };
 }
 
 /**

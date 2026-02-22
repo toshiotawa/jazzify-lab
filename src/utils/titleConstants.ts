@@ -866,9 +866,9 @@ export function getTitleRequirement(titleName: string): string {
   if (wizardIndex !== -1) {
     const minClears = wizardIndex * 10;
     if (wizardIndex === 0) {
-      return 'ファンタジーモード初期称号';
+      return 'BASIC初期称号';
     }
-    return `ファンタジーモード${minClears}ステージクリアで獲得`;
+    return `BASICモード${minClears}ステージクリアで獲得`;
   }
   // アドバンスド（戦士）称号の条件をチェック
   const warriorIndex = (WARRIOR_TITLES as readonly string[]).indexOf(titleName as any);

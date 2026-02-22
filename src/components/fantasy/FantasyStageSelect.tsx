@@ -33,9 +33,9 @@ interface FantasyUserProgress {
   currentStageNumber: string;
   wizardRank: string;
   totalClearedStages: number;
-  // 追加: Tier別現在地
   currentStageNumberBasic?: string;
   currentStageNumberAdvanced?: string;
+  currentStageNumberPhrases?: string;
 }
 
 interface FantasyStageClear {
@@ -60,6 +60,7 @@ interface FantasyStageSelectProps {
   onStageSelect: (stage: FantasyStage) => void;
   onBackToMenu: () => void;
   lessonContext?: LessonContext | null;
+  initialTier?: 'basic' | 'advanced' | 'phrases' | null;
 }
 
 // ===== 定数 =====
@@ -83,7 +84,8 @@ const groupStagesByRank = (stages: FantasyStage[]): Record<string, FantasyStage[
 const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   onStageSelect,
   onBackToMenu,
-  lessonContext
+  lessonContext,
+  initialTier
 }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -99,7 +101,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const [stageClears, setStageClears] = useState<FantasyStageClear[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [selectedRank, setSelectedRank] = useState<string>('1');
-  const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced' | 'phrases'>('basic');
+  const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced' | 'phrases'>(initialTier || 'basic');
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -225,6 +227,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             current_stage_number: '1-1',
             current_stage_number_basic: '1-1',
             current_stage_number_advanced: '1-1',
+            current_stage_number_phrases: '1-1',
             wizard_rank: 'F',
             total_cleared_stages: 0
           })
@@ -299,6 +302,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         totalClearedStages: userProgressData.total_cleared_stages,
         currentStageNumberBasic: userProgressData.current_stage_number_basic,
         currentStageNumberAdvanced: userProgressData.current_stage_number_advanced,
+        currentStageNumberPhrases: userProgressData.current_stage_number_phrases,
       };
       
       const convertedClears: FantasyStageClear[] = (clearsData || []).map((clear: any) => ({
@@ -364,7 +368,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const currentStageForTier = selectedTier === 'advanced'
       ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
       : selectedTier === 'phrases'
-      ? '1-1' // Phrasesはまだ進捗管理がないのでデフォルト値
+      ? (userProgress.currentStageNumberPhrases || '1-1')
       : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
     if (currentStageForTier) {
       const currentRank = currentStageForTier.split('-')[0];
@@ -454,7 +458,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     const currentStageForTier = selectedTier === 'advanced'
       ? (userProgress.currentStageNumberAdvanced || userProgress.currentStageNumber)
       : selectedTier === 'phrases'
-      ? '1-1' // Phrasesはまだ進捗管理がないのでデフォルト値
+      ? (userProgress.currentStageNumberPhrases || '1-1')
       : (userProgress.currentStageNumberBasic || userProgress.currentStageNumber);
     const [currR, currS] = (currentStageForTier || '1-1').split('-').map(Number);
     if (isNaN(currR) || isNaN(currS)) return false;
@@ -696,7 +700,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                     {selectedTier === 'advanced'
                       ? (userProgress?.currentStageNumberAdvanced || userProgress?.currentStageNumber || '1-1')
                       : selectedTier === 'phrases'
-                      ? '1-1'
+                      ? (userProgress?.currentStageNumberPhrases || '1-1')
                       : (userProgress?.currentStageNumberBasic || userProgress?.currentStageNumber || '1-1')}
                   </span>
                   <span className="ml-2 text-xs opacity-80">({selectedTier === 'advanced' ? 'Advanced' : selectedTier === 'phrases' ? 'Phrases' : 'Basic'})</span>

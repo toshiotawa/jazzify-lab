@@ -6,7 +6,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { uploadAvatar } from '@/platform/r2Storage';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement, getAvailableAdvancedTitles } from '@/utils/titleConstants';
+import { getAvailableTitles, DEFAULT_TITLE, getTitleConditionText, getAvailableWizardTitles, getTitleRequirement, getAvailableAdvancedTitles, getAvailablePhrasesTitles } from '@/utils/titleConstants';
 import { fetchFantasyClearedStageCounts } from '@/platform/supabaseFantasyStages';
 import type { Title } from '@/utils/titleConstants';
 import { getUserAchievementTitles } from '@/utils/achievementTitles';
@@ -69,8 +69,10 @@ const AccountPage: React.FC = () => {
     wizardTitles: string[];
     fantasyClearedCount: number;
     advancedTitles: string[];
+    phrasesTitles: string[];
     fantasyClearedCountBasic: number;
     fantasyClearedCountAdvanced: number;
+    fantasyClearedCountPhrases: number;
   }>({ 
     missionTitles: [], 
     lessonTitles: [], 
@@ -79,8 +81,10 @@ const AccountPage: React.FC = () => {
     wizardTitles: ['マナの芽吹き'],
     fantasyClearedCount: 0,
     advancedTitles: [],
+    phrasesTitles: [],
     fantasyClearedCountBasic: 0,
     fantasyClearedCountAdvanced: 0,
+    fantasyClearedCountPhrases: 0,
   });
   const geoCountry = useGeoStore(s => s.country);
   const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
@@ -155,18 +159,19 @@ const AccountPage: React.FC = () => {
       if (profile?.id) {
         try {
           const titles = await getUserAchievementTitles(profile.id);
-          const { basic: fantasyClearedCountBasic, advanced: fantasyClearedCountAdvanced, total: fantasyClearedCount } = await fetchFantasyClearedStageCounts(profile.id);
+          const { basic: fantasyClearedCountBasic, advanced: fantasyClearedCountAdvanced, phrases: fantasyClearedCountPhrases, total: fantasyClearedCount } = await fetchFantasyClearedStageCounts(profile.id);
           const wizardTitles = getAvailableWizardTitles(fantasyClearedCountBasic);
           const advancedTitles = getAvailableAdvancedTitles(fantasyClearedCountAdvanced);
-          console.log('Fantasy cleared count:', fantasyClearedCount);
-          console.log('Available wizard titles:', wizardTitles);
+          const phrasesTitles = getAvailablePhrasesTitles(fantasyClearedCountPhrases);
           setAchievementTitles({
             ...titles,
             wizardTitles,
             fantasyClearedCount,
             advancedTitles,
+            phrasesTitles,
             fantasyClearedCountBasic,
             fantasyClearedCountAdvanced,
+            fantasyClearedCountPhrases,
           });
         } catch (error) {
           console.error('Failed to load achievement titles:', error);
@@ -178,8 +183,10 @@ const AccountPage: React.FC = () => {
             wizardTitles: [],
             fantasyClearedCount: 0,
             advancedTitles: [],
+            phrasesTitles: [],
             fantasyClearedCountBasic: 0,
             fantasyClearedCountAdvanced: 0,
+            fantasyClearedCountPhrases: 0,
           });
         }
       }
@@ -361,6 +368,18 @@ const AccountPage: React.FC = () => {
                   {achievementTitles.advancedTitles && achievementTitles.advancedTitles.length > 0 && (
                     <optgroup label={isEnglishCopy ? 'Warrior (Advanced) Titles' : '戦士（Advanced）称号'}>
                       {achievementTitles.advancedTitles.map((title) => {
+                        const conditionText = getTitleRequirement(title);
+                        return (
+                          <option key={title} value={title}>
+                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                          </option>
+                        );
+                      })}
+                    </optgroup>
+                  )}
+                  {achievementTitles.phrasesTitles && achievementTitles.phrasesTitles.length > 0 && (
+                    <optgroup label={isEnglishCopy ? 'Summoner (Phrases) Titles' : '召喚士（Phrases）称号'}>
+                      {achievementTitles.phrasesTitles.map((title) => {
                         const conditionText = getTitleRequirement(title);
                         return (
                           <option key={title} value={title}>
