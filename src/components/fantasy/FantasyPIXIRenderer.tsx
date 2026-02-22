@@ -109,6 +109,11 @@ export class FantasyPIXIInstance {
   private readonly minRenderInterval = 16; // 16ms = 60FPS
   private needsRender = true; // 変更があった場合のみ true
 
+  // 🚀 ノーツ描画最適化: プリレンダリングキャッシュ
+  private noteCircleCache: HTMLCanvasElement | null = null;
+  private noteShadowCache: HTMLCanvasElement | null = null;
+  private textCache = new Map<string, HTMLCanvasElement>();
+
   constructor(
     canvas: HTMLCanvasElement,
     width: number,
@@ -297,6 +302,9 @@ export class FantasyPIXIInstance {
         clearTimeout(this.renderHandle as ReturnType<typeof setTimeout>);
       }
     }
+    this.noteCircleCache = null;
+    this.noteShadowCache = null;
+    this.textCache.clear();
   }
 
   private configureCanvasSize(width: number, height: number): void {
@@ -509,75 +517,118 @@ export class FantasyPIXIInstance {
     });
   }
 
+  private ensureNoteCircleCache(): void {
+    if (this.noteCircleCache) return;
+    const radius = 30;
+    const padding = 4;
+    const size = (radius + padding) * 2;
+
+    // ノーツ影キャッシュ
+    const shadow = document.createElement('canvas');
+    shadow.width = size;
+    shadow.height = size;
+    const sCtx = shadow.getContext('2d')!;
+    sCtx.fillStyle = 'rgba(0, 0, 0, 0.3)';
+    sCtx.beginPath();
+    sCtx.arc(size / 2, size / 2, radius, 0, Math.PI * 2);
+    sCtx.fill();
+    this.noteShadowCache = shadow;
+
+    // ノーツ本体キャッシュ（グラデーション + 枠線）
+    const circle = document.createElement('canvas');
+    circle.width = size;
+    circle.height = size;
+    const cCtx = circle.getContext('2d')!;
+    const cx = size / 2;
+    const cy = size / 2;
+    const gradient = cCtx.createRadialGradient(
+      cx - radius * 0.3, cy - radius * 0.3, 0,
+      cx, cy, radius
+    );
+    gradient.addColorStop(0, '#fde047');
+    gradient.addColorStop(1, '#f59e0b');
+    cCtx.fillStyle = gradient;
+    cCtx.beginPath();
+    cCtx.arc(cx, cy, radius, 0, Math.PI * 2);
+    cCtx.fill();
+    cCtx.strokeStyle = NOTE_STROKE;
+    cCtx.lineWidth = 3;
+    cCtx.stroke();
+    this.noteCircleCache = circle;
+  }
+
+  private getTextCache(key: string, fontSize: number): HTMLCanvasElement {
+    const cacheKey = `${key}_${fontSize}`;
+    let cached = this.textCache.get(cacheKey);
+    if (cached) return cached;
+
+    // テキストキャッシュが大きくなりすぎないよう制限
+    if (this.textCache.size > 200) {
+      this.textCache.clear();
+    }
+
+    const tmpCtx = this.ctx;
+    const font = `bold ${fontSize}px "Inter", sans-serif`;
+    tmpCtx.font = font;
+    const metrics = tmpCtx.measureText(key);
+    const w = Math.ceil(metrics.width) + 6;
+    const h = fontSize + 6;
+
+    const c = document.createElement('canvas');
+    c.width = w;
+    c.height = h;
+    const tCtx = c.getContext('2d')!;
+    tCtx.font = font;
+    tCtx.textAlign = 'center';
+    tCtx.textBaseline = 'middle';
+    tCtx.lineWidth = 3;
+    tCtx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+    tCtx.strokeText(key, w / 2, h / 2);
+    tCtx.fillStyle = '#ffffff';
+    tCtx.fillText(key, w / 2, h / 2);
+
+    this.textCache.set(cacheKey, c);
+    return c;
+  }
+
   private drawTaikoLane(ctx: CanvasRenderingContext2D): void {
     const judgePos = this.getJudgeLinePosition();
-    
-    // リズムタイプ：レーン背景・境界線・判定ラインは非表示
-    // 判定エリアの円のみ表示
+    this.ensureNoteCircleCache();
+    const circleImg = this.noteCircleCache!;
+    const shadowImg = this.noteShadowCache!;
+    const radius = 30;
+    const halfSize = circleImg.width / 2;
+
     ctx.strokeStyle = JUDGE_LINE_COLOR;
     ctx.lineWidth = 3;
     ctx.beginPath();
     ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
     ctx.stroke();
-    
-    // ノーツを描画
-    this.taikoNotes.forEach((note) => {
-      const radius = 30; // ノーツ半径を大幅に拡大
-      
-      // ノーツの影
-      ctx.fillStyle = 'rgba(0, 0, 0, 0.3)';
-      ctx.beginPath();
-      ctx.arc(note.x + 2, judgePos.y + 2, radius, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // ノーツ本体（常に金色 — 判定ライン前後で色を変えない）
-      const gradient = ctx.createRadialGradient(
-        note.x - radius * 0.3, judgePos.y - radius * 0.3, 0,
-        note.x, judgePos.y, radius
-      );
-      gradient.addColorStop(0, '#fde047');
-      gradient.addColorStop(1, '#f59e0b');
-      
-      ctx.fillStyle = gradient;
-      ctx.beginPath();
-      ctx.arc(note.x, judgePos.y, radius, 0, Math.PI * 2);
-      ctx.fill();
-      
-      // ノーツの縁
-      ctx.strokeStyle = NOTE_STROKE;
-      ctx.lineWidth = 3;
-      ctx.stroke();
-      
-      // 音名表示（ノーツの上に縦配置で表示 — 背景なし、影のみ）
+
+    for (let ni = 0; ni < this.taikoNotes.length; ni++) {
+      const note = this.taikoNotes[ni];
+
+      // プリレンダリング済みの影とノーツ円を drawImage で描画
+      ctx.drawImage(shadowImg, note.x + 2 - halfSize, judgePos.y + 2 - halfSize);
+      ctx.drawImage(circleImg, note.x - halfSize, judgePos.y - halfSize);
+
+      // 音名表示
       const displayNotes = note.noteNames || (note.chord ? note.chord.split(/\s+/).filter(n => n) : []);
       const noteCount = displayNotes.length;
-      
-      if (noteCount === 0) return;
-      
+      if (noteCount === 0) continue;
+
       const fontSize = noteCount > 3 ? 16 : noteCount > 2 ? 18 : 22;
       const lineHeight = fontSize + 4;
       const badgePadding = 8;
       const badgeHeight = noteCount * lineHeight + badgePadding * 2;
       const badgeY = judgePos.y - radius - badgeHeight - 8;
-      
-      ctx.save();
-      ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
-      ctx.fillStyle = '#ffffff';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      ctx.shadowColor = 'rgba(0, 0, 0, 0.9)';
-      ctx.shadowBlur = 4;
-      ctx.shadowOffsetX = 1;
-      ctx.shadowOffsetY = 1;
-      
-      // displayNotesは低い音から順なので、下から上に配置
+
       for (let i = 0; i < noteCount; i++) {
-        const noteName = displayNotes[i];
+        const textImg = this.getTextCache(displayNotes[i], fontSize);
         const textY = badgeY + badgeHeight - badgePadding - (i + 0.5) * lineHeight;
-        ctx.fillText(noteName, note.x, textY);
+        ctx.drawImage(textImg, note.x - textImg.width / 2, textY - textImg.height / 2);
       }
-      ctx.restore();
-    });
+    }
   }
 
   private drawDamagePopups(ctx: CanvasRenderingContext2D): void {

@@ -1160,10 +1160,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       stageData.mode === 'progression_random' ||
       stageData.mode === 'progression';
     const displayOpts: DisplayOpts = { lang: currentNoteNameLang, simple: currentSimpleNoteName };
-    const getDisplayNoteNames = (note: TaikoNote): string[] =>
-      useChordNameOnNotes
+    const displayNameCache = new Map<string, string[]>();
+    const getDisplayNoteNames = (note: TaikoNote): string[] => {
+      const cached = displayNameCache.get(note.id);
+      if (cached) return cached;
+      const result = useChordNameOnNotes
         ? [note.chord.displayName]
         : note.chord.noteNames.map(n => toDisplayName(n, displayOpts));
+      displayNameCache.set(note.id, result);
+      return result;
+    };
 
     // Overlay markers: lyricDisplay（歌詞）を優先、なければtext（Harmony）を使用
     // lyricDisplayは継続表示されるため、変化があった時点のみマーカーとして追加
