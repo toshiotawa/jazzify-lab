@@ -1226,16 +1226,26 @@ class BGMManager {
             this.audio = this._htmlNextAudio
             this.audio.play().catch(() => {})
 
-            try { oldAudio.pause() } catch {}
-            try { oldAudio.removeEventListener('error', this.handleError) } catch {}
-            try { oldAudio.removeEventListener('ended', this.handleEnded) } catch {}
-            try { (oldAudio as any).src = '' } catch {}
-
             this.audio.addEventListener('error', this.handleError)
             this.audio.addEventListener('ended', this.handleEnded)
 
-            this._htmlLastRawTime = this.loopBegin
-            this._htmlLastRawPerf = performance.now()
+            // 旧要素は新要素が実際に再生を開始してからpause（音声ギャップ防止）
+            const cleanupOld = () => {
+              try { oldAudio.removeEventListener('error', this.handleError) } catch {}
+              try { oldAudio.removeEventListener('ended', this.handleEnded) } catch {}
+              try { oldAudio.pause() } catch {}
+              try { (oldAudio as any).src = '' } catch {}
+            }
+            const onPlaying = () => {
+              this.audio!.removeEventListener('playing', onPlaying)
+              cleanupOld()
+            }
+            this.audio.addEventListener('playing', onPlaying)
+            setTimeout(() => cleanupOld(), 150)
+
+            // 時間トラッキングはリセットしない！
+            // performance.now() ベースの補間がそのまま継続し、
+            // normalizeMusicTime() がループ境界で自然にラップする
             this.htmlSeekTarget = null
 
             console.warn('🔄 ループスワップ成功', { loopBegin: this.loopBegin, newCt: this.audio.currentTime })
