@@ -802,23 +802,6 @@ class BGMManager {
         }
         const elapsed = (now - this._htmlLastRawPerf) / 1000
         const interpolated = this._htmlLastRawTime + elapsed * this.playbackRate
-
-        // デュアル要素スワップ後の遅延リセット:
-        // normalizeMusicTimeの自然ラップが完了したら、実際のaudio位置にベースを合わせる
-        // これにより累積ドリフトを防止しつつ、ラップ時の視覚ジャンプを最小化する
-        if (this._htmlSwapPending) {
-          const normalized = this.normalizeMusicTime(interpolated)
-          const loopDuration = this.loopEnd - this.loopBegin
-          if (normalized < loopDuration * 0.5) {
-            this._htmlLastRawTime = rawTime
-            this._htmlLastRawPerf = now
-            this._htmlSwapPending = false
-          }
-          this._lastGetTimePerf = now
-          this._lastGetTimeResult = normalized
-          return normalized
-        }
-
         // #region agent log
         if (this._stallLogCooldown <= 0) {
           const norm = this.normalizeMusicTime(interpolated)
@@ -1203,11 +1186,11 @@ class BGMManager {
         if (!this.audio || !this.isPlaying) return
         const ct = this.audio.currentTime
 
-        // Phase 1: ループ終了1.5秒前に次のAudio要素を事前作成
+        // Phase 1: ループ終了1.5秒前に次のAudio要素を事前作成・事前シーク
         if (ct >= this.loopEnd - 1.5 && ct < this.loopEnd && !this._htmlNextAudio) {
           const next = new Audio(this._htmlLoopUrl)
           next.preload = 'auto'
-          next.volume = this.audio.volume
+          next.volume = 0
           next.playbackRate = this.playbackRate
           next.preservesPitch = true
           this._htmlNextAudio = next
@@ -1216,16 +1199,13 @@ class BGMManager {
           const markReady = () => {
             if (this._htmlNextReady) return
             this._htmlNextReady = true
-            console.warn('🔄 次ループ要素: ready', { readyState: next.readyState, currentTime: next.currentTime, seeking: next.seeking })
           }
 
           const doSeek = () => {
             next.currentTime = this.loopBegin
             next.addEventListener('seeked', () => markReady(), { once: true })
             setTimeout(() => {
-              if (!this._htmlNextReady && next.readyState >= 2 && !next.seeking) {
-                markReady()
-              }
+              if (!this._htmlNextReady && next.readyState >= 2 && !next.seeking) markReady()
             }, 300)
           }
 
@@ -1234,11 +1214,14 @@ class BGMManager {
           } else {
             next.addEventListener('loadedmetadata', () => doSeek(), { once: true })
           }
-
-          console.warn('🔄 次ループ要素: 作成開始', { loopBegin: this.loopBegin, ct })
         }
 
-        // Phase 2: ループ境界でスワップ
+        // Phase 2: ループ終了0.15秒前にミュートで事前再生（パイプライン準備）
+        if (this._htmlNextReady && this._htmlNextAudio && this._htmlNextAudio.paused && ct >= this.loopEnd - 0.15) {
+          this._htmlNextAudio.play().catch(() => {})
+        }
+
+        // Phase 3: ループ境界でアンミュート＆スワップ
         const epsilon = 0.02
         if (ct >= this.loopEnd - epsilon) {
           if (this._htmlNextReady && this._htmlNextAudio) {
@@ -1246,12 +1229,12 @@ class BGMManager {
             oldAudio.volume = 0
 
             this.audio = this._htmlNextAudio
-            this.audio.play().catch(() => {})
+            this.audio.volume = this._htmlLoopVolume
+            if (this.audio.paused) this.audio.play().catch(() => {})
 
             this.audio.addEventListener('error', this.handleError)
             this.audio.addEventListener('ended', this.handleEnded)
 
-            // 旧要素の遅延クリーンアップ
             setTimeout(() => {
               try { oldAudio.removeEventListener('error', this.handleError) } catch {}
               try { oldAudio.removeEventListener('ended', this.handleEnded) } catch {}
@@ -1259,22 +1242,17 @@ class BGMManager {
               try { (oldAudio as any).src = '' } catch {}
             }, 200)
 
-            // 時間トラッキングは即座にリセットせず、normalizeMusicTimeの自然ラップ後に
-            // 実際のaudio位置に合わせる（累積ドリフト防止 + 視覚ジャンプ最小化）
-            this._htmlSwapPending = true
+            // 即座にリセット: 新要素のcurrentTimeを基準にする
+            this._htmlLastRawTime = this.audio.currentTime
+            this._htmlLastRawPerf = performance.now()
             this.htmlSeekTarget = null
+            this._htmlSwapPending = false
 
-            console.warn('🔄 ループスワップ成功', { loopBegin: this.loopBegin, newCt: this.audio.currentTime })
+            console.warn('🔄 ループスワップ', { newCt: this.audio.currentTime, loopBegin: this.loopBegin })
 
             this._htmlNextAudio = null
             this._htmlNextReady = false
           } else {
-            console.warn('🔄 ループスワップ失敗 → フォールバックシーク', {
-              nextReady: this._htmlNextReady,
-              hasNext: !!this._htmlNextAudio,
-              nextState: this._htmlNextAudio?.readyState,
-              nextSeeking: this._htmlNextAudio?.seeking
-            })
             try {
               this.audio.currentTime = this.loopBegin
               if (this.htmlSeekTarget === null) {
