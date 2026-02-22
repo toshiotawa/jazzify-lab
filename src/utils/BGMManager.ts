@@ -89,7 +89,6 @@ class BGMManager {
   // HTMLAudio連続補間: audio.currentTime の低更新頻度を performance.now() で補間
   private _htmlLastRawTime = -1
   private _htmlLastRawPerf = 0
-  private _htmlLastNormResult = -1
 
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
@@ -588,7 +587,6 @@ class BGMManager {
     this.htmlSeekTarget = null
     this._htmlLastRawTime = -1
     this._htmlLastRawPerf = 0
-    this._htmlLastNormResult = -1
     this.playGeneration++
     this.disposePendingChain()
     if (this.sectionEndCheckId !== null) {
@@ -752,32 +750,21 @@ class BGMManager {
           const expected = this.htmlSeekTarget + elapsed * this.playbackRate
           if (Math.abs(rawTime - expected) < 1.0) {
             this.htmlSeekTarget = null
-            this._htmlLastRawTime = rawTime
+            this._htmlLastRawTime = expected
             this._htmlLastRawPerf = now
           } else {
-            const result = this.normalizeMusicTime(expected)
-            this._htmlLastNormResult = result
-            return result
+            return this.normalizeMusicTime(expected)
           }
         }
         // audio.currentTime の低更新頻度を performance.now() で連続補間
-        if (rawTime !== this._htmlLastRawTime) {
+        // 音声が先行（rawTime が上回る）場合のみリセットし、後方ジャンプを根本的に排除
+        if (rawTime > this._htmlLastRawTime) {
           this._htmlLastRawTime = rawTime
           this._htmlLastRawPerf = now
         }
         const elapsed = (now - this._htmlLastRawPerf) / 1000
-        const interpolated = rawTime + elapsed * this.playbackRate
-        let normalized = this.normalizeMusicTime(interpolated)
-        // 後戻り防止: ループ境界以外でのバックワードジャンプを抑止
-        const loopDuration = this.loopEnd - this.loopBegin
-        if (this._htmlLastNormResult >= 0) {
-          const diff = normalized - this._htmlLastNormResult
-          if (diff < 0 && diff > -loopDuration * 0.5) {
-            normalized = this._htmlLastNormResult
-          }
-        }
-        this._htmlLastNormResult = normalized
-        return normalized
+        const interpolated = this._htmlLastRawTime + elapsed * this.playbackRate
+        return this.normalizeMusicTime(interpolated)
       }
     }
     
