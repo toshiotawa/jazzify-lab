@@ -751,10 +751,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (gameState.combinedSections.length > 1) {
         const nextSection = gameState.combinedSections[1];
         if (nextSection.bgmUrl) {
+          const nextSkipCI = nextSection.countInMeasures !== nextSection.audioCountInMeasures;
           bgmManager.prepareNextSection(
             nextSection.bgmUrl, nextSection.bpm, nextSection.timeSignature,
-            nextSection.measureCount, nextSection.countInMeasures,
-            settings.bgmVolume ?? 0.7, playbackRate, initialPitchShift, true
+            nextSection.measureCount, nextSection.audioCountInMeasures,
+            settings.bgmVolume ?? 0.7, playbackRate, initialPitchShift, true, nextSkipCI
           );
         }
       }
