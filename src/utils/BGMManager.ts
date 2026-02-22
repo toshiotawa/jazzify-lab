@@ -122,6 +122,12 @@ class BGMManager {
   ): boolean {
     if (!this.isPlaying) return false
 
+    // #region agent log
+    const _preTime = this.getCurrentMusicTime();
+    const _prePerf = performance.now();
+    const _preWaStartAt = this.waStartAt;
+    // #endregion
+
     const countInMeasures = Math.max(0, Math.floor(countIn || 0))
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
@@ -149,6 +155,10 @@ class BGMManager {
         this.waStartAt = now + this.pitchShiftLatency - startOffset / this.playbackRate
         this.startTime = performance.now()
         this.playInitiatedAt = performance.now()
+        // #region agent log
+        const _postTime = this.getCurrentMusicTime();
+        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:Tone',message:'restartSameSection complete',data:{preTime:_preTime,postTime:_postTime,gapMs:performance.now()-_prePerf,startOffset,skipCountIn,preWaStartAt:_preWaStartAt,postWaStartAt:this.waStartAt,backend:'tone'},timestamp:Date.now()})}).catch(()=>{});
+        // #endregion
         return true
       } catch { return false }
     }
@@ -157,6 +167,10 @@ class BGMManager {
       this._startWaSourceAt(startOffset)
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
+      // #region agent log
+      const _postTime = this.getCurrentMusicTime();
+      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:WA',message:'restartSameSection complete',data:{preTime:_preTime,postTime:_postTime,gapMs:performance.now()-_prePerf,startOffset,skipCountIn,preWaStartAt:_preWaStartAt,postWaStartAt:this.waStartAt,noLoop:this.noLoop,backend:'webaudio'},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       return true
     }
 
@@ -165,6 +179,9 @@ class BGMManager {
       if (this.audio.paused) void this.audio.play().catch(() => {})
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:HTML',message:'restartSameSection complete',data:{preTime:_preTime,startOffset,skipCountIn,backend:'html'},timestamp:Date.now()})}).catch(()=>{});
+      // #endregion
       return true
     }
 

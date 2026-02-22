@@ -2204,6 +2204,9 @@ export const useFantasyGameEngine = ({
           
           // セクション末尾検出: musicTime がセクションの演奏時間を超えた
           if (currentTime >= sectionPlayDuration - 0.05) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameEngine.tsx:sectionEnd',message:'combining section end detected',data:{currentTime,sectionPlayDuration,sectionIdx,lastNormalizedTime:prevState.lastNormalizedTime,perfNow:performance.now()},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+            // #endregion
             const nextSectionIdx = sectionIdx + 1;
             
             if (nextSectionIdx < prevState.combinedSections.length) {
@@ -2568,6 +2571,9 @@ export const useFantasyGameEngine = ({
         const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm && isSignificantJump;
         
         if (justLooped) {
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameEngine.tsx:justLooped',message:'non-combining justLooped detected',data:{currentTime,normalizedTime,lastNorm,loopTimeDiff,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,perfNow:performance.now()},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+          // #endregion
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
           
