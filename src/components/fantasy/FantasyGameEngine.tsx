@@ -2304,13 +2304,14 @@ export const useFantasyGameEngine = ({
                   transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
                 }
                 
-                // BGM即時切り替え（移調リスタート）- ループ2周目以降はカウントインをスキップ
+                // BGM即時切り替え（移調リスタート）
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
+                  const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
                   bgmManager.play(
                     firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
                     firstSection.measureCount, firstSection.audioCountInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, true
+                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, firstSkipCI
                   );
                 }
                 // リスタート後、次セクション用チェーンを事前構築
@@ -2362,13 +2363,14 @@ export const useFantasyGameEngine = ({
                 };
               }
               
-              // 移調設定なし: BGM即時切り替え - ループ2周目以降はカウントインをスキップ
+              // 移調設定なし: BGM即時切り替え
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
+                const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
                 bgmManager.play(
                   firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
                   firstSection.measureCount, firstSection.audioCountInMeasures,
-                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, true
+                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, firstSkipCI
                 );
               }
               // リスタート後、次セクション用チェーンを事前構築
