@@ -1051,11 +1051,9 @@ export const useFantasyGameEngine = ({
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
     
     // 現在の時間をループ内0..Tへ正規化
-    const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
-    // カウントイン中(currentTime<0)は normalizedTime がループ末尾付近にラップするため、
-    // lastNormalizedTime に保存すると本編突入時に偽ループ境界リセットが発生する。
-    // -1 を保存し、ループ境界検出の lastNorm>=0 ガードで安全にスキップさせる。
-    // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
+    // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ。
+    // 負の値を modulo すると loopDuration 付近にラップし、偽ループ境界検出の原因になる。
+    const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
     const lastNormToStore = currentTime < -0.01 ? -1 : normalizedTime;
 
     // ★ ループ境界検出: タイマー（updateEnemyGauge）に先行して、
@@ -2570,8 +2568,8 @@ export const useFantasyGameEngine = ({
         }
         
         // ループ境界検出（本編開始後のみ）
-        // 注: currentTimeはgetCurrentMusicTime()から取得され、既に0〜loopDurationに正規化されている
-        const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+        // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ
+        const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
         const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
         // #region agent log
         if (lastNorm === -1) { fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-4',hypothesisId:'H13',location:'FantasyGameEngine.tsx:updateEnemyGauge:afterCountIn',message:'first timer tick after count-in',data:{currentTime,normalizedTime,lastNorm,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,taikoLoopCycle:prevState.taikoLoopCycle},timestamp:Date.now()})}).catch(()=>{}); }

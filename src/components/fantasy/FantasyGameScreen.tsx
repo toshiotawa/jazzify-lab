@@ -1369,7 +1369,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // ===== ここまで timing_combining =====
       
       // 現在の時間をループ内0..Tへ正規化
-      const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+      // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ
+      const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
       // ★ シームレスループ: オーディオのラップを表示ループ側で即時検知
       // normalizedTime が大きく巻き戻ったらラップが発生した
