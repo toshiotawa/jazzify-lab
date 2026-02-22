@@ -90,6 +90,12 @@ class BGMManager {
   private _htmlLastRawTime = -1
   private _htmlLastRawPerf = 0
 
+  // デュアルHTMLAudio要素: ギャップレスループ用
+  private _htmlNextAudio: HTMLAudioElement | null = null
+  private _htmlNextReady = false
+  private _htmlLoopUrl = ''
+  private _htmlLoopVolume = 0.7
+
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
   // セクション終了時コールバック（timing_combining用）
@@ -183,10 +189,19 @@ class BGMManager {
     }
 
     if (this.audio) {
+      // デュアル要素クリーンアップ（ループパラメータが変わる可能性あり）
+      if (this._htmlNextAudio) {
+        try { this._htmlNextAudio.pause() } catch {}
+        try { (this._htmlNextAudio as any).src = '' } catch {}
+        this._htmlNextAudio = null
+        this._htmlNextReady = false
+      }
       this.audio.currentTime = startOffset
       if (this.audio.paused) void this.audio.play().catch(() => {})
       this.htmlSeekTarget = startOffset
       this.htmlSeekPerfStart = performance.now()
+      this._htmlLastRawTime = -1
+      this._htmlLastRawPerf = 0
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
       // #region agent log
@@ -571,11 +586,16 @@ class BGMManager {
   }
 
   setVolume(v: number) {
+    const vol = Math.max(0, Math.min(1, v))
     if (this.audio) {
-      this.audio.volume = Math.max(0, Math.min(1, v))
+      this.audio.volume = vol
     }
+    if (this._htmlNextAudio) {
+      this._htmlNextAudio.volume = vol
+    }
+    this._htmlLoopVolume = vol
     if (this.waGain && this.waContext) {
-      this.waGain.gain.setValueAtTime(Math.max(0, Math.min(1, v)), this.waContext.currentTime)
+      this.waGain.gain.setValueAtTime(vol, this.waContext.currentTime)
     }
   }
 
@@ -589,6 +609,14 @@ class BGMManager {
     this._htmlLastRawPerf = 0
     this.playGeneration++
     this.disposePendingChain()
+
+    // デュアルHTMLAudio要素クリーンアップ
+    if (this._htmlNextAudio) {
+      try { this._htmlNextAudio.pause() } catch {}
+      try { (this._htmlNextAudio as any).src = '' } catch {}
+      this._htmlNextAudio = null
+      this._htmlNextReady = false
+    }
     if (this.sectionEndCheckId !== null) {
       clearInterval(this.sectionEndCheckId)
       this.sectionEndCheckId = null
@@ -1132,74 +1160,83 @@ class BGMManager {
   }
 
   // ─────────────────────────────────────────────
-  // HTMLAudio フォールバック
+  // HTMLAudio フォールバック（デュアル要素ギャップレスループ）
   private _playHtmlAudio(url: string, volume: number) {
     this.audio = new Audio(url)
     this.audio.preload = 'auto'
     this.audio.volume = Math.max(0, Math.min(1, volume))
-    this.audio.playbackRate = this.playbackRate // 再生速度を設定
-    this.audio.preservesPitch = true // 速度変更時にピッチを保持
+    this.audio.playbackRate = this.playbackRate
+    this.audio.preservesPitch = true
 
-    // skipCountIn時はloopBegin（M1）位置から、通常は0（カウントイン開始）から再生
     this.audio.currentTime = this.audioStartOffset
-    
-    // エラーハンドリング
+
     this.audio.addEventListener('error', this.handleError)
     this.audio.addEventListener('ended', this.handleEnded)
-    
-    if (!this.noLoop) {
-      // timeupdate による事前スケジュール（補助）
-      this.timeUpdateHandler = () => {
-        if (!this.audio || !this.isPlaying) return
-        const currentTime = this.audio.currentTime
-        const timeToEnd = this.loopEnd - currentTime
-        if (timeToEnd < 0.08 && timeToEnd > 0 && !this.loopScheduled) {
-          this.loopScheduled = true
-          this.nextLoopTime = this.loopBegin
-          this.loopTimeoutId = window.setTimeout(() => {
-            if (this.audio && this.isPlaying) {
-              this.audio.currentTime = this.nextLoopTime
-              if (this.htmlSeekTarget === null) {
-                this.htmlSeekTarget = this.nextLoopTime
-                this.htmlSeekPerfStart = performance.now()
-                // #region agent log
-                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:timeupdate:setTimeout',message:'htmlSeekTarget SET',data:{target:this.nextLoopTime,source:'timeupdate'},timestamp:Date.now(),hypothesisId:'H8_seekGuard'})}).catch(()=>{})
-                // #endregion
-              }
-            }
-            this.loopScheduled = false
-            this.loopTimeoutId = null
-          }, Math.max(0, timeToEnd * 1000 - 30))
-        }
-      }
-      this.audio.addEventListener('timeupdate', this.timeUpdateHandler)
 
-      // ループ監視Interval（最終防衛ライン）
+    this._htmlLoopUrl = url
+    this._htmlLoopVolume = volume
+    this._htmlNextAudio = null
+    this._htmlNextReady = false
+
+    if (!this.noLoop) {
       this.loopCheckIntervalId = window.setInterval(() => {
         if (!this.audio || !this.isPlaying) return
-        const now = this.audio.currentTime
+        const ct = this.audio.currentTime
+
+        // Phase 1: ループ終了0.8秒前に次のAudio要素を事前作成・事前シーク
+        if (ct >= this.loopEnd - 0.8 && ct < this.loopEnd && !this._htmlNextAudio) {
+          const next = new Audio(this._htmlLoopUrl)
+          next.preload = 'auto'
+          next.volume = this.audio.volume
+          next.playbackRate = this.playbackRate
+          next.preservesPitch = true
+          next.currentTime = this.loopBegin
+          this._htmlNextAudio = next
+          this._htmlNextReady = false
+          const onReady = () => {
+            this._htmlNextReady = true
+            next.removeEventListener('canplaythrough', onReady)
+          }
+          next.addEventListener('canplaythrough', onReady)
+          if (next.readyState >= 4) this._htmlNextReady = true
+        }
+
+        // Phase 2: ループ境界でスワップ
         const epsilon = 0.02
-        if (now >= this.loopEnd - epsilon) {
-          try {
-            this.audio.currentTime = this.loopBegin
-            if (this.htmlSeekTarget === null) {
-              this.htmlSeekTarget = this.loopBegin
-              this.htmlSeekPerfStart = performance.now()
-              // #region agent log
-              fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:setInterval',message:'htmlSeekTarget SET',data:{target:this.loopBegin,source:'setInterval'},timestamp:Date.now(),hypothesisId:'H8_seekGuard'})}).catch(()=>{})
-              // #endregion
-            }
-            if (this.audio.paused) {
-              void this.audio.play().catch(() => {})
-            }
-          } catch (e) {
-            // noop
+        if (ct >= this.loopEnd - epsilon) {
+          if (this._htmlNextReady && this._htmlNextAudio) {
+            const oldAudio = this.audio
+            this.audio = this._htmlNextAudio
+            this.audio.play().catch(() => {})
+
+            try { oldAudio.pause() } catch {}
+            try { oldAudio.removeEventListener('error', this.handleError) } catch {}
+            try { oldAudio.removeEventListener('ended', this.handleEnded) } catch {}
+            try { (oldAudio as any).src = '' } catch {}
+
+            this.audio.addEventListener('error', this.handleError)
+            this.audio.addEventListener('ended', this.handleEnded)
+
+            this._htmlLastRawTime = this.loopBegin
+            this._htmlLastRawPerf = performance.now()
+            this.htmlSeekTarget = null
+
+            this._htmlNextAudio = null
+            this._htmlNextReady = false
+          } else {
+            try {
+              this.audio.currentTime = this.loopBegin
+              if (this.htmlSeekTarget === null) {
+                this.htmlSeekTarget = this.loopBegin
+                this.htmlSeekPerfStart = performance.now()
+              }
+              if (this.audio.paused) void this.audio.play().catch(() => {})
+            } catch {}
           }
         }
-      }, 25)
+      }, 12)
     }
-    
-    // 再生開始
+
     this.startTime = performance.now()
     this.isPlaying = true
     const playPromise = this.audio.play()
