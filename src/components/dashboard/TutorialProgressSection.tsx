@@ -86,7 +86,7 @@ const TutorialProgressSection: React.FC = () => {
             <div className="flex items-center gap-3">
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-300">
-                  「レッスン：<span className="text-cyan-400 font-semibold">{nextLesson.title}</span>」を完了しましょう
+                  <span className="text-cyan-400 font-semibold">レッスン{nextLesson.order_index + 1}：{nextLesson.title}</span>を完了しましょう
                 </p>
               </div>
               <button
