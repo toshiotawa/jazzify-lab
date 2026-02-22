@@ -86,6 +86,10 @@ class BGMManager {
   private htmlSeekTarget: number | null = null
   private htmlSeekPerfStart = 0
 
+  // HTMLAudio連続補間: audio.currentTime の低更新頻度を performance.now() で補間
+  private _htmlLastRawTime = -1
+  private _htmlLastRawPerf = 0
+
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
   // セクション終了時コールバック（timing_combining用）
@@ -581,6 +585,8 @@ class BGMManager {
     this.loopScheduled = false
     this.noLoop = false
     this.htmlSeekTarget = null
+    this._htmlLastRawTime = -1
+    this._htmlLastRawPerf = 0
     this.playGeneration++
     this.disposePendingChain()
     if (this.sectionEndCheckId !== null) {
@@ -736,18 +742,28 @@ class BGMManager {
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) {
-        const musicTime = this.audio.currentTime
-        // シーク中は audio.currentTime が旧値のままの場合があるため performance.now() で補間
+        const rawTime = this.audio.currentTime
+        const now = performance.now()
+        // restartSameSection からのシーク補正（セクション切替時の大きなジャンプ用）
         if (this.htmlSeekTarget !== null) {
-          const elapsed = (performance.now() - this.htmlSeekPerfStart) / 1000
+          const elapsed = (now - this.htmlSeekPerfStart) / 1000
           const expected = this.htmlSeekTarget + elapsed
-          if (Math.abs(musicTime - expected) < 1.0) {
+          if (Math.abs(rawTime - expected) < 1.0) {
             this.htmlSeekTarget = null
+            this._htmlLastRawTime = rawTime
+            this._htmlLastRawPerf = now
           } else {
             return this.normalizeMusicTime(expected)
           }
         }
-        return this.normalizeMusicTime(musicTime)
+        // audio.currentTime の低更新頻度を performance.now() で連続補間
+        if (rawTime !== this._htmlLastRawTime) {
+          this._htmlLastRawTime = rawTime
+          this._htmlLastRawPerf = now
+        }
+        const elapsed = (now - this._htmlLastRawPerf) / 1000
+        const interpolated = rawTime + elapsed * this.playbackRate
+        return this.normalizeMusicTime(interpolated)
       }
     }
     
