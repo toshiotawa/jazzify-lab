@@ -42,6 +42,8 @@ interface FantasySheetMusicDisplayProps {
   nextTimeSignature?: number;
   /** 次セクションの移調オフセット（結合モード用、省略時はtransposeOffsetと同じ） */
   nextSectionTransposeOffset?: number;
+  /** 結合モード: 全セクションの譜面データを事前レンダリング用に渡す */
+  preloadSections?: Array<{ musicXml: string; bpm: number; timeSignature: number }>;
   className?: string;
 }
 
@@ -115,11 +117,13 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   nextBpm,
   nextTimeSignature,
   nextSectionTransposeOffset,
+  preloadSections,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const renderContainerRef = useRef<HTMLDivElement>(null); // オフスクリーンレンダリング用
   const preRenderContainerRef = useRef<HTMLDivElement>(null); // 次セクション背景プリレンダリング用
+  const preloadContainerRef = useRef<HTMLDivElement>(null); // preloadSections専用レンダリング用
   const preRenderGenRef = useRef(0); // プリレンダリング世代管理
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -383,6 +387,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
         
         if (gen !== preRenderGenRef.current) return;
+        if (Object.keys(imageCache).length < 12) return;
         const maxSheetWidth = Math.max(...Object.values(mapCache).map(m => m.sheetWidth), 0);
         const entry: SheetRenderCacheEntry = { images: imageCache, timeMaps: mapCache, maxSheetWidth };
         sheetRenderCache.set(cacheKey, entry);
@@ -390,6 +395,55 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       } catch {}
     })();
   }, [nextMusicXml, nextBpm, nextTimeSignature, bpm, timeSignature, simpleMode, renderSheetForOffset]);
+  
+  // 結合モード: 全セクションの譜面を初期化時に一括で事前レンダリング
+  // preRenderContainerRef とは別の専用コンテナで、次セクションプリレンダリングとのDOM競合を防ぐ
+  const preloadGenRef = useRef(0);
+  useEffect(() => {
+    if (!preloadSections || preloadSections.length === 0) return;
+    if (!preloadContainerRef.current) return;
+    
+    const uncached = preloadSections.filter(s => {
+      const key = getSheetCacheKey(s.musicXml, s.bpm, s.timeSignature, simpleMode);
+      return !sheetRenderCache.has(key);
+    });
+    if (uncached.length === 0) return;
+    
+    const gen = ++preloadGenRef.current;
+    const container = preloadContainerRef.current;
+    
+    (async () => {
+      for (const section of uncached) {
+        if (gen !== preloadGenRef.current) return;
+        const cacheKey = getSheetCacheKey(section.musicXml, section.bpm, section.timeSignature, simpleMode);
+        if (sheetRenderCache.has(cacheKey)) continue;
+        
+        const imageCache: SheetImageCache = {};
+        const mapCache: TimeMapCache = {};
+        let allRendered = true;
+        
+        for (let i = 0; i < 12; i++) {
+          if (gen !== preloadGenRef.current) return;
+          const offset = i <= 6 ? i : i - 12;
+          if (container) container.innerHTML = '';
+          const result = await renderSheetForOffset(
+            section.musicXml, offset, container, simpleMode, section.bpm, section.timeSignature
+          );
+          if (result) {
+            imageCache[offset] = result.imageData;
+            mapCache[offset] = { mapping: result.mapping, sheetWidth: result.sheetWidth };
+          } else {
+            allRendered = false;
+          }
+        }
+        
+        if (gen !== preloadGenRef.current) return;
+        if (!allRendered) continue;
+        const maxW = Math.max(...Object.values(mapCache).map(m => m.sheetWidth), 0);
+        sheetRenderCache.set(cacheKey, { images: imageCache, timeMaps: mapCache, maxSheetWidth: maxW });
+      }
+    })();
+  }, [preloadSections, simpleMode, renderSheetForOffset]);
   
   // 現在のキーと次のキーの楽譜画像
   const currentSheetImage = useMemo(() => {
@@ -653,6 +707,19 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       {/* 次セクション背景プリレンダリング用コンテナ（表示されない） */}
       <div 
         ref={preRenderContainerRef}
+        className="absolute fantasy-sheet-music"
+        style={{
+          position: 'absolute',
+          left: '-9999px',
+          top: '-9999px',
+          visibility: 'hidden',
+          pointerEvents: 'none',
+          ['--osmd-background' as string]: 'transparent'
+        }}
+      />
+      {/* preloadSections専用レンダリング用コンテナ（表示されない、preRenderContainerRefとのDOM競合を防ぐ） */}
+      <div 
+        ref={preloadContainerRef}
         className="absolute fantasy-sheet-music"
         style={{
           position: 'absolute',
