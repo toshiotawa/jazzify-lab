@@ -1052,6 +1052,10 @@ export const useFantasyGameEngine = ({
     
     // 現在の時間をループ内0..Tへ正規化
     const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
+    // カウントイン中(currentTime<0)は normalizedTime がループ末尾付近にラップするため、
+    // lastNormalizedTime に保存すると本編突入時に偽ループ境界リセットが発生する。
+    // -1 を保存し、ループ境界検出の lastNorm>=0 ガードで安全にスキップさせる。
+    const lastNormToStore = currentTime < 0 ? -1 : normalizedTime;
 
     // ★ ループ境界検出: タイマー（updateEnemyGauge）に先行して、
     // 同一の setGameState 更新内でリセットを原子的に適用する。
@@ -1109,7 +1113,7 @@ export const useFantasyGameEngine = ({
           currentNoteIndex: effIdx,
           awaitingLoopStart: false,
           taikoLoopCycle: newLoopCycle,
-          lastNormalizedTime: normalizedTime,
+          lastNormalizedTime: lastNormToStore,
           currentTransposeOffset: newTransposeOffset,
           preHitNoteIndices: [],
           activeMonsters: prevState.activeMonsters.map(m => ({
@@ -1274,7 +1278,7 @@ export const useFantasyGameEngine = ({
       // ウィンドウ外 or 構成音外 — lastNormalizedTime のみ更新して返す
       return workingState !== prevState
         ? workingState  // ループリセット済みの場合はそのまま返す
-        : { ...prevState, lastNormalizedTime: normalizedTime };
+        : { ...prevState, lastNormalizedTime: lastNormToStore };
     }
 
     const chosenNote = chosen.n;
@@ -1282,7 +1286,7 @@ export const useFantasyGameEngine = ({
 
     // 現在のモンスターの正解済み音を更新
     const currentMonster = workingState.activeMonsters[0];
-    if (!currentMonster) return { ...workingState, lastNormalizedTime: normalizedTime };
+    if (!currentMonster) return { ...workingState, lastNormalizedTime: lastNormToStore };
 
     // 移調ループの場合、次のループのノーツは移調後のコードを使用
     const effectiveChord = chosen.nextLoopChord || chosenNote.chord;
@@ -1409,7 +1413,7 @@ export const useFantasyGameEngine = ({
             taikoNotes: updatedTaikoNotes,
             awaitingLoopStart: false,
             preHitNoteIndices: [],
-            lastNormalizedTime: normalizedTime
+            lastNormalizedTime: lastNormToStore
           };
           onGameComplete('clear', finalState);
           return finalState;
@@ -1427,7 +1431,7 @@ export const useFantasyGameEngine = ({
           enemiesDefeated: newEnemiesDefeated,
           awaitingLoopStart: isLastNoteByChosen ? true : false,
           preHitNoteIndices: updatedPreHitIndices,
-          lastNormalizedTime: normalizedTime
+          lastNormalizedTime: lastNormToStore
         };
       }
 
@@ -1442,7 +1446,7 @@ export const useFantasyGameEngine = ({
           score: workingState.score + 100 * actualDamage,
           awaitingLoopStart: true,
           preHitNoteIndices: updatedPreHitIndices,
-          lastNormalizedTime: normalizedTime
+          lastNormalizedTime: lastNormToStore
         };
       }
 
@@ -1456,7 +1460,7 @@ export const useFantasyGameEngine = ({
         score: workingState.score + 100 * actualDamage,
         awaitingLoopStart: false,
         preHitNoteIndices: (isPreHit || wasAwaitingLoop) ? updatedPreHitIndices : workingState.preHitNoteIndices,
-        lastNormalizedTime: normalizedTime
+        lastNormalizedTime: lastNormToStore
       };
     } else {
       // コード未完成（選ばれたノーツのコードに対する部分正解）
@@ -1473,7 +1477,7 @@ export const useFantasyGameEngine = ({
       return {
         ...workingState,
         activeMonsters: updatedMonsters,
-        lastNormalizedTime: normalizedTime
+        lastNormalizedTime: lastNormToStore
       };
     }
   }, [onChordCorrect, onGameComplete, displayOpts, stageMonsterIds]);
@@ -2557,15 +2561,18 @@ export const useFantasyGameEngine = ({
         
         // カウントイン中はループ境界検出をスキップ
         // カウントインから本編への移行時に誤検出を防ぐ
+        // lastNormalizedTime を -1 にリセットし、ラップ値残留による偽ループ検出を防止
         if (currentTime < 0) {
-          return prevState; // カウントイン中は何もしない
+          return { ...prevState, lastNormalizedTime: -1 };
         }
         
         // ループ境界検出（本編開始後のみ）
         // 注: currentTimeはgetCurrentMusicTime()から取得され、既に0〜loopDurationに正規化されている
         const normalizedTime = ((currentTime % loopDuration) + loopDuration) % loopDuration;
         const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
-        
+        // #region agent log
+        if (lastNorm === -1) { fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-4',hypothesisId:'H13',location:'FantasyGameEngine.tsx:updateEnemyGauge:afterCountIn',message:'first timer tick after count-in',data:{currentTime,normalizedTime,lastNorm,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,taikoLoopCycle:prevState.taikoLoopCycle},timestamp:Date.now()})}).catch(()=>{}); }
+        // #endregion
         // lastNormが-1（未初期化）の場合はループ境界として扱わない
         // ループ境界検出: normalizedTimeがlastNormより小さくなった場合
         // 二重処理防止: lastNorm - normalizedTimeがloopDurationの半分より大きい場合のみ（真のループ境界）
@@ -2797,7 +2804,7 @@ export const useFantasyGameEngine = ({
         
         // カウントイン中はミス判定しない
         if (currentTime < 0) {
-          return { ...prevState, lastNormalizedTime: normalizedTime };
+          return { ...prevState, lastNormalizedTime: -1 };
         }
         
         // ミス判定：+150ms以上経過した場合
