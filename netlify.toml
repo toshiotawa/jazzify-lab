@@ -64,6 +64,13 @@
     Content-Type = "application/json; charset=utf-8"
     Cache-Control = "public, max-age=300"
 
+# CDNプロキシ: CORS制限をバイパスしWebAudioでBGM読み込みを可能にする
+[[redirects]]
+  from = "/cdn-proxy/*"
+  to = "https://jazzify-cdn.com/:splat"
+  status = 200
+  force = true
+
 # Viteコードチャンクの正しい処理のため、assetsパスを先に処理
 [[redirects]]
   from = "/assets/*"

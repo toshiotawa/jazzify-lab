@@ -1,8 +1,17 @@
-/* HTMLAudio ベースの簡易 BGM ルーパー（ピッチシフト対応） */
+/* BGMルーパー（WebAudio優先 + HTMLAudioフォールバック） */
 
 // Tone.jsの型（動的インポート用）
 type ToneType = typeof import('tone');
 type PitchShiftType = InstanceType<ToneType['PitchShift']>;
+
+const CDN_HOST = 'https://jazzify-cdn.com'
+
+function toProxyUrl(url: string): string {
+  if (url.startsWith(CDN_HOST)) {
+    return '/cdn-proxy' + url.slice(CDN_HOST.length)
+  }
+  return url
+}
 
 class BGMManager {
   private audio: HTMLAudioElement | null = null
@@ -269,14 +278,24 @@ class BGMManager {
       note: `BGM 0秒 = カウントイン開始, BGM ${this.loopBegin.toFixed(2)}秒 = M1 Beat1 (getCurrentMusicTime = 0)`
     })
 
-    // ピッチシフトが必要な場合はTone.jsを使用
-    if (this.pitchShift !== 0) {
+    // ピッチシフトまたは速度変更がある場合はTone.jsを使用
+    // Tone.js PitchShiftで速度変更時のピッチ補償も行う
+    if (this.pitchShift !== 0 || this.playbackRate !== 1.0) {
       this.useTonePitchShift = true
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:route',message:'using Tone.js path',data:{pitchShift:this.pitchShift,playbackRate:this.playbackRate,proxyUrl:toProxyUrl(url)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
+      // #endregion
       this._playTonePitchShift(url, volume).catch(err => {
-        console.warn('Tone.js PitchShift failed, fallback to WebAudio:', err)
+        console.warn('Tone.js failed, fallback to WebAudio:', err)
+        // #region agent log
+        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:toneFail',message:'Tone.js failed, trying WebAudio',data:{error:String(err)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
+        // #endregion
         this.useTonePitchShift = false
         this._playWebAudio(url, volume).catch(err2 => {
           console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err2)
+          // #region agent log
+          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:waFail',message:'WebAudio also failed, using HTMLAudio',data:{error:String(err2)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
+          // #endregion
           this._playHtmlAudio(url, volume)
         })
       })
@@ -284,9 +303,15 @@ class BGMManager {
     }
 
     this.useTonePitchShift = false
-    // Web Audio 経路でシームレスループを試みる
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:route',message:'using WebAudio path',data:{pitchShift:this.pitchShift,playbackRate:this.playbackRate,proxyUrl:toProxyUrl(url)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
+    // #endregion
+    // Web Audio 経路でシームレスループ
     this._playWebAudio(url, volume).catch(err => {
       console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
+      // #region agent log
+      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:waFail2',message:'WebAudio failed, using HTMLAudio',data:{error:String(err)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
+      // #endregion
       this._playHtmlAudio(url, volume)
     })
   }
@@ -300,8 +325,9 @@ class BGMManager {
     
     if (this.tonePitchShift) {
       try {
-        (this.tonePitchShift as any).pitch = this.pitchShift
-        console.log(`🎹 BGMピッチシフト変更: ${this.pitchShift}半音`)
+        const rateComp = this.playbackRate !== 1.0 ? -12 * Math.log2(this.playbackRate) : 0
+        ;(this.tonePitchShift as any).pitch = this.pitchShift + rateComp
+        console.log(`🎹 BGMピッチシフト変更: ${this.pitchShift}半音 (rate補償: ${rateComp.toFixed(2)})`)
       } catch (e) {
         console.warn('Failed to update pitch shift:', e)
       }
@@ -323,7 +349,7 @@ class BGMManager {
     if (!url) return
     if (!this.preloadedBuffers.has(url)) {
       import('tone').then(Tone => {
-        const buf = new Tone.ToneAudioBuffer(url, () => {
+        const buf = new Tone.ToneAudioBuffer(toProxyUrl(url), () => {
           this.preloadedBuffers.set(url, buf)
         })
       }).catch(() => {})
@@ -338,7 +364,7 @@ class BGMManager {
       if (!this.waContext) {
         this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
       }
-      const resp = await fetch(url)
+      const resp = await fetch(toProxyUrl(url))
       const arr = await resp.arrayBuffer()
       const buf = await this.waContext.decodeAudioData(arr.slice(0))
       this.preloadedWaBuffers.set(url, buf)
@@ -373,7 +399,7 @@ class BGMManager {
     const secPerMeas = secPerBeat * timeSig
     const loopBegin = countInMeasures * secPerMeas
     const loopEnd = (countInMeasures + measureCount) * secPerMeas
-    const useTone = shift !== 0
+    const useTone = shift !== 0 || rate !== 1.0
     const startOffset = skipCountIn ? loopBegin : 0
 
     this.pendingParams = {
@@ -391,8 +417,9 @@ class BGMManager {
         if (ctx.state !== 'running') await ctx.resume()
         if (gen !== this.prepareGeneration) return
 
+        const rateComp = rate !== 1.0 ? -12 * Math.log2(rate) : 0
         this.pendingTonePitchShift = new Tone.PitchShift({
-          pitch: shift, windowSize: 0.1, delayTime: 0.05
+          pitch: shift + rateComp, windowSize: 0.1, delayTime: 0.05
         }).toDestination()
         this.pendingToneGain = new Tone.Gain(volume).connect(this.pendingTonePitchShift)
 
@@ -404,7 +431,7 @@ class BGMManager {
         } else {
           await new Promise<void>((resolve, reject) => {
             this.pendingTonePlayer = new Tone.Player({
-              url, loop: !noLoop, playbackRate: rate,
+              url: toProxyUrl(url), loop: !noLoop, playbackRate: rate,
               onload: () => resolve(),
               onerror: (err: Error) => reject(err),
             }).connect(this.pendingToneGain)
@@ -424,7 +451,7 @@ class BGMManager {
           if (!this.waContext) {
             this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
           }
-          const resp = await fetch(url)
+          const resp = await fetch(toProxyUrl(url))
           const arr = await resp.arrayBuffer()
           const buf = await this.waContext.decodeAudioData(arr.slice(0))
           if (gen !== this.prepareGeneration) return
@@ -506,7 +533,7 @@ class BGMManager {
       this.startTime = performance.now()
       this.pitchShiftLatency = 0.05 + 0.1 * 0.5
       this.waStartAt = startTime + this.pitchShiftLatency - p.startOffset / this.playbackRate
-    } else if (!p.useTone && p.playbackRate === 1.0 && this.pendingWaBuffer) {
+    } else if (!p.useTone && this.pendingWaBuffer) {
       this.disposeToneChain()
       try { this.waSource?.stop?.() } catch {}
       try { this.waSource?.disconnect?.() } catch {}
@@ -1005,7 +1032,8 @@ class BGMManager {
   // 毎回新しいチェーンを作成、コンストラクタURL + onload Promise で確実にロード
   private async _playTonePitchShift(url: string, volume: number): Promise<void> {
     const gen = this.playGeneration
-    const pitchValue = this.pitchShift
+    const rateCompensation = this.playbackRate !== 1.0 ? -12 * Math.log2(this.playbackRate) : 0
+    const pitchValue = this.pitchShift + rateCompensation
     const loopFlag = !this.noLoop
     const rate = this.playbackRate
     const loopBeginVal = this.loopBegin
@@ -1044,7 +1072,7 @@ class BGMManager {
     } else {
       await new Promise<void>((resolve, reject) => {
         this.tonePlayer = new Tone.Player({
-          url: url,
+          url: toProxyUrl(url),
           loop: loopFlag,
           playbackRate: rate,
           onload: () => resolve(),
@@ -1096,13 +1124,6 @@ class BGMManager {
   // ─────────────────────────────────────────────
   // Web Audio 実装
   private async _playWebAudio(url: string, volume: number): Promise<void> {
-    // 再生速度が1.0でない場合はHTMLAudioを使用（ピッチ保持のため）
-    // AudioBufferSourceNodeにはpreservesPitchがないため
-    if (this.playbackRate !== 1.0) {
-      this._playHtmlAudio(url, volume)
-      return
-    }
-
     if (!this.waContext) {
       this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
     }
@@ -1116,49 +1137,51 @@ class BGMManager {
     if (cachedWa) {
       this.waBuffer = cachedWa
     } else {
-      const resp = await fetch(url)
+      const resp = await fetch(toProxyUrl(url))
       const arr = await resp.arrayBuffer()
       const buf = await this.waContext.decodeAudioData(arr.slice(0))
       this.waBuffer = buf
       this.preloadedWaBuffers.set(url, buf)
     }
 
-    // ループポイントを設定（サンプル精度）— skipCountIn時はloopBeginから再生開始
     this._startWaSourceAt(this.audioStartOffset)
     this.isPlaying = true
     this.isLoadingAudio = false
     this.startTime = performance.now()
+    // #region agent log
+    fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:_playWebAudio:success',message:'WebAudio playback started',data:{url:toProxyUrl(url),sampleRate:this.waBuffer?.sampleRate,duration:this.waBuffer?.duration,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H_WA'})}).catch(()=>{})
+    // #endregion
     console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, startOffset: this.audioStartOffset })
   }
 
   private _startWaSourceAt(offsetSec: number) {
     if (!this.waContext || !this.waBuffer) return
-    // 既存ソース破棄
     if (this.waSource) {
       try { this.waSource.stop() } catch {}
       try { this.waSource.disconnect() } catch {}
     }
     const src = this.waContext.createBufferSource()
     src.buffer = this.waBuffer
+
+    const sr = this.waBuffer.sampleRate
+    const dur = this.waBuffer.duration
+    const eps = Math.max(1 / sr, 0.001)
+
     if (this.noLoop) {
       src.loop = false
     } else {
       src.loop = true
-      src.loopStart = this.loopBegin
-      src.loopEnd = this.loopEnd
+      const ls = Math.round(this.loopBegin * sr) / sr
+      const le = Math.round(this.loopEnd * sr) / sr
+      src.loopStart = Math.min(Math.max(0, ls), dur - 2 * eps)
+      src.loopEnd = Math.min(Math.max(src.loopStart + eps, le), dur - eps)
     }
-    src.playbackRate.value = this.playbackRate // 再生速度を設定
+
+    src.playbackRate.value = this.playbackRate
     src.connect(this.waGain!)
 
-    // 再生
-    const when = 0
-    const offset = offsetSec
-    src.start(when, offset)
-    // offsetSec（音楽的な時間）をrealtime（実時間）に変換
-    // 音楽時間 = 実時間 * playbackRate → 実時間 = 音楽時間 / playbackRate
-    this.waStartAt = this.waContext.currentTime - offset / this.playbackRate
-
-    // 参照保持
+    src.start(0, offsetSec)
+    this.waStartAt = this.waContext.currentTime - offsetSec / this.playbackRate
     this.waSource = src
   }
 
