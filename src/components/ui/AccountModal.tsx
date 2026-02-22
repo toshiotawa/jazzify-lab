@@ -15,6 +15,7 @@ import { compressProfileImage } from '@/utils/imageCompression';
 import { fetchFantasyClearedStageCount } from '@/platform/supabaseFantasyStages';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
+import AvatarSelectModal from '@/components/ui/AvatarSelectModal';
 
 const RANK_LABEL: Record<string, string> = {
   free: 'フリー',
@@ -55,6 +56,7 @@ const AccountPage: React.FC = () => {
   const [selectedTitle, setSelectedTitle] = useState<Title>((profile?.selected_title as Title) || DEFAULT_TITLE);
   const [titleSaving, setTitleSaving] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
+  const [avatarModalOpen, setAvatarModalOpen] = useState(false);
   const [nickname, setNickname] = useState(profile?.nickname || '');
   const [nicknameSaving, setNicknameSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
@@ -250,321 +252,372 @@ const AccountPage: React.FC = () => {
           {profile ? (
             <div className="space-y-2">
               {activeTab === 'profile' && (
-                <div className="space-y-2">
-              <div className="space-y-1">
-                <div className="flex justify-between items-center">
-                  <span>{isEnglishCopy ? 'Nickname' : 'ニックネーム'}</span>
-                  {!nicknameEditing ? (
-                    <div className="flex items-center gap-2">
-                      <span className="font-semibold">{profile.nickname}</span>
-                      <button
-                        className="text-xs text-primary-400 hover:text-primary-300 underline"
-                        onClick={() => setNicknameEditing(true)}
-                      >
-                        {isEnglishCopy ? 'Edit' : '変更'}
-                      </button>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2">
-                      <input
-                        className="w-36 p-1 rounded bg-slate-700 text-sm"
-                        value={nickname}
-                        onChange={e => setNickname(e.target.value)}
-                        maxLength={20}
-                        autoFocus
+                <div className="space-y-5">
+                  {/* Profile Hero Card */}
+                  <div className="bg-slate-800/80 rounded-xl p-5 flex flex-col items-center gap-3 border border-slate-700/50">
+                    <button
+                      className="relative group cursor-pointer"
+                      onClick={() => setAvatarModalOpen(true)}
+                      disabled={avatarUploading}
+                      aria-label={isEnglishCopy ? 'Change avatar' : 'アバターを変更'}
+                    >
+                      <img
+                        src={profile.avatar_url || DEFAULT_AVATAR_URL}
+                        alt="avatar"
+                        className="w-24 h-24 rounded-full object-cover ring-2 ring-slate-600 group-hover:ring-primary-400 transition-all"
                       />
-                      <button
-                        className="btn btn-xs btn-primary"
-                        disabled={nicknameSaving || !nickname.trim() || nickname.trim() === profile.nickname}
-                        onClick={async () => {
-                          const trimmed = nickname.trim();
-                          if (!trimmed || trimmed === profile.nickname) return;
-                          setNicknameSaving(true);
-                          try {
-                            await getSupabaseClient().from('profiles').update({ nickname: trimmed }).eq('id', profile.id);
-                            await useAuthStore.getState().fetchProfile();
-                            pushToast(isEnglishCopy ? 'Nickname updated' : 'ニックネームを更新しました', 'success');
-                          } catch (err) {
-                            pushToast(
-                              (isEnglishCopy ? 'Failed to update: ' : '更新失敗: ') + (err instanceof Error ? err.message : String(err)),
-                              'error'
-                            );
-                          } finally {
-                            setNicknameSaving(false);
-                            setNicknameEditing(false);
-                          }
-                        }}
-                      >
-                        {nicknameSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
-                      </button>
-                      <button
-                        className="text-xs text-gray-400 hover:text-white"
-                        onClick={() => { setNickname(profile.nickname); setNicknameEditing(false); }}
-                      >
-                        ✕
-                      </button>
+                      <div className="absolute inset-0 rounded-full bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                        <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                          <path d="M4 16L16 16M10 4L10 12M10 4L6 8M10 4L14 8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </div>
+                      {avatarUploading && (
+                        <div className="absolute inset-0 rounded-full bg-black/60 flex items-center justify-center">
+                          <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin" />
+                        </div>
+                      )}
+                    </button>
+                    <button
+                      className="text-xs text-primary-400 hover:text-primary-300 transition-colors"
+                      onClick={() => setAvatarModalOpen(true)}
+                      disabled={avatarUploading}
+                    >
+                      {isEnglishCopy ? 'Change Avatar' : 'アバターを変更'}
+                    </button>
+
+                    {/* Nickname */}
+                    {!nicknameEditing ? (
+                      <div className="flex items-center gap-2">
+                        <span className="text-lg font-bold">{profile.nickname}</span>
+                        <button
+                          className="text-xs text-gray-400 hover:text-primary-400 transition-colors"
+                          onClick={() => setNicknameEditing(true)}
+                          aria-label={isEnglishCopy ? 'Edit nickname' : 'ニックネーム変更'}
+                        >
+                          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                            <path d="M10.5 1.5L12.5 3.5L4.5 11.5L1.5 12.5L2.5 9.5L10.5 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2">
+                        <input
+                          className="w-40 px-2 py-1 rounded-lg bg-slate-700 text-sm text-center focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          value={nickname}
+                          onChange={e => setNickname(e.target.value)}
+                          maxLength={20}
+                          autoFocus
+                        />
+                        <button
+                          className="px-2 py-1 rounded-lg bg-primary-500 hover:bg-primary-400 text-xs text-white transition-colors disabled:opacity-50"
+                          disabled={nicknameSaving || !nickname.trim() || nickname.trim() === profile.nickname}
+                          onClick={async () => {
+                            const trimmed = nickname.trim();
+                            if (!trimmed || trimmed === profile.nickname) return;
+                            setNicknameSaving(true);
+                            try {
+                              await getSupabaseClient().from('profiles').update({ nickname: trimmed }).eq('id', profile.id);
+                              await useAuthStore.getState().fetchProfile();
+                              pushToast(isEnglishCopy ? 'Nickname updated' : 'ニックネームを更新しました', 'success');
+                            } catch (err) {
+                              pushToast(
+                                (isEnglishCopy ? 'Failed to update: ' : '更新失敗: ') + (err instanceof Error ? err.message : String(err)),
+                                'error'
+                              );
+                            } finally {
+                              setNicknameSaving(false);
+                              setNicknameEditing(false);
+                            }
+                          }}
+                        >
+                          {nicknameSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
+                        </button>
+                        <button
+                          className="text-xs text-gray-400 hover:text-white transition-colors"
+                          onClick={() => { setNickname(profile.nickname); setNicknameEditing(false); }}
+                        >
+                          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                            <path d="M2 2L10 10M10 2L2 10" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                          </svg>
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Title */}
+                    <span className="text-xs text-primary-400/80">
+                      {translateTitle(selectedTitle, isEnglishCopy)}
+                    </span>
+
+                    {/* Stats Row */}
+                    <div className="flex items-center gap-5 mt-1 text-sm">
+                      <div className="flex flex-col items-center">
+                        <span className="text-gray-400 text-xs">{isEnglishCopy ? 'Level' : 'レベル'}</span>
+                        <span className="font-bold">{profile.level}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-600" />
+                      <div className="flex flex-col items-center">
+                        <span className="text-gray-400 text-xs">{isEnglishCopy ? 'XP' : '経験値'}</span>
+                        <span className="font-bold">{profile.xp.toLocaleString()}</span>
+                      </div>
+                      <div className="w-px h-6 bg-slate-600" />
+                      <div className="flex flex-col items-center">
+                        <span className="text-gray-400 text-xs">{isEnglishCopy ? 'Plan' : 'プラン'}</span>
+                        <span className="font-bold text-primary-400 text-xs">{rankLabel[profile.rank]}</span>
+                      </div>
                     </div>
-                  )}
-                </div>
-              </div>
-              <div className="flex justify-between">
-                <span>{isEnglishCopy ? 'Email' : 'メールアドレス'}</span>
-                <span className="font-semibold text-sm">{profile.email}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isEnglishCopy ? 'Membership' : '会員ランク'}</span>
-                <span className="font-semibold text-primary-400">{rankLabel[profile.rank]}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isEnglishCopy ? 'Level' : 'レベル'}</span>
-                <span className="font-semibold">Lv. {profile.level}</span>
-              </div>
-              <div className="flex justify-between">
-                <span>{isEnglishCopy ? 'XP' : '経験値'}</span>
-                <span className="font-semibold">{profile.xp.toLocaleString()}</span>
-              </div>
-              
-              {/* 称号選択ドロップダウン */}
-              <div className="space-y-1">
-                <label htmlFor="title" className="text-sm">{isEnglishCopy ? 'Title' : '称号'}</label>
-                <select
-                  id="title"
-                  className="w-full p-2 rounded bg-slate-700 text-sm"
-                  value={selectedTitle}
-                  onChange={async (e) => {
-                    const newTitle = e.target.value as Title;
-                    setSelectedTitle(newTitle);
-                    setTitleSaving(true);
-                    try {
-                      const success = await updateUserTitle(profile.id, newTitle);
-                      if (success) {
-                        await useAuthStore.getState().fetchProfile();
-                                             } else {
-                         alert(isEnglishCopy ? 'Failed to update title' : '称号の更新に失敗しました');
-                         setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
-                       }
-                     } catch (err) {
-                       alert((isEnglishCopy ? 'Failed to update title: ' : '称号の更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
-                       setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
-                    } finally {
-                      setTitleSaving(false);
-                    }
-                  }}
-                  disabled={titleSaving}
-                >
-                  {/* 魔法使い称号カテゴリ */}
-                  {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
-                    <optgroup label={isEnglishCopy ? 'Wizard (Basic) Titles' : '魔法使い（Basic）称号'}>
-                      {achievementTitles.wizardTitles.map((title) => {
-                        const conditionText = getTitleRequirement(title);
-                        return (
-                          <option key={title} value={title}>
-                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                  {achievementTitles.advancedTitles && achievementTitles.advancedTitles.length > 0 && (
-                    <optgroup label={isEnglishCopy ? 'Warrior (Advanced) Titles' : '戦士（Advanced）称号'}>
-                      {achievementTitles.advancedTitles.map((title) => {
-                        const conditionText = getTitleRequirement(title);
-                        return (
-                          <option key={title} value={title}>
-                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                  {achievementTitles.phrasesTitles && achievementTitles.phrasesTitles.length > 0 && (
-                    <optgroup label={isEnglishCopy ? 'Summoner (Phrases) Titles' : '召喚士（Phrases）称号'}>
-                      {achievementTitles.phrasesTitles.map((title) => {
-                        const conditionText = getTitleRequirement(title);
-                        return (
-                          <option key={title} value={title}>
-                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                  
-                  {/* レッスンクリア称号カテゴリ */}
-                  {achievementTitles.lessonTitles.length > 0 && (
-                    <optgroup label={isEnglishCopy ? 'Lesson Clear Titles' : 'レッスンクリア称号'}>
-                      {achievementTitles.lessonTitles.map((title) => {
-                        const conditionText = getTitleConditionText(title);
-                        return (
-                          <option key={title} value={title}>
-                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                  
-                  {/* ミッションクリア称号カテゴリ */}
-                  {achievementTitles.missionTitles.length > 0 && (
-                    <optgroup label={isEnglishCopy ? 'Mission Clear Titles' : 'ミッションクリア称号'}>
-                      {achievementTitles.missionTitles.map((title) => {
-                        const conditionText = getTitleConditionText(title);
-                        return (
-                          <option key={title} value={title}>
-                            {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                          </option>
-                        );
-                      })}
-                    </optgroup>
-                  )}
-                  
-                  {/* レベル称号カテゴリ */}
-                  <optgroup label={isEnglishCopy ? 'Level Titles' : 'レベル称号'}>
-                    {getAvailableTitles(profile.level).map((title) => {
-                      const conditionText = getTitleConditionText(title);
-                      return (
-                        <option key={title} value={title}>
-                          {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
-                        </option>
-                      );
-                    })}
-                  </optgroup>
-                </select>
-                {titleSaving && (
-                  <div className="text-xs text-gray-400">{isEnglishCopy ? 'Updating title...' : '称号を更新中...'}</div>
-                )}
-              </div>
-              <div className="flex flex-col items-center space-y-2">
-                <img src={profile.avatar_url || DEFAULT_AVATAR_URL} alt="avatar" className="w-24 h-24 rounded-full object-cover" />
-                <input id="avatar-input" type="file" accept="image/*" hidden onChange={async (e)=>{
-                  const file = e.target.files?.[0];
-                  if (!file) return;
-                  
-                  setAvatarUploading(true);
-                  try {
-                    // 画像を圧縮 (256px, 200KB, WebP)
-                    const compressedBlob = await compressProfileImage(file);
-                    const compressedFile = new File([compressedBlob], file.name, { type: 'image/webp' });
-                    
-                    const url = await uploadAvatar(compressedFile, profile.id || '');
-                    await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
-                    await useAuthStore.getState().fetchProfile();
-                  } catch (err){
-                    alert((isEnglishCopy ? 'Upload failed: ' : 'アップロード失敗: ')+(err instanceof Error ? err.message : String(err)));
-                  } finally {
-                    setAvatarUploading(false);
-                  }
-                }} />
-                <button 
-                  className="btn btn-xs btn-outline" 
-                  onClick={()=>document.getElementById('avatar-input')?.click()}
-                  disabled={avatarUploading}
-                >
-                  {avatarUploading ? (isEnglishCopy ? 'Compressing...' : '圧縮中...') : (isEnglishCopy ? 'Change Avatar' : 'アバター変更')}
-                </button>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="bio" className="text-sm">{isEnglishCopy ? 'Bio' : 'プロフィール文'}</label>
-                <textarea
-                  id="bio"
-                  className="w-full p-2 rounded bg-slate-700 text-sm"
-                  rows={4}
-                  maxLength={300}
-                  value={bio}
-                  onChange={e=>setBio(e.target.value)}
-                />
-                <button
-                  className="btn btn-xs btn-primary mt-1"
-                  disabled={saving}
-                  onClick={async ()=>{
-                    setSaving(true);
-                    try{
-                      await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
-                      await useAuthStore.getState().fetchProfile();
-                    }catch(err){
-                      alert((isEnglishCopy ? 'Save failed: ' : '保存失敗: ')+(err instanceof Error ? err.message : String(err)));
-                    }finally{ setSaving(false); }
-                  }}
-                >{isEnglishCopy ? 'Save' : '保存'}</button>
-              </div>
-              <div className="space-y-1">
-                <label htmlFor="twitter" className="text-sm">Twitter ID</label>
-                <div className="relative">
-                  <span className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-400">@</span>
-                  <input
-                    id="twitter"
-                    className="w-full p-2 pl-6 rounded bg-slate-700 text-sm"
-                    value={twitterHandle}
-                    onChange={e=>setTwitterHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
-                    maxLength={15}
-                    placeholder="yourhandle"
-                  />
-                </div>
-              </div>
-              
-              {/* メールアドレス変更 */}
-              <div className="space-y-1 border-t border-slate-600 pt-4 mt-4">
-                <label htmlFor="newEmail" className="text-sm font-medium">{isEnglishCopy ? 'Change Email' : 'メールアドレス変更'}</label>
-                <div className="space-y-2">
-                  <input
-                    id="newEmail"
-                    type="email"
-                    className="w-full p-2 rounded bg-slate-700 text-sm"
-                    value={newEmail}
-                    onChange={e=>setNewEmail(e.target.value)}
-                    placeholder={isEnglishCopy ? 'New email address' : '新しいメールアドレス'}
-                    disabled={emailUpdating}
-                  />
-                  <button
-                    className="btn btn-xs btn-primary"
-                    disabled={emailUpdating || !newEmail.trim() || newEmail.trim() === profile?.email}
-                    onClick={async ()=>{
-                      const email = newEmail.trim();
-                      
-                      // バリデーション
-                      if (!email) {
-                        setEmailMessage(isEnglishCopy ? 'Please enter an email address' : 'メールアドレスを入力してください');
-                        return;
-                      }
-                      
-                      if (email === profile?.email) {
-                        setEmailMessage(isEnglishCopy ? 'Same as current email' : '現在のメールアドレスと同じです');
-                        return;
-                      }
-                      
-                      // 簡単なメール形式チェック
-                      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                      if (!emailRegex.test(email)) {
-                        setEmailMessage(isEnglishCopy ? 'Please enter a valid email address' : '有効なメールアドレスを入力してください');
-                        return;
-                      }
-                      
-                      setEmailUpdating(true);
-                      setEmailMessage('');
-                      try{
-                        const result = await updateEmail(email);
-                        setEmailMessage(result.message);
-                        if (result.success) {
-                          setNewEmail('');
+                  </div>
+
+                  {/* Title Selection */}
+                  <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-2">
+                    <label htmlFor="title" className="text-sm font-medium">{isEnglishCopy ? 'Title' : '称号'}</label>
+                    <select
+                      id="title"
+                      className="w-full p-2 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                      value={selectedTitle}
+                      onChange={async (e) => {
+                        const newTitle = e.target.value as Title;
+                        setSelectedTitle(newTitle);
+                        setTitleSaving(true);
+                        try {
+                          const success = await updateUserTitle(profile.id, newTitle);
+                          if (success) {
+                            await useAuthStore.getState().fetchProfile();
+                          } else {
+                            pushToast(isEnglishCopy ? 'Failed to update title' : '称号の更新に失敗しました', 'error');
+                            setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
+                          }
+                        } catch (err) {
+                          pushToast((isEnglishCopy ? 'Failed to update title: ' : '称号の更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)), 'error');
+                          setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
+                        } finally {
+                          setTitleSaving(false);
                         }
-                      }catch(err){
-                        setEmailMessage((isEnglishCopy ? 'Failed to update email: ' : 'メールアドレスの更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
-                      }finally{ 
-                        setEmailUpdating(false); 
+                      }}
+                      disabled={titleSaving}
+                    >
+                      {achievementTitles.wizardTitles && achievementTitles.wizardTitles.length > 0 && (
+                        <optgroup label={isEnglishCopy ? 'Wizard (Basic) Titles' : '魔法使い（Basic）称号'}>
+                          {achievementTitles.wizardTitles.map((title) => {
+                            const conditionText = getTitleRequirement(title);
+                            return (
+                              <option key={title} value={title}>
+                                {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {achievementTitles.advancedTitles && achievementTitles.advancedTitles.length > 0 && (
+                        <optgroup label={isEnglishCopy ? 'Warrior (Advanced) Titles' : '戦士（Advanced）称号'}>
+                          {achievementTitles.advancedTitles.map((title) => {
+                            const conditionText = getTitleRequirement(title);
+                            return (
+                              <option key={title} value={title}>
+                                {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {achievementTitles.phrasesTitles && achievementTitles.phrasesTitles.length > 0 && (
+                        <optgroup label={isEnglishCopy ? 'Summoner (Phrases) Titles' : '召喚士（Phrases）称号'}>
+                          {achievementTitles.phrasesTitles.map((title) => {
+                            const conditionText = getTitleRequirement(title);
+                            return (
+                              <option key={title} value={title}>
+                                {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {achievementTitles.lessonTitles.length > 0 && (
+                        <optgroup label={isEnglishCopy ? 'Lesson Clear Titles' : 'レッスンクリア称号'}>
+                          {achievementTitles.lessonTitles.map((title) => {
+                            const conditionText = getTitleConditionText(title);
+                            return (
+                              <option key={title} value={title}>
+                                {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      {achievementTitles.missionTitles.length > 0 && (
+                        <optgroup label={isEnglishCopy ? 'Mission Clear Titles' : 'ミッションクリア称号'}>
+                          {achievementTitles.missionTitles.map((title) => {
+                            const conditionText = getTitleConditionText(title);
+                            return (
+                              <option key={title} value={title}>
+                                {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                              </option>
+                            );
+                          })}
+                        </optgroup>
+                      )}
+                      <optgroup label={isEnglishCopy ? 'Level Titles' : 'レベル称号'}>
+                        {getAvailableTitles(profile.level).map((title) => {
+                          const conditionText = getTitleConditionText(title);
+                          return (
+                            <option key={title} value={title}>
+                              {translateTitle(title, isEnglishCopy)} - {translateTitleRequirement(conditionText, isEnglishCopy)}
+                            </option>
+                          );
+                        })}
+                      </optgroup>
+                    </select>
+                    {titleSaving && (
+                      <div className="text-xs text-gray-400">{isEnglishCopy ? 'Updating title...' : '称号を更新中...'}</div>
+                    )}
+                  </div>
+
+                  {/* Bio & Twitter */}
+                  <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-4">
+                    <div className="space-y-2">
+                      <label htmlFor="bio" className="text-sm font-medium">{isEnglishCopy ? 'Bio' : 'プロフィール文'}</label>
+                      <textarea
+                        id="bio"
+                        className="w-full p-2 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400 resize-none"
+                        rows={3}
+                        maxLength={300}
+                        value={bio}
+                        onChange={e => setBio(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="twitter" className="text-sm font-medium">Twitter ID</label>
+                      <div className="relative">
+                        <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
+                        <input
+                          id="twitter"
+                          className="w-full p-2 pl-7 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          value={twitterHandle}
+                          onChange={e => setTwitterHandle(e.target.value.replace(/[^a-zA-Z0-9_]/g, ''))}
+                          maxLength={15}
+                          placeholder="yourhandle"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      className="w-full py-2 rounded-lg bg-primary-500 hover:bg-primary-400 text-sm font-medium text-white transition-colors disabled:opacity-50"
+                      disabled={saving}
+                      onClick={async () => {
+                        setSaving(true);
+                        try {
+                          await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
+                          await useAuthStore.getState().fetchProfile();
+                          pushToast(isEnglishCopy ? 'Profile saved' : 'プロフィールを保存しました', 'success');
+                        } catch (err) {
+                          pushToast((isEnglishCopy ? 'Save failed: ' : '保存失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
+                        } finally { setSaving(false); }
+                      }}
+                    >
+                      {saving ? '...' : (isEnglishCopy ? 'Save Profile' : 'プロフィールを保存')}
+                    </button>
+                  </div>
+
+                  {/* Account Info */}
+                  <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-3">
+                    <h4 className="text-sm font-medium text-gray-300">{isEnglishCopy ? 'Account Info' : 'アカウント情報'}</h4>
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-gray-400">{isEnglishCopy ? 'Email' : 'メールアドレス'}</span>
+                      <span className="font-medium text-xs truncate ml-4 max-w-[200px]">{profile.email}</span>
+                    </div>
+
+                    {/* Email Change */}
+                    <div className="space-y-2 pt-2 border-t border-slate-700/50">
+                      <label htmlFor="newEmail" className="text-xs text-gray-400">{isEnglishCopy ? 'Change Email' : 'メールアドレス変更'}</label>
+                      <div className="flex gap-2">
+                        <input
+                          id="newEmail"
+                          type="email"
+                          className="flex-1 p-2 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          value={newEmail}
+                          onChange={e => setNewEmail(e.target.value)}
+                          placeholder={isEnglishCopy ? 'New email address' : '新しいメールアドレス'}
+                          disabled={emailUpdating}
+                        />
+                        <button
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
+                          disabled={emailUpdating || !newEmail.trim() || newEmail.trim() === profile?.email}
+                          onClick={async () => {
+                            const email = newEmail.trim();
+                            if (!email) {
+                              setEmailMessage(isEnglishCopy ? 'Please enter an email address' : 'メールアドレスを入力してください');
+                              return;
+                            }
+                            if (email === profile?.email) {
+                              setEmailMessage(isEnglishCopy ? 'Same as current email' : '現在のメールアドレスと同じです');
+                              return;
+                            }
+                            const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                            if (!emailRegex.test(email)) {
+                              setEmailMessage(isEnglishCopy ? 'Please enter a valid email address' : '有効なメールアドレスを入力してください');
+                              return;
+                            }
+                            setEmailUpdating(true);
+                            setEmailMessage('');
+                            try {
+                              const result = await updateEmail(email);
+                              setEmailMessage(result.message);
+                              if (result.success) setNewEmail('');
+                            } catch (err) {
+                              setEmailMessage((isEnglishCopy ? 'Failed to update email: ' : 'メールアドレスの更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
+                            } finally {
+                              setEmailUpdating(false);
+                            }
+                          }}
+                        >
+                          {emailUpdating ? '...' : (isEnglishCopy ? 'Send' : '送信')}
+                        </button>
+                      </div>
+                      {emailMessage && (
+                        <div className={`text-xs p-2 rounded-lg ${
+                          (emailMessage.includes('送信しました') || emailMessage.includes('sent')) ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
+                        }`}>
+                          {emailMessage}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Avatar Select Modal */}
+                  <AvatarSelectModal
+                    isOpen={avatarModalOpen}
+                    currentAvatarUrl={profile.avatar_url}
+                    isEnglishCopy={isEnglishCopy}
+                    uploading={avatarUploading}
+                    onClose={() => setAvatarModalOpen(false)}
+                    onSelect={async (avatarPath) => {
+                      setAvatarModalOpen(false);
+                      setAvatarUploading(true);
+                      try {
+                        await getSupabaseClient().from('profiles').update({ avatar_url: avatarPath }).eq('id', profile.id);
+                        await useAuthStore.getState().fetchProfile();
+                        pushToast(isEnglishCopy ? 'Avatar updated' : 'アバターを更新しました', 'success');
+                      } catch (err) {
+                        pushToast((isEnglishCopy ? 'Failed to update avatar: ' : 'アバター更新失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
+                      } finally {
+                        setAvatarUploading(false);
                       }
                     }}
-                  >
-                    {emailUpdating ? (isEnglishCopy ? 'Sending...' : '送信中...') : (isEnglishCopy ? 'Send Confirmation' : '確認メール送信')}
-                  </button>
-                  {emailMessage && (
-                    <div className={`text-xs p-2 rounded ${
-                      (emailMessage.includes('送信しました') || emailMessage.includes('sent')) ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
-                    }`}>
-                      {emailMessage}
-                    </div>
-                  )}
-                </div>
-              </div>
+                    onUpload={async (file) => {
+                      setAvatarModalOpen(false);
+                      setAvatarUploading(true);
+                      try {
+                        const compressedBlob = await compressProfileImage(file);
+                        const compressedFile = new File([compressedBlob], file.name, { type: 'image/webp' });
+                        const url = await uploadAvatar(compressedFile, profile.id || '');
+                        await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
+                        await useAuthStore.getState().fetchProfile();
+                        pushToast(isEnglishCopy ? 'Avatar uploaded' : 'アバターをアップロードしました', 'success');
+                      } catch (err) {
+                        pushToast((isEnglishCopy ? 'Upload failed: ' : 'アップロード失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
+                      } finally {
+                        setAvatarUploading(false);
+                      }
+                    }}
+                  />
                 </div>
               )}
 
