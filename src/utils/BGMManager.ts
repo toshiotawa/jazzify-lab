@@ -82,6 +82,10 @@ class BGMManager {
     return musicTime - this.loopBegin
   }
 
+  // HTMLAudioシーク補正: audio.currentTime 更新の遅延を performance.now() で補間
+  private htmlSeekTarget: number | null = null
+  private htmlSeekPerfStart = 0
+
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
   // セクション終了時コールバック（timing_combining用）
@@ -177,10 +181,12 @@ class BGMManager {
     if (this.audio) {
       this.audio.currentTime = startOffset
       if (this.audio.paused) void this.audio.play().catch(() => {})
+      this.htmlSeekTarget = startOffset
+      this.htmlSeekPerfStart = performance.now()
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
       // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:HTML',message:'restartSameSection complete',data:{preTime:_preTime,startOffset,skipCountIn,backend:'html'},timestamp:Date.now()})}).catch(()=>{});
+      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:HTML',message:'restartSameSection complete',data:{preTime:_preTime,startOffset,skipCountIn,htmlSeekTarget:startOffset,backend:'html'},timestamp:Date.now()})}).catch(()=>{});
       // #endregion
       return true
     }
@@ -574,6 +580,7 @@ class BGMManager {
     this.isLoadingAudio = false
     this.loopScheduled = false
     this.noLoop = false
+    this.htmlSeekTarget = null
     this.playGeneration++
     this.disposePendingChain()
     if (this.sectionEndCheckId !== null) {
@@ -696,6 +703,16 @@ class BGMManager {
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
       if (this.audio) {
         const musicTime = this.audio.currentTime
+        // シーク中は audio.currentTime が旧値のままの場合があるため performance.now() で補間
+        if (this.htmlSeekTarget !== null) {
+          const elapsed = (performance.now() - this.htmlSeekPerfStart) / 1000
+          const expected = this.htmlSeekTarget + elapsed
+          if (Math.abs(musicTime - expected) < 0.3) {
+            this.htmlSeekTarget = null
+          } else {
+            return this.normalizeMusicTime(expected)
+          }
+        }
         return this.normalizeMusicTime(musicTime)
       }
     }

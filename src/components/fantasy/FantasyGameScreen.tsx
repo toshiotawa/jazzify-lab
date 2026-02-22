@@ -1214,6 +1214,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 全ノーツの一瞬の点滅を根本排除する。
     let lastDisplayNorm = -1;
     let displayWrapPending = false;
+    let wrapAtLoopCycle = -1;
     // #region agent log
     let _prevMusicTime = -999;
     let _wrapLogCooldown = 0;
@@ -1363,18 +1364,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // normalizedTime が大きく巻き戻ったらラップが発生した
       if (lastDisplayNorm >= 0 && lastDisplayNorm - normalizedTime > loopDuration * 0.5) {
         displayWrapPending = true;
+        wrapAtLoopCycle = taikoLoopCycleRef.current ?? 0;
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrap',message:'displayWrapPending SET',data:{lastDisplayNorm,normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,prevMusicTime:_prevMusicTime,loopDuration},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrap',message:'displayWrapPending SET',data:{lastDisplayNorm,normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,prevMusicTime:_prevMusicTime,loopDuration},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
         _wrapLogCooldown = 10;
         // #endregion
       }
       lastDisplayNorm = normalizedTime;
       
       // state が追いついたらフラグをクリア
-      // （stateNoteIndex が小さい = ループ先頭に戻っている、かつ awaitingLoop でない）
-      if (displayWrapPending && stateNoteIndex <= 1 && !stateAwaitingLoop) {
+      // エンジン側の justLooped 処理で taikoLoopCycle がインクリメントされた = ステートリセット完了
+      const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
+      if (displayWrapPending && currentLoopCycle > wrapAtLoopCycle) {
         // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrapClear',message:'displayWrapPending CLEAR',data:{normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,framesSinceWrap:10-_wrapLogCooldown},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrapClear',message:'displayWrapPending CLEAR',data:{normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,currentLoopCycle,framesSinceWrap:10-_wrapLogCooldown},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
         // #endregion
         displayWrapPending = false;
       }
