@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { useForm } from 'react-hook-form';
 import {
   Announcement,
@@ -34,7 +34,8 @@ const AnnouncementManager: React.FC = () => {
     handleSubmit, 
     reset, 
     formState: { errors },
-    setValue 
+    setValue,
+    watch
   } = useForm<CreateAnnouncementData>({
     defaultValues: {
       priority: 1,
@@ -44,7 +45,11 @@ const AnnouncementManager: React.FC = () => {
   });
   
   const toast = useToast();
-  const contentRef = useRef<HTMLTextAreaElement>(null);
+  const contentRef = useRef<HTMLTextAreaElement | null>(null);
+  const { ref: contentRegisterRef, ...contentRegisterRest } = register('content', {
+    required: '内容は必須です',
+    maxLength: { value: 1000, message: '1000文字以内' }
+  });
 
   const insertLink = () => {
     const url = prompt('リンクURLを入力してください');
@@ -213,11 +218,11 @@ const AnnouncementManager: React.FC = () => {
               <label className="block text-sm font-medium mb-1">内容 *</label>
               <div className="relative">
                 <textarea
-                  {...register('content', { 
-                    required: '内容は必須です',
-                    maxLength: { value: 1000, message: '1000文字以内' }
-                  })}
-                  ref={contentRef}
+                  {...contentRegisterRest}
+                  ref={(e) => {
+                    contentRegisterRef(e);
+                    contentRef.current = e;
+                  }}
                   className="textarea textarea-bordered w-full text-white pr-12"
                   rows={4}
                   placeholder="お知らせの内容を入力（Markdown記法でリンクが使用できます）"
@@ -278,7 +283,6 @@ const AnnouncementManager: React.FC = () => {
                   })}
                   type="number"
                   min="1"
-                  defaultValue={1}
                   className="input input-bordered w-full text-white"
                   placeholder="1"
                 />
@@ -291,7 +295,6 @@ const AnnouncementManager: React.FC = () => {
                     {...register('is_active')}
                     type="checkbox"
                     className="checkbox"
-                    defaultChecked
                   />
                   <span>公開する</span>
                 </label>
