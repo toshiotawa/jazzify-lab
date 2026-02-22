@@ -1445,6 +1445,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'rendering already-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
             // #endregion
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-2',hypothesisId:'H6_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            continue;
           }
 
           // 次ループの仮想的なヒット時間を計算
