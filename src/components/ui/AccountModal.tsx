@@ -319,7 +319,7 @@ const AccountPage: React.FC = () => {
                             setNicknameSaving(true);
                             try {
                               await getSupabaseClient().from('profiles').update({ nickname: trimmed }).eq('id', profile.id);
-                              await useAuthStore.getState().fetchProfile();
+                              await useAuthStore.getState().fetchProfile({ forceRefresh: true });
                               pushToast(isEnglishCopy ? 'Nickname updated' : 'ニックネームを更新しました', 'success');
                             } catch (err) {
                               pushToast(
@@ -383,7 +383,7 @@ const AccountPage: React.FC = () => {
                         try {
                           const success = await updateUserTitle(profile.id, newTitle);
                           if (success) {
-                            await useAuthStore.getState().fetchProfile();
+                            await useAuthStore.getState().fetchProfile({ forceRefresh: true });
                           } else {
                             pushToast(isEnglishCopy ? 'Failed to update title' : '称号の更新に失敗しました', 'error');
                             setSelectedTitle((profile.selected_title as Title) || DEFAULT_TITLE);
@@ -507,7 +507,7 @@ const AccountPage: React.FC = () => {
                         setSaving(true);
                         try {
                           await getSupabaseClient().from('profiles').update({ bio, twitter_handle: twitterHandle ? `@${twitterHandle}` : null }).eq('id', profile.id);
-                          await useAuthStore.getState().fetchProfile();
+                          await useAuthStore.getState().fetchProfile({ forceRefresh: true });
                           pushToast(isEnglishCopy ? 'Profile saved' : 'プロフィールを保存しました', 'success');
                         } catch (err) {
                           pushToast((isEnglishCopy ? 'Save failed: ' : '保存失敗: ') + (err instanceof Error ? err.message : String(err)), 'error');
@@ -596,7 +596,7 @@ const AccountPage: React.FC = () => {
                       setAvatarModalOpen(false);
                       try {
                         await getSupabaseClient().from('profiles').update({ avatar_url: avatarPath }).eq('id', profile.id);
-                        await useAuthStore.getState().fetchProfile();
+                        await useAuthStore.getState().fetchProfile({ forceRefresh: true });
                         pushToast(isEnglishCopy ? 'Avatar updated' : 'アバターを更新しました', 'success');
                       } catch (err) {
                         setOptimisticAvatarUrl(prevUrl || null);
@@ -613,7 +613,7 @@ const AccountPage: React.FC = () => {
                         const compressedFile = new File([compressedBlob], file.name, { type: 'image/webp' });
                         const url = await uploadAvatar(compressedFile, profile.id || '');
                         await getSupabaseClient().from('profiles').update({ avatar_url: url }).eq('id', profile.id);
-                        await useAuthStore.getState().fetchProfile();
+                        await useAuthStore.getState().fetchProfile({ forceRefresh: true });
                         pushToast(isEnglishCopy ? 'Avatar uploaded' : 'アバターをアップロードしました', 'success');
                       } catch (err) {
                         setOptimisticAvatarUrl(null);
