@@ -291,6 +291,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         // timing_combining 用
         combinedStageIds: Array.isArray((stage as any).combined_stage_ids) ? (stage as any).combined_stage_ids : undefined,
         combinedSectionRepeats: Array.isArray((stage as any).combined_section_repeats) ? (stage as any).combined_section_repeats : undefined,
+        combinedSectionMeasureLimits: Array.isArray((stage as any).combined_section_measure_limits) ? (stage as any).combined_section_measure_limits : undefined,
         isAuftakt: !!(stage as any).is_auftakt,
       }));
       

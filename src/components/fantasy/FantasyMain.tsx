@@ -301,6 +301,7 @@ const FantasyMain: React.FC = () => {
             musicXml: (stage as any).music_xml,
             combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
             combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
+            combinedSectionMeasureLimits: (stage as any).combined_section_measure_limits ?? undefined,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -352,6 +353,7 @@ const FantasyMain: React.FC = () => {
           musicXml: (stage as any).music_xml,
           combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
           combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
+          combinedSectionMeasureLimits: (stage as any).combined_section_measure_limits ?? undefined,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -717,6 +719,7 @@ const FantasyMain: React.FC = () => {
         musicXml: (nextStageData as any).music_xml,
         combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
         combinedSectionRepeats: (nextStageData as any).combined_section_repeats ?? undefined,
+        combinedSectionMeasureLimits: (nextStageData as any).combined_section_measure_limits ?? undefined,
       };
 
       setGameResult(null);

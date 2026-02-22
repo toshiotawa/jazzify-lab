@@ -81,6 +81,8 @@ interface StageFormValues {
   combined_stage_ids: string[];
   // timing_combining 用: 各セクションのリピート回数
   combined_section_repeats: number[];
+  // timing_combining 用: 各セクションの小節数制限
+  combined_section_measure_limits: (number | null)[];
   // アウフタクト
   is_auftakt: boolean;
 }
@@ -119,6 +121,7 @@ const defaultValues: StageFormValues = {
   // timing_combining 用
   combined_stage_ids: [],
   combined_section_repeats: [],
+  combined_section_measure_limits: [],
   // アウフタクト
   is_auftakt: false,
 };
@@ -359,6 +362,7 @@ const FantasyStageManager: React.FC = () => {
         is_auftakt: !!(s as any).is_auftakt,
         combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
         combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
+        combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
       };
       reset(v);
     } catch (e: any) {
@@ -405,6 +409,7 @@ const FantasyStageManager: React.FC = () => {
       // timing_combining 用
       combined_stage_ids: v.mode === 'timing_combining' ? v.combined_stage_ids : null,
       combined_section_repeats: v.mode === 'timing_combining' ? v.combined_section_repeats : null,
+      combined_section_measure_limits: v.mode === 'timing_combining' ? v.combined_section_measure_limits : null,
       // アウフタクト
       is_auftakt: v.is_auftakt,
     };
@@ -470,6 +475,7 @@ const FantasyStageManager: React.FC = () => {
       production_start_key: (s as DbFantasyStage & { production_start_key?: number }).production_start_key ?? 0,
       combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
       combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
+      combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
       is_auftakt: !!(s as any).is_auftakt,
     };
   }, []);
@@ -1297,6 +1303,8 @@ const FantasyStageManager: React.FC = () => {
                     const foundStage = stages.find(s => s.id === stageId);
                     const repeats = watch('combined_section_repeats') || [];
                     const repeatCount = repeats[idx] ?? 1;
+                    const limits = watch('combined_section_measure_limits') || [];
+                    const measureLimit = limits[idx];
                     return (
                       <div key={`${stageId}_${idx}`} className="flex items-center gap-2 bg-gray-800/50 rounded px-3 py-2">
                         <span className="text-sm text-gray-300 w-8">{idx + 1}.</span>
@@ -1321,6 +1329,24 @@ const FantasyStageManager: React.FC = () => {
                           />
                           <span>回</span>
                         </label>
+                        <label className="flex items-center gap-1 text-xs text-gray-400 shrink-0" title="小節数制限（空欄=全小節）">
+                          <span>小節</span>
+                          <input
+                            type="number"
+                            min={1}
+                            max={999}
+                            placeholder="全"
+                            className="input input-bordered input-xs w-14 text-center"
+                            value={measureLimit ?? ''}
+                            onChange={(e) => {
+                              const lims = [...(watch('combined_section_measure_limits') || [])];
+                              while (lims.length <= idx) lims.push(null);
+                              const raw = e.target.value.trim();
+                              lims[idx] = raw === '' ? null : Math.max(1, parseInt(raw) || 1);
+                              setValue('combined_section_measure_limits', lims);
+                            }}
+                          />
+                        </label>
                         <button
                           type="button"
                           className="btn btn-xs btn-ghost"
@@ -1328,13 +1354,17 @@ const FantasyStageManager: React.FC = () => {
                           onClick={() => {
                             const ids = [...(watch('combined_stage_ids') || [])];
                             const reps = [...(watch('combined_section_repeats') || [])];
+                            const lims = [...(watch('combined_section_measure_limits') || [])];
                             while (reps.length < ids.length) reps.push(1);
+                            while (lims.length < ids.length) lims.push(null);
                             if (idx > 0) {
                               [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
                               [reps[idx - 1], reps[idx]] = [reps[idx], reps[idx - 1]];
+                              [lims[idx - 1], lims[idx]] = [lims[idx], lims[idx - 1]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
+                            setValue('combined_section_measure_limits', lims);
                           }}
                         >▲</button>
                         <button
@@ -1344,13 +1374,17 @@ const FantasyStageManager: React.FC = () => {
                           onClick={() => {
                             const ids = [...(watch('combined_stage_ids') || [])];
                             const reps = [...(watch('combined_section_repeats') || [])];
+                            const lims = [...(watch('combined_section_measure_limits') || [])];
                             while (reps.length < ids.length) reps.push(1);
+                            while (lims.length < ids.length) lims.push(null);
                             if (idx < ids.length - 1) {
                               [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
                               [reps[idx], reps[idx + 1]] = [reps[idx + 1], reps[idx]];
+                              [lims[idx], lims[idx + 1]] = [lims[idx + 1], lims[idx]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
+                            setValue('combined_section_measure_limits', lims);
                           }}
                         >▼</button>
                         <button
@@ -1359,9 +1393,12 @@ const FantasyStageManager: React.FC = () => {
                           onClick={() => {
                             const ids = (watch('combined_stage_ids') || []).filter((_: string, i: number) => i !== idx);
                             const reps = [...(watch('combined_section_repeats') || [])];
+                            const lims = [...(watch('combined_section_measure_limits') || [])];
                             reps.splice(idx, 1);
+                            lims.splice(idx, 1);
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
+                            setValue('combined_section_measure_limits', lims);
                           }}
                         >削除</button>
                       </div>
@@ -1376,8 +1413,10 @@ const FantasyStageManager: React.FC = () => {
                         if (!selectedId) return;
                         const ids = [...(watch('combined_stage_ids') || []), selectedId];
                         const reps = [...(watch('combined_section_repeats') || []), 1];
+                        const lims = [...(watch('combined_section_measure_limits') || []), null];
                         setValue('combined_stage_ids', ids);
                         setValue('combined_section_repeats', reps);
+                        setValue('combined_section_measure_limits', lims);
                       }}
                     >
                       <option value="">-- ステージを追加 --</option>

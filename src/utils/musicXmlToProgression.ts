@@ -354,3 +354,29 @@ function groupSimultaneousNotesInResult(items: ChordProgressionDataItem[]): Chor
   return grouped;
 }
 
+/**
+ * MusicXML を指定小節数までに切り詰める
+ * 元の曲が N 小節だったかのように再インポートした状態を再現する
+ * @param xmlText MusicXML文字列
+ * @param maxMeasure 残す最大小節番号（この番号の小節まで含む）
+ * @returns 切り詰められた MusicXML 文字列
+ */
+export function truncateMusicXmlByMeasure(xmlText: string, maxMeasure: number): string {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  
+  const parts = doc.querySelectorAll('part');
+  parts.forEach(part => {
+    const measures = Array.from(part.querySelectorAll('measure'));
+    for (const m of measures) {
+      const num = parseInt(m.getAttribute('number') || '0', 10);
+      if (num > maxMeasure) {
+        m.parentNode?.removeChild(m);
+      }
+    }
+  });
+  
+  const serializer = new XMLSerializer();
+  return serializer.serializeToString(doc);
+}
+

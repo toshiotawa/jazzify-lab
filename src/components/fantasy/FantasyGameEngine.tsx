@@ -8,7 +8,7 @@ import { devLog } from '@/utils/logger';
 import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
 import { useEnemyStore } from '@/stores/enemyStore';
-import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
+import { convertMusicXmlToProgressionData, truncateMusicXmlByMeasure } from '@/utils/musicXmlToProgression';
 import { MONSTERS, getStageMonsterIds } from '@/data/monsters';
 import { 
   TaikoNote, 
@@ -182,6 +182,8 @@ export interface FantasyStage {
   combinedStages?: FantasyStage[];
   // timing_combining 用: 各セクションのリピート回数（例: [1, 2, 1]）
   combinedSectionRepeats?: number[];
+  // timing_combining 用: 各セクションの小節数制限（null=制限なし, 例: [4, null, 8]）
+  combinedSectionMeasureLimits?: (number | null)[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   isAuftakt?: boolean;
 }
@@ -1615,16 +1617,22 @@ export const useFantasyGameEngine = ({
           if (stage.combinedStages && stage.combinedStages.length > 0) {
             let globalNoteIndex = 0;
             const repeats = stage.combinedSectionRepeats;
+            const measureLimits = stage.combinedSectionMeasureLimits;
             
             for (let stageIdx = 0; stageIdx < stage.combinedStages.length; stageIdx++) {
               const childStage = stage.combinedStages[stageIdx];
               const repeatCount = (repeats && repeats[stageIdx] >= 1) ? repeats[stageIdx] : 1;
               const childBpm = childStage.bpm || 120;
               const childTimeSig = childStage.timeSignature || 4;
-              const childMeasureCount = childStage.measureCount || 8;
+              const originalMeasureCount = childStage.measureCount || 8;
               const childCountIn = childStage.countInMeasures || 0;
               const secPerBeat = 60 / childBpm;
               const secPerMeasure = secPerBeat * childTimeSig;
+              
+              const measureLimit = (measureLimits && measureLimits[stageIdx] != null && measureLimits[stageIdx]! > 0)
+                ? Math.min(measureLimits[stageIdx]!, originalMeasureCount)
+                : null;
+              const effectiveMeasureCount = measureLimit ?? originalMeasureCount;
               
               let progressionData: ChordProgressionDataItem[] | null = null;
               if (childStage.musicXml) {
@@ -1642,18 +1650,31 @@ export const useFantasyGameEngine = ({
               
               for (let rep = 0; rep < repeatCount; rep++) {
                 const isFirstPlay = rep === 0;
+                const isAuftakt = isFirstPlay && !!childStage.isAuftakt;
                 const countIn = isFirstPlay ? childCountIn : 0;
-                const sectionDuration = (countIn + childMeasureCount) * secPerMeasure;
+                const sectionDuration = (countIn + effectiveMeasureCount) * secPerMeasure;
+                
+                let filteredProgression = progressionData;
+                if (measureLimit != null && filteredProgression) {
+                  const maxBar = (isAuftakt ? childCountIn : 0) + measureLimit;
+                  filteredProgression = filteredProgression.filter(item => item.bar <= maxBar);
+                }
+                
+                let sectionMusicXml = childStage.musicXml;
+                if (measureLimit != null && sectionMusicXml) {
+                  const maxBar = (isAuftakt ? childCountIn : 0) + measureLimit;
+                  sectionMusicXml = truncateMusicXmlByMeasure(sectionMusicXml, maxBar);
+                }
                 
                 let sectionNotes: TaikoNote[] = [];
-                if (progressionData) {
+                if (filteredProgression) {
                   sectionNotes = parseChordProgressionData(
-                    progressionData,
+                    filteredProgression,
                     childBpm,
                     childTimeSig,
                     (spec) => getChordDefinition(spec, displayOpts),
                     countIn,
-                    isFirstPlay && !!childStage.isAuftakt
+                    isAuftakt
                   );
                 }
                 
@@ -1662,11 +1683,11 @@ export const useFantasyGameEngine = ({
                   stageName: childStage.name,
                   bpm: childBpm,
                   timeSignature: childTimeSig,
-                  measureCount: childMeasureCount,
+                  measureCount: effectiveMeasureCount,
                   countInMeasures: countIn,
                   audioCountInMeasures: childCountIn,
                   bgmUrl: childStage.bgmUrl,
-                  musicXml: childStage.musicXml,
+                  musicXml: sectionMusicXml,
                   notes: sectionNotes,
                   globalTimeOffset: 0,
                   globalNoteStartIndex: globalNoteIndex,

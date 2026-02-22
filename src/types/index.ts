@@ -577,6 +577,8 @@ export interface FantasyStage {
   combined_stage_ids?: string[];
   // timing_combining モード用: 各セクションのリピート回数（例: [1, 2, 1]）
   combined_section_repeats?: number[];
+  // timing_combining モード用: 各セクションの小節数制限（null=制限なし, 例: [4, null, 8]）
+  combined_section_measure_limits?: (number | null)[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   is_auftakt?: boolean;
 }
