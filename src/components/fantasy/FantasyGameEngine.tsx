@@ -2216,7 +2216,7 @@ export const useFantasyGameEngine = ({
               const firstNextNote = nextNotes[0];
               const secondNextNote = nextNotes.length > 1 ? nextNotes[1] : firstNextNote;
               
-              // BGM即時切り替え: 事前準備済みチェーンで同期的に切り替え（ゼロラグ）
+              // BGM即時切り替え
               const nextBgmUrl = nextSection.bgmUrl;
               if (nextBgmUrl) {
                 const sectionPitchShift = prevState.transposeSettings
@@ -2226,9 +2226,16 @@ export const useFantasyGameEngine = ({
                       prevState.transposeSettings.repeatKeyChange
                     )
                   : prevState.currentTransposeOffset;
+                const skipCI = nextSection.countInMeasures !== nextSection.audioCountInMeasures;
                 
-                if (!bgmManager.switchToPreparedSection()) {
-                  const skipCI = nextSection.countInMeasures !== nextSection.audioCountInMeasures;
+                // 同一BGM URL: 既存チェーンを再利用してギャップレス遷移
+                const sameUrl = nextBgmUrl === bgmManager.getCurrentUrl();
+                if (sameUrl && bgmManager.restartSameSection(
+                  nextSection.bpm, nextSection.timeSignature,
+                  nextSection.measureCount, nextSection.audioCountInMeasures, skipCI
+                )) {
+                  // 成功 — 事前準備チェーンは不要なので破棄
+                } else if (!bgmManager.switchToPreparedSection()) {
                   bgmManager.play(
                     nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
                     nextSection.measureCount, nextSection.audioCountInMeasures,
@@ -2308,11 +2315,17 @@ export const useFantasyGameEngine = ({
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
                   const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
-                  bgmManager.play(
-                    firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                    firstSection.measureCount, firstSection.audioCountInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, firstSkipCI
-                  );
+                  const sameUrl = firstSection.bgmUrl === bgmManager.getCurrentUrl();
+                  if (!(sameUrl && bgmManager.restartSameSection(
+                    firstSection.bpm, firstSection.timeSignature,
+                    firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
+                  ))) {
+                    bgmManager.play(
+                      firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                      firstSection.measureCount, firstSection.audioCountInMeasures,
+                      0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, firstSkipCI
+                    );
+                  }
                 }
                 // リスタート後、次セクション用チェーンを事前構築
                 if (prevState.combinedSections.length > 1) {
@@ -2367,11 +2380,17 @@ export const useFantasyGameEngine = ({
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
                 const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
-                bgmManager.play(
-                  firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                  firstSection.measureCount, firstSection.audioCountInMeasures,
-                  0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, firstSkipCI
-                );
+                const sameUrl = firstSection.bgmUrl === bgmManager.getCurrentUrl();
+                if (!(sameUrl && bgmManager.restartSameSection(
+                  firstSection.bpm, firstSection.timeSignature,
+                  firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
+                ))) {
+                  bgmManager.play(
+                    firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                    firstSection.measureCount, firstSection.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, firstSkipCI
+                  );
+                }
               }
               // リスタート後、次セクション用チェーンを事前構築
               if (prevState.combinedSections.length > 1) {

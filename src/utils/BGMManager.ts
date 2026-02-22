@@ -41,6 +41,7 @@ class BGMManager {
   private playInitiatedAt = 0 // play()が呼ばれたperformance.now()
   private isLoadingAudio = false // 非同期BGMロード中フラグ
   private audioStartOffset = 0 // カウントインスキップ時の再生開始オフセット（秒）
+  private currentUrl = '' // 現在再生中のBGM URL
 
   // デコード済みバッファキャッシュ（セクション切り替え高速化用）
   private preloadedBuffers: Map<string, any> = new Map() // url -> ToneAudioBuffer
@@ -106,6 +107,70 @@ class BGMManager {
     return musicTime >= sectionDuration - 0.01
   }
 
+  /**
+   * 同一BGM URLのセクションへギャップレスで再スタートする。
+   * 既存のオーディオチェーン（Gain/PitchShift）を維持し、
+   * ソースノードの再生位置だけを切り替えるため遷移ラグが極小。
+   * 対応していない場合はfalseを返す（呼び出し側でplay()にフォールバック）。
+   */
+  restartSameSection(
+    bpm: number,
+    timeSig: number,
+    measureCount: number,
+    countIn: number,
+    skipCountIn = false
+  ): boolean {
+    if (!this.isPlaying) return false
+
+    const countInMeasures = Math.max(0, Math.floor(countIn || 0))
+    const secPerBeat = 60 / bpm
+    const secPerMeas = secPerBeat * timeSig
+    const loopBegin = countInMeasures * secPerMeas
+    const startOffset = skipCountIn ? loopBegin : 0
+
+    this.bpm = bpm
+    this.timeSignature = timeSig
+    this.measureCount = measureCount
+    this.countInMeasures = countInMeasures
+    this.loopBegin = loopBegin
+    this.loopEnd = (countInMeasures + measureCount) * secPerMeas
+    this.toneLoopStart = this.loopBegin
+    this.toneLoopEnd = this.loopEnd
+    this.audioStartOffset = startOffset
+
+    if (this.useTonePitchShift && this.tonePlayer) {
+      try {
+        const Tone = (window as any).Tone
+        this.tonePlayer.stop()
+        const now = Tone?.now?.() ?? 0
+        this.tonePlayer.loopStart = this.loopBegin
+        this.tonePlayer.loopEnd = Math.min(this.loopEnd, this.tonePlayer.buffer?.duration ?? Infinity)
+        this.tonePlayer.start(now, startOffset)
+        this.waStartAt = now + this.pitchShiftLatency - startOffset / this.playbackRate
+        this.startTime = performance.now()
+        this.playInitiatedAt = performance.now()
+        return true
+      } catch { return false }
+    }
+
+    if (this.waContext && this.waBuffer) {
+      this._startWaSourceAt(startOffset)
+      this.startTime = performance.now()
+      this.playInitiatedAt = performance.now()
+      return true
+    }
+
+    if (this.audio) {
+      this.audio.currentTime = startOffset
+      if (this.audio.paused) void this.audio.play().catch(() => {})
+      this.startTime = performance.now()
+      this.playInitiatedAt = performance.now()
+      return true
+    }
+
+    return false
+  }
+
   play(
     url: string,
     bpm: number,
@@ -121,6 +186,7 @@ class BGMManager {
     if (!url) return
     
     this.stopPlayer()
+    this.currentUrl = url
     
     // パラメータを保存
     this.bpm = bpm
@@ -440,12 +506,15 @@ class BGMManager {
       return false
     }
 
+    this.currentUrl = this.pendingUrl
     this.pendingParams = null
     this.pendingUrl = ''
     this.pendingReady = false
     this.playInitiatedAt = performance.now()
     return true
   }
+
+  getCurrentUrl(): string { return this.currentUrl }
 
   isPreparedSectionReady(): boolean { return this.pendingReady }
 
