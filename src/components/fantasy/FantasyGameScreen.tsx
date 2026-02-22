@@ -1124,6 +1124,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const originalTaikoNotesRef = useRef(gameState.originalTaikoNotes);
   const currentTransposeOffsetRef = useRef(gameState.currentTransposeOffset);
   const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
+  const preHitNoteIndicesRef = useRef(gameState.preHitNoteIndices);
   
   // taikoNotes/currentNoteIndex/awaitingLoopStart/移調設定が変更されたらrefを更新（アニメーションループはそのまま継続）
   // useLayoutEffect: ペイント前に同期的にrefを更新し、セクション切り替え時の1-2フレーム遅延を排除
@@ -1135,10 +1136,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     originalTaikoNotesRef.current = gameState.originalTaikoNotes;
     currentTransposeOffsetRef.current = gameState.currentTransposeOffset;
     taikoLoopCycleRef.current = gameState.taikoLoopCycle;
+    preHitNoteIndicesRef.current = gameState.preHitNoteIndices;
     isCombiningModeRef.current = gameState.isCombiningMode;
     combinedSectionsRef.current = gameState.combinedSections;
     currentSectionIndexRef.current = gameState.currentSectionIndex;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle, gameState.preHitNoteIndices, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
@@ -1225,6 +1227,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const taikoNotes = taikoNotesRef.current;
       const stateNoteIndex = currentNoteIndexRef.current;
       const stateAwaitingLoop = awaitingLoopStartRef.current;
+      const preHitIndices = preHitNoteIndicesRef.current || [];
+      const preHitIndexSet = new Set<number>(preHitIndices);
       
       // ノーツがない場合は何も表示せずに次フレームへ
       if (taikoNotes.length === 0) {
@@ -1318,8 +1322,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               if (!note) continue;
               if (note.isHit) {
                 // #region agent log
+                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H5_FIX',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'skip hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd},timestamp:Date.now()})}).catch(()=>{});
+                // #endregion
+                // #region agent log
                 fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H5',location:'FantasyGameScreen.tsx:combiningPreviewRender',message:'rendering already-hit next-section preview note',data:{sectionIndex:currentSectionIdx,nextSectionIdx,noteIndex:i,noteId:note.id,currentTime,timeToSectionEnd,noteHitTime:note.hitTime},timestamp:Date.now()})}).catch(()=>{});
                 // #endregion
+                continue;
               }
               const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
               if (virtualTime > lookAheadTime) break;
@@ -1427,6 +1435,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
           // すでに通常ノーツで表示しているものは重複させない
           if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
+          if (preHitIndexSet.has(i)) {
+            // #region agent log
+            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'post-fix-1',hypothesisId:'H3_FIX',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'skip pre-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote?.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,preHitCount:preHitIndices.length},timestamp:Date.now()})}).catch(()=>{});
+            // #endregion
+            continue;
+          }
           if (baseNote?.isHit) {
             // #region agent log
             fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({runId:'pre-fix-1',hypothesisId:'H3',location:'FantasyGameScreen.tsx:nextLoopPreviewRender',message:'rendering already-hit next-loop preview note',data:{noteIndex:i,baseNoteId:baseNote.id,previewNoteId:note.id,currentTime,normalizedTime,timeToLoop,baseHitTime:baseNote.hitTime},timestamp:Date.now()})}).catch(()=>{});
