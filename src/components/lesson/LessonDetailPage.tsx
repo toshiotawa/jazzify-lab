@@ -419,7 +419,7 @@ const LessonDetailPage: React.FC = () => {
                   </div>
                 )}
               </div>
-              <p className="text-gray-400">{lesson?.description}</p>
+              <p className="text-gray-400 whitespace-pre-line">{lesson?.description}</p>
             </div>
 
             {/* 動画セクション */}
