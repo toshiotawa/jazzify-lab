@@ -30,8 +30,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'veryeasy',
     displayName: 'Very Easy',
-    description: '入門向け。単音ノーツ（#♭含む全17音）。',
-    descriptionEn: 'Beginner. All single notes incl. sharps/flats.',
+    description: '入門向け。単音ノーツ（#♭含む全17音）。経験値0.5倍。',
+    descriptionEn: 'Beginner. All single notes incl. sharps/flats. EXP x0.5.',
     allowedChords: allRoots('_note'),
     enemySpawnRate: 4,
     enemySpawnCount: 1,
@@ -44,8 +44,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
     displayName: 'Easy',
-    description: '初心者向け。メジャー・マイナートライアド全ルート。',
-    descriptionEn: 'Novice. Major/minor triads, all roots.',
+    description: '初心者向け。メジャー・マイナートライアド全ルート。経験値1.0倍。',
+    descriptionEn: 'Novice. Major/minor triads, all roots. EXP x1.0.',
     allowedChords: [...allRoots(''), ...allRoots('m')],
     enemySpawnRate: 4,
     enemySpawnCount: 1,
@@ -58,8 +58,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'normal',
     displayName: 'Normal',
-    description: '4和音全ルート（M7, m7, 7, m7b5, mM7, dim7, aug7, 6, m6）。',
-    descriptionEn: 'All 4-note chords, all roots.',
+    description: '中級者向け。4和音全ルート（M7, m7, 7, m7b5, mM7, dim7, aug7, 6, m6）。経験値1.5倍。',
+    descriptionEn: 'Intermediate. All 4-note chords, all roots. EXP x1.5.',
     allowedChords: [
       ...allRoots('M7'), ...allRoots('m7'), ...allRoots('7'),
       ...allRoots('m7b5'), ...allRoots('mM7'), ...allRoots('dim7'),
@@ -76,8 +76,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'hard',
     displayName: 'Hard',
-    description: '上級者向け。ジャズボイシング全ルート。',
-    descriptionEn: 'Advanced. Jazz voicings, all roots.',
+    description: '上級者向け。ジャズボイシング全ルート。経験値2.0倍。',
+    descriptionEn: 'Advanced. Jazz voicings, all roots. EXP x2.0.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
       ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
@@ -94,8 +94,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'extreme',
     displayName: 'Extreme',
-    description: 'エキスパート向け。全ジャズボイシング、超高速。',
-    descriptionEn: 'Expert. All jazz voicings, extreme speed.',
+    description: 'エキスパート向け。全ジャズボイシング。経験値3.0倍。',
+    descriptionEn: 'Expert. All jazz voicings. EXP x3.0.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
       ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
