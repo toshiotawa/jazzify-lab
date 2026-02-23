@@ -2189,6 +2189,46 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         </div>
       )}
       
+      {/* ===== 楽譜リサイズハンドル（楽譜の上部に配置） ===== */}
+      {showSheetMusicForTiming && (
+        <div
+          className="relative w-full h-3 -my-1.5 z-20 cursor-row-resize group"
+          onMouseDown={(e) => {
+            e.preventDefault();
+            isResizingSheetRef.current = true;
+            resizeStartRef.current = { y: e.clientY, height: sheetMusicHeight };
+            document.body.style.cursor = 'row-resize';
+            document.body.style.userSelect = 'none';
+          }}
+          onTouchStart={(e) => {
+            if (e.touches.length === 0) return;
+            e.preventDefault();
+            isResizingSheetRef.current = true;
+            resizeStartRef.current = { y: e.touches[0].clientY, height: sheetMusicHeight };
+            document.body.style.userSelect = 'none';
+          }}
+        >
+          <div className="absolute inset-x-0 -top-2 -bottom-2" />
+          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-gray-700" />
+          <div
+            className={cn(
+              'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
+              'w-16 h-6 rounded-full',
+              'bg-gray-700 border border-gray-600',
+              'flex items-center justify-center',
+              'transition-all duration-150',
+              'hover:bg-gray-600 hover:scale-110',
+              'group-hover:shadow-lg'
+            )}
+          >
+            <div className="flex flex-col gap-0.5">
+              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
+              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ===== 楽譜表示エリア（Progression_Timing用） ===== */}
       {showSheetMusicForTiming && (
         <div 
@@ -2239,46 +2279,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
             className="w-full h-full"
           />
-        </div>
-      )}
-
-      {/* ===== 楽譜リサイズハンドル ===== */}
-      {showSheetMusicForTiming && (
-        <div
-          className="relative w-full h-3 -my-1.5 z-20 cursor-row-resize group"
-          onMouseDown={(e) => {
-            e.preventDefault();
-            isResizingSheetRef.current = true;
-            resizeStartRef.current = { y: e.clientY, height: sheetMusicHeight };
-            document.body.style.cursor = 'row-resize';
-            document.body.style.userSelect = 'none';
-          }}
-          onTouchStart={(e) => {
-            if (e.touches.length === 0) return;
-            e.preventDefault();
-            isResizingSheetRef.current = true;
-            resizeStartRef.current = { y: e.touches[0].clientY, height: sheetMusicHeight };
-            document.body.style.userSelect = 'none';
-          }}
-        >
-          <div className="absolute inset-x-0 -top-2 -bottom-2" />
-          <div className="absolute inset-x-0 top-1/2 -translate-y-1/2 h-px bg-gray-700" />
-          <div
-            className={cn(
-              'absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2',
-              'w-16 h-6 rounded-full',
-              'bg-gray-700 border border-gray-600',
-              'flex items-center justify-center',
-              'transition-all duration-150',
-              'hover:bg-gray-600 hover:scale-110',
-              'group-hover:shadow-lg'
-            )}
-          >
-            <div className="flex flex-col gap-0.5">
-              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
-              <div className="w-6 h-0.5 bg-gray-400 rounded-full" />
-            </div>
-          </div>
         </div>
       )}
       

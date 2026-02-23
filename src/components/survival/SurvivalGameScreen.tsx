@@ -397,6 +397,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const animationFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<number>(0);
   
+  // フローティングスティック用
+  const [floatingStick, setFloatingStick] = useState<{
+    baseX: number; baseY: number;
+    stickX: number; stickY: number;
+    visible: boolean;
+  }>({ baseX: 0, baseY: 0, stickX: 0, stickY: 0, visible: false });
+  const floatingStickRef = useRef<{ baseX: number; baseY: number } | null>(null);
+  
   // MIDI/ピアノ関連
   const midiControllerRef = useRef<MIDIController | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
@@ -709,6 +717,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // バーチャルスティックの方向変更
   const handleVirtualStickChange = useCallback((keys: Set<string>) => {
     virtualKeysRef.current = keys;
+  }, []);
+  
+  // フローティングスティック操作ハンドラー（モバイル用：キャンバスエリア全体で操作）
+  const handleCanvasTouchStart = useCallback((e: React.TouchEvent) => {
+    if (!isMobile || e.touches.length === 0) return;
+    const touch = e.touches[0];
+    floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
+    setFloatingStick({
+      baseX: touch.clientX, baseY: touch.clientY,
+      stickX: 0, stickY: 0, visible: true,
+    });
+  }, [isMobile]);
+  
+  const handleCanvasTouchMove = useCallback((e: React.TouchEvent) => {
+    if (!floatingStickRef.current || e.touches.length === 0) return;
+    e.preventDefault();
+    const touch = e.touches[0];
+    const base = floatingStickRef.current;
+    let dx = touch.clientX - base.baseX;
+    let dy = touch.clientY - base.baseY;
+    
+    const maxRadius = 44;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    if (dist > maxRadius) {
+      dx = (dx / dist) * maxRadius;
+      dy = (dy / dist) * maxRadius;
+    }
+    
+    setFloatingStick(prev => ({
+      ...prev, stickX: dx, stickY: dy,
+    }));
+    
+    const threshold = 12;
+    const keys = new Set<string>();
+    if (dy < -threshold) keys.add('w');
+    if (dy > threshold) keys.add('s');
+    if (dx < -threshold) keys.add('a');
+    if (dx > threshold) keys.add('d');
+    virtualKeysRef.current = keys;
+  }, []);
+  
+  const handleCanvasTouchEnd = useCallback(() => {
+    floatingStickRef.current = null;
+    setFloatingStick(prev => ({ ...prev, visible: false }));
+    virtualKeysRef.current = new Set();
   }, []);
   
   // ゲーム開始
@@ -2705,10 +2758,33 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       {/* メインゲームエリア */}
       <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative">
-        {/* バーチャルスティック（モバイル時のみ） */}
-        {isMobile && (
-          <div className="absolute left-4 bottom-4 z-30">
-            <VirtualStick onDirectionChange={handleVirtualStickChange} />
+        {/* フローティングスティック（モバイル時のみ・タッチ位置に出現） */}
+        {isMobile && floatingStick.visible && (
+          <div
+            className="fixed z-40 pointer-events-none"
+            style={{
+              left: floatingStick.baseX - 48,
+              top: floatingStick.baseY - 48,
+            }}
+          >
+            <div className="relative w-24 h-24 rounded-full border-2 border-white/40 bg-black/30 backdrop-blur-sm">
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                <div className="absolute top-1 text-white/40 text-xs">▲</div>
+                <div className="absolute bottom-1 text-white/40 text-xs">▼</div>
+                <div className="absolute left-1 text-white/40 text-xs">◀</div>
+                <div className="absolute right-1 text-white/40 text-xs">▶</div>
+              </div>
+              <div
+                className="absolute w-10 h-10 rounded-full shadow-lg"
+                style={{
+                  left: '50%',
+                  top: '50%',
+                  transform: `translate(calc(-50% + ${floatingStick.stickX}px), calc(-50% + ${floatingStick.stickY}px))`,
+                  background: 'radial-gradient(circle at 35% 35%, rgba(255,255,255,0.9), rgba(180,180,200,0.7))',
+                  boxShadow: '0 4px 12px rgba(0,0,0,0.5), inset 0 -2px 4px rgba(0,0,0,0.2), inset 0 2px 4px rgba(255,255,255,0.4)',
+                }}
+              />
+            </div>
           </div>
         )}
         
@@ -2743,7 +2819,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         )}
         
         {/* Canvasエリア */}
-        <div className="relative rounded-xl overflow-hidden border-2 border-gray-700">
+        <div
+          className="relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none"
+          onTouchStart={handleCanvasTouchStart}
+          onTouchMove={handleCanvasTouchMove}
+          onTouchEnd={handleCanvasTouchEnd}
+          onTouchCancel={handleCanvasTouchEnd}
+        >
           <SurvivalCanvas
             gameState={gameState}
             viewportWidth={viewportSize.width}

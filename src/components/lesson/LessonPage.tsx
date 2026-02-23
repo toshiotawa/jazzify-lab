@@ -442,7 +442,7 @@ const LessonPage: React.FC = () => {
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
       <div className="flex-1 p-4 overflow-y-auto md:overflow-hidden flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="flex-1 bg-slate-900 text-white flex flex-col min-h-0 overflow-hidden">
+        <div className="flex-1 bg-slate-900 text-white flex flex-col md:min-h-0 md:overflow-hidden">
 
           {/* ページ説明 */}
           <div className="shrink-0 px-6 pb-4">
@@ -462,13 +462,14 @@ const LessonPage: React.FC = () => {
               <p className="text-gray-400">読み込み中...</p>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row min-h-0 overflow-hidden">
+            <div className="flex-1 flex flex-col md:flex-row md:min-h-0 md:overflow-hidden">
               {/* コース一覧サイドバー */}
-              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col min-h-0 overflow-hidden">
+              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col md:min-h-0 md:overflow-hidden">
                 <div className="shrink-0 p-4 border-b border-slate-700">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
                 </div>
-                  <div className="flex-1 overflow-y-auto p-4 space-y-3" style={{ WebkitOverflowScrolling: 'touch' }}>
+                  <div className="flex-1 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div className="flex flex-row md:flex-col gap-3 md:w-auto w-max">
                     {courses.map((course: Course) => {
                       const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
                       const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
@@ -479,7 +480,7 @@ const LessonPage: React.FC = () => {
                       return (
                         <div
                           key={course.id}
-                          className={`p-4 rounded-lg cursor-pointer transition-colors ${
+                          className={`p-4 rounded-lg cursor-pointer transition-colors min-w-[220px] md:min-w-0 ${
                             selectedCourse?.id === course.id
                               ? 'bg-primary-600'
                               : accessible
@@ -591,11 +592,12 @@ const LessonPage: React.FC = () => {
                         </div>
                       );
                     })}
+                    </div>
                 </div>
               </div>
 
               {/* レッスン一覧メインエリア */}
-              <div ref={mainAreaRef} className="flex-1 flex flex-col overflow-hidden min-h-0">
+              <div ref={mainAreaRef} className="flex-1 flex flex-col md:overflow-hidden md:min-h-0">
                 {selectedCourse ? (
                   <>
                     <div className="shrink-0 p-6 border-b border-slate-700">

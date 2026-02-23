@@ -83,19 +83,19 @@ const TutorialProgressSection: React.FC = () => {
               すべてのチュートリアルを完了しました！
             </p>
           ) : nextLesson ? (
-            <div className="flex items-center gap-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm text-gray-300">
+                <p className="text-sm text-gray-300 truncate sm:whitespace-normal">
                   <span className="text-cyan-400 font-semibold">レッスン{nextLesson.order_index + 1}：{nextLesson.title}</span>を完了しましょう
                 </p>
               </div>
               <button
                 onClick={handlePlay}
-                className="shrink-0 inline-flex items-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors"
+                className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors w-full sm:w-auto"
                 aria-label={`${nextLesson.title} を開始`}
               >
                 <FaPlay className="text-xs ml-0.5" />
-                <span>レッスンを始める</span>
+                <span className="whitespace-nowrap">レッスンを始める</span>
               </button>
             </div>
           ) : null}

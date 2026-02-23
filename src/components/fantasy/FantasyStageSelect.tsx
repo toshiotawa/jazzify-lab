@@ -602,34 +602,28 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
         
         {/* 右側のアイコンとランク */}
-        <div className="flex-shrink-0 self-center flex flex-col items-end gap-1">
+        <div className="flex-shrink-0 self-center flex flex-col items-end gap-1 max-w-[60px] sm:max-w-[80px]">
           {!unlocked && (
             <div className="text-xl sm:text-2xl">
               <span>🔒</span>
             </div>
           )}
-          {isCleared && (
-            <div className="flex items-center gap-1">
-              {/* 最高ランク表示 */}
-              {bestRank && (
-                <div className={`text-xl sm:text-2xl font-bold ${getGameRankColor(bestRank)}`} title={isEnglishCopy ? `Best Rank: ${bestRank}` : `最高ランク: ${bestRank}`}>
-                  {bestRank}
-                </div>
-              )}
+          {isCleared && bestRank && (
+            <div className={`text-xl sm:text-2xl font-bold ${getGameRankColor(bestRank)}`} title={isEnglishCopy ? `Best Rank: ${bestRank}` : `最高ランク: ${bestRank}`}>
+              {bestRank}
             </div>
           )}
-          {/* 次ステージ開放までの残り回数（アンロック済みのステージで表示） */}
           {unlocked && !nextUnlocked && (
-            <div className="text-xs text-blue-300 text-right leading-tight">
+            <div className="text-[10px] sm:text-xs text-blue-300 text-right leading-tight whitespace-nowrap">
               {isEnglishCopy 
-                ? <>Clears needed:<br />{remainingClears} more</>
-                : <>クリア回数<br />あと{remainingClears}回</>
+                ? <>+{remainingClears} clears</>
+                : <>あと{remainingClears}回</>
               }
             </div>
           )}
           {unlocked && nextUnlocked && (
-            <div className="text-xs text-green-400 text-right leading-tight">
-              {isEnglishCopy ? <>Clears needed:<br />0 more</> : <>クリア回数<br />あと0回</>}
+            <div className="text-[10px] sm:text-xs text-green-400 text-right leading-tight whitespace-nowrap">
+              {isEnglishCopy ? <>✓ Cleared</> : <>✓ 開放済</>}
             </div>
           )}
         </div>
