@@ -2059,12 +2059,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        // veryeasy/easy/normal/hard: 2秒ごとに4体 + WAVEごとに+1
-        // extreme: 設定通り
-        const isEasyNormalHard = ['veryeasy', 'easy', 'normal', 'hard'].includes(newState.difficulty);
-        const effectiveSpawnRate = isEasyNormalHard ? 2 : config.enemySpawnRate;
-        const baseSpawnCount = isEasyNormalHard ? 4 : config.enemySpawnCount;
-        const waveBonus = isEasyNormalHard ? (newState.wave.currentWave - 1) : 0;
+        // 全難易度共通: 設定値ベース + WAVEごとに+1
+        const effectiveSpawnRate = config.enemySpawnRate;
+        const baseSpawnCount = config.enemySpawnCount;
+        const waveBonus = newState.wave.currentWave - 1;
         const effectiveSpawnCount = baseSpawnCount + waveBonus;
         
         spawnTimerRef.current += deltaTime;
