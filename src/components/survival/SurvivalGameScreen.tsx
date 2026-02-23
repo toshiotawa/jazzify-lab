@@ -2118,7 +2118,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const waveBonus = newState.wave.currentWave - 1;
         const effectiveSpawnCount = baseSpawnCount + waveBonus;
         
-        spawnTimerRef.current += deltaTime;
+        const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
+        if (isFirstSpawn) {
+          spawnTimerRef.current = effectiveSpawnRate;
+        } else {
+          spawnTimerRef.current += deltaTime;
+        }
         if (spawnTimerRef.current >= effectiveSpawnRate && newState.enemies.length < MAX_ENEMIES) {
           spawnTimerRef.current = 0;
           const spawnCount = Math.min(effectiveSpawnCount, MAX_ENEMIES - newState.enemies.length);
@@ -2128,7 +2133,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               newState.player.y,
               newState.elapsedTime,
               config,
-              newState.wave.currentWave
+              newState.wave.currentWave,
+              isFirstSpawn && i === 0
             );
             newState.enemies.push(newEnemy);
           }

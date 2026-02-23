@@ -294,7 +294,8 @@ export const createInitialGameState = (
 export const calculateWaveQuota = (waveNumber: number): number => {
   if (waveNumber >= 20) return 50;
   if (waveNumber >= 10) return 20;
-  return 5;
+  if (waveNumber >= 6) return 5;
+  return 1;
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
@@ -439,31 +440,40 @@ export const spawnEnemy = (
   playerY: number,
   elapsedTime: number,
   config: DifficultyConfig,
-  waveNumber: number = 1
+  waveNumber: number = 1,
+  isFirstSpawn: boolean = false
 ): EnemyState => {
-  // フィールドの端のギリギリ外側にスポーン（ヌッと現れる演出）
-  const side = Math.floor(Math.random() * 4); // 0:上, 1:下, 2:左, 3:右
-  const margin = ENEMY_SIZE * 0.8; // 端から少しだけはみ出す量
   let x: number;
   let y: number;
-  
-  switch (side) {
-    case 0: // 上端の外
-      x = Math.random() * MAP_CONFIG.width;
-      y = -margin;
-      break;
-    case 1: // 下端の外
-      x = Math.random() * MAP_CONFIG.width;
-      y = MAP_CONFIG.height + margin;
-      break;
-    case 2: // 左端の外
-      x = -margin;
-      y = Math.random() * MAP_CONFIG.height;
-      break;
-    default: // 右端の外
-      x = MAP_CONFIG.width + margin;
-      y = Math.random() * MAP_CONFIG.height;
-      break;
+
+  if (isFirstSpawn) {
+    const dist = 300 + Math.random() * 200;
+    const angle = Math.random() * Math.PI * 2;
+    x = Math.max(0, Math.min(MAP_CONFIG.width, playerX + Math.cos(angle) * dist));
+    y = Math.max(0, Math.min(MAP_CONFIG.height, playerY + Math.sin(angle) * dist));
+  } else {
+    // フィールドの端のギリギリ外側にスポーン（ヌッと現れる演出）
+    const side = Math.floor(Math.random() * 4); // 0:上, 1:下, 2:左, 3:右
+    const margin = ENEMY_SIZE * 0.8; // 端から少しだけはみ出す量
+
+    switch (side) {
+      case 0: // 上端の外
+        x = Math.random() * MAP_CONFIG.width;
+        y = -margin;
+        break;
+      case 1: // 下端の外
+        x = Math.random() * MAP_CONFIG.width;
+        y = MAP_CONFIG.height + margin;
+        break;
+      case 2: // 左端の外
+        x = -margin;
+        y = Math.random() * MAP_CONFIG.height;
+        break;
+      default: // 右端の外
+        x = MAP_CONFIG.width + margin;
+        y = Math.random() * MAP_CONFIG.height;
+        break;
+    }
   }
   
   // 経過時間に応じて敵タイプの上限を上げる（1分ごとに1タイプ解禁）

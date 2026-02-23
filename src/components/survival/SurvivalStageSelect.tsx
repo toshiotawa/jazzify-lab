@@ -30,8 +30,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'veryeasy',
     displayName: 'Very Easy',
-    description: '入門向け。単音ノーツ（#♭含む全17音）。経験値0.5倍。',
-    descriptionEn: 'Beginner. All single notes incl. sharps/flats. EXP x0.5.',
+    description: '入門向け。単音ノーツ（#♭含む全17音）。WAVE1~5ノルマ1体。経験値0.5倍。',
+    descriptionEn: 'Beginner. All single notes incl. sharps/flats. WAVE 1-5: 1 kill quota. EXP x0.5.',
     allowedChords: allRoots('_note'),
     enemySpawnRate: 4,
     enemySpawnCount: 1,
@@ -44,8 +44,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'easy',
     displayName: 'Easy',
-    description: '初心者向け。メジャー・マイナートライアド全ルート。経験値1.0倍。',
-    descriptionEn: 'Novice. Major/minor triads, all roots. EXP x1.0.',
+    description: '初心者向け。メジャー・マイナートライアド全ルート。WAVE1~5ノルマ1体。経験値1.0倍。',
+    descriptionEn: 'Novice. Major/minor triads, all roots. WAVE 1-5: 1 kill quota. EXP x1.0.',
     allowedChords: [...allRoots(''), ...allRoots('m')],
     enemySpawnRate: 4,
     enemySpawnCount: 1,
@@ -58,8 +58,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'normal',
     displayName: 'Normal',
-    description: '中級者向け。4和音全ルート（M7, m7, 7, m7b5, mM7, dim7, aug7, 6, m6）。経験値1.5倍。',
-    descriptionEn: 'Intermediate. All 4-note chords, all roots. EXP x1.5.',
+    description: '中級者向け。4和音全ルート（M7, m7, 7, m7b5, mM7, dim7, aug7, 6, m6）。WAVE1~5ノルマ1体。経験値1.5倍。',
+    descriptionEn: 'Intermediate. All 4-note chords, all roots. WAVE 1-5: 1 kill quota. EXP x1.5.',
     allowedChords: [
       ...allRoots('M7'), ...allRoots('m7'), ...allRoots('7'),
       ...allRoots('m7b5'), ...allRoots('mM7'), ...allRoots('dim7'),
@@ -76,8 +76,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'hard',
     displayName: 'Hard',
-    description: '上級者向け。ジャズボイシング全ルート。経験値2.0倍。',
-    descriptionEn: 'Advanced. Jazz voicings, all roots. EXP x2.0.',
+    description: '上級者向け。ジャズボイシング全ルート。WAVE1~5ノルマ1体。経験値2.0倍。',
+    descriptionEn: 'Advanced. Jazz voicings, all roots. WAVE 1-5: 1 kill quota. EXP x2.0.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
       ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
@@ -94,8 +94,8 @@ const DEFAULT_DIFFICULTY_CONFIGS: DifficultyConfig[] = [
   {
     difficulty: 'extreme',
     displayName: 'Extreme',
-    description: 'エキスパート向け。全ジャズボイシング。経験値3.0倍。',
-    descriptionEn: 'Expert. All jazz voicings. EXP x3.0.',
+    description: 'エキスパート向け。全ジャズボイシング。WAVE1~5ノルマ1体。経験値3.0倍。',
+    descriptionEn: 'Expert. All jazz voicings. WAVE 1-5: 1 kill quota. EXP x3.0.',
     allowedChords: [
       ...allRoots('M7(9)'), ...allRoots('m7(9)'),
       ...allRoots('7(9.6th)'), ...allRoots('7(b9.b6th)'),
@@ -618,14 +618,14 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                   <div className="text-xs text-gray-500">{isEnglishCopy ? 'Time per WAVE' : '1WAVEの制限時間'}</div>
                 </div>
                 <div className="bg-black/30 rounded-lg p-2 text-center">
-                  <div className="text-lg font-bold text-red-400">5~50</div>
+                  <div className="text-lg font-bold text-red-400">1~50</div>
                   <div className="text-xs text-gray-500">{isEnglishCopy ? 'Kill quota per WAVE' : '1WAVEの撃破ノルマ'}</div>
                 </div>
               </div>
               <p className="text-xs text-gray-400">
                 {isEnglishCopy
-                  ? 'Each WAVE lasts 1 minute. WAVE 1-9: 5 kills, WAVE 10-19: 20 kills, WAVE 20+: 50 kills. Failure to meet the quota results in Game Over. Enemies get stronger each WAVE.'
-                  : '各WAVEは1分間。WAVE1~9は5体、WAVE10~19は20体、WAVE20以降は50体が撃破ノルマです。ノルマ未達成でゲームオーバー。WAVEが進むごとに敵が強くなります。'}
+                  ? 'Each WAVE lasts 1 minute. WAVE 1-5: 1 kill, WAVE 6-9: 5 kills, WAVE 10-19: 20 kills, WAVE 20+: 50 kills. Failure to meet the quota results in Game Over. Enemies get stronger each WAVE.'
+                  : '各WAVEは1分間。WAVE1~5は1体、WAVE6~9は5体、WAVE10~19は20体、WAVE20以降は50体が撃破ノルマです。ノルマ未達成でゲームオーバー。WAVEが進むごとに敵が強くなります。'}
               </p>
             </div>
           </div>
