@@ -321,25 +321,23 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
   const { devices, isRefreshing, error, isSupported, refreshDevices } = useAudioDevices();
 
   const handleDeviceChange = async (newDeviceId: string | null) => {
-    // OFF にする場合は権限不要
     if (!newDeviceId) {
       onChange(null);
       return;
     }
 
-    // iOS 含む: ユーザー操作中に権限要求を行う
-    const permissionOk = await VoiceInputController.requestMicrophonePermission(
-      newDeviceId === 'default' ? undefined : newDeviceId
-    );
-    if (!permissionOk) {
-      // 許可できない場合は選択を変更しない
-      return;
+    // 未許可の場合のみ権限要求（ユーザー操作コンテキストで実行）
+    if (!VoiceInputController.isPermissionGranted()) {
+      const permissionOk = await VoiceInputController.requestMicrophonePermission(
+        newDeviceId === 'default' ? undefined : newDeviceId
+      );
+      if (!permissionOk) {
+        return;
+      }
+      // 許可後にデバイスラベルが取得可能になるため更新
+      void refreshDevices({ requestPermission: false });
     }
 
-    // 許可後にラベル取得が可能になることがあるため更新
-    void refreshDevices({ requestPermission: false });
-
-    // 同じデバイスを選択した場合は再接続を強制
     if (newDeviceId && newDeviceId === value) {
       onChange(null);
       setTimeout(() => {

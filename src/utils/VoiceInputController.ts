@@ -64,6 +64,24 @@ const isVoiceInputSupported = (): boolean => {
 };
 
 export class VoiceInputController {
+  // マイク権限キャッシュ（セッション中に一度許可されたら再要求しない）
+  private static _permissionGranted = false;
+  private static _cachedStream: MediaStream | null = null;
+
+  /** 権限が既に許可済みかどうか */
+  static isPermissionGranted(): boolean {
+    return VoiceInputController._permissionGranted;
+  }
+
+  /** キャッシュされたストリームを破棄（テスト用） */
+  static clearCachedPermission(): void {
+    if (VoiceInputController._cachedStream) {
+      VoiceInputController._cachedStream.getTracks().forEach(t => t.stop());
+      VoiceInputController._cachedStream = null;
+    }
+    VoiceInputController._permissionGranted = false;
+  }
+
   // コールバック
   private onNoteOn: (note: number, velocity?: number) => void;
   private onNoteOff: (note: number) => void;
@@ -191,14 +209,14 @@ export class VoiceInputController {
     }
 
     try {
-      if (options?.requestPermission) {
+      // 権限が未取得の場合のみ getUserMedia を呼ぶ（ラベル取得に必要）
+      if (options?.requestPermission && !VoiceInputController._permissionGranted) {
         const ok = await VoiceInputController.requestMicrophonePermission();
         if (!ok) {
           return [];
         }
       }
 
-      // デバイスリスト取得
       const devices = await navigator.mediaDevices.enumerateDevices();
       return devices
         .filter(device => device.kind === 'audioinput')
@@ -213,13 +231,34 @@ export class VoiceInputController {
   }
 
   /**
-   * マイク権限を要求する（権限付与後すぐに停止）
+   * マイク権限を要求する。
+   * 既に許可済みの場合は getUserMedia を呼ばずに即 true を返す。
+   * 初回許可時はストリームをキャッシュし、connect() で再利用する。
    * iOS ではユーザー操作（タップ等）の直後に呼ぶことを推奨。
    */
   static async requestMicrophonePermission(deviceId?: string): Promise<boolean> {
     if (!isVoiceInputSupported() || !navigator.mediaDevices?.getUserMedia) {
       return false;
     }
+
+    // 既に許可済みならスキップ（iOS でポップアップ抑制）
+    if (VoiceInputController._permissionGranted) {
+      return true;
+    }
+
+    // Permissions API で事前チェック（Safari 未対応だが Chrome/Firefox で有効）
+    if (navigator.permissions?.query) {
+      try {
+        const status = await navigator.permissions.query({ name: 'microphone' as PermissionName });
+        if (status.state === 'granted') {
+          VoiceInputController._permissionGranted = true;
+          return true;
+        }
+      } catch {
+        // microphone クエリ未対応（iOS Safari 等）→ フォールスルー
+      }
+    }
+
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -227,7 +266,14 @@ export class VoiceInputController {
         },
         video: false
       });
-      stream.getTracks().forEach((track) => track.stop());
+
+      // ストリームをキャッシュして connect() で再利用（iOS で2回目のポップアップを防止）
+      if (VoiceInputController._cachedStream) {
+        VoiceInputController._cachedStream.getTracks().forEach(t => t.stop());
+      }
+      VoiceInputController._cachedStream = stream;
+      VoiceInputController._permissionGranted = true;
+
       return true;
     } catch (error) {
       log.warn('マイク権限の取得に失敗:', error);
@@ -255,18 +301,38 @@ export class VoiceInputController {
         this.mediaStream = null;
       }
 
-      log.info('🎤 マイク許可を要求...');
-      
-      // マイクアクセス
-      this.mediaStream = await navigator.mediaDevices.getUserMedia({
-        audio: {
-          deviceId: deviceId ? { exact: deviceId } : undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true
-        },
-        video: false
-      });
+      // キャッシュされたストリームの再利用を試みる（iOS でポップアップ削減）
+      const cached = VoiceInputController._cachedStream;
+      if (cached) {
+        const tracks = cached.getAudioTracks();
+        const cachedDeviceId = tracks[0]?.getSettings().deviceId;
+        const isAlive = tracks.length > 0 && tracks[0].readyState === 'live';
+        const deviceMatch = !deviceId || cachedDeviceId === deviceId;
+
+        if (isAlive && deviceMatch) {
+          log.info('🎤 キャッシュ済みストリームを再利用');
+          this.mediaStream = cached;
+          VoiceInputController._cachedStream = null;
+        } else {
+          cached.getTracks().forEach(t => t.stop());
+          VoiceInputController._cachedStream = null;
+        }
+      }
+
+      // キャッシュが使えなかった場合のみ新規取得
+      if (!this.mediaStream) {
+        log.info('🎤 マイク許可を要求...');
+        this.mediaStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            deviceId: deviceId ? { exact: deviceId } : undefined,
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true
+          },
+          video: false
+        });
+        VoiceInputController._permissionGranted = true;
+      }
 
       log.info('✅ マイク許可取得:', 
         this.mediaStream.getAudioTracks().map(t => t.label).join(', '));
