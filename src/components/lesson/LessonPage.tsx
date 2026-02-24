@@ -3,7 +3,7 @@ import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse, manualUnlockCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll, manualUnlockBlock, fetchBlockUnlockCredits } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll, manualUnlockBlock, fetchBlockUnlockCredits, addBlockUnlockCreditsForCurrentUser } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -47,6 +47,7 @@ const LessonPage: React.FC = () => {
   const [blockUnlockCredits, setBlockUnlockCredits] = useState<number>(0);
   const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
   const [unlockProcessing, setUnlockProcessing] = useState(false);
+  const [grantCreditsLoading, setGrantCreditsLoading] = useState(false);
   const lessonAccessGraph = useMemo<LessonAccessGraph>(() => {
     if (lessons.length === 0) {
       return { lessonStates: {}, blockStates: {} };
@@ -462,11 +463,33 @@ const LessonPage: React.FC = () => {
             <div className="flex-1 flex flex-col md:flex-row md:min-h-0 md:overflow-hidden">
               {/* コース一覧サイドバー */}
               <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col md:min-h-0 md:overflow-hidden">
-                <div className="shrink-0 p-4 border-b border-slate-700">
+                <div className="shrink-0 p-4 border-b border-slate-700 flex items-center justify-between gap-2">
                   <h2 className="text-lg font-semibold">コース一覧</h2>
+                  {profile?.isAdmin && (
+                    <button
+                      type="button"
+                      className="text-xs px-2 py-1 rounded bg-amber-600 hover:bg-amber-500 text-white disabled:opacity-50"
+                      disabled={grantCreditsLoading}
+                      onClick={async () => {
+                        setGrantCreditsLoading(true);
+                        try {
+                          const remaining = await addBlockUnlockCreditsForCurrentUser(50);
+                          setBlockUnlockCredits(remaining);
+                          toast.success(`ブロック解放ポイントを50付与しました（残り: ${remaining}）`);
+                        } catch (e) {
+                          toast.error(e instanceof Error ? e.message : '付与に失敗しました');
+                        } finally {
+                          setGrantCreditsLoading(false);
+                        }
+                      }}
+                      aria-label="ブロック解放ポイント50付与"
+                    >
+                      {grantCreditsLoading ? '...' : '+50'}
+                    </button>
+                  )}
                 </div>
-                  <div className="flex-1 overflow-x-auto md:overflow-y-auto md:overflow-x-hidden p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <div className="flex flex-row md:flex-col gap-3 md:w-auto w-max">
+                  <div className="flex-1 overflow-y-auto overflow-x-hidden p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div className="flex flex-row flex-wrap md:flex-col md:flex-nowrap gap-3 md:w-auto">
                     {courses.map((course: Course) => {
                       const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
                       const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
@@ -582,7 +605,7 @@ const LessonPage: React.FC = () => {
                           </div>
 
                           {course.description && (
-                            <p className="text-xs text-gray-400 line-clamp-2">
+                            <p className="text-xs text-gray-400 line-clamp-4">
                               {course.description}
                             </p>
                           )}
