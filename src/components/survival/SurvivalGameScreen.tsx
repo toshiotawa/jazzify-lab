@@ -2792,96 +2792,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
       )}
       
-      {/* メインゲームエリア（ヘッダー＋Canvasを格納） */}
+      {/* メインゲームエリア（Canvasが全高さ・ヘッダーはCanvas上にオーバーレイ） */}
       <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative min-h-0">
-        {/* ヘッダー（ゲーム画面内に格納・モバイルで設定/ポーズが触れるように） */}
-        <div className="flex-shrink-0 px-2 py-1 w-full max-w-6xl mx-auto">
-          {/* EXPバー */}
-          <div className="w-full h-1.5 md:h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
-            <div
-              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
-              style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
-            />
-          </div>
-          <div className="flex justify-between items-center gap-1">
-            {/* WAVE・時間・レベル */}
-            <div className="flex items-center gap-1.5 md:gap-3 text-white font-sans text-xs md:text-sm">
-              <div className="flex items-center gap-0.5 md:gap-1 bg-yellow-600/50 px-1.5 md:px-2 py-0.5 rounded">
-                <span className="font-bold text-yellow-300">WAVE {gameState.wave.currentWave}</span>
-              </div>
-              <div className="flex items-center gap-0.5 md:gap-1">
-                <span className="text-[10px] md:text-sm">⏱️</span>
-                <span className="text-sm md:text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
-              </div>
-              <div className="flex items-center gap-0.5 md:gap-1">
-                <span className="text-[10px] md:text-sm">⭐</span>
-                <span>Lv.{gameState.player.level}</span>
-              </div>
-            </div>
-            {/* WAVEノルマ */}
-            <div className="flex items-center gap-1 md:gap-2">
-              <div className="flex flex-col items-center text-[10px] md:text-xs">
-                <span className="text-gray-400">{isEnglishCopy ? 'Left' : '残り'}</span>
-                <span className={cn(
-                  'font-bold',
-                  gameState.wave.waveKills >= gameState.wave.waveQuota 
-                    ? 'text-green-400' 
-                    : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7
-                      ? 'text-red-400'
-                      : 'text-white'
-                )}>
-                  {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
-                </span>
-              </div>
-              <div className="flex flex-col items-center text-[10px] md:text-xs">
-                <span className="text-gray-400">{isEnglishCopy ? 'Limit' : '制限'}</span>
-                <span className={cn(
-                  'font-bold',
-                  (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 
-                    ? 'text-red-400 animate-pulse' 
-                    : 'text-white'
-                )}>
-                  {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
-                </span>
-              </div>
-            </div>
-            {/* HP */}
-            <div className="flex items-center gap-1 md:gap-2">
-              <span className="text-xs md:text-sm">❤️</span>
-              <div className="w-14 md:w-24 h-2.5 md:h-3 bg-gray-700 rounded-full overflow-hidden">
-                <div
-                  className={cn(
-                    'h-full transition-all duration-200',
-                    gameState.player.stats.hp / gameState.player.stats.maxHp > 0.5 ? 'bg-green-500' :
-                    gameState.player.stats.hp / gameState.player.stats.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
-                  )}
-                  style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
-                />
-              </div>
-              <span className="text-white font-sans text-[10px] md:text-xs">
-                {Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}
-              </span>
-            </div>
-            {/* 設定/ポーズボタン（タッチしやすいサイズ） */}
-            <div className="flex gap-1">
-              <button
-                onClick={() => setIsSettingsOpen(true)}
-                className="p-2 md:p-1.5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-xs md:text-sm touch-manipulation"
-                title={isEnglishCopy ? 'Settings' : '設定'}
-                aria-label={isEnglishCopy ? 'Settings' : '設定'}
-              >
-                ⚙️
-              </button>
-              <button
-                onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-                className="p-2 md:p-1.5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-xs md:text-sm touch-manipulation"
-                aria-label={gameState.isPaused ? (isEnglishCopy ? 'Resume' : '再開') : (isEnglishCopy ? 'Pause' : '一時停止')}
-              >
-                {gameState.isPaused ? '▶️' : '⏸️'}
-              </button>
-            </div>
-          </div>
-        </div>
         {/* フローティングスティック（モバイル時のみ・タッチ位置に出現） */}
         {isMobile && floatingStick.visible && (
           <div
@@ -2942,7 +2854,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           </div>
         )}
         
-        {/* Canvasエリア（flex-1で残り領域を占有・モバイル時は描画75%縮小） */}
+        {/* Canvasエリア（全高さ占有・ヘッダーはCanvas上にオーバーレイで配置） */}
         <div
           ref={canvasWrapperRef}
           className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
@@ -2951,6 +2863,64 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onTouchEnd={handleCanvasTouchEnd}
           onTouchCancel={handleCanvasTouchEnd}
         >
+          {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
+          <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+            <div className="flex flex-col gap-0.5">
+              <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
+                  style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
+                />
+              </div>
+              <div className="flex justify-between items-center gap-1 flex-nowrap">
+                <div className="flex items-center gap-1 md:gap-2 text-white font-sans text-[10px] md:text-sm min-w-0">
+                  <span className="bg-yellow-600/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0">W{gameState.wave.currentWave}</span>
+                  <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
+                  <span className="shrink-0">Lv.{gameState.player.level}</span>
+                </div>
+                <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0">
+                  <span className={cn('font-bold', gameState.wave.waveKills >= gameState.wave.waveQuota ? 'text-green-400' : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7 ? 'text-red-400' : 'text-white')}>
+                    {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
+                  </span>
+                  <span className="text-gray-400">/</span>
+                  <span className={cn('font-bold', (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 ? 'text-red-400' : 'text-white')}>
+                    {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
+                  </span>
+                </div>
+                <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
+                  <span className="text-[10px]">❤️</span>
+                  <div className="w-10 md:w-16 h-1.5 md:h-2 bg-gray-700 rounded-full overflow-hidden">
+                    <div
+                      className={cn(
+                        'h-full transition-all duration-200',
+                        gameState.player.stats.hp / gameState.player.stats.maxHp > 0.5 ? 'bg-green-500' :
+                        gameState.player.stats.hp / gameState.player.stats.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                      )}
+                      style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
+                    />
+                  </div>
+                  <span className="text-white font-sans text-[10px] md:text-xs tabular-nums">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
+                </div>
+                <div className="flex gap-0.5 shrink-0 pointer-events-auto">
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px] flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation"
+                    title={isEnglishCopy ? 'Settings' : '設定'}
+                    aria-label={isEnglishCopy ? 'Settings' : '設定'}
+                  >
+                    <span className="text-sm md:text-base">⚙️</span>
+                  </button>
+                  <button
+                    onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
+                    className="p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px] flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation"
+                    aria-label={gameState.isPaused ? (isEnglishCopy ? 'Resume' : '再開') : (isEnglishCopy ? 'Pause' : '一時停止')}
+                  >
+                    <span className="text-sm md:text-base">{gameState.isPaused ? '▶️' : '⏸️'}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
           <SurvivalCanvas
             gameState={gameState}
             viewportWidth={viewportSize.width}
