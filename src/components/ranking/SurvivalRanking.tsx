@@ -47,6 +47,7 @@ const SurvivalRanking: React.FC = () => {
   const { user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isStandardGlobal = profile?.rank === 'standard_global';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#survival-ranking');
@@ -308,7 +309,7 @@ const SurvivalRanking: React.FC = () => {
                 <tr className="border-b border-slate-700 text-left">
                   <th className="py-3 px-2 min-w-[2.5rem]">#</th>
                   <th className="py-3 px-2 min-w-[10rem]">{isEnglishCopy ? 'User' : 'ユーザー'}</th>
-                  <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>
+                  {!isStandardGlobal && <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>}
                   <th className="py-3 px-2 min-w-[5rem]">{isEnglishCopy ? 'Character' : 'キャラ'}</th>
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Time' : '生存時間'}</th>
                   <th className="py-3 px-2 min-w-[2.5rem]">Lv</th>
@@ -351,6 +352,7 @@ const SurvivalRanking: React.FC = () => {
                           <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                         </button>
                       </td>
+                      {!isStandardGlobal && (
                       <td className="py-3 px-2 whitespace-nowrap">
                         <div className="relative">
                           <div
@@ -384,6 +386,7 @@ const SurvivalRanking: React.FC = () => {
                           )}
                         </div>
                       </td>
+                      )}
                       <td className="py-3 px-2">
                         {e.character_avatar_url ? (
                           <div className="flex items-center gap-1.5">

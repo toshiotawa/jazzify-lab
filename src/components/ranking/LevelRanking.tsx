@@ -344,7 +344,7 @@ const LevelRanking: React.FC = () => {
               <tr className="border-b border-slate-700 text-left">
                 <th className="py-3 px-2 min-w-[3rem]">#</th>
                 <th className="py-3 px-2 min-w-[12rem] sm:min-w-[10rem]">{userColumnText}</th>
-                <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">{titleColumnText}</th>
+                {!isStandardGlobal && <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">{titleColumnText}</th>}
                 <th className="py-3 px-2 min-w-[3rem]">Lv</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Lessons' : 'レッスン'}</th>}
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Missions' : 'ミッション'}</th>}
@@ -377,6 +377,7 @@ const LevelRanking: React.FC = () => {
                       <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                     </button>
                   </td>
+                  {!isStandardGlobal && (
                   <td className="py-3 px-2 whitespace-nowrap">
                     <div className="relative">
                       <div 
@@ -393,7 +394,6 @@ const LevelRanking: React.FC = () => {
                           {translateTitle((e.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
                         </span>
                       </div>
-                      {/* ツールチップ */}
                       {(hoveredUserId === e.id || clickedUserId === e.id) && (
                         <div 
                           className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
@@ -406,7 +406,6 @@ const LevelRanking: React.FC = () => {
                         >
                           <div className="relative">
                             <div>{translateTitleRequirement(getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}</div>
-                            {/* 下向き矢印 */}
                             <div 
                               className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900"
                               style={{
@@ -420,6 +419,7 @@ const LevelRanking: React.FC = () => {
                       )}
                     </div>
                   </td>
+                  )}
                   <td className="py-3 px-2">{e.level}</td>
                   {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
                   {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}

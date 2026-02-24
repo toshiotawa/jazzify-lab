@@ -261,8 +261,8 @@ const Dashboard: React.FC = () => {
         <div className="max-w-6xl mx-auto space-y-6">
           {/* オープンベータ: プラン変更 UI */}
           {!isGuest && <OpenBetaPlanSwitcher />}
-          {/* チュートリアル進捗（グローバルプラン除外） */}
-          {!isGuest && !isStandardGlobal && <TutorialProgressSection />}
+          {/* チュートリアル進捗 */}
+          {!isGuest && <TutorialProgressSection />}
           {/* ユーザー情報カード */}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
@@ -275,7 +275,8 @@ const Dashboard: React.FC = () => {
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{profile.nickname}</h2>
                   
-                  {/* 称号表示（ホバー/タップで条件表示） */}
+                  {/* 称号表示（standard_globalは非表示） */}
+                  {!isStandardGlobal && (
                   <div className="relative mb-2">
                     <div 
                       className="flex items-center space-x-2 cursor-help max-w-full"
@@ -298,6 +299,7 @@ const Dashboard: React.FC = () => {
                       </div>
                     )}
                   </div>
+                  )}
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <span>Lv.{profile.level}</span>
@@ -436,7 +438,6 @@ const Dashboard: React.FC = () => {
                 </button>
 
                 {/* レッスン */}
-                {!isStandardGlobal && (
                 <button
                   onClick={() => { window.location.hash = '#lessons'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
@@ -449,7 +450,6 @@ const Dashboard: React.FC = () => {
                     {isEnglishCopy ? 'Learn jazz theory' : 'ジャズ理論を学習'}
                   </p>
                 </button>
-                )}
 
                 {/* ランキング */}
                 {!isStandardGlobal && (

@@ -40,6 +40,7 @@ const DailyChallengeRanking: React.FC = () => {
   const { user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isStandardGlobal = profile?.rank === 'standard_global';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#daily-challenge-ranking');
@@ -221,7 +222,7 @@ const DailyChallengeRanking: React.FC = () => {
                 <tr className="border-b border-slate-700 text-left">
                   <th className="py-3 px-2 min-w-[2.5rem]">#</th>
                   <th className="py-3 px-2 min-w-[10rem]">{isEnglishCopy ? 'User' : 'ユーザー'}</th>
-                  <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>
+                  {!isStandardGlobal && <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>}
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Best Score' : 'ハイスコア'}</th>
                   <th className="py-3 px-2 min-w-[3rem]">{isEnglishCopy ? 'Plays' : '回数'}</th>
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>
@@ -254,6 +255,7 @@ const DailyChallengeRanking: React.FC = () => {
                           <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                         </button>
                       </td>
+                      {!isStandardGlobal && (
                       <td className="py-3 px-2 whitespace-nowrap">
                         <div className="relative">
                           <div
@@ -277,6 +279,7 @@ const DailyChallengeRanking: React.FC = () => {
                           )}
                         </div>
                       </td>
+                      )}
                       <td className="py-3 px-2 text-yellow-300 font-mono font-bold">{e.best_score}</td>
                       <td className="py-3 px-2 text-gray-300">{e.play_count}</td>
                       <td className="py-3 px-2">

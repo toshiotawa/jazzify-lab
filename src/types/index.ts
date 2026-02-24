@@ -668,6 +668,8 @@ export interface LessonVideo {
   updated_at?: string;
 }
 
+export type CourseAudience = 'global' | 'japan' | 'both';
+
 export interface Course {
   id: string;
   title: string;
@@ -679,6 +681,7 @@ export interface Course {
   premium_only?: boolean;
   is_tutorial?: boolean;
   min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
+  audience?: CourseAudience;
   prerequisites?: CoursePrerequisite[];
 }
 

@@ -103,6 +103,7 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const rankLabel = isEnglishCopy ? RANK_LABEL_EN : RANK_LABEL;
+  const isStandardGlobal = profile?.rank === 'standard_global';
   // ハッシュ変更で開閉＋タブ同期
   useEffect(() => {
     const syncFromHash = () => {
@@ -345,10 +346,12 @@ const AccountPage: React.FC = () => {
                       </div>
                     )}
 
-                    {/* Title */}
+                    {/* Title (standard_globalは非表示) */}
+                    {!isStandardGlobal && (
                     <span className="text-xs text-primary-400/80">
                       {translateTitle(selectedTitle, isEnglishCopy)}
                     </span>
+                    )}
 
                     {/* Stats Row */}
                     <div className="flex items-center gap-5 mt-1 text-sm">
@@ -369,7 +372,8 @@ const AccountPage: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Title Selection */}
+                  {/* Title Selection (standard_globalは非表示) */}
+                  {!isStandardGlobal && (
                   <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-2">
                     <label htmlFor="title" className="text-sm font-medium">{isEnglishCopy ? 'Title' : '称号'}</label>
                     <select
@@ -472,6 +476,7 @@ const AccountPage: React.FC = () => {
                       <div className="text-xs text-gray-400">{isEnglishCopy ? 'Updating title...' : '称号を更新中...'}</div>
                     )}
                   </div>
+                  )}
 
                   {/* Bio & Twitter */}
                   <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-4">

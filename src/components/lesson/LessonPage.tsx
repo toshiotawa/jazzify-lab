@@ -7,6 +7,8 @@ import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonP
 import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 import { 
   FaLock, 
   FaUnlock,
@@ -37,6 +39,9 @@ const LessonPage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
+  const geoCountry = useGeoStore(s => s.country);
+  const isStandardGlobal = profile?.rank === 'standard_global';
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const mainAreaRef = useRef<HTMLDivElement>(null);
   const lessonScrollRef = useRef<HTMLDivElement>(null);
   const shouldScrollToIncomplete = useRef(false);
@@ -237,9 +242,12 @@ const LessonPage: React.FC = () => {
         profile ? fetchUserCourseUnlockStatus(profile.id) : Promise.resolve({} as Record<string, boolean | null>)
       ]);
       
-      // 並び順でソート
-      const sortedCourses = coursesData.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-      // すべてのコースを表示（アクセス制限は表示側で処理）
+      const audienceFilter = isStandardGlobal ? 'global' : 'japan';
+      const filteredCourses = coursesData.filter(c => {
+        const a = c.audience || 'both';
+        return a === 'both' || a === audienceFilter;
+      });
+      const sortedCourses = filteredCourses.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
       setCourses(sortedCourses);
       setCompletedCourseIds(completedCourses);
       setCourseUnlockStatus(unlockStatus);
@@ -439,7 +447,7 @@ const LessonPage: React.FC = () => {
 
   if (!open) return null;
 
-  if (!profile || isGuest || profile.rank === 'standard_global') {
+  if (!profile || isGuest) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

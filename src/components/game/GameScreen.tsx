@@ -51,13 +51,6 @@ const GameScreen: React.FC = () => {
       const requiresDays = params.get('requiresDays') === 'true';
       const dailyCount = parseInt(params.get('dailyCount') || '1');
       
-      // 権限制御: Standard(Global)はレッスン/曲プレイ不可
-      if (useAuthStore.getState().profile?.rank === 'standard_global') {
-        console.warn('Standard(Global)は#play-lesson非対応のためダッシュボードへ');
-        setIsLoadingLessonSong(false);
-        window.location.hash = '#dashboard';
-        return;
-      }
       
       if (songId) {
         try {

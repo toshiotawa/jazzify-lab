@@ -411,15 +411,16 @@ export interface TutorialProgress {
   nextLesson: { id: string; title: string; order_index: number } | null;
 }
 
-export async function fetchTutorialProgress(): Promise<TutorialProgress | null> {
+export async function fetchTutorialProgress(audience: 'global' | 'japan' = 'japan'): Promise<TutorialProgress | null> {
   const supabase = getSupabaseClient();
 
   const { data: courseData, error: courseError } = await fetchWithCache(
-    'tutorial_course',
+    `tutorial_course_${audience}`,
     async () => await supabase
       .from('courses')
       .select('id, title')
       .eq('is_tutorial', true)
+      .eq('audience', audience)
       .limit(1)
       .single(),
     60 * 60 * 1000

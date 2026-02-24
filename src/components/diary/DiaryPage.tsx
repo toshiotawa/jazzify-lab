@@ -249,7 +249,8 @@ const DiaryPage: React.FC = () => {
                       />
                       <div>
                         <h3 className="text-xl font-semibold">{profile.nickname}</h3>
-                        {/* 称号表示（ホバー/タップで条件表示） */}
+                        {/* 称号表示（standard_globalユーザーは非表示、閲覧者がstd_globalの場合も非表示） */}
+                        {!isStandardGlobal && profile.rank !== 'standard_global' && (
                         <div className="relative mb-2 mt-1">
                           <div
                             className="flex items-center space-x-2 cursor-help"
@@ -272,6 +273,7 @@ const DiaryPage: React.FC = () => {
                             </div>
                           )}
                         </div>
+                        )}
                         <div className="flex items-center space-x-3 text-sm text-gray-400">
                           <span>Lv.{profile.level}</span>
                           <div className="flex items-center space-x-1">
