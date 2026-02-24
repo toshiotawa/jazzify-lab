@@ -1,12 +1,18 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course } from '@/types';
+import { Course, CourseAudience } from '@/types';
 import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
 
-type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'>;
+const AUDIENCE_OPTIONS: { value: CourseAudience; label: string }[] = [
+  { value: 'both', label: '日本＋グローバル' },
+  { value: 'japan', label: '日本専用' },
+  { value: 'global', label: 'グローバル専用' },
+];
+
+type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'> & { audience: CourseAudience };
 
 export const CourseManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -47,9 +53,10 @@ export const CourseManager: React.FC = () => {
       setValue('title', course.title);
       setValue('description', course.description || '');
       setValue('premium_only', course.premium_only ?? true);
+      setValue('audience', course.audience ?? 'both');
     } else {
       setSelectedCourse(null);
-      reset({ title: '', description: '', premium_only: true });
+      reset({ title: '', description: '', premium_only: true, audience: 'both' });
     }
     dialogRef.current?.showModal();
   };
@@ -70,6 +77,7 @@ export const CourseManager: React.FC = () => {
           title: formData.title,
           description: formData.description,
           premium_only: formData.premium_only,
+          audience: formData.audience,
           order_index: newOrderIndex,
         });
         toast.success('新しいコースを追加しました。');
@@ -193,6 +201,7 @@ export const CourseManager: React.FC = () => {
               <th className="w-[100px]">並び順</th>
               <th>コースタイトル</th>
               <th>レッスン数</th>
+              <th>対象地域</th>
               <th>プレミアム限定</th>
               <th className="text-right">アクション</th>
             </tr>
@@ -200,11 +209,11 @@ export const CourseManager: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={6} className="text-center">読み込み中...</td>
+                <td colSpan={7} className="text-center">読み込み中...</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={6} className="text-center text-red-500">
+                <td colSpan={7} className="text-center text-red-500">
                   <div className="py-4">
                     <p className="mb-2">エラー: {error}</p>
                     <button className="btn btn-sm btn-primary" onClick={loadCourses}>
@@ -215,7 +224,7 @@ export const CourseManager: React.FC = () => {
               </tr>
             ) : courses.length === 0 ? (
               <tr>
-                <td colSpan={6} className="text-center text-gray-400">
+                <td colSpan={7} className="text-center text-gray-400">
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
@@ -250,6 +259,15 @@ export const CourseManager: React.FC = () => {
                   </td>
                   <td className="font-medium">{course.title}</td>
                   <td>{course.lessons?.length || 0}</td>
+                  <td>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      course.audience === 'global' ? 'bg-blue-600 text-white' :
+                      course.audience === 'japan' ? 'bg-red-600 text-white' :
+                      'bg-gray-600 text-white'
+                    }`}>
+                      {AUDIENCE_OPTIONS.find(o => o.value === (course.audience || 'both'))?.label || '日本＋グローバル'}
+                    </span>
+                  </td>
                   <td>{course.premium_only ? '✔' : ''}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(course)}>
@@ -262,7 +280,7 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={6} className="p-0">
+                    <td colSpan={7} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
@@ -302,6 +320,16 @@ export const CourseManager: React.FC = () => {
                 <span className="label-text">説明</span>
               </label>
               <textarea id="description" {...register('description')} className="textarea textarea-bordered w-full" />
+            </div>
+            <div>
+              <label htmlFor="audience" className="label">
+                <span className="label-text">対象地域</span>
+              </label>
+              <select id="audience" {...register('audience')} className="select select-bordered w-full">
+                {AUDIENCE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
             </div>
             <div className="form-control">
               <label className="label cursor-pointer">
