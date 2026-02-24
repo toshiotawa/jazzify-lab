@@ -33,7 +33,7 @@ const LevelRanking: React.FC = () => {
   const userColumnText = isEnglishCopy ? 'User' : 'ユーザー(タップで詳細)';
   const titleColumnText = isEnglishCopy ? 'Title' : '称号';
   const fantasyColumnText = isEnglishCopy ? 'Fantasy' : 'ファンタジー';
-  const survivalColumnText = isEnglishCopy ? 'Stages' : 'ステージ';
+  const survivalColumnText = isEnglishCopy ? 'Survival' : 'サバイバル';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
