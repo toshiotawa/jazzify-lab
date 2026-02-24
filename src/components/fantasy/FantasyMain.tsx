@@ -279,7 +279,7 @@ const FantasyMain: React.FC = () => {
             enemyHp: stage.enemy_hp,
             minDamage: stage.min_damage,
             maxDamage: stage.max_damage,
-            mode: (['single','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
+            mode: (['single','single_order','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
               ? (stage.mode as any)
               : 'progression',
             allowedChords: stage.allowed_chords,
@@ -331,7 +331,7 @@ const FantasyMain: React.FC = () => {
           enemyHp: stage.enemy_hp,
           minDamage: stage.min_damage,
           maxDamage: stage.max_damage,
-          mode: (['single','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
+          mode: (['single','single_order','progression_order','progression_random','progression_timing','timing_combining'] as const).includes(stage.mode as any)
             ? (stage.mode as any)
             : 'progression',
           allowedChords: stage.allowed_chords,
@@ -695,7 +695,7 @@ const FantasyMain: React.FC = () => {
         enemyHp: nextStageData.enemy_hp,
         minDamage: nextStageData.min_damage,
         maxDamage: nextStageData.max_damage,
-        mode: nextStageData.mode as 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining',
+        mode: nextStageData.mode as 'single' | 'single_order' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining',
         allowedChords: Array.isArray(nextStageData.allowed_chords) ? nextStageData.allowed_chords : [],
         chordProgression: Array.isArray(nextStageData.chord_progression) ? nextStageData.chord_progression : undefined,
         chordProgressionData: (nextStageData as any).chord_progression_data,
