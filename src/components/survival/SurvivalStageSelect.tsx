@@ -697,11 +697,11 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
               </div>
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
                 <span className="text-yellow-400 font-bold min-w-[80px]">RELOAD</span>
-                <span className="text-gray-300">{isEnglishCopy ? '+1 = -1sec cooldown (min 5sec)' : '+1ごとにクールダウン-1秒（最短5秒）'}</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = -0.7sec cooldown (min 6sec)' : '+1ごとにクールダウン-0.7秒（最短6秒）'}</span>
               </div>
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
                 <span className="text-emerald-400 font-bold min-w-[80px]">LUCK</span>
-                <span className="text-gray-300">{isEnglishCopy ? '+1 = +1% lucky chance (base 10%, max 50%)' : '+1ごとに幸運率+1%（基本10%、最大50%）'}</span>
+                <span className="text-gray-300">{isEnglishCopy ? '+1 = +0.5% lucky chance (base 6%, max 26%)' : '+1ごとに幸運率+0.5%（基本6%、最大26%）'}</span>
               </div>
             </div>
           </div>
@@ -713,13 +713,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </h3>
             <p className="text-xs text-gray-400 font-sans mb-2">
               {isEnglishCopy
-                ? 'Each action has a chance to trigger a Lucky effect. Base 10% + LUCK × 1% (capped at 50% with LUCK 40).'
-                : '攻撃や魔法発動時に一定確率で「幸運」が発動します。基本確率10%＋LUCK値×1%（LUCK 40で最大50%）。'}
+                ? 'Each action has a chance to trigger a Lucky effect. Base 6% + LUCK × 0.5% (capped at 26% with LUCK 40).'
+                : '攻撃や魔法発動時に一定確率で「幸運」が発動します。基本確率6%＋LUCK値×0.5%（LUCK 40で最大26%）。'}
             </p>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-sans">
               <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
-                <div className="text-emerald-400 font-bold">x2</div>
-                <div className="text-gray-400">{isEnglishCopy ? 'Damage' : 'ダメージ2倍'}</div>
+                <div className="text-emerald-400 font-bold">x1.7</div>
+                <div className="text-gray-400">{isEnglishCopy ? 'Damage boost' : 'ダメージ強化'}</div>
               </div>
               <div className="bg-emerald-900/20 rounded-lg p-2 text-center border border-emerald-500/20">
                 <div className="text-emerald-400 font-bold">0</div>
@@ -775,13 +775,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <div className="flex items-center gap-1 mb-1">
                   <span>⬆️</span><span className="font-bold text-blue-400">BUFFER</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Damage multiplier: 1.5x/2.0x/2.5x + C ATK bonus' : '攻撃倍率: 1.5/2.0/2.5倍＋C ATK×0.03加算'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Damage multiplier: 1.4x/1.8x/2.2x + capped C ATK bonus' : '攻撃倍率: 1.4/1.8/2.2倍＋C ATK補正（上限あり）'}</div>
               </div>
               <div className="bg-violet-900/20 rounded-lg p-2 border border-violet-500/20">
                 <div className="flex items-center gap-1 mb-1">
                   <span>⬇️</span><span className="font-bold text-violet-400">DEBUFFER</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Reduce enemy DEF & boost damage: Lv1: DEF 50%, 1.3x / Lv3: DEF 10%, 1.9x' : '敵DEF低下＋ダメージ増加。Lv1: DEF50%/1.3倍 → Lv3: DEF10%/1.9倍'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Reduce enemy DEF and boost damage. Scales with level + C ATK (capped).' : '敵DEF低下＋与ダメ増加。レベルとC ATKで強化（上限あり）。'}</div>
               </div>
               <div className="bg-amber-900/20 rounded-lg p-2 border border-amber-500/20 sm:col-span-2">
                 <div className="flex items-center gap-1 mb-1">
@@ -804,10 +804,10 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 </div>
                 <div className="text-gray-400 mb-1">{isEnglishCopy ? 'Trigger: HP ≤ 15%' : '発動条件: HP 15%以下'}</div>
                 <ul className="text-gray-300 space-y-0.5 list-disc list-inside">
-                  <li>{isEnglishCopy ? 'ATK x2.0' : 'ABC攻撃力 2.0倍'}</li>
-                  <li>{isEnglishCopy ? 'SPEED +10' : 'SPEED +10'}</li>
-                  <li>{isEnglishCopy ? 'RELOAD x0.5' : 'リロード半減'}</li>
-                  <li>{isEnglishCopy ? 'TIME x2' : '効果時間2倍'}</li>
+                  <li>{isEnglishCopy ? 'ATK x1.6' : 'ABC攻撃力 1.6倍'}</li>
+                  <li>{isEnglishCopy ? 'SPEED +6' : 'SPEED +6'}</li>
+                  <li>{isEnglishCopy ? 'RELOAD x0.7' : 'リロード0.7倍'}</li>
+                  <li>{isEnglishCopy ? 'TIME x1.6' : '効果時間1.6倍'}</li>
                   <li className="text-red-400">{isEnglishCopy ? 'DEF = 0' : 'DEF 0（防御なし）'}</li>
                 </ul>
               </div>
@@ -817,9 +817,9 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 </div>
                 <div className="text-gray-400 mb-1">{isEnglishCopy ? 'Trigger: HP = MAX' : '発動条件: HP満タン'}</div>
                 <ul className="text-gray-300 space-y-0.5 list-disc list-inside">
-                  <li>{isEnglishCopy ? 'ATK x1.3' : 'ABC攻撃力 1.3倍'}</li>
-                  <li>{isEnglishCopy ? 'TIME x2' : '効果時間2倍'}</li>
-                  <li>{isEnglishCopy ? 'RELOAD x0.5' : 'リロード半減'}</li>
+                  <li>{isEnglishCopy ? 'ATK x1.18' : 'ABC攻撃力 1.18倍'}</li>
+                  <li>{isEnglishCopy ? 'TIME x1.4' : '効果時間1.4倍'}</li>
+                  <li>{isEnglishCopy ? 'RELOAD x0.8' : 'リロード0.8倍'}</li>
                 </ul>
               </div>
             </div>

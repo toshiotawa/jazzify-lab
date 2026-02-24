@@ -56,13 +56,13 @@ export interface PlayerStats {
   bAtk: number;          // 近接攻撃の威力
   cAtk: number;          // 魔法の威力
   speed: number;         // 移動速度
-  reloadMagic: number;   // 魔法の再発動短縮（0.5秒/ポイント、max 20ポイント）
+  reloadMagic: number;   // 魔法の再発動短縮（0.7秒/ポイント、max 20ポイント）
   hp: number;            // 現在HP
   maxHp: number;         // 最大HP
   def: number;           // 防御力
   time: number;          // 効果時間延長（2秒/ポイント）
   aBulletCount: number;  // A列の弾数
-  luck: number;          // 運（1ポイント=1%、上限40=50%）
+  luck: number;          // 運（1ポイント=0.5%、上限40=26%）
 }
 
 // ===== 特殊スキル =====
@@ -430,7 +430,7 @@ export interface SurvivalCharacter {
 // ===== 定数 =====
 export const SLOT_TIMEOUT = 10;  // コードスロットのタイムアウト（秒）
 export const MAGIC_BASE_COOLDOWN = 10;  // 魔法の基本クールダウン（秒）
-export const MAGIC_MIN_COOLDOWN = 5;    // 魔法の最小クールダウン（秒）
+export const MAGIC_MIN_COOLDOWN = 6;    // 魔法の最小クールダウン（秒）
 export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
 
 export const MAP_CONFIG: MapConfig = {

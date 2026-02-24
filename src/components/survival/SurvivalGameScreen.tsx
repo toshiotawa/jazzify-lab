@@ -50,6 +50,7 @@ import {
   collectCoins,
   cleanupExpiredCoins,
   calculateWaveQuota,
+  calculateWaveSpawnCount,
   getWaveSpeedMultiplier,
   shouldEnemyShoot,
   createEnemyProjectile,
@@ -57,6 +58,7 @@ import {
   getConditionalSkillMultipliers,
   checkLuck,
   getAvailableMagics,
+  calculateEnemyExpGain,
   MAX_ENEMIES,
   MAX_PROJECTILES,
   MAX_COINS,
@@ -746,7 +748,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         noteNameStyle: settings.noteNameStyle,
         simpleDisplayMode: settings.simpleDisplayMode,
         pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
-        colors: { activeKey: '#22C55E' }, // サバイバルヒントの鍵盤ハイライトを緑に
       });
       
       // タッチ/クリックハンドラー設定（ファンタジーモードと同様）
@@ -2040,8 +2041,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const expBonus = newState.player.skills.expBonusLevel;
             let totalDirectExp = 0;
             defeatedEnemies.forEach(enemy => {
-              const baseExp = enemy.isBoss ? 50 : 10;
-              totalDirectExp += Math.floor(baseExp * config.expMultiplier) + expBonus;
+              totalDirectExp += calculateEnemyExpGain(enemy.isBoss, config.expMultiplier, expBonus);
             });
             if (totalDirectExp > 0) {
               const levelBefore = newState.player.level;
@@ -2058,7 +2058,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             // コインをスポーン（上限チェック付き）
             defeatedEnemies.forEach(enemy => {
               if (newState.coins.length < MAX_COINS) {
-                const coins = createCoinsFromEnemy(enemy, config.expMultiplier);
+                const coins = createCoinsFromEnemy(enemy, config.expMultiplier, newState.player.skills.expBonusLevel);
                 const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
                 newState.coins = [...newState.coins, ...allowedCoins];
               }
@@ -2235,11 +2235,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        // 全難易度共通: 設定値ベース + WAVEごとに+1
-        const effectiveSpawnRate = config.enemySpawnRate;
+        const effectiveSpawnRate = Math.max(1.5, config.enemySpawnRate);
         const baseSpawnCount = config.enemySpawnCount;
-        const waveBonus = newState.wave.currentWave - 1;
-        const effectiveSpawnCount = baseSpawnCount + waveBonus;
+        const effectiveSpawnCount = calculateWaveSpawnCount(baseSpawnCount, newState.wave.currentWave);
         
         const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
         if (isFirstSpawn) {

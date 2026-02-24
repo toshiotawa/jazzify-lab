@@ -55,6 +55,7 @@ export const MAX_COINS = Infinity;       // コインの最大数（制限なし
 
 // HP上限値
 const MAX_HP_CAP = 1000;
+const MAX_A_BULLET_COUNT = 14;
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -72,7 +73,7 @@ const createInitialPlayerState = (): PlayerState => ({
     def: 5,
     time: 0,
     aBulletCount: 1,
-    luck: 0,  // 運（1=1%、上限40=50%）
+    luck: 0,  // 運（1=0.5%、上限40=26%）
   },
   skills: {
     aPenetration: false,
@@ -207,8 +208,14 @@ export const applyLevel10Bonuses = (
         messages.push(`TIME +${bonus.value}`);
         break;
       case 'a_bullet':
-        p.stats.aBulletCount += bonus.value;
-        messages.push(`Bullets +${bonus.value}`);
+        {
+          const prevBullets = p.stats.aBulletCount;
+          p.stats.aBulletCount = Math.min(MAX_A_BULLET_COUNT, p.stats.aBulletCount + bonus.value);
+          const actualIncrease = p.stats.aBulletCount - prevBullets;
+          if (actualIncrease > 0) {
+            messages.push(`Bullets +${actualIncrease}`);
+          }
+        }
         break;
       case 'b_knockback':
         p.skills.bKnockbackBonus += bonus.value;
@@ -298,6 +305,16 @@ export const calculateWaveQuota = (waveNumber: number): number => {
   return 1;
 };
 
+export const calculateWaveSpawnCount = (baseSpawnCount: number, waveNumber: number): number => {
+  const safeBase = Math.max(1, Math.floor(baseSpawnCount));
+  const earlyBonus = Math.floor((Math.min(waveNumber, 10) - 1) / 3); // WAVE1-10: +0~3
+  const midBonus = waveNumber > 10 ? Math.floor((Math.min(waveNumber, 25) - 10) / 4) : 0; // WAVE11-25: +0~3
+  const lateBonus = waveNumber > 25 ? Math.floor((waveNumber - 25) / 6) : 0; // WAVE26+: 緩やか増加
+  const rawSpawnCount = safeBase + earlyBonus + midBonus + lateBonus;
+  const waveCap = 10 + Math.floor(Math.max(0, waveNumber - 1) / 4);
+  return Math.max(1, Math.min(rawSpawnCount, waveCap));
+};
+
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
   // WAVEが進むごとに敵が20%ずつ速くなる（最大5倍 = WAVE21で頭打ち）
   return Math.min(5, 1 + (waveNumber - 1) * 0.2);
@@ -382,11 +399,14 @@ export const initializeCodeSlots = (
 const ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'skeleton', 'zombie', 'bat', 'ghost', 'orc', 'demon', 'dragon'];
 
 const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: number, waveNumber: number = 1) => {
-  // 時間経過による強化（30秒ごとに15%強化、10分以降はさらに加速）
-  const baseTimeBonus = Math.floor(elapsedTime / 30) * 0.15;
-  // 10分（600秒）以降は追加で強化
-  const lateGameBonus = elapsedTime >= 600 ? (elapsedTime - 600) / 60 * 0.3 : 0;  // 1分ごとに30%追加
-  const timeBonus = baseTimeBonus + lateGameBonus;
+  const elapsedMinutes = elapsedTime / 60;
+  const waveProgress = Math.max(0, waveNumber - 1);
+
+  // 時間・WAVEを別々に係数化して、急激なジャンプを避ける
+  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.09 + Math.max(0, elapsedMinutes - 10) * 0.06;
+  const timeHpMultiplier = 1 + elapsedMinutes * 0.14 + Math.max(0, elapsedMinutes - 10) * 0.12;
+  const waveAtkDefMultiplier = 1 + waveProgress * 0.10 + Math.max(0, waveNumber - 20) * 0.03;
+  const waveHpMultiplier = 1 + waveProgress * 0.24 + Math.max(0, waveNumber - 12) * 0.05;
   
   // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
@@ -403,32 +423,13 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   };
   
   const base = baseStats[type];
-  const totalMultiplier = multiplier * (1 + timeBonus);
-  
-  // WAVEごとのHP大幅ボーナス（段階的に増加）
-  let waveHpBonus = 0;
-  if (waveNumber >= 5) {
-    const wavesIn5to9 = Math.min(waveNumber, 9) - 4;
-    waveHpBonus += wavesIn5to9 * 300;
-  }
-  if (waveNumber >= 10) {
-    waveHpBonus += 2000;
-  }
-  if (waveNumber >= 20) {
-    waveHpBonus += 100000;
-  }
-  if (waveNumber >= 30) {
-    waveHpBonus += 100000;
-  }
-  if (waveNumber >= 40) {
-    waveHpBonus += 100000;
-  }
-  
-  const baseHp = Math.floor(base.hp * totalMultiplier) + waveHpBonus;
+  const atkDefMultiplier = multiplier * timeAtkDefMultiplier * waveAtkDefMultiplier;
+  const hpMultiplier = multiplier * timeHpMultiplier * waveHpMultiplier;
+  const baseHp = Math.max(1, Math.floor(base.hp * hpMultiplier));
   
   return {
-    atk: Math.floor(base.atk * totalMultiplier),
-    def: Math.floor(base.def * totalMultiplier),
+    atk: Math.max(1, Math.floor(base.atk * atkDefMultiplier)),
+    def: Math.max(1, Math.floor(base.def * atkDefMultiplier)),
     hp: baseHp,
     maxHp: baseHp,
     speed: base.speed,
@@ -525,7 +526,7 @@ export const spawnEnemy = (
     type,
     x,
     y,
-    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 2 : config.enemyStatMultiplier, waveNumber),
+    stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 1.8 : config.enemyStatMultiplier, waveNumber),
     statusEffects: [],
     isBoss,
   };
@@ -848,31 +849,30 @@ export const calculateDamage = (
   cAtk: number = 0,
   isLucky: boolean = false
 ): number => {
-  // バッファー効果: レベルとC ATKで大幅強化
-  // レベル0(無効): 1.0倍、レベル1: 1.5倍、レベル2: 2.0倍、レベル3: 2.5倍
-  // さらにC ATK×0.03を加算（C ATK 20で+0.6倍）
+  const cappedBufferCAtk = Math.min(cAtk, 45);
+  const cappedDebufferCAtk = Math.min(cAtk, 40);
+
+  // バッファー効果: C ATK寄与に上限を設けて火力インフレを抑える
   let atkMultiplier = 1;
   if (isBuffed && bufferLevel > 0) {
-    atkMultiplier = 1 + bufferLevel * 0.5 + cAtk * 0.03;
+    atkMultiplier = 1 + bufferLevel * 0.4 + cappedBufferCAtk * 0.02;
   } else if (isBuffed) {
-    atkMultiplier = 1.5;  // レベル情報がない場合のデフォルト
+    atkMultiplier = 1.35;  // レベル情報がない場合のデフォルト
   }
   
-  // デバッファー効果: バフと同様にダメージの通りをよくする
-  // 敵の防御力を大幅に無効化 + ダメージ倍率を追加
-  // レベル1: DEF50%、ダメージ1.3倍、レベル2: DEF30%、ダメージ1.6倍、レベル3: DEF10%、ダメージ1.9倍
+  // デバッファー効果: 防御低下と与ダメ補正も上限付きで調整
   let defMultiplier = 1;
   let debuffDamageMultiplier = 1;
   if (isDebuffed && debufferLevel > 0) {
-    defMultiplier = Math.max(0.1, 0.7 - debufferLevel * 0.2 - cAtk * 0.01);  // DEF 70%→50%→30%→10%
-    debuffDamageMultiplier = 1 + debufferLevel * 0.3 + cAtk * 0.02;  // ダメージ1.3〜1.9倍+C ATKボーナス
+    defMultiplier = Math.max(0.2, 0.8 - debufferLevel * 0.18 - cappedDebufferCAtk * 0.006);
+    debuffDamageMultiplier = 1 + debufferLevel * 0.22 + cappedDebufferCAtk * 0.01;
   } else if (isDebuffed) {
-    defMultiplier = 0.5;  // レベル情報がない場合のデフォルト
-    debuffDamageMultiplier = 1.3;
+    defMultiplier = 0.65;  // レベル情報がない場合のデフォルト
+    debuffDamageMultiplier = 1.2;
   }
   
-  // 運発動時はダメージ2倍
-  const luckyMultiplier = isLucky ? 2 : 1;
+  // 運発動時の瞬間火力は抑えつつ、爽快感は残す
+  const luckyMultiplier = isLucky ? 1.7 : 1;
   
   // ダメージ計算: バフ倍率、デバフ倍率、運倍率を適用
   const damage = Math.max(1, Math.floor(
@@ -883,10 +883,10 @@ export const calculateDamage = (
 };
 
 // ===== 運の判定 =====
-// 基本運率 = 10% + Luck * 1%（上限40 = 50%）
-const BASE_LUCK_CHANCE = 0.10;  // 基本10%
-const LUCK_PER_POINT = 0.01;    // Luck 1ポイントあたり1%
-const MAX_LUCK_STAT = 40;       // Luck上限（40 = 50%）
+// 基本運率 = 6% + Luck * 0.5%（上限40 = 26%）
+const BASE_LUCK_CHANCE = 0.06;
+const LUCK_PER_POINT = 0.005;
+const MAX_LUCK_STAT = 40;
 
 export interface LuckResult {
   isLucky: boolean;           // 運発動したか
@@ -935,20 +935,20 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
   let speedBonus = 0;
   let defOverride: number | null = null;
   
-  // 背水の陣（HP15%以下）: ABC攻撃力2倍、SPEED+10、RELOAD半分、TIME2倍、DEF=0
+  // 背水の陣（HP15%以下）: 高火力の見返りにDEF=0
   if (hasHaisui) {
-    atkMultiplier *= 2;
-    timeMultiplier *= 2;
-    reloadMultiplier *= 0.5;
-    speedBonus += 10;
+    atkMultiplier *= 1.6;
+    timeMultiplier *= 1.6;
+    reloadMultiplier *= 0.7;
+    speedBonus += 6;
     defOverride = 0;
   }
   
-  // 絶好調（HP満タン）: ABC攻撃力1.3倍、TIME2倍、RELOAD半分
+  // 絶好調（HP満タン）: 穏やかな上振れ
   if (hasZekkouchou) {
-    atkMultiplier *= 1.3;
-    timeMultiplier *= 2;
-    reloadMultiplier *= 0.5;
+    atkMultiplier *= 1.18;
+    timeMultiplier *= 1.4;
+    reloadMultiplier *= 0.8;
   }
   
   return { atkMultiplier, timeMultiplier, reloadMultiplier, speedBonus, defOverride };
@@ -976,7 +976,7 @@ const ALL_BONUSES: BonusDefinition[] = [
   { type: 'def', displayName: 'DEF +1', displayNameEn: 'DEF +1', description: '防御力アップ', descriptionEn: 'Defense up', icon: '🛡️' },
   { type: 'time', displayName: 'TIME +1', displayNameEn: 'TIME +1', description: '効果時間+2秒', descriptionEn: 'Effect duration +2s', icon: '⏰' },
   { type: 'a_bullet', displayName: '遠距離弾数 +2', displayNameEn: 'Bullets +2', description: '時計方向に弾を追加', descriptionEn: 'Add clockwise bullets', icon: '💫' },
-  { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+1%（ダメージ2倍等の確率UP）', descriptionEn: 'Luck +1% (chance for 2x damage, etc.)', icon: '🍀', maxLevel: 40 },
+  { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+0.5%（幸運効果の発動率UP）', descriptionEn: 'Luck +0.5% (higher lucky trigger chance)', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', displayNameEn: 'Penetration', description: '遠距離弾が敵を貫通', descriptionEn: 'Ranged bullets pierce enemies', icon: '➡️', maxLevel: 1 },
   { type: 'b_knockback', displayName: 'ノックバック+', displayNameEn: 'Knockback+', description: '近接攻撃のノックバック距離増加', descriptionEn: 'Increase melee knockback distance', icon: '💨', maxLevel: 10 },
@@ -1031,6 +1031,10 @@ const getAvailableBonuses = (
     }
     // HP上限チェック: maxHpがMAX_HP_CAP以上なら最大HPボーナスを除外
     if (bonus.type === 'max_hp' && player.stats.maxHp >= MAX_HP_CAP) {
+      return false;
+    }
+    // 弾数は上限を設けて過剰な物量インフレを防ぐ
+    if (bonus.type === 'a_bullet' && player.stats.aBulletCount >= MAX_A_BULLET_COUNT) {
       return false;
     }
     if (bonus.maxLevel) {
@@ -1183,8 +1187,11 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.stats.time += 1;
       break;
     case 'a_bullet':
-      // 弾数を2個追加（時計方向に弾が増える）
-      newPlayer.stats.aBulletCount += 2;
+      // 序盤は+2、終盤は+1で伸び幅を抑えつつ爽快感を維持
+      if (newPlayer.stats.aBulletCount < MAX_A_BULLET_COUNT) {
+        const bulletGain = newPlayer.stats.aBulletCount < 7 ? 2 : 1;
+        newPlayer.stats.aBulletCount = Math.min(MAX_A_BULLET_COUNT, newPlayer.stats.aBulletCount + bulletGain);
+      }
       break;
     case 'luck_pendant':
       // 幸運のペンダント: 運+1（上限40）
@@ -1241,11 +1248,24 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 };
 
 // ===== 経験値計算 =====
-// 20レベルで必要経験値を頭打ちにする（サクサクレベルアップ）
 const EXP_CAP_LEVEL = 20;
+const MID_EXP_END_LEVEL = 40;
+const MID_EXP_PER_LEVEL = 40;
+const EXP_CAP_VALUE = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, EXP_CAP_LEVEL - 1));
+const MID_EXP_END_VALUE = EXP_CAP_VALUE + (MID_EXP_END_LEVEL - EXP_CAP_LEVEL) * MID_EXP_PER_LEVEL;
+
 export const calculateExpToNextLevel = (level: number): number => {
-  const effectiveLevel = Math.min(level, EXP_CAP_LEVEL);
-  return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
+  if (level <= EXP_CAP_LEVEL) {
+    const effectiveLevel = Math.max(1, level);
+    return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
+  }
+
+  if (level <= MID_EXP_END_LEVEL) {
+    return EXP_CAP_VALUE + (level - EXP_CAP_LEVEL) * MID_EXP_PER_LEVEL;
+  }
+
+  const lateGameLevel = level - MID_EXP_END_LEVEL;
+  return Math.floor(MID_EXP_END_VALUE + Math.pow(lateGameLevel, 1.3) * 80);
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
@@ -1318,8 +1338,8 @@ export const getAvailableMagics = (player: PlayerState): [string, number][] => {
 
 // ===== マジッククールダウン計算 =====
 export const getMagicCooldown = (reloadMagic: number): number => {
-  // RELOAD +1で1秒短縮（0.5秒→1秒に変更）
-  return Math.max(MAGIC_MIN_COOLDOWN, MAGIC_BASE_COOLDOWN - reloadMagic * 1.0);
+  // RELOAD +1で0.7秒短縮（下限あり）
+  return Math.max(MAGIC_MIN_COOLDOWN, MAGIC_BASE_COOLDOWN - reloadMagic * 0.7);
 };
 
 // ===== 魔法発動 =====
@@ -1485,14 +1505,25 @@ export const castMagic = (
 
 // ===== コイン生成 =====
 const COIN_LIFETIME = Infinity;  // コインの生存時間（無限 - 消えない）
+const NORMAL_ENEMY_EXP = 10;
+const BOSS_ENEMY_EXP = 36;
 
-export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): Coin[] => {
-  const baseExp = enemy.isBoss ? 50 : 10;
-  const totalExp = Math.floor(baseExp * expMultiplier);
+export const calculateEnemyExpGain = (
+  isBoss: boolean,
+  expMultiplier: number,
+  expBonusLevel: number = 0
+): number => {
+  const baseExp = isBoss ? BOSS_ENEMY_EXP : NORMAL_ENEMY_EXP;
+  return Math.max(1, Math.floor(baseExp * expMultiplier) + expBonusLevel);
+};
+
+export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number, expBonusLevel: number = 0): Coin[] => {
+  const totalExp = calculateEnemyExpGain(enemy.isBoss, expMultiplier, expBonusLevel);
   
   // 複数のコインに分割（より大きな敵は多くのコインを落とす）
   const coinCount = enemy.isBoss ? 5 : Math.floor(Math.random() * 2) + 1;
-  const expPerCoin = Math.ceil(totalExp / coinCount);
+  const baseExpPerCoin = Math.floor(totalExp / coinCount);
+  const remainderExp = totalExp % coinCount;
   
   const coins: Coin[] = [];
   for (let i = 0; i < coinCount; i++) {
@@ -1504,7 +1535,7 @@ export const createCoinsFromEnemy = (enemy: EnemyState, expMultiplier: number): 
       id: `coin_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       x: enemy.x + offsetX,
       y: enemy.y + offsetY,
-      exp: expPerCoin,
+      exp: baseExpPerCoin + (i < remainderExp ? 1 : 0),
       startTime: Date.now(),
       lifetime: COIN_LIFETIME,
     });
@@ -1523,16 +1554,13 @@ export const collectCoins = (
   let totalExp = 0;
   const remainingCoins: Coin[] = [];
   
-  // 経験値ボーナス（コイン1枚あたり+1 × レベル）
-  const expBonus = player.skills.expBonusLevel;
-  
   coins.forEach(coin => {
     const dx = coin.x - player.x;
     const dy = coin.y - player.y;
     const dist = Math.sqrt(dx * dx + dy * dy);
     
     if (dist < COIN_PICKUP_RADIUS) {
-      totalExp += coin.exp + expBonus;
+      totalExp += coin.exp;
     } else {
       remainingCoins.push(coin);
     }
