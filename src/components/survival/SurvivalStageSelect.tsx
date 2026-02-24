@@ -294,6 +294,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             difficulty: s.difficulty,
             displayName: s.displayName,
             description: s.description || '',
+            descriptionEn: s.descriptionEn || '',
             allowedChords: s.allowedChords,
             enemySpawnRate: s.enemySpawnRate,
             enemySpawnCount: s.enemySpawnCount,
@@ -452,7 +453,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                       </span>
                     </div>
                     <p className="text-gray-400 text-sm font-sans mt-1">
-                      {isEnglishCopy ? DIFFICULTY_DESCRIPTIONS_EN[difficulty] : config.description}
+                      {isEnglishCopy ? (config.descriptionEn || DIFFICULTY_DESCRIPTIONS_EN[difficulty]) : config.description}
                     </p>
                   </div>
                   <div className={cn(

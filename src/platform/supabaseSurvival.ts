@@ -27,6 +27,7 @@ export interface SurvivalDifficultySettings {
   difficulty: SurvivalDifficulty;
   displayName: string;
   description: string | null;
+  descriptionEn: string | null;
   allowedChords: string[];
   enemySpawnRate: number;
   enemySpawnCount: number;
@@ -373,6 +374,7 @@ function convertDifficultySettings(row: Record<string, unknown>): SurvivalDiffic
     difficulty: row.difficulty as SurvivalDifficulty,
     displayName: row.display_name as string,
     description: row.description as string | null,
+    descriptionEn: (row.description_en as string) ?? null,
     allowedChords: (row.allowed_chords as string[]) || [],
     enemySpawnRate: Number(row.enemy_spawn_rate) || 3,
     enemySpawnCount: Number(row.enemy_spawn_count) || 2,

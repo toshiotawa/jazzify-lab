@@ -2057,7 +2057,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const notifications = acquiredBonuses.map((bonus, idx) => ({
                     id: `skill_${now}_${idx}`,
                     icon: bonus.icon,
-                    displayName: bonus.displayName,
+                    displayName: isEnglishCopy && bonus.displayNameEn ? bonus.displayNameEn : bonus.displayName,
                     startTime: now + idx * 300,
                   }));
                   setSkillNotifications(prev => [...prev, ...notifications]);
@@ -2894,7 +2894,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       <span className="text-white font-sans">{gameState.player.stats.reloadMagic}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-blue-300 font-sans">💎 A弾数</span>
+                      <span className="text-blue-300 font-sans">💎 {isEnglishCopy ? 'A Bullets' : 'A弾数'}</span>
                       <span className="text-white font-sans">{gameState.player.stats.aBulletCount}</span>
                     </div>
                   </div>
@@ -2903,15 +2903,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   {(() => {
                     const sk = gameState.player.skills;
                     const activeSkills: string[] = [];
-                    if (sk.aPenetration) activeSkills.push('🔫 貫通');
-                    if (sk.bKnockbackBonus > 0) activeSkills.push(`👊 ノックバック+${sk.bKnockbackBonus}`);
-                    if (sk.bRangeBonus > 0) activeSkills.push(`👊 範囲+${sk.bRangeBonus}`);
-                    if (sk.bDeflect) activeSkills.push('👊 弾消去');
-                    if (sk.multiHitLevel > 0) activeSkills.push(`⚔️ 多段Lv${sk.multiHitLevel}`);
+                    if (sk.aPenetration) activeSkills.push(isEnglishCopy ? '🔫 Penetrate' : '🔫 貫通');
+                    if (sk.bKnockbackBonus > 0) activeSkills.push(isEnglishCopy ? `👊 KB+${sk.bKnockbackBonus}` : `👊 ノックバック+${sk.bKnockbackBonus}`);
+                    if (sk.bRangeBonus > 0) activeSkills.push(isEnglishCopy ? `👊 Range+${sk.bRangeBonus}` : `👊 範囲+${sk.bRangeBonus}`);
+                    if (sk.bDeflect) activeSkills.push(isEnglishCopy ? '👊 Deflect' : '👊 弾消去');
+                    if (sk.multiHitLevel > 0) activeSkills.push(isEnglishCopy ? `⚔️ Multi Lv${sk.multiHitLevel}` : `⚔️ 多段Lv${sk.multiHitLevel}`);
                     if (sk.expBonusLevel > 0) activeSkills.push(`✨ EXP+${sk.expBonusLevel}`);
-                    if (sk.haisuiNoJin || sk.alwaysHaisuiNoJin) activeSkills.push(`🔥 背水${sk.alwaysHaisuiNoJin ? '(常時)' : ''}`);
-                    if (sk.zekkouchou || sk.alwaysZekkouchou) activeSkills.push(`⭐ 絶好調${sk.alwaysZekkouchou ? '(常時)' : ''}`);
-                    if (sk.autoSelect) activeSkills.push('🤖 オート');
+                    if (sk.haisuiNoJin || sk.alwaysHaisuiNoJin) activeSkills.push(isEnglishCopy ? `🔥 L.Stand${sk.alwaysHaisuiNoJin ? '(Always)' : ''}` : `🔥 背水${sk.alwaysHaisuiNoJin ? '(常時)' : ''}`);
+                    if (sk.zekkouchou || sk.alwaysZekkouchou) activeSkills.push(isEnglishCopy ? `⭐ Peak${sk.alwaysZekkouchou ? '(Always)' : ''}` : `⭐ 絶好調${sk.alwaysZekkouchou ? '(常時)' : ''}`);
+                    if (sk.autoSelect) activeSkills.push(isEnglishCopy ? '🤖 Auto' : '🤖 オート');
                     
                     if (activeSkills.length === 0) return null;
                     return (
