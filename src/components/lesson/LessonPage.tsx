@@ -40,6 +40,7 @@ const LessonPage: React.FC = () => {
   const mainAreaRef = useRef<HTMLDivElement>(null);
   const lessonScrollRef = useRef<HTMLDivElement>(null);
   const shouldScrollToIncomplete = useRef(false);
+  const [scrollTrigger, setScrollTrigger] = useState(0);
   const userIsPlatinumOrBlack = isPlatinumOrBlack(profile?.rank);
 
   // 手動解放モーダル関連
@@ -61,8 +62,7 @@ const LessonPage: React.FC = () => {
   }, [lessons, progress, profile?.rank]);
 
   useEffect(() => {
-    if (!shouldScrollToIncomplete.current || lessons.length === 0) return;
-    shouldScrollToIncomplete.current = false;
+    if (scrollTrigger === 0 || lessons.length === 0) return;
 
     const sortedLessons = [...lessons].sort((a, b) => {
       const blockA = a.block_number || 1;
@@ -72,17 +72,17 @@ const LessonPage: React.FC = () => {
     });
 
     const firstIncomplete = sortedLessons.find(lesson => {
-      const accessState = lessonAccessGraph.lessonStates[lesson.id];
-      return !(accessState?.isCompleted ?? false);
+      const state = lessonAccessGraph.lessonStates[lesson.id];
+      return !(state?.isCompleted ?? false);
     });
 
     if (firstIncomplete && lessonScrollRef.current) {
-      setTimeout(() => {
+      requestAnimationFrame(() => {
         const el = lessonScrollRef.current?.querySelector(`[data-lesson-id="${firstIncomplete.id}"]`);
         el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      }, 150);
+      });
     }
-  }, [lessons, lessonAccessGraph]);
+  }, [scrollTrigger]);
 
   useEffect(() => {
     const checkHash = () => {
@@ -376,6 +376,10 @@ const LessonPage: React.FC = () => {
           ...prev,
           [courseId]: completionRate,
         }));
+      }
+      if (shouldScrollToIncomplete.current) {
+        shouldScrollToIncomplete.current = false;
+        setScrollTrigger(prev => prev + 1);
       }
     } catch (e: any) {
       toast.error('レッスンデータの読み込みに失敗しました');
