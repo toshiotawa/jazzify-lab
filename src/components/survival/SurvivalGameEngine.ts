@@ -68,9 +68,9 @@ const createInitialPlayerState = (): PlayerState => ({
     cAtk: 20,
     speed: 0,  // 初期移動速度を遅く（以前は1）
     reloadMagic: 0,
-    hp: 200,
-    maxHp: 200,
-    def: 5,
+    hp: 300,
+    maxHp: 300,
+    def: 10,
     time: 0,
     aBulletCount: 1,
     luck: 0,  // 運（1=0.5%、上限40=26%）
@@ -403,9 +403,9 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
 
   // 時間・WAVEを別々に係数化して、急激なジャンプを避ける
   const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.05 + Math.max(0, elapsedMinutes - 10) * 0.03;
-  const timeHpMultiplier = 1 + elapsedMinutes * 0.14 + Math.max(0, elapsedMinutes - 10) * 0.12;
+  const timeHpMultiplier = 1 + elapsedMinutes * 0.07 + Math.max(0, elapsedMinutes - 10) * 0.06;
   const waveAtkDefMultiplier = 1 + waveProgress * 0.06 + Math.max(0, waveNumber - 20) * 0.02;
-  const waveHpMultiplier = 1 + waveProgress * 0.24 + Math.max(0, waveNumber - 12) * 0.05;
+  const waveHpMultiplier = 1 + waveProgress * 0.12 + Math.max(0, waveNumber - 12) * 0.03;
   
   // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
