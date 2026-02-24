@@ -68,8 +68,8 @@ const createInitialPlayerState = (): PlayerState => ({
     cAtk: 20,
     speed: 0,  // 初期移動速度を遅く（以前は1）
     reloadMagic: 0,
-    hp: 300,
-    maxHp: 300,
+    hp: 100,
+    maxHp: 100,
     def: 10,
     time: 0,
     aBulletCount: 1,
