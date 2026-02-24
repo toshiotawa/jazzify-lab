@@ -384,24 +384,6 @@ export async function manualUnlockBlock(courseId: string, blockNumber: number): 
 }
 
 /**
- * 管理者が自分自身にブロック解放クレジットを付与
- * @param credits 付与するクレジット数
- * @returns 付与後の残りクレジット数
- */
-export async function addBlockUnlockCreditsForCurrentUser(credits: number): Promise<number> {
-  const supabase = getSupabaseClient();
-
-  const { data, error } = await supabase
-    .rpc('add_block_unlock_credits_for_current_user', { p_credits: credits });
-
-  if (error) {
-    throw new Error(`クレジット付与に失敗しました: ${error.message}`);
-  }
-
-  return (data as number) ?? 0;
-}
-
-/**
  * ブロック解放クレジット残数を取得
  */
 export async function fetchBlockUnlockCredits(): Promise<number> {

@@ -3110,12 +3110,19 @@ export const useFantasyGameEngine = ({
           }
           // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
           if (completedMonsters.some(cm => cm.id === monster.id)) {
-            const nextChord = selectRandomChordWithBag(
-              bagSelectorRef.current,
-              stateAfterAttack.currentStage!.allowedChords,
-              monster.chordTarget.id,
-              displayOpts
-            );
+            let nextChord;
+            if (stateAfterAttack.currentStage?.mode === 'single_order') {
+              const allowedForOrder = stateAfterAttack.currentStage.allowedChords?.length
+                ? stateAfterAttack.currentStage.allowedChords : [];
+              nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
+            } else {
+              nextChord = selectRandomChordWithBag(
+                bagSelectorRef.current,
+                stateAfterAttack.currentStage!.allowedChords,
+                monster.chordTarget.id,
+                displayOpts
+              );
+            }
             return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
           }
           // SPアタックの場合は全ての敵のゲージをリセット
