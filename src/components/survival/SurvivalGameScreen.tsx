@@ -67,6 +67,7 @@ import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
 import SurvivalGameOver from './SurvivalGameOver';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
+import { VoiceInputController } from '@/utils/VoiceInputController';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import SurvivalSettingsModal, { loadSurvivalDisplaySettings, SurvivalDisplaySettings } from './SurvivalSettingsModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -407,6 +408,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // MIDI/ピアノ関連
   const midiControllerRef = useRef<MIDIController | null>(null);
+  const voiceControllerRef = useRef<VoiceInputController | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
@@ -622,7 +624,83 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
   }, [config.difficulty, isMidiInitialized, settings.selectedMidiDevice]); // 難易度が変更されたときに実行（ステージ開始時）
-  
+
+  // 音声入力初期化（レジェンドモードと同様）
+  useEffect(() => {
+    if (settings.inputMethod !== 'voice') {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      return;
+    }
+    if (!settings.selectedAudioDevice) {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      return;
+    }
+    if (!VoiceInputController.isSupported()) return;
+
+    const initVoiceInput = async () => {
+      try {
+        if (!voiceControllerRef.current) {
+          voiceControllerRef.current = new VoiceInputController({
+            onNoteOn: (note: number) => {
+              if (handleNoteInputRef.current) {
+                handleNoteInputRef.current(note);
+              }
+              const renderer = pixiRendererRef.current;
+              if (renderer) {
+                renderer.highlightKey(note, true);
+                setTimeout(() => {
+                  pixiRendererRef.current?.highlightKey(note, false);
+                }, 150);
+              }
+            },
+            onNoteOff: (note: number) => {
+              pixiRendererRef.current?.highlightKey(note, false);
+            },
+            onConnectionChange: () => {},
+            onError: () => {}
+          });
+        }
+        if (settings.selectedAudioDevice) {
+          const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
+          await voiceControllerRef.current.connect(deviceId);
+        }
+      } catch {
+        // エラー時はタッチ入力で続行可能
+      }
+    };
+    void initVoiceInput();
+  }, [settings.inputMethod, settings.selectedAudioDevice]);
+
+  // 音声入力コントローラーのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (voiceControllerRef.current) {
+        voiceControllerRef.current.destroy();
+        voiceControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // 入力方式切り替え時のMIDI/Voice切り替え処理
+  useEffect(() => {
+    if (settings.inputMethod === 'midi') {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      if (midiControllerRef.current && settings.selectedMidiDevice) {
+        void midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+      }
+    } else if (settings.inputMethod === 'voice') {
+      if (midiControllerRef.current) {
+        midiControllerRef.current.disconnect();
+      }
+    }
+  }, [settings.inputMethod, settings.selectedMidiDevice]);
+
   // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {
     pixiRendererRef.current = renderer;

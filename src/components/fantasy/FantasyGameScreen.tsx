@@ -7,6 +7,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMe
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
+import { VoiceInputController } from '@/utils/VoiceInputController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
@@ -224,6 +225,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ローカルのuseStateからgameStoreに切り替え
   const { settings, updateSettings } = useGameStore();
   const midiControllerRef = useRef<MIDIController | null>(null);
+  const voiceControllerRef = useRef<VoiceInputController | null>(null);
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
   // ★★★ 追加: モンスターエリアの幅管理 ★★★
@@ -381,7 +383,80 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const timer = setTimeout(restoreMidiConnection, 100);
     return () => clearTimeout(timer);
   }, [stage]); // stageが変更されたときに実行
-  
+
+  // 音声入力初期化（レジェンドモードと同様）
+  useEffect(() => {
+    if (settings.inputMethod !== 'voice') {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      return;
+    }
+    if (!settings.selectedAudioDevice) {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      return;
+    }
+    if (!VoiceInputController.isSupported()) return;
+
+    const initVoiceInput = async () => {
+      try {
+        if (!voiceControllerRef.current) {
+          voiceControllerRef.current = new VoiceInputController({
+            onNoteOn: (note: number) => {
+              if (handleNoteInputRef.current) {
+                handleNoteInputRef.current(note, 'midi');
+              }
+              pixiRendererRef.current?.highlightKey(note, true);
+              setTimeout(() => {
+                pixiRendererRef.current?.highlightKey(note, false);
+              }, 150);
+            },
+            onNoteOff: (note: number) => {
+              pixiRendererRef.current?.highlightKey(note, false);
+            },
+            onConnectionChange: () => {},
+            onError: () => {}
+          });
+        }
+        if (settings.selectedAudioDevice) {
+          const deviceId = settings.selectedAudioDevice === 'default' ? undefined : settings.selectedAudioDevice;
+          await voiceControllerRef.current.connect(deviceId);
+        }
+      } catch {
+        // エラー時はタッチ入力で続行可能
+      }
+    };
+    void initVoiceInput();
+  }, [settings.inputMethod, settings.selectedAudioDevice]);
+
+  // 音声入力コントローラーのクリーンアップ
+  useEffect(() => {
+    return () => {
+      if (voiceControllerRef.current) {
+        voiceControllerRef.current.destroy();
+        voiceControllerRef.current = null;
+      }
+    };
+  }, []);
+
+  // 入力方式切り替え時のMIDI/Voice切り替え処理
+  useEffect(() => {
+    if (settings.inputMethod === 'midi') {
+      if (voiceControllerRef.current) {
+        void voiceControllerRef.current.disconnect();
+      }
+      if (midiControllerRef.current && settings.selectedMidiDevice) {
+        void midiControllerRef.current.connectDevice(settings.selectedMidiDevice);
+      }
+    } else if (settings.inputMethod === 'voice') {
+      if (midiControllerRef.current) {
+        midiControllerRef.current.disconnect();
+      }
+    }
+  }, [settings.inputMethod, settings.selectedMidiDevice]);
+
   // 🚀 パフォーマンス最適化: ステージ設定に応じてルート音を有効/無効にする（動的インポート不要）
   useEffect(() => {
     // 明示的に false のときのみ無効化。未指定(undefined)は有効のまま
@@ -390,6 +465,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   // PIXI.js レンダラー
   const [pixiRenderer, setPixiRenderer] = useState<PIXINotesRendererInstance | null>(null);
+  const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
@@ -971,6 +1047,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   useEffect(() => {
     handleNoteInputRef.current = handleNoteInputBridge;
   }, [handleNoteInputBridge]);
+
+  // pixiRendererのRefを最新に同期
+  useEffect(() => {
+    pixiRendererRef.current = pixiRenderer;
+  }, [pixiRenderer]);
   
   // PIXI.jsレンダラーの準備完了ハンドラー
   const handlePixiReady = useCallback((renderer: PIXINotesRendererInstance | null) => {

@@ -1567,6 +1567,27 @@ const SettingsPanel: React.FC = () => {
                 {settings.inputMethod === 'voice' && (
                   <div className="bg-purple-900 bg-opacity-20 p-4 rounded-lg border border-purple-700 border-opacity-30">
                     <h4 className="text-sm font-medium text-purple-200 mb-3">🎤 {isEnglishCopy ? 'Voice Input Settings' : '音声入力設定'}</h4>
+                    <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2 mb-3">
+                      <p className="text-xs text-yellow-300">
+                        ⚠️ {isEnglishCopy
+                          ? 'Single-note detection only. Chord detection is inaccurate.'
+                          : '単音での読み取り専用です。和音の読み取りは不正確です。'}
+                      </p>
+                    </div>
+                    <div className="bg-orange-900 bg-opacity-30 border border-orange-600 border-opacity-40 rounded p-2 mb-3">
+                      <p className="text-xs text-orange-300">
+                        🎵 {isEnglishCopy
+                          ? 'Chords cannot be recognized simultaneously. Notes in a chord must be played one at a time for detection.'
+                          : '和音を同時に認識することはできません。コードの構成音を一音ずつ鳴らして認識させてください。'}
+                      </p>
+                    </div>
+                    <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-3">
+                      <p className="text-xs text-purple-300">
+                        💡 {isEnglishCopy
+                          ? 'Voice input has latency. We recommend shifting note timing to + (later) in timing adjustment.'
+                          : '音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。'}
+                      </p>
+                    </div>
                     <p className="text-xs text-gray-400 mb-3">
                       {isEnglishCopy ? 'Detect pitch using a microphone. Works on iOS/Android.' : 'マイクを使用してピッチを検出します。iOS/Android対応。'}
                     </p>
@@ -1698,6 +1719,15 @@ const SettingsPanel: React.FC = () => {
               <div className="text-xs text-gray-400 mb-2">
                 {isEnglishCopy ? 'Adjust note display and judgment timing (earlier: -, later: +)' : 'ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）'}
               </div>
+              {settings.inputMethod === 'voice' && (
+                <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-2">
+                  <p className="text-xs text-purple-300">
+                    🎤 {isEnglishCopy
+                      ? 'Using voice input: we recommend shifting to + (later) to compensate for microphone latency.'
+                      : '音声入力使用中: マイクのレイテンシを補正するため、+（遅く）方向への調整をおすすめします。'}
+                  </p>
+                </div>
+              )}
               <input
                 type="range"
                 min="-400"

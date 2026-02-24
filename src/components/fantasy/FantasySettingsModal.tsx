@@ -5,9 +5,10 @@
 
 import React, { useState, useEffect } from 'react';
 import { cn } from '@/utils/cn';
-import { MidiDeviceSelector } from '../ui/MidiDeviceManager';
+import { MidiDeviceSelector, AudioDeviceSelector } from '../ui/MidiDeviceManager';
 import { devLog } from '@/utils/logger';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { useGameStore } from '@/stores/gameStore';
 import type { DisplayLang } from '@/utils/display-note';
 
 /** 鍵盤上の音名表示スタイル */
@@ -62,6 +63,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   isPracticeMode = false,
   showKeyboardGuide = false
 }) => {
+  const { settings: gameSettings, updateSettings: updateGameSettings } = useGameStore();
+  
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
     volume: volume,
@@ -175,19 +178,80 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
         </div>
 
         <div className="space-y-4">
-          {/* MIDIデバイス設定 */}
+          {/* 入力方式選択 */}
           <div>
-            <label className="block text-sm font-medium text-white mb-2">
-              MIDIデバイス
+            <label className="block text-sm font-medium text-white mb-1">
+              入力方式
             </label>
-            <MidiDeviceSelector
-              value={settings.midiDeviceId}
-              onChange={handleMidiDeviceChange}
-              className="w-full"
-            />
-            <div className="mt-1 text-xs text-gray-400">
-              {isMidiConnected ? '✅ 接続済み' : '❌ 未接続'}
+            <p className="text-xs text-gray-400 mb-3">
+              MIDI（キーボード）または音声入力（マイク）を選択できます。
+            </p>
+            <div className="flex gap-2 mb-3">
+              <button
+                type="button"
+                onClick={() => updateGameSettings({ inputMethod: 'midi' })}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  gameSettings.inputMethod === 'midi'
+                    ? 'bg-blue-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                🎹 MIDI
+              </button>
+              <button
+                type="button"
+                onClick={() => updateGameSettings({ inputMethod: 'voice' })}
+                className={`flex-1 px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  gameSettings.inputMethod === 'voice'
+                    ? 'bg-purple-600 text-white'
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
+                }`}
+              >
+                🎤 音声
+              </button>
             </div>
+
+            {gameSettings.inputMethod === 'midi' && (
+              <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-700 border-opacity-30">
+                <h4 className="text-sm font-medium text-blue-200 mb-2">🎹 MIDIデバイス</h4>
+                <MidiDeviceSelector
+                  value={settings.midiDeviceId}
+                  onChange={handleMidiDeviceChange}
+                  className="w-full"
+                />
+                <div className="mt-1 text-xs text-gray-400">
+                  {isMidiConnected ? '✅ 接続済み' : '❌ 未接続'}
+                </div>
+              </div>
+            )}
+
+            {gameSettings.inputMethod === 'voice' && (
+              <div className="bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700 border-opacity-30">
+                <h4 className="text-sm font-medium text-purple-200 mb-2">🎤 音声入力設定</h4>
+                <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2 mb-3">
+                  <p className="text-xs text-yellow-300">
+                    ⚠️ 単音での読み取り専用です。和音の読み取りは不正確です。
+                  </p>
+                </div>
+                <div className="bg-orange-900 bg-opacity-30 border border-orange-600 border-opacity-40 rounded p-2 mb-3">
+                  <p className="text-xs text-orange-300">
+                    🎵 このモードはコード（和音）入力が中心のため、音声入力では一音ずつ順番に鳴らして認識させる必要があります。同時押しのような操作はできません。
+                  </p>
+                </div>
+                <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-3">
+                  <p className="text-xs text-purple-300">
+                    💡 音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。
+                  </p>
+                </div>
+                <p className="text-xs text-gray-400 mb-3">
+                  マイクを使用してピッチを検出します。iOS/Android対応。
+                </p>
+                <AudioDeviceSelector
+                  value={gameSettings.selectedAudioDevice}
+                  onChange={(deviceId: string | null) => updateGameSettings({ selectedAudioDevice: deviceId })}
+                />
+              </div>
+            )}
           </div>
 
           {/* ピアノ音量設定 */}
@@ -263,6 +327,37 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             <p className="text-xs text-gray-400 mt-1">
               背景音楽の音量を調整できます
             </p>
+          </div>
+
+          {/* タイミング調整 */}
+          <div>
+            <label className="block text-sm font-medium text-white mb-2">
+              表示タイミング調整 (判定も同期): {gameSettings.timingAdjustment > 0 ? '+' : ''}{gameSettings.timingAdjustment}ms
+            </label>
+            <div className="text-xs text-gray-400 mb-2">
+              ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）
+            </div>
+            {gameSettings.inputMethod === 'voice' && (
+              <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-2">
+                <p className="text-xs text-purple-300">
+                  🎤 音声入力使用中: マイクのレイテンシを補正するため、+（遅く）方向への調整をおすすめします。
+                </p>
+              </div>
+            )}
+            <input
+              type="range"
+              min="-400"
+              max="400"
+              step="1"
+              value={gameSettings.timingAdjustment}
+              onChange={(e) => updateGameSettings({ timingAdjustment: parseInt(e.target.value) })}
+              className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+            />
+            <div className="flex justify-between text-xs text-gray-500 mt-1">
+              <span>-400ms (早く)</span>
+              <span>0ms</span>
+              <span>+400ms (遅く)</span>
+            </div>
           </div>
 
           {/* 鍵盤上にガイドを表示（練習モード時のみ表示・変更可能） */}
