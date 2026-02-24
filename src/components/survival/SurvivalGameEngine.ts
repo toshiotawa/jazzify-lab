@@ -55,7 +55,7 @@ export const MAX_COINS = Infinity;       // コインの最大数（制限なし
 
 // HP上限値
 const MAX_HP_CAP = 1000;
-const MAX_A_BULLET_COUNT = 999;
+const MAX_A_BULLET_COUNT = 14;
 
 // ===== 初期状態 =====
 const createInitialPlayerState = (): PlayerState => ({
@@ -82,8 +82,8 @@ const createInitialPlayerState = (): PlayerState => ({
     bDeflect: false,
     multiHitLevel: 0,
     expBonusLevel: 0,
-    haisuiNoJin: 0,
-    zekkouchou: 0,
+    haisuiNoJin: false,
+    zekkouchou: false,
     alwaysHaisuiNoJin: false,
     alwaysZekkouchou: false,
     autoSelect: false,  // オート選択
@@ -208,8 +208,14 @@ export const applyLevel10Bonuses = (
         messages.push(`TIME +${bonus.value}`);
         break;
       case 'a_bullet':
-        p.stats.aBulletCount += bonus.value;
-        messages.push(`Bullets +${bonus.value}`);
+        {
+          const prevBullets = p.stats.aBulletCount;
+          p.stats.aBulletCount = Math.min(MAX_A_BULLET_COUNT, p.stats.aBulletCount + bonus.value);
+          const actualIncrease = p.stats.aBulletCount - prevBullets;
+          if (actualIncrease > 0) {
+            messages.push(`Bullets +${actualIncrease}`);
+          }
+        }
         break;
       case 'b_knockback':
         p.skills.bKnockbackBonus += bonus.value;
@@ -220,7 +226,7 @@ export const applyLevel10Bonuses = (
         messages.push(`Range +${bonus.value}`);
         break;
       case 'luck_pendant':
-        p.stats.luck += bonus.value;
+        p.stats.luck = Math.min(40, p.stats.luck + bonus.value);
         messages.push(`LUCK +${bonus.value}`);
         break;
       default:
@@ -293,22 +299,24 @@ export const createInitialGameState = (
 
 // ===== WAVEヘルパー関数 =====
 export const calculateWaveQuota = (waveNumber: number): number => {
-  if (waveNumber >= 20) return 120;
-  if (waveNumber >= 10) return 60;
-  if (waveNumber >= 6) return 20;
-  return 3;
+  if (waveNumber >= 20) return 50;
+  if (waveNumber >= 10) return 20;
+  if (waveNumber >= 6) return 5;
+  return 1;
 };
 
 export const calculateWaveSpawnCount = (baseSpawnCount: number, waveNumber: number): number => {
   const safeBase = Math.max(1, Math.floor(baseSpawnCount));
-  const earlyBonus = Math.floor((Math.min(waveNumber, 10) - 1)); // WAVE1-10: +0~9
-  const midBonus = waveNumber > 10 ? Math.floor((Math.min(waveNumber, 25) - 10) / 2) : 0; // WAVE11-25: +0~7
-  const lateBonus = waveNumber > 25 ? Math.floor((waveNumber - 25) / 3) : 0; // WAVE26+: 積極増加
-  return Math.max(1, safeBase + earlyBonus + midBonus + lateBonus);
+  const earlyBonus = Math.floor((Math.min(waveNumber, 10) - 1) / 2); // WAVE1-10: +0~4
+  const midBonus = waveNumber > 10 ? Math.floor((Math.min(waveNumber, 25) - 10) / 4) : 0; // WAVE11-25: +0~3
+  const lateBonus = waveNumber > 25 ? Math.floor((waveNumber - 25) / 6) : 0; // WAVE26+: 緩やか増加
+  const rawSpawnCount = safeBase + earlyBonus + midBonus + lateBonus;
+  const waveCap = 12 + Math.floor(Math.max(0, waveNumber - 1) / 3);
+  return Math.max(1, Math.min(rawSpawnCount, waveCap));
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
-  return Math.min(4, 1 + (waveNumber - 1) * 0.12);
+  return Math.min(3, 1 + (waveNumber - 1) * 0.10);
 };
 
 // ===== コード生成 =====
@@ -393,23 +401,24 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const elapsedMinutes = elapsedTime / 60;
   const waveProgress = Math.max(0, waveNumber - 1);
 
-  // 時間・WAVEを別々に係数化（無双インフレ型スケーリング）
-  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.10 + Math.max(0, elapsedMinutes - 5) * 0.08 + Math.max(0, elapsedMinutes - 12) * 0.06;
-  const timeHpMultiplier = 1 + elapsedMinutes * 0.25 + Math.max(0, elapsedMinutes - 5) * 0.20 + Math.max(0, elapsedMinutes - 10) * 0.30;
-  const waveAtkDefMultiplier = 1 + waveProgress * 0.10 + Math.max(0, waveNumber - 15) * 0.05;
-  const waveHpMultiplier = 1 + waveProgress * 0.30 + Math.max(0, waveNumber - 10) * 0.20 + Math.max(0, waveNumber - 20) * 0.25;
+  // 時間・WAVEを別々に係数化（インフレ型スケーリング）
+  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.06 + Math.max(0, elapsedMinutes - 10) * 0.04;
+  const timeHpMultiplier = 1 + elapsedMinutes * 0.10 + Math.max(0, elapsedMinutes - 8) * 0.08 + Math.max(0, elapsedMinutes - 15) * 0.10;
+  const waveAtkDefMultiplier = 1 + waveProgress * 0.07 + Math.max(0, waveNumber - 20) * 0.03;
+  const waveHpMultiplier = 1 + waveProgress * 0.15 + Math.max(0, waveNumber - 10) * 0.08 + Math.max(0, waveNumber - 20) * 0.10;
   
+  // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
-    slime: { atk: 3, def: 1, hp: 28, speed: 0.8 },
-    goblin: { atk: 5, def: 2, hp: 40, speed: 1.0 },
-    skeleton: { atk: 7, def: 3, hp: 50, speed: 0.9 },
-    zombie: { atk: 8, def: 2, hp: 60, speed: 0.6 },
-    bat: { atk: 4, def: 1, hp: 22, speed: 1.4 },
-    ghost: { atk: 9, def: 0, hp: 35, speed: 1.1 },
-    orc: { atk: 12, def: 4, hp: 80, speed: 0.7 },
-    demon: { atk: 16, def: 5, hp: 120, speed: 0.9 },
-    dragon: { atk: 24, def: 7, hp: 200, speed: 0.8 },
-    boss: { atk: 35, def: 10, hp: 400, speed: 0.6 },
+    slime: { atk: 2, def: 1, hp: 18, speed: 0.8 },
+    goblin: { atk: 4, def: 1, hp: 24, speed: 1.0 },
+    skeleton: { atk: 5, def: 2, hp: 30, speed: 0.9 },
+    zombie: { atk: 6, def: 1, hp: 35, speed: 0.6 },
+    bat: { atk: 3, def: 1, hp: 14, speed: 1.4 },
+    ghost: { atk: 7, def: 0, hp: 20, speed: 1.1 },
+    orc: { atk: 9, def: 3, hp: 45, speed: 0.7 },
+    demon: { atk: 12, def: 4, hp: 55, speed: 0.9 },
+    dragon: { atk: 18, def: 5, hp: 80, speed: 0.8 },
+    boss: { atk: 25, def: 7, hp: 160, speed: 0.6 },
   };
   
   const base = baseStats[type];
@@ -746,7 +755,7 @@ export const calculateAProjectileDamage = (aAtk: number): number => {
 // B列（近接）攻撃のダメージ計算（B ATK +1 で10ダメージ増加）
 const INITIAL_B_ATK = 15;  // 初期B ATK値
 const B_ATK_DAMAGE_MULTIPLIER = 14;  // B ATK +1あたりのダメージ増加量
-const B_BASE_DAMAGE = 30;  // 基本ダメージ（初期B ATKでのダメージ）
+const B_BASE_DAMAGE = 20;  // 基本ダメージ（初期B ATKでのダメージ）
 
 export const calculateBMeleeDamage = (bAtk: number): number => {
   // 初期状態（bAtk=15）でB_BASE_DAMAGE、+1ごとにB_ATK_DAMAGE_MULTIPLIER増加
@@ -839,8 +848,8 @@ export const calculateDamage = (
   cAtk: number = 0,
   isLucky: boolean = false
 ): number => {
-  const cappedBufferCAtk = cAtk;
-  const cappedDebufferCAtk = cAtk;
+  const cappedBufferCAtk = Math.min(cAtk, 45);
+  const cappedDebufferCAtk = Math.min(cAtk, 40);
 
   // バッファー効果: Lv1=1.5x, Lv2=2.0x, Lv3=2.5x + C ATKボーナス
   let atkMultiplier = 1;
@@ -876,7 +885,7 @@ export const calculateDamage = (
 // 基本運率 = 6% + Luck * 0.5%（上限40 = 26%）
 const BASE_LUCK_CHANCE = 0.06;
 const LUCK_PER_POINT = 0.005;
-const MAX_LUCK_STAT = 999;
+const MAX_LUCK_STAT = 40;
 
 export interface LuckResult {
   isLucky: boolean;           // 運発動したか
@@ -916,10 +925,8 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
   defOverride: number | null; // DEFの上書き（nullなら上書きなし）
 } => {
   const hpPercent = player.stats.hp / player.stats.maxHp;
-  const haisuiLevel = player.skills.haisuiNoJin;
-  const zekkouchouLevel = player.skills.zekkouchou;
-  const hasHaisui = haisuiLevel > 0 && (player.skills.alwaysHaisuiNoJin || hpPercent <= 0.15);
-  const hasZekkouchou = zekkouchouLevel > 0 && (player.skills.alwaysZekkouchou || player.stats.hp >= player.stats.maxHp);
+  const hasHaisui = player.skills.haisuiNoJin && (player.skills.alwaysHaisuiNoJin || hpPercent <= 0.15);
+  const hasZekkouchou = player.skills.zekkouchou && (player.skills.alwaysZekkouchou || player.stats.hp >= player.stats.maxHp);
   
   let atkMultiplier = 1;
   let timeMultiplier = 1;
@@ -927,20 +934,20 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
   let speedBonus = 0;
   let defOverride: number | null = null;
   
-  // 背水の陣（HP15%以下）: レベルに応じてスケール、DEF=0
+  // 背水の陣（HP15%以下）: 高火力の見返りにDEF=0
   if (hasHaisui) {
-    atkMultiplier *= 1.8 + (haisuiLevel - 1) * 0.4;
-    timeMultiplier *= 1.8 + (haisuiLevel - 1) * 0.3;
-    reloadMultiplier *= Math.max(0.1, 0.7 - (haisuiLevel - 1) * 0.05);
-    speedBonus += 6 + (haisuiLevel - 1) * 2;
+    atkMultiplier *= 1.8;
+    timeMultiplier *= 1.8;
+    reloadMultiplier *= 0.7;
+    speedBonus += 6;
     defOverride = 0;
   }
   
-  // 絶好調（HP満タン）: レベルに応じてスケール
+  // 絶好調（HP満タン）: 体感できるレベルの上振れ
   if (hasZekkouchou) {
-    atkMultiplier *= 1.3 + (zekkouchouLevel - 1) * 0.2;
-    timeMultiplier *= 1.5 + (zekkouchouLevel - 1) * 0.2;
-    reloadMultiplier *= Math.max(0.1, 0.8 - (zekkouchouLevel - 1) * 0.05);
+    atkMultiplier *= 1.3;
+    timeMultiplier *= 1.5;
+    reloadMultiplier *= 0.8;
   }
   
   return { atkMultiplier, timeMultiplier, reloadMultiplier, speedBonus, defOverride };
@@ -968,7 +975,7 @@ const ALL_BONUSES: BonusDefinition[] = [
   { type: 'def', displayName: 'DEF +1', displayNameEn: 'DEF +1', description: '防御力アップ', descriptionEn: 'Defense up', icon: '🛡️' },
   { type: 'time', displayName: 'TIME +1', displayNameEn: 'TIME +1', description: '効果時間+2秒', descriptionEn: 'Effect duration +2s', icon: '⏰' },
   { type: 'a_bullet', displayName: '遠距離弾数 +2', displayNameEn: 'Bullets +2', description: '時計方向に弾を追加', descriptionEn: 'Add clockwise bullets', icon: '💫' },
-  { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+0.5%（幸運効果の発動率UP）', descriptionEn: 'Luck +0.5% (higher lucky trigger chance)', icon: '🍀' },
+  { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+0.5%（幸運効果の発動率UP）', descriptionEn: 'Luck +0.5% (higher lucky trigger chance)', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', displayNameEn: 'Penetration', description: '遠距離弾が敵を貫通', descriptionEn: 'Ranged bullets pierce enemies', icon: '➡️', maxLevel: 1 },
   { type: 'b_knockback', displayName: 'ノックバック+', displayNameEn: 'Knockback+', description: '近接攻撃のノックバック距離増加', descriptionEn: 'Increase melee knockback distance', icon: '💨', maxLevel: 10 },
@@ -976,8 +983,8 @@ const ALL_BONUSES: BonusDefinition[] = [
   { type: 'b_deflect', displayName: '拳でかきけす', displayNameEn: 'Deflect', description: '近接攻撃で敵弾消去', descriptionEn: 'Destroy enemy bullets with melee', icon: '✊', maxLevel: 1 },
   { type: 'multi_hit', displayName: '近距離多段ヒット', displayNameEn: 'Multi-Hit', description: '近距離攻撃の攻撃回数増加', descriptionEn: 'Increase melee hit count', icon: '✨', maxLevel: 3 },
   { type: 'exp_bonus', displayName: '経験値+1', displayNameEn: 'EXP +1', description: 'コイン獲得経験値+1', descriptionEn: 'Coin EXP +1', icon: '💰', maxLevel: 10 },
-  { type: 'haisui_no_jin', displayName: '背水の陣', displayNameEn: 'Last Stand', description: 'HP15%以下で大幅強化（重ね掛け可能）', descriptionEn: 'Major boost when HP ≤ 15% (stackable)', icon: '🩸' },
-  { type: 'zekkouchou', displayName: '絶好調', displayNameEn: 'Peak Condition', description: 'HP満タンで攻撃強化（重ね掛け可能）', descriptionEn: 'Attack boost at full HP (stackable)', icon: '😊' },
+  { type: 'haisui_no_jin', displayName: '背水の陣', displayNameEn: 'Last Stand', description: 'HP15%以下で大幅強化', descriptionEn: 'Major boost when HP ≤ 15%', icon: '🩸', maxLevel: 1 },
+  { type: 'zekkouchou', displayName: '絶好調', displayNameEn: 'Peak Condition', description: 'HP満タンで攻撃強化', descriptionEn: 'Attack boost at full HP', icon: '😊', maxLevel: 1 },
   { type: 'auto_select', displayName: 'オート選択', displayNameEn: 'Auto Select', description: 'レベルアップボーナスを自動選択', descriptionEn: 'Auto-select level-up bonus', icon: '🤖', maxLevel: 1 },
   // 魔法系
   { type: 'magic_thunder', displayName: 'THUNDER', displayNameEn: 'THUNDER', description: '雷魔法', descriptionEn: 'Thunder magic', icon: '⚡', maxLevel: 3 },
@@ -996,8 +1003,6 @@ const getCurrentBonusLevel = (player: PlayerState, type: BonusType): number => {
     case 'exp_bonus': return player.skills.expBonusLevel;
     case 'reload_magic': return player.stats.reloadMagic;
     case 'luck_pendant': return player.stats.luck;
-    case 'haisui_no_jin': return player.skills.haisuiNoJin;
-    case 'zekkouchou': return player.skills.zekkouchou;
     case 'magic_thunder': return player.magics.thunder;
     case 'magic_ice': return player.magics.ice;
     case 'magic_fire': return player.magics.fire;
@@ -1027,6 +1032,10 @@ const getAvailableBonuses = (
     if (bonus.type === 'max_hp' && player.stats.maxHp >= MAX_HP_CAP) {
       return false;
     }
+    // 弾数は上限を設けて過剰な物量インフレを防ぐ
+    if (bonus.type === 'a_bullet' && player.stats.aBulletCount >= MAX_A_BULLET_COUNT) {
+      return false;
+    }
     if (bonus.maxLevel) {
       switch (bonus.type) {
         case 'a_penetration':
@@ -1041,10 +1050,16 @@ const getAvailableBonuses = (
           return player.skills.multiHitLevel < bonus.maxLevel;
         case 'exp_bonus':
           return player.skills.expBonusLevel < bonus.maxLevel;
+        case 'haisui_no_jin':
+          return !player.skills.haisuiNoJin;
+        case 'zekkouchou':
+          return !player.skills.zekkouchou;
         case 'auto_select':
           return !player.skills.autoSelect;
         case 'reload_magic':
           return player.stats.reloadMagic < bonus.maxLevel;
+        case 'luck_pendant':
+          return player.stats.luck < bonus.maxLevel;
         case 'magic_thunder':
           return player.magics.thunder < bonus.maxLevel;
         case 'magic_ice':
@@ -1170,13 +1185,16 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
     case 'time':
       newPlayer.stats.time += 1;
       break;
-    case 'a_bullet': {
-      const bulletGain = newPlayer.stats.aBulletCount < 7 ? 2 : 1;
-      newPlayer.stats.aBulletCount += bulletGain;
+    case 'a_bullet':
+      // 序盤は+2、終盤は+1で伸び幅を抑えつつ爽快感を維持
+      if (newPlayer.stats.aBulletCount < MAX_A_BULLET_COUNT) {
+        const bulletGain = newPlayer.stats.aBulletCount < 7 ? 2 : 1;
+        newPlayer.stats.aBulletCount = Math.min(MAX_A_BULLET_COUNT, newPlayer.stats.aBulletCount + bulletGain);
+      }
       break;
-    }
     case 'luck_pendant':
-      newPlayer.stats.luck += 1;
+      // 幸運のペンダント: 運+1（上限40）
+      newPlayer.stats.luck = Math.min(40, newPlayer.stats.luck + 1);
       break;
     case 'a_penetration':
       newPlayer.skills.aPenetration = true;
@@ -1197,10 +1215,10 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
       newPlayer.skills.expBonusLevel = Math.min(10, newPlayer.skills.expBonusLevel + 1);
       break;
     case 'haisui_no_jin':
-      newPlayer.skills.haisuiNoJin += 1;
+      newPlayer.skills.haisuiNoJin = true;
       break;
     case 'zekkouchou':
-      newPlayer.skills.zekkouchou += 1;
+      newPlayer.skills.zekkouchou = true;
       break;
     case 'auto_select':
       newPlayer.skills.autoSelect = true;
@@ -1228,9 +1246,25 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
   return newPlayer;
 };
 
-// ===== 経験値計算（無双フラットカーブ） =====
+// ===== 経験値計算 =====
+const EXP_CAP_LEVEL = 20;
+const MID_EXP_END_LEVEL = 40;
+const MID_EXP_PER_LEVEL = 7;
+const EXP_CAP_VALUE = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, EXP_CAP_LEVEL - 1));
+const MID_EXP_END_VALUE = EXP_CAP_VALUE + (MID_EXP_END_LEVEL - EXP_CAP_LEVEL) * MID_EXP_PER_LEVEL;
+
 export const calculateExpToNextLevel = (level: number): number => {
-  return 5 + Math.floor(level * 0.15);
+  if (level <= EXP_CAP_LEVEL) {
+    const effectiveLevel = Math.max(1, level);
+    return Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, effectiveLevel - 1));
+  }
+
+  if (level <= MID_EXP_END_LEVEL) {
+    return EXP_CAP_VALUE + (level - EXP_CAP_LEVEL) * MID_EXP_PER_LEVEL;
+  }
+
+  const lateGameLevel = level - MID_EXP_END_LEVEL;
+  return Math.floor(MID_EXP_END_VALUE + Math.pow(lateGameLevel, 1.1) * 10);
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
@@ -1470,8 +1504,8 @@ export const castMagic = (
 
 // ===== コイン生成 =====
 const COIN_LIFETIME = Infinity;  // コインの生存時間（無限 - 消えない）
-const NORMAL_ENEMY_EXP = 25;
-const BOSS_ENEMY_EXP = 120;
+const NORMAL_ENEMY_EXP = 15;
+const BOSS_ENEMY_EXP = 60;
 
 export const calculateEnemyExpGain = (
   isBoss: boolean,
