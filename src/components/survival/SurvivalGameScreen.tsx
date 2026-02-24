@@ -2903,7 +2903,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 </div>
                 <div className="flex gap-0.5 shrink-0 pointer-events-auto">
                   <button
-                    onClick={() => setIsSettingsOpen(true)}
+                    onClick={() => {
+                      setIsSettingsOpen(true);
+                      setGameState(prev => ({ ...prev, isPaused: true }));
+                    }}
                     className="p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px] flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation"
                     title={isEnglishCopy ? 'Settings' : '設定'}
                     aria-label={isEnglishCopy ? 'Settings' : '設定'}
