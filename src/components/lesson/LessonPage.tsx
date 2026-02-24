@@ -128,13 +128,10 @@ const LessonPage: React.FC = () => {
       async (_payload: unknown) => {
         try {
           const { clearCacheByPattern } = await import('@/platform/supabaseClient');
-          // 現在のコースのレッスンIDに関する集約キャッシュのみ無効化
           if (selectedCourse) {
+            clearCacheByPattern(/lesson_req_progress:/);
             const lessons = await fetchLessonsByCourse(selectedCourse.id);
-            const lessonIds = lessons.map(l => l.id).sort();
-            const pattern = new RegExp(`multiple_lesson_requirements_progress:.*:${lessonIds.join(',')}`);
-            clearCacheByPattern(pattern);
-            // 画面の要件進捗を再取得
+            const lessonIds = lessons.map(l => l.id);
             const map = await fetchAggregatedRequirementsProgress(lessonIds, { forceRefresh: true });
             setLessonRequirementsProgress(map);
           }

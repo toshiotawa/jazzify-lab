@@ -155,77 +155,83 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   };
 }
 
+const REQ_BATCH_SIZE = 80;
+
+async function fetchRequirementsInBatches(
+  userId: string,
+  lessonIds: string[],
+  forceRefresh: boolean,
+  ttl: number,
+): Promise<LessonRequirementProgress[]> {
+  const supabase = getSupabaseClient();
+  const allData: LessonRequirementProgress[] = [];
+
+  const batches: string[][] = [];
+  for (let i = 0; i < lessonIds.length; i += REQ_BATCH_SIZE) {
+    batches.push(lessonIds.slice(i, i + REQ_BATCH_SIZE));
+  }
+
+  await Promise.all(batches.map(async (batch, idx) => {
+    const cacheKey = `lesson_req_progress:${userId}:b${idx}:${batch.length}:${batch[0]}`;
+    if (forceRefresh) clearCacheByPattern(cacheKey);
+
+    const { data, error } = await fetchWithCache(
+      cacheKey,
+      async () => await supabase
+        .from('user_lesson_requirements_progress')
+        .select('*')
+        .eq('user_id', userId)
+        .in('lesson_id', batch),
+      ttl,
+    );
+    if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
+    if (data) allData.push(...data);
+  }));
+
+  return allData;
+}
+
 /**
  * 複数のレッスンの実習課題進捗を一括で取得（パフォーマンス向上）
  */
 export async function fetchMultipleLessonRequirementsProgress(lessonIds: string[]): Promise<Record<string, LessonRequirementProgress[]>> {
-  const supabase = getSupabaseClient();
-  const userId = await getCurrentUserIdCached();
-  if (!userId) throw new Error('ログインが必要です');
-  if (lessonIds.length === 0) return {};
-
-  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${lessonIds.slice().sort().join(',')}`;
-  const { data, error } = await fetchWithCache(
-    cacheKey,
-    async () => await supabase
-      .from('user_lesson_requirements_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .in('lesson_id', lessonIds),
-    1000 * 30 // 30秒TTL（タブ往復対策。リアルタイム更新と両立）
-  );
-
-  if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
-  
-  // レッスンIDごとにグループ化
-  const result: Record<string, LessonRequirementProgress[]> = {};
-  lessonIds.forEach(lessonId => {
-    result[lessonId] = [];
-  });
-  
-  (data || []).forEach(progress => {
-    if (result[progress.lesson_id]) {
-      result[progress.lesson_id].push(progress);
-    }
-  });
-  
-  return result;
-} 
-
-/**
- * 画面上の全レッスンIDで1回だけ要件進捗を取得するための集約API
- * - fetchMultipleLessonRequirementsProgress と同一だが、引数が多い場合でも安定
- * - 30s TTL。RealtimeのUPDATE/INSERT/DELETEで該当キーだけ無効化を推奨
- */
-export async function fetchAggregatedRequirementsProgress(
-  lessonIds: string[],
-  { forceRefresh = false }: { forceRefresh?: boolean } = {}
-): Promise<Record<string, LessonRequirementProgress[]>> {
-  const supabase = getSupabaseClient();
   const userId = await getCurrentUserIdCached();
   if (!userId) throw new Error('ログインが必要です');
   if (lessonIds.length === 0) return {};
 
   const sorted = lessonIds.slice().sort();
-  const cacheKey = `multiple_lesson_requirements_progress:${userId}:${sorted.join(',')}`;
-  if (forceRefresh) {
-    clearCacheByPattern(cacheKey);
-  }
-
-  const { data, error } = await fetchWithCache(
-    cacheKey,
-    async () => await supabase
-      .from('user_lesson_requirements_progress')
-      .select('*')
-      .eq('user_id', userId)
-      .in('lesson_id', sorted),
-    1000 * 30
-  );
-  if (error) throw new Error(`実習課題の進捗取得に失敗しました: ${error.message}`);
+  const allData = await fetchRequirementsInBatches(userId, sorted, false, 1000 * 30);
 
   const result: Record<string, LessonRequirementProgress[]> = {};
   sorted.forEach(id => { result[id] = []; });
-  (data || []).forEach(p => {
+  allData.forEach(progress => {
+    if (result[progress.lesson_id]) {
+      result[progress.lesson_id].push(progress);
+    }
+  });
+
+  return result;
+} 
+
+/**
+ * 画面上の全レッスンIDで1回だけ要件進捗を取得するための集約API
+ * - 30s TTL。RealtimeのUPDATE/INSERT/DELETEで該当キーだけ無効化を推奨
+ * - 大量のレッスンIDでもバッチ分割でURL長制限を回避
+ */
+export async function fetchAggregatedRequirementsProgress(
+  lessonIds: string[],
+  { forceRefresh = false }: { forceRefresh?: boolean } = {}
+): Promise<Record<string, LessonRequirementProgress[]>> {
+  const userId = await getCurrentUserIdCached();
+  if (!userId) throw new Error('ログインが必要です');
+  if (lessonIds.length === 0) return {};
+
+  const sorted = lessonIds.slice().sort();
+  const allData = await fetchRequirementsInBatches(userId, sorted, forceRefresh, 1000 * 30);
+
+  const result: Record<string, LessonRequirementProgress[]> = {};
+  sorted.forEach(id => { result[id] = []; });
+  allData.forEach(p => {
     if (!result[p.lesson_id]) result[p.lesson_id] = [];
     result[p.lesson_id].push(p);
   });
