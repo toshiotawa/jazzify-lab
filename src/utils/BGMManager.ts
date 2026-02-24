@@ -74,20 +74,21 @@ class BGMManager {
   /**
    * 生の再生位置（BGM先頭基準）をゲーム内の音楽時間へ正規化する。
    * - M1開始を0秒として返す（カウントイン中は負値）
-   * - ループ後は loopBegin〜loopEnd の範囲で正規化
+   * - カウントインあり: ループ後もカウントイン期間を含めて正規化（負値→0→musicDuration）
+   * - カウントインなし: loopBegin〜loopEnd の範囲で正規化
    */
   private normalizeMusicTime(musicTime: number): number {
     if (this.noLoop) {
-      // ループ無効時: M1=0として線形に返す（ループ正規化なし）
       return musicTime - this.loopBegin
+    }
+    if (this.countInMeasures > 0 && this.loopEnd > 0) {
+      return (musicTime % this.loopEnd) - this.loopBegin
     }
     const loopDuration = this.loopEnd - this.loopBegin
     if (loopDuration > 0 && musicTime >= this.loopEnd) {
-      // ループ後: loopBegin〜loopEndの範囲で正規化し、M1=0として返す
       const timeSinceLoopStart = musicTime - this.loopBegin
       return timeSinceLoopStart % loopDuration
     }
-    // 最初のループ前（カウントイン含む）: M1開始を0秒として返す
     return musicTime - this.loopBegin
   }
 
@@ -164,7 +165,7 @@ class BGMManager {
     this.countInMeasures = countInMeasures
     this.loopBegin = loopBegin
     this.loopEnd = (countInMeasures + measureCount) * secPerMeas
-    this.toneLoopStart = this.loopBegin
+    this.toneLoopStart = countInMeasures > 0 ? 0 : this.loopBegin
     this.toneLoopEnd = this.loopEnd
     this.audioStartOffset = startOffset
 
@@ -173,7 +174,7 @@ class BGMManager {
         const Tone = (window as any).Tone
         this.tonePlayer.stop()
         const now = Tone?.now?.() ?? 0
-        this.tonePlayer.loopStart = this.loopBegin
+        this.tonePlayer.loopStart = this.toneLoopStart
         this.tonePlayer.loopEnd = Math.min(this.loopEnd, this.tonePlayer.buffer?.duration ?? Infinity)
         this.tonePlayer.start(now, startOffset)
         this.waStartAt = now + this.pitchShiftLatency - startOffset / this.playbackRate
@@ -255,7 +256,7 @@ class BGMManager {
     const secPerMeas = secPerBeat * timeSig
     this.loopBegin = this.countInMeasures * secPerMeas
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
-    this.toneLoopStart = this.loopBegin
+    this.toneLoopStart = (!this.noLoop && this.countInMeasures > 0) ? 0 : this.loopBegin
     this.toneLoopEnd = this.loopEnd
     this.audioStartOffset = skipCountIn ? this.loopBegin : 0
     
@@ -441,7 +442,7 @@ class BGMManager {
         if (gen !== this.prepareGeneration) { this.disposePendingChain(); return }
 
         const bufDur = this.pendingTonePlayer.buffer?.duration ?? Infinity
-        this.pendingTonePlayer.loopStart = loopBegin
+        this.pendingTonePlayer.loopStart = (!noLoop && countInMeasures > 0) ? 0 : loopBegin
         this.pendingTonePlayer.loopEnd = Math.min(loopEnd, bufDur)
         if (!this.preloadedBuffers.has(url) && this.pendingTonePlayer.buffer) {
           this.preloadedBuffers.set(url, this.pendingTonePlayer.buffer)
@@ -496,7 +497,7 @@ class BGMManager {
     this.countInMeasures = p.countInMeasures
     this.loopBegin = p.loopBegin
     this.loopEnd = p.loopEnd
-    this.toneLoopStart = p.loopBegin
+    this.toneLoopStart = (!p.noLoop && p.countInMeasures > 0) ? 0 : p.loopBegin
     this.toneLoopEnd = p.loopEnd
     this.playbackRate = p.playbackRate
     this.pitchShift = p.pitchShift
@@ -707,7 +708,7 @@ class BGMManager {
   
   private handleEnded = () => {
     if (this.loopEnd > 0) {
-      this.audio!.currentTime = this.loopBegin
+      this.audio!.currentTime = this.toneLoopStart
       this.audio!.play().catch(() => {})
     }
   }
@@ -1036,7 +1037,7 @@ class BGMManager {
     const pitchValue = this.pitchShift + rateCompensation
     const loopFlag = !this.noLoop
     const rate = this.playbackRate
-    const loopBeginVal = this.loopBegin
+    const loopBeginVal = this.toneLoopStart
     const loopEndVal = this.loopEnd
 
     const Tone = await import('tone')
@@ -1171,7 +1172,7 @@ class BGMManager {
       src.loop = false
     } else {
       src.loop = true
-      const ls = Math.round(this.loopBegin * sr) / sr
+      const ls = Math.round(this.toneLoopStart * sr) / sr
       const le = Math.round(this.loopEnd * sr) / sr
       src.loopStart = Math.min(Math.max(0, ls), dur - 2 * eps)
       src.loopEnd = Math.min(Math.max(src.loopStart + eps, le), dur - eps)
@@ -1225,7 +1226,7 @@ class BGMManager {
           }
 
           const doSeek = () => {
-            next.currentTime = this.loopBegin
+            next.currentTime = this.toneLoopStart
             next.addEventListener('seeked', () => markReady(), { once: true })
             setTimeout(() => {
               if (!this._htmlNextReady && next.readyState >= 2 && !next.seeking) markReady()
@@ -1277,9 +1278,9 @@ class BGMManager {
             this._htmlNextReady = false
           } else {
             try {
-              this.audio.currentTime = this.loopBegin
+              this.audio.currentTime = this.toneLoopStart
               if (this.htmlSeekTarget === null) {
-                this.htmlSeekTarget = this.loopBegin
+                this.htmlSeekTarget = this.toneLoopStart
                 this.htmlSeekPerfStart = performance.now()
               }
               if (this.audio.paused) void this.audio.play().catch(() => {})
