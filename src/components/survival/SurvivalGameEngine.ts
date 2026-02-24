@@ -311,7 +311,7 @@ export const calculateWaveSpawnCount = (baseSpawnCount: number, waveNumber: numb
   const midBonus = waveNumber > 10 ? Math.floor((Math.min(waveNumber, 25) - 10) / 4) : 0; // WAVE11-25: +0~3
   const lateBonus = waveNumber > 25 ? Math.floor((waveNumber - 25) / 6) : 0; // WAVE26+: 緩やか増加
   const rawSpawnCount = safeBase + earlyBonus + midBonus + lateBonus;
-  const waveCap = 12 + Math.floor(Math.max(0, waveNumber - 1) / 3);
+  const waveCap = 15 + Math.floor(Math.max(0, waveNumber - 1) / 2);
   return Math.max(1, Math.min(rawSpawnCount, waveCap));
 };
 
@@ -407,18 +407,17 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const waveAtkDefMultiplier = 1 + waveProgress * 0.07 + Math.max(0, waveNumber - 20) * 0.03;
   const waveHpMultiplier = 1 + waveProgress * 0.15 + Math.max(0, waveNumber - 10) * 0.08 + Math.max(0, waveNumber - 20) * 0.10;
   
-  // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
-    slime: { atk: 2, def: 1, hp: 18, speed: 0.8 },
-    goblin: { atk: 4, def: 1, hp: 24, speed: 1.0 },
-    skeleton: { atk: 5, def: 2, hp: 30, speed: 0.9 },
-    zombie: { atk: 6, def: 1, hp: 35, speed: 0.6 },
-    bat: { atk: 3, def: 1, hp: 14, speed: 1.4 },
-    ghost: { atk: 7, def: 0, hp: 20, speed: 1.1 },
-    orc: { atk: 9, def: 3, hp: 45, speed: 0.7 },
-    demon: { atk: 12, def: 4, hp: 55, speed: 0.9 },
-    dragon: { atk: 18, def: 5, hp: 80, speed: 0.8 },
-    boss: { atk: 25, def: 7, hp: 160, speed: 0.6 },
+    slime: { atk: 2, def: 1, hp: 22, speed: 0.8 },
+    goblin: { atk: 4, def: 1, hp: 30, speed: 1.0 },
+    skeleton: { atk: 5, def: 2, hp: 38, speed: 0.9 },
+    zombie: { atk: 6, def: 1, hp: 42, speed: 0.6 },
+    bat: { atk: 3, def: 0, hp: 16, speed: 1.8 },
+    ghost: { atk: 7, def: 0, hp: 24, speed: 1.1 },
+    orc: { atk: 9, def: 3, hp: 55, speed: 0.7 },
+    demon: { atk: 12, def: 4, hp: 70, speed: 0.9 },
+    dragon: { atk: 18, def: 5, hp: 100, speed: 0.8 },
+    boss: { atk: 25, def: 7, hp: 200, speed: 0.6 },
   };
   
   const base = baseStats[type];
@@ -481,6 +480,22 @@ export const spawnEnemy = (
     Math.floor(elapsedTime / 60) + 2,  // 最初は0,1,2(slime,goblin,skeleton)から
     ENEMY_TYPES.length - 1
   );
+  
+  // WAVE2以降: batを一定確率で出現させる（足の速い敵で緊張感を出す）
+  if (waveNumber >= 2 && Math.random() < 0.25) {
+    const type: EnemyType = 'bat';
+    const bossChance = elapsedTime >= 600 ? 0.10 : 0.05;
+    const isBoss = Math.random() < bossChance && elapsedTime > 60;
+    return {
+      id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      type,
+      x,
+      y,
+      stats: getEnemyBaseStats(type, elapsedTime, isBoss ? config.enemyStatMultiplier * 1.8 : config.enemyStatMultiplier, waveNumber),
+      statusEffects: [],
+      isBoss,
+    };
+  }
   
   // 10分（600秒）以降は強い敵の出現確率が上がる
   const isLateGame = elapsedTime >= 600;
