@@ -181,8 +181,8 @@ interface DebugSkillSettings {
   bDeflect?: boolean;         // 拳でかきけす（上限1）
   multiHitLevel?: number;     // 多段攻撃レベル（上限3）
   expBonusLevel?: number;     // 獲得経験値+1（上限10）
-  haisuiNoJin?: boolean;      // 背水の陣（上限1）
-  zekkouchou?: boolean;       // 絶好調（上限1）
+  haisuiNoJin?: number;       // 背水の陣レベル（重ね掛け可能）
+  zekkouchou?: number;        // 絶好調レベル（重ね掛け可能）
   alwaysHaisuiNoJin?: boolean; // 常時背水の陣（HP条件無視）
   alwaysZekkouchou?: boolean;  // 常時絶好調（HP条件無視）
 }
@@ -2355,7 +2355,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         const hasZekkouchou = newState.player.statusEffects.some(e => e.type === 'zekkouchou');
         
         // 背水の陣（HP15%以下で発動）
-        if (newState.player.skills.haisuiNoJin && hpPercent <= 0.15) {
+        if (newState.player.skills.haisuiNoJin > 0 && hpPercent <= 0.15) {
           if (!hasHaisui) {
             newState.player.statusEffects.push({
               type: 'haisui',
@@ -2368,7 +2368,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
         
         // 絶好調（HP満タンで発動）
-        if (newState.player.skills.zekkouchou && newState.player.stats.hp >= newState.player.stats.maxHp) {
+        if (newState.player.skills.zekkouchou > 0 && newState.player.stats.hp >= newState.player.stats.maxHp) {
           if (!hasZekkouchou) {
             newState.player.statusEffects.push({
               type: 'zekkouchou',
@@ -3005,8 +3005,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     if (sk.bDeflect) activeSkills.push(isEnglishCopy ? '👊 Deflect' : '👊 弾消去');
                     if (sk.multiHitLevel > 0) activeSkills.push(isEnglishCopy ? `⚔️ Multi Lv${sk.multiHitLevel}` : `⚔️ 多段Lv${sk.multiHitLevel}`);
                     if (sk.expBonusLevel > 0) activeSkills.push(`✨ EXP+${sk.expBonusLevel}`);
-                    if (sk.haisuiNoJin || sk.alwaysHaisuiNoJin) activeSkills.push(isEnglishCopy ? `🔥 L.Stand${sk.alwaysHaisuiNoJin ? '(Always)' : ''}` : `🔥 背水${sk.alwaysHaisuiNoJin ? '(常時)' : ''}`);
-                    if (sk.zekkouchou || sk.alwaysZekkouchou) activeSkills.push(isEnglishCopy ? `⭐ Peak${sk.alwaysZekkouchou ? '(Always)' : ''}` : `⭐ 絶好調${sk.alwaysZekkouchou ? '(常時)' : ''}`);
+                    if (sk.haisuiNoJin > 0 || sk.alwaysHaisuiNoJin) activeSkills.push(isEnglishCopy ? `🔥 L.Stand Lv${sk.haisuiNoJin}${sk.alwaysHaisuiNoJin ? '(Always)' : ''}` : `🔥 背水Lv${sk.haisuiNoJin}${sk.alwaysHaisuiNoJin ? '(常時)' : ''}`);
+                    if (sk.zekkouchou > 0 || sk.alwaysZekkouchou) activeSkills.push(isEnglishCopy ? `⭐ Peak Lv${sk.zekkouchou}${sk.alwaysZekkouchou ? '(Always)' : ''}` : `⭐ 絶好調Lv${sk.zekkouchou}${sk.alwaysZekkouchou ? '(常時)' : ''}`);
                     if (sk.autoSelect) activeSkills.push(isEnglishCopy ? '🤖 Auto' : '🤖 オート');
                     
                     if (activeSkills.length === 0) return null;

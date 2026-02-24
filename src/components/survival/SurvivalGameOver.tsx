@@ -117,8 +117,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   if (result.skills.bDeflect) acquiredSkills.push({ name: isEnglishCopy ? 'Deflect' : '拳でかきけす', value: '✓' });
   if (result.skills.multiHitLevel > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Multi-Hit' : '多段攻撃', value: `Lv.${result.skills.multiHitLevel}` });
   if (result.skills.expBonusLevel > 0) acquiredSkills.push({ name: isEnglishCopy ? 'EXP+' : '獲得経験値+', value: `Lv.${result.skills.expBonusLevel}` });
-  if (result.skills.haisuiNoJin) acquiredSkills.push({ name: isEnglishCopy ? 'Last Stand' : '背水の陣', value: '✓' });
-  if (result.skills.zekkouchou) acquiredSkills.push({ name: isEnglishCopy ? 'Peak Condition' : '絶好調', value: '✓' });
+  if (result.skills.haisuiNoJin > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Last Stand' : '背水の陣', value: `Lv.${result.skills.haisuiNoJin}` });
+  if (result.skills.zekkouchou > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Peak Condition' : '絶好調', value: `Lv.${result.skills.zekkouchou}` });
   
   // 魔法アイコン
   const MAGIC_ICONS: Record<string, string> = {
