@@ -410,16 +410,16 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   
   // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
-    slime: { atk: 5, def: 2, hp: 60, speed: 0.8 },
-    goblin: { atk: 8, def: 3, hp: 80, speed: 1.0 },
-    skeleton: { atk: 10, def: 5, hp: 100, speed: 0.9 },
-    zombie: { atk: 12, def: 4, hp: 120, speed: 0.6 },
-    bat: { atk: 6, def: 2, hp: 50, speed: 1.4 },
-    ghost: { atk: 15, def: 1, hp: 70, speed: 1.1 },
-    orc: { atk: 18, def: 8, hp: 160, speed: 0.7 },
-    demon: { atk: 25, def: 10, hp: 200, speed: 0.9 },
-    dragon: { atk: 35, def: 15, hp: 300, speed: 0.8 },
-    boss: { atk: 50, def: 20, hp: 600, speed: 0.6 },
+    slime: { atk: 5, def: 1, hp: 18, speed: 0.8 },
+    goblin: { atk: 8, def: 1, hp: 24, speed: 1.0 },
+    skeleton: { atk: 10, def: 2, hp: 30, speed: 0.9 },
+    zombie: { atk: 12, def: 1, hp: 35, speed: 0.6 },
+    bat: { atk: 6, def: 1, hp: 14, speed: 1.4 },
+    ghost: { atk: 15, def: 0, hp: 20, speed: 1.1 },
+    orc: { atk: 18, def: 3, hp: 45, speed: 0.7 },
+    demon: { atk: 25, def: 4, hp: 55, speed: 0.9 },
+    dragon: { atk: 35, def: 5, hp: 80, speed: 0.8 },
+    boss: { atk: 50, def: 7, hp: 160, speed: 0.6 },
   };
   
   const base = baseStats[type];
@@ -1250,7 +1250,7 @@ export const applyLevelUpBonus = (player: PlayerState, bonus: LevelUpBonus): Pla
 // ===== 経験値計算 =====
 const EXP_CAP_LEVEL = 20;
 const MID_EXP_END_LEVEL = 40;
-const MID_EXP_PER_LEVEL = 40;
+const MID_EXP_PER_LEVEL = 7;
 const EXP_CAP_VALUE = Math.floor(EXP_BASE * Math.pow(EXP_LEVEL_FACTOR, EXP_CAP_LEVEL - 1));
 const MID_EXP_END_VALUE = EXP_CAP_VALUE + (MID_EXP_END_LEVEL - EXP_CAP_LEVEL) * MID_EXP_PER_LEVEL;
 
@@ -1265,7 +1265,7 @@ export const calculateExpToNextLevel = (level: number): number => {
   }
 
   const lateGameLevel = level - MID_EXP_END_LEVEL;
-  return Math.floor(MID_EXP_END_VALUE + Math.pow(lateGameLevel, 1.3) * 80);
+  return Math.floor(MID_EXP_END_VALUE + Math.pow(lateGameLevel, 1.1) * 10);
 };
 
 export const addExp = (player: PlayerState, exp: number): { player: PlayerState; leveledUp: boolean; levelUpCount: number } => {
