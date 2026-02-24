@@ -154,13 +154,15 @@ const LessonDetailPage: React.FC = () => {
         console.log('レッスン楽曲データ:', lessonData.lesson_songs);
         const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
           lesson_id: ls.lesson_id,
-          song_id: ls.song_id, // 通常の楽曲の場合のみ
-          lesson_song_id: ls.id, // lesson_songs.idを追加
+          song_id: ls.song_id,
+          lesson_song_id: ls.id,
           clear_conditions: ls.clear_conditions,
           is_fantasy: ls.is_fantasy,
+          is_survival: ls.is_survival,
+          survival_allowed_chords: ls.survival_allowed_chords,
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id
-        } as LessonRequirement & { is_fantasy?: boolean; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -469,13 +471,10 @@ const LessonDetailPage: React.FC = () => {
               {requirements.length > 0 ? (
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
-                    // この実習課題の進捗を取得
                     const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy) {
-                        // ファンタジーステージの場合はlesson_song_idで比較
+                      if (req.is_fantasy || req.is_survival) {
                         return p.lesson_song_id === req.lesson_song_id;
                       }
-                      // 通常の楽曲の場合はsong_idで比較
                       return p.song_id === req.song_id;
                     });
                     const isCompleted = progress?.is_completed || false;
@@ -484,6 +483,7 @@ const LessonDetailPage: React.FC = () => {
                     const clearDates = progress?.clear_dates || [];
                     const requiresDays = req.clear_conditions?.requires_days || false;
                     const isFantasy = req.is_fantasy || false;
+                    const isSurvival = req.is_survival || false;
                     
                     return (
                       <div key={`${req.lesson_id}-${req.song_id}`} className={`rounded-lg p-4 relative ${
@@ -499,17 +499,35 @@ const LessonDetailPage: React.FC = () => {
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">
                             課題 {index + 1}
-                            {isFantasy && <span className="ml-2 text-xs text-purple-400">[ファンタジー]</span>}
+                            {isSurvival && <span className="ml-2 text-xs text-red-400">[サバイバル]</span>}
+                            {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">[ファンタジー]</span>}
                           </h4>
-                          {isFantasy ? (
+                          {isSurvival ? (
+                            <FaSkull className="w-4 h-4 text-red-400" />
+                          ) : isFantasy ? (
                             <FaDragon className="w-4 h-4 text-purple-400" />
                           ) : (
                             <FaMusic className="w-4 h-4 text-blue-400" />
                           )}
                         </div>
                         
+                        {/* サバイバルステージ情報 */}
+                        {isSurvival && (
+                          <div className="mb-3 text-sm">
+                            <div className="font-medium text-red-300">
+                              サバイバルモード (5分生存でクリア)
+                            </div>
+                            <div className="text-gray-400 text-xs mt-1">
+                              コード: {(req.survival_allowed_chords || []).length}種
+                            </div>
+                            <div className="text-gray-500 text-xs mt-1 max-w-full truncate">
+                              {(req.survival_allowed_chords || []).join(', ')}
+                            </div>
+                          </div>
+                        )}
+
                         {/* ファンタジーステージ情報 */}
-                        {isFantasy && req.fantasy_stage && (
+                        {isFantasy && !isSurvival && req.fantasy_stage && (
                           <div className="mb-3 text-sm">
                             <div className="font-medium text-purple-300">
                               {req.fantasy_stage.stage_number} - {req.fantasy_stage.name}
@@ -625,7 +643,7 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="space-y-2 text-sm">
                           <div className="grid grid-cols-2 gap-2">
-                            {!isFantasy && (
+                            {!isFantasy && !isSurvival && (
                               <>
                                 <div>
                                   <span className="text-gray-400">キー:</span>
@@ -639,17 +657,19 @@ const LessonDetailPage: React.FC = () => {
                                 </div>
                               </>
                             )}
-                            <div>
-                              <span className="text-gray-400">ランク:</span>
-                              <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
-                            </div>
+                            {!isSurvival && (
+                              <div>
+                                <span className="text-gray-400">ランク:</span>
+                                <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
+                              </div>
+                            )}
                             <div>
                               <span className="text-gray-400">回数:</span>
                               <span className="ml-2">{requiresDays ? `${requiredCount}日間` : `${requiredCount}回`}</span>
                             </div>
                           </div>
                           
-                          {!isFantasy && (
+                          {!isFantasy && !isSurvival && (
                             <div className="mt-3">
                               <span className="text-gray-400">表示設定:</span>
                               <span className="ml-2">
@@ -673,20 +693,20 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            if (isFantasy) {
-                              // ファンタジーステージの場合
-                              console.log('ファンタジー課題データ:', req);
-                              console.log('fantasy_stage:', req.fantasy_stage);
-                              console.log('fantasy_stage_id:', req.fantasy_stage_id);
-                              console.log('lesson_song_id:', req.lesson_song_id);
-                              
+                            if (isSurvival) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
-                              params.set('lessonSongId', req.lesson_song_id); // lesson_songs.idを使用
+                              params.set('lessonSongId', req.lesson_song_id);
+                              params.set('allowedChords', JSON.stringify(req.survival_allowed_chords || []));
+                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              window.location.hash = `#survival-lesson?${params.toString()}`;
+                            } else if (isFantasy) {
+                              const params = new URLSearchParams();
+                              params.set('lessonId', req.lesson_id);
+                              params.set('lessonSongId', req.lesson_song_id);
                               params.set('stageId', req.fantasy_stage?.id || req.fantasy_stage_id || '');
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               const url = `#fantasy?${params.toString()}`;
-                              console.log('ファンタジーモードURL:', url);
                               window.location.hash = url;
                             } else {
                               // 通常の楽曲の場合

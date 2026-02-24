@@ -135,15 +135,12 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   // ユーザーの進捗を取得
   const progress = await fetchLessonRequirementsProgress(lessonId);
 
-  // すべて完了しているかチェック
   const allCompleted = requirements ? 
     requirements.every(req => 
       progress.some(p => {
-        // ファンタジーステージの場合はlesson_song_idで比較
-        if (req.is_fantasy) {
+        if (req.is_fantasy || req.is_survival) {
           return p.lesson_song_id === req.id && p.is_completed;
         }
-        // 通常の楽曲の場合はsong_idで比較
         return p.song_id === req.song_id && p.is_completed;
       })
     ) : true;

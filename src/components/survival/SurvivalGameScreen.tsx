@@ -213,6 +213,7 @@ interface SurvivalGameScreenProps {
   };
   character?: SurvivalCharacter;
   stageDefinition?: import('./SurvivalStageDefinitions').StageDefinition;
+  onLessonStageClear?: () => void;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -223,6 +224,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   debugSettings,
   character,
   stageDefinition,
+  onLessonStageClear,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -2448,6 +2450,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             earnedXp,
             isStageClear: true,
           });
+          if (onLessonStageClear) {
+            onLessonStageClear();
+          }
           return newState;
         }
 

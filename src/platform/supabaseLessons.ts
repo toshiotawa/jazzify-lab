@@ -303,6 +303,69 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
   }
 }
 
+// --- Survival Stages ---
+
+type SurvivalLessonSongData = {
+  lesson_id: string;
+  survival_allowed_chords: string[];
+  clear_conditions?: ClearConditions;
+};
+
+/**
+ * レッスンにサバイバルステージを追加します。
+ */
+export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Promise<LessonSong> {
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', data.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextOrderIndex = existingItems && existingItems.length > 0
+    ? (existingItems[0].order_index || 0) + 1
+    : 0;
+
+  const { data: result, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: data.lesson_id,
+      song_id: null,
+      fantasy_stage_id: null,
+      is_fantasy: false,
+      is_survival: true,
+      survival_allowed_chords: data.survival_allowed_chords,
+      clear_conditions: data.clear_conditions,
+      order_index: nextOrderIndex,
+    })
+    .select()
+    .single();
+
+  if (error) {
+    console.error('Error adding survival stage to lesson:', error);
+    throw error;
+  }
+
+  return result as LessonSong;
+}
+
+/**
+ * レッスンからサバイバルステージを削除します。
+ */
+export async function removeSurvivalStageFromLesson(lessonId: string, lessonSongId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('lesson_id', lessonId)
+    .eq('id', lessonSongId)
+    .eq('is_survival', true);
+
+  if (error) {
+    console.error(`Error removing survival stage from lesson ${lessonId}:`, error);
+    throw error;
+  }
+}
+
 /**
  * レッスン曲の上書き設定を更新します（timingモードステージ用）。
  * @param {string} lessonSongId

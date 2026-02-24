@@ -4,11 +4,11 @@ import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode,
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
-import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon, FaSkull } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
 import {
@@ -31,14 +31,39 @@ type SongFormData = {
 };
 
 type ContentFormData = {
-  content_type: 'song' | 'fantasy';
+  content_type: 'song' | 'fantasy' | 'survival';
   song_id?: string;
   fantasy_stage_id?: string;
   clear_conditions: ClearConditions;
-  // timingモードステージ用の上書き設定
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 };
+
+const SURVIVAL_CLICK_ROOTS = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'] as const;
+
+const SURVIVAL_CHORD_SUFFIXES: { label: string; suffix: string }[] = [
+  { label: 'メジャー', suffix: '' },
+  { label: 'マイナー', suffix: 'm' },
+  { label: 'M7', suffix: 'M7' },
+  { label: 'm7', suffix: 'm7' },
+  { label: '7', suffix: '7' },
+  { label: 'm7b5', suffix: 'm7b5' },
+  { label: 'mM7', suffix: 'mM7' },
+  { label: 'dim7', suffix: 'dim7' },
+  { label: 'aug7', suffix: 'aug7' },
+  { label: '6', suffix: '6' },
+  { label: 'm6', suffix: 'm6' },
+  { label: 'M7(9)', suffix: 'M7(9)' },
+  { label: 'm7(9)', suffix: 'm7(9)' },
+  { label: '7(9.13)', suffix: '7(9.6th)' },
+  { label: '7(b9.b13)', suffix: '7(b9.b6th)' },
+  { label: '6(9)', suffix: '6(9)' },
+  { label: 'm6(9)', suffix: 'm6(9)' },
+  { label: '7(b9.13)', suffix: '7(b9.6th)' },
+  { label: '7(#9.b13)', suffix: '7(#9.b6th)' },
+  { label: 'm7(b5)(11)', suffix: 'm7(b5)(11)' },
+  { label: 'dim(M7)', suffix: 'dim(M7)' },
+];
 
 export const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -60,6 +85,7 @@ export const LessonManager: React.FC = () => {
   const videoInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [editNavLinks, setEditNavLinks] = useState<NavLinkKey[]>([]);
+  const [survivalChords, setSurvivalChords] = useState<string[]>([]);
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
     { key: 'dashboard',   label: 'ダッシュボード' },
@@ -241,6 +267,7 @@ export const LessonManager: React.FC = () => {
       override_repeat_transposition_mode: null,
       override_start_key: null,
     });
+    setSurvivalChords([]);
     contentDialogRef.current?.showModal();
   };
   
@@ -347,6 +374,12 @@ export const LessonManager: React.FC = () => {
           override_repeat_transposition_mode: formData.override_repeat_transposition_mode,
           override_start_key: formData.override_start_key,
         });
+      } else if (formData.content_type === 'survival' && survivalChords.length > 0) {
+        newLessonSong = await addSurvivalStageToLesson({
+          lesson_id: selectedLesson.id,
+          survival_allowed_chords: survivalChords,
+          clear_conditions: formData.clear_conditions,
+        });
       } else {
         throw new Error('コンテンツが選択されていません');
       }
@@ -359,7 +392,8 @@ export const LessonManager: React.FC = () => {
         )
       );
       
-      toast.success(formData.content_type === 'song' ? '楽曲を追加しました。' : 'ファンタジーステージを追加しました。');
+      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。' };
+      toast.success(contentTypeMessages[formData.content_type]);
       
       invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
       setTimeout(() => loadLessons(true), 500);
@@ -424,14 +458,17 @@ export const LessonManager: React.FC = () => {
     }
   };
   
-  const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string) => {
+  const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string, isSurvival?: boolean) => {
     if (!selectedCourseId) return;
     
-    const confirmMessage = isFantasy ? 'このファンタジーステージをレッスンから削除しますか？' : 'この曲をレッスンから削除しますか？';
+    const confirmMessage = isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
+      : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？' : 'この曲をレッスンから削除しますか？';
     
     if (window.confirm(confirmMessage)) {
       try {
-        if (isFantasy) {
+        if (isSurvival) {
+          await removeSurvivalStageFromLesson(lessonId, lessonSongId);
+        } else if (isFantasy) {
           await removeFantasyStageFromLesson(lessonId, contentId);
         } else {
           await removeSongFromLesson(lessonId, contentId);
@@ -668,8 +705,33 @@ export const LessonManager: React.FC = () => {
                         {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
                           <div className="space-y-2">
                             {lesson.lesson_songs.map(ls => {
-                              if (ls.is_fantasy) {
-                                // ファンタジーステージの表示
+                              if (ls.is_survival) {
+                                const chords = ls.survival_allowed_chords || [];
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaSkull className="inline-block mr-2 text-red-400" />
+                                      <span className="font-medium">サバイバル</span>
+                                      <span className="text-xs text-red-400 ml-2">[サバイバル]</span>
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        (コード: {chords.length}種,
+                                        {ls.clear_conditions?.requires_days
+                                          ? ` ${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
+                                          : ` ${ls.clear_conditions?.count || 1}回`})
+                                      </span>
+                                      <div className="text-xs text-gray-500 mt-1 max-w-md truncate">
+                                        {chords.join(', ')}
+                                      </div>
+                                    </div>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.id, true)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              } else if (ls.is_fantasy) {
                                 const stage = ls.fantasy_stage;
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
@@ -694,7 +756,6 @@ export const LessonManager: React.FC = () => {
                                   </div>
                                 );
                               } else {
-                                // 楽曲の表示
                                 const song = availableSongs.find(s => s.id === ls.song_id);
                                 return (
                                   <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
@@ -1081,7 +1142,7 @@ export const LessonManager: React.FC = () => {
       </dialog>
       
       <dialog ref={contentDialogRef} className="modal">
-        <div className="modal-box max-w-2xl">
+        <div className="modal-box max-w-4xl max-h-[90vh]">
           <h3 className="font-bold text-lg">レッスンに課題を追加</h3>
           <form onSubmit={handleSubmitContent(onSubmitContent)} className="space-y-4 mt-4">
             <div>
@@ -1106,6 +1167,15 @@ export const LessonManager: React.FC = () => {
                   />
                   <span className="ml-2">ファンタジーステージ</span>
                 </label>
+                <label className="flex items-center">
+                  <input 
+                    type="radio" 
+                    {...registerContent('content_type')} 
+                    value="survival" 
+                    className="radio radio-error" 
+                  />
+                  <span className="ml-2">サバイバル</span>
+                </label>
               </div>
             </div>
             
@@ -1121,6 +1191,85 @@ export const LessonManager: React.FC = () => {
                   ))}
                 </select>
               </div>
+            ) : watchContent && watchContent('content_type') === 'survival' ? (
+              <div className="space-y-3">
+                <label className="label"><span className="label-text">出題コードを選択 *</span></label>
+                <p className="text-xs text-gray-400">コードタイプごとにルート音をクリックして追加できます。キャラはファイ固定、5分生存でクリアです。</p>
+
+                <div className="border border-red-700/50 rounded-lg p-3 space-y-3 max-h-[40vh] overflow-y-auto">
+                  {SURVIVAL_CHORD_SUFFIXES.map((chordType) => (
+                    <div key={chordType.suffix} className="space-y-1">
+                      <div className="text-xs text-gray-400 font-semibold">{chordType.label}</div>
+                      <div className="flex flex-wrap gap-1">
+                        {SURVIVAL_CLICK_ROOTS.map((root) => {
+                          const chordName = `${root}${chordType.suffix}`;
+                          const isSelected = survivalChords.includes(chordName);
+                          return (
+                            <button
+                              key={`${chordType.suffix}-${root}`}
+                              type="button"
+                              className={`btn btn-xs ${isSelected ? 'btn-error' : 'btn-outline hover:btn-error'}`}
+                              onClick={() => {
+                                if (isSelected) {
+                                  setSurvivalChords(prev => prev.filter(c => c !== chordName));
+                                } else {
+                                  setSurvivalChords(prev => [...prev, chordName]);
+                                }
+                              }}
+                            >
+                              {chordName}
+                            </button>
+                          );
+                        })}
+                        <button
+                          type="button"
+                          className="btn btn-xs btn-ghost text-gray-500"
+                          onClick={() => {
+                            const allChordsForType = SURVIVAL_CLICK_ROOTS.map(r => `${r}${chordType.suffix}`);
+                            const allSelected = allChordsForType.every(c => survivalChords.includes(c));
+                            if (allSelected) {
+                              setSurvivalChords(prev => prev.filter(c => !allChordsForType.includes(c)));
+                            } else {
+                              setSurvivalChords(prev => [...new Set([...prev, ...allChordsForType])]);
+                            }
+                          }}
+                        >
+                          {SURVIVAL_CLICK_ROOTS.map(r => `${r}${chordType.suffix}`).every(c => survivalChords.includes(c)) ? '全解除' : '全選択'}
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {survivalChords.length > 0 && (
+                  <div className="bg-slate-800 rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-semibold">選択中のコード ({survivalChords.length})</span>
+                      <button
+                        type="button"
+                        className="btn btn-xs btn-ghost text-red-400"
+                        onClick={() => setSurvivalChords([])}
+                      >
+                        全てクリア
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {survivalChords.map(chord => (
+                        <span key={chord} className="badge badge-error badge-sm gap-1">
+                          {chord}
+                          <button
+                            type="button"
+                            className="text-xs"
+                            onClick={() => setSurvivalChords(prev => prev.filter(c => c !== chord))}
+                          >
+                            ×
+                          </button>
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
             ) : (
               <>
                 <div>
@@ -1130,7 +1279,6 @@ export const LessonManager: React.FC = () => {
                     onStageSelect={(stageId) => setValueContent('fantasy_stage_id', stageId)}
                   />
                 </div>
-                {/* timingモードの場合のみ上書き設定を表示 */}
                 {(() => {
                   const selectedStageId = watchContent('fantasy_stage_id');
                   const selectedStage = selectedStageId 
@@ -1226,16 +1374,18 @@ export const LessonManager: React.FC = () => {
               </>
             )}
             
-            <div>
-              <label className="label"><span className="label-text">最低ランク</span></label>
-              <select {...registerContent('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
-                <option value="S">S</option>
-                <option value="A">A</option>
-                <option value="B">B</option>
-                <option value="C">C</option>
-                <option value="D">D</option>
-              </select>
-            </div>
+            {watchContent && watchContent('content_type') !== 'survival' && (
+              <div>
+                <label className="label"><span className="label-text">最低ランク</span></label>
+                <select {...registerContent('clear_conditions.rank')} className="select select-bordered w-full" defaultValue="B">
+                  <option value="S">S</option>
+                  <option value="A">A</option>
+                  <option value="B">B</option>
+                  <option value="C">C</option>
+                  <option value="D">D</option>
+                </select>
+              </div>
+            )}
             
             <div>
               <label className="label">
@@ -1283,7 +1433,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalChords.length === 0)}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

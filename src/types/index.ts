@@ -631,11 +631,13 @@ export interface LessonSong {
   song_id: string | null;
   fantasy_stage_id: string | null;
   is_fantasy: boolean;
+  is_survival?: boolean;
+  survival_allowed_chords?: string[];
   clear_conditions?: ClearConditions;
+  order_index?: number;
   created_at: string;
   songs?: Pick<Song, 'id' | 'title' | 'artist'>;
   fantasy_stage?: FantasyStage;
-  // timingモードステージ用の上書き設定
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 }
