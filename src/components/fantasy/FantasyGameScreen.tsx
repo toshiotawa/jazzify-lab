@@ -506,7 +506,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   
   const handleEnemyAttack = useCallback((_attackingMonsterId?: string) => {
     // 🚀 パフォーマンス最適化: 敵の攻撃音を同期的に再生（動的インポート不要）
-    if (stage.mode === 'single') {
+    if (stage.mode === 'single' || stage.mode === 'single_order') {
       FantasySoundManager.playEnemyAttack();
     }
     
@@ -1863,7 +1863,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <div>{isEnglishCopy ? 'Game state' : 'ゲーム状態'}: {gameState.isGameActive ? (isEnglishCopy ? 'Active' : 'アクティブ') : (isEnglishCopy ? 'Inactive' : '非アクティブ')}</div>
                 <div>{isEnglishCopy ? 'Current chord' : '現在のコード'}: {gameState.currentChordTarget?.displayName || (isEnglishCopy ? 'None' : 'なし')}</div>
               <div>許可コード数: {stage.allowedChords?.length || 0}</div>
-              {stage.mode === 'single' && <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>}
+              {(stage.mode === 'single' || stage.mode === 'single_order') && <div>敵ゲージ秒数: {stage.enemyGaugeSeconds}</div>}
                 <div>{isEnglishCopy ? 'Overlay' : 'オーバーレイ'}: {overlay ? (isEnglishCopy ? 'Visible' : '表示中') : (isEnglishCopy ? 'None' : 'なし')}</div>
                 <div>{isEnglishCopy ? 'Completing' : '完了処理中'}: {gameState.isCompleting ? (isEnglishCopy ? 'Yes' : 'はい') : (isEnglishCopy ? 'No' : 'いいえ')}</div>
             </div>
@@ -2126,7 +2126,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       {/* 魔法名表示 - 削除（パフォーマンス改善のため） */}
                       
                       {/* 行動ゲージ (singleモードのみ表示) */}
-                      {!isDailyChallenge && playMode !== 'practice' && stage.mode === 'single' && (
+                      {!isDailyChallenge && playMode !== 'practice' && (stage.mode === 'single' || stage.mode === 'single_order') && (
                         <div 
                           ref={el => {
                             if (el) gaugeRefs.current.set(monster.id, el);
@@ -2370,7 +2370,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="fixed bottom-4 left-4 bg-black bg-opacity-70 text-white text-xs p-2 rounded z-40">
           <div>Q: {gameState.currentQuestionIndex + 1}/{gameState.totalQuestions}</div>
           <div>HP: {gameState.playerHp}/{stage.maxHp}</div>
-          {stage.mode === 'single' && playMode !== 'practice' && <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>}
+          {(stage.mode === 'single' || stage.mode === 'single_order') && playMode !== 'practice' && <div>ゲージ: {gameState.enemyGauge.toFixed(1)}%</div>}
           <div>スコア: {gameState.score}</div>
           <div>正解数: {gameState.correctAnswers}</div>
           <div>現在のコード: {gameState.currentChordTarget?.displayName || 'なし'}</div>

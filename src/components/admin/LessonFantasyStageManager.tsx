@@ -16,7 +16,7 @@ import { fetchFantasyBgmAssets, FantasyBgmAsset } from '@/platform/supabaseFanta
 import { convertMusicXmlToProgressionData } from '@/utils/musicXmlToProgression';
 
 // モード型
-type AdminStageMode = 'single' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
+type AdminStageMode = 'single' | 'single_order' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
 
 // progression_timing 用の行
 interface TimingRow {
@@ -241,7 +241,7 @@ const LessonFantasyStageManager: React.FC = () => {
     };
 
     // モードに応じた不要フィールドの削除
-    if (v.mode === 'single') {
+    if (v.mode === 'single' || v.mode === 'single_order') {
       delete base.chord_progression;
       delete base.chord_progression_data;
       delete base.note_interval_beats;
@@ -266,8 +266,8 @@ const LessonFantasyStageManager: React.FC = () => {
       setLoading(true);
       // 簡易バリデーション
       if (!v.name.trim()) return toast.error('ステージ名は必須です');
-      if (v.mode === 'single' && (!v.allowed_chords || v.allowed_chords.length === 0)) {
-        return toast.error('singleモードでは許可コードを1つ以上追加してください');
+      if ((v.mode === 'single' || v.mode === 'single_order') && (!v.allowed_chords || v.allowed_chords.length === 0)) {
+        return toast.error('single/single_orderモードでは許可コードを1つ以上追加してください');
       }
       if (v.mode === 'progression_order' && (!v.chord_progression || v.chord_progression.length === 0)) {
         return toast.error('順番モードではコード進行を1つ以上追加してください');
@@ -462,7 +462,8 @@ const LessonFantasyStageManager: React.FC = () => {
                 <div>
                   <SmallLabel>モード *</SmallLabel>
                   <select className="select select-bordered w-full" {...register('mode', { required: true })}>
-                    <option value="single">single（単体）</option>
+                    <option value="single">single（単体・ランダム）</option>
+                    <option value="single_order">single_order（単体・順番）</option>
                     <option value="progression_order">progression_order（順番）</option>
                     <option value="progression_random">progression_random（ランダム）</option>
                     <option value="progression_timing">progression_timing（カスタム）</option>
@@ -519,11 +520,11 @@ const LessonFantasyStageManager: React.FC = () => {
               </p>
               <Row>
                 <div>
-                  <SmallLabel>BPM {mode !== 'single' && '*'}</SmallLabel>
+                  <SmallLabel>BPM {mode !== 'single' && mode !== 'single_order' && '*'}</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('bpm', { valueAsNumber: true })} />
                 </div>
                 <div>
-                  <SmallLabel>拍子 {mode !== 'single' && '*'}</SmallLabel>
+                  <SmallLabel>拍子 {mode !== 'single' && mode !== 'single_order' && '*'}</SmallLabel>
                   <input type="number" className="input input-bordered w-full" {...register('time_signature', { valueAsNumber: true })} />
                 </div>
                 <div>

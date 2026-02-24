@@ -281,7 +281,7 @@ export interface UpsertFantasyStagePayload {
   enemy_hp?: number;
   min_damage?: number;
   max_damage?: number;
-  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
+  mode: 'single' | 'single_order' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
   allowed_chords?: any[]; // ChordSpec[] or string[]
   chord_progression?: any[]; // ChordSpec[]
   chord_progression_data?: any; // JSON array

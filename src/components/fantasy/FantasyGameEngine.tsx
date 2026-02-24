@@ -99,6 +99,7 @@ export const preloadSheetMusicImages = async (noteNames: string[], cache: Map<st
 
 type StageMode = 
   | 'single'
+  | 'single_order'
   | 'progression' // 互換用途（基本進行）
   | 'progression_order'
   | 'progression_random'
@@ -737,6 +738,22 @@ const selectRandomChord = (
 };
 
 /**
+ * 順序付きコード選択（single_orderモード用）
+ * allowed_chordsを先頭から順番に巡回する
+ */
+const selectOrderedChord = (
+  allowedChords: ChordSpec[],
+  indexRef: React.MutableRefObject<number>,
+  displayOpts?: DisplayOpts
+): ChordDefinition | null => {
+  if (allowedChords.length === 0) return null;
+  const idx = indexRef.current % allowedChords.length;
+  indexRef.current = idx + 1;
+  const spec = allowedChords[idx];
+  return getChordDefinition(spec, displayOpts) || null;
+};
+
+/**
  * コード進行から次のコードを取得
  */
 const getProgressionChord = (progression: ChordSpec[], questionIndex: number, displayOpts?: DisplayOpts): ChordDefinition | null => {
@@ -777,6 +794,8 @@ export const useFantasyGameEngine = ({
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // 袋形式ランダムセレクター（コード選択の偏り防止）
   const bagSelectorRef = useRef<BagRandomSelector<ChordSpec> | null>(null);
+  // single_orderモード用: allowed_chords内の現在インデックス
+  const singleOrderIndexRef = useRef<number>(0);
   
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
@@ -1485,6 +1504,11 @@ export const useFantasyGameEngine = ({
     const totalQuestions = playMode === 'practice' ? Number.POSITIVE_INFINITY : totalEnemies * enemyHp;
     const simultaneousCount = (stage.mode.startsWith('progression') || stage.mode === 'timing_combining') ? 1 : (stage.simultaneousMonsterCount || 1);
 
+    // single_orderモード用: インデックスを初期化
+    if (stage.mode === 'single_order') {
+      singleOrderIndexRef.current = 0;
+    }
+
     // ステージで使用するモンスターIDを決定（シャッフルして必要数だけ取得）
     const monsterIds = (() => {
       if (playMode === 'practice') {
@@ -1529,19 +1553,24 @@ export const useFantasyGameEngine = ({
 
     // ▼▼▼ 袋形式ランダムセレクターの初期化 ▼▼▼
     // single/progression_random モードで使用する袋形式セレクターを作成
-    const allowedChordsForBag = (stage.allowedChords && stage.allowedChords.length > 0) 
-      ? stage.allowedChords 
-      : (stage.chordProgression || []);
-    
-    if (allowedChordsForBag.length > 0) {
-      const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
-      bagSelectorRef.current = new BagRandomSelector(allowedChordsForBag, specToId);
-      devLog.debug('🎲 袋形式ランダムセレクター初期化:', { 
-        chordCount: allowedChordsForBag.length,
-        mode: stage.mode 
-      });
-    } else {
+    // single_order モードでは順序選択を使うためスキップ
+    if (stage.mode === 'single_order') {
       bagSelectorRef.current = null;
+    } else {
+      const allowedChordsForBag = (stage.allowedChords && stage.allowedChords.length > 0) 
+        ? stage.allowedChords 
+        : (stage.chordProgression || []);
+      
+      if (allowedChordsForBag.length > 0) {
+        const specToId = (s: ChordSpec) => (typeof s === 'string' ? s : s.chord);
+        bagSelectorRef.current = new BagRandomSelector(allowedChordsForBag, specToId);
+        devLog.debug('🎲 袋形式ランダムセレクター初期化:', { 
+          chordCount: allowedChordsForBag.length,
+          mode: stage.mode 
+        });
+      } else {
+        bagSelectorRef.current = null;
+      }
     }
 
     // ▼▼▼ モンスターキューをシャッフルする ▼▼▼
@@ -1588,6 +1617,14 @@ export const useFantasyGameEngine = ({
           sheetMusicOpt,
           bagSelectorRef.current
         );
+        // single_orderモード: 順序通りのコードで上書き
+        if (stage.mode === 'single_order') {
+          const allowedForOrder = (stage.allowedChords && stage.allowedChords.length > 0) ? stage.allowedChords : [];
+          const orderedChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
+          if (orderedChord) {
+            monster.chordTarget = orderedChord;
+          }
+        }
         activeMonsters.push(monster);
         usedChordIds.push(monster.chordTarget.id);
         lastChordId = monster.chordTarget.id;
@@ -1976,6 +2013,10 @@ export const useFantasyGameEngine = ({
               monster.chordTarget?.id,
               displayOpts
             );
+          } else if (prevState.currentStage?.mode === 'single_order') {
+            // 順序モード：allowed_chordsを順番に巡回
+            const allowedForOrder = (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : [];
+            nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
           } else {
             // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
@@ -2097,8 +2138,8 @@ export const useFantasyGameEngine = ({
             
             return finalState;
           } else {
-            // Singleモードでは問題を切り替えない（コード・正解済み音を保持）
-            if (prevState.currentStage?.mode === 'single') {
+            // Single/Single_orderモードでは問題を切り替えない（コード・正解済み音を保持）
+            if (prevState.currentStage?.mode === 'single' || prevState.currentStage?.mode === 'single_order') {
               // アクティブなモンスターのゲージのみリセット（コードと正解済み音は保持）
               const updatedMonsters = prevState.activeMonsters.map(monster => ({
                 ...monster,
@@ -3158,6 +3199,9 @@ export const useFantasyGameEngine = ({
           prevState.currentChordTarget?.id,
           displayOpts
         );
+      } else if (prevState.currentStage?.mode === 'single_order') {
+        const allowedForOrder = (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : [];
+        nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
         const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
@@ -3201,6 +3245,7 @@ export const useFantasyGameEngine = ({
     
     // 袋セレクターをクリア
     bagSelectorRef.current = null;
+    singleOrderIndexRef.current = 0;
     
     if (enemyGaugeTimer) {
       clearInterval(enemyGaugeTimer);
@@ -3330,6 +3375,13 @@ export const useFantasyGameEngine = ({
               sheetMusicOpt,
               bagSelectorRef.current
             );
+            // single_orderモード: 順序通りのコードで上書き
+            if (prevState.currentStage?.mode === 'single_order') {
+              const orderedChord = selectOrderedChord(allowedChords, singleOrderIndexRef, displayOpts);
+              if (orderedChord) {
+                newMonster.chordTarget = orderedChord;
+              }
+            }
             remainingMonsters.push(newMonster);
           }
         }

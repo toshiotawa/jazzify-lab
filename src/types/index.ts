@@ -544,7 +544,7 @@ export interface FantasyStage {
   enemy_hp: number;
   min_damage: number;
   max_damage: number;
-  mode: 'single' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
+  mode: 'single' | 'single_order' | 'progression' | 'progression_order' | 'progression_random' | 'progression_timing' | 'timing_combining';
   allowed_chords: string[];
   chord_progression?: string[];
   show_guide: boolean;
