@@ -17,11 +17,13 @@ const SURVIVAL_SETTINGS_KEY = 'survival_display_settings';
 export interface SurvivalDisplaySettings {
   showAutoSelectPopup: boolean;
   showCharacterBonusPopup: boolean;
+  showLevelUpBonusPopup: boolean;
 }
 
 const DEFAULT_DISPLAY_SETTINGS: SurvivalDisplaySettings = {
   showAutoSelectPopup: true,
   showCharacterBonusPopup: true,
+  showLevelUpBonusPopup: true,
 };
 
 export const loadSurvivalDisplaySettings = (): SurvivalDisplaySettings => {
@@ -359,6 +361,35 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
                 }`}>
                   <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-0.5 ${
                     displaySettings.showCharacterBonusPopup ? 'translate-x-5' : 'translate-x-0.5'
+                  }`} />
+                </div>
+              </div>
+            </label>
+
+            {/* レベルアップボーナス選択時の通知 */}
+            <label className="flex items-center justify-between py-2 cursor-pointer group">
+              <div className="flex-1">
+                <div className="text-sm text-white group-hover:text-yellow-300 transition-colors">
+                  {isEnglishCopy ? 'Level-Up Bonus Notifications' : 'レベルアップボーナスの通知'}
+                </div>
+                <div className="text-xs text-gray-400">
+                  {isEnglishCopy
+                    ? 'Show popup when you select a level-up bonus'
+                    : 'レベルアップボーナスを選択した際のポップアップ'}
+                </div>
+              </div>
+              <div className="ml-3 relative">
+                <input
+                  type="checkbox"
+                  checked={displaySettings.showLevelUpBonusPopup}
+                  onChange={() => handleToggle('showLevelUpBonusPopup')}
+                  className="sr-only"
+                />
+                <div className={`w-10 h-5 rounded-full transition-colors ${
+                  displaySettings.showLevelUpBonusPopup ? 'bg-yellow-500' : 'bg-gray-600'
+                }`}>
+                  <div className={`w-4 h-4 bg-white rounded-full shadow transform transition-transform mt-0.5 ${
+                    displaySettings.showLevelUpBonusPopup ? 'translate-x-5' : 'translate-x-0.5'
                   }`} />
                 </div>
               </div>
