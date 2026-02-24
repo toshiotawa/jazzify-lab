@@ -543,29 +543,31 @@ const LessonPage: React.FC = () => {
                             }
                           }}
                         >
-                          <div className="flex items-center justify-between mb-2">
-                            <h3 className="font-medium truncate flex items-center gap-2">
-                              {course.title}
+                          {(course.premium_only || manualUnlockBadgeVisible || manualLockBadgeVisible || (!accessible && courseUnlockFlag === null)) && (
+                            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                               {course.premium_only && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
                                   Premium
                                 </span>
                               )}
                               {manualUnlockBadgeVisible && (
-                                <span className="bg-emerald-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                  <FaUnlock className="text-xs" />
+                                <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <FaUnlock className="text-[10px]" />
                                   手動解放
                                 </span>
                               )}
                               {manualLockBadgeVisible && (
-                                <span className="bg-red-600 text-white text-xs px-2 py-1 rounded-full flex items-center gap-1">
-                                  <FaLock className="text-xs" />
+                                <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
+                                  <FaLock className="text-[10px]" />
                                   管理者ロック
                                 </span>
                               )}
                               {!accessible && courseUnlockFlag === null && <FaLock className="text-xs text-gray-400" />}
-                            </h3>
-                          </div>
+                            </div>
+                          )}
+                          <h3 className="font-medium truncate mb-2">
+                            {course.title}
+                          </h3>
 
                           {course.prerequisites && course.prerequisites.length > 0 && (
                             <div className="mb-2">
