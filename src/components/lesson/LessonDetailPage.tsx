@@ -76,6 +76,7 @@ const LessonDetailPage: React.FC = () => {
   const [completing, setCompleting] = useState(false);
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
+  const [isGlobalCourse, setIsGlobalCourse] = useState(false);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -181,6 +182,7 @@ const LessonDetailPage: React.FC = () => {
           fetchUserCompletedCourses(profile.id)
         ]);
         if (course) {
+          setIsGlobalCourse(course.audience === 'global');
           const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
           const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
           if (!access.canAccess) {
@@ -422,8 +424,8 @@ const LessonDetailPage: React.FC = () => {
               <p className="text-gray-200 whitespace-pre-line leading-relaxed">{lesson?.description}</p>
             </div>
 
-            {/* 動画セクション */}
-            {videos.length > 0 && (
+            {/* 動画セクション（globalオーディエンスのコースでは非表示） */}
+            {videos.length > 0 && !isGlobalCourse && (
               <div className="bg-slate-800 rounded-lg overflow-hidden">
                 {/* ビデオプレイヤー */}
                 <div className="aspect-video bg-black">
