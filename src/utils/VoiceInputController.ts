@@ -94,10 +94,11 @@ export class VoiceInputController {
   private readonly bufferSize = 512; // 低レイテンシ用
   private readonly minFrequency = 27.5; // A0
   private readonly maxFrequency = 4186.01; // C8
-  private readonly noteOnThreshold = 0.008; // 振幅閾値を下げて感度向上
-  private readonly noteOffThreshold = 0.003; // ノートオフ閾値も下げる
-  private readonly pyinThreshold = 0.15; // PYIN閾値を少し上げてノイズ耐性向上
-  private readonly silenceThreshold = 0.002; // 無音閾値を下げる
+  private noteOnThreshold = 0.008;
+  private noteOffThreshold = 0.003;
+  private readonly pyinThreshold = 0.15;
+  private silenceThreshold = 0.002;
+  private sensitivityLevel = 5;
 
   // ノート状態
   private currentNote = -1;
@@ -659,6 +660,24 @@ export class VoiceInputController {
     const octave = Math.floor(note / 12) - 1;
     const noteName = noteNames[note % 12];
     return `${noteName}${octave}`;
+  }
+
+  /**
+   * 音声認識の感度を設定（1-10）
+   * 高い値 = より敏感（小さい音も検出）、低い値 = ノイズ耐性向上
+   */
+  setSensitivity(level: number): void {
+    this.sensitivityLevel = Math.max(1, Math.min(10, Math.round(level)));
+    const scale = Math.pow(10, (5 - this.sensitivityLevel) * 0.17);
+    this.noteOnThreshold = 0.008 * scale;
+    this.noteOffThreshold = 0.003 * scale;
+    this.silenceThreshold = 0.002 * scale;
+    log.info(`🎤 音声感度設定: レベル${this.sensitivityLevel} (noteOn=${this.noteOnThreshold.toFixed(5)}, noteOff=${this.noteOffThreshold.toFixed(5)})`);
+  }
+
+  /** 現在の感度レベルを取得 */
+  getSensitivity(): number {
+    return this.sensitivityLevel;
   }
 
   /** 接続状態確認 */

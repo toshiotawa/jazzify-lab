@@ -152,7 +152,9 @@ const defaultSettings: GameSettings = {
   // 練習モードガイド
   practiceGuide: 'key',
   
-  performanceMode: 'standard'
+  performanceMode: 'standard',
+  
+  voiceSensitivity: 5
 };
 
 // ===== 新機能: デフォルトプリセット =====

@@ -1076,6 +1076,7 @@ useEffect(() => {
             }
           });
           
+          voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
           log.info('✅ VoiceInputController作成完了');
         }
 
@@ -1103,6 +1104,13 @@ useEffect(() => {
       // クリーンアップは inputMethod 切り替え時に行う
     };
   }, [settings.inputMethod, settings.selectedAudioDevice, handleNoteInput]); // pixiRendererはrefで管理するため依存関係から除外
+
+  // 音声認識感度の反映
+  useEffect(() => {
+    if (voiceControllerRef.current) {
+      voiceControllerRef.current.setSensitivity(settings.voiceSensitivity);
+    }
+  }, [settings.voiceSensitivity]);
 
   // 音声入力コントローラーのクリーンアップ
   useEffect(() => {

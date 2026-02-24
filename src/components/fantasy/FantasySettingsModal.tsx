@@ -250,6 +250,24 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                   value={gameSettings.selectedAudioDevice}
                   onChange={(deviceId: string | null) => updateGameSettings({ selectedAudioDevice: deviceId })}
                 />
+                <div className="mt-3">
+                  <label className="block text-sm font-medium text-purple-200 mb-2">
+                    音声認識の感度: {gameSettings.voiceSensitivity}
+                  </label>
+                  <input
+                    type="range"
+                    min="1"
+                    max="10"
+                    step="1"
+                    value={gameSettings.voiceSensitivity}
+                    onChange={(e) => updateGameSettings({ voiceSensitivity: parseInt(e.target.value) })}
+                    className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
+                  />
+                  <div className="flex justify-between text-xs text-gray-500 mt-1">
+                    <span>低（ノイズ耐性）</span>
+                    <span>高（高感度）</span>
+                  </div>
+                </div>
               </div>
             )}
           </div>

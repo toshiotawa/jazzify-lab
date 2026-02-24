@@ -206,6 +206,9 @@ export interface GameSettings {
   
   /** パフォーマンスモード（軽量化） */
   performanceMode: 'standard' | 'lightweight' | 'ultra_light';
+  
+  /** 音声認識の感度 (1-10, デフォルト5) */
+  voiceSensitivity: number;
 }
 
 // ===== 採点システム =====
