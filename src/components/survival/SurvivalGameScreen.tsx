@@ -909,12 +909,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const isAMagicSlot = isAbColumnMagicMode;
   const isBMagicSlot = isLiraMagicMode || isAbColumnMagicMode;
 
-  // レベルアップボーナス選択処理
-  const handleLevelUpBonusSelect = useCallback((option: LevelUpBonus) => {
+  // レベルアップボーナス選択処理（異名同音対応: 複数ボーナス一括適用）
+  const handleLevelUpBonusSelect = useCallback((options: LevelUpBonus[]) => {
+    if (options.length === 0) return;
+    
     setGameState(gs => {
       if (!gs.isLevelingUp) return gs;
       
-      const newPlayer = applyLevelUpBonus(gs.player, option);
+      let newPlayer = gs.player;
+      for (const option of options) {
+        newPlayer = applyLevelUpBonus(newPlayer, option);
+      }
       const newPendingLevelUps = gs.pendingLevelUps - 1;
       
       // 魔法を取得したらC列とD列を有効化（魔法不可キャラの場合は常に無効）
@@ -956,12 +961,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     if (displaySettings.showLevelUpBonusPopup) {
       const now = Date.now();
-      setSkillNotifications(prev => [...prev, {
-        id: `levelup_${now}`,
-        icon: option.icon,
-        displayName: isEnglishCopy && option.displayNameEn ? option.displayNameEn : option.displayName,
-        startTime: now,
-      }]);
+      for (let i = 0; i < options.length; i++) {
+        const option = options[i];
+        setSkillNotifications(prev => [...prev, {
+          id: `levelup_${now}_${i}`,
+          icon: option.icon,
+          displayName: isEnglishCopy && option.displayNameEn ? option.displayNameEn : option.displayName,
+          startTime: now,
+        }]);
+      }
     }
   }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount, displaySettings.showLevelUpBonusPopup, isEnglishCopy]);
   
@@ -1003,19 +1011,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (prev.isGameOver || prev.isPaused) return prev;
       
       // レベルアップ中もボーナス選択とABCD攻撃を同時に処理
+      // 異名同音対応: 全オプションのcorrectNotesを更新（同じ音で複数マッチ可能に）
       if (prev.isLevelingUp) {
         const currentCorrectNotes = levelUpCorrectNotesRef.current.map(arr => [...arr]);
-        let matchedOptionIndex = -1;
         
         prev.levelUpOptions.forEach((option, index) => {
-          if (option.chord && matchedOptionIndex === -1) {
+          if (option.chord) {
             const prevNotes = currentCorrectNotes[index] || [];
             const correct = getCorrectNotes([...prevNotes, note], option.chord);
             currentCorrectNotes[index] = correct;
-            
-            if (checkChordMatch(correct, option.chord)) {
-              matchedOptionIndex = index;
-            }
           }
         });
         

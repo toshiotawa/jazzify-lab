@@ -13,7 +13,7 @@ import { useGeoStore } from '@/stores/geoStore';
 
 interface SurvivalLevelUpProps {
   options: LevelUpBonus[];
-  onSelect: (bonus: LevelUpBonus) => void;
+  onSelect: (bonuses: LevelUpBonus[]) => void;
   onTimeout: () => void;
   level: number;
   pendingLevelUps: number;
@@ -44,7 +44,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
 
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
   const [inputEnabled, setInputEnabled] = useState(false);
-  const [selectedBonus, setSelectedBonus] = useState<LevelUpBonus | null>(null);
+  const [selectedBonuses, setSelectedBonuses] = useState<LevelUpBonus[]>([]);
   const timeoutCalledRef = useRef(false);
   const selectionMadeRef = useRef(false);
 
@@ -80,7 +80,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   useEffect(() => {
     setTimer(SELECTION_TIMEOUT);
     setInputEnabled(false);
-    setSelectedBonus(null);
+    setSelectedBonuses([]);
     timeoutCalledRef.current = false;
     selectionMadeRef.current = false;
 
@@ -108,17 +108,17 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
     return () => clearTimeout(inputDelayTimer);
   }, [pendingLevelUps]);
 
-  const handleSelect = useCallback((bonus: LevelUpBonus) => {
-    if (!inputEnabled || selectedBonus || selectionMadeRef.current) return;
+  const handleSelect = useCallback((bonuses: LevelUpBonus[]) => {
+    if (!inputEnabled || selectedBonuses.length > 0 || selectionMadeRef.current || bonuses.length === 0) return;
     selectionMadeRef.current = true;
-    setSelectedBonus(bonus);
+    setSelectedBonuses(bonuses);
     setTimeout(() => {
-      onSelect(bonus);
+      onSelect(bonuses);
     }, SELECTION_DISPLAY_TIME * 1000);
-  }, [inputEnabled, selectedBonus, onSelect]);
+  }, [inputEnabled, selectedBonuses, onSelect]);
 
   useEffect(() => {
-    if (selectedBonus) return;
+    if (selectedBonuses.length > 0) return;
     const interval = setInterval(() => {
       setTimer(prev => {
         const newValue = prev - 0.1;
@@ -133,11 +133,11 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
       });
     }, 100);
     return () => clearInterval(interval);
-  }, [onTimeout, pendingLevelUps, selectedBonus]);
+  }, [onTimeout, pendingLevelUps, selectedBonuses]);
 
   const handleTapSelect = (option: LevelUpBonus) => {
-    if (!tapSelectionEnabled || !inputEnabled || selectedBonus) return;
-    handleSelect(option);
+    if (!tapSelectionEnabled || !inputEnabled || selectedBonuses.length > 0) return;
+    handleSelect([option]);
   };
 
   const getProgress = (index: number): number => {
@@ -157,15 +157,18 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
   }, [validOptions.length, onTimeout]);
 
   React.useEffect(() => {
-    if (!inputEnabled || selectedBonus || selectionMadeRef.current) return;
+    if (!inputEnabled || selectedBonuses.length > 0 || selectionMadeRef.current) return;
+    const completedBonuses: LevelUpBonus[] = [];
     for (let i = 0; i < options.length; i++) {
       const progress = getProgress(i);
       if (progress >= 100 && options[i]?.chord?.notes) {
-        handleSelect(options[i]);
-        break;
+        completedBonuses.push(options[i]);
       }
     }
-  }, [correctNotes, inputEnabled, selectedBonus, options, handleSelect]);
+    if (completedBonuses.length > 0) {
+      handleSelect(completedBonuses);
+    }
+  }, [correctNotes, inputEnabled, selectedBonuses, options, handleSelect]);
 
   const isCompact = options.length > 3;
 
@@ -222,7 +225,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
             const progress = getProgress(index);
             const isComplete = progress >= 100;
             const hasValidChord = option?.chord?.notes != null;
-            const isSelected = selectedBonus?.type === option.type;
+            const isSelected = selectedBonuses.some(b => b.type === option.type);
 
             return (
               <div
