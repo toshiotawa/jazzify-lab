@@ -38,6 +38,8 @@ const LessonPage: React.FC = () => {
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const mainAreaRef = useRef<HTMLDivElement>(null);
+  const lessonScrollRef = useRef<HTMLDivElement>(null);
+  const shouldScrollToIncomplete = useRef(false);
   const userIsPlatinumOrBlack = isPlatinumOrBlack(profile?.rank);
 
   // 手動解放モーダル関連
@@ -57,6 +59,30 @@ const LessonPage: React.FC = () => {
       userRank: profile?.rank,
     });
   }, [lessons, progress, profile?.rank]);
+
+  useEffect(() => {
+    if (!shouldScrollToIncomplete.current || lessons.length === 0) return;
+    shouldScrollToIncomplete.current = false;
+
+    const sortedLessons = [...lessons].sort((a, b) => {
+      const blockA = a.block_number || 1;
+      const blockB = b.block_number || 1;
+      if (blockA !== blockB) return blockA - blockB;
+      return a.order_index - b.order_index;
+    });
+
+    const firstIncomplete = sortedLessons.find(lesson => {
+      const accessState = lessonAccessGraph.lessonStates[lesson.id];
+      return !(accessState?.isCompleted ?? false);
+    });
+
+    if (firstIncomplete && lessonScrollRef.current) {
+      setTimeout(() => {
+        const el = lessonScrollRef.current?.querySelector(`[data-lesson-id="${firstIncomplete.id}"]`);
+        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      }, 150);
+    }
+  }, [lessons, lessonAccessGraph]);
 
   useEffect(() => {
     const checkHash = () => {
@@ -487,6 +513,7 @@ const LessonPage: React.FC = () => {
                           onClick={() => {
                             if (accessible) {
                               setSelectedCourse(course);
+                              shouldScrollToIncomplete.current = true;
                               if (typeof window !== 'undefined' && window.innerWidth < 768) {
                                 setTimeout(() => {
                                   mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
@@ -611,7 +638,7 @@ const LessonPage: React.FC = () => {
                       )}
                     </div>
                     
-                    <div className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
+                    <div ref={lessonScrollRef} className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
                         <div className="space-y-6">
                           {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
                             const blockNum = parseInt(blockNumber);
@@ -673,6 +700,7 @@ const LessonPage: React.FC = () => {
                                     return (
                                       <div
                                         key={lesson.id}
+                                        data-lesson-id={lesson.id}
                                         className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
                                           unlocked
                                             ? completed

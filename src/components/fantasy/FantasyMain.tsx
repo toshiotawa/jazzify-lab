@@ -632,16 +632,20 @@ const FantasyMain: React.FC = () => {
 
   // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
+    if (isLessonMode && lessonContext) {
+      window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      return;
+    }
     if (isMissionMode) {
       window.location.hash = '#missions';
       return;
     }
     setCurrentStage(null);
     setGameResult(null);
-    setPlayMode('challenge'); // 挑戦/練習モードをリセット
-    setPendingAutoStart(false); // 自動開始フラグをリセット（開始画面を表示）
-    setPendingSpeedMultiplier(1.0); // 速度倍率もリセット
-  }, [isMissionMode]);
+    setPlayMode('challenge');
+    setPendingAutoStart(false);
+    setPendingSpeedMultiplier(1.0);
+  }, [isMissionMode, isLessonMode, lessonContext]);
   
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
