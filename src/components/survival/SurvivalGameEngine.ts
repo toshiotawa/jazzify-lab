@@ -316,8 +316,7 @@ export const calculateWaveSpawnCount = (baseSpawnCount: number, waveNumber: numb
 };
 
 export const getWaveSpeedMultiplier = (waveNumber: number): number => {
-  // WAVEが進むごとに敵が20%ずつ速くなる（最大5倍 = WAVE21で頭打ち）
-  return Math.min(5, 1 + (waveNumber - 1) * 0.2);
+  return Math.min(3, 1 + (waveNumber - 1) * 0.10);
 };
 
 // ===== コード生成 =====
