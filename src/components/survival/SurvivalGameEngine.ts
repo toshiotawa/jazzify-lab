@@ -68,8 +68,8 @@ const createInitialPlayerState = (): PlayerState => ({
     cAtk: 20,
     speed: 0,  // 初期移動速度を遅く（以前は1）
     reloadMagic: 0,
-    hp: 100,
-    maxHp: 100,
+    hp: 200,
+    maxHp: 200,
     def: 5,
     time: 0,
     aBulletCount: 1,
@@ -403,23 +403,23 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const waveProgress = Math.max(0, waveNumber - 1);
 
   // 時間・WAVEを別々に係数化して、急激なジャンプを避ける
-  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.09 + Math.max(0, elapsedMinutes - 10) * 0.06;
+  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.05 + Math.max(0, elapsedMinutes - 10) * 0.03;
   const timeHpMultiplier = 1 + elapsedMinutes * 0.14 + Math.max(0, elapsedMinutes - 10) * 0.12;
-  const waveAtkDefMultiplier = 1 + waveProgress * 0.10 + Math.max(0, waveNumber - 20) * 0.03;
+  const waveAtkDefMultiplier = 1 + waveProgress * 0.06 + Math.max(0, waveNumber - 20) * 0.02;
   const waveHpMultiplier = 1 + waveProgress * 0.24 + Math.max(0, waveNumber - 12) * 0.05;
   
   // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
-    slime: { atk: 5, def: 1, hp: 18, speed: 0.8 },
-    goblin: { atk: 8, def: 1, hp: 24, speed: 1.0 },
-    skeleton: { atk: 10, def: 2, hp: 30, speed: 0.9 },
-    zombie: { atk: 12, def: 1, hp: 35, speed: 0.6 },
-    bat: { atk: 6, def: 1, hp: 14, speed: 1.4 },
-    ghost: { atk: 15, def: 0, hp: 20, speed: 1.1 },
-    orc: { atk: 18, def: 3, hp: 45, speed: 0.7 },
-    demon: { atk: 25, def: 4, hp: 55, speed: 0.9 },
-    dragon: { atk: 35, def: 5, hp: 80, speed: 0.8 },
-    boss: { atk: 50, def: 7, hp: 160, speed: 0.6 },
+    slime: { atk: 2, def: 1, hp: 18, speed: 0.8 },
+    goblin: { atk: 4, def: 1, hp: 24, speed: 1.0 },
+    skeleton: { atk: 5, def: 2, hp: 30, speed: 0.9 },
+    zombie: { atk: 6, def: 1, hp: 35, speed: 0.6 },
+    bat: { atk: 3, def: 1, hp: 14, speed: 1.4 },
+    ghost: { atk: 7, def: 0, hp: 20, speed: 1.1 },
+    orc: { atk: 9, def: 3, hp: 45, speed: 0.7 },
+    demon: { atk: 12, def: 4, hp: 55, speed: 0.9 },
+    dragon: { atk: 18, def: 5, hp: 80, speed: 0.8 },
+    boss: { atk: 25, def: 7, hp: 160, speed: 0.6 },
   };
   
   const base = baseStats[type];
