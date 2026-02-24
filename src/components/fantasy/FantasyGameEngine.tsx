@@ -1063,6 +1063,11 @@ export const useFantasyGameEngine = ({
       return handleCombiningModeInput(prevState, note, currentTime);
     }
     
+    // カウントイン中は入力を無視（ノーツ非生成区間）
+    if (currentTime < -0.01) {
+      return prevState;
+    }
+    
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
@@ -2613,28 +2618,28 @@ export const useFantasyGameEngine = ({
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
-        // カウントイン中はループ境界検出をスキップ
-        // カウントインから本編への移行時に誤検出を防ぐ
-        // lastNormalizedTime を -1 にリセットし、ラップ値残留による偽ループ検出を防止
-        // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
-        if (currentTime < -0.01) {
-          return { ...prevState, lastNormalizedTime: -1 };
-        }
+        // ループ検出（2パターン）
+        // A) loopIncludesCountIn(progression_order): 本編→カウントインへの遷移で検出
+        // B) 通常: normalizedTime のラップアラウンドで検出
+        let justLooped = false;
+        let normalizedTime = 0;
+        const lastNorm = prevState.lastNormalizedTime ?? -1;
+        const isInCountIn = currentTime < -0.01;
         
-        // ループ境界検出（本編開始後のみ）
-        // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ
-        const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
-        const lastNorm = prevState.lastNormalizedTime ?? -1; // 初期値を-1に設定
-        // lastNormが-1（未初期化）の場合はループ境界として扱わない
-        // ループ境界検出: normalizedTimeがlastNormより小さくなった場合
-        // 二重処理防止: lastNorm - normalizedTimeがloopDurationの半分より大きい場合のみ（真のループ境界）
-        const loopTimeDiff = lastNorm - normalizedTime;
-        const isSignificantJump = loopTimeDiff > loopDuration * 0.5; // 半分以上の戻りがあれば真のループ境界
-        const justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm && isSignificantJump;
+        if (isInCountIn) {
+          if (lastNorm >= 0) {
+            justLooped = true;
+          }
+        } else {
+          normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
+          const loopTimeDiff = lastNorm - normalizedTime;
+          const isSignificantJump = loopTimeDiff > loopDuration * 0.5;
+          justLooped = lastNorm >= 0 && normalizedTime + 1e-6 < lastNorm && isSignificantJump;
+        }
         
         if (justLooped) {
           // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameEngine.tsx:justLooped',message:'non-combining justLooped detected',data:{currentTime,normalizedTime,lastNorm,loopTimeDiff,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,perfNow:performance.now()},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
+          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameEngine.tsx:justLooped',message:'non-combining justLooped detected',data:{currentTime,normalizedTime,lastNorm,isInCountIn,loopDuration,awaitingLoopStart:prevState.awaitingLoopStart,currentNoteIndex:prevState.currentNoteIndex,perfNow:performance.now()},timestamp:Date.now(),hypothesisId:'H5'})}).catch(()=>{});
           // #endregion
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
@@ -2643,7 +2648,7 @@ export const useFantasyGameEngine = ({
             newLoopCycle,
             normalizedTime: normalizedTime.toFixed(3),
             lastNorm: lastNorm.toFixed(3),
-            loopTimeDiff: loopTimeDiff.toFixed(3),
+            isInCountIn,
             hasTransposeSettings: !!prevState.transposeSettings,
             originalNotesCount: prevState.originalTaikoNotes.length,
             prevTransposeOffset: prevState.currentTransposeOffset
@@ -2724,11 +2729,16 @@ export const useFantasyGameEngine = ({
             currentNoteIndex: effectiveNoteIndex,
             awaitingLoopStart: false,
             taikoLoopCycle: newLoopCycle,
-            lastNormalizedTime: normalizedTime,
+            lastNormalizedTime: isInCountIn ? -1 : normalizedTime,
             activeMonsters: refreshedMonsters,
             currentTransposeOffset: newTransposeOffset,
             preHitNoteIndices: []
           };
+        }
+        
+        // カウントイン中はノーツ処理を停止（ループリセット以外）
+        if (isInCountIn) {
+          return { ...prevState, lastNormalizedTime: -1 };
         }
         
         // 末尾処理後の待機中はミス判定を停止（ループ境界待ち）

@@ -80,6 +80,13 @@ class BGMManager {
     if (this.noLoop) {
       return musicTime - this.loopBegin
     }
+    if (this.loopIncludesCountIn && this.loopBegin > 0) {
+      const fullCycleDuration = this.loopEnd
+      if (fullCycleDuration > 0 && musicTime >= this.loopEnd) {
+        return (musicTime % fullCycleDuration) - this.loopBegin
+      }
+      return musicTime - this.loopBegin
+    }
     const loopDuration = this.loopEnd - this.loopBegin
     if (loopDuration > 0 && musicTime >= this.loopEnd) {
       const timeSinceLoopStart = musicTime - this.loopBegin
@@ -105,6 +112,8 @@ class BGMManager {
 
   // ループ無効フラグ（timing_combining用）
   private noLoop = false
+  // カウントイン付きループ（progression_order用: 毎回カウントイン小節に戻る）
+  private loopIncludesCountIn = false
   // セクション終了時コールバック（timing_combining用）
   private onSectionEnd: (() => void) | null = null
   // セクション終了チェックタイマー
@@ -231,7 +240,8 @@ class BGMManager {
     playbackRate = 1.0,
     pitchShift = 0, // 半音単位のピッチシフト（-12 ~ +12）
     noLoop = false, // timing_combining用: ループ無効
-    skipCountIn = false // true: カウントイン音声をスキップしM1から再生開始
+    skipCountIn = false, // true: カウントイン音声をスキップしM1から再生開始
+    loopIncludesCountIn = false // progression_order用: ループ時にカウントイン小節に戻る
   ) {
     if (!url) return
     
@@ -246,6 +256,7 @@ class BGMManager {
     this.playbackRate = Math.max(0.25, Math.min(2.0, playbackRate)) // 再生速度を0.25〜2.0に制限
     this.pitchShift = Math.max(-12, Math.min(12, pitchShift)) // ピッチシフトを-12〜+12に制限
     this.noLoop = noLoop
+    this.loopIncludesCountIn = loopIncludesCountIn && !noLoop && this.countInMeasures > 0
     
     /* 計算: 1 拍=60/BPM 秒・1 小節=timeSig 拍 */
     const secPerBeat = 60 / bpm
@@ -630,6 +641,7 @@ class BGMManager {
     this.isLoadingAudio = false
     this.loopScheduled = false
     this.noLoop = false
+    this.loopIncludesCountIn = false
     this.htmlSeekTarget = null
     this._htmlLastRawTime = -1
     this._htmlLastRawPerf = 0
@@ -704,7 +716,7 @@ class BGMManager {
   
   private handleEnded = () => {
     if (this.loopEnd > 0) {
-      this.audio!.currentTime = this.loopBegin
+      this.audio!.currentTime = this.loopIncludesCountIn ? 0 : this.loopBegin
       this.audio!.play().catch(() => {})
     }
   }
@@ -1086,7 +1098,7 @@ class BGMManager {
     const bufferDuration = this.tonePlayer.buffer?.duration ?? Infinity
     const clampedLoopEnd = Math.min(loopEndVal, bufferDuration)
 
-    this.tonePlayer.loopStart = loopBeginVal
+    this.tonePlayer.loopStart = this.loopIncludesCountIn ? 0 : loopBeginVal
     this.tonePlayer.loopEnd = clampedLoopEnd
 
     const startTime = Tone.now()
@@ -1170,7 +1182,7 @@ class BGMManager {
       src.loop = true
       const ls = Math.round(this.loopBegin * sr) / sr
       const le = Math.round(this.loopEnd * sr) / sr
-      src.loopStart = Math.min(Math.max(0, ls), dur - 2 * eps)
+      src.loopStart = this.loopIncludesCountIn ? 0 : Math.min(Math.max(0, ls), dur - 2 * eps)
       src.loopEnd = Math.min(Math.max(src.loopStart + eps, le), dur - eps)
     }
 
@@ -1222,7 +1234,7 @@ class BGMManager {
           }
 
           const doSeek = () => {
-            next.currentTime = this.loopBegin
+            next.currentTime = this.loopIncludesCountIn ? 0 : this.loopBegin
             next.addEventListener('seeked', () => markReady(), { once: true })
             setTimeout(() => {
               if (!this._htmlNextReady && next.readyState >= 2 && !next.seeking) markReady()
@@ -1274,9 +1286,10 @@ class BGMManager {
             this._htmlNextReady = false
           } else {
             try {
-              this.audio.currentTime = this.loopBegin
+              const loopTarget = this.loopIncludesCountIn ? 0 : this.loopBegin
+              this.audio.currentTime = loopTarget
               if (this.htmlSeekTarget === null) {
-                this.htmlSeekTarget = this.loopBegin
+                this.htmlSeekTarget = loopTarget
                 this.htmlSeekPerfStart = performance.now()
               }
               if (this.audio.paused) void this.audio.play().catch(() => {})

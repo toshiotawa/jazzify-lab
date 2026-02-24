@@ -760,6 +760,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       }
     } else {
+      const isProgressionOrder = stage.mode === 'progression_order';
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -768,7 +769,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         stage.countInMeasures ?? 0,
         settings.bgmVolume ?? 0.7,
         playbackRate,
-        initialPitchShift
+        initialPitchShift,
+        false,
+        false,
+        isProgressionOrder
       );
     }
 
