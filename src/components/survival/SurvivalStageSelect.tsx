@@ -403,12 +403,12 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
           <div>
             <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider flex items-center gap-3">
               <FaBolt className="text-yellow-400" />
-              <span>SURVIVAL MODE</span>
+              <span>FREE PLAY</span>
             </h1>
             <p className="text-gray-400 text-sm sm:text-base font-sans">
               {isEnglishCopy
                 ? 'Choose your character and difficulty! Survive for 20 minutes!'
-                : 'キャラクターと難易度を選んで挑戦！20分間生き残れ！'}
+                : 'キャラクターと難易度を自由に選んで挑戦！20分間生き残れ！'}
             </p>
           </div>
           <button

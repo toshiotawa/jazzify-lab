@@ -9,7 +9,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
-type SortKey = 'level' | 'lessons' | 'missions' | 'survival';
+type SortKey = 'level' | 'lessons' | 'missions' | 'survival_stages';
 
 const LevelRanking: React.FC = () => {
   const [open, setOpen] = useState(window.location.hash === '#ranking');
@@ -33,19 +33,7 @@ const LevelRanking: React.FC = () => {
   const userColumnText = isEnglishCopy ? 'User' : 'ユーザー(タップで詳細)';
   const titleColumnText = isEnglishCopy ? 'Title' : '称号';
   const fantasyColumnText = isEnglishCopy ? 'Fantasy' : 'ファンタジー';
-  const survivalColumnText = isEnglishCopy ? 'Survival' : 'サバイバル';
-
-  // 時間をフォーマット（60分以上の場合はh:mm:ss形式）
-  const formatSurvivalTime = (seconds: number): string => {
-    if (seconds <= 0) return '-';
-    const hours = Math.floor(seconds / 3600);
-    const mins = Math.floor((seconds % 3600) / 60);
-    const secs = Math.floor(seconds % 60);
-    if (hours > 0) {
-      return `${hours}:${mins.toString().padStart(2, '0')}:${secs.toString().padStart(2, '0')}`;
-    }
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
+  const survivalColumnText = isEnglishCopy ? 'Stages' : 'ステージ';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#ranking');
@@ -66,11 +54,11 @@ const LevelRanking: React.FC = () => {
         case 'missions':
           if (a.missions_completed !== b.missions_completed) return b.missions_completed - a.missions_completed;
           return b.level - a.level; // ミッション数が同じ場合はレベルで比較
-        case 'survival': {
-          const aTime = a.best_survival_time ?? 0;
-          const bTime = b.best_survival_time ?? 0;
-          if (aTime !== bTime) return bTime - aTime;
-          return b.level - a.level; // 生存時間が同じ場合はレベルで比較
+        case 'survival_stages': {
+          const aStages = a.survival_stages_cleared ?? 0;
+          const bStages = b.survival_stages_cleared ?? 0;
+          if (aStages !== bStages) return bStages - aStages;
+          return b.level - a.level;
         }
         default:
           return 0;
@@ -424,7 +412,7 @@ const LevelRanking: React.FC = () => {
                   {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
                   {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}
                   <td className="py-3 px-2 text-purple-300">{e.fantasy_cleared_stages ?? 0}</td>
-                  <td className="py-3 px-2 text-red-300">{formatSurvivalTime(e.best_survival_time ?? 0)}</td>
+                  <td className="py-3 px-2 text-red-300">{e.survival_stages_cleared ?? 0}</td>
                   {!isStandardGlobal && (
                     <td className="py-3 px-2">
                       <div className="flex items-center space-x-1">

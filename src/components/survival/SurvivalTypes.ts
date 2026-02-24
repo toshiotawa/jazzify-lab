@@ -390,6 +390,7 @@ export interface SurvivalGameResult {
   skills: SpecialSkills;     // 取得スキル
   magics: AcquiredMagics;    // 取得魔法
   earnedXp: number;          // 獲得経験値
+  isStageClear?: boolean;    // ステージモード: 5分生存クリア
 }
 
 // ===== キャラクターレベル10ボーナス定義 =====

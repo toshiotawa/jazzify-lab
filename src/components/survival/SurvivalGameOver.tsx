@@ -1,5 +1,5 @@
 /**
- * サバイバルモード ゲームオーバー画面
+ * サバイバルモード ゲームオーバー / ステージクリア画面
  * 結果表示とステータスカード
  */
 
@@ -9,9 +9,10 @@ import { SurvivalGameResult, SurvivalDifficulty } from './SurvivalTypes';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { upsertSurvivalHighScore } from '@/platform/supabaseSurvival';
+import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
 import { addXp } from '@/platform/supabaseXp';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
+import { StageDefinition, TOTAL_STAGES } from './SurvivalStageDefinitions';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -20,11 +21,11 @@ interface SurvivalGameOverProps {
   onRetry: () => void;
   onBackToSelect: () => void;
   onBackToMenu: () => void;
-  waveFailedReason?: string;  // 'quota_failed' = WAVEノルマ失敗
+  waveFailedReason?: string;
   finalWave?: number;
+  stageDefinition?: StageDefinition;
 }
 
-// 難易度の色設定
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
   veryeasy: 'text-emerald-300',
   easy: 'text-green-400',
@@ -42,19 +43,44 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   onBackToMenu,
   waveFailedReason,
   finalWave,
+  stageDefinition,
 }) => {
   const { profile, isGuest, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   const [xpAdded, setXpAdded] = useState(false);
-  
-  // ハイスコア保存とXP付与（Supabaseのみ）
+  const [stageSaved, setStageSaved] = useState(false);
+
+  const isStageClear = result.isStageClear === true && stageDefinition != null;
+
   useEffect(() => {
-    const saveHighScoreAndAddXp = async () => {
+    const saveResults = async () => {
       const survivalTime = Math.floor(result.survivalTime);
-      
-      if (profile && !isGuest) {
+
+      if (!profile || isGuest) return;
+
+      // ステージクリアの場合: ステージクリア記録を保存
+      if (isStageClear && !stageSaved) {
+        try {
+          await upsertSurvivalStageClear(
+            profile.id,
+            stageDefinition.stageNumber,
+            survivalTime,
+            result.finalLevel,
+            result.enemiesDefeated,
+            characterId ?? null,
+            TOTAL_STAGES,
+          );
+          setStageSaved(true);
+          clearUserStatsCache(profile.id);
+        } catch {
+          // DB保存失敗
+        }
+      }
+
+      // フリープレイの場合: ハイスコア保存
+      if (!stageDefinition) {
         try {
           const { isNewHighScore: isNew } = await upsertSurvivalHighScore(
             profile.id,
@@ -69,31 +95,33 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         } catch {
           // DB保存失敗
         }
-        
-        if (!xpAdded && result.earnedXp > 0) {
-          try {
-            await addXp({
-              songId: null,
-              baseXp: result.earnedXp,
-              speedMultiplier: 1,
-              rankMultiplier: 1,
-              transposeMultiplier: 1,
-              membershipMultiplier: 1,
-              reason: `survival_${difficulty}_${Math.floor(survivalTime / 60)}min`,
-            });
-            setXpAdded(true);
-            await fetchProfile({ forceRefresh: true });
-          } catch {
-            // XP付与失敗
-          }
+      }
+
+      if (!xpAdded && result.earnedXp > 0) {
+        try {
+          const reason = stageDefinition
+            ? `survival_stage_${stageDefinition.stageNumber}_${isStageClear ? 'clear' : 'fail'}`
+            : `survival_${difficulty}_${Math.floor(survivalTime / 60)}min`;
+          await addXp({
+            songId: null,
+            baseXp: result.earnedXp,
+            speedMultiplier: 1,
+            rankMultiplier: 1,
+            transposeMultiplier: 1,
+            membershipMultiplier: 1,
+            reason,
+          });
+          setXpAdded(true);
+          await fetchProfile({ forceRefresh: true });
+        } catch {
+          // XP付与失敗
         }
       }
     };
-    
-    saveHighScoreAndAddXp();
-  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile, characterId]);
-  
-  // 時間フォーマット（60分以上の場合はh:mm:ss形式）
+
+    saveResults();
+  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
+
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
     const mins = Math.floor((seconds % 3600) / 60);
@@ -103,13 +131,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     }
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-  
-  // 取得した魔法一覧
+
   const acquiredMagics = Object.entries(result.magics)
     .filter(([_, level]) => level > 0)
     .map(([type, level]) => ({ type, level }));
-  
-  // 取得したスキル一覧
+
   const acquiredSkills: Array<{ name: string; value: string | number }> = [];
   if (result.skills.aPenetration) acquiredSkills.push({ name: isEnglishCopy ? 'Penetration' : '貫通', value: '✓' });
   if (result.skills.bKnockbackBonus > 0) acquiredSkills.push({ name: isEnglishCopy ? 'Knockback' : 'ノックバック', value: `+${result.skills.bKnockbackBonus}` });
@@ -119,8 +145,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   if (result.skills.expBonusLevel > 0) acquiredSkills.push({ name: isEnglishCopy ? 'EXP+' : '獲得経験値+', value: `Lv.${result.skills.expBonusLevel}` });
   if (result.skills.haisuiNoJin) acquiredSkills.push({ name: isEnglishCopy ? 'Last Stand' : '背水の陣', value: '✓' });
   if (result.skills.zekkouchou) acquiredSkills.push({ name: isEnglishCopy ? 'Peak Condition' : '絶好調', value: '✓' });
-  
-  // 魔法アイコン
+
   const MAGIC_ICONS: Record<string, string> = {
     thunder: '⚡',
     ice: '❄️',
@@ -131,51 +156,77 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     hint: '💡',
   };
 
+  const borderColor = isStageClear ? 'border-green-500' : 'border-red-500';
+
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/90 backdrop-blur-sm overflow-y-auto py-4">
-      <div className="max-w-2xl w-full mx-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 border-red-500 shadow-2xl">
+      <div className={cn('max-w-2xl w-full mx-4 p-4 bg-gradient-to-b from-gray-800 to-gray-900 rounded-2xl border-2 shadow-2xl', borderColor)}>
         {/* ヘッダー */}
         <div className="text-center mb-3">
-          <div className="text-4xl mb-2">💀</div>
-          <div className="text-3xl font-bold text-red-500 font-sans mb-1">
-            GAME OVER
-          </div>
-          
-          {/* ハイスコア更新表示 */}
-          {isNewHighScore && (
-            <div className="mt-2 px-4 py-2 bg-yellow-600/50 rounded-lg border border-yellow-400 animate-pulse">
-              <div className="text-yellow-300 font-bold font-sans">
-                🏆 {isEnglishCopy ? 'NEW HIGH SCORE!' : 'ハイスコア更新！'}
+          {isStageClear ? (
+            <>
+              <div className="text-4xl mb-2">🎉</div>
+              <div className="text-3xl font-bold text-green-400 font-sans mb-1">
+                STAGE CLEAR!
               </div>
-            </div>
-          )}
-          
-          {/* WAVE失敗理由 */}
-          {waveFailedReason === 'quota_failed' ? (
-            <div className="mt-2 px-4 py-2 bg-red-900/50 rounded-lg border border-red-500/50">
-              <div className="text-red-400 font-bold font-sans">
-                {isEnglishCopy ? 'WAVE QUOTA FAILED!' : 'WAVEノルマ達成ならず！'}
+              <div className="mt-2 px-4 py-2 bg-green-900/50 rounded-lg border border-green-500/50">
+                <div className="text-green-300 font-bold font-sans text-sm">
+                  {isEnglishCopy ? stageDefinition!.nameEn : stageDefinition!.name}
+                </div>
+                <div className="text-xs text-gray-400 mt-1">
+                  {isEnglishCopy ? '5 minutes survived!' : '5分間生存達成！'}
+                </div>
               </div>
-              <div className="text-sm text-gray-400">
-                {isEnglishCopy 
-                  ? `Failed to meet the quota in WAVE ${finalWave || 1}`
-                  : `WAVE ${finalWave || 1} のノルマを達成できませんでした`}
-              </div>
-            </div>
+            </>
           ) : (
-            <div className={cn('text-lg font-sans', DIFFICULTY_COLORS[difficulty])}>
-              {difficulty.toUpperCase()}
-            </div>
-          )}
-          
-          {/* WAVE到達情報 */}
-          {finalWave && (
-            <div className="mt-2 text-sm text-yellow-400">
-              🏆 WAVE {finalWave} {isEnglishCopy ? 'reached' : '到達'}
-            </div>
+            <>
+              <div className="text-4xl mb-2">💀</div>
+              <div className="text-3xl font-bold text-red-500 font-sans mb-1">
+                GAME OVER
+              </div>
+
+              {isNewHighScore && (
+                <div className="mt-2 px-4 py-2 bg-yellow-600/50 rounded-lg border border-yellow-400 animate-pulse">
+                  <div className="text-yellow-300 font-bold font-sans">
+                    🏆 {isEnglishCopy ? 'NEW HIGH SCORE!' : 'ハイスコア更新！'}
+                  </div>
+                </div>
+              )}
+
+              {waveFailedReason === 'quota_failed' ? (
+                <div className="mt-2 px-4 py-2 bg-red-900/50 rounded-lg border border-red-500/50">
+                  <div className="text-red-400 font-bold font-sans">
+                    {isEnglishCopy ? 'WAVE QUOTA FAILED!' : 'WAVEノルマ達成ならず！'}
+                  </div>
+                  <div className="text-sm text-gray-400">
+                    {isEnglishCopy
+                      ? `Failed to meet the quota in WAVE ${finalWave || 1}`
+                      : `WAVE ${finalWave || 1} のノルマを達成できませんでした`}
+                  </div>
+                </div>
+              ) : (
+                <div className={cn('text-lg font-sans', DIFFICULTY_COLORS[difficulty])}>
+                  {difficulty.toUpperCase()}
+                </div>
+              )}
+
+              {stageDefinition && (
+                <div className="mt-2 px-4 py-2 bg-red-900/30 rounded-lg border border-red-500/30">
+                  <div className="text-red-300 text-sm font-sans">
+                    {isEnglishCopy ? stageDefinition.nameEn : stageDefinition.name}
+                  </div>
+                </div>
+              )}
+
+              {finalWave && (
+                <div className="mt-2 text-sm text-yellow-400">
+                  🏆 WAVE {finalWave} {isEnglishCopy ? 'reached' : '到達'}
+                </div>
+              )}
+            </>
           )}
         </div>
-        
+
         {/* メイン結果 */}
         <div className="grid grid-cols-3 gap-3 mb-4">
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
@@ -187,7 +238,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               {isEnglishCopy ? 'Survival Time' : '生存時間'}
             </div>
           </div>
-          
+
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
             <div className="text-2xl mb-1">⭐</div>
             <div className="text-xl font-bold text-yellow-400 font-sans">
@@ -197,7 +248,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               {isEnglishCopy ? 'Final Level' : '最終レベル'}
             </div>
           </div>
-          
+
           <div className="bg-black/40 rounded-xl p-3 text-center border border-gray-700">
             <div className="text-2xl mb-1">💀</div>
             <div className="text-xl font-bold text-red-400 font-sans">
@@ -208,10 +259,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             </div>
           </div>
         </div>
-        
+
         {/* ステータスカード */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          {/* 最終ステータス */}
           <div className="bg-black/40 rounded-xl p-3 border border-gray-700">
             <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
               📊 {isEnglishCopy ? 'Final Stats' : '最終ステータス'}
@@ -243,8 +293,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               </div>
             </div>
           </div>
-          
-          {/* 取得スキル */}
+
           <div className="bg-black/40 rounded-xl p-3 border border-gray-700">
             <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
               ⚡ {isEnglishCopy ? 'Acquired Skills' : '取得スキル'}
@@ -265,8 +314,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             )}
           </div>
         </div>
-        
-        {/* 取得魔法 */}
+
         {acquiredMagics.length > 0 && (
           <div className="bg-black/40 rounded-xl p-3 border border-gray-700 mb-4">
             <div className="text-xs font-bold text-gray-300 mb-2 font-sans">
@@ -286,7 +334,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             </div>
           </div>
         )}
-        
+
         {/* 獲得経験値 */}
         <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 rounded-xl p-3 border border-yellow-500/30 mb-4">
           <div className="flex items-center justify-between">
@@ -298,26 +346,35 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
             </div>
           </div>
           <div className="text-xs text-gray-400 mt-1">
-            {isEnglishCopy 
+            {isEnglishCopy
               ? `(${Math.floor(result.survivalTime / 60)} minutes × 100 XP)`
               : `(${Math.floor(result.survivalTime / 60)}分 × 100 XP)`}
           </div>
         </div>
-        
+
         {/* アクションボタン */}
         <div className="flex flex-col gap-2">
           <button
             onClick={onRetry}
-            className="w-full py-2.5 bg-red-600 hover:bg-red-500 rounded-lg font-bold text-base font-sans transition-colors"
+            className={cn(
+              'w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors',
+              isStageClear
+                ? 'bg-green-600 hover:bg-green-500'
+                : 'bg-red-600 hover:bg-red-500'
+            )}
           >
-            {isEnglishCopy ? 'RETRY' : 'リトライ'}
+            {isStageClear
+              ? (isEnglishCopy ? 'RETRY STAGE' : 'もう一度プレイ')
+              : (isEnglishCopy ? 'RETRY' : 'リトライ')}
           </button>
           <div className="grid grid-cols-2 gap-2">
             <button
               onClick={onBackToSelect}
               className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
             >
-              {isEnglishCopy ? 'Stage Select' : '難易度選択'}
+              {stageDefinition
+                ? (isEnglishCopy ? 'Stage Select' : 'ステージ選択')
+                : (isEnglishCopy ? 'Stage Select' : '難易度選択')}
             </button>
             <button
               onClick={onBackToMenu}

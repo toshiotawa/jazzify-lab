@@ -64,6 +64,7 @@ import {
   MAX_COINS,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
+import { STAGE_TIME_LIMIT_SECONDS } from './SurvivalStageDefinitions';
 import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
@@ -211,6 +212,7 @@ interface SurvivalGameScreenProps {
     };
   };
   character?: SurvivalCharacter;
+  stageDefinition?: import('./SurvivalStageDefinitions').StageDefinition;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -220,6 +222,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onBackToMenu,
   debugSettings,
   character,
+  stageDefinition,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -2429,6 +2432,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
         }
         
+        // ステージモード: 5分間生存でクリア
+        if (stageDefinition && newState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS && !newState.isGameOver) {
+          newState.isGameOver = true;
+          newState.isPlaying = false;
+          
+          const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+          setResult({
+            survivalTime: newState.elapsedTime,
+            finalLevel: newState.player.level,
+            enemiesDefeated: newState.enemiesDefeated,
+            playerStats: newState.player.stats,
+            skills: newState.player.skills,
+            magics: newState.player.magics,
+            earnedXp,
+            isStageClear: true,
+          });
+          return newState;
+        }
+
         // HPゲームオーバー判定
         if (newState.player.stats.hp <= 0) {
           newState.isGameOver = true;
@@ -3167,6 +3189,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           onBackToMenu={onBackToMenu}
           waveFailedReason={gameState.wave.waveFailedReason}
           finalWave={gameState.wave.currentWave}
+          stageDefinition={stageDefinition}
         />
       )}
       

@@ -385,3 +385,119 @@ function convertDifficultySettings(row: Record<string, unknown>): SurvivalDiffic
     bgmEvenWaveUrl: row.bgm_even_wave_url as string | null,
   };
 }
+
+// ===== ステージモード =====
+
+export interface SurvivalStageProgress {
+  currentStageNumber: number;
+  totalClearedStages: number;
+}
+
+export interface SurvivalStageClear {
+  id: string;
+  userId: string;
+  stageNumber: number;
+  characterId: string | null;
+  survivalTimeSeconds: number;
+  finalLevel: number;
+  enemiesDefeated: number;
+  clearedAt: string;
+}
+
+export async function fetchSurvivalStageProgress(userId: string): Promise<SurvivalStageProgress> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('survival_stage_progress')
+    .select('current_stage_number, total_cleared_stages')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error) throw error;
+  if (!data) return { currentStageNumber: 1, totalClearedStages: 0 };
+  return {
+    currentStageNumber: Number(data.current_stage_number) || 1,
+    totalClearedStages: Number(data.total_cleared_stages) || 0,
+  };
+}
+
+export async function fetchSurvivalStageClears(userId: string): Promise<SurvivalStageClear[]> {
+  const supabase = getSupabaseClient();
+  const { data, error } = await supabase
+    .from('survival_stage_clears')
+    .select('*')
+    .eq('user_id', userId)
+    .order('stage_number', { ascending: true });
+
+  if (error) throw error;
+  return (data ?? []).map((row: Record<string, unknown>) => ({
+    id: row.id as string,
+    userId: row.user_id as string,
+    stageNumber: Number(row.stage_number),
+    characterId: typeof row.character_id === 'string' ? row.character_id : null,
+    survivalTimeSeconds: Number(row.survival_time_seconds) || 0,
+    finalLevel: Number(row.final_level) || 1,
+    enemiesDefeated: Number(row.enemies_defeated) || 0,
+    clearedAt: row.cleared_at as string,
+  }));
+}
+
+export async function upsertSurvivalStageClear(
+  userId: string,
+  stageNumber: number,
+  survivalTimeSeconds: number,
+  finalLevel: number,
+  enemiesDefeated: number,
+  characterId: string | null,
+  totalStages: number,
+): Promise<{ isFirstClear: boolean }> {
+  const supabase = getSupabaseClient();
+
+  const { data: existing } = await supabase
+    .from('survival_stage_clears')
+    .select('id')
+    .eq('user_id', userId)
+    .eq('stage_number', stageNumber)
+    .maybeSingle();
+
+  const isFirstClear = !existing;
+
+  await supabase
+    .from('survival_stage_clears')
+    .upsert({
+      user_id: userId,
+      stage_number: stageNumber,
+      character_id: characterId,
+      survival_time_seconds: survivalTimeSeconds,
+      final_level: finalLevel,
+      enemies_defeated: enemiesDefeated,
+      cleared_at: new Date().toISOString(),
+    }, { onConflict: 'user_id,stage_number' });
+
+  if (isFirstClear) {
+    const nextStage = stageNumber + 1;
+    const newTotal = Math.max(stageNumber, 0);
+
+    const { data: progress } = await supabase
+      .from('survival_stage_progress')
+      .select('current_stage_number, total_cleared_stages')
+      .eq('user_id', userId)
+      .maybeSingle();
+
+    const currentMax = progress ? Number(progress.current_stage_number) : 1;
+    const currentTotal = progress ? Number(progress.total_cleared_stages) : 0;
+
+    const updatedCurrent = Math.min(Math.max(nextStage, currentMax), totalStages);
+    const updatedTotal = Math.max(newTotal, currentTotal);
+
+    await supabase
+      .from('survival_stage_progress')
+      .upsert({
+        user_id: userId,
+        current_stage_number: updatedCurrent,
+        total_cleared_stages: updatedTotal,
+        updated_at: new Date().toISOString(),
+      }, { onConflict: 'user_id' });
+  }
+
+  return { isFirstClear };
+}
