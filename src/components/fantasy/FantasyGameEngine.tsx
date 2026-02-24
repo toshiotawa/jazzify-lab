@@ -1063,14 +1063,13 @@ export const useFantasyGameEngine = ({
       return handleCombiningModeInput(prevState, note, currentTime);
     }
     
-    // カウントイン中は入力を無視（ループ後のカウントイン期間含む）
-    if (currentTime < -0.01) {
-      return prevState;
-    }
-    
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
+    // M1開始を0sとした1周の長さ
     const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
     
+    // 現在の時間をループ内0..Tへ正規化
+    // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ。
+    // 負の値を modulo すると loopDuration 付近にラップし、偽ループ境界検出の原因になる。
     const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
     const lastNormToStore = currentTime < -0.01 ? -1 : normalizedTime;
 
@@ -2615,13 +2614,10 @@ export const useFantasyGameEngine = ({
         const loopDuration = (stage.measureCount || 8) * secPerMeasure;
         
         // カウントイン中はループ境界検出をスキップ
+        // カウントインから本編への移行時に誤検出を防ぐ
+        // lastNormalizedTime を -1 にリセットし、ラップ値残留による偽ループ検出を防止
         // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
         if (currentTime < -0.01) {
-          if (prevState.lastNormalizedTime >= 0) {
-            // ループ後のカウントイン遷移: lastNormalizedTimeを保持し、
-            // カウントイン終了後にjustLooped検出を発火させる
-            return prevState;
-          }
           return { ...prevState, lastNormalizedTime: -1 };
         }
         
