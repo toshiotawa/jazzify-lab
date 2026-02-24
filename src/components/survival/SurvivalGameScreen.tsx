@@ -411,6 +411,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const voiceControllerRef = useRef<VoiceInputController | null>(null);
   const pixiRendererRef = useRef<PIXINotesRendererInstance | null>(null);
   const gameAreaRef = useRef<HTMLDivElement>(null);
+  const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
@@ -418,24 +419,49 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // handleNoteInputの最新参照を保持するref
   const handleNoteInputRef = useRef<(note: number) => void>(() => {});
   
-  // ビューポートサイズ
+  // ビューポートサイズ（Canvasラッパーを計測して設定）
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
   const [isMobile, setIsMobile] = useState(false);
   // MIDI接続状態
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
-  // ビューポートサイズ更新
+  // ビューポートサイズ更新（Canvasラッパーを計測、マウント後にResizeObserverを設定）
   useEffect(() => {
-    const updateSize = () => {
+    const updateFromWindow = () => {
       const width = Math.min(window.innerWidth - 32, 1200);
       const height = Math.min(window.innerHeight - 350, 600);
       setViewportSize({ width, height });
       setIsMobile(window.innerWidth < 768);
     };
-    
-    updateSize();
-    window.addEventListener('resize', updateSize);
-    return () => window.removeEventListener('resize', updateSize);
+    setIsMobile(window.innerWidth < 768);
+    const onWindowResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener('resize', onWindowResize);
+    let cleanup: (() => void) | null = null;
+    const id = setTimeout(() => {
+      const wrapper = canvasWrapperRef.current;
+      if (wrapper) {
+        const ro = new ResizeObserver(() => {
+          const w = Math.max(1, wrapper.clientWidth);
+          const h = Math.max(1, wrapper.clientHeight);
+          setViewportSize({ width: w, height: h });
+        });
+        ro.observe(wrapper);
+        const w = Math.max(1, wrapper.clientWidth);
+        const h = Math.max(1, wrapper.clientHeight);
+        setViewportSize({ width: w, height: h });
+        cleanup = () => ro.disconnect();
+      } else {
+        updateFromWindow();
+        const onResize = updateFromWindow;
+        window.addEventListener('resize', onResize);
+        cleanup = () => window.removeEventListener('resize', onResize);
+      }
+    }, 0);
+    return () => {
+      clearTimeout(id);
+      window.removeEventListener('resize', onWindowResize);
+      cleanup?.();
+    };
   }, []);
   
   // BGM再生制御（WAVEごとに切り替え）
@@ -2713,98 +2739,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
   return (
     <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen">
-      {/* ヘッダー - 薄く */}
-      <div className="flex-shrink-0 px-2 py-1">
-        {/* EXPバー（画面上部全体） */}
-        <div className="w-full h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
-          <div
-            className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
-            style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
-          />
-        </div>
-        
-        <div className="flex justify-between items-center max-w-6xl mx-auto">
-          {/* WAVE・時間・レベル */}
-          <div className="flex items-center gap-3 text-white font-sans text-sm">
-            {/* WAVE表示 */}
-            <div className="flex items-center gap-1 bg-yellow-600/50 px-2 py-0.5 rounded">
-              <span className="font-bold text-yellow-300">WAVE {gameState.wave.currentWave}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>⏱️</span>
-              <span className="text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
-            </div>
-            <div className="flex items-center gap-1">
-              <span>⭐</span>
-              <span>Lv.{gameState.player.level}</span>
-            </div>
-          </div>
-          
-          {/* WAVEノルマ表示 */}
-          <div className="flex items-center gap-2">
-            <div className="flex flex-col items-center text-xs">
-              <span className="text-gray-400">{isEnglishCopy ? 'Left' : '残り'}</span>
-              <span className={cn(
-                'font-bold',
-                gameState.wave.waveKills >= gameState.wave.waveQuota 
-                  ? 'text-green-400' 
-                  : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7
-                    ? 'text-red-400'
-                    : 'text-white'
-              )}>
-                {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
-              </span>
-            </div>
-            <div className="flex flex-col items-center text-xs">
-              <span className="text-gray-400">{isEnglishCopy ? 'Limit' : '制限'}</span>
-              <span className={cn(
-                'font-bold',
-                (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 
-                  ? 'text-red-400 animate-pulse' 
-                  : 'text-white'
-              )}>
-                {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
-              </span>
-            </div>
-          </div>
-          
-          {/* HP */}
-          <div className="flex items-center gap-2">
-            <span>❤️</span>
-            <div className="w-24 h-3 bg-gray-700 rounded-full overflow-hidden">
-              <div
-                className={cn(
-                  'h-full transition-all duration-200',
-                  gameState.player.stats.hp / gameState.player.stats.maxHp > 0.5 ? 'bg-green-500' :
-                  gameState.player.stats.hp / gameState.player.stats.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
-                )}
-                style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
-              />
-            </div>
-            <span className="text-white font-sans text-xs">
-              {Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}
-            </span>
-          </div>
-          
-          {/* 設定/ポーズボタン */}
-          <div className="flex gap-1">
-            <button
-              onClick={() => setIsSettingsOpen(true)}
-              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
-              title={isEnglishCopy ? 'Settings' : '設定'}
-            >
-              ⚙️
-            </button>
-            <button
-              onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-              className="p-1.5 bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-sm"
-            >
-              {gameState.isPaused ? '▶️' : '⏸️'}
-            </button>
-          </div>
-        </div>
-      </div>
-      
       {/* 初期化エラー表示（閉じられるトースト） */}
       {initError && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md">
@@ -2858,8 +2792,96 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
       )}
       
-      {/* メインゲームエリア */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative">
+      {/* メインゲームエリア（ヘッダー＋Canvasを格納） */}
+      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative min-h-0">
+        {/* ヘッダー（ゲーム画面内に格納・モバイルで設定/ポーズが触れるように） */}
+        <div className="flex-shrink-0 px-2 py-1 w-full max-w-6xl mx-auto">
+          {/* EXPバー */}
+          <div className="w-full h-1.5 md:h-2 bg-gray-700/50 rounded-full overflow-hidden mb-1">
+            <div
+              className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
+              style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-between items-center gap-1">
+            {/* WAVE・時間・レベル */}
+            <div className="flex items-center gap-1.5 md:gap-3 text-white font-sans text-xs md:text-sm">
+              <div className="flex items-center gap-0.5 md:gap-1 bg-yellow-600/50 px-1.5 md:px-2 py-0.5 rounded">
+                <span className="font-bold text-yellow-300">WAVE {gameState.wave.currentWave}</span>
+              </div>
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <span className="text-[10px] md:text-sm">⏱️</span>
+                <span className="text-sm md:text-lg font-bold">{formatTime(gameState.elapsedTime)}</span>
+              </div>
+              <div className="flex items-center gap-0.5 md:gap-1">
+                <span className="text-[10px] md:text-sm">⭐</span>
+                <span>Lv.{gameState.player.level}</span>
+              </div>
+            </div>
+            {/* WAVEノルマ */}
+            <div className="flex items-center gap-1 md:gap-2">
+              <div className="flex flex-col items-center text-[10px] md:text-xs">
+                <span className="text-gray-400">{isEnglishCopy ? 'Left' : '残り'}</span>
+                <span className={cn(
+                  'font-bold',
+                  gameState.wave.waveKills >= gameState.wave.waveQuota 
+                    ? 'text-green-400' 
+                    : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7
+                      ? 'text-red-400'
+                      : 'text-white'
+                )}>
+                  {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
+                </span>
+              </div>
+              <div className="flex flex-col items-center text-[10px] md:text-xs">
+                <span className="text-gray-400">{isEnglishCopy ? 'Limit' : '制限'}</span>
+                <span className={cn(
+                  'font-bold',
+                  (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 
+                    ? 'text-red-400 animate-pulse' 
+                    : 'text-white'
+                )}>
+                  {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
+                </span>
+              </div>
+            </div>
+            {/* HP */}
+            <div className="flex items-center gap-1 md:gap-2">
+              <span className="text-xs md:text-sm">❤️</span>
+              <div className="w-14 md:w-24 h-2.5 md:h-3 bg-gray-700 rounded-full overflow-hidden">
+                <div
+                  className={cn(
+                    'h-full transition-all duration-200',
+                    gameState.player.stats.hp / gameState.player.stats.maxHp > 0.5 ? 'bg-green-500' :
+                    gameState.player.stats.hp / gameState.player.stats.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
+                  )}
+                  style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
+                />
+              </div>
+              <span className="text-white font-sans text-[10px] md:text-xs">
+                {Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}
+              </span>
+            </div>
+            {/* 設定/ポーズボタン（タッチしやすいサイズ） */}
+            <div className="flex gap-1">
+              <button
+                onClick={() => setIsSettingsOpen(true)}
+                className="p-2 md:p-1.5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-xs md:text-sm touch-manipulation"
+                title={isEnglishCopy ? 'Settings' : '設定'}
+                aria-label={isEnglishCopy ? 'Settings' : '設定'}
+              >
+                ⚙️
+              </button>
+              <button
+                onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
+                className="p-2 md:p-1.5 min-w-[44px] min-h-[44px] md:min-w-0 md:min-h-0 flex items-center justify-center bg-gray-700 hover:bg-gray-600 rounded font-sans text-white text-xs md:text-sm touch-manipulation"
+                aria-label={gameState.isPaused ? (isEnglishCopy ? 'Resume' : '再開') : (isEnglishCopy ? 'Pause' : '一時停止')}
+              >
+                {gameState.isPaused ? '▶️' : '⏸️'}
+              </button>
+            </div>
+          </div>
+        </div>
         {/* フローティングスティック（モバイル時のみ・タッチ位置に出現） */}
         {isMobile && floatingStick.visible && (
           <div
@@ -2920,9 +2942,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           </div>
         )}
         
-        {/* Canvasエリア */}
+        {/* Canvasエリア（flex-1で残り領域を占有・モバイル時は描画75%縮小） */}
         <div
-          className="relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none"
+          ref={canvasWrapperRef}
+          className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
           onTouchStart={handleCanvasTouchStart}
           onTouchMove={handleCanvasTouchMove}
           onTouchEnd={handleCanvasTouchEnd}
@@ -2932,6 +2955,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
+            contentScale={isMobile ? 0.75 : 1}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             characterAvatarUrl={character?.avatarUrl}

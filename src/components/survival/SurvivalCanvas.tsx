@@ -45,6 +45,8 @@ interface SurvivalCanvasProps {
   gameState: SurvivalGameState;
   viewportWidth: number;
   viewportHeight: number;
+  /** モバイル時などで描画を縮小（0.75 = 75%）すると同じ画面に多く表示される */
+  contentScale?: number;
   shockwaves?: ShockwaveEffect[];
   lightningEffects?: LightningEffect[];
   characterAvatarUrl?: string;
@@ -153,6 +155,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   gameState,
   viewportWidth,
   viewportHeight,
+  contentScale = 1,
   shockwaves = [],
   lightningEffects = [],
   characterAvatarUrl,
@@ -161,6 +164,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const particlesRef = useRef<BackgroundParticle[]>([]);
   const playerImageRef = useRef<HTMLImageElement | null>(null);
   const playerImageLoadedRef = useRef(false);
+
+  // 描画スケール時の論理ビューポート（大きいほど広い範囲を表示）
+  const logicalWidth = viewportWidth / contentScale;
+  const logicalHeight = viewportHeight / contentScale;
   
   // プレイヤー画像をプリロード（キャラクターアバター優先）
   useEffect(() => {
@@ -176,20 +183,20 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     img.src = avatarSrc;
   }, [characterAvatarUrl]);
 
-  // カメラ位置（プレイヤー中心）
+  // カメラ位置（プレイヤー中心・論理ビューポート使用）
   const getCameraOffset = useCallback((player: PlayerState) => {
-    const targetX = player.x - viewportWidth / 2;
-    const targetY = player.y - viewportHeight / 2;
+    const targetX = player.x - logicalWidth / 2;
+    const targetY = player.y - logicalHeight / 2;
     
     // マップ端での制限
-    const maxX = MAP_CONFIG.width - viewportWidth;
-    const maxY = MAP_CONFIG.height - viewportHeight;
+    const maxX = MAP_CONFIG.width - logicalWidth;
+    const maxY = MAP_CONFIG.height - logicalHeight;
     
     return {
       x: Math.max(0, Math.min(maxX, targetX)),
       y: Math.max(0, Math.min(maxY, targetY)),
     };
-  }, [viewportWidth, viewportHeight]);
+  }, [logicalWidth, logicalHeight]);
 
   // 背景パーティクル初期化（パフォーマンス向上のため数を削減）
   const initParticles = useCallback(() => {
@@ -209,35 +216,39 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
   }, []);
   
-  // 描画関数
+  // 描画関数（contentScale時は論理ビューポートで描画し、ctx.scaleで縮小）
   const draw = useCallback((ctx: CanvasRenderingContext2D) => {
+    if (contentScale !== 1) {
+      ctx.save();
+      ctx.scale(contentScale, contentScale);
+    }
     const { player, enemies, projectiles, items, damageTexts } = gameState;
     const camera = getCameraOffset(player);
     
     // パーティクル初期化
     initParticles();
     
-    // キャンバスクリア - グラデーション背景
+    // キャンバスクリア - グラデーション背景（論理サイズ）
     const gradient = ctx.createRadialGradient(
-      viewportWidth / 2, viewportHeight / 2, 0,
-      viewportWidth / 2, viewportHeight / 2, viewportWidth
+      logicalWidth / 2, logicalHeight / 2, 0,
+      logicalWidth / 2, logicalHeight / 2, logicalWidth
     );
     gradient.addColorStop(0, '#1e1e3f');
     gradient.addColorStop(1, '#0a0a1a');
     ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, viewportWidth, viewportHeight);
+    ctx.fillRect(0, 0, logicalWidth, logicalHeight);
     
     // 背景パーティクル描画（星のような効果）
     const time = Date.now() / 1000;
     particlesRef.current.forEach((particle, i) => {
       // パーティクルをカメラに対して相対移動（視差効果）
       const parallaxFactor = 0.3;  // カメラより遅く動く
-      const screenX = (particle.x - camera.x * parallaxFactor) % viewportWidth;
-      const screenY = (particle.y - camera.y * parallaxFactor) % viewportHeight;
+      const screenX = (particle.x - camera.x * parallaxFactor) % logicalWidth;
+      const screenY = (particle.y - camera.y * parallaxFactor) % logicalHeight;
       
       // 画面外なら反対側に
-      const adjustedX = screenX < 0 ? screenX + viewportWidth : screenX;
-      const adjustedY = screenY < 0 ? screenY + viewportHeight : screenY;
+      const adjustedX = screenX < 0 ? screenX + logicalWidth : screenX;
+      const adjustedY = screenY < 0 ? screenY + logicalHeight : screenY;
       
       // 点滅効果
       const twinkle = Math.sin(time * particle.speed * 3 + i) * 0.3 + 0.7;
@@ -259,16 +270,16 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const startX = -(camera.x % gridSize);
     const startY = -(camera.y % gridSize);
     
-    for (let x = startX; x < viewportWidth; x += gridSize) {
+    for (let x = startX; x < logicalWidth; x += gridSize) {
       ctx.beginPath();
       ctx.moveTo(x, 0);
-      ctx.lineTo(x, viewportHeight);
+      ctx.lineTo(x, logicalHeight);
       ctx.stroke();
     }
-    for (let y = startY; y < viewportHeight; y += gridSize) {
+    for (let y = startY; y < logicalHeight; y += gridSize) {
       ctx.beginPath();
       ctx.moveTo(0, y);
-      ctx.lineTo(viewportWidth, y);
+      ctx.lineTo(logicalWidth, y);
       ctx.stroke();
     }
     ctx.globalAlpha = 1;
@@ -283,8 +294,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenX = item.x - camera.x;
       const screenY = item.y - camera.y;
       
-      if (screenX < -50 || screenX > viewportWidth + 50 ||
-          screenY < -50 || screenY > viewportHeight + 50) return;
+      if (screenX < -50 || screenX > logicalWidth + 50 ||
+          screenY < -50 || screenY > logicalHeight + 50) return;
       
       ctx.fillStyle = COLORS.item[item.type] || '#fff';
       ctx.beginPath();
@@ -309,8 +320,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenX = coin.x - camera.x;
       const screenY = coin.y - camera.y;
       
-      if (screenX < -30 || screenX > viewportWidth + 30 ||
-          screenY < -30 || screenY > viewportHeight + 30) return;
+      if (screenX < -30 || screenX > logicalWidth + 30 ||
+          screenY < -30 || screenY > logicalHeight + 30) return;
       
       // 残り時間で点滅（消える前の警告）
       const elapsed = now - coin.startTime;
@@ -356,8 +367,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenY = enemy.y - camera.y;
       
       // 画面外スキップ
-      if (screenX < -50 || screenX > viewportWidth + 50 ||
-          screenY < -50 || screenY > viewportHeight + 50) return;
+      if (screenX < -50 || screenX > logicalWidth + 50 ||
+          screenY < -50 || screenY > logicalHeight + 50) return;
       
       const size = enemy.isBoss ? 40 : 28;
       const fontSize = enemy.isBoss ? 36 : 24;
@@ -428,8 +439,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
       
-      if (screenX < -25 || screenX > viewportWidth + 25 ||
-          screenY < -25 || screenY > viewportHeight + 25) return;
+      if (screenX < -25 || screenX > logicalWidth + 25 ||
+          screenY < -25 || screenY > logicalHeight + 25) return;
       
       ctx.save();
       
@@ -467,8 +478,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenX = proj.x - camera.x;
       const screenY = proj.y - camera.y;
       
-      if (screenX < -20 || screenX > viewportWidth + 20 ||
-          screenY < -20 || screenY > viewportHeight + 20) return;
+      if (screenX < -20 || screenX > logicalWidth + 20 ||
+          screenY < -20 || screenY > logicalHeight + 20) return;
       
       ctx.font = '10px sans-serif';
       ctx.textAlign = 'center';
@@ -655,9 +666,9 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       // 画面外エフェクトは描画しない（演出のみ軽量化）
       if (
         screenX < -LIGHTNING_SCREEN_PADDING ||
-        screenX > viewportWidth + LIGHTNING_SCREEN_PADDING ||
+        screenX > logicalWidth + LIGHTNING_SCREEN_PADDING ||
         screenY < -LIGHTNING_SCREEN_PADDING ||
-        screenY > viewportHeight + LIGHTNING_SCREEN_PADDING
+        screenY > logicalHeight + LIGHTNING_SCREEN_PADDING
       ) {
         return;
       }
@@ -699,7 +710,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.globalAlpha = 1;
     });
 
-  }, [gameState, viewportWidth, viewportHeight, getCameraOffset, shockwaves, lightningEffects, initParticles]);
+    if (contentScale !== 1) {
+      ctx.restore();
+    }
+  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {
