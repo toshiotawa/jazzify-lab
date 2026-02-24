@@ -89,7 +89,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 現在のスロット */}
       <div
         className={cn(
-          'relative w-full h-20 rounded-lg border-2 overflow-hidden transition-all',
+          'relative w-full h-14 md:h-20 rounded-lg border-2 overflow-hidden transition-all',
           colors.border,
           'bg-gradient-to-br',
           colors.bg,
@@ -110,9 +110,9 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           {slot.isEnabled ? (
             <span className={cn(
               'font-bold font-sans leading-tight text-center break-all',
-              (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-xs' :
-              (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-sm' :
-              (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-lg' : 'text-2xl',
+              (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-[10px] md:text-xs' :
+              (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-xs md:text-sm' :
+              (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-sm md:text-lg' : 'text-base md:text-2xl',
               slot.isCompleted ? 'text-yellow-300' : 'text-white',
               isDisabledByCooldown && 'text-gray-500'
             )}>
@@ -151,7 +151,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 次のスロット（見やすく大きめ表示） */}
       <div
         className={cn(
-          'w-full h-10 rounded-lg border-2 flex flex-col items-center justify-center',
+          'w-full h-8 md:h-10 rounded-lg border-2 flex flex-col items-center justify-center',
           'bg-gradient-to-br from-gray-800/80 to-gray-900/80',
           colors.border,
           'border-opacity-50',

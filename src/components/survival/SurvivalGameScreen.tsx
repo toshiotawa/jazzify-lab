@@ -746,6 +746,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         noteNameStyle: settings.noteNameStyle,
         simpleDisplayMode: settings.simpleDisplayMode,
         pianoHeight: 120, // 全体の高さと同じにしてノーツエリアをなくす
+        colors: { activeKey: '#22C55E' }, // サバイバルヒントの鍵盤ハイライトを緑に
       });
       
       // タッチ/クリックハンドラー設定（ファンタジーモードと同様）
@@ -2934,11 +2935,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             characterAvatarUrl={character?.avatarUrl}
           />
           
-          {/* ポーズ画面 */}
+          {/* ポーズ画面（全画面モーダル・PAUSEDを確実に表示） */}
           {gameState.isPaused && (
-            <div className="absolute inset-0 bg-black/80 flex items-center justify-center z-20 overflow-y-auto">
-              <div className="text-center w-full max-w-md px-4 py-4">
-                <div className="text-3xl font-bold text-white font-sans mb-3">PAUSED</div>
+            <div className="fixed inset-0 z-50 bg-black/85 flex flex-col items-center justify-start pt-[max(1rem,env(safe-area-inset-top))] pb-[env(safe-area-inset-bottom)] overflow-y-auto">
+              <div className="text-center w-full max-w-md px-4 py-4 flex-shrink-0">
+                <div className="text-3xl md:text-4xl font-bold text-white font-sans mb-3">PAUSED</div>
                 
                 {/* ステータス表示 */}
                 <div className="bg-gray-900/90 rounded-lg p-3 mb-3 text-left text-sm max-h-[50vh] overflow-y-auto">
@@ -3046,12 +3047,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   })()}
                 </div>
                 
-                <div className="flex gap-4 justify-center">
+                <div className="flex flex-wrap gap-3 justify-center items-center">
                   <button
                     onClick={() => setGameState(prev => ({ ...prev, isPaused: false }))}
                     className="px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-sans text-white"
                   >
                     {isEnglishCopy ? 'Resume' : '再開'}
+                  </button>
+                  <button
+                    onClick={() => setIsSettingsOpen(true)}
+                    className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-sans text-white flex items-center gap-2"
+                  >
+                    ⚙️ {isEnglishCopy ? 'Settings' : '設定'}
                   </button>
                   <button
                     onClick={onBackToSelect}
