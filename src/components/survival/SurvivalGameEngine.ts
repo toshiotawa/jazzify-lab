@@ -46,7 +46,7 @@ const BASE_ENEMY_SPEED = 80;   // px/秒（元60から増加）
 const MAX_ENEMY_SPEED = 400;   // 敵速度上限（px/秒）
 
 const EXP_BASE = 10;           // 敵1体あたりの基本経験値
-const EXP_LEVEL_FACTOR = 1.2;  // レベルアップに必要な経験値の増加率（ゆるやかに）
+const EXP_LEVEL_FACTOR = 1.12;  // レベルアップに必要な経験値の増加率（ゆるやかに）
 
 // パフォーマンス向上用の上限値
 export const MAX_ENEMIES = Infinity;     // 敵の最大数（制限なし）
@@ -307,11 +307,11 @@ export const calculateWaveQuota = (waveNumber: number): number => {
 
 export const calculateWaveSpawnCount = (baseSpawnCount: number, waveNumber: number): number => {
   const safeBase = Math.max(1, Math.floor(baseSpawnCount));
-  const earlyBonus = Math.floor((Math.min(waveNumber, 10) - 1) / 3); // WAVE1-10: +0~3
+  const earlyBonus = Math.floor((Math.min(waveNumber, 10) - 1) / 2); // WAVE1-10: +0~4
   const midBonus = waveNumber > 10 ? Math.floor((Math.min(waveNumber, 25) - 10) / 4) : 0; // WAVE11-25: +0~3
   const lateBonus = waveNumber > 25 ? Math.floor((waveNumber - 25) / 6) : 0; // WAVE26+: 緩やか増加
   const rawSpawnCount = safeBase + earlyBonus + midBonus + lateBonus;
-  const waveCap = 10 + Math.floor(Math.max(0, waveNumber - 1) / 4);
+  const waveCap = 12 + Math.floor(Math.max(0, waveNumber - 1) / 3);
   return Math.max(1, Math.min(rawSpawnCount, waveCap));
 };
 
@@ -401,11 +401,11 @@ const getEnemyBaseStats = (type: EnemyType, elapsedTime: number, multiplier: num
   const elapsedMinutes = elapsedTime / 60;
   const waveProgress = Math.max(0, waveNumber - 1);
 
-  // 時間・WAVEを別々に係数化して、急激なジャンプを避ける
-  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.05 + Math.max(0, elapsedMinutes - 10) * 0.03;
-  const timeHpMultiplier = 1 + elapsedMinutes * 0.07 + Math.max(0, elapsedMinutes - 10) * 0.06;
-  const waveAtkDefMultiplier = 1 + waveProgress * 0.06 + Math.max(0, waveNumber - 20) * 0.02;
-  const waveHpMultiplier = 1 + waveProgress * 0.12 + Math.max(0, waveNumber - 12) * 0.03;
+  // 時間・WAVEを別々に係数化（インフレ型スケーリング）
+  const timeAtkDefMultiplier = 1 + elapsedMinutes * 0.06 + Math.max(0, elapsedMinutes - 10) * 0.04;
+  const timeHpMultiplier = 1 + elapsedMinutes * 0.10 + Math.max(0, elapsedMinutes - 8) * 0.08 + Math.max(0, elapsedMinutes - 15) * 0.10;
+  const waveAtkDefMultiplier = 1 + waveProgress * 0.07 + Math.max(0, waveNumber - 20) * 0.03;
+  const waveHpMultiplier = 1 + waveProgress * 0.15 + Math.max(0, waveNumber - 10) * 0.08 + Math.max(0, waveNumber - 20) * 0.10;
   
   // 敵のデフォルトHPは2倍に設定
   const baseStats: Record<EnemyType, { atk: number; def: number; hp: number; speed: number }> = {
@@ -743,7 +743,7 @@ export const getVectorFromAngle = (angle: number): { x: number; y: number } => {
 // ===== 攻撃処理 =====
 // A列（遠距離）弾丸のダメージ計算（A ATK +1 で約5ダメージ増加）
 const INITIAL_A_ATK = 10;  // 初期A ATK値
-const A_ATK_DAMAGE_MULTIPLIER = 5;  // A ATK +1あたりのダメージ増加量
+const A_ATK_DAMAGE_MULTIPLIER = 7;  // A ATK +1あたりのダメージ増加量
 const A_BASE_DAMAGE = 14;  // 基本ダメージ（初期A ATKでのダメージ）
 const A_PROJECTILE_MAX_RANGE = 900; // A弾の最大射程（px）
 
@@ -754,7 +754,7 @@ export const calculateAProjectileDamage = (aAtk: number): number => {
 
 // B列（近接）攻撃のダメージ計算（B ATK +1 で10ダメージ増加）
 const INITIAL_B_ATK = 15;  // 初期B ATK値
-const B_ATK_DAMAGE_MULTIPLIER = 10;  // B ATK +1あたりのダメージ増加量
+const B_ATK_DAMAGE_MULTIPLIER = 14;  // B ATK +1あたりのダメージ増加量
 const B_BASE_DAMAGE = 20;  // 基本ダメージ（初期B ATKでのダメージ）
 
 export const calculateBMeleeDamage = (bAtk: number): number => {
@@ -764,7 +764,7 @@ export const calculateBMeleeDamage = (bAtk: number): number => {
 
 // C列（魔法）攻撃のダメージ計算（C ATK +1 で10ダメージ増加）
 const INITIAL_C_ATK = 20;  // 初期C ATK値
-const C_ATK_DAMAGE_MULTIPLIER = 10;  // C ATK +1あたりのダメージ増加量
+const C_ATK_DAMAGE_MULTIPLIER = 15;  // C ATK +1あたりのダメージ増加量
 
 export const calculateCMagicDamage = (cAtk: number, baseSpellDamage: number): number => {
   // 基本呪文ダメージ + (C ATK - 初期値) × 10
@@ -851,12 +851,12 @@ export const calculateDamage = (
   const cappedBufferCAtk = Math.min(cAtk, 45);
   const cappedDebufferCAtk = Math.min(cAtk, 40);
 
-  // バッファー効果: C ATK寄与に上限を設けて火力インフレを抑える
+  // バッファー効果: Lv1=1.5x, Lv2=2.0x, Lv3=2.5x + C ATKボーナス
   let atkMultiplier = 1;
   if (isBuffed && bufferLevel > 0) {
-    atkMultiplier = 1 + bufferLevel * 0.4 + cappedBufferCAtk * 0.02;
+    atkMultiplier = 1 + bufferLevel * 0.5 + cappedBufferCAtk * 0.02;
   } else if (isBuffed) {
-    atkMultiplier = 1.35;  // レベル情報がない場合のデフォルト
+    atkMultiplier = 1.5;  // レベル情報がない場合のデフォルト
   }
   
   // デバッファー効果: 防御低下と与ダメ補正も上限付きで調整
@@ -870,8 +870,8 @@ export const calculateDamage = (
     debuffDamageMultiplier = 1.2;
   }
   
-  // 運発動時の瞬間火力は抑えつつ、爽快感は残す
-  const luckyMultiplier = isLucky ? 1.7 : 1;
+  // 運発動時の大クリティカル感
+  const luckyMultiplier = isLucky ? 2.0 : 1;
   
   // ダメージ計算: バフ倍率、デバフ倍率、運倍率を適用
   const damage = Math.max(1, Math.floor(
@@ -936,17 +936,17 @@ export const getConditionalSkillMultipliers = (player: PlayerState): {
   
   // 背水の陣（HP15%以下）: 高火力の見返りにDEF=0
   if (hasHaisui) {
-    atkMultiplier *= 1.6;
-    timeMultiplier *= 1.6;
+    atkMultiplier *= 1.8;
+    timeMultiplier *= 1.8;
     reloadMultiplier *= 0.7;
     speedBonus += 6;
     defOverride = 0;
   }
   
-  // 絶好調（HP満タン）: 穏やかな上振れ
+  // 絶好調（HP満タン）: 体感できるレベルの上振れ
   if (hasZekkouchou) {
-    atkMultiplier *= 1.18;
-    timeMultiplier *= 1.4;
+    atkMultiplier *= 1.3;
+    timeMultiplier *= 1.5;
     reloadMultiplier *= 0.8;
   }
   
@@ -1384,8 +1384,8 @@ export const castMagic = (
         const debufferLevel = debufferEffect?.level ?? 0;
         const isDebuffed = debufferLevel > 0;
         
-        // 基本呪文ダメージ（レベル1: 30, レベル2: 50, レベル3: 70）にC ATKボーナスを加算
-        const baseThunderDamage = 30 + (level - 1) * 20;
+        // 基本呪文ダメージ（レベル1: 40, レベル2: 65, レベル3: 90）にC ATKボーナスを加算
+        const baseThunderDamage = 40 + (level - 1) * 25;
         const cMagicDamage = calculateCMagicDamage(player.stats.cAtk, baseThunderDamage);
         
         const damage = calculateDamage(
@@ -1417,8 +1417,8 @@ export const castMagic = (
     case 'fire': {
       // 自分の周りに炎の渦（プレイヤーにバフとして付与 + 周囲の敵にダメージ）
       const fireRange = 100 + level * 30; // 炎の範囲（レベルで拡大）
-      // 基本炎ダメージ（レベル1: 25, レベル2: 40, レベル3: 55）にC ATKボーナスを加算
-      const baseFireDamage = 25 + (level - 1) * 15;
+      // 基本炎ダメージ（レベル1: 35, レベル2: 55, レベル3: 75）にC ATKボーナスを加算
+      const baseFireDamage = 35 + (level - 1) * 20;
       const fireDamage = Math.floor(calculateCMagicDamage(player.stats.cAtk, baseFireDamage) * condMultipliers.atkMultiplier);
       
       // 範囲内の敵にダメージ
@@ -1504,8 +1504,8 @@ export const castMagic = (
 
 // ===== コイン生成 =====
 const COIN_LIFETIME = Infinity;  // コインの生存時間（無限 - 消えない）
-const NORMAL_ENEMY_EXP = 10;
-const BOSS_ENEMY_EXP = 36;
+const NORMAL_ENEMY_EXP = 15;
+const BOSS_ENEMY_EXP = 60;
 
 export const calculateEnemyExpGain = (
   isBoss: boolean,
