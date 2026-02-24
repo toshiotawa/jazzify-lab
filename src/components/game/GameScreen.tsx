@@ -1701,7 +1701,7 @@ const SettingsPanel: React.FC = () => {
                       (isStageWithMissionConstraints && missionContext?.clearConditions?.speed !== undefined))
                      ? (lessonContext?.clearConditions.speed ?? missionContext?.clearConditions?.speed ?? 1.0).toString() 
                      : "0.5"}
-                max="1.5"
+                max="2.5"
                 step="0.05"
                 value={settings.playbackSpeed}
                 onChange={(e) => 

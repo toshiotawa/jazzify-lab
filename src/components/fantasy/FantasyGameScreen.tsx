@@ -1898,9 +1898,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                       onChange={(e) => setSelectedSpeedMultiplier(parseFloat(e.target.value))}
                       className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-2 border border-gray-600"
                     >
-                      <option value={1.0}>🎵 100% ({isEnglishCopy ? 'Normal' : '通常速度'})</option>
-                      <option value={0.75}>🐢 75% ({isEnglishCopy ? 'Slow' : 'ゆっくり'})</option>
                       <option value={0.5}>🐌 50% ({isEnglishCopy ? 'Very Slow' : 'とてもゆっくり'})</option>
+                      <option value={0.75}>🐢 75% ({isEnglishCopy ? 'Slow' : 'ゆっくり'})</option>
+                      <option value={1.0}>🎵 100% ({isEnglishCopy ? 'Normal' : '通常速度'})</option>
+                      <option value={1.25}>🚀 125%</option>
+                      <option value={1.5}>🚀 150%</option>
+                      <option value={1.75}>🚀 175%</option>
+                      <option value={2.0}>⚡ 200%</option>
+                      <option value={2.25}>⚡ 225%</option>
+                      <option value={2.5}>⚡ 250%</option>
                     </select>
                   </div>
                   
