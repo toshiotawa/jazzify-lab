@@ -1161,7 +1161,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!stageData) return;
     const secPerBeat = 60 / (stageData.bpm || 120);
     const secPerMeasure = secPerBeat * (stageData.timeSignature || 4);
-    const loopDuration = (stageData.measureCount || 8) * secPerMeasure;
+    const isProgressionOrder = stageData.mode === 'progression_order';
+    const countInSec = (stageData.countInMeasures || 0) * secPerMeasure;
+    const actualEnd = bgmManager.getActualLoopEnd();
+    const hasCountInLoop = bgmManager.getLoopIncludesCountIn();
+    const loopDuration = hasCountInLoop && actualEnd > 0
+      ? actualEnd - countInSec
+      : (stageData.measureCount || 8) * secPerMeasure;
     const useChordNameOnNotes = 
       stageData.mode === 'progression_order' ||
       stageData.mode === 'progression_random' ||
@@ -1434,7 +1440,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 次ループのノーツを先読み表示する条件:
       // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
       // 2. ループ境界が近い（lookAheadTime以内）
-      const shouldShowNextLoopPreview = isAwaitingLoop || timeToLoop < lookAheadTime;
+      // ※ progression_orderはカウントイン付きループのため先読み不要
+      const shouldShowNextLoopPreview = !isProgressionOrder && (isAwaitingLoop || timeToLoop < lookAheadTime);
       
       if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
         // 移調設定がある場合、次のリピートサイクルの移調オフセットを計算

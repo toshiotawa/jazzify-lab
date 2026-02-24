@@ -43,6 +43,7 @@ class BGMManager {
   private tonePlayer: any = null // Tone.Player
   private toneLoopStart: number = 0
   private toneLoopEnd: number = 0
+  private actualLoopEnd: number = 0 // 音源バッファの実際のループ終了点（クランプ済み）
   private useTonePitchShift = false // Tone.jsを使用するかどうか
   private pitchShiftLatency = 0 // PitchShiftの処理遅延（秒）
   
@@ -81,9 +82,9 @@ class BGMManager {
       return musicTime - this.loopBegin
     }
     if (this.loopIncludesCountIn && this.loopBegin > 0) {
-      const fullCycleDuration = this.loopEnd
-      if (fullCycleDuration > 0 && musicTime >= this.loopEnd) {
-        return (musicTime % fullCycleDuration) - this.loopBegin
+      const cycleDuration = this.actualLoopEnd > 0 ? this.actualLoopEnd : this.loopEnd
+      if (cycleDuration > 0 && musicTime >= cycleDuration) {
+        return (musicTime % cycleDuration) - this.loopBegin
       }
       return musicTime - this.loopBegin
     }
@@ -265,6 +266,7 @@ class BGMManager {
     this.loopEnd = (this.countInMeasures + measureCount) * secPerMeas
     this.toneLoopStart = this.loopBegin
     this.toneLoopEnd = this.loopEnd
+    this.actualLoopEnd = this.loopEnd
     this.audioStartOffset = skipCountIn ? this.loopBegin : 0
     
     // 非同期ロード中のフォールバック: play()時点からの経過時間でカウントインを模擬
@@ -642,6 +644,7 @@ class BGMManager {
     this.loopScheduled = false
     this.noLoop = false
     this.loopIncludesCountIn = false
+    this.actualLoopEnd = 0
     this.htmlSeekTarget = null
     this._htmlLastRawTime = -1
     this._htmlLastRawPerf = 0
@@ -955,6 +958,8 @@ class BGMManager {
   getMeasureCount(): number { return this.measureCount }
   getCountInMeasures(): number { return this.countInMeasures }
   getPlaybackRate(): number { return this.playbackRate }
+  getLoopIncludesCountIn(): boolean { return this.loopIncludesCountIn }
+  getActualLoopEnd(): number { return this.actualLoopEnd }
   getIsCountIn(): boolean {
     // getCurrentMusicTime()と一貫性を持たせる
     // M1開始が0秒なので、負の値 = カウントイン中
@@ -1100,6 +1105,7 @@ class BGMManager {
 
     this.tonePlayer.loopStart = this.loopIncludesCountIn ? 0 : loopBeginVal
     this.tonePlayer.loopEnd = clampedLoopEnd
+    this.actualLoopEnd = clampedLoopEnd
 
     const startTime = Tone.now()
     this.tonePlayer.start(startTime, this.audioStartOffset)
@@ -1184,6 +1190,7 @@ class BGMManager {
       const le = Math.round(this.loopEnd * sr) / sr
       src.loopStart = this.loopIncludesCountIn ? 0 : Math.min(Math.max(0, ls), dur - 2 * eps)
       src.loopEnd = Math.min(Math.max(src.loopStart + eps, le), dur - eps)
+      this.actualLoopEnd = src.loopEnd
     }
 
     src.playbackRate.value = this.playbackRate
@@ -1204,6 +1211,7 @@ class BGMManager {
     this.audio.preservesPitch = true
 
     this.audio.currentTime = this.audioStartOffset
+    this.actualLoopEnd = this.loopEnd
 
     this.audio.addEventListener('error', this.handleError)
     this.audio.addEventListener('ended', this.handleEnded)

@@ -1069,8 +1069,12 @@ export const useFantasyGameEngine = ({
     }
     
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
-    // M1開始を0sとした1周の長さ
-    const loopDuration = (stage?.measureCount || 8) * secPerMeasure;
+    const countInSec = (stage?.countInMeasures || 0) * secPerMeasure;
+    const hasCountInLoop = bgmManager.getLoopIncludesCountIn();
+    const actualEnd = bgmManager.getActualLoopEnd();
+    const loopDuration = hasCountInLoop && actualEnd > 0
+      ? actualEnd - countInSec
+      : (stage?.measureCount || 8) * secPerMeasure;
     
     // 現在の時間をループ内0..Tへ正規化
     // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ。
@@ -2616,7 +2620,13 @@ export const useFantasyGameEngine = ({
         // ===== ここまで timing_combining =====
         
         const secPerMeasure = (60 / (stage.bpm || 120)) * (stage.timeSignature || 4);
-        const loopDuration = (stage.measureCount || 8) * secPerMeasure;
+        const countInSec = (stage.countInMeasures || 0) * secPerMeasure;
+        const hasCountInLoop = bgmManager.getLoopIncludesCountIn();
+        // loopIncludesCountIn時は音源実サイクル(actualLoopEnd)からカウントイン分を引く
+        const actualEnd = bgmManager.getActualLoopEnd();
+        const loopDuration = hasCountInLoop && actualEnd > 0
+          ? actualEnd - countInSec
+          : (stage.measureCount || 8) * secPerMeasure;
         
         // ループ検出（2パターン）
         // A) loopIncludesCountIn(progression_order): 本編→カウントインへの遷移で検出
