@@ -376,7 +376,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     });
   }, []);
   
-  // オート選択で取得したスキル通知
+  // スキル取得通知（オート選択・手動選択・キャラボーナス）
   interface SkillNotification {
     id: string;
     icon: string;
@@ -917,7 +917,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         };
       }
     });
-  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount]);
+
+    if (displaySettings.showLevelUpBonusPopup) {
+      const now = Date.now();
+      setSkillNotifications(prev => [...prev, {
+        id: `levelup_${now}`,
+        icon: option.icon,
+        displayName: isEnglishCopy && option.displayNameEn ? option.displayNameEn : option.displayName,
+        startTime: now,
+      }]);
+    }
+  }, [config.allowedChords, charExcludedBonuses, charNoMagic, bonusChoiceCount, displaySettings.showLevelUpBonusPopup, isEnglishCopy]);
   
   // レベルアップタイムアウト処理
   const handleLevelUpTimeout = useCallback(() => {
@@ -2802,7 +2812,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         </div>
       )}
       
-      {/* オート選択で取得したスキル通知 */}
+      {/* スキル取得通知（オート選択・手動選択・キャラボーナス） */}
       {skillNotifications.length > 0 && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
           {skillNotifications.map((notification, index) => {
