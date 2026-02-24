@@ -4,6 +4,39 @@ import { Lesson, LessonSong, ClearConditions, RepeatTranspositionMode } from '@/
 // レッスンキャッシュキー生成関数
 export const LESSONS_CACHE_KEY = (courseId: string) => `lessons:${courseId}`;
 
+const LESSONS_PAGE_SIZE = 1000;
+
+async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
+  const all: Lesson[] = [];
+  let from = 0;
+
+  for (;;) {
+    const to = from + LESSONS_PAGE_SIZE - 1;
+    const { data, error } = await getSupabaseClient()
+      .from('lessons')
+      .select(`
+        *,
+        lesson_songs (
+          *,
+          songs (id, title, artist),
+          fantasy_stage:fantasy_stages (*)
+        )
+      `)
+      .eq('course_id', courseId)
+      .order('order_index', { ascending: true })
+      .range(from, to);
+
+    if (error) throw error;
+    if (!data || data.length === 0) break;
+
+    all.push(...(data as Lesson[]));
+    if (data.length < LESSONS_PAGE_SIZE) break;
+    from += LESSONS_PAGE_SIZE;
+  }
+
+  return all;
+}
+
 /**
  * 特定のコースIDに紐づくレッスンを取得します。
  * @param {string} courseId
@@ -18,51 +51,22 @@ export async function fetchLessonsByCourse(
   const cacheKey = LESSONS_CACHE_KEY(courseId);
 
   if (forceRefresh) {
-    // キャッシュをバイパスして直接取得
-    const { data, error } = await getSupabaseClient()
-      .from('lessons')
-      .select(`
-        *,
-        lesson_songs (
-          *,
-          songs (id, title, artist),
-          fantasy_stage:fantasy_stages (*)
-        )
-      `)
-      .eq('course_id', courseId)
-      .order('order_index', { ascending: true });
-
-    if (error) {
-      console.error(`Error fetching lessons for course ${courseId}:`, error);
-      throw error;
-    }
-
-    // 新しいデータでキャッシュを更新
+    const lessons = await fetchAllLessonsPages(courseId);
     const supabaseClient = await import('./supabaseClient');
     supabaseClient.clearCacheByKey(cacheKey);
-    
-    return data || [];
+    return lessons;
   }
 
   const { data, error } = await fetchWithCache(
     cacheKey,
-    async () => await getSupabaseClient()
-      .from('lessons')
-      .select(`
-        *,
-        lesson_songs (
-          *,
-          songs (id, title, artist),
-          fantasy_stage:fantasy_stages (*)
-        )
-      `)
-      .eq('course_id', courseId)
-      .order('order_index', { ascending: true }),
-    60 * 1000 // 1分キャッシュ
+    async () => {
+      const lessons = await fetchAllLessonsPages(courseId);
+      return { data: lessons, error: null, status: 200, statusText: 'OK', count: null };
+    },
+    60 * 1000
   );
 
   if (error) {
-    console.error(`Error fetching lessons for course ${courseId}:`, error);
     throw error;
   }
   return data || [];
