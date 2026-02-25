@@ -14,7 +14,7 @@ const DEMO_TIME_LIMIT_MS = 2 * 60 * 1000;
 
 const R17 = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
 
-const VERYEASY_CONFIG: DifficultyConfig = {
+const VERYEASY_FALLBACK: DifficultyConfig = {
   difficulty: 'veryeasy',
   displayName: 'Very Easy',
   description: '入門向け。単音ノーツ（#♭含む全17音）。',
@@ -32,6 +32,7 @@ const VERYEASY_CONFIG: DifficultyConfig = {
 const LPFantasyDemo: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCta, setShowCta] = useState(false);
+  const [config, setConfig] = useState<DifficultyConfig>(VERYEASY_FALLBACK);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const { settings, updateSettings } = useGameStore();
@@ -48,6 +49,35 @@ const LPFantasyDemo: React.FC = () => {
   const pixiLoadingText = isEnglishCopy ? 'Loading piano...' : 'PIXIを読み込み中...';
   const exitFullscreenText = isEnglishCopy ? 'Exit' : '終了';
   const modalLoadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { fetchSurvivalDifficultySettings } = await import('@/platform/supabaseSurvival');
+        const settings = await fetchSurvivalDifficultySettings();
+        if (cancelled) return;
+        const ve = settings.find(s => s.difficulty === 'veryeasy');
+        if (ve) {
+          setConfig({
+            difficulty: ve.difficulty,
+            displayName: ve.displayName,
+            description: ve.description ?? '',
+            descriptionEn: ve.descriptionEn ?? '',
+            allowedChords: ve.allowedChords,
+            enemySpawnRate: ve.enemySpawnRate,
+            enemySpawnCount: ve.enemySpawnCount,
+            enemyStatMultiplier: ve.enemyStatMultiplier,
+            expMultiplier: ve.expMultiplier,
+            itemDropRate: ve.itemDropRate,
+            bgmOddWaveUrl: ve.bgmOddWaveUrl,
+            bgmEvenWaveUrl: ve.bgmEvenWaveUrl,
+          });
+        }
+      } catch { /* fallback config is already set */ }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   const [suspendPiano, setSuspendPiano] = useState(false);
   const [pianoVisible, setPianoVisible] = useState(false);
@@ -226,7 +256,7 @@ const LPFantasyDemo: React.FC = () => {
             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">{modalLoadingText}</div>}>
               <SurvivalGameScreen
                 difficulty="veryeasy"
-                config={VERYEASY_CONFIG}
+                config={config}
                 onBackToSelect={handleDemoExit}
                 onBackToMenu={handleDemoExit}
               />
