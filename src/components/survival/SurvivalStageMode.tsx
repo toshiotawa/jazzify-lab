@@ -146,9 +146,12 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
         const charRows = await fetchSurvivalCharacters();
         const chars = charRows.map(convertToSurvivalCharacter);
         setCharacters(chars);
-        if (chars.length > 0 && !selectedCharacterId) {
-          const fai = chars.find(c => isFaiCharacter(c));
-          setSelectedCharacterId(fai?.id ?? chars[0].id);
+        if (chars.length > 0) {
+          setSelectedCharacterId(prev => {
+            if (prev) return prev;
+            const fai = chars.find(c => isFaiCharacter(c));
+            return fai?.id ?? chars[0].id;
+          });
         }
       } catch { /* ignore */ }
 
@@ -167,7 +170,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [profile, isGuest, selectedCharacterId]);
+  }, [profile, isGuest]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
