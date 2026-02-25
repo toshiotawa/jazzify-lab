@@ -261,7 +261,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
         </div>
       )}
 
-      <div className="px-4 sm:px-6 pb-6">
+      <div className="px-4 sm:px-6 pb-32 sm:pb-6">
         <div className="max-w-2xl mx-auto space-y-4">
 
           {/* 進捗バー */}
