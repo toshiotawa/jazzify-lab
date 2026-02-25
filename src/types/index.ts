@@ -635,6 +635,7 @@ export interface LessonSong {
   survival_allowed_chords?: string[];
   clear_conditions?: ClearConditions;
   order_index?: number;
+  title?: string | null;
   created_at: string;
   songs?: Pick<Song, 'id' | 'title' | 'artist'>;
   fantasy_stage?: FantasyStage;

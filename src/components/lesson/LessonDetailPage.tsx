@@ -161,8 +161,9 @@ const LessonDetailPage: React.FC = () => {
           is_survival: ls.is_survival,
           survival_allowed_chords: ls.survival_allowed_chords,
           fantasy_stage: ls.fantasy_stage,
-          fantasy_stage_id: ls.fantasy_stage_id
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string }));
+          fantasy_stage_id: ls.fantasy_stage_id,
+          title: ls.title,
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -498,7 +499,7 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">
-                            課題 {index + 1}
+                            {req.title ? `${index + 1}. ${req.title}` : `課題 ${index + 1}`}
                             {isSurvival && <span className="ml-2 text-xs text-red-400">[サバイバル]</span>}
                             {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">[ファンタジー]</span>}
                           </h4>
