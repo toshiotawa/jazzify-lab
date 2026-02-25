@@ -5,6 +5,7 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import { cn } from '@/utils/cn';
 import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
 import SurvivalStageSelect, { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalStageMode from './SurvivalStageMode';
@@ -40,7 +41,8 @@ const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacte
   descriptionEn: row.descriptionEn,
 });
 
-type Screen = 'mode-select' | 'free-select' | 'stage-select' | 'game';
+type Screen = 'select' | 'game';
+type SurvivalTab = 'stage' | 'free';
 
 interface SurvivalMainProps {
   lessonMode?: boolean;
@@ -65,7 +67,8 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
-  const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'mode-select');
+  const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'select');
+  const [activeTab, setActiveTab] = useState<SurvivalTab>('stage');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
@@ -191,10 +194,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
       return;
     }
     if (activeStageDefinition) {
-      setScreen('stage-select');
+      setActiveTab('stage');
     } else {
-      setScreen('free-select');
+      setActiveTab('free');
     }
+    setScreen('select');
     setSelectedDifficulty(null);
     setSelectedConfig(null);
     setDebugSettings(undefined);
@@ -210,10 +214,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     window.location.hash = '#dashboard';
   }, [lessonMode, lessonContext]);
 
-  const handleBackToModeSelect = useCallback(() => {
-    setScreen('mode-select');
-  }, []);
-
   if (lessonMode && !lessonInitialized) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
@@ -225,11 +225,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     );
   }
 
-  if (screen === 'mode-select') {
+  if (screen === 'select') {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
         <div className="relative z-10 p-4 sm:p-6 text-white">
-          <div className="flex justify-between items-center mb-8">
+          <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl sm:text-4xl font-bold font-sans tracking-wider">
               SURVIVAL
             </h1>
@@ -241,79 +241,56 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
             </button>
           </div>
 
-          <div className="max-w-2xl mx-auto space-y-4">
-            {/* フリープレイ */}
+          <div className="flex gap-0 max-w-2xl mx-auto">
             <button
-              onClick={() => setScreen('free-select')}
-              className="w-full text-left rounded-2xl border-2 border-yellow-500/40 bg-gradient-to-r from-yellow-900/30 to-orange-900/20 p-6 hover:border-yellow-400/60 hover:shadow-lg hover:shadow-yellow-500/10 transition-all duration-200 group"
+              onClick={() => setActiveTab('stage')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-3 font-bold font-sans text-sm sm:text-base transition-all duration-200 border-b-2',
+                activeTab === 'stage'
+                  ? 'border-purple-400 text-purple-300 bg-purple-900/20'
+                  : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
+              )}
             >
-              <div className="flex items-center gap-4">
-                <div className="text-4xl flex-shrink-0">
-                  <FaBolt className="text-yellow-400 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-white font-sans mb-1">
-                    FREE PLAY
-                  </h2>
-                  <p className="text-gray-400 text-sm font-sans">
-                    {isEnglishCopy
-                      ? 'Choose difficulty and character freely. Survive as long as you can!'
-                      : '難易度とキャラクターを自由に選んで挑戦！20分間生き残れ！'}
-                  </p>
-                </div>
-                <div className="text-xl text-gray-500 group-hover:text-white transition-colors">▶</div>
-              </div>
+              <FaTrophy className={cn(activeTab === 'stage' ? 'text-purple-400' : 'text-gray-600')} />
+              STAGE MODE
             </button>
-
-            {/* ステージモード */}
             <button
-              onClick={() => setScreen('stage-select')}
-              className="w-full text-left rounded-2xl border-2 border-purple-500/40 bg-gradient-to-r from-purple-900/30 to-pink-900/20 p-6 hover:border-purple-400/60 hover:shadow-lg hover:shadow-purple-500/10 transition-all duration-200 group"
+              onClick={() => setActiveTab('free')}
+              className={cn(
+                'flex-1 flex items-center justify-center gap-2 px-4 py-3 font-bold font-sans text-sm sm:text-base transition-all duration-200 border-b-2',
+                activeTab === 'free'
+                  ? 'border-yellow-400 text-yellow-300 bg-yellow-900/20'
+                  : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
+              )}
             >
-              <div className="flex items-center gap-4">
-                <div className="text-4xl flex-shrink-0">
-                  <FaTrophy className="text-purple-400 group-hover:scale-110 transition-transform" />
-                </div>
-                <div className="flex-1">
-                  <h2 className="text-2xl font-bold text-white font-sans mb-1">
-                    STAGE MODE
-                  </h2>
-                  <p className="text-sm font-sans mb-1">
-                    <span className="text-purple-300 font-bold">
-                      {isEnglishCopy ? '5 minutes survival to clear!' : '5分間生存でクリア！'}
-                    </span>
-                  </p>
-                  <p className="text-gray-400 text-sm font-sans">
-                    {isEnglishCopy
-                      ? 'Master chord types one by one across 105 stages!'
-                      : 'コードタイプ別に全105ステージを順番に攻略！'}
-                  </p>
-                </div>
-                <div className="text-xl text-gray-500 group-hover:text-white transition-colors">▶</div>
-              </div>
+              <FaBolt className={cn(activeTab === 'free' ? 'text-yellow-400' : 'text-gray-600')} />
+              FREE PLAY
             </button>
           </div>
+
+          <div className="max-w-2xl mx-auto mt-3">
+            <p className="text-gray-400 text-sm font-sans text-center">
+              {activeTab === 'stage'
+                ? (isEnglishCopy ? 'Survive 5 minutes to clear! Complete all 105 stages!' : '5分間生存でクリア！全105ステージを制覇せよ！')
+                : (isEnglishCopy ? 'Choose your character and difficulty! Survive for 20 minutes!' : 'キャラクターと難易度を自由に選んで挑戦！20分間生き残れ！')}
+            </p>
+          </div>
         </div>
+
+        {activeTab === 'stage' ? (
+          <SurvivalStageMode
+            embedded
+            onStageSelect={handleStageSelect}
+            onBackToMenu={handleBackToMenu}
+          />
+        ) : (
+          <SurvivalStageSelect
+            embedded
+            onStageSelect={handleFreePlaySelect}
+            onBackToMenu={handleBackToMenu}
+          />
+        )}
       </div>
-    );
-  }
-
-  if (screen === 'free-select') {
-    return (
-      <SurvivalStageSelect
-        onStageSelect={handleFreePlaySelect}
-        onBackToMenu={handleBackToModeSelect}
-      />
-    );
-  }
-
-  if (screen === 'stage-select') {
-    return (
-      <SurvivalStageMode
-        onStageSelect={handleStageSelect}
-        onBackToMenu={handleBackToMenu}
-        onBackToModeSelect={handleBackToModeSelect}
-      />
     );
   }
 
@@ -334,8 +311,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
 
   return (
     <SurvivalStageSelect
+      embedded
       onStageSelect={handleFreePlaySelect}
-      onBackToMenu={handleBackToModeSelect}
+      onBackToMenu={handleBackToMenu}
     />
   );
 };

@@ -88,13 +88,15 @@ interface SurvivalStageModeProps {
     character?: SurvivalCharacter,
   ) => void;
   onBackToMenu: () => void;
-  onBackToModeSelect: () => void;
+  onBackToModeSelect?: () => void;
+  embedded?: boolean;
 }
 
 const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   onStageSelect,
   onBackToMenu,
   onBackToModeSelect,
+  embedded,
 }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -216,7 +218,10 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
+      <div className={cn(
+        'flex items-center justify-center',
+        embedded ? 'py-16' : 'min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black fantasy-game-screen'
+      )}>
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4" />
           <p className="text-lg">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</p>
@@ -226,31 +231,32 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
-      {/* ヘッダー */}
-      <div className="relative z-10 p-4 sm:p-6 text-white">
-        <div className="flex justify-between items-center">
-          <div>
-            <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider flex items-center gap-3">
-              <FaTrophy className="text-yellow-400" />
-              <span>STAGE MODE</span>
-            </h1>
-            <p className="text-gray-400 text-sm sm:text-base font-sans">
-              {isEnglishCopy
-                ? 'Survive 5 minutes to clear! Complete all 105 stages!'
-                : '5分間生存でクリア！全105ステージを制覇せよ！'}
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={onBackToModeSelect}
-              className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base font-sans"
-            >
-              {isEnglishCopy ? 'Back' : '戻る'}
-            </button>
+    <div className={cn(embedded ? '' : 'min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen')}>
+      {!embedded && (
+        <div className="relative z-10 p-4 sm:p-6 text-white">
+          <div className="flex justify-between items-center">
+            <div>
+              <h1 className="text-3xl sm:text-4xl font-bold mb-2 font-sans tracking-wider flex items-center gap-3">
+                <FaTrophy className="text-yellow-400" />
+                <span>STAGE MODE</span>
+              </h1>
+              <p className="text-gray-400 text-sm sm:text-base font-sans">
+                {isEnglishCopy
+                  ? 'Survive 5 minutes to clear! Complete all 105 stages!'
+                  : '5分間生存でクリア！全105ステージを制覇せよ！'}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={onBackToModeSelect}
+                className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base font-sans"
+              >
+                {isEnglishCopy ? 'Back' : '戻る'}
+              </button>
+            </div>
           </div>
         </div>
-      </div>
+      )}
 
       <div className="px-4 sm:px-6 pb-6">
         <div className="max-w-2xl mx-auto space-y-4">
