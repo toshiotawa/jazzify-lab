@@ -8,9 +8,9 @@ export interface UserStats {
   survivalBestDifficulty: string | null;
 }
 
-// キャッシュ用の変数
 let statsCache: { [userId: string]: { data: UserStats; timestamp: number } } = {};
 const CACHE_DURATION = 5 * 60 * 1000; // 5分
+const inflightRequests: { [userId: string]: Promise<UserStats> } = {};
 
 /**
  * ユーザーの統計情報を取得
@@ -21,12 +21,27 @@ export async function fetchUserStats(userId?: string): Promise<UserStats> {
   if (!uid && !userId) throw new Error('ログインが必要です');
   const targetUserId = userId || (uid as string);
 
-  // キャッシュチェック
   const cached = statsCache[targetUserId];
   if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
     return cached.data;
   }
 
+  if (inflightRequests[targetUserId]) {
+    return inflightRequests[targetUserId];
+  }
+
+  const request = fetchUserStatsInternal(supabase, targetUserId);
+  inflightRequests[targetUserId] = request;
+
+  try {
+    const result = await request;
+    return result;
+  } finally {
+    delete inflightRequests[targetUserId];
+  }
+}
+
+async function fetchUserStatsInternal(supabase: ReturnType<typeof getSupabaseClient>, targetUserId: string): Promise<UserStats> {
   try {
     // ミッション、レッスン、デイリーチャレンジ、サバイバルの統計を並行取得
     const [missionResult, lessonResult, dailyChallengeResult, survivalResult] = await Promise.all([

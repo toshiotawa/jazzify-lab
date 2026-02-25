@@ -34,6 +34,10 @@ export const useUserStatsStore = create<UserStatsState & UserStatsActions>()(
         return;
       }
 
+      const { loading, lastFetched } = get();
+      if (loading) return;
+      if (lastFetched && Date.now() - lastFetched < 30_000) return;
+
       set(state => {
         state.loading = true;
         state.error = null;

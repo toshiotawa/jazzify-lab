@@ -88,13 +88,6 @@ const Dashboard: React.FC = () => {
     }
   }, [open, isGuest]);
 
-  // ゲストからログインへ切り替わったらデータをリロード
-  useEffect(() => {
-    if (!isGuest && open) {
-      loadDashboardData();
-    }
-  }, [isGuest, open]);
-
     const loadDashboardData = async () => {
     setLoading(true);
     
