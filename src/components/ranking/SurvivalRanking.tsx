@@ -221,7 +221,7 @@ const SurvivalRanking: React.FC = () => {
             <FaArrowLeft className="text-sm" />
           </button>
           <h2 className="text-lg font-bold">
-            {isEnglishCopy ? 'Survival Ranking' : 'サバイバルランキング'}
+            {isEnglishCopy ? 'Free Play Ranking' : 'フリープレイランキング'}
           </h2>
         </div>
 

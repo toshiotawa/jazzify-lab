@@ -316,7 +316,7 @@ const LevelRanking: React.FC = () => {
                 onClick={() => { window.location.hash = '#survival-ranking'; }}
                 className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-800 text-white hover:bg-red-700"
               >
-                Survival →
+                Free Play →
               </button>
               <button
                 onClick={() => { window.location.hash = '#daily-challenge-ranking'; }}
