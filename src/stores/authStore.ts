@@ -289,8 +289,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       });
 
       if (session?.user) {
-        await get().fetchProfile();
-
         // Realtime: 自分の profiles 行が更新されたら即時反映
         try {
           const supabase = getSupabaseClient();
@@ -299,7 +297,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
             'postgres_changes',
             { event: 'UPDATE', schema: 'public', table: 'profiles', filter: `id=eq.${session.user.id}` },
             (_payload) => {
-              // キャッシュキーを無効化して最新を取得
               clearCacheByKey(`profile:${session.user.id}`);
               get().fetchProfile({ forceRefresh: true }).catch(() => {});
             },
