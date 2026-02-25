@@ -8,11 +8,11 @@ interface LegalEntry {
 }
 
 const legalEntries: LegalEntry[] = [
-  { label: '事業者', value: '永吉俊雄' },
+  { label: '事業者', value: '合同会社Kindwords' },
   { label: '販売責任者', value: '永吉俊雄' },
   {
     label: '所在地',
-    value: '東京都中野区沼袋2丁目15-15 Arte哲学堂107',
+    value: '東京都板橋区南常盤台1丁目11-6',
   },
   {
     label: '連絡先',
@@ -42,8 +42,8 @@ const legalEntries: LegalEntry[] = [
       <ul className="space-y-1 list-disc pl-5">
         <li>スタンダードプラン: 2,980円（税込）</li>
         <li>プレミアムプラン: 8,980円（税込）</li>
-        <li>プラチナプラン: 12,800円（税込）</li>
-        <li>ゴールドプラン: 19,800円（税込）</li>
+        <li>プラチナプラン: 14,800円（税込）</li>
+        <li>ブラックプラン: 19,800円（税込）</li>
       </ul>
     ),
   },

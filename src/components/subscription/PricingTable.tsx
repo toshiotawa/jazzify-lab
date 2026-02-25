@@ -106,7 +106,7 @@ const FEATURES: FeatureRow[] = [
   },
   {
     label: 'レッスンブロックの\n手動解放',
-    values: { free: '×', standard: '×', premium: '無制限', platinum: '月10ブロック', black: '月10ブロック' },
+    values: { free: '×', standard: '×', premium: '×', platinum: '月10ブロック', black: '月10ブロック' },
   },
   {
     label: 'LINEでの課題添削',

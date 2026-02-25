@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef } from 'react';
 import { Helmet } from 'react-helmet-async';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -44,9 +44,8 @@ const TypewriterText: React.FC<{
 };
 
 const LandingPage: React.FC = () => {
-  const { enterGuestMode, profile } = useAuthStore();
+  const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const navigate = useNavigate();
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const isEnglishLanding = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
@@ -82,11 +81,6 @@ const LandingPage: React.FC = () => {
     setOpenFaqId(prev => (prev === id ? null : id));
   };
 
-  const handleGuestClick = () => {
-    enterGuestMode();
-    navigate('/main#dashboard');
-  };
-
   const navLinks = useMemo(
     () => (
       isEnglishLanding
@@ -103,7 +97,6 @@ const LandingPage: React.FC = () => {
   const heroTitleText = isEnglishLanding ? 'Turn practice into an adventure.' : '練習を冒険に。';
   const heroSubtitleText = isEnglishLanding ? 'Transform your playing with an RPG-inspired jazz journey.' : 'ゲーム感覚で、ジャズが弾けるようになる。';
   const primaryCtaLabel = isEnglishLanding ? 'Start Free Trial' : '無料トライアルを始める';
-  const guestCtaLabel = isEnglishLanding ? 'Play Demo' : 'おためしプレイ';
   const heroCtaAria = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
   const helmetDescription = isEnglishLanding
     ? 'Start your jazz adventure in a fantasy realm. Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
@@ -157,9 +150,6 @@ const LandingPage: React.FC = () => {
               )}
 
               <div className="flex items-center gap-2 sm:gap-3">
-                <button onClick={handleGuestClick} className="hidden sm:inline-flex px-4 py-2 rounded-full bg-slate-800 hover:bg-slate-700 transition text-sm font-semibold">
-                  {guestCtaLabel}
-                </button>
                 <Link to="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs sm:text-sm font-bold whitespace-nowrap">
                   {isEnglishLanding ? 'Sign In / Sign Up' : 'ログイン/無料トライアル'}
                 </Link>
@@ -304,8 +294,8 @@ const LandingPage: React.FC = () => {
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
                   <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold text-purple-300 mb-2">コード進行を暗記</h3>
-                <p className="text-gray-400">ゲーム感覚で、ジャズの定番コード進行が自然と身につく</p>
+                <h3 className="text-xl font-bold text-purple-300 mb-2">ジャズの響きを手に覚えこませる</h3>
+                <p className="text-gray-400">ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
               </div>
               <div className="text-center p-6">
                 <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
@@ -337,28 +327,43 @@ const LandingPage: React.FC = () => {
             </h2>
 
             <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
-              <div className="feature-card rounded-2xl p-8 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-14 h-14 object-contain" loading="lazy" />
+              <div className="feature-card rounded-2xl overflow-hidden text-center">
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
                 </div>
-                <h3 className="text-2xl font-bold text-yellow-300 mb-3">レジェンドモード</h3>
-                <p className="text-gray-300">巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
+                <div className="p-6">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-12 h-12 object-contain" loading="lazy" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-yellow-300 mb-3">レジェンドモード</h3>
+                  <p className="text-gray-300">巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
+                </div>
               </div>
 
-              <div className="feature-card rounded-2xl p-8 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/monster_icons/monster_35.png" alt="ファンタジーモード" className="w-14 h-14 object-contain" loading="lazy" />
+              <div className="feature-card rounded-2xl overflow-hidden text-center">
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
                 </div>
-                <h3 className="text-2xl font-bold text-purple-300 mb-3">ファンタジーモード</h3>
-                <p className="text-gray-300">RPG風バトルで、コード進行をゲーム感覚でマスター</p>
+                <div className="p-6">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/monster_icons/monster_35.png" alt="ファンタジーモード" className="w-12 h-12 object-contain" loading="lazy" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-purple-300 mb-3">ファンタジーモード</h3>
+                  <p className="text-gray-300">RPG風バトルで、コード進行をゲーム感覚でマスター</p>
+                </div>
               </div>
 
-              <div className="feature-card rounded-2xl p-8 text-center">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
-                  <img src="/stage_icons/3.png" alt="レッスンモード" className="w-14 h-14 object-contain" loading="lazy" />
+              <div className="feature-card rounded-2xl overflow-hidden text-center">
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
+                  画像（準備中）
                 </div>
-                <h3 className="text-2xl font-bold text-blue-300 mb-3">レッスンモード</h3>
-                <p className="text-gray-300">動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
+                <div className="p-6">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                    <img src="/stage_icons/3.png" alt="レッスンモード" className="w-12 h-12 object-contain" loading="lazy" />
+                  </div>
+                  <h3 className="text-2xl font-bold text-blue-300 mb-3">レッスンモード</h3>
+                  <p className="text-gray-300">動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
+                </div>
               </div>
             </div>
           </div>
@@ -416,7 +421,7 @@ const LandingPage: React.FC = () => {
                     { label: 'レジェンド', values: ['×', '5曲', '無制限', '無制限', '無制限'] },
                     { label: 'サバイバル', values: ['×', '1キャラ', '無制限', '無制限', '無制限'] },
                     { label: 'レッスン', values: ['×', '1コースのみ', '無制限', '無制限', '無制限'] },
-                    { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '無制限', '月10ブロック', '月10ブロック'] },
+                    { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '×', '月10ブロック', '月10ブロック'] },
                     { label: 'LINEでの課題添削', values: ['×', '×', '×', '×', '○'] },
                   ] as { label: string; values: string[] }[]).map((row, idx) => (
                     <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-800/20'}>
@@ -506,7 +511,7 @@ const LandingPage: React.FC = () => {
               {finalHeadingText}
             </h2>
             <p className="text-gray-300 mb-8">{finalDescriptionText}</p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-3 sm:gap-4">
+            <div className="flex items-center justify-center">
               <Link
                 to="/signup"
                 aria-label={heroCtaAria}
@@ -514,12 +519,6 @@ const LandingPage: React.FC = () => {
               >
                 {primaryCtaLabel}
               </Link>
-              <button
-                onClick={handleGuestClick}
-                className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-slate-800 hover:bg-slate-700 transition font-semibold text-sm sm:text-base"
-              >
-                {guestCtaLabel}
-              </button>
             </div>
           </div>
         </section>
