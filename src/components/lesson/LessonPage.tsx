@@ -296,6 +296,7 @@ const LessonPage: React.FC = () => {
         return accessResult.canAccess;
       });
       if (firstAccessibleCourse) {
+        shouldScrollToIncomplete.current = true;
         setSelectedCourse(firstAccessibleCourse);
       }
     } catch (e: any) {
