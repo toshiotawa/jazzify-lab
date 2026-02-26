@@ -115,7 +115,7 @@ export async function filterNotesByMeasureRange(
   const rangeEndTime = endInfo.endTime;
 
   const filtered = notes.filter(
-    (n) => n.time >= rangeStartTime && n.time < rangeEndTime + 0.01
+    (n) => n.time >= rangeStartTime && n.time < rangeEndTime
   );
 
   let audioStartTime = rangeStartTime;
