@@ -272,6 +272,7 @@ export interface FantasyGameState {
   combinedSections: CombinedSection[]; // 各子ステージのセクション情報
   currentSectionIndex: number; // 現在のセクションインデックス
   combinedFullLoopCount: number; // 全セクション通しのループ回数（移調用）
+  combo: number;
 }
 
 interface FantasyGameEngineProps {
@@ -844,6 +845,7 @@ export const useFantasyGameEngine = ({
     combinedSections: [],
     currentSectionIndex: 0,
     combinedFullLoopCount: 0,
+    combo: 0,
   });
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
@@ -1000,6 +1002,7 @@ export const useFantasyGameEngine = ({
             playerSp: newSp,
             enemiesDefeated: newEnemiesDefeated,
             correctAnswers: prevState.correctAnswers + 1,
+            combo: prevState.combo + 1,
             currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
             awaitingLoopStart: false,
             lastNormalizedTime: currentTime,
@@ -1015,6 +1018,7 @@ export const useFantasyGameEngine = ({
           playerSp: newSp,
           currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
           correctAnswers: prevState.correctAnswers + 1,
+          combo: prevState.combo + 1,
           score: prevState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           awaitingLoopStart: isLastInSection,
@@ -1029,6 +1033,7 @@ export const useFantasyGameEngine = ({
         playerSp: newSp,
         currentNoteIndex: isLastInSection ? currentIndex : nextIndex,
         correctAnswers: prevState.correctAnswers + 1,
+        combo: prevState.combo + 1,
         score: prevState.score + 100 * actualDamage,
         awaitingLoopStart: isLastInSection,
         lastNormalizedTime: currentTime,
@@ -1422,6 +1427,7 @@ export const useFantasyGameEngine = ({
             playerSp: newSp,
             enemiesDefeated: newEnemiesDefeated,
             correctAnswers: workingState.correctAnswers + 1,
+            combo: workingState.combo + 1,
             currentNoteIndex: nextIndexByChosen,
             taikoNotes: updatedTaikoNotes,
             awaitingLoopStart: false,
@@ -1440,6 +1446,7 @@ export const useFantasyGameEngine = ({
           currentNoteIndex: isLastNoteByChosen ? workingState.currentNoteIndex : nextIndexByChosen,
           taikoNotes: updatedTaikoNotes,
           correctAnswers: workingState.correctAnswers + 1,
+          combo: workingState.combo + 1,
           score: workingState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
           awaitingLoopStart: isLastNoteByChosen ? true : false,
@@ -1456,6 +1463,7 @@ export const useFantasyGameEngine = ({
           playerSp: newSp,
           taikoNotes: updatedTaikoNotes,
           correctAnswers: workingState.correctAnswers + 1,
+          combo: workingState.combo + 1,
           score: workingState.score + 100 * actualDamage,
           awaitingLoopStart: true,
           preHitNoteIndices: updatedPreHitIndices,
@@ -1470,6 +1478,7 @@ export const useFantasyGameEngine = ({
         currentNoteIndex: nextIndexByChosen,
         taikoNotes: updatedTaikoNotes,
         correctAnswers: workingState.correctAnswers + 1,
+        combo: workingState.combo + 1,
         score: workingState.score + 100 * actualDamage,
         awaitingLoopStart: false,
         preHitNoteIndices: (isPreHit || wasAwaitingLoop) ? updatedPreHitIndices : workingState.preHitNoteIndices,
@@ -1965,6 +1974,7 @@ export const useFantasyGameEngine = ({
       combinedSections,
       currentSectionIndex: 0,
       combinedFullLoopCount: 0,
+      combo: 0,
     };
 
     combiningSync.sectionIndex = 0;
@@ -2102,7 +2112,8 @@ export const useFantasyGameEngine = ({
           isGameActive: false,
           isGameOver: true,
           gameResult: 'gameover' as const,
-          isCompleting: true // 追加
+          isCompleting: true,
+          combo: 0,
         };
         
         // ゲームオーバーコールバックを安全に呼び出し
@@ -2153,9 +2164,10 @@ export const useFantasyGameEngine = ({
               const nextState = {
                 ...prevState,
                 playerHp: newHp,
-                playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
+                playerSp: 0,
                 enemyGauge: 0,
-                activeMonsters: updatedMonsters
+                activeMonsters: updatedMonsters,
+                combo: 0,
               };
               
               onGameStateChange(nextState);
@@ -2179,12 +2191,13 @@ export const useFantasyGameEngine = ({
             const nextState = {
               ...prevState,
               playerHp: newHp,
-              playerSp: 0, // 敵から攻撃を受けたらSPゲージをリセット
+              playerSp: 0,
               currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
               currentChordTarget: nextChord,
               enemyGauge: 0,
-              correctNotes: [], // 新しいコードでリセット
-              activeMonsters: updatedMonsters
+              correctNotes: [],
+              activeMonsters: updatedMonsters,
+              combo: 0,
             };
             
             onGameStateChange(nextState);
@@ -2908,9 +2921,9 @@ export const useFantasyGameEngine = ({
               isGameOver: true,
               gameResult: 'gameover' as const,
               isCompleting: true,
-              lastNormalizedTime: normalizedTime
+              lastNormalizedTime: normalizedTime,
+              combo: 0,
             };
-            // ゲームオーバーコールバックを安全に呼び出し
             setTimeout(() => {
               try {
                 onGameComplete('gameover', finalState);
@@ -2921,10 +2934,8 @@ export const useFantasyGameEngine = ({
             return finalState;
           }
           
-          // 次のノーツへ進む。ただし末尾なら次ループ開始まで待機
           const nextIndex = currentNoteIndex + 1;
           if (nextIndex >= prevState.taikoNotes.length) {
-            // 末尾：次ループまで待つ（インデックスは進めない）
             const nextNote = prevState.taikoNotes[0];
             const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
             return {
@@ -2932,7 +2943,7 @@ export const useFantasyGameEngine = ({
               playerHp: newHp,
               playerSp: newSp,
               awaitingLoopStart: true,
-              // 視覚的なコード切り替えのみ行う
+              combo: 0,
               activeMonsters: prevState.activeMonsters.map(m => ({
                 ...m,
                 correctNotes: [],
@@ -2944,7 +2955,6 @@ export const useFantasyGameEngine = ({
             };
           }
           
-          // 末尾でなければ通常通り進行
           const nextNote = prevState.taikoNotes[nextIndex];
           const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
           return {
@@ -2952,6 +2962,7 @@ export const useFantasyGameEngine = ({
             playerHp: newHp,
             playerSp: newSp,
             currentNoteIndex: nextIndex,
+            combo: 0,
             activeMonsters: prevState.activeMonsters.map(m => ({
               ...m,
               correctNotes: [],
@@ -3110,6 +3121,7 @@ export const useFantasyGameEngine = ({
         stateAfterAttack.playerSp = isSpecialAttack ? 0 : Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
         stateAfterAttack.score += 1000 * completedMonsters.length;
         stateAfterAttack.correctAnswers += completedMonsters.length;
+        stateAfterAttack.combo += completedMonsters.length;
         
         // 倒されたモンスターを特定し、defeatedAtタイムスタンプを設定（HPバーが0になる演出のため）
         const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0 && !m.defeatedAt);

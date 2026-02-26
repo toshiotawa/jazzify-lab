@@ -16,6 +16,17 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { applyAudioOutputDevice } from '@/utils/audioOutput';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 
+const LegendComboDisplay: React.FC = () => {
+  const combo = useGameSelector((s) => s.score.combo);
+  if (combo < 2) return null;
+  return (
+    <div className="absolute top-3 right-3 z-20 pointer-events-none text-right">
+      <span className="text-3xl font-black text-yellow-300 drop-shadow-lg">{combo}</span>
+      <span className="block text-xs font-bold text-yellow-200 tracking-widest">COMBO</span>
+    </div>
+  );
+};
+
 const TOTAL_WHITE_KEYS = 52;
 const VISIBLE_WHITE_KEYS = 24;
 const MOBILE_SCROLL_BREAKPOINT = 1100;
@@ -1460,6 +1471,8 @@ useEffect(() => {
       >
         {/* GOOD / MISS オーバーレイ */}
         <ScoreOverlay className="absolute top-3 left-3 z-20 pointer-events-none" />
+        {/* コンボ表示（右上） */}
+        <LegendComboDisplay />
         {/* PIXI.js ノーツレンダラー（統合済み） */}
           {(() => (
             <div 
