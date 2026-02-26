@@ -679,7 +679,7 @@ export const spawnStageEnemy = (
 // ===== ステージモード専用スポーン設定 =====
 export const getStageSpawnConfig = (elapsedTime: number): { spawnRate: number; spawnCount: number } => {
   if (elapsedTime >= 60) {
-    return { spawnRate: 0.5, spawnCount: 5 };
+    return { spawnRate: 0.5, spawnCount: 15 };
   }
   return { spawnRate: 1.0, spawnCount: 3 };
 };
@@ -1500,7 +1500,8 @@ export const castMagic = (
   level: number,
   player: PlayerState,
   enemies: EnemyState[],
-  luckResult?: LuckResult  // 運の結果（任意）
+  luckResult?: LuckResult,
+  options?: { isStageMode?: boolean }
 ): { enemies: EnemyState[]; player: PlayerState; damageTexts: DamageText[]; luckResult?: LuckResult } => {
   const damageTexts: DamageText[] = [];
   let updatedPlayer = { ...player };
@@ -1515,8 +1516,10 @@ export const castMagic = (
   
   // TIME効果: 1ポイントにつき2秒延長
   // 運発動時はTIME2倍
+  // ステージモードのFireはTIME bonus除外（バランス調整）
   const baseDuration = 5 + (level - 1) * 5;  // 5/10/15秒
-  const timeBonus = player.stats.time * 2 * condMultipliers.timeMultiplier;  // 2秒/ポイント
+  const skipTimeBonus = options?.isStageMode && magicType === 'fire';
+  const timeBonus = skipTimeBonus ? 0 : player.stats.time * 2 * condMultipliers.timeMultiplier;
   const luckTimeMultiplier = luck.doubleTime ? 2 : 1;
   const totalDuration = (baseDuration + timeBonus) * luckTimeMultiplier;
   

@@ -1131,7 +1131,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 magicType as Parameters<typeof castMagic>[0],
                 level,
                 castPlayer,
-                castEnemies
+                castEnemies,
+                undefined,
+                { isStageMode }
               );
               
               newState.enemies = result.enemies;
@@ -1169,7 +1171,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 magicType as Parameters<typeof castMagic>[0],
                 level,
                 castPlayer,
-                castEnemies
+                castEnemies,
+                undefined,
+                { isStageMode }
               );
               
               newState.enemies = result.enemies;
@@ -1396,7 +1400,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               magicType as Parameters<typeof castMagic>[0],
               level,
               castPlayer,
-              castEnemies
+              castEnemies,
+              undefined,
+              { isStageMode }
             );
             
             newState.enemies = result.enemies;
@@ -1424,7 +1430,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               magicType as Parameters<typeof castMagic>[0],
               level,
               castPlayer,
-              castEnemies
+              castEnemies,
+              undefined,
+              { isStageMode }
             );
             
             newState.enemies = result.enemies;
@@ -1512,7 +1520,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               magicType as Parameters<typeof castMagic>[0],
               level,
               castPlayer,
-              castEnemies
+              castEnemies,
+              undefined,
+              { isStageMode }
             );
             
             newState.enemies = result.enemies;
@@ -1549,7 +1559,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             magicType as Parameters<typeof castMagic>[0],
             level,
             castPlayer,
-            castEnemies
+            castEnemies,
+            undefined,
+            { isStageMode }
           );
           
           newState.enemies = result.enemies;
@@ -1766,7 +1778,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           magicType as Parameters<typeof castMagic>[0],
           level,
           castPlayer,
-          castEnemies
+          castEnemies,
+          undefined,
+          { isStageMode }
         );
         
         newState.enemies = result.enemies;
@@ -1792,7 +1806,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           magicType as Parameters<typeof castMagic>[0],
           level,
           castPlayer,
-          castEnemies
+          castEnemies,
+          undefined,
+          { isStageMode }
         );
         
         newState.enemies = result.enemies;
