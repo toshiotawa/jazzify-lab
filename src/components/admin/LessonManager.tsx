@@ -23,7 +23,7 @@ import {
   LessonAttachment,
 } from '@/platform/supabaseLessonContent';
 
-type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number'>;
+type LessonFormData = Pick<Lesson, 'title' | 'description' | 'assignment_description' | 'order_index' | 'block_number' | 'block_name'>;
 
 type SongFormData = {
   song_id: string;
@@ -220,11 +220,12 @@ export const LessonManager: React.FC = () => {
       setValue('assignment_description', lesson.assignment_description || '');
       setValue('order_index', lesson.order_index);
       setValue('block_number', lesson.block_number || 1);
+      setValue('block_name', lesson.block_name || '');
       setEditNavLinks(lesson.nav_links || []);
     } else {
       setSelectedLesson(null);
       const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 0;
-      reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1 });
+      reset({ title: '', description: '', assignment_description: '', order_index: newOrder, block_number: 1, block_name: '' });
       setEditNavLinks([]);
     }
     dialogRef.current?.showModal();
@@ -286,6 +287,7 @@ export const LessonManager: React.FC = () => {
         assignment_description: formData.assignment_description,
         order_index: Number(formData.order_index) || 0,
         block_number: Number(formData.block_number) || 1,
+        block_name: formData.block_name || null,
         nav_links: editNavLinks,
       };
 
@@ -680,7 +682,7 @@ export const LessonManager: React.FC = () => {
                   </td>
                   <td className="font-medium">{lesson.title}</td>
                   <td>{lesson.lesson_songs?.length || 0}</td>
-                  <td>ブロック {lesson.block_number || 1}</td>
+                  <td>{lesson.block_name || `ブロック ${lesson.block_number || 1}`}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(lesson)}>編集</button>
                     <button className="btn btn-ghost btn-sm text-blue-500" onClick={() => openContentDialog(lesson)}>
@@ -992,8 +994,12 @@ export const LessonManager: React.FC = () => {
               <textarea {...register('assignment_description')} className="textarea textarea-bordered w-full" rows={3}></textarea>
             </div>
             <div>
-              <label className="label"><span className="label-text">ブロック</span></label>
+              <label className="label"><span className="label-text">ブロック番号</span></label>
               <input type="number" {...register('block_number')} className="input input-bordered w-full" />
+            </div>
+            <div>
+              <label className="label"><span className="label-text">ブロック名（例: 第1番）</span></label>
+              <input type="text" {...register('block_name')} className="input input-bordered w-full" placeholder="空欄時は「ブロック N」と表示" />
             </div>
             <div>
               <label className="label"><span className="label-text">ナビリンク（レッスン末尾に表示）</span></label>

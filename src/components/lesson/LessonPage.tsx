@@ -436,14 +436,18 @@ const LessonPage: React.FC = () => {
 
   const groupLessonsByBlock = (lessons: Lesson[]) => {
     const blocks: { [key: number]: Lesson[] } = {};
+    const blockNames: { [key: number]: string } = {};
     lessons.forEach(lesson => {
       const blockNumber = lesson.block_number || 1;
       if (!blocks[blockNumber]) {
         blocks[blockNumber] = [];
       }
       blocks[blockNumber].push(lesson);
+      if (lesson.block_name && !blockNames[blockNumber]) {
+        blockNames[blockNumber] = lesson.block_name;
+      }
     });
-    return blocks;
+    return { blocks, blockNames };
   };
 
   if (!open) return null;
@@ -655,7 +659,9 @@ const LessonPage: React.FC = () => {
                     
                     <div ref={lessonScrollRef} className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
                         <div className="space-y-6">
-                          {Object.entries(groupLessonsByBlock(lessons)).map(([blockNumber, blockLessons]) => {
+                          {(() => {
+                            const { blocks, blockNames } = groupLessonsByBlock(lessons);
+                            return Object.entries(blocks).map(([blockNumber, blockLessons]) => {
                             const blockNum = parseInt(blockNumber);
                             const blockState = lessonAccessGraph.blockStates[blockNum];
                             const isBlockUnlocked = blockState?.isUnlocked ?? false;
@@ -670,7 +676,7 @@ const LessonPage: React.FC = () => {
                               <div key={blockNum} className="bg-slate-800 rounded-lg p-4 relative">
                                 <div className="flex items-center justify-between mb-4">
                                   <h4 className="text-lg font-semibold text-white">
-                                    ブロック {blockNum}
+                                    {blockNames[blockNum] || `ブロック ${blockNum}`}
                                   </h4>
                                   <div className="flex items-center gap-3 text-sm">
                                     {isBlockCompleted ? (
@@ -775,7 +781,8 @@ const LessonPage: React.FC = () => {
                                 </div>
                               </div>
                             );
-                          })}
+                          });
+                          })()}
                         </div>
                     </div>
                   </>

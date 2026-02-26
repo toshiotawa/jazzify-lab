@@ -219,16 +219,19 @@ export function validateNavigation(
  */
 export function getLessonBlockInfo(lesson: Lesson): {
   blockNumber: number;
+  blockName: string;
   lessonNumber: number;
   displayText: string;
   lessonDisplayText: string;
 } {
   const blockNumber = lesson.block_number || 1;
+  const blockName = lesson.block_name || `ブロック ${blockNumber}`;
   const lessonNumber = (lesson.order_index ?? 0) + 1;
   return {
     blockNumber,
+    blockName,
     lessonNumber,
-    displayText: `ブロック ${blockNumber}`,
+    displayText: blockName,
     lessonDisplayText: `レッスン ${lessonNumber}`
   };
 } 

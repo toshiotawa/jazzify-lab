@@ -669,6 +669,7 @@ export interface Lesson {
   assignment_description?: string;
   order_index: number;
   block_number?: number;
+  block_name?: string | null;
   nav_links?: NavLinkKey[];
   created_at: string;
   updated_at: string;
