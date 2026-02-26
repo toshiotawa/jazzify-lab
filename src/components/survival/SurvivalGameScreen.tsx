@@ -62,9 +62,11 @@ import {
   MAX_ENEMIES,
   MAX_PROJECTILES,
   MAX_COINS,
+  spawnStageEnemy,
+  getStageSpawnConfig,
 } from './SurvivalGameEngine';
 import { WAVE_DURATION } from './SurvivalTypes';
-import { STAGE_TIME_LIMIT_SECONDS } from './SurvivalStageDefinitions';
+import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
 import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
@@ -214,6 +216,7 @@ interface SurvivalGameScreenProps {
   character?: SurvivalCharacter;
   stageDefinition?: import('./SurvivalStageDefinitions').StageDefinition;
   onLessonStageClear?: () => void;
+  hintMode?: boolean;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -225,6 +228,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   character,
   stageDefinition,
   onLessonStageClear,
+  hintMode = false,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -237,11 +241,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [isMidiInitialized, setIsMidiInitialized] = useState(false);
   const initPromiseRef = useRef<Promise<void> | null>(null);
   
+  const isStageMode = !!stageDefinition;
+
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
-    const initial = createInitialGameState(difficulty, config);
-    // キャラクター能力を適用
-    if (character) {
+    const initial = createInitialGameState(difficulty, config, isStageMode);
+    // ステージモード時: HINTモードなら永続ヒントエフェクト付与
+    if (isStageMode && hintMode) {
+      initial.player.statusEffects = [
+        ...initial.player.statusEffects,
+        { type: 'hint' as never, duration: 999999, startTime: Date.now(), level: 1 },
+      ];
+    }
+    // キャラクター能力を適用（ステージモードでは初期ステータスが既に強化済みなのでスキップ）
+    if (character && !isStageMode) {
       initial.player = applyCharacterToPlayerState(initial.player, character);
       // 魔法不可キャラの場合、C/Dスロットを永続無効化
       if (character.noMagic) {
@@ -886,9 +899,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ゲーム開始
   const startGame = useCallback(() => {
     setGameState(prev => {
-      // 現在のプレイヤーの魔法状態を確認
-      const hasMagic = Object.values(prev.player.magics).some(l => l > 0);
-      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic);
+      const hasMagic = isStageMode ? false : Object.values(prev.player.magics).some(l => l > 0);
+      const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode);
       
       return {
         ...prev,
@@ -899,7 +911,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords]);
+  }, [config.allowedChords, isStageMode]);
   
   // ゲーム開始（初回）
   useEffect(() => {
@@ -2043,35 +2055,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.enemies = newState.enemies.filter(e => e.stats.hp > 0);
         
         if (defeatedEnemies.length > 0) {
-          const isAutoCollect = character?.autoCollectExp ?? false;
-          
-          if (isAutoCollect) {
-            // 自動経験値取得: コインを生成せず直接経験値を付与
-            const expBonus = newState.player.skills.expBonusLevel;
-            let totalDirectExp = 0;
-            defeatedEnemies.forEach(enemy => {
-              totalDirectExp += calculateEnemyExpGain(enemy.isBoss, config.expMultiplier, expBonus);
-            });
-            if (totalDirectExp > 0) {
-              const levelBefore = newState.player.level;
-              const { player: expPlayer, leveledUp: directLevelUp, levelUpCount: directLevelUpCount } = addExp(newState.player, totalDirectExp);
-              newState.player = expPlayer;
-              // 自動取得分のレベルアップをautoCollectLevelUpに蓄積
-              if (directLevelUp) {
-                autoCollectLeveledUp = true;
-                autoCollectLevelUpCount += directLevelUpCount;
-                autoCollectOldLevel = Math.min(autoCollectOldLevel, levelBefore);
-              }
-            }
+          if (isStageMode) {
+            // ステージモード: コインもEXPも無し（レベルアップなし）
           } else {
-            // コインをスポーン（上限チェック付き）
-            defeatedEnemies.forEach(enemy => {
-              if (newState.coins.length < MAX_COINS) {
-                const coins = createCoinsFromEnemy(enemy, config.expMultiplier, newState.player.skills.expBonusLevel);
-                const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
-                newState.coins = [...newState.coins, ...allowedCoins];
+            const isAutoCollect = character?.autoCollectExp ?? false;
+            
+            if (isAutoCollect) {
+              const expBonus = newState.player.skills.expBonusLevel;
+              let totalDirectExp = 0;
+              defeatedEnemies.forEach(enemy => {
+                totalDirectExp += calculateEnemyExpGain(enemy.isBoss, config.expMultiplier, expBonus);
+              });
+              if (totalDirectExp > 0) {
+                const levelBefore = newState.player.level;
+                const { player: expPlayer, leveledUp: directLevelUp, levelUpCount: directLevelUpCount } = addExp(newState.player, totalDirectExp);
+                newState.player = expPlayer;
+                if (directLevelUp) {
+                  autoCollectLeveledUp = true;
+                  autoCollectLevelUpCount += directLevelUpCount;
+                  autoCollectOldLevel = Math.min(autoCollectOldLevel, levelBefore);
+                }
               }
-            });
+            } else {
+              defeatedEnemies.forEach(enemy => {
+                if (newState.coins.length < MAX_COINS) {
+                  const coins = createCoinsFromEnemy(enemy, config.expMultiplier, newState.player.skills.expBonusLevel);
+                  const allowedCoins = coins.slice(0, MAX_COINS - newState.coins.length);
+                  newState.coins = [...newState.coins, ...allowedCoins];
+                }
+              });
+            }
           }
           newState.enemiesDefeated += defeatedEnemies.length;
           
@@ -2244,29 +2257,51 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.coins = cleanupExpiredCoins(newState.coins);
         
         // 敵スポーン（上限チェック付き）
-        const effectiveSpawnRate = Math.max(1.5, config.enemySpawnRate);
-        const baseSpawnCount = config.enemySpawnCount;
-        const effectiveSpawnCount = calculateWaveSpawnCount(baseSpawnCount, newState.wave.currentWave);
-        
-        const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
-        if (isFirstSpawn) {
-          spawnTimerRef.current = effectiveSpawnRate;
+        if (isStageMode) {
+          const stageSpawn = getStageSpawnConfig(newState.elapsedTime);
+          const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
+          if (isFirstSpawn) {
+            spawnTimerRef.current = stageSpawn.spawnRate;
+          } else {
+            spawnTimerRef.current += deltaTime;
+          }
+          if (spawnTimerRef.current >= stageSpawn.spawnRate && newState.enemies.length < MAX_ENEMIES) {
+            spawnTimerRef.current = 0;
+            const spawnCount = Math.min(stageSpawn.spawnCount, MAX_ENEMIES - newState.enemies.length);
+            for (let i = 0; i < spawnCount; i++) {
+              const newEnemy = spawnStageEnemy(
+                newState.player.x,
+                newState.player.y,
+                newState.elapsedTime,
+              );
+              newState.enemies.push(newEnemy);
+            }
+          }
         } else {
-          spawnTimerRef.current += deltaTime;
-        }
-        if (spawnTimerRef.current >= effectiveSpawnRate && newState.enemies.length < MAX_ENEMIES) {
-          spawnTimerRef.current = 0;
-          const spawnCount = Math.min(effectiveSpawnCount, MAX_ENEMIES - newState.enemies.length);
-          for (let i = 0; i < spawnCount; i++) {
-            const newEnemy = spawnEnemy(
-              newState.player.x,
-              newState.player.y,
-              newState.elapsedTime,
-              config,
-              newState.wave.currentWave,
-              isFirstSpawn && i === 0
-            );
-            newState.enemies.push(newEnemy);
+          const effectiveSpawnRate = Math.max(1.5, config.enemySpawnRate);
+          const baseSpawnCount = config.enemySpawnCount;
+          const effectiveSpawnCount = calculateWaveSpawnCount(baseSpawnCount, newState.wave.currentWave);
+          
+          const isFirstSpawn = newState.enemies.length === 0 && newState.enemiesDefeated === 0;
+          if (isFirstSpawn) {
+            spawnTimerRef.current = effectiveSpawnRate;
+          } else {
+            spawnTimerRef.current += deltaTime;
+          }
+          if (spawnTimerRef.current >= effectiveSpawnRate && newState.enemies.length < MAX_ENEMIES) {
+            spawnTimerRef.current = 0;
+            const spawnCount = Math.min(effectiveSpawnCount, MAX_ENEMIES - newState.enemies.length);
+            for (let i = 0; i < spawnCount; i++) {
+              const newEnemy = spawnEnemy(
+                newState.player.x,
+                newState.player.y,
+                newState.elapsedTime,
+                config,
+                newState.wave.currentWave,
+                isFirstSpawn && i === 0
+              );
+              newState.enemies.push(newEnemy);
+            }
           }
         }
         
@@ -2390,26 +2425,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           d => now - d.startTime < d.duration
         );
         
-        // WAVEチェック
-        const waveElapsedTime = newState.elapsedTime - newState.wave.waveStartTime;
-        
-        // WAVEノルマ達成マーク（ノルマ達成しても1分経つまでは同じWAVEに留まる）
-        if (newState.wave.waveKills >= newState.wave.waveQuota && !newState.wave.waveCompleted) {
-          newState.wave = {
-            ...newState.wave,
-            waveCompleted: true,
-          };
-        }
-        
-        // 1分経過後にWAVE進行チェック
-        if (waveElapsedTime >= WAVE_DURATION) {
-          // ノルマ未達成でゲームオーバー
-          if (!newState.wave.waveCompleted) {
+        if (isStageMode) {
+          // ステージモード: 90秒生存 + 撃破ノルマ10体
+          if (newState.wave.waveKills >= STAGE_KILL_QUOTA && !newState.wave.waveCompleted) {
+            newState.wave = { ...newState.wave, waveCompleted: true };
+          }
+
+          if (newState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS && !newState.isGameOver) {
             newState.isGameOver = true;
             newState.isPlaying = false;
-            newState.wave.waveFailedReason = 'quota_failed';
-            
             const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+            const cleared = newState.enemiesDefeated >= STAGE_KILL_QUOTA;
             setResult({
               survivalTime: newState.elapsedTime,
               finalLevel: newState.player.level,
@@ -2418,42 +2444,54 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               skills: newState.player.skills,
               magics: newState.player.magics,
               earnedXp,
+              isStageClear: cleared,
+              isHintMode: hintMode,
             });
+            if (cleared && !hintMode && onLessonStageClear) {
+              onLessonStageClear();
+            }
+            if (!cleared) {
+              newState.wave.waveFailedReason = 'quota_failed';
+            }
             return newState;
           }
+        } else {
+          // フリープレイ: WAVEチェック
+          const waveElapsedTime = newState.elapsedTime - newState.wave.waveStartTime;
           
-          // ノルマ達成済み：次のWAVEへ
-          const nextWave = newState.wave.currentWave + 1;
-          newState.wave = {
-            currentWave: nextWave,
-            waveStartTime: newState.elapsedTime,
-            waveKills: 0,
-            waveQuota: calculateWaveQuota(nextWave),
-            waveDuration: WAVE_DURATION,
-            waveCompleted: false,
-          };
-        }
-        
-        // ステージモード: 5分間生存でクリア
-        if (stageDefinition && newState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS && !newState.isGameOver) {
-          newState.isGameOver = true;
-          newState.isPlaying = false;
-          
-          const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
-          setResult({
-            survivalTime: newState.elapsedTime,
-            finalLevel: newState.player.level,
-            enemiesDefeated: newState.enemiesDefeated,
-            playerStats: newState.player.stats,
-            skills: newState.player.skills,
-            magics: newState.player.magics,
-            earnedXp,
-            isStageClear: true,
-          });
-          if (onLessonStageClear) {
-            onLessonStageClear();
+          if (newState.wave.waveKills >= newState.wave.waveQuota && !newState.wave.waveCompleted) {
+            newState.wave = { ...newState.wave, waveCompleted: true };
           }
-          return newState;
+          
+          if (waveElapsedTime >= WAVE_DURATION) {
+            if (!newState.wave.waveCompleted) {
+              newState.isGameOver = true;
+              newState.isPlaying = false;
+              newState.wave.waveFailedReason = 'quota_failed';
+              
+              const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
+              setResult({
+                survivalTime: newState.elapsedTime,
+                finalLevel: newState.player.level,
+                enemiesDefeated: newState.enemiesDefeated,
+                playerStats: newState.player.stats,
+                skills: newState.player.skills,
+                magics: newState.player.magics,
+                earnedXp,
+              });
+              return newState;
+            }
+            
+            const nextWave = newState.wave.currentWave + 1;
+            newState.wave = {
+              currentWave: nextWave,
+              waveStartTime: newState.elapsedTime,
+              waveKills: 0,
+              waveQuota: calculateWaveQuota(nextWave),
+              waveDuration: WAVE_DURATION,
+              waveCompleted: false,
+            };
+          }
         }
 
         // HPゲームオーバー判定
@@ -2503,9 +2541,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setLightningEffects([]);
     setSkillNotifications([]);
     setLevelUpCorrectNotes(emptyCorrectNotes());
-    const initial = createInitialGameState(difficulty, config);
-    // キャラクター能力を再適用
-    if (character) {
+    const initial = createInitialGameState(difficulty, config, isStageMode);
+    // ステージモード: HINTモードなら永続ヒントエフェクト付与
+    if (isStageMode && hintMode) {
+      initial.player.statusEffects = [
+        ...initial.player.statusEffects,
+        { type: 'hint' as never, duration: 999999, startTime: Date.now(), level: 1 },
+      ];
+    }
+    // キャラクター能力を再適用（ステージモードではスキップ）
+    if (character && !isStageMode) {
       initial.player = applyCharacterToPlayerState(initial.player, character);
       if (character.noMagic) {
         initial.codeSlots.current[2].isEnabled = false;
@@ -2896,26 +2941,47 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
           <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
             <div className="flex flex-col gap-0.5">
-              <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
-                <div
-                  className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
-                  style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
-                />
-              </div>
+              {!isStageMode && (
+                <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
+                    style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
+                  />
+                </div>
+              )}
               <div className="flex justify-between items-center gap-1 flex-nowrap">
                 <div className="flex items-center gap-1 md:gap-2 text-white font-sans text-[10px] md:text-sm min-w-0">
-                  <span className="bg-yellow-600/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0">W{gameState.wave.currentWave}</span>
-                  <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
-                  <span className="shrink-0">Lv.{gameState.player.level}</span>
+                  {!isStageMode && (
+                    <span className="bg-yellow-600/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0">W{gameState.wave.currentWave}</span>
+                  )}
+                  {isStageMode ? (
+                    <span className={cn('font-bold shrink-0', Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime) < 30 ? 'text-red-400' : 'text-white')}>
+                      {formatTime(Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime))}
+                    </span>
+                  ) : (
+                    <span className="font-bold shrink-0">{formatTime(gameState.elapsedTime)}</span>
+                  )}
+                  {!isStageMode && <span className="shrink-0">Lv.{gameState.player.level}</span>}
+                  {isStageMode && hintMode && (
+                    <span className="bg-yellow-500/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0 text-[9px]">HINT</span>
+                  )}
                 </div>
                 <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0">
-                  <span className={cn('font-bold', gameState.wave.waveKills >= gameState.wave.waveQuota ? 'text-green-400' : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7 ? 'text-red-400' : 'text-white')}>
-                    {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
-                  </span>
-                  <span className="text-gray-400">/</span>
-                  <span className={cn('font-bold', (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 ? 'text-red-400' : 'text-white')}>
-                    {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
-                  </span>
+                  {isStageMode ? (
+                    <span className={cn('font-bold', gameState.enemiesDefeated >= STAGE_KILL_QUOTA ? 'text-green-400' : 'text-white')}>
+                      {gameState.enemiesDefeated}/{STAGE_KILL_QUOTA}
+                    </span>
+                  ) : (
+                    <>
+                      <span className={cn('font-bold', gameState.wave.waveKills >= gameState.wave.waveQuota ? 'text-green-400' : (gameState.elapsedTime - gameState.wave.waveStartTime) > WAVE_DURATION * 0.7 ? 'text-red-400' : 'text-white')}>
+                        {Math.max(0, gameState.wave.waveQuota - gameState.wave.waveKills)}
+                      </span>
+                      <span className="text-gray-400">/</span>
+                      <span className={cn('font-bold', (WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)) < 30 ? 'text-red-400' : 'text-white')}>
+                        {formatTime(Math.max(0, WAVE_DURATION - (gameState.elapsedTime - gameState.wave.waveStartTime)))}
+                      </span>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
                   <span className="text-[10px]">❤️</span>
@@ -3113,6 +3179,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           hasMagic={Object.values(gameState.player.magics).some(l => l > 0)}
           isAMagicSlot={isAMagicSlot}
           isBMagicSlot={isBMagicSlot}
+          isStageMode={isStageMode}
         />
       </div>
       
@@ -3169,8 +3236,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         })()}
       </div>
       
-      {/* レベルアップ画面 */}
-      {gameState.isLevelingUp && (
+      {/* レベルアップ画面（ステージモードでは非表示） */}
+      {!isStageMode && gameState.isLevelingUp && (
         <SurvivalLevelUp
           options={gameState.levelUpOptions}
           onSelect={handleLevelUpBonusSelect}
@@ -3195,6 +3262,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           waveFailedReason={gameState.wave.waveFailedReason}
           finalWave={gameState.wave.currentWave}
           stageDefinition={stageDefinition}
+          hintMode={hintMode}
         />
       )}
       

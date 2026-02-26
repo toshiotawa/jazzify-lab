@@ -390,7 +390,8 @@ export interface SurvivalGameResult {
   skills: SpecialSkills;     // 取得スキル
   magics: AcquiredMagics;    // 取得魔法
   earnedXp: number;          // 獲得経験値
-  isStageClear?: boolean;    // ステージモード: 5分生存クリア
+  isStageClear?: boolean;    // ステージモード: 生存クリア
+  isHintMode?: boolean;      // HINTモードでプレイしたか（trueならクリア記録に反映しない）
 }
 
 // ===== キャラクターレベル10ボーナス定義 =====

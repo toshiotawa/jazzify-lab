@@ -114,7 +114,8 @@ function generateAllStages(): StageDefinition[] {
 
 export const ALL_STAGES: StageDefinition[] = generateAllStages();
 export const TOTAL_STAGES = ALL_STAGES.length;
-export const STAGE_TIME_LIMIT_SECONDS = 300;
+export const STAGE_TIME_LIMIT_SECONDS = 90;
+export const STAGE_KILL_QUOTA = 10;
 
 export function getStageByNumber(stageNumber: number): StageDefinition | undefined {
   return ALL_STAGES.find(s => s.stageNumber === stageNumber);

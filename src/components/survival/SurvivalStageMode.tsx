@@ -86,6 +86,7 @@ interface SurvivalStageModeProps {
     config: DifficultyConfig,
     stageDefinition: StageDefinition,
     character?: SurvivalCharacter,
+    hintMode?: boolean,
   ) => void;
   onBackToMenu: () => void;
   onBackToModeSelect?: () => void;
@@ -111,6 +112,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   const [selectedStageNumber, setSelectedStageNumber] = useState(1);
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('');
   const [isPlanRestrictionModalOpen, setIsPlanRestrictionModalOpen] = useState(false);
+  const [hintMode, setHintMode] = useState(false);
 
   const isCharacterSelectable = useCallback((character: SurvivalCharacter): boolean => {
     if (!isDomesticStandard) return true;
@@ -198,11 +200,6 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
     if (!selectedStage) return;
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
 
-    if (selectedCharacter && !isCharacterSelectable(selectedCharacter)) {
-      setIsPlanRestrictionModalOpen(true);
-      return;
-    }
-
     try {
       await FantasySoundManager.unlock();
       await initializeAudioSystem();
@@ -214,7 +211,8 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
       allowedChords: selectedStage.allowedChords,
     };
 
-    onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, selectedCharacter);
+    const faiChar = characters.find(c => isFaiCharacter(c));
+    onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
   };
 
   const progressPercent = Math.round((clearedStages.size / TOTAL_STAGES) * 100);
@@ -379,52 +377,26 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
             </div>
           )}
 
-          {/* キャラクター選択 */}
-          <div className="bg-black/40 rounded-xl p-4 border border-purple-500/30">
-            <label className="block text-sm text-gray-300 font-sans mb-2">
-              {isEnglishCopy ? 'Select Character' : 'キャラクター選択'}
+          {/* HINTモード */}
+          <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/30">
+            <label className="flex items-center gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={hintMode}
+                onChange={(e) => setHintMode(e.target.checked)}
+                className="w-5 h-5 rounded border-gray-500 text-yellow-500 focus:ring-yellow-500 cursor-pointer"
+              />
+              <div>
+                <span className="text-sm font-bold text-yellow-300 font-sans">
+                  {isEnglishCopy ? 'HINT MODE' : 'HINTモード'}
+                </span>
+                <p className="text-xs text-gray-400 font-sans mt-0.5">
+                  {isEnglishCopy
+                    ? 'Shows keyboard hints. Clears in HINT mode do not count as official clears.'
+                    : '鍵盤にヒントを表示します。HINTモードでのクリアは記録に反映されません。'}
+                </p>
+              </div>
             </label>
-            <div className="flex items-center gap-3">
-              <select
-                value={selectedCharacterId}
-                onChange={(e) => {
-                  const char = characters.find(c => c.id === e.target.value);
-                  if (char && !isCharacterSelectable(char)) {
-                    setIsPlanRestrictionModalOpen(true);
-                    return;
-                  }
-                  setSelectedCharacterId(e.target.value);
-                }}
-                className="flex-1 bg-gray-800 text-white border border-gray-600 rounded-lg px-4 py-3 text-base font-sans focus:outline-none focus:border-purple-400 appearance-none cursor-pointer"
-                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%239ca3af\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundPosition: 'right 0.75rem center', backgroundSize: '1.25rem' }}
-              >
-                {characters.map((char) => {
-                  const locked = !isCharacterSelectable(char);
-                  const displayName = isEnglishCopy ? (char.nameEn || char.name) : char.name;
-                  return (
-                    <option key={char.id} value={char.id}>
-                      {locked ? '🔒 ' : ''}{displayName}
-                    </option>
-                  );
-                })}
-              </select>
-              {selectedCharacter && (
-                <div className="w-14 h-14 rounded-full overflow-hidden border-2 border-purple-500/50 flex-shrink-0">
-                  <img
-                    src={selectedCharacter.avatarUrl}
-                    alt={selectedCharacter.name}
-                    className="w-full h-full object-cover"
-                  />
-                </div>
-              )}
-            </div>
-            {selectedCharacter && (
-              <p className="mt-2 text-xs text-gray-400 font-sans">
-                {isEnglishCopy
-                  ? (selectedCharacter.descriptionEn || selectedCharacter.description)
-                  : selectedCharacter.description}
-              </p>
-            )}
           </div>
 
           {/* 開始ボタン */}

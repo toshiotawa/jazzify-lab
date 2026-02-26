@@ -74,6 +74,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
   const [selectedCharacter, setSelectedCharacter] = useState<SurvivalCharacter | undefined>(undefined);
   const [activeStageDefinition, setActiveStageDefinition] = useState<StageDefinition | null>(null);
+  const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
 
@@ -179,12 +180,14 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     config: DifficultyConfig,
     stageDefinition: StageDefinition,
     character?: SurvivalCharacter,
+    hintMode?: boolean,
   ) => {
     setSelectedDifficulty(difficulty);
     setSelectedConfig(config);
     setDebugSettings(undefined);
     setSelectedCharacter(character);
     setActiveStageDefinition(stageDefinition);
+    setActiveHintMode(hintMode ?? false);
     setScreen('game');
   }, []);
 
@@ -204,6 +207,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     setDebugSettings(undefined);
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
+    setActiveHintMode(false);
   }, [activeStageDefinition, lessonMode, lessonContext]);
 
   const handleBackToMenu = useCallback(() => {
@@ -305,6 +309,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
         character={selectedCharacter}
         stageDefinition={activeStageDefinition ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
+        hintMode={activeHintMode}
       />
     );
   }

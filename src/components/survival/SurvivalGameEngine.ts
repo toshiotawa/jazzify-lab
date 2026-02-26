@@ -33,6 +33,7 @@ import {
 import { ChordDefinition } from '../fantasy/FantasyGameEngine';
 import { resolveChord } from '@/utils/chord-utils';
 import { note as parseNote } from 'tonal';
+import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
 
 // ===== 定数 =====
 const PLAYER_SIZE = 32;
@@ -87,6 +88,51 @@ const createInitialPlayerState = (): PlayerState => ({
     alwaysHaisuiNoJin: false,
     alwaysZekkouchou: false,
     autoSelect: false,  // オート選択
+  },
+  magics: {
+    thunder: 0,
+    ice: 0,
+    fire: 0,
+    heal: 0,
+    buffer: 0,
+    hint: 0,
+  },
+  statusEffects: [],
+  level: 1,
+  exp: 0,
+  expToNextLevel: EXP_BASE,
+});
+
+// ===== ステージモード専用初期プレイヤー状態 =====
+const createStageInitialPlayerState = (): PlayerState => ({
+  x: MAP_CONFIG.width / 2,
+  y: MAP_CONFIG.height / 2,
+  direction: 'right',
+  stats: {
+    aAtk: 51,
+    bAtk: 49,
+    cAtk: 20,
+    speed: 5,
+    reloadMagic: 0,
+    hp: 100,
+    maxHp: 100,
+    def: 10,
+    time: 0,
+    aBulletCount: 5,
+    luck: 0,
+  },
+  skills: {
+    aPenetration: true,
+    bKnockbackBonus: 5,
+    bRangeBonus: 5,
+    bDeflect: false,
+    multiHitLevel: 2,
+    expBonusLevel: 0,
+    haisuiNoJin: false,
+    zekkouchou: false,
+    alwaysHaisuiNoJin: false,
+    alwaysZekkouchou: false,
+    autoSelect: false,
   },
   magics: {
     thunder: 0,
@@ -256,17 +302,28 @@ const createInitialWaveState = (): WaveState => ({
   waveCompleted: false,
 });
 
+// ===== ステージモード専用WAVE状態（単一90秒ラウンド） =====
+const createStageWaveState = (): WaveState => ({
+  currentWave: 1,
+  waveStartTime: 0,
+  waveKills: 0,
+  waveQuota: STAGE_KILL_QUOTA,
+  waveDuration: STAGE_TIME_LIMIT_SECONDS,
+  waveCompleted: false,
+});
+
 export const createInitialGameState = (
   difficulty: SurvivalDifficulty,
-  _config: DifficultyConfig
+  _config: DifficultyConfig,
+  isStageMode: boolean = false
 ): SurvivalGameState => ({
   isPlaying: false,
   isPaused: false,
   isGameOver: false,
   isLevelingUp: false,
-  wave: createInitialWaveState(),
+  wave: isStageMode ? createStageWaveState() : createInitialWaveState(),
   elapsedTime: 0,
-  player: createInitialPlayerState(),
+  player: isStageMode ? createStageInitialPlayerState() : createInitialPlayerState(),
   enemies: [],
   projectiles: [],
   enemyProjectiles: [],
@@ -375,20 +432,22 @@ export const selectRandomChord = (allowedChords: string[], excludeIds?: string |
 // ===== コードスロット管理 =====
 export const initializeCodeSlots = (
   allowedChords: string[],
-  hasMagic: boolean
+  hasMagic: boolean,
+  isStageMode: boolean = false
 ): SurvivalGameState['codeSlots'] => {
+  const abOnly = isStageMode;
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
-    { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
-    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('C'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic && !abOnly },
+    { ...createEmptyCodeSlot('D'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic && !abOnly },
   ];
   
   const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
-    { ...createEmptyCodeSlot('C'), chord: hasMagic ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: hasMagic },
-    { ...createEmptyCodeSlot('D'), chord: hasMagic ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: hasMagic },
+    { ...createEmptyCodeSlot('C'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: hasMagic && !abOnly },
+    { ...createEmptyCodeSlot('D'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: hasMagic && !abOnly },
   ];
   
   return { current, next };
@@ -544,6 +603,84 @@ export const spawnEnemy = (
     statusEffects: [],
     isBoss,
   };
+};
+
+// ===== ステージモード専用敵生成 =====
+const STAGE_ENEMY_TYPES: EnemyType[] = ['slime', 'goblin', 'skeleton', 'bat', 'ghost'];
+
+const getStageEnemyBaseStats = (type: EnemyType, elapsedTime: number): {
+  atk: number; def: number; hp: number; maxHp: number; speed: number;
+} => {
+  const isLatePhase = elapsedTime >= 60;
+  const speedBoost = isLatePhase ? 1.5 : 1.0;
+
+  const baseStats: Record<string, { atk: number; def: number; hp: number; speed: number }> = {
+    slime:    { atk: 8,  def: 2, hp: 800,  speed: 1.2 * speedBoost },
+    goblin:   { atk: 10, def: 3, hp: 900,  speed: 1.4 * speedBoost },
+    skeleton: { atk: 12, def: 4, hp: 1000, speed: 1.3 * speedBoost },
+    bat:      { atk: 6,  def: 1, hp: 700,  speed: 2.5 * speedBoost },
+    ghost:    { atk: 14, def: 2, hp: 850,  speed: 1.6 * speedBoost },
+  };
+
+  const base = baseStats[type] ?? baseStats.slime;
+  return {
+    atk: base.atk,
+    def: base.def,
+    hp: base.hp,
+    maxHp: base.hp,
+    speed: base.speed,
+  };
+};
+
+export const spawnStageEnemy = (
+  playerX: number,
+  playerY: number,
+  elapsedTime: number,
+): EnemyState => {
+  const side = Math.floor(Math.random() * 4);
+  const margin = ENEMY_SIZE * 0.8;
+  let x: number;
+  let y: number;
+
+  switch (side) {
+    case 0:
+      x = Math.random() * MAP_CONFIG.width;
+      y = -margin;
+      break;
+    case 1:
+      x = Math.random() * MAP_CONFIG.width;
+      y = MAP_CONFIG.height + margin;
+      break;
+    case 2:
+      x = -margin;
+      y = Math.random() * MAP_CONFIG.height;
+      break;
+    default:
+      x = MAP_CONFIG.width + margin;
+      y = Math.random() * MAP_CONFIG.height;
+      break;
+  }
+
+  const typeIndex = Math.floor(Math.random() * STAGE_ENEMY_TYPES.length);
+  const type = STAGE_ENEMY_TYPES[typeIndex];
+
+  return {
+    id: `enemy_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+    type,
+    x,
+    y,
+    stats: getStageEnemyBaseStats(type, elapsedTime),
+    statusEffects: [],
+    isBoss: false,
+  };
+};
+
+// ===== ステージモード専用スポーン設定 =====
+export const getStageSpawnConfig = (elapsedTime: number): { spawnRate: number; spawnCount: number } => {
+  if (elapsedTime >= 60) {
+    return { spawnRate: 0.5, spawnCount: 5 };
+  }
+  return { spawnRate: 1.0, spawnCount: 3 };
 };
 
 // ===== 移動計算 =====
