@@ -275,7 +275,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
           <div className="max-w-2xl mx-auto mt-3">
             <p className="text-gray-400 text-sm font-sans text-center">
               {activeTab === 'stage'
-                ? (isEnglishCopy ? 'Survive 5 minutes to clear! Complete all 105 stages!' : '5分間生存でクリア！全105ステージを制覇せよ！')
+                ? (isEnglishCopy ? 'Survive 90 seconds and defeat 10 enemies to clear! Complete all 105 stages!' : '90秒生存+10体撃破でクリア！全105ステージを制覇せよ！')
                 : (isEnglishCopy ? 'Choose your character and difficulty! Survive for 20 minutes!' : 'キャラクターと難易度を自由に選んで挑戦！20分間生き残れ！')}
             </p>
           </div>
