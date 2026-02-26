@@ -433,7 +433,7 @@ export interface SurvivalCharacter {
 export const SLOT_TIMEOUT = 10;  // コードスロットのタイムアウト（秒）
 export const MAGIC_BASE_COOLDOWN = 10;  // 魔法の基本クールダウン（秒）
 export const MAGIC_MIN_COOLDOWN = 3;    // 魔法の最小クールダウン（秒）
-export const EXP_PER_MINUTE = 100;      // 1分生存ごとの経験値
+export const EXP_PER_MINUTE = 2000;     // 1分生存ごとの経験値
 
 export const MAP_CONFIG: MapConfig = {
   width: 3200,

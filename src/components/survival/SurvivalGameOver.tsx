@@ -387,8 +387,8 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           </div>
           <div className="text-xs text-gray-400 mt-1">
             {isEnglishCopy
-              ? `(${Math.floor(result.survivalTime / 60)} minutes × 100 XP)`
-              : `(${Math.floor(result.survivalTime / 60)}分 × 100 XP)`}
+              ? `(${Math.floor(result.survivalTime / 60)} minutes × 2,000 XP)`
+              : `(${Math.floor(result.survivalTime / 60)}分 × 2,000 XP)`}
           </div>
         </div>
 
