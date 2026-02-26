@@ -2492,7 +2492,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
 
-          // ステージモード: 90秒生存 + 撃破ノルマ10体
+          // ステージモード: 90秒生存 + 撃破ノルマ300体
           if (newState.wave.waveKills >= STAGE_KILL_QUOTA && !newState.wave.waveCompleted) {
             newState.wave = { ...newState.wave, waveCompleted: true };
           }

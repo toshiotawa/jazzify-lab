@@ -243,8 +243,8 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
               </h1>
               <p className="text-gray-400 text-sm sm:text-base font-sans">
                 {isEnglishCopy
-                  ? 'Survive 90 seconds and defeat 10 enemies to clear! Complete all 105 stages!'
-                  : '90秒生存+10体撃破でクリア！全105ステージを制覇せよ！'}
+                  ? 'Survive 90 seconds and defeat 300 enemies to clear! Complete all 105 stages!'
+                  : '90秒生存+300体撃破でクリア！全105ステージを制覇せよ！'}
               </p>
             </div>
             <div className="flex gap-2">
@@ -345,7 +345,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
                 <div className="bg-black/30 rounded-lg p-2">
                   <span className="text-gray-400">{isEnglishCopy ? 'Clear Condition' : 'クリア条件'}</span>
                   <div className="text-green-400 font-bold mt-1 text-sm">
-                    {isEnglishCopy ? '90s Survive + 10 Kills' : '90秒生存 + 10体撃破'}
+                    {isEnglishCopy ? '90s Survive + 300 Kills' : '90秒生存 + 300体撃破'}
                   </div>
                 </div>
               </div>
