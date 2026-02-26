@@ -741,6 +741,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   const { truncateMusicXmlByMeasureRange } = await import('@/utils/songRangeFilter');
                   xmlString = truncateMusicXmlByMeasureRange(xmlString, targetSong.range_start_measure, targetSong.range_end_measure);
                 }
+
+                if (targetSong.hand_filter === 'right' || targetSong.hand_filter === 'left') {
+                  const { filterMusicXmlByStaff } = await import('@/utils/songRangeFilter');
+                  xmlString = filterMusicXmlByStaff(xmlString, targetSong.hand_filter);
+                }
                 
                 finalXml = transposeMusicXml(xmlString, transpose);
                 const xmlDoc = new DOMParser().parseFromString(finalXml, 'application/xml');

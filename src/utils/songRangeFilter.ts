@@ -159,6 +159,23 @@ export function truncateMusicXmlByMeasureRange(xmlString: string, startMeasure: 
 
     const sourceAttrs = measures[0].querySelector('attributes');
 
+    // 範囲外（前方）の小節からテンポ指示を収集
+    let lastTempoElement: Element | null = null;
+    for (const m of measures) {
+      const num = parseInt(m.getAttribute('number') || '0', 10);
+      if (num >= startMeasure) break;
+      for (const child of Array.from(m.children)) {
+        if (child.tagName === 'sound' && child.hasAttribute('tempo')) {
+          lastTempoElement = child;
+        } else if (child.tagName === 'direction') {
+          const dirSound = child.querySelector('sound[tempo]');
+          if (dirSound) {
+            lastTempoElement = child;
+          }
+        }
+      }
+    }
+
     let firstSurvivingMeasure: Element | null = null;
 
     for (const m of measures) {
@@ -187,6 +204,16 @@ export function truncateMusicXmlByMeasureRange(xmlString: string, startMeasure: 
             targetAttrs!.appendChild(el.cloneNode(true));
           });
         }
+      }
+    }
+
+    // テンポ指示を最初の surviving measure に挿入（attributes の直後）
+    if (lastTempoElement && targetAttrs) {
+      const existingTempo = firstSurvivingMeasure.querySelector(':scope > sound[tempo]')
+        || firstSurvivingMeasure.querySelector(':scope > direction > sound[tempo]');
+      if (!existingTempo) {
+        const insertBefore = targetAttrs.nextSibling;
+        firstSurvivingMeasure.insertBefore(lastTempoElement.cloneNode(true), insertBefore);
       }
     }
 
@@ -256,6 +283,74 @@ function removeEmptyStaves(part: Element, attrs: Element | null): void {
       if (staffEl) staffEl.textContent = '1';
     });
   });
+}
+
+export function filterMusicXmlByStaff(xmlString: string, keepHand: 'right' | 'left'): string {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+  const parts = xmlDoc.querySelectorAll('part');
+
+  const keepStaff = keepHand === 'right' ? 1 : 2;
+
+  parts.forEach(part => {
+    const measures = part.querySelectorAll('measure');
+
+    measures.forEach(measure => {
+      const toRemove: Element[] = [];
+
+      for (const child of Array.from(measure.children)) {
+        switch (child.tagName) {
+          case 'note': {
+            const staffEl = child.querySelector('staff');
+            const staffNum = staffEl ? parseInt(staffEl.textContent || '1', 10) : 1;
+            if (staffNum !== keepStaff) {
+              toRemove.push(child);
+            }
+            break;
+          }
+          case 'backup':
+            toRemove.push(child);
+            break;
+          case 'forward': {
+            const staffEl = child.querySelector('staff');
+            if (staffEl) {
+              const staffNum = parseInt(staffEl.textContent || '1', 10);
+              if (staffNum !== keepStaff) {
+                toRemove.push(child);
+              }
+            }
+            break;
+          }
+          case 'direction': {
+            const staffEl = child.querySelector('staff');
+            if (staffEl) {
+              const staffNum = parseInt(staffEl.textContent || '1', 10);
+              if (staffNum !== keepStaff) {
+                toRemove.push(child);
+              }
+            }
+            break;
+          }
+        }
+      }
+
+      for (const el of toRemove) {
+        measure.removeChild(el);
+      }
+    });
+
+    const firstMeasureAttrs = part.querySelector('measure > attributes');
+    removeEmptyStaves(part, firstMeasureAttrs);
+
+    measures.forEach(m => {
+      m.querySelectorAll('direction').forEach(dir => {
+        const staffEl = dir.querySelector(':scope > staff');
+        if (staffEl) staffEl.textContent = '1';
+      });
+    });
+  });
+
+  return new XMLSerializer().serializeToString(xmlDoc);
 }
 
 export function isRangeDuplicate(song: any): boolean {
