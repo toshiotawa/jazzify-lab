@@ -38,6 +38,8 @@ interface DamagePopup {
   value: number;
   start: number;
   duration: number;
+  offsetX: number;
+  offsetY: number;
 }
 
 interface MonsterVisual {
@@ -50,9 +52,10 @@ interface MonsterVisual {
   y: number;
   flashUntil: number;
   defeated: boolean;
-  defeatedAt?: number; // 撃破アニメ開始時刻
+  defeatedAt?: number;
   enraged: boolean;
   enrageScale: number;
+  hitNoteOffsets: Array<{ x: number; y: number }>;
   damagePopup?: DamagePopup;
 }
 
@@ -92,13 +95,6 @@ export class FantasyPIXIInstance {
   private loadingImages = new Set<string>();
   private onMonsterDefeated?: () => void;
   
-  // 必殺技エフェクト用
-  private specialAttackEffect: {
-    active: boolean;
-    start: number;
-    duration: number;
-    text: string;
-  } | null = null;
 
   // 怒り状態を購読するためのunsubscribe関数
   private unsubscribeEnraged: (() => void) | null = null;
@@ -176,6 +172,7 @@ export class FantasyPIXIInstance {
         defeatedAt: existing?.defeatedAt,
         enraged: isEnraged,
         enrageScale: existing?.enrageScale ?? 1,
+        hitNoteOffsets: existing?.hitNoteOffsets ?? [],
         damagePopup: existing?.damagePopup
       });
     });
@@ -236,28 +233,32 @@ export class FantasyPIXIInstance {
   triggerAttackSuccessOnMonster(
     monsterId: string,
     _chordName: string | undefined,
-    isSpecial: boolean,
+    _isSpecial: boolean,
     damageDealt: number,
     defeated: boolean
   ): void {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
-      visual.flashUntil = performance.now() + 450; // 250ms + 200ms延長
+      visual.flashUntil = performance.now() + 450;
+      visual.hitNoteOffsets = Array.from({ length: 2 }, () => {
+        const a = Math.random() * Math.PI * 2;
+        const d = 0.3 + Math.random() * 0.25;
+        return { x: Math.cos(a) * d, y: Math.sin(a) * d - 0.3 };
+      });
       
-      // ダメージポップアップを追加（モンスターの少し上から開始、より長く表示）
+      const randAngle = Math.random() * Math.PI * 2;
+      const randDist = 40 + Math.random() * 50;
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
-        y: visual.y - 30, // モンスターの少し上から開始（以前より下げた）
+        y: visual.y,
         value: damageDealt,
         start: performance.now(),
-        duration: 1800 // 1.8秒間表示（視認性向上）
+        duration: 1800,
+        offsetX: Math.cos(randAngle) * randDist,
+        offsetY: Math.sin(randAngle) * randDist - 40,
       });
       
-      // 必殺技エフェクト
-      if (isSpecial) {
-        this.triggerSpecialAttackEffect();
-      }
       
       if (defeated && !visual.defeated) {
         visual.defeated = true;
@@ -269,15 +270,6 @@ export class FantasyPIXIInstance {
     }
   }
 
-  // 必殺技エフェクトをトリガー
-  private triggerSpecialAttackEffect(): void {
-    this.specialAttackEffect = {
-      active: true,
-      start: performance.now(),
-      duration: 700, // 1500msから700msに短縮（暗転時間を短く）
-      text: 'Swing! Swing! Swing!'
-    };
-  }
 
   updateOverlayText(text: string | null): void {
     if (!text) {
@@ -332,7 +324,6 @@ export class FantasyPIXIInstance {
     const hasActiveAnimations = 
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
-      this.specialAttackEffect?.active ||
       this.overlayText !== null ||
       this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
       this.monsters.length > 0 || // モンスター存在時は浮遊アニメーション用に描画継続
@@ -373,7 +364,6 @@ export class FantasyPIXIInstance {
     
     this.drawDamagePopups(ctx);
     this.drawEffects(ctx);
-    this.drawSpecialAttackEffect(ctx);
     this.drawOverlayText(ctx);
   }
 
@@ -402,6 +392,7 @@ export class FantasyPIXIInstance {
           defeated: false,
           enraged: false,
           enrageScale: 1,
+          hitNoteOffsets: [],
           damagePopup: undefined
         }
       ];
@@ -494,21 +485,18 @@ export class FantasyPIXIInstance {
         const hitProgress = (monster.flashUntil - now) / 450; // 450msに延長
         ctx.globalAlpha = hitProgress;
         
-        // 左側の音符
-        ctx.save();
-        ctx.translate(-monsterSize * 0.35, -monsterSize * 0.3);
-        const scale1 = 1 + (1 - hitProgress) * 0.4;
-        ctx.scale(scale1, scale1);
-        ctx.fillText(HIT_EMOJI, 0, 0);
-        ctx.restore();
+        const offsets = monster.hitNoteOffsets.length >= 2
+          ? monster.hitNoteOffsets
+          : [{ x: -0.35, y: -0.3 }, { x: 0.35, y: -0.25 }];
         
-        // 右側の音符
-        ctx.save();
-        ctx.translate(monsterSize * 0.35, -monsterSize * 0.25);
-        const scale2 = 1 + (1 - hitProgress) * 0.5;
-        ctx.scale(scale2, scale2);
-        ctx.fillText(HIT_EMOJI, 0, 0);
-        ctx.restore();
+        offsets.forEach((off, i) => {
+          ctx.save();
+          ctx.translate(monsterSize * off.x, monsterSize * off.y);
+          const s = 1 + (1 - hitProgress) * (0.4 + i * 0.1);
+          ctx.scale(s, s);
+          ctx.fillText(HIT_EMOJI, 0, 0);
+          ctx.restore();
+        });
         
         ctx.globalAlpha = 1;
       }
@@ -634,38 +622,39 @@ export class FantasyPIXIInstance {
   private drawDamagePopups(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
     
-    // 古いポップアップを削除
     this.damagePopups = this.damagePopups.filter(
       (popup) => now - popup.start < popup.duration
     );
     
     this.damagePopups.forEach((popup) => {
       const progress = (now - popup.start) / popup.duration;
-      // フェードアウトを後半に集中させる（最初の70%は完全に表示）
       const alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
-      const yOffset = -progress * 40; // ゆっくり上に移動
-      const scale = 1 + progress * 0.2; // 少し大きくなる
+      const yOffset = -progress * 50;
+      const bounceScale = progress < 0.1
+        ? 1 + Math.sin((progress / 0.1) * Math.PI) * 0.5
+        : 1.2 + progress * 0.15;
       
       ctx.save();
-      ctx.translate(popup.x, popup.y + yOffset);
-      ctx.scale(scale, scale);
+      ctx.translate(popup.x + popup.offsetX, popup.y + popup.offsetY + yOffset);
+      ctx.scale(bounceScale, bounceScale);
       ctx.globalAlpha = alpha;
       
-      // ダメージテキスト
-      const fontSize = 32;
+      const fontSize = 38;
       ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      // 縁取り
+      ctx.shadowColor = '#fbbf24';
+      ctx.shadowBlur = 16;
+      
       ctx.strokeStyle = DAMAGE_STROKE;
-      ctx.lineWidth = 4;
+      ctx.lineWidth = 5;
       ctx.strokeText(popup.value.toString(), 0, 0);
       
-      // 本体
       ctx.fillStyle = DAMAGE_COLOR;
       ctx.fillText(popup.value.toString(), 0, 0);
       
+      ctx.shadowBlur = 0;
       ctx.restore();
     });
   }
@@ -704,69 +693,6 @@ export class FantasyPIXIInstance {
       
       ctx.globalAlpha = 1;
     });
-  }
-
-  private drawSpecialAttackEffect(ctx: CanvasRenderingContext2D): void {
-    if (!this.specialAttackEffect || !this.specialAttackEffect.active) return;
-    
-    const now = performance.now();
-    const elapsed = now - this.specialAttackEffect.start;
-    const progress = elapsed / this.specialAttackEffect.duration;
-    
-    if (progress >= 1) {
-      this.specialAttackEffect = null;
-      return;
-    }
-    
-    ctx.save();
-    
-    // フェーズ1: 白いフラッシュ (0-0.1)
-    if (progress < 0.1) {
-      const flashAlpha = Math.sin((progress / 0.1) * Math.PI) * 0.6;
-      ctx.fillStyle = `rgba(255, 255, 255, ${flashAlpha})`;
-      ctx.fillRect(0, 0, this.width, this.height);
-    }
-    
-    // フェーズ2: テキスト表示 (0.1-0.85) - 暗転時間を短縮
-    if (progress > 0.1 && progress < 0.85) {
-      const textProgress = (progress - 0.1) / 0.75;
-      const textAlpha = textProgress < 0.15 ? textProgress / 0.15 : 
-                        textProgress > 0.85 ? (1 - textProgress) / 0.15 : 1;
-      
-      // 背景の暗転（より軽く）
-      ctx.fillStyle = `rgba(0, 0, 0, ${textAlpha * 0.35})`;
-      ctx.fillRect(0, 0, this.width, this.height);
-      
-      // テキスト
-      ctx.globalAlpha = textAlpha;
-      ctx.font = 'bold 48px "Inter", sans-serif';
-      ctx.textAlign = 'center';
-      ctx.textBaseline = 'middle';
-      
-      // グロー効果
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 20;
-      
-      // 縁取り
-      ctx.strokeStyle = '#000000';
-      ctx.lineWidth = 6;
-      ctx.strokeText(this.specialAttackEffect.text, this.width / 2, this.height / 2);
-      
-      // 本体（金色）
-      const gradient = ctx.createLinearGradient(
-        this.width / 2 - 200, this.height / 2,
-        this.width / 2 + 200, this.height / 2
-      );
-      gradient.addColorStop(0, '#fde047');
-      gradient.addColorStop(0.5, '#fbbf24');
-      gradient.addColorStop(1, '#f59e0b');
-      ctx.fillStyle = gradient;
-      ctx.fillText(this.specialAttackEffect.text, this.width / 2, this.height / 2);
-      
-      ctx.shadowBlur = 0;
-    }
-    
-    ctx.restore();
   }
 
   private drawOverlayText(ctx: CanvasRenderingContext2D): void {
