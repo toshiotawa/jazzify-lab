@@ -758,9 +758,6 @@ export const updateEnemyPositions = (
       return enemy;
     }
     
-    // デバフ状態（FIRE渦・元デバッファー統合）
-    const debuffMultiplier = enemy.statusEffects.some(e => e.type === 'debuffer') ? 0.5 : 1;
-    
     // プレイヤーに向かって移動
     const dx = playerX - enemy.x;
     const dy = playerY - enemy.y;
@@ -769,7 +766,7 @@ export const updateEnemyPositions = (
     if (distance < 1) return enemy;
     
     // WAVE倍率を適用
-    const speed = Math.min(MAX_ENEMY_SPEED, BASE_ENEMY_SPEED * enemy.stats.speed * waveSpeedMultiplier) * debuffMultiplier;
+    const speed = Math.min(MAX_ENEMY_SPEED, BASE_ENEMY_SPEED * enemy.stats.speed * waveSpeedMultiplier);
     const moveX = (dx / distance) * speed * deltaTime;
     const moveY = (dy / distance) * speed * deltaTime;
     
