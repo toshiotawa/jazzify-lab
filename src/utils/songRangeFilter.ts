@@ -178,20 +178,84 @@ export function truncateMusicXmlByMeasureRange(xmlString: string, startMeasure: 
         sourceAttrs.cloneNode(true),
         firstSurvivingMeasure.firstChild
       );
-      return;
-    }
-
-    for (const tag of essentialTags) {
-      if (!targetAttrs.querySelector(tag) && sourceAttrs.querySelector(tag)) {
-        const elements = sourceAttrs.querySelectorAll(tag);
-        elements.forEach(el => {
-          targetAttrs!.appendChild(el.cloneNode(true));
-        });
+      targetAttrs = firstSurvivingMeasure.querySelector('attributes');
+    } else {
+      for (const tag of essentialTags) {
+        if (!targetAttrs.querySelector(tag) && sourceAttrs.querySelector(tag)) {
+          const elements = sourceAttrs.querySelectorAll(tag);
+          elements.forEach(el => {
+            targetAttrs!.appendChild(el.cloneNode(true));
+          });
+        }
       }
     }
+
+    removeEmptyStaves(part, targetAttrs);
   });
 
   return new XMLSerializer().serializeToString(xmlDoc);
+}
+
+function removeEmptyStaves(part: Element, attrs: Element | null): void {
+  if (!attrs) return;
+  const stavesEl = attrs.querySelector('staves');
+  const numStaves = stavesEl ? parseInt(stavesEl.textContent || '1', 10) : 1;
+  if (numStaves <= 1) return;
+
+  const usedStaves = new Set<number>();
+  const survivingMeasures = part.querySelectorAll('measure');
+  survivingMeasures.forEach(m => {
+    m.querySelectorAll('note').forEach(noteEl => {
+      if (noteEl.querySelector('rest')) return;
+      const staffEl = noteEl.querySelector('staff');
+      const staffNum = staffEl ? parseInt(staffEl.textContent || '1', 10) : 1;
+      usedStaves.add(staffNum);
+    });
+  });
+
+  if (usedStaves.size >= numStaves) return;
+
+  const keepStaff = usedStaves.size > 0 ? Math.min(...usedStaves) : 1;
+
+  stavesEl!.textContent = '1';
+
+  const clefs = attrs.querySelectorAll('clef');
+  clefs.forEach(clef => {
+    const clefNumber = parseInt(clef.getAttribute('number') || '1', 10);
+    if (clefNumber !== keepStaff) {
+      clef.parentNode?.removeChild(clef);
+    } else {
+      clef.removeAttribute('number');
+    }
+  });
+
+  survivingMeasures.forEach(m => {
+    const localAttrs = m.querySelector('attributes');
+    if (localAttrs && localAttrs !== attrs) {
+      const localStaves = localAttrs.querySelector('staves');
+      if (localStaves) localStaves.textContent = '1';
+
+      const localClefs = localAttrs.querySelectorAll('clef');
+      localClefs.forEach(clef => {
+        const clefNumber = parseInt(clef.getAttribute('number') || '1', 10);
+        if (clefNumber !== keepStaff) {
+          clef.parentNode?.removeChild(clef);
+        } else {
+          clef.removeAttribute('number');
+        }
+      });
+    }
+
+    m.querySelectorAll('note').forEach(noteEl => {
+      const staffEl = noteEl.querySelector('staff');
+      if (staffEl) staffEl.textContent = '1';
+    });
+
+    m.querySelectorAll('backup, forward').forEach(el => {
+      const staffEl = el.querySelector('staff');
+      if (staffEl) staffEl.textContent = '1';
+    });
+  });
 }
 
 export function isRangeDuplicate(song: any): boolean {

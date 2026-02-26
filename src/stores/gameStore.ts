@@ -783,15 +783,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   // MusicXML-only + 移調なし: そのまま使用
                   finalNotes = rawNotes;
                 } else {
-                  // JSON+XML フロー: 従来通り音名マージと時間再計算を行う
+                  // JSON+XML フロー: 音名マージ
                   const noteNames = extractPlayableNoteNames(xmlDoc);
                   finalNotes = mergeJsonWithNames(rawNotes, noteNames);
-                  finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                  const isRange = !!(targetSong.source_song_id && targetSong.range_type);
+                  if (!isRange) {
+                    finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                  }
                 }
                 
-                // コードネーム情報を抽出（両フロー共通）
-                // extractChordProgressions は内部で extractNotePositions を使うため
-                // MusicXML-onlyの場合はノーツ数不一致でも部分的に動作する
                 try {
                   finalChords = extractChordProgressions(xmlDoc, finalNotes);
                 } catch {
@@ -1254,10 +1254,12 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                     // JSON+XML フロー
                     const noteNames = extractPlayableNoteNames(xmlDoc);
                     finalNotes = mergeJsonWithNames(notes, noteNames);
-                    finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                    const isRange = !!(targetSong.source_song_id && targetSong.range_type);
+                    if (!isRange) {
+                      finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                    }
                   }
                   
-                  // コードネーム情報を抽出
                   try {
                     finalChords = extractChordProgressions(xmlDoc, finalNotes);
                   } catch {
@@ -1607,13 +1609,15 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                    // MusicXML-only + 移調なし: そのまま使用
                    finalNotes = notes;
                  } else {
-                   // JSON+XML フロー: 音名マージと時間再計算
+                   // JSON+XML フロー: 音名マージ
                    const noteNames = extractPlayableNoteNames(xmlDoc);
                    finalNotes = mergeJsonWithNames(notes, noteNames);
-                   finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                   const isRange = !!(targetSong.source_song_id && targetSong.range_type);
+                   if (!isRange) {
+                     finalNotes = recalculateNotesWithMeasureTime(xmlDoc, finalNotes);
+                   }
                  }
                  
-                 // コードネーム情報を抽出
                  try {
                    finalChords = extractChordProgressions(xmlDoc, finalNotes);
                  } catch {
