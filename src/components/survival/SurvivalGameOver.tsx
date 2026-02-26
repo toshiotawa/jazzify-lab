@@ -436,6 +436,12 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               ) : !hintMode && !isStageClear && !isStageClearHint && onRetryWithHint ? (
                 <>
                   <button
+                    onClick={onRetry}
+                    className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-red-600 hover:bg-red-500"
+                  >
+                    {isEnglishCopy ? 'RETRY' : 'リトライ'}
+                  </button>
+                  <button
                     onClick={onRetryWithHint}
                     className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-yellow-600 hover:bg-yellow-500"
                   >
