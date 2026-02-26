@@ -597,7 +597,9 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (elapsed >= sw.duration) return;
       
       const progress = elapsed / sw.duration;
-      const currentRadius = sw.maxRadius * progress;
+      // 即座に展開してフェードアウト（ダメージ適用と同期）
+      const expandProgress = Math.min(1, progress / 0.15);
+      const currentRadius = sw.maxRadius * expandProgress;
       const alpha = 1 - progress;
       
       const screenX = sw.x - camera.x;
@@ -609,7 +611,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // 衝撃波リング（前方のみ）
       ctx.globalAlpha = alpha * 0.6;
-      ctx.strokeStyle = '#f97316';  // オレンジ色
+      ctx.strokeStyle = '#f97316';
       ctx.lineWidth = 8 * (1 - progress);
       ctx.beginPath();
       ctx.arc(screenX, screenY, currentRadius, baseAngle - arcSpread / 2, baseAngle + arcSpread / 2);
@@ -620,7 +622,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.font = '20px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const iconCount = 4;  // 前方のみなので減らす
+      const iconCount = 4;
       for (let i = 0; i < iconCount; i++) {
         const angle = baseAngle - arcSpread / 2 + (i / (iconCount - 1)) * arcSpread;
         const ix = screenX + Math.cos(angle) * currentRadius;
@@ -644,11 +646,32 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       const screenY = dmg.y - camera.y + offsetY;
       
       ctx.globalAlpha = alpha;
-      ctx.fillStyle = dmg.color;
       const displayText = dmg.text ?? dmg.damage.toString();
-      ctx.font = dmg.text ? 'bold 18px monospace' : 'bold 16px monospace';
-      ctx.textAlign = 'center';
-      ctx.fillText(displayText, screenX, screenY);
+      const isMagicName = dmg.text && dmg.damage === 0;
+      
+      if (isMagicName) {
+        const magicScale = 1 + Math.max(0, 0.3 - progress * 0.6);
+        ctx.save();
+        ctx.translate(screenX, screenY);
+        ctx.scale(magicScale, magicScale);
+        ctx.font = 'bold 26px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.shadowColor = dmg.color;
+        ctx.shadowBlur = 12;
+        ctx.strokeStyle = 'rgba(0,0,0,0.7)';
+        ctx.lineWidth = 4;
+        ctx.strokeText(displayText, 0, 0);
+        ctx.fillStyle = dmg.color;
+        ctx.fillText(displayText, 0, 0);
+        ctx.shadowBlur = 0;
+        ctx.restore();
+      } else {
+        ctx.fillStyle = dmg.color;
+        ctx.font = 'bold 16px monospace';
+        ctx.textAlign = 'center';
+        ctx.fillText(displayText, screenX, screenY);
+      }
       ctx.globalAlpha = 1;
     });
 
