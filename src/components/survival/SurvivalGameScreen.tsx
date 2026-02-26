@@ -18,6 +18,7 @@ import {
   LightningEffect,
   SLOT_TIMEOUT,
   EXP_PER_MINUTE,
+  SHOCKWAVE_EXPAND_RATIO,
 } from './SurvivalTypes';
 import {
   createInitialGameState,
@@ -375,6 +376,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 衝撃波エフェクト
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
+  const shockwavesRef = useRef<ShockwaveEffect[]>([]);
   
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
@@ -1188,15 +1190,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               }
             }
           } else {
-            // 近接攻撃 - 衝撃波エフェクト追加
+            // 近接攻撃 - 衝撃波エフェクト（ダメージはゲームループで衝撃波半径に基づき判定）
           const baseRange = 80;
           const bonusRange = prev.player.skills.bRangeBonus * 20;
           const totalRange = baseRange + bonusRange;
           const dirVec = getDirectionVector(prev.player.direction);
           const attackX = prev.player.x + dirVec.x * 40;
           const attackY = prev.player.y + dirVec.y * 40;
+          const condMultB = getConditionalSkillMultipliers(prev.player);
           
-          // 衝撃波エフェクト追加（前方のみ大きい範囲）
           const newShockwave: ShockwaveEffect = {
             id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             x: attackX,
@@ -1206,80 +1208,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             startTime: Date.now(),
             duration: 300,
             direction: prev.player.direction,
+            attackParams: {
+              baseBDamage: Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier),
+              knockbackForce: 150 + prev.player.skills.bKnockbackBonus * 50,
+              dirVec,
+              playerX: prev.player.x,
+              playerY: prev.player.y,
+              baseRange,
+              totalRange,
+              isBuffed: prev.player.statusEffects.some(e => e.type === 'buffer'),
+              bufferLevel: getBufferLevel(prev.player.statusEffects),
+              playerCAtk: prev.player.stats.cAtk,
+              playerLuck: prev.player.stats.luck,
+              deflect: prev.player.skills.bDeflect,
+              hitEnemies: new Set(),
+            },
           };
           pendingShockwaves.push(newShockwave);
           
-          // 拳でかきけす - B列攻撃で敵弾消去
-          if (prev.player.skills.bDeflect) {
-            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
-              const dx = proj.x - attackX;
-              const dy = proj.y - attackY;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              return dist >= totalRange;
-            });
-          }
-          
-          // ノックバック力
-          const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-          
-          newState.enemies = newState.enemies.map(enemy => {
-            const dx = enemy.x - attackX;
-            const dy = enemy.y - attackY;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            // 敵が前方にいるかどうかをチェック（内積で判定）
-            const toEnemyX = enemy.x - prev.player.x;
-            const toEnemyY = enemy.y - prev.player.y;
-            const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
-            const isInFront = dotProduct > 0;
-            
-            // 前方ならボーナス範囲を適用、それ以外は基本範囲のみ
-            const effectiveRange = isInFront ? totalRange : baseRange;
-            
-            if (dist < effectiveRange) {
-              // 背水の陣・絶好調の攻撃力倍率
-              const condMultB = getConditionalSkillMultipliers(prev.player);
-              // B列ダメージ計算（+1で10ダメージ増加）に倍率適用
-              const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultB.atkMultiplier);
-              const luckResultB = checkLuck(prev.player.stats.luck);
-              
-              const damage = calculateDamage(
-                baseBDamage,
-                0,  // attackerAtkは0（baseBDamageに含まれる）
-                enemy.stats.def,
-                prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer'),
-                getBufferLevel(prev.player.statusEffects),
-                getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk,
-                luckResultB.doubleDamage
-              );
-              
-              // ノックバック（近接は強め）
-              const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-              const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-              
-              newState.damageTexts = [...newState.damageTexts, createDamageText(
-                enemy.x,
-                enemy.y,
-                damage,
-                luckResultB.doubleDamage,
-                luckResultB.doubleDamage ? '#ffd700' : undefined
-              )];
-              
-              return {
-                ...enemy,
-                stats: {
-                  ...enemy.stats,
-                  hp: Math.max(0, enemy.stats.hp - damage),
-                },
-                knockbackVelocity: { x: knockbackX, y: knockbackY },
-              };
-            }
-            return enemy;
-          });
-          
-          // 多段攻撃処理（B列）
+          // 多段攻撃処理（B列）- 衝撃波を追加するだけ、ダメージはゲームループで判定
           const bMultiHitLevel = prev.player.skills.multiHitLevel;
           if (bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
@@ -1304,88 +1251,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   const bDirVec = getDirectionVector(gs.player.direction);
                   const bAttackX = gs.player.x + bDirVec.x * 40;
                   const bAttackY = gs.player.y + bDirVec.y * 40;
+                  const condMultBMulti = getConditionalSkillMultipliers(gs.player);
                   
                   multiShockwave.x = bAttackX;
                   multiShockwave.y = bAttackY;
                   multiShockwave.maxRadius = bTotalRange;
                   multiShockwave.direction = gs.player.direction;
+                  multiShockwave.attackParams = {
+                    baseBDamage: Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier),
+                    knockbackForce: 150 + gs.player.skills.bKnockbackBonus * 50,
+                    dirVec: bDirVec,
+                    playerX: gs.player.x,
+                    playerY: gs.player.y,
+                    baseRange: bBaseRange,
+                    totalRange: bTotalRange,
+                    isBuffed: gs.player.statusEffects.some(e => e.type === 'buffer'),
+                    bufferLevel: getBufferLevel(gs.player.statusEffects),
+                    playerCAtk: gs.player.stats.cAtk,
+                    playerLuck: gs.player.stats.luck,
+                    deflect: gs.player.skills.bDeflect,
+                    hitEnemies: new Set(),
+                  };
                   
-                  let updatedEnemyProjectiles = gs.enemyProjectiles;
-                  if (gs.player.skills.bDeflect) {
-                    updatedEnemyProjectiles = gs.enemyProjectiles.filter(proj => {
-                      const dx = proj.x - bAttackX;
-                      const dy = proj.y - bAttackY;
-                      const dist = Math.sqrt(dx * dx + dy * dy);
-                      return dist >= bTotalRange;
-                    });
-                  }
-                  
-                  const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
-                  const newDamageTexts = [...gs.damageTexts];
-                  
-                  const updatedEnemies = gs.enemies.map(enemy => {
-                    const dx = enemy.x - bAttackX;
-                    const dy = enemy.y - bAttackY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    
-                    const toEnemyX = enemy.x - gs.player.x;
-                    const toEnemyY = enemy.y - gs.player.y;
-                    const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
-                    const isInFront = dotProduct > 0;
-                    const effectiveRange = isInFront ? bTotalRange : bBaseRange;
-                    
-                    if (dist < effectiveRange) {
-                      const condMultBMulti = getConditionalSkillMultipliers(gs.player);
-                      const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBMulti.atkMultiplier);
-                      const luckResultBMulti = checkLuck(gs.player.stats.luck);
-                      
-                      const damage = calculateDamage(
-                        baseBDamage,
-                        0,
-                        enemy.stats.def,
-                        gs.player.statusEffects.some(e => e.type === 'buffer'),
-                        enemy.statusEffects.some(e => e.type === 'debuffer'),
-                        getBufferLevel(gs.player.statusEffects),
-                        getDebufferLevel(enemy.statusEffects),
-                        gs.player.stats.cAtk,
-                        luckResultBMulti.doubleDamage
-                      );
-                      
-                      const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
-                      const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
-                      
-                      newDamageTexts.push(createDamageText(
-                        enemy.x,
-                        enemy.y,
-                        damage,
-                        luckResultBMulti.doubleDamage,
-                        luckResultBMulti.doubleDamage ? '#ffd700' : undefined
-                      ));
-                      
-                      return {
-                        ...enemy,
-                        stats: {
-                          ...enemy.stats,
-                          hp: Math.max(0, enemy.stats.hp - damage),
-                        },
-                        knockbackVelocity: { x: knockbackX, y: knockbackY },
-                      };
-                    }
-                    return enemy;
-                  });
-                  
-                return {
-                  ...gs,
-                  enemies: updatedEnemies,
-                  enemyProjectiles: updatedEnemyProjectiles,
-                  damageTexts: newDamageTexts,
-                };
-              });
+                  shockwavesRef.current = [...shockwavesRef.current, multiShockwave];
+                  return gs;
+                });
               
-              setShockwaves(sw => [...sw, multiShockwave]);
-            }, hit * 200);
+                setShockwaves(sw => [...sw, multiShockwave]);
+              }, hit * 200);
+            }
           }
-        }
         }
         
       } else if (slotType === 'C' && prev.cSlotCooldown <= 0) {
@@ -1481,6 +1376,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     });
     
     if (pendingShockwaves.length > 0) {
+      shockwavesRef.current = [...shockwavesRef.current, ...pendingShockwaves];
       setShockwaves(sw => [...sw, ...pendingShockwaves]);
     }
   }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
@@ -1576,12 +1472,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
       } else {
+      // 近接攻撃 - 衝撃波エフェクト（ダメージはゲームループで判定）
       const baseRange = 80;
       const bonusRange = prev.player.skills.bRangeBonus * 20;
       const totalRange = baseRange + bonusRange;
       const dirVec = getDirectionVector(prev.player.direction);
       const attackX = prev.player.x + dirVec.x * 40;
       const attackY = prev.player.y + dirVec.y * 40;
+      const condMultBTap = getConditionalSkillMultipliers(prev.player);
       
       const newShockwave: ShockwaveEffect = {
         id: `shock_tap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -1592,172 +1490,73 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         startTime: Date.now(),
         duration: 300,
         direction: prev.player.direction,
+        attackParams: {
+          baseBDamage: Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier),
+          knockbackForce: 150 + prev.player.skills.bKnockbackBonus * 50,
+          dirVec,
+          playerX: prev.player.x,
+          playerY: prev.player.y,
+          baseRange,
+          totalRange,
+          isBuffed: prev.player.statusEffects.some(e => e.type === 'buffer'),
+          bufferLevel: getBufferLevel(prev.player.statusEffects),
+          playerCAtk: prev.player.stats.cAtk,
+          playerLuck: prev.player.stats.luck,
+          deflect: prev.player.skills.bDeflect,
+          hitEnemies: new Set(),
+        },
       };
       tapPendingShockwaves.push(newShockwave);
       
-      if (prev.player.skills.bDeflect) {
-        newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
-          const dx = proj.x - attackX;
-          const dy = proj.y - attackY;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          return dist >= totalRange;
-        });
-      }
-        
-      const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-      
-      newState.enemies = newState.enemies.map(enemy => {
-        const dx = enemy.x - attackX;
-        const dy = enemy.y - attackY;
-        const dist = Math.sqrt(dx * dx + dy * dy);
-        
-        const toEnemyX = enemy.x - prev.player.x;
-        const toEnemyY = enemy.y - prev.player.y;
-        const dotProduct = toEnemyX * dirVec.x + toEnemyY * dirVec.y;
-        const isInFront = dotProduct > 0;
-        
-        const effectiveRange = isInFront ? totalRange : baseRange;
-        
-        if (dist < effectiveRange) {
-          const condMultBTap = getConditionalSkillMultipliers(prev.player);
-          const baseBDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBTap.atkMultiplier);
-          const luckResultBTap = checkLuck(prev.player.stats.luck);
-          
-          const damage = calculateDamage(
-            baseBDamage,
-            0,
-            enemy.stats.def,
-            prev.player.statusEffects.some(e => e.type === 'buffer'),
-            enemy.statusEffects.some(e => e.type === 'debuffer'),
-            getBufferLevel(prev.player.statusEffects),
-            getDebufferLevel(enemy.statusEffects),
-            prev.player.stats.cAtk,
-            luckResultBTap.doubleDamage
-          );
-          
-          const knockbackX = dist > 0 ? (dx / dist) * knockbackForce : 0;
-          const knockbackY = dist > 0 ? (dy / dist) * knockbackForce : 0;
-          
-          newState.damageTexts = [...newState.damageTexts, createDamageText(
-            enemy.x,
-            enemy.y,
-            damage,
-            luckResultBTap.doubleDamage,
-            luckResultBTap.doubleDamage ? '#ffd700' : undefined
-          )];
-          
-          return {
-            ...enemy,
-            stats: {
-              ...enemy.stats,
-              hp: Math.max(0, enemy.stats.hp - damage),
-            },
-            knockbackVelocity: { x: knockbackX, y: knockbackY },
-          };
-        }
-          return enemy;
-        });
-        
-        const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
-        if (tapBMultiHitLevel > 0) {
-          for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
-            setTimeout(() => {
-              const multiShockwave: ShockwaveEffect = {
-                id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
-                x: 0,
-                y: 0,
-                radius: 0,
-                maxRadius: 0,
-                startTime: Date.now(),
-                duration: 300,
-                direction: 'right' as Direction,
+      // 多段攻撃処理（B列タップ）- ダメージはゲームループで判定
+      const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
+      if (tapBMultiHitLevel > 0) {
+        for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
+          setTimeout(() => {
+            const multiShockwave: ShockwaveEffect = {
+              id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
+              x: 0,
+              y: 0,
+              radius: 0,
+              maxRadius: 0,
+              startTime: Date.now(),
+              duration: 300,
+              direction: 'right' as Direction,
+            };
+            
+            setGameState(gs => {
+              if (gs.isPaused || gs.isGameOver) return gs;
+              
+              const bBaseRange = 80;
+              const bBonusRange = gs.player.skills.bRangeBonus * 20;
+              const bTotalRange = bBaseRange + bBonusRange;
+              const bDirVec = getDirectionVector(gs.player.direction);
+              const bAttackX = gs.player.x + bDirVec.x * 40;
+              const bAttackY = gs.player.y + bDirVec.y * 40;
+              const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
+              
+              multiShockwave.x = bAttackX;
+              multiShockwave.y = bAttackY;
+              multiShockwave.maxRadius = bTotalRange;
+              multiShockwave.direction = gs.player.direction;
+              multiShockwave.attackParams = {
+                baseBDamage: Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier),
+                knockbackForce: 150 + gs.player.skills.bKnockbackBonus * 50,
+                dirVec: bDirVec,
+                playerX: gs.player.x,
+                playerY: gs.player.y,
+                baseRange: bBaseRange,
+                totalRange: bTotalRange,
+                isBuffed: gs.player.statusEffects.some(e => e.type === 'buffer'),
+                bufferLevel: getBufferLevel(gs.player.statusEffects),
+                playerCAtk: gs.player.stats.cAtk,
+                playerLuck: gs.player.stats.luck,
+                deflect: gs.player.skills.bDeflect,
+                hitEnemies: new Set(),
               };
               
-              setGameState(gs => {
-                if (gs.isPaused || gs.isGameOver) return gs;
-                
-                const bBaseRange = 80;
-                const bBonusRange = gs.player.skills.bRangeBonus * 20;
-                const bTotalRange = bBaseRange + bBonusRange;
-                const bDirVec = getDirectionVector(gs.player.direction);
-                const bAttackX = gs.player.x + bDirVec.x * 40;
-                const bAttackY = gs.player.y + bDirVec.y * 40;
-                
-                multiShockwave.x = bAttackX;
-                multiShockwave.y = bAttackY;
-                multiShockwave.maxRadius = bTotalRange;
-                multiShockwave.direction = gs.player.direction;
-                
-                let updatedEnemyProjectilesTap = gs.enemyProjectiles;
-                if (gs.player.skills.bDeflect) {
-                  updatedEnemyProjectilesTap = gs.enemyProjectiles.filter(proj => {
-                    const dx = proj.x - bAttackX;
-                    const dy = proj.y - bAttackY;
-                    const dist = Math.sqrt(dx * dx + dy * dy);
-                    return dist >= bTotalRange;
-                  });
-                }
-                
-                const bKnockbackForce = 150 + gs.player.skills.bKnockbackBonus * 50;
-                const newDamageTexts = [...gs.damageTexts];
-                
-                const updatedEnemies = gs.enemies.map(enemy => {
-                  const dx = enemy.x - bAttackX;
-                  const dy = enemy.y - bAttackY;
-                  const dist = Math.sqrt(dx * dx + dy * dy);
-                  
-                  const toEnemyX = enemy.x - gs.player.x;
-                  const toEnemyY = enemy.y - gs.player.y;
-                  const dotProduct = toEnemyX * bDirVec.x + toEnemyY * bDirVec.y;
-                  const isInFront = dotProduct > 0;
-                  const effectiveRange = isInFront ? bTotalRange : bBaseRange;
-                  
-                  if (dist < effectiveRange) {
-                    const condMultBTapMulti = getConditionalSkillMultipliers(gs.player);
-                    const baseBDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBTapMulti.atkMultiplier);
-                    const luckResultBTapMulti = checkLuck(gs.player.stats.luck);
-                    
-                    const damage = calculateDamage(
-                      baseBDamage,
-                      0,
-                      enemy.stats.def,
-                      gs.player.statusEffects.some(e => e.type === 'buffer'),
-                      enemy.statusEffects.some(e => e.type === 'debuffer'),
-                      getBufferLevel(gs.player.statusEffects),
-                      getDebufferLevel(enemy.statusEffects),
-                      gs.player.stats.cAtk,
-                      luckResultBTapMulti.doubleDamage
-                    );
-                    
-                    const knockbackX = dist > 0 ? (dx / dist) * bKnockbackForce : 0;
-                    const knockbackY = dist > 0 ? (dy / dist) * bKnockbackForce : 0;
-                    
-                    newDamageTexts.push(createDamageText(
-                      enemy.x,
-                      enemy.y,
-                      damage,
-                      luckResultBTapMulti.doubleDamage,
-                      luckResultBTapMulti.doubleDamage ? '#ffd700' : undefined
-                    ));
-                    
-                    return {
-                      ...enemy,
-                      stats: {
-                        ...enemy.stats,
-                        hp: Math.max(0, enemy.stats.hp - damage),
-                      },
-                      knockbackVelocity: { x: knockbackX, y: knockbackY },
-                    };
-                  }
-                  return enemy;
-                });
-                
-              return {
-                ...gs,
-                enemies: updatedEnemies,
-                enemyProjectiles: updatedEnemyProjectilesTap,
-                damageTexts: newDamageTexts,
-              };
+              shockwavesRef.current = [...shockwavesRef.current, multiShockwave];
+              return gs;
             });
             
             setShockwaves(sw => [...sw, multiShockwave]);
@@ -1828,6 +1627,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   });
   
   if (tapPendingShockwaves.length > 0) {
+    shockwavesRef.current = [...shockwavesRef.current, ...tapPendingShockwaves];
     setShockwaves(sw => [...sw, ...tapPendingShockwaves]);
   }
 }, [gameState.isGameOver, gameState.isPaused, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
@@ -1951,6 +1751,82 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (proj.penetrating) return true;
           return !hitResults.some(h => h.projId === proj.id);
         });
+        
+        // 衝撃波ダメージ判定（B列近接攻撃 - エフェクト半径に連動）
+        const swNow = Date.now();
+        const activeAttackShockwaves = shockwavesRef.current.filter(
+          sw => sw.attackParams && swNow - sw.startTime < sw.duration
+        );
+        for (const sw of activeAttackShockwaves) {
+          const params = sw.attackParams!;
+          const swElapsed = swNow - sw.startTime;
+          const swProgress = swElapsed / sw.duration;
+          const swExpandProgress = Math.min(1, swProgress / SHOCKWAVE_EXPAND_RATIO);
+          const currentRadius = sw.maxRadius * swExpandProgress;
+          
+          // 拳でかきけす - 衝撃波半径に連動して敵弾消去
+          if (params.deflect) {
+            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
+              const dx = proj.x - sw.x;
+              const dy = proj.y - sw.y;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              return dist >= currentRadius;
+            });
+          }
+          
+          newState.enemies = newState.enemies.map(enemy => {
+            if (params.hitEnemies.has(enemy.id)) return enemy;
+            
+            const dx = enemy.x - sw.x;
+            const dy = enemy.y - sw.y;
+            const dist = Math.sqrt(dx * dx + dy * dy);
+            
+            const toEnemyX = enemy.x - params.playerX;
+            const toEnemyY = enemy.y - params.playerY;
+            const dotProduct = toEnemyX * params.dirVec.x + toEnemyY * params.dirVec.y;
+            const isInFront = dotProduct > 0;
+            const maxEffectiveRange = isInFront ? params.totalRange : params.baseRange;
+            const effectiveRadius = Math.min(currentRadius, maxEffectiveRange);
+            
+            if (dist < effectiveRadius) {
+              params.hitEnemies.add(enemy.id);
+              
+              const luckResultSw = checkLuck(params.playerLuck);
+              const damage = calculateDamage(
+                params.baseBDamage,
+                0,
+                enemy.stats.def,
+                params.isBuffed,
+                enemy.statusEffects.some(e => e.type === 'debuffer'),
+                params.bufferLevel,
+                getDebufferLevel(enemy.statusEffects),
+                params.playerCAtk,
+                luckResultSw.doubleDamage
+              );
+              
+              const knockbackX = dist > 0 ? (dx / dist) * params.knockbackForce : 0;
+              const knockbackY = dist > 0 ? (dy / dist) * params.knockbackForce : 0;
+              
+              newState.damageTexts.push(createDamageText(
+                enemy.x,
+                enemy.y,
+                damage,
+                luckResultSw.doubleDamage,
+                luckResultSw.doubleDamage ? '#ffd700' : undefined
+              ));
+              
+              return {
+                ...enemy,
+                stats: {
+                  ...enemy.stats,
+                  hp: Math.max(0, enemy.stats.hp - damage),
+                },
+                knockbackVelocity: { x: knockbackX, y: knockbackY },
+              };
+            }
+            return enemy;
+          });
+        }
         
         // 炎オーラダメージ（FIRE魔法） - 当たった敵にデバフ付与
         if (prev.player.statusEffects.some(e => e.type === 'fire')) {
@@ -2584,7 +2460,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       });
       
       // 衝撃波エフェクトの更新
-      setShockwaves(sw => sw.filter(s => Date.now() - s.startTime < s.duration));
+      const swCleanupNow = Date.now();
+      shockwavesRef.current = shockwavesRef.current.filter(s => swCleanupNow - s.startTime < s.duration);
+      setShockwaves(sw => sw.filter(s => swCleanupNow - s.startTime < s.duration));
       
       // 雷エフェクトの更新
       setLightningEffects(le => le.filter(l => Date.now() - l.startTime < l.duration));
@@ -2606,6 +2484,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // リトライ
   const handleRetry = useCallback(() => {
     setResult(null);
+    shockwavesRef.current = [];
     setShockwaves([]);
     setLightningEffects([]);
     setSkillNotifications([]);

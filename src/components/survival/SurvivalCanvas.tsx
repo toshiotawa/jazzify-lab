@@ -15,6 +15,7 @@ import {
   Direction,
   ShockwaveEffect,
   MAP_CONFIG,
+  SHOCKWAVE_EXPAND_RATIO,
 } from './SurvivalTypes';
 
 // 方向から角度を取得するヘルパー
@@ -597,8 +598,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (elapsed >= sw.duration) return;
       
       const progress = elapsed / sw.duration;
-      // 即座に展開してフェードアウト（ダメージ適用と同期）
-      const expandProgress = Math.min(1, progress / 0.15);
+      const expandProgress = Math.min(1, progress / SHOCKWAVE_EXPAND_RATIO);
       const currentRadius = sw.maxRadius * expandProgress;
       const alpha = 1 - progress;
       

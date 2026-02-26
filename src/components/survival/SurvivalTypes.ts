@@ -265,6 +265,24 @@ export interface Coin {
 }
 
 // ===== 衝撃波エフェクト =====
+export const SHOCKWAVE_EXPAND_RATIO = 0.10;
+
+export interface ShockwaveAttackParams {
+  baseBDamage: number;
+  knockbackForce: number;
+  dirVec: { x: number; y: number };
+  playerX: number;
+  playerY: number;
+  baseRange: number;
+  totalRange: number;
+  isBuffed: boolean;
+  bufferLevel: number;
+  playerCAtk: number;
+  playerLuck: number;
+  deflect: boolean;
+  hitEnemies: Set<string>;
+}
+
 export interface ShockwaveEffect {
   id: string;
   x: number;
@@ -274,6 +292,7 @@ export interface ShockwaveEffect {
   startTime: number;
   duration: number;
   direction?: Direction;  // 前方のみエフェクト表示用
+  attackParams?: ShockwaveAttackParams;
 }
 
 // ===== 雷エフェクト =====
