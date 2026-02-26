@@ -727,7 +727,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
       />
       <div 
         className={cn(
-          "h-full bg-white text-black",
+          "h-full bg-white text-black pt-6",
           // 再生中は横スクロール無効、停止中は横スクロール有効
           isPlaying ? "overflow-hidden" : "overflow-x-auto overflow-y-hidden",
           // カスタムスクロールバースタイルを適用
@@ -746,8 +746,8 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           })
         } as React.CSSProperties}
         >
-          {/* 楽譜コンテナ - 上部に余白を追加（装飾記号の見切れ防止） */}
-          <div className="relative h-full pt-14 pb-4">
+          {/* 楽譜コンテナ */}
+          <div className="relative h-full pt-4 pb-4">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
                 <div className="text-black">楽譜を読み込み中...</div>

@@ -32,6 +32,64 @@ export function filterNotesByTimeRange(
   return { notes: offsetNotes, audioStartTime: effAudioStart, audioEndTime: effAudioEnd, duration };
 }
 
+interface MeasureBoundary {
+  measureNumber: number;
+  startTime: number;
+  endTime: number;
+}
+
+function calculateMeasureTimeBoundaries(xmlText: string): MeasureBoundary[] {
+  const parser = new DOMParser();
+  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const measures = Array.from(doc.querySelectorAll('part:first-of-type > measure'));
+
+  let divisionsPerQuarter = 1;
+  let tempo = 120;
+  let beatsPerMeasure = 4;
+  let beatType = 4;
+  let currentTime = 0;
+
+  const boundaries: MeasureBoundary[] = [];
+
+  for (const measure of measures) {
+    const num = parseInt(measure.getAttribute('number') || '0', 10);
+
+    const attrs = measure.querySelector('attributes');
+    if (attrs) {
+      const div = attrs.querySelector('divisions');
+      if (div) divisionsPerQuarter = parseInt(div.textContent || '1', 10);
+      const timeEl = attrs.querySelector('time');
+      if (timeEl) {
+        const b = parseInt(timeEl.querySelector('beats')?.textContent || '', 10);
+        const bt = parseInt(timeEl.querySelector('beat-type')?.textContent || '', 10);
+        if (!isNaN(b) && b > 0) beatsPerMeasure = b;
+        if (!isNaN(bt) && bt > 0) beatType = bt;
+      }
+    }
+
+    const soundEl = measure.querySelector(':scope > sound[tempo]');
+    if (soundEl) {
+      const t = parseFloat(soundEl.getAttribute('tempo') || '');
+      if (!isNaN(t) && t > 0) tempo = t;
+    }
+    for (const dir of Array.from(measure.querySelectorAll(':scope > direction'))) {
+      const dirSound = dir.querySelector('sound[tempo]');
+      if (dirSound) {
+        const t = parseFloat(dirSound.getAttribute('tempo') || '');
+        if (!isNaN(t) && t > 0) tempo = t;
+      }
+    }
+
+    const measureStartTime = currentTime;
+    const measureDuration = beatsPerMeasure * (60 / tempo) * (4 / beatType);
+    currentTime += measureDuration;
+
+    boundaries.push({ measureNumber: num, startTime: measureStartTime, endTime: currentTime });
+  }
+
+  return boundaries;
+}
+
 export async function filterNotesByMeasureRange(
   notes: NoteData[],
   xmlText: string,
@@ -40,76 +98,24 @@ export async function filterNotesByMeasureRange(
   audioPaddingMeasures: number,
   audioPaddingSeconds?: number | null
 ): Promise<RangeFilterResult> {
-  const { estimateMeasureTimeInfo } = await import('@/utils/musicXmlMapper');
-  const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+  const boundaries = calculateMeasureTimeBoundaries(xmlText);
 
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'application/xml');
-
-  const xmlNotes = parseMusicXmlToNoteData(xmlText, 'temp');
-
-  const extractNotePositionsFromDoc = (document: Document) => {
-    const positions: Array<{ measureNumber: number; positionInMeasure: number; pitch: number; step: string; octave: number; alter: number }> = [];
-    const measures = document.querySelectorAll('measure');
-    measures.forEach((measure) => {
-      const measureNumber = parseInt(measure.getAttribute('number') || '1', 10);
-      let currentPosition = 0;
-      measure.querySelectorAll('note').forEach((noteEl) => {
-        if (noteEl.querySelector('rest')) {
-          const durationEl = noteEl.querySelector('duration');
-          if (durationEl) currentPosition += parseInt(durationEl.textContent || '0', 10);
-          return;
-        }
-        if (noteEl.querySelector('chord')) {
-          // same position as previous
-        } else {
-          const durationEl = noteEl.querySelector('duration');
-          if (durationEl) {
-            const dur = parseInt(durationEl.textContent || '0', 10);
-            positions.push({
-              measureNumber,
-              positionInMeasure: currentPosition,
-              pitch: 0, step: '', octave: 0, alter: 0,
-            });
-            currentPosition += dur;
-            return;
-          }
-        }
-        positions.push({
-          measureNumber,
-          positionInMeasure: currentPosition,
-          pitch: 0, step: '', octave: 0, alter: 0,
-        });
-      });
-    });
-    return positions;
-  };
-
-  const notePositions = extractNotePositionsFromDoc(doc);
-  const measureTimeInfo = estimateMeasureTimeInfo(notePositions, notes.length > 0 ? notes : xmlNotes);
-
-  const startInfo = measureTimeInfo.find((m) => m.measureNumber === startMeasure);
-  const endInfo = measureTimeInfo.find((m) => m.measureNumber === endMeasure);
+  const startInfo = boundaries.find((m) => m.measureNumber === startMeasure);
+  const endInfo = boundaries.find((m) => m.measureNumber === endMeasure);
 
   if (!startInfo || !endInfo) {
-    const allMeasures = measureTimeInfo.map((m) => m.measureNumber);
-    const fallbackStart = measureTimeInfo[0];
-    const fallbackEnd = measureTimeInfo[measureTimeInfo.length - 1];
+    const fallbackStart = boundaries[0];
+    const fallbackEnd = boundaries[boundaries.length - 1];
     const rangeStart = startInfo?.startTime ?? fallbackStart?.startTime ?? 0;
-    const rangeEnd = endInfo
-      ? endInfo.startTime + endInfo.duration
-      : fallbackEnd
-        ? fallbackEnd.startTime + fallbackEnd.duration
-        : notes[notes.length - 1]?.time ?? 60;
-
+    const rangeEnd = endInfo?.endTime ?? fallbackEnd?.endTime ?? (notes[notes.length - 1]?.time ?? 60);
     return filterNotesByTimeRange(notes, rangeStart, rangeEnd, null, null, 2);
   }
 
   const rangeStartTime = startInfo.startTime;
-  const rangeEndTime = endInfo.startTime + endInfo.duration;
+  const rangeEndTime = endInfo.endTime;
 
   const filtered = notes.filter(
-    (n) => n.time >= rangeStartTime && n.time <= rangeEndTime
+    (n) => n.time >= rangeStartTime && n.time < rangeEndTime + 0.01
   );
 
   let audioStartTime = rangeStartTime;
@@ -124,15 +130,15 @@ export async function filterNotesByMeasureRange(
     const paddedStartMeasure = Math.max(1, startMeasure - audioPaddingMeasures);
     const paddedEndMeasure = endMeasure + audioPaddingMeasures;
 
-    const paddedStartInfo = measureTimeInfo.find((m) => m.measureNumber === paddedStartMeasure);
-    const paddedEndInfo = measureTimeInfo.find((m) => m.measureNumber === paddedEndMeasure);
-    const lastMeasureInfo = measureTimeInfo[measureTimeInfo.length - 1];
+    const paddedStartInfo = boundaries.find((m) => m.measureNumber === paddedStartMeasure);
+    const paddedEndInfo = boundaries.find((m) => m.measureNumber === paddedEndMeasure);
+    const lastBoundary = boundaries[boundaries.length - 1];
 
     if (paddedStartInfo) audioStartTime = paddedStartInfo.startTime;
     if (paddedEndInfo) {
-      audioEndTime = paddedEndInfo.startTime + paddedEndInfo.duration;
-    } else if (lastMeasureInfo && paddedEndMeasure > lastMeasureInfo.measureNumber) {
-      audioEndTime = lastMeasureInfo.startTime + lastMeasureInfo.duration;
+      audioEndTime = paddedEndInfo.endTime;
+    } else if (lastBoundary && paddedEndMeasure > lastBoundary.measureNumber) {
+      audioEndTime = lastBoundary.endTime;
     }
   }
 
