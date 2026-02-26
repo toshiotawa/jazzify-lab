@@ -2085,9 +2085,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         
         {/* ===== モンスター＋エフェクト描画エリア ===== */}
         <div className="mb-2 text-center relative w-full">
-          {/* コンボ表示（右上） */}
+          {/* コンボ表示（右・やや下寄り） */}
           {gameState.combo >= 2 && (
-            <div className="absolute top-1 right-1 z-30 pointer-events-none text-right">
+            <div className="absolute top-12 right-1 z-30 pointer-events-none text-right">
               <span className="text-2xl font-black text-yellow-300 drop-shadow-lg">{gameState.combo}</span>
               <span className="block text-[10px] font-bold text-yellow-200 tracking-widest">COMBO</span>
             </div>

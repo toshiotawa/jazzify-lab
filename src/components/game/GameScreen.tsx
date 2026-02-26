@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import GameEngineComponent from './GameEngine';
 import ControlBar from './ControlBar';
@@ -986,13 +986,25 @@ const GamePlayScreen: React.FC = () => {
   const gpGeoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: gpProfile?.rank, country: gpProfile?.country ?? gpGeoCountry });
   
-  // 楽譜エリアの高さ比率を管理（パーセンテージ）
-  const [sheetMusicHeightPercentage, setSheetMusicHeightPercentage] = useState(30);
+  // 楽譜エリアの高さ比率を管理（パーセンテージ）- localStorageで保持
+  const [sheetMusicHeightPercentage, setSheetMusicHeightPercentage] = useState(() => {
+    try {
+      const saved = localStorage.getItem('legend_sheet_height_pct');
+      if (saved) {
+        const val = parseFloat(saved);
+        if (!isNaN(val) && val >= 5 && val <= 95) return val;
+      }
+    } catch { /* ignore */ }
+    return 30;
+  });
   
-  // 楽譜エリアの高さ変更時のハンドラー（シンプル版）
-  const handleSheetMusicResize = (newPercentage: number) => {
+  // 楽譜エリアの高さ変更時のハンドラー（localStorageに保存）
+  const handleSheetMusicResize = useCallback((newPercentage: number) => {
     setSheetMusicHeightPercentage(newPercentage);
-  };
+    try {
+      localStorage.setItem('legend_sheet_height_pct', String(newPercentage));
+    } catch { /* ignore */ }
+  }, []);
 
   if (!currentSong) {
     return (
