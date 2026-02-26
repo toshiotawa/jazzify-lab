@@ -2772,36 +2772,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return lastHintSlotRef.current;
   };
   
-  // HINT鍵盤ハイライト
-  const prevHintNotesRef = useRef<number[]>([]);
+  // HINT鍵盤ハイライト（緑色のガイドハイライトを使用）
   useEffect(() => {
     const hintSlotIndex = getHintSlotIndex();
     const renderer = pixiRendererRef.current;
     
-    // 以前のハイライトをクリア
-    prevHintNotesRef.current.forEach(note => {
-      renderer?.highlightKey(note, false);
-    });
-    prevHintNotesRef.current = [];
-    
-    // HINTが有効な場合、該当スロットのコードの構成音をハイライト
     if (hintSlotIndex !== null && renderer) {
       const slot = gameState.codeSlots.current[hintSlotIndex];
       if (slot.chord?.notes) {
-        // 基本形のみ表示: オクターブ4を基準に、各構成音を1つずつハイライト
-        // 3和音なら3鍵盤、4和音なら4鍵盤のみ表示
         const highlightNotes: number[] = [];
         const baseOctave = 4;
         
-        // 元のノート配列（重複なし）を基本形の順序で取得
         const uniqueNoteMod12 = [...new Set(slot.chord.notes.map(n => n % 12))];
         
-        // 各構成音をオクターブ4基準で昇順に配置
         let lastMidi = 0;
         for (const noteMod12 of uniqueNoteMod12) {
-          // オクターブ4基準のMIDIノート
           let midiNote = noteMod12 + baseOctave * 12;
-          // 前の音より低い場合はオクターブを上げる（基本形の昇順）
           while (midiNote <= lastMidi) {
             midiNote += 12;
           }
@@ -2809,11 +2795,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           lastMidi = midiNote;
         }
         
-        highlightNotes.forEach(note => {
-          renderer.highlightKey(note, true);
-        });
-        prevHintNotesRef.current = highlightNotes;
+        renderer.setGuideHighlightsByMidiNotes(highlightNotes);
+      } else {
+        renderer?.setGuideHighlightsByMidiNotes([]);
       }
+    } else {
+      pixiRendererRef.current?.setGuideHighlightsByMidiNotes([]);
     }
   }, [gameState.player.statusEffects, gameState.codeSlots.current]);
   
