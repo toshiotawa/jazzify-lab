@@ -114,10 +114,10 @@ const createStageInitialPlayerState = (): PlayerState => ({
     cAtk: 20,
     speed: 5,
     reloadMagic: 0,
-    hp: 100,
-    maxHp: 100,
+    hp: 300,
+    maxHp: 300,
     def: 10,
-    time: 0,
+    time: 10,
     aBulletCount: 5,
     luck: 0,
   },
@@ -125,10 +125,10 @@ const createStageInitialPlayerState = (): PlayerState => ({
     aPenetration: true,
     bKnockbackBonus: 5,
     bRangeBonus: 5,
-    bDeflect: false,
+    bDeflect: true,
     multiHitLevel: 2,
     expBonusLevel: 0,
-    haisuiNoJin: false,
+    haisuiNoJin: true,
     zekkouchou: false,
     alwaysHaisuiNoJin: false,
     alwaysZekkouchou: false,
@@ -137,7 +137,7 @@ const createStageInitialPlayerState = (): PlayerState => ({
   magics: {
     thunder: 0,
     ice: 0,
-    fire: 0,
+    fire: 1,
     heal: 0,
     buffer: 0,
     hint: 0,
@@ -435,19 +435,20 @@ export const initializeCodeSlots = (
   hasMagic: boolean,
   isStageMode: boolean = false
 ): SurvivalGameState['codeSlots'] => {
-  const abOnly = isStageMode;
+  const cEnabled = hasMagic && (!isStageMode || hasMagic);
+  const dEnabled = hasMagic && !isStageMode;
   const current: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords) },
-    { ...createEmptyCodeSlot('C'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic && !abOnly },
-    { ...createEmptyCodeSlot('D'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords) : null, isEnabled: hasMagic && !abOnly },
+    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords) : null, isEnabled: cEnabled },
+    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords) : null, isEnabled: dEnabled },
   ];
   
   const next: [CodeSlot, CodeSlot, CodeSlot, CodeSlot] = [
     { ...createEmptyCodeSlot('A'), chord: selectRandomChord(allowedChords, current[0].chord?.id) },
     { ...createEmptyCodeSlot('B'), chord: selectRandomChord(allowedChords, current[1].chord?.id) },
-    { ...createEmptyCodeSlot('C'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: hasMagic && !abOnly },
-    { ...createEmptyCodeSlot('D'), chord: (hasMagic && !abOnly) ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: hasMagic && !abOnly },
+    { ...createEmptyCodeSlot('C'), chord: cEnabled ? selectRandomChord(allowedChords, current[2].chord?.id) : null, isEnabled: cEnabled },
+    { ...createEmptyCodeSlot('D'), chord: dEnabled ? selectRandomChord(allowedChords, current[3].chord?.id) : null, isEnabled: dEnabled },
   ];
   
   return { current, next };

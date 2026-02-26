@@ -10,7 +10,7 @@ import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './Survi
 import SurvivalStageSelect, { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalStageMode from './SurvivalStageMode';
 import SurvivalGameScreen from './SurvivalGameScreen';
-import { StageDefinition, STAGE_TIME_LIMIT_SECONDS } from './SurvivalStageDefinitions';
+import { StageDefinition, STAGE_TIME_LIMIT_SECONDS, ALL_STAGES, TOTAL_STAGES } from './SurvivalStageDefinitions';
 import { FaBolt, FaTrophy } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -191,6 +191,40 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     setScreen('game');
   }, []);
 
+  const handleRetryWithHint = useCallback(() => {
+    setActiveHintMode(true);
+    setScreen('select');
+    setTimeout(() => setScreen('game'), 0);
+  }, []);
+
+  const handleRetryWithoutHint = useCallback(() => {
+    setActiveHintMode(false);
+    setScreen('select');
+    setTimeout(() => setScreen('game'), 0);
+  }, []);
+
+  const handleNextStage = useCallback(() => {
+    if (!activeStageDefinition || !selectedConfig) return;
+    const nextStageNumber = activeStageDefinition.stageNumber + 1;
+    const nextStage = ALL_STAGES.find(s => s.stageNumber === nextStageNumber);
+    if (!nextStage) return;
+
+    const nextConfig: DifficultyConfig = {
+      ...selectedConfig,
+      difficulty: nextStage.difficulty,
+      displayName: nextStage.name,
+      description: nextStage.name,
+      descriptionEn: nextStage.nameEn,
+      allowedChords: nextStage.allowedChords,
+    };
+    setActiveStageDefinition(nextStage);
+    setSelectedConfig(nextConfig);
+    setSelectedDifficulty(nextStage.difficulty);
+    setActiveHintMode(false);
+    setScreen('select');
+    setTimeout(() => setScreen('game'), 0);
+  }, [activeStageDefinition, selectedConfig]);
+
   const handleBackToSelect = useCallback(() => {
     if (lessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
@@ -310,6 +344,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
         stageDefinition={activeStageDefinition ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
         hintMode={activeHintMode}
+        onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
+        onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
+        onNextStage={activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined}
       />
     );
   }

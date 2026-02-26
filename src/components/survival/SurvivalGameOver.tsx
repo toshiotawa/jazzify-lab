@@ -25,6 +25,9 @@ interface SurvivalGameOverProps {
   finalWave?: number;
   stageDefinition?: StageDefinition;
   hintMode?: boolean;
+  onRetryWithHint?: () => void;
+  onRetryWithoutHint?: () => void;
+  onNextStage?: () => void;
 }
 
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
@@ -46,6 +49,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   finalWave,
   stageDefinition,
   hintMode = false,
+  onRetryWithHint,
+  onRetryWithoutHint,
+  onNextStage,
 }) => {
   const { profile, isGuest, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -388,35 +394,104 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
         {/* アクションボタン */}
         <div className="flex flex-col gap-2">
-          <button
-            onClick={onRetry}
-            className={cn(
-              'w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors',
-              (isStageClear || isStageClearHint)
-                ? 'bg-green-600 hover:bg-green-500'
-                : 'bg-red-600 hover:bg-red-500'
-            )}
-          >
-            {(isStageClear || isStageClearHint)
-              ? (isEnglishCopy ? 'RETRY STAGE' : 'もう一度プレイ')
-              : (isEnglishCopy ? 'RETRY' : 'リトライ')}
-          </button>
-          <div className="grid grid-cols-2 gap-2">
-            <button
-              onClick={onBackToSelect}
-              className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
-            >
-              {stageDefinition
-                ? (isEnglishCopy ? 'Stage Select' : 'ステージ選択')
-                : (isEnglishCopy ? 'Stage Select' : '難易度選択')}
-            </button>
-            <button
-              onClick={onBackToMenu}
-              className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
-            >
-              {isEnglishCopy ? 'Back to Menu' : 'メニューへ'}
-            </button>
-          </div>
+          {isStageMode ? (
+            <>
+              {isStageClear && onNextStage ? (
+                <>
+                  <button
+                    onClick={onNextStage}
+                    className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-green-600 hover:bg-green-500"
+                  >
+                    {isEnglishCopy ? 'NEXT STAGE' : '次のステージに進む'}
+                  </button>
+                  <button
+                    onClick={onBackToSelect}
+                    className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                  >
+                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                  </button>
+                </>
+              ) : isStageClear && !onNextStage ? (
+                <button
+                  onClick={onBackToSelect}
+                  className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-green-600 hover:bg-green-500"
+                >
+                  {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                </button>
+              ) : isStageClearHint && onRetryWithoutHint ? (
+                <>
+                  <button
+                    onClick={onRetryWithoutHint}
+                    className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-blue-600 hover:bg-blue-500"
+                  >
+                    {isEnglishCopy ? 'TRY WITHOUT HINTS' : 'ヒントなしで挑戦'}
+                  </button>
+                  <button
+                    onClick={onBackToSelect}
+                    className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                  >
+                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                  </button>
+                </>
+              ) : !hintMode && !isStageClear && !isStageClearHint && onRetryWithHint ? (
+                <>
+                  <button
+                    onClick={onRetryWithHint}
+                    className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-yellow-600 hover:bg-yellow-500"
+                  >
+                    {isEnglishCopy ? 'RETRY WITH HINTS' : 'ヒントありで再挑戦'}
+                  </button>
+                  <button
+                    onClick={onBackToSelect}
+                    className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                  >
+                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button
+                    onClick={onRetry}
+                    className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-red-600 hover:bg-red-500"
+                  >
+                    {isEnglishCopy ? 'RETRY' : 'リトライ'}
+                  </button>
+                  <button
+                    onClick={onBackToSelect}
+                    className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                  >
+                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                  </button>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <button
+                onClick={onRetry}
+                className={cn(
+                  'w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors',
+                  'bg-red-600 hover:bg-red-500'
+                )}
+              >
+                {isEnglishCopy ? 'RETRY' : 'リトライ'}
+              </button>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={onBackToSelect}
+                  className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                >
+                  {isEnglishCopy ? 'Stage Select' : '難易度選択'}
+                </button>
+                <button
+                  onClick={onBackToMenu}
+                  className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
+                >
+                  {isEnglishCopy ? 'Back to Menu' : 'メニューへ'}
+                </button>
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>

@@ -210,7 +210,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
       {/* スロット行 */}
       <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
-          if (isStageMode && index >= 2) return null;
+          if (isStageMode && index >= 3) return null;
           return (
             <SlotDisplay
               key={slot.type}

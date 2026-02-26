@@ -217,6 +217,9 @@ interface SurvivalGameScreenProps {
   stageDefinition?: import('./SurvivalStageDefinitions').StageDefinition;
   onLessonStageClear?: () => void;
   hintMode?: boolean;
+  onRetryWithHint?: () => void;
+  onRetryWithoutHint?: () => void;
+  onNextStage?: () => void;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -229,6 +232,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   stageDefinition,
   onLessonStageClear,
   hintMode = false,
+  onRetryWithHint,
+  onRetryWithoutHint,
+  onNextStage,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -405,6 +411,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }
   const [skillNotifications, setSkillNotifications] = useState<SkillNotification[]>([]);
   
+  // ステージモード: 残り30秒パワーアップ済みフラグ
+  const stagePowerUpTriggeredRef = useRef(false);
+
   // BGM制御用refs
   const bgmAudioRef = useRef<HTMLAudioElement | null>(null);
   const currentBgmUrlRef = useRef<string | null>(null);
@@ -899,7 +908,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ゲーム開始
   const startGame = useCallback(() => {
     setGameState(prev => {
-      const hasMagic = isStageMode ? false : Object.values(prev.player.magics).some(l => l > 0);
+      const hasMagic = Object.values(prev.player.magics).some(l => l > 0);
       const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode);
       
       return {
@@ -2426,6 +2435,47 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         );
         
         if (isStageMode) {
+          // ステージモード: 残り30秒パワーアップ
+          const remainingTime = STAGE_TIME_LIMIT_SECONDS - newState.elapsedTime;
+          if (remainingTime <= 30 && !stagePowerUpTriggeredRef.current) {
+            stagePowerUpTriggeredRef.current = true;
+            newState.player = {
+              ...newState.player,
+              stats: {
+                ...newState.player.stats,
+                aBulletCount: Math.min(15, newState.player.stats.aBulletCount + 6),
+                speed: newState.player.stats.speed + 10,
+              },
+              skills: {
+                ...newState.player.skills,
+                bRangeBonus: newState.player.skills.bRangeBonus + 10,
+                multiHitLevel: Math.min(3, newState.player.skills.multiHitLevel + 1),
+              },
+              magics: {
+                ...newState.player.magics,
+                thunder: Math.max(newState.player.magics.thunder, 1),
+              },
+            };
+            FantasySoundManager.playStageClear();
+            setSkillNotifications(prev => [
+              ...prev,
+              { id: `powerup_${Date.now()}`, icon: '⚡', displayName: '全能力強化', startTime: Date.now() },
+            ]);
+            // BGM切り替え（evenWaveに変更）
+            if (config.bgmEvenWaveUrl && currentBgmUrlRef.current !== config.bgmEvenWaveUrl) {
+              if (bgmAudioRef.current) {
+                bgmAudioRef.current.pause();
+                bgmAudioRef.current = null;
+              }
+              const audio = new Audio(config.bgmEvenWaveUrl);
+              audio.loop = true;
+              audio.volume = bgmVolumeRef.current;
+              bgmAudioRef.current = audio;
+              currentBgmUrlRef.current = config.bgmEvenWaveUrl;
+              audio.play().catch(() => {});
+            }
+          }
+
           // ステージモード: 90秒生存 + 撃破ノルマ10体
           if (newState.wave.waveKills >= STAGE_KILL_QUOTA && !newState.wave.waveCompleted) {
             newState.wave = { ...newState.wave, waveCompleted: true };
@@ -2436,6 +2486,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.isPlaying = false;
             const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
             const cleared = newState.enemiesDefeated >= STAGE_KILL_QUOTA;
+            if (cleared) {
+              FantasySoundManager.playStageClear();
+            }
             setResult({
               survivalTime: newState.elapsedTime,
               finalLevel: newState.player.level,
@@ -2541,6 +2594,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setLightningEffects([]);
     setSkillNotifications([]);
     setLevelUpCorrectNotes(emptyCorrectNotes());
+    stagePowerUpTriggeredRef.current = false;
     const initial = createInitialGameState(difficulty, config, isStageMode);
     // ステージモード: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
@@ -3263,6 +3317,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           finalWave={gameState.wave.currentWave}
           stageDefinition={stageDefinition}
           hintMode={hintMode}
+          onRetryWithHint={onRetryWithHint}
+          onRetryWithoutHint={onRetryWithoutHint}
+          onNextStage={onNextStage}
         />
       )}
       
