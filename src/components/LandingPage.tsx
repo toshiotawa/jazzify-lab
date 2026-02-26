@@ -328,8 +328,8 @@ const LandingPage: React.FC = () => {
 
             <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
-                  画像（準備中）
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                  <img src="/regend_demo.png" alt="レジェンドモード：楽譜とピアノロールで名演ソロを再現" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
                   <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
@@ -341,8 +341,8 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
-                  画像（準備中）
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                  <img src="/fantasy_demo.png" alt="ファンタジーモード：RPG風バトルでコード進行をマスター" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
                   <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
@@ -354,8 +354,8 @@ const LandingPage: React.FC = () => {
               </div>
 
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center text-sm text-gray-500">
-                  画像（準備中）
+                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                  <img src="/lessons_demo.png" alt="レッスンモード：コースとレッスンで体系的に学習" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
                   <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">

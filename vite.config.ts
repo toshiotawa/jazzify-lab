@@ -48,6 +48,10 @@ export default defineConfig(({ mode }) => {
       assetsDir: 'assets',
       // 並列処理の最適化
       rollupOptions: {
+        onwarn(warning, warn) {
+          if (typeof warning.message === 'string' && warning.message.includes('sourcemap')) return;
+          warn(warning);
+        },
         output: {
             manualChunks: {
               'react-vendor': ['react', 'react-dom'],
