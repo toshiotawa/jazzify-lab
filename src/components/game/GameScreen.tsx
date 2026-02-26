@@ -66,15 +66,14 @@ const GameScreen: React.FC = () => {
             return;
           }
           
-          // JSONデータの取得
-          let notesData: any;
+          // ノーツデータの取得（JSON or MusicXML-only）
+          let mapped: any[];
           if (song.json_url) {
             const response = await fetch(song.json_url);
             if (!response.ok) {
               throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
             }
             
-            // レスポンスの内容をチェック
             const contentType = response.headers.get('content-type');
             if (!contentType || !contentType.includes('application/json')) {
               console.warn('⚠️ JSONでないコンテンツタイプ:', contentType);
@@ -82,35 +81,50 @@ const GameScreen: React.FC = () => {
             
             const responseText = await response.text();
             
-            // HTMLが返されている場合の検出
             if (responseText.trim().startsWith('<')) {
               throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
             }
             
+            let notesData: any;
             try {
               notesData = JSON.parse(responseText);
             } catch (parseError) {
-              console.error('JSON解析エラー:', parseError);
-              console.error('レスポンス内容の先頭100文字:', responseText.substring(0, 100));
               throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
             }
+            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+            if (!notes || !Array.isArray(notes)) {
+              throw new Error('ノーツデータの形式が不正です');
+            }
+            mapped = notes.map((n: any, idx: number) => ({ 
+              id: `${song.id}-${idx}`, 
+              time: n.time, 
+              pitch: n.pitch 
+            }));
           } else if (song.json_data) {
-            notesData = song.json_data;
+            const notesData = song.json_data;
+            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+            if (!notes || !Array.isArray(notes)) {
+              throw new Error('ノーツデータの形式が不正です');
+            }
+            mapped = notes.map((n: any, idx: number) => ({ 
+              id: `${song.id}-${idx}`, 
+              time: n.time, 
+              pitch: n.pitch 
+            }));
+          } else if (song.xml_url) {
+            const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+            const xmlResponse = await fetch(song.xml_url);
+            if (!xmlResponse.ok) {
+              throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
+            }
+            const xmlText = await xmlResponse.text();
+            if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
+              throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
+            }
+            mapped = parseMusicXmlToNoteData(xmlText, song.id);
           } else {
-            throw new Error('曲のノーツデータがありません');
+            throw new Error('曲のノーツデータがありません（JSONまたはMusicXMLが必要です）');
           }
-          
-          // notes配列の抽出
-          const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-          if (!notes || !Array.isArray(notes)) {
-            throw new Error('ノーツデータの形式が不正です');
-          }
-          
-          let mapped: any[] = notes.map((n: any, idx: number) => ({ 
-            id: `${song.id}-${idx}`, 
-            time: n.time, 
-            pitch: n.pitch 
-          }));
 
           // 範囲複製曲のフィルタリング
           let rangeAudioStart: number | undefined;
@@ -201,13 +215,11 @@ const GameScreen: React.FC = () => {
             range_end_measure: song.range_end_measure ?? null,
             audio_start_time: rangeAudioStart ?? song.audio_start_time ?? null,
             audio_end_time: rangeAudioEnd ?? song.audio_end_time ?? null,
+            hand_filter: song.hand_filter ?? null,
           } as any, mapped);
           
-          // 曲のロード完了後に画面遷移を行う
-          // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
           gameActions.setCurrentTab('practice');
           
-          // 読み込み完了
           setIsLoadingLessonSong(false);
           
           // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
@@ -301,38 +313,42 @@ const GameScreen: React.FC = () => {
             return;
           }
           
-          // JSONデータの取得
-          let notesData: any;
+          // ノーツデータの取得（JSON or MusicXML-only）
+          let mapped: any[];
           if (song.json_url) {
             const response = await fetch(song.json_url);
             if (!response.ok) {
               throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
             }
-            
             const responseText = await response.text();
-            
             if (responseText.trim().startsWith('<')) {
               throw new Error('JSONデータの代わりにHTMLが返されました。');
             }
-            
-            notesData = JSON.parse(responseText);
+            const notesData = JSON.parse(responseText);
+            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+            if (!notes || !Array.isArray(notes)) throw new Error('ノーツデータの形式が不正です');
+            mapped = notes.map((n: any, idx: number) => ({ 
+              id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch 
+            }));
           } else if (song.json_data) {
-            notesData = song.json_data;
+            const notesData = song.json_data;
+            const notes = Array.isArray(notesData) ? notesData : notesData.notes;
+            if (!notes || !Array.isArray(notes)) throw new Error('ノーツデータの形式が不正です');
+            mapped = notes.map((n: any, idx: number) => ({ 
+              id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch 
+            }));
+          } else if (song.xml_url) {
+            const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+            const xmlResponse = await fetch(song.xml_url);
+            if (!xmlResponse.ok) throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
+            const xmlText = await xmlResponse.text();
+            if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
+              throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
+            }
+            mapped = parseMusicXmlToNoteData(xmlText, song.id);
           } else {
-            throw new Error('曲のノーツデータがありません');
+            throw new Error('曲のノーツデータがありません（JSONまたはMusicXMLが必要です）');
           }
-          
-          // notes配列の抽出
-          const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-          if (!notes || !Array.isArray(notes)) {
-            throw new Error('ノーツデータの形式が不正です');
-          }
-          
-          let mapped: any[] = notes.map((n: any, idx: number) => ({ 
-            id: `${song.id}-${idx}`, 
-            time: n.time, 
-            pitch: n.pitch 
-          }));
 
           // 範囲複製曲のフィルタリング
           let mRangeAudioStart: number | undefined;
@@ -420,6 +436,7 @@ const GameScreen: React.FC = () => {
             range_end_measure: song.range_end_measure ?? null,
             audio_start_time: mRangeAudioStart ?? song.audio_start_time ?? null,
             audio_end_time: mRangeAudioEnd ?? song.audio_end_time ?? null,
+            hand_filter: song.hand_filter ?? null,
           } as any, mapped);
           
           gameActions.setCurrentTab('practice');
@@ -854,6 +871,7 @@ const SongSelectionScreen: React.FC = () => {
                       use_rhythm_notation: song.use_rhythm_notation ?? false,
                       source_song_id: song.source_song_id || null,
                       range_type: song.range_type || null,
+                      hand_filter: song.hand_filter ?? null,
                       range_start_measure: song.range_start_measure ?? null,
                       range_end_measure: song.range_end_measure ?? null,
                       audio_start_time: rangeAudioStartTime ?? song.audio_start_time ?? null,

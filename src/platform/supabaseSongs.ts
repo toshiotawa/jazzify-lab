@@ -318,6 +318,7 @@ export interface RangeDuplicateParams {
   audioEndTime?: number | null;
   audioPaddingMeasures?: number | null;
   audioPaddingSeconds?: number | null;
+  handFilter?: 'right' | 'left' | null;
 }
 
 export async function duplicateSongWithRange(params: RangeDuplicateParams): Promise<Song> {
@@ -358,6 +359,7 @@ export async function duplicateSongWithRange(params: RangeDuplicateParams): Prom
       audio_end_time: params.audioEndTime ?? null,
       audio_padding_measures: params.audioPaddingMeasures ?? null,
       audio_padding_seconds: params.audioPaddingSeconds ?? null,
+      hand_filter: params.handFilter ?? null,
     })
     .select()
     .single();

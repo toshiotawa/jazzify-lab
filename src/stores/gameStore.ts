@@ -845,12 +845,26 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           const transposingInstrumentSemitones = getTransposingInstrumentSemitones(finalSettings.transposingInstrument);
           const totalTranspose = finalSettings.transpose + transposingInstrumentSemitones;
           
-          const { finalNotes, finalXml, finalChords } = await _processSongData(song, notes, totalTranspose);
+          let { finalNotes, finalXml, finalChords } = await _processSongData(song, notes, totalTranspose);
+
+          // hand_filter: 右手のみ / 左手のみ のフィルタリング
+          const handFilter = (song as any).hand_filter as 'right' | 'left' | null | undefined;
+          if (handFilter === 'right' || handFilter === 'left') {
+            const seen = new Set<string>();
+            finalNotes = finalNotes.filter(n => {
+              if (n.hand && n.hand !== handFilter && n.hand !== 'both') return false;
+              const key = `${n.time.toFixed(6)}:${n.pitch}`;
+              if (seen.has(key)) return false;
+              seen.add(key);
+              return true;
+            });
+            finalNotes = finalNotes.map((n, i) => ({ ...n, id: `${song.id}-${i}` }));
+          }
 
           set((state) => {
             state.currentSong = song;
-            state.rawNotes = notes; // 元のノートを保存
-            state.notes = finalNotes; // 処理後のノートを保存
+            state.rawNotes = notes;
+            state.notes = finalNotes;
             state.musicXml = finalXml; // 移調済みXMLを保存
             state.chords = finalChords; // コードネーム情報を保存
             state.currentTime = 0;

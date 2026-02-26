@@ -125,6 +125,8 @@ export interface SongMetadata {
   audio_end_time?: number | null;
   audio_padding_measures?: number | null;
   audio_padding_seconds?: number | null;
+  /** 手フィルタ: 'right'=右手のみ, 'left'=左手のみ, null/undefined=両手 */
+  hand_filter?: 'right' | 'left' | null;
 }
 
 export interface Song {
@@ -146,6 +148,8 @@ export interface Song {
   hide_sheet_music?: boolean;
   /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
+  /** 手フィルタ: 'right'=右手のみ, 'left'=左手のみ, null/undefined=両手 */
+  hand_filter?: 'right' | 'left' | null;
 }
 
 // ===== ゲーム設定 =====
