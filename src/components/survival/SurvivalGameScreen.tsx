@@ -376,6 +376,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 衝撃波エフェクト
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
+  const pendingShockwavesRef = useRef<ShockwaveEffect[]>([]);
   
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
@@ -1031,8 +1032,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ノート入力処理
   const handleNoteInput = useCallback((note: number) => {
-    const pendingShockwaves: ShockwaveEffect[] = [];
-    
     setGameState(prev => {
       // ゲームオーバーまたはポーズ中は何もしない
       if (prev.isGameOver || prev.isPaused) return prev;
@@ -1207,7 +1206,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             duration: SHOCKWAVE_DURATION,
             direction: prev.player.direction,
           };
-          pendingShockwaves.push(newShockwave);
+          pendingShockwavesRef.current.push(newShockwave);
           
           // 拳でかきけす - B列攻撃で敵弾消去
           if (prev.player.skills.bDeflect) {
@@ -1454,10 +1453,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       return newState;
     });
-    
-    if (pendingShockwaves.length > 0) {
-      setShockwaves(sw => [...sw, ...pendingShockwaves]);
-    }
   }, [config.allowedChords, levelUpCorrectNotes, handleLevelUpBonusSelect, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // handleNoteInputが更新されるたびにrefを更新
@@ -1470,7 +1465,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     if (gameState.isGameOver || gameState.isPaused) return;
     
     const slotType = ['A', 'B', 'C', 'D'][slotIndex] as 'A' | 'B' | 'C' | 'D';
-    const tapPendingShockwaves: ShockwaveEffect[] = [];
     
     setGameState(prev => {
       const newState = {
@@ -1569,7 +1563,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         duration: SHOCKWAVE_DURATION,
         direction: prev.player.direction,
       };
-      tapPendingShockwaves.push(newShockwave);
+      pendingShockwavesRef.current.push(newShockwave);
       
       // 拳でかきけす
       if (prev.player.skills.bDeflect) {
@@ -1784,10 +1778,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     
     return newState;
   });
-  
-  if (tapPendingShockwaves.length > 0) {
-    setShockwaves(sw => [...sw, ...tapPendingShockwaves]);
-  }
 }, [gameState.isGameOver, gameState.isPaused, isAMagicSlot, isBMagicSlot, appendThunderEffectsFromDamageTexts]);
   
   // ゲームループ
@@ -2542,7 +2532,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       });
       
       // 衝撃波エフェクトの更新
-      setShockwaves(sw => sw.filter(s => Date.now() - s.startTime < s.duration));
+      const newShockwaves = pendingShockwavesRef.current;
+      pendingShockwavesRef.current = [];
+      setShockwaves(sw => {
+        const now = Date.now();
+        const active = sw.filter(s => now - s.startTime < s.duration);
+        return newShockwaves.length > 0 ? [...active, ...newShockwaves] : active;
+      });
       
       // 雷エフェクトの更新
       setLightningEffects(le => le.filter(l => Date.now() - l.startTime < l.duration));
@@ -2565,6 +2561,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const handleRetry = useCallback(() => {
     setResult(null);
     setShockwaves([]);
+    pendingShockwavesRef.current = [];
     setLightningEffects([]);
     setSkillNotifications([]);
     setLevelUpCorrectNotes(emptyCorrectNotes());
