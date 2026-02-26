@@ -6,20 +6,21 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
+import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 
 const LPPIXIPiano = React.lazy(() => import('./LPPIXIPiano'));
 const SurvivalGameScreen = React.lazy(() => import('@/components/survival/SurvivalGameScreen'));
 
-const DEMO_TIME_LIMIT_MS = 2 * 60 * 1000;
+const DEMO_TIME_LIMIT_MS = 90 * 1000;
 
-const R17 = ['C', 'C#', 'Db', 'D', 'D#', 'Eb', 'E', 'F', 'F#', 'Gb', 'G', 'G#', 'Ab', 'A', 'A#', 'Bb', 'B'];
+const DEMO_CDE_NOTES = ['C', 'D', 'E'];
 
-const VERYEASY_FALLBACK: DifficultyConfig = {
-  difficulty: 'veryeasy',
-  displayName: 'Very Easy',
-  description: '入門向け。単音ノーツ（#♭含む全17音）。',
-  descriptionEn: 'Beginner. All single notes incl. sharps/flats.',
-  allowedChords: R17.map(r => `${r}_note`),
+const DEMO_STAGE_CONFIG: DifficultyConfig = {
+  difficulty: 'easy',
+  displayName: 'Demo Stage',
+  description: 'デモ: CDE単音',
+  descriptionEn: 'Demo: CDE single notes',
+  allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
   enemySpawnRate: 3,
   enemySpawnCount: 2,
   enemyStatMultiplier: 0.5,
@@ -29,10 +30,23 @@ const VERYEASY_FALLBACK: DifficultyConfig = {
   bgmEvenWaveUrl: null,
 };
 
+const DEMO_STAGE_DEFINITION: StageDefinition = {
+  stageNumber: 0,
+  name: 'デモ CDE',
+  nameEn: 'Demo CDE',
+  difficulty: 'easy',
+  chordSuffix: '_note',
+  chordDisplayName: '単音 CDE',
+  chordDisplayNameEn: 'Single Notes CDE',
+  rootPattern: 'cde',
+  rootPatternName: 'CDE',
+  rootPatternNameEn: 'CDE',
+  allowedChords: DEMO_CDE_NOTES.map(r => `${r}_note`),
+};
+
 const LPFantasyDemo: React.FC = () => {
   const [isOpen, setIsOpen] = useState(false);
   const [showCta, setShowCta] = useState(false);
-  const [config, setConfig] = useState<DifficultyConfig>(VERYEASY_FALLBACK);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const { settings, updateSettings } = useGameStore();
@@ -41,7 +55,7 @@ const LPFantasyDemo: React.FC = () => {
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
   const demoTitle = isEnglishCopy ? 'Demo Play' : 'デモプレイ';
-  const fullscreenButtonLabel = isEnglishCopy ? 'Play Demo (2 min)' : 'デモプレイ（2分間）';
+  const fullscreenButtonLabel = isEnglishCopy ? 'Play Demo (90s)' : 'デモプレイ（90秒）';
   const midiDeviceLabel = isEnglishCopy ? 'Choose a MIDI device' : 'MIDI機器を選択';
   const midiHelperText = isEnglishCopy
     ? 'Selected device will be used in the demo. You can also play with mouse or touch.'
@@ -49,35 +63,6 @@ const LPFantasyDemo: React.FC = () => {
   const pixiLoadingText = isEnglishCopy ? 'Loading piano...' : 'PIXIを読み込み中...';
   const exitFullscreenText = isEnglishCopy ? 'Exit' : '終了';
   const modalLoadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
-
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const { fetchSurvivalDifficultySettings } = await import('@/platform/supabaseSurvival');
-        const settings = await fetchSurvivalDifficultySettings();
-        if (cancelled) return;
-        const ve = settings.find(s => s.difficulty === 'veryeasy');
-        if (ve) {
-          setConfig({
-            difficulty: ve.difficulty,
-            displayName: ve.displayName,
-            description: ve.description ?? '',
-            descriptionEn: ve.descriptionEn ?? '',
-            allowedChords: ve.allowedChords,
-            enemySpawnRate: ve.enemySpawnRate,
-            enemySpawnCount: ve.enemySpawnCount,
-            enemyStatMultiplier: ve.enemyStatMultiplier,
-            expMultiplier: ve.expMultiplier,
-            itemDropRate: ve.itemDropRate,
-            bgmOddWaveUrl: ve.bgmOddWaveUrl,
-            bgmEvenWaveUrl: ve.bgmEvenWaveUrl,
-          });
-        }
-      } catch { /* fallback config is already set */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
 
   const [suspendPiano, setSuspendPiano] = useState(false);
   const [pianoVisible, setPianoVisible] = useState(false);
@@ -208,10 +193,10 @@ const LPFantasyDemo: React.FC = () => {
             <div className="p-4 md:p-6 flex flex-col justify-center gap-4" data-animate="text-up">
               <div className="text-center">
                 <p className="text-sm text-purple-200 mb-1">
-                  {isEnglishCopy ? 'Survival Mode — Very Easy' : 'サバイバルモード — Very Easy'}
+                  {isEnglishCopy ? 'Stage Mode — CDE Single Notes' : 'ステージモード — CDE単音'}
                 </p>
                 <p className="text-xs text-gray-400">
-                  {isEnglishCopy ? '2 minutes free play' : '2分間の無料体験プレイ'}
+                  {isEnglishCopy ? '90 seconds free play with hints' : '90秒間の無料体験プレイ（ヒント付き）'}
                 </p>
               </div>
 
@@ -255,10 +240,12 @@ const LPFantasyDemo: React.FC = () => {
           <div className="absolute inset-0">
             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">{modalLoadingText}</div>}>
               <SurvivalGameScreen
-                difficulty="veryeasy"
-                config={config}
+                difficulty="easy"
+                config={DEMO_STAGE_CONFIG}
                 onBackToSelect={handleDemoExit}
                 onBackToMenu={handleDemoExit}
+                stageDefinition={DEMO_STAGE_DEFINITION}
+                hintMode={true}
               />
             </Suspense>
           </div>
