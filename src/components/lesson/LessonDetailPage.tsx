@@ -271,7 +271,7 @@ const LessonDetailPage: React.FC = () => {
       if (lesson.course_id) {
         try {
           clearNavigationCacheForCourse(lesson.course_id);
-          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, profile?.rank);
+          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, profile?.rank, { forceRefresh: true });
           setNavigationInfo(freshNavInfo);
           if (freshNavInfo.nextLesson && freshNavInfo.canGoNext) {
             setShowNextLessonPrompt(true);

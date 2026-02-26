@@ -89,15 +89,19 @@ export function cleanupLessonNavigationCache(currentLessonId: string, courseId: 
 export async function getLessonNavigationInfo(
   currentLessonId: string,
   courseId: string,
-  userRank?: MembershipRank | null
+  userRank?: MembershipRank | null,
+  options?: { forceRefresh?: boolean }
 ): Promise<LessonNavigationInfo> {
   const cacheKey = `${courseId}:${currentLessonId}:${userRank ?? 'no-rank'}`;
   const now = Date.now();
   
-  // キャッシュから取得を試行
-  const cached = navigationCache.get(cacheKey);
+  if (!options?.forceRefresh) {
+    const cached = navigationCache.get(cacheKey);
     if (cached && cached.expires > now) {
-    return cached.data;
+      return cached.data;
+    }
+  } else {
+    navigationCache.delete(cacheKey);
   }
   
   // キャッシュクリーンアップ
@@ -106,7 +110,7 @@ export async function getLessonNavigationInfo(
   try {
     // コース内の全レッスンを取得
     const lessons = await fetchLessonsByCourse(courseId);
-    const userProgress = await fetchUserLessonProgress(courseId);
+    const userProgress = await fetchUserLessonProgress(courseId, undefined, { forceRefresh: !!options?.forceRefresh });
     
     // レッスンを order_index でソート
     const sortedLessons = [...lessons].sort((a, b) => a.order_index - b.order_index);
