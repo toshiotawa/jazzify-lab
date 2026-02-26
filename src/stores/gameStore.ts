@@ -731,11 +731,28 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   throw new Error(`MusicXMLファイルの読み込みに失敗: ${xmlResponse.status} ${xmlResponse.statusText}`);
                 }
                 
-                const xmlString = await xmlResponse.text();
+                let xmlString = await xmlResponse.text();
                 
-                // HTMLが返されている場合の検出（XML読み込み時）
                 if (xmlString.trim().startsWith('<html') || xmlString.trim().startsWith('<!DOCTYPE html')) {
                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
+                }
+
+                if (targetSong.range_type === 'measure' && targetSong.range_start_measure != null && targetSong.range_end_measure != null) {
+                  const startM = targetSong.range_start_measure;
+                  const endM = targetSong.range_end_measure;
+                  const parser = new DOMParser();
+                  const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+                  const parts = xmlDoc.querySelectorAll('part');
+                  parts.forEach(part => {
+                    const measures = Array.from(part.querySelectorAll('measure'));
+                    for (const m of measures) {
+                      const num = parseInt(m.getAttribute('number') || '0', 10);
+                      if (num < startM || num > endM) {
+                        m.parentNode?.removeChild(m);
+                      }
+                    }
+                  });
+                  xmlString = new XMLSerializer().serializeToString(xmlDoc);
                 }
                 
                 finalXml = transposeMusicXml(xmlString, transpose);

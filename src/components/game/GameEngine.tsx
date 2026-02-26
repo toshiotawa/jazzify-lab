@@ -90,6 +90,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
     const currentSongDuration = currentSong?.duration ?? null;
     const currentSongTitle = currentSong?.title ?? '';
     const hasAudioTrack = currentSongAudioFile.trim() !== '';
+    const rangeAudioOffset = (currentSong as any)?.audio_start_time ?? 0;
     const chords = useChords();
 
   const {
@@ -380,6 +381,7 @@ export const GameEngineComponent: React.FC<GameEngineComponentProps> = ({
       const isPlayingRef = useRef(isPlaying);
   const isIosDevice = useMemo(() => isIOS(), []);
   const playbackSpeedRef = useRef(settings.playbackSpeed);
+  const rangeAudioOffsetRef = useRef(rangeAudioOffset);
   const selectedAudioOutputDeviceRef = useRef<string | null>(settings.selectedAudioOutputDevice);
 
   useEffect(() => {
@@ -511,7 +513,8 @@ const playFromOffset = useCallback(
       const bufferDuration = buffer.duration;
       const effectiveDuration = currentSongDuration ?? bufferDuration;
       const safeOffset = Math.max(0, Math.min(requestedOffset, effectiveDuration));
-      const bufferOffset = Math.max(0, Math.min(safeOffset, bufferDuration));
+      const audioOffset = rangeAudioOffsetRef.current;
+      const bufferOffset = Math.max(0, Math.min(safeOffset + audioOffset, bufferDuration));
 
       const source = audioContext.createBufferSource();
       source.buffer = buffer;
@@ -570,10 +573,9 @@ const playFromOffset = useCallback(
       };
 
       bufferSourceRef.current = source;
-      // 🔧 修正: source.start()直前のcontextTimeを保存して、ノーツとオーディオの開始時間を同期
       const startContextTime = audioContext.currentTime;
       source.start(0, bufferOffset);
-      baseOffsetRef.current = startContextTime - bufferOffset / playbackSpeedRef.current;
+      baseOffsetRef.current = startContextTime - safeOffset / playbackSpeedRef.current;
 
       setHasPlaybackFinished(false);
       gameEngine.start(audioContext);
@@ -814,6 +816,10 @@ useEffect(() => {
   }, [disposePitchShiftNode, getEffectivePitchShift]);
 
   // 再生スピード変更の同期
+  useEffect(() => {
+    rangeAudioOffsetRef.current = rangeAudioOffset;
+  }, [rangeAudioOffset]);
+
   useEffect(() => {
     const previousSpeed = playbackSpeedRef.current;
     playbackSpeedRef.current = settings.playbackSpeed;

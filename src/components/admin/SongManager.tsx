@@ -2,6 +2,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { addSongWithFiles, fetchSongs, deleteSong, updateSong, updateSongGlobalAvailable, updateSongSortOrders, Song, SongFiles, SongUsageType } from '@/platform/supabaseSongs';
+import RangeDuplicateModal from './RangeDuplicateModal';
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from '@dnd-kit/core';
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
@@ -78,6 +79,7 @@ const SongManager: React.FC = () => {
   const [editUploading, setEditUploading] = useState(false);
   const [orderChanged, setOrderChanged] = useState(false);
   const [savingOrder, setSavingOrder] = useState(false);
+  const [rangeDuplicateSong, setRangeDuplicateSong] = useState<Song | null>(null);
   const { register, handleSubmit, reset, watch } = useForm<SongFormData>();
   const { register: editRegister, handleSubmit: editHandleSubmit, reset: editReset, watch: editWatch, setValue: editSetValue } = useForm<EditFormData>();
   const toast = useToast();
@@ -524,6 +526,7 @@ const SongManager: React.FC = () => {
                     key={s.id}
                     song={s}
                     onEdit={() => openEditModal(s)}
+                    onRangeDuplicate={() => setRangeDuplicateSong(s)}
                     onDelete={async () => {
                       if (!confirm(`「${s.title}」を削除しますか？`)) return;
                       try {
@@ -549,6 +552,15 @@ const SongManager: React.FC = () => {
             </div>
           </SortableContext>
         </DndContext>
+      )}
+
+      {/* 範囲複製モーダル */}
+      {rangeDuplicateSong && (
+        <RangeDuplicateModal
+          song={rangeDuplicateSong}
+          onClose={() => setRangeDuplicateSong(null)}
+          onDuplicated={() => loadSongs(activeListTab)}
+        />
       )}
 
       {/* 編集モーダル */}
@@ -758,9 +770,10 @@ interface SortableSongItemProps {
   onEdit: () => void;
   onDelete: () => void;
   onToggleGlobal: (checked: boolean) => void;
+  onRangeDuplicate: () => void;
 }
 
-const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDelete, onToggleGlobal }) => {
+const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDelete, onToggleGlobal, onRangeDuplicate }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: song.id });
 
   const style = {
@@ -798,6 +811,7 @@ const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDel
           {song.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
           {song.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
           {song.global_available && <span className="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded">Global</span>}
+          {song.source_song_id && <span className="text-xs bg-teal-600/20 text-teal-400 px-2 py-0.5 rounded">範囲複製</span>}
         </div>
       </div>
       <div className="flex items-center gap-2 flex-shrink-0 ml-2">
@@ -811,6 +825,13 @@ const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDel
           />
         </label>
       </div>
+      <button
+        className="btn btn-xs btn-warning ml-2 flex-shrink-0"
+        onClick={onRangeDuplicate}
+        aria-label={`${song.title}を範囲複製`}
+      >
+        範囲複製
+      </button>
       <button
         className="btn btn-xs btn-info ml-2 flex-shrink-0"
         onClick={onEdit}

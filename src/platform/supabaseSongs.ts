@@ -4,6 +4,8 @@ import { uploadSongFile, deleteSongFiles } from '@/platform/r2Storage';
 
 export type SongUsageType = 'general' | 'lesson';
 
+export type SongRangeType = 'measure' | 'time';
+
 export interface Song {
   id: string;
   title: string;
@@ -25,6 +27,16 @@ export interface Song {
   phrase?: boolean;
   jazz_piano?: boolean;
   classic_piano?: boolean;
+  source_song_id?: string | null;
+  range_type?: SongRangeType | null;
+  range_start_measure?: number | null;
+  range_end_measure?: number | null;
+  range_start_time?: number | null;
+  range_end_time?: number | null;
+  audio_start_time?: number | null;
+  audio_end_time?: number | null;
+  audio_padding_measures?: number | null;
+  audio_padding_seconds?: number | null;
 }
 
 export interface SongFiles {
@@ -291,4 +303,66 @@ export async function updateSongSortOrders(orders: { id: string; sort_order: num
     if (error) throw error;
   }
   clearSupabaseCache();
-} 
+}
+
+export interface RangeDuplicateParams {
+  sourceSongId: string;
+  title: string;
+  usageType: SongUsageType;
+  rangeType: SongRangeType;
+  rangeStartMeasure?: number | null;
+  rangeEndMeasure?: number | null;
+  rangeStartTime?: number | null;
+  rangeEndTime?: number | null;
+  audioStartTime?: number | null;
+  audioEndTime?: number | null;
+  audioPaddingMeasures?: number | null;
+  audioPaddingSeconds?: number | null;
+}
+
+export async function duplicateSongWithRange(params: RangeDuplicateParams): Promise<Song> {
+  const supabase = getSupabaseClient();
+  const userId = await requireUserId();
+
+  const sourceSong = await fetchSong(params.sourceSongId);
+  if (!sourceSong) throw new Error('元の曲が見つかりません');
+
+  const { data, error } = await supabase
+    .from('songs')
+    .insert({
+      title: params.title,
+      artist: sourceSong.artist,
+      bpm: sourceSong.bpm,
+      difficulty: sourceSong.difficulty,
+      min_rank: sourceSong.min_rank,
+      is_public: true,
+      usage_type: params.usageType,
+      created_by: userId,
+      audio_url: sourceSong.audio_url,
+      xml_url: sourceSong.xml_url,
+      json_url: sourceSong.json_url,
+      json_data: sourceSong.json_data,
+      hide_sheet_music: sourceSong.hide_sheet_music,
+      use_rhythm_notation: sourceSong.use_rhythm_notation,
+      global_available: sourceSong.global_available,
+      phrase: sourceSong.phrase,
+      jazz_piano: sourceSong.jazz_piano,
+      classic_piano: sourceSong.classic_piano,
+      source_song_id: params.sourceSongId,
+      range_type: params.rangeType,
+      range_start_measure: params.rangeStartMeasure ?? null,
+      range_end_measure: params.rangeEndMeasure ?? null,
+      range_start_time: params.rangeStartTime ?? null,
+      range_end_time: params.rangeEndTime ?? null,
+      audio_start_time: params.audioStartTime ?? null,
+      audio_end_time: params.audioEndTime ?? null,
+      audio_padding_measures: params.audioPaddingMeasures ?? null,
+      audio_padding_seconds: params.audioPaddingSeconds ?? null,
+    })
+    .select()
+    .single();
+
+  if (error) throw error;
+  clearSupabaseCache();
+  return data as Song;
+}

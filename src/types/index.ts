@@ -113,6 +113,18 @@ export interface SongMetadata {
   hide_sheet_music?: boolean;
   /** リズム譜モード - 符頭の高さを一定にして表示 */
   use_rhythm_notation?: boolean;
+  /** 範囲複製: 元曲ID */
+  source_song_id?: string | null;
+  /** 範囲指定方式: measure=小節, time=時間 */
+  range_type?: 'measure' | 'time' | null;
+  range_start_measure?: number | null;
+  range_end_measure?: number | null;
+  range_start_time?: number | null;
+  range_end_time?: number | null;
+  audio_start_time?: number | null;
+  audio_end_time?: number | null;
+  audio_padding_measures?: number | null;
+  audio_padding_seconds?: number | null;
 }
 
 export interface Song {

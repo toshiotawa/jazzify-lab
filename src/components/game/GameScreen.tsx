@@ -106,15 +106,39 @@ const GameScreen: React.FC = () => {
             throw new Error('ノーツデータの形式が不正です');
           }
           
-          const mapped = notes.map((n: any, idx: number) => ({ 
+          let mapped: any[] = notes.map((n: any, idx: number) => ({ 
             id: `${song.id}-${idx}`, 
             time: n.time, 
             pitch: n.pitch 
           }));
+
+          // 範囲複製曲のフィルタリング
+          let rangeAudioStart: number | undefined;
+          let rangeAudioEnd: number | undefined;
+          if (song.source_song_id && song.range_type) {
+            const { filterNotesByTimeRange, filterNotesByMeasureRange } = await import('@/utils/songRangeFilter');
+            if (song.range_type === 'time' && song.range_start_time != null && song.range_end_time != null) {
+              const result = filterNotesByTimeRange(mapped, song.range_start_time, song.range_end_time, song.audio_start_time, song.audio_end_time, song.audio_padding_seconds ?? 2);
+              mapped = result.notes;
+              rangeAudioStart = result.audioStartTime;
+              rangeAudioEnd = result.audioEndTime;
+            } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
+              const xmlResp = await fetch(song.xml_url);
+              if (xmlResp.ok) {
+                const xmlTxt = await xmlResp.text();
+                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1);
+                mapped = result.notes;
+                rangeAudioStart = result.audioStartTime;
+                rangeAudioEnd = result.audioEndTime;
+              }
+            }
+          }
           
           // 音声ファイルの長さを取得
           let duration = 60; // デフォルト値
-          if (song.audio_url) {
+          if (rangeAudioStart != null && rangeAudioEnd != null) {
+            duration = rangeAudioEnd - rangeAudioStart;
+          } else if (song.audio_url) {
             try {
               const audio = new Audio(song.audio_url);
               audio.crossOrigin = 'anonymous';
@@ -127,11 +151,8 @@ const GameScreen: React.FC = () => {
                   console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
                   resolve(void 0);
                 };
-                
                 audio.addEventListener('loadedmetadata', loadedHandler);
                 audio.addEventListener('error', errorHandler);
-                
-                // タイムアウト処理
                 setTimeout(() => resolve(void 0), 5000);
               });
             } catch (e) {
@@ -155,20 +176,16 @@ const GameScreen: React.FC = () => {
             });
           }
           
-          // レッスン設定を先に適用（loadSongの前に実行）
-          // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
           gameActions.stop();
           gameActions.clearSong();
           
           await gameActions.updateSettings({
             transpose: key,
             playbackSpeed: speed,
-            // notation設定に基づいて表示設定を更新
             showSheetMusic: notation === 'notes_chords' || notation === 'both' || notation === 'chords_only',
             sheetMusicChordsOnly: notation === 'chords_only'
           });
           
-          // 曲をロード（設定適用後に実行）
           await gameActions.loadSong({
             id: song.id,
             title: song.title,
@@ -177,8 +194,14 @@ const GameScreen: React.FC = () => {
             audioFile: song.audio_url || '',
             musicXmlFile: song.xml_url || null,
             hide_sheet_music: song.hide_sheet_music ?? false,
-            use_rhythm_notation: song.use_rhythm_notation ?? false
-          }, mapped);
+            use_rhythm_notation: song.use_rhythm_notation ?? false,
+            source_song_id: song.source_song_id || null,
+            range_type: song.range_type || null,
+            range_start_measure: song.range_start_measure ?? null,
+            range_end_measure: song.range_end_measure ?? null,
+            audio_start_time: rangeAudioStart ?? song.audio_start_time ?? null,
+            audio_end_time: rangeAudioEnd ?? song.audio_end_time ?? null,
+          } as any, mapped);
           
           // 曲のロード完了後に画面遷移を行う
           // 先にタブを切り替えてから、ハッシュを変更することで一瞬の曲選択画面表示を防ぐ
@@ -305,15 +328,39 @@ const GameScreen: React.FC = () => {
             throw new Error('ノーツデータの形式が不正です');
           }
           
-          const mapped = notes.map((n: any, idx: number) => ({ 
+          let mapped: any[] = notes.map((n: any, idx: number) => ({ 
             id: `${song.id}-${idx}`, 
             time: n.time, 
             pitch: n.pitch 
           }));
+
+          // 範囲複製曲のフィルタリング
+          let mRangeAudioStart: number | undefined;
+          let mRangeAudioEnd: number | undefined;
+          if (song.source_song_id && song.range_type) {
+            const { filterNotesByTimeRange, filterNotesByMeasureRange } = await import('@/utils/songRangeFilter');
+            if (song.range_type === 'time' && song.range_start_time != null && song.range_end_time != null) {
+              const result = filterNotesByTimeRange(mapped, song.range_start_time, song.range_end_time, song.audio_start_time, song.audio_end_time, song.audio_padding_seconds ?? 2);
+              mapped = result.notes;
+              mRangeAudioStart = result.audioStartTime;
+              mRangeAudioEnd = result.audioEndTime;
+            } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
+              const xmlResp = await fetch(song.xml_url);
+              if (xmlResp.ok) {
+                const xmlTxt = await xmlResp.text();
+                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1);
+                mapped = result.notes;
+                mRangeAudioStart = result.audioStartTime;
+                mRangeAudioEnd = result.audioEndTime;
+              }
+            }
+          }
           
           // 音声ファイルの長さを取得
           let duration = 60;
-          if (song.audio_url) {
+          if (mRangeAudioStart != null && mRangeAudioEnd != null) {
+            duration = mRangeAudioEnd - mRangeAudioStart;
+          } else if (song.audio_url) {
             try {
               const audio = new Audio(song.audio_url);
               audio.crossOrigin = 'anonymous';
@@ -326,7 +373,6 @@ const GameScreen: React.FC = () => {
                   console.warn('音声ファイルの読み込みに失敗、デフォルト時間を使用');
                   resolve(void 0);
                 };
-                
                 audio.addEventListener('loadedmetadata', loadedHandler);
                 audio.addEventListener('error', errorHandler);
                 setTimeout(() => resolve(void 0), 5000);
@@ -348,8 +394,6 @@ const GameScreen: React.FC = () => {
             notation_setting: challengeSong.notation_setting
           });
           
-          // ミッション曲の条件を先に設定に適用（loadSongの前に実行）
-          // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
           gameActions.stop();
           gameActions.clearSong();
           
@@ -361,7 +405,6 @@ const GameScreen: React.FC = () => {
             sheetMusicChordsOnly: challengeSong.notation_setting === 'chords_only'
           });
           
-            // 曲をロード（設定適用後に実行）
           await gameActions.loadSong({
             id: song.id,
             title: song.title,
@@ -370,10 +413,15 @@ const GameScreen: React.FC = () => {
             audioFile: song.audio_url || '',
             musicXmlFile: song.xml_url || null,
             hide_sheet_music: song.hide_sheet_music ?? false,
-            use_rhythm_notation: song.use_rhythm_notation ?? false
-          }, mapped);
+            use_rhythm_notation: song.use_rhythm_notation ?? false,
+            source_song_id: song.source_song_id || null,
+            range_type: song.range_type || null,
+            range_start_measure: song.range_start_measure ?? null,
+            range_end_measure: song.range_end_measure ?? null,
+            audio_start_time: mRangeAudioStart ?? song.audio_start_time ?? null,
+            audio_end_time: mRangeAudioEnd ?? song.audio_end_time ?? null,
+          } as any, mapped);
           
-          // 画面遷移
           gameActions.setCurrentTab('practice');
           setIsLoadingLessonSong(false);
           setTimeout(() => {
@@ -724,10 +772,47 @@ const SongSelectionScreen: React.FC = () => {
                     } else {
                       throw new Error('曲のノーツデータがありません（JSONまたはMusicXMLが必要です）');
                     }
+
+                    // 範囲複製曲のフィルタリング処理
+                    let rangeAudioStartTime: number | undefined;
+                    let rangeAudioEndTime: number | undefined;
+                    if (song.source_song_id && song.range_type) {
+                      const { filterNotesByTimeRange, filterNotesByMeasureRange } = await import('@/utils/songRangeFilter');
+                      if (song.range_type === 'time' && song.range_start_time != null && song.range_end_time != null) {
+                        const result = filterNotesByTimeRange(
+                          mapped,
+                          song.range_start_time,
+                          song.range_end_time,
+                          song.audio_start_time,
+                          song.audio_end_time,
+                          song.audio_padding_seconds ?? 2
+                        );
+                        mapped = result.notes;
+                        rangeAudioStartTime = result.audioStartTime;
+                        rangeAudioEndTime = result.audioEndTime;
+                      } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
+                        const xmlResp = await fetch(song.xml_url);
+                        if (xmlResp.ok) {
+                          const xmlTxt = await xmlResp.text();
+                          const result = await filterNotesByMeasureRange(
+                            mapped,
+                            xmlTxt,
+                            song.range_start_measure,
+                            song.range_end_measure,
+                            song.audio_padding_measures ?? 1
+                          );
+                          mapped = result.notes;
+                          rangeAudioStartTime = result.audioStartTime;
+                          rangeAudioEndTime = result.audioEndTime;
+                        }
+                      }
+                    }
                     
                     // 音声ファイルの長さを取得（audio_urlがある場合）
                     let duration = 60; // デフォルト値
-                    if (song.audio_url) {
+                    if (rangeAudioStartTime != null && rangeAudioEndTime != null) {
+                      duration = rangeAudioEndTime - rangeAudioStartTime;
+                    } else if (song.audio_url) {
                       try {
                         const audio = new Audio(song.audio_url);
                         audio.crossOrigin = 'anonymous';
@@ -748,7 +833,6 @@ const SongSelectionScreen: React.FC = () => {
                         // 音声ファイルの処理エラーは無視
                       }
                     } else if (!hasJson && song.xml_url) {
-                      // MusicXML-only: 最後のノートの時間から推定
                       const lastNote = mapped[mapped.length - 1];
                       if (lastNote) {
                         duration = Math.ceil(lastNote.time + 4);
@@ -756,7 +840,7 @@ const SongSelectionScreen: React.FC = () => {
                     }
                     
                     // SongMetadata形式に変換
-                    const songMetadata = {
+                    const songMetadata: any = {
                       id: song.id,
                       title: song.title,
                       artist: song.artist || '',
@@ -766,7 +850,13 @@ const SongSelectionScreen: React.FC = () => {
                       musicXmlFile: song.xml_url || '',
                       genreCategory: 'database',
                       hide_sheet_music: song.hide_sheet_music ?? false,
-                      use_rhythm_notation: song.use_rhythm_notation ?? false
+                      use_rhythm_notation: song.use_rhythm_notation ?? false,
+                      source_song_id: song.source_song_id || null,
+                      range_type: song.range_type || null,
+                      range_start_measure: song.range_start_measure ?? null,
+                      range_end_measure: song.range_end_measure ?? null,
+                      audio_start_time: rangeAudioStartTime ?? song.audio_start_time ?? null,
+                      audio_end_time: rangeAudioEndTime ?? song.audio_end_time ?? null,
                     };
                     
                     // 曲をロード（非同期処理）
@@ -1673,6 +1763,11 @@ const SettingsPanel: React.FC = () => {
                   }}
                   className="slider w-full accent-amber-400"
                 />
+                <p className="text-xs text-gray-500 mt-1">
+                  {isEnglishCopy
+                    ? 'If the piano sound is delayed, set the volume to 0% and play audio from your own device or DAW.'
+                    : 'ピアノの音が遅れて聴こえる際は、ピアノ音量を0％にして、ご自身のデバイスもしくはDAWから音を鳴らしてください。'}
+                </p>
               </div>
             </div>
 
