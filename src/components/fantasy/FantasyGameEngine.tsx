@@ -1063,11 +1063,6 @@ export const useFantasyGameEngine = ({
       return handleCombiningModeInput(prevState, note, currentTime);
     }
     
-    // カウントイン中は入力を無視（ノーツ非生成区間）
-    if (currentTime < -0.01) {
-      return prevState;
-    }
-    
     const secPerMeasure = (60 / (stage?.bpm || 120)) * (stage?.timeSignature || 4);
     const countInSec = (stage?.countInMeasures || 0) * secPerMeasure;
     const hasCountInLoop = bgmManager.getLoopIncludesCountIn();
