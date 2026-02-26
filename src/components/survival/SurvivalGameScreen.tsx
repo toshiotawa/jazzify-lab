@@ -1226,6 +1226,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           };
           pendingShockwaves.push(newShockwave);
           
+          // 拳でかきけす - B列発動時に攻撃範囲内の敵弾を即時消去
+          if (prev.player.skills.bDeflect) {
+            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
+              const dx = proj.x - attackX;
+              const dy = proj.y - attackY;
+              const dist = Math.sqrt(dx * dx + dy * dy);
+              return dist >= totalRange;
+            });
+          }
+          
           // 多段攻撃処理（B列）- 衝撃波を追加するだけ、ダメージはゲームループで判定
           const bMultiHitLevel = prev.player.skills.multiHitLevel;
           if (bMultiHitLevel > 0) {
@@ -1273,8 +1283,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     hitEnemies: new Set(),
                   };
                   
+                  let updatedEnemyProjectiles = gs.enemyProjectiles;
+                  if (gs.player.skills.bDeflect) {
+                    updatedEnemyProjectiles = gs.enemyProjectiles.filter(proj => {
+                      const dx = proj.x - bAttackX;
+                      const dy = proj.y - bAttackY;
+                      const dist = Math.sqrt(dx * dx + dy * dy);
+                      return dist >= bTotalRange;
+                    });
+                  }
                   shockwavesRef.current = [...shockwavesRef.current, multiShockwave];
-                  return gs;
+                  return { ...gs, enemyProjectiles: updatedEnemyProjectiles };
                 });
               
                 setShockwaves(sw => [...sw, multiShockwave]);
@@ -1508,6 +1527,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       };
       tapPendingShockwaves.push(newShockwave);
       
+      // 拳でかきけす - B列発動時に攻撃範囲内の敵弾を即時消去
+      if (prev.player.skills.bDeflect) {
+        newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
+          const dx = proj.x - attackX;
+          const dy = proj.y - attackY;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          return dist >= totalRange;
+        });
+      }
+      
       // 多段攻撃処理（B列タップ）- ダメージはゲームループで判定
       const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
       if (tapBMultiHitLevel > 0) {
@@ -1555,8 +1584,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 hitEnemies: new Set(),
               };
               
+              let updatedEnemyProjectilesTap = gs.enemyProjectiles;
+              if (gs.player.skills.bDeflect) {
+                updatedEnemyProjectilesTap = gs.enemyProjectiles.filter(proj => {
+                  const dx = proj.x - bAttackX;
+                  const dy = proj.y - bAttackY;
+                  const dist = Math.sqrt(dx * dx + dy * dy);
+                  return dist >= bTotalRange;
+                });
+              }
               shockwavesRef.current = [...shockwavesRef.current, multiShockwave];
-              return gs;
+              return { ...gs, enemyProjectiles: updatedEnemyProjectilesTap };
             });
             
             setShockwaves(sw => [...sw, multiShockwave]);
@@ -1763,16 +1801,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const swProgress = swElapsed / sw.duration;
           const swExpandProgress = Math.min(1, swProgress / SHOCKWAVE_EXPAND_RATIO);
           const currentRadius = sw.maxRadius * swExpandProgress;
-          
-          // 拳でかきけす - 衝撃波半径に連動して敵弾消去
-          if (params.deflect) {
-            newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
-              const dx = proj.x - sw.x;
-              const dy = proj.y - sw.y;
-              const dist = Math.sqrt(dx * dx + dy * dy);
-              return dist >= currentRadius;
-            });
-          }
           
           newState.enemies = newState.enemies.map(enemy => {
             if (params.hitEnemies.has(enemy.id)) return enemy;

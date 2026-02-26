@@ -265,7 +265,8 @@ export interface Coin {
 }
 
 // ===== 衝撃波エフェクト =====
-export const SHOCKWAVE_EXPAND_RATIO = 0.10;
+// 展開完了までの時間比率（duration=300ms のうち 1ms で全展開 → 1/300）
+export const SHOCKWAVE_EXPAND_RATIO = 1 / 300;
 
 export interface ShockwaveAttackParams {
   baseBDamage: number;
