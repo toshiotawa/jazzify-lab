@@ -261,6 +261,11 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
               onChange={(e) => handleVolumeChange(parseFloat(e.target.value))}
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
+            <p className="text-xs text-gray-400 mt-1">
+              {isEnglishCopy
+                ? 'If the piano sound is delayed, set the volume to 0% and play audio from your own device or DAW.'
+                : 'ピアノの音が遅れて聴こえる際は、ピアノ音量を0％にして、ご自身のデバイスもしくはDAWから音を鳴らしてください。'}
+            </p>
           </div>
 
           {/* 正解時ルート音量設定 */}
