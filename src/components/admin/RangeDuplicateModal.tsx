@@ -50,6 +50,9 @@ const RangeDuplicateModal: React.FC<Props> = ({ song, onClose, onDuplicated }) =
   const [audioEndTime, setAudioEndTime] = useState('');
   const [audioPaddingSeconds, setAudioPaddingSeconds] = useState<number>(2);
 
+  type PaddingUnit = 'measures' | 'seconds';
+  const [paddingUnit, setPaddingUnit] = useState<PaddingUnit>('measures');
+
   const rangeType: SongRangeType = pattern === 'json_only' ? 'time' : 'measure';
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -87,7 +90,8 @@ const RangeDuplicateModal: React.FC<Props> = ({ song, onClose, onDuplicated }) =
           rangeType: 'measure',
           rangeStartMeasure: sm,
           rangeEndMeasure: em,
-          audioPaddingMeasures,
+          audioPaddingMeasures: paddingUnit === 'measures' ? audioPaddingMeasures : null,
+          audioPaddingSeconds: paddingUnit === 'seconds' ? audioPaddingSeconds : null,
         });
       } else {
         const nst = parseTimeInput(notesStartTime)!;
@@ -134,7 +138,7 @@ const RangeDuplicateModal: React.FC<Props> = ({ song, onClose, onDuplicated }) =
           {song.xml_url ? <span className="badge badge-secondary badge-sm">MusicXML</span> : null}
           {song.audio_url ? <span className="badge badge-success badge-sm">MP3</span> : null}
           <span className="badge badge-outline badge-sm">
-            {pattern === 'xml_only' ? '小節指定' : pattern === 'json_only' ? '時間指定' : '小節指定（JSON+XML）'}
+            {pattern === 'xml_only' ? '小節指定' : pattern === 'json_only' ? '時間指定' : '小節指定（JSON+XML） / 余白：小節 or 秒'}
           </span>
         </div>
 
@@ -190,24 +194,69 @@ const RangeDuplicateModal: React.FC<Props> = ({ song, onClose, onDuplicated }) =
               </div>
 
               <div>
-                <label className="block text-sm font-medium mb-1">音源の前後余白</label>
-                <div className="flex gap-3">
-                  {[0, 1, 2].map((v) => (
-                    <label key={v} className="flex items-center gap-1 cursor-pointer">
-                      <input
-                        type="radio"
-                        name="audio-padding-m"
-                        className="radio radio-sm radio-primary"
-                        checked={audioPaddingMeasures === v}
-                        onChange={() => setAudioPaddingMeasures(v)}
-                      />
-                      <span className="text-sm">{v === 0 ? 'なし' : `前後${v}小節`}</span>
-                    </label>
-                  ))}
+                <label className="block text-sm font-medium mb-2">音源の前後余白</label>
+                <div className="flex gap-3 mb-3">
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="padding-unit"
+                      className="radio radio-sm radio-accent"
+                      checked={paddingUnit === 'measures'}
+                      onChange={() => setPaddingUnit('measures')}
+                    />
+                    <span className="text-sm">小節で指定</span>
+                  </label>
+                  <label className="flex items-center gap-1 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="padding-unit"
+                      className="radio radio-sm radio-accent"
+                      checked={paddingUnit === 'seconds'}
+                      onChange={() => setPaddingUnit('seconds')}
+                    />
+                    <span className="text-sm">秒で指定</span>
+                  </label>
                 </div>
-                <p className="text-xs text-gray-500 mt-1">
-                  ノーツ範囲の前後に音源再生の余白を追加します（前後に小節がない場合は自動で0）
-                </p>
+
+                {paddingUnit === 'measures' ? (
+                  <>
+                    <div className="flex gap-3">
+                      {[0, 1, 2].map((v) => (
+                        <label key={v} className="flex items-center gap-1 cursor-pointer">
+                          <input
+                            type="radio"
+                            name="audio-padding-m"
+                            className="radio radio-sm radio-primary"
+                            checked={audioPaddingMeasures === v}
+                            onChange={() => setAudioPaddingMeasures(v)}
+                          />
+                          <span className="text-sm">{v === 0 ? 'なし' : `前後${v}小節`}</span>
+                        </label>
+                      ))}
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ノーツ範囲の前後に音源再生の余白を追加します（前後に小節がない場合は自動で0）
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <input
+                        type="number"
+                        min={0}
+                        max={30}
+                        step={0.5}
+                        className="input input-bordered input-sm w-24 text-white"
+                        value={audioPaddingSeconds}
+                        onChange={(e) => setAudioPaddingSeconds(parseFloat(e.target.value) || 0)}
+                      />
+                      <span className="text-sm text-gray-400">秒</span>
+                    </div>
+                    <p className="text-xs text-gray-500 mt-1">
+                      ノーツ範囲の前後にこの秒数を音源再生の余白として追加します
+                    </p>
+                  </>
+                )}
               </div>
             </>
           ) : (

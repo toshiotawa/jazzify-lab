@@ -37,7 +37,8 @@ export async function filterNotesByMeasureRange(
   xmlText: string,
   startMeasure: number,
   endMeasure: number,
-  audioPaddingMeasures: number
+  audioPaddingMeasures: number,
+  audioPaddingSeconds?: number | null
 ): Promise<RangeFilterResult> {
   const { estimateMeasureTimeInfo } = await import('@/utils/musicXmlMapper');
   const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
@@ -118,7 +119,12 @@ export async function filterNotesByMeasureRange(
   let audioStartTime = rangeStartTime;
   let audioEndTime = rangeEndTime;
 
-  if (audioPaddingMeasures > 0) {
+  const useSecondsPadding = audioPaddingSeconds != null && audioPaddingSeconds > 0;
+
+  if (useSecondsPadding) {
+    audioStartTime = Math.max(0, rangeStartTime - audioPaddingSeconds);
+    audioEndTime = rangeEndTime + audioPaddingSeconds;
+  } else if (audioPaddingMeasures > 0) {
     const paddedStartMeasure = Math.max(1, startMeasure - audioPaddingMeasures);
     const paddedEndMeasure = endMeasure + audioPaddingMeasures;
 

@@ -126,7 +126,7 @@ const GameScreen: React.FC = () => {
               const xmlResp = await fetch(song.xml_url);
               if (xmlResp.ok) {
                 const xmlTxt = await xmlResp.text();
-                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1);
+                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1, song.audio_padding_seconds);
                 mapped = result.notes;
                 rangeAudioStart = result.audioStartTime;
                 rangeAudioEnd = result.audioEndTime;
@@ -348,7 +348,7 @@ const GameScreen: React.FC = () => {
               const xmlResp = await fetch(song.xml_url);
               if (xmlResp.ok) {
                 const xmlTxt = await xmlResp.text();
-                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1);
+                const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1, song.audio_padding_seconds);
                 mapped = result.notes;
                 mRangeAudioStart = result.audioStartTime;
                 mRangeAudioEnd = result.audioEndTime;
@@ -799,7 +799,8 @@ const SongSelectionScreen: React.FC = () => {
                             xmlTxt,
                             song.range_start_measure,
                             song.range_end_measure,
-                            song.audio_padding_measures ?? 1
+                            song.audio_padding_measures ?? 1,
+                            song.audio_padding_seconds
                           );
                           mapped = result.notes;
                           rangeAudioStartTime = result.audioStartTime;
