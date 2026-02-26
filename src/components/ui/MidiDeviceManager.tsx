@@ -9,6 +9,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import type { MidiDevice } from '@/types';
 import { Link } from 'react-router-dom';
 import { VoiceInputController } from '@/utils/VoiceInputController';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 // MIDIデバイス管理用カスタムフック
 export const useMidiDevices = () => {
@@ -28,8 +31,11 @@ export const useMidiDevices = () => {
       if (!navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
+        const enCopy = shouldUseEnglishCopy();
         const message = isIOS
-          ? 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。'
+          ? (enCopy
+              ? 'Web MIDI API is not available on iPhone/iPad Safari.'
+              : 'iPhone/iPad では Safari 等で Web MIDI API が利用できません。')
           : 'Web MIDI API is not supported in this browser';
         throw new Error(message);
       }
@@ -118,14 +124,12 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   className = ''
 }) => {
   const { devices, isRefreshing, error, refreshDevices } = useMidiDevices();
+  const profile = useAuthStore((s) => s.profile);
+  const geoCountry = useGeoStore((s) => s.country);
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
-
-  // デバイス選択時の処理を改善
   const handleDeviceChange = (newDeviceId: string | null) => {
-    // 同じデバイスを選択した場合は一度切断してから再接続
     if (newDeviceId && newDeviceId === value) {
-      console.log('🔄 同じデバイスが選択されました。再接続を試みます...');
-      // 一度nullを設定してから再度設定することで再接続を強制
       onChange(null);
       setTimeout(() => {
         onChange(newDeviceId);
@@ -137,10 +141,9 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* デバイス選択ドロップダウン */}
       <div>
         <label htmlFor="midi-device-select" className="block text-xs text-blue-200 mb-1">
-          使用デバイス
+          {en ? 'Device' : '使用デバイス'}
         </label>
         <div className="flex gap-2">
           <select
@@ -150,10 +153,10 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-blue-600 lp-mobile-select"
             disabled={isRefreshing}
           >
-            <option value="">なし</option>
+            <option value="">{en ? 'None' : 'なし'}</option>
             {devices.map((device) => (
               <option key={device.id} value={device.id}>
-                {`🎹 ${device.name}${!device.connected ? ' (切断)' : ''}`}
+                {`🎹 ${device.name}${!device.connected ? (en ? ' (disconnected)' : ' (切断)') : ''}`}
               </option>
             ))}
           </select>
@@ -163,24 +166,23 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
             onClick={refreshDevices}
             disabled={isRefreshing}
           >
-            {isRefreshing ? '🔄' : '🔄'} 再検出
+            🔄 {en ? 'Rescan' : '再検出'}
           </button>
         </div>
       </div>
 
-      {/* デバイス情報表示 */}
       <div className="text-xs text-blue-200 space-y-1">
         <div className="flex justify-between">
-          <span>検出デバイス数:</span>
-          <span className="font-mono">{devices.length} 個</span>
+          <span>{en ? 'Devices found:' : '検出デバイス数:'}</span>
+          <span className="font-mono">{devices.length}</span>
         </div>
         
         <div className="flex justify-between">
-          <span>接続状態:</span>
+          <span>{en ? 'Status:' : '接続状態:'}</span>
           {value ? (
-            <span className="text-green-400">✅ 選択済み</span>
+            <span className="text-green-400">{en ? '✅ Selected' : '✅ 選択済み'}</span>
           ) : (
-            <span className="text-gray-400">なし</span>
+            <span className="text-gray-400">{en ? 'None' : 'なし'}</span>
           )}
         </div>
         
@@ -190,7 +192,28 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
               const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
               const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
               if (isIOS) {
-                return (
+                return en ? (
+                  <div>
+                    <div className="mb-1">❌ Web MIDI API is not available on iPhone/iPad Safari.</div>
+                    <div className="mb-1">
+                      {'Consider using '}
+                      <a
+                        href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="underline text-blue-300"
+                      >
+                        Web MIDI Browser
+                      </a>
+                      {' from the App Store.'}
+                    </div>
+                    <div>
+                      <Link to="/help/ios-midi" className="underline text-blue-300">Learn more</Link>
+                      <span className="mx-1">/</span>
+                      <Link to="/contact" className="underline text-blue-300">Contact</Link>
+                    </div>
+                  </div>
+                ) : (
                   <div>
                     <div className="mb-1">❌ iPhone/iPad では Safari 等で Web MIDI API が利用できません。</div>
                     <div className="mb-1">
@@ -220,8 +243,6 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
           </div>
         )}
       </div>
-
-
     </div>
   );
 };
@@ -246,10 +267,13 @@ export const useAudioDevices = () => {
     setError(null);
 
     try {
-      // サポート確認
       if (!VoiceInputController.isSupported()) {
         setIsSupported(false);
-        throw new Error('音声入力はこのブラウザでサポートされていません');
+        throw new Error(
+          shouldUseEnglishCopy()
+            ? 'Voice input is not supported in this browser'
+            : '音声入力はこのブラウザでサポートされていません'
+        );
       }
 
       // 一時的なコントローラーでデバイス一覧取得
@@ -274,11 +298,14 @@ export const useAudioDevices = () => {
   // 初回ロード時にデバイス一覧を取得
   useEffect(() => {
     if (VoiceInputController.isSupported()) {
-      // 初回は権限要求しない（iOSで早期に許可ダイアログが出ないようにする）
       refreshDevices({ requestPermission: false });
     } else {
       setIsSupported(false);
-      setError('音声入力はこのブラウザでサポートされていません');
+      setError(
+        shouldUseEnglishCopy()
+          ? 'Voice input is not supported in this browser'
+          : '音声入力はこのブラウザでサポートされていません'
+      );
     }
   }, [refreshDevices]);
 
@@ -319,6 +346,9 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
   className = ''
 }) => {
   const { devices, isRefreshing, error, isSupported, refreshDevices } = useAudioDevices();
+  const profile = useAuthStore((s) => s.profile);
+  const geoCountry = useGeoStore((s) => s.country);
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
   const handleDeviceChange = async (newDeviceId: string | null) => {
     if (!newDeviceId) {
@@ -326,7 +356,6 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
       return;
     }
 
-    // 未許可の場合のみ権限要求（ユーザー操作コンテキストで実行）
     if (!VoiceInputController.isPermissionGranted()) {
       const permissionOk = await VoiceInputController.requestMicrophonePermission(
         newDeviceId === 'default' ? undefined : newDeviceId
@@ -334,7 +363,6 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
       if (!permissionOk) {
         return;
       }
-      // 許可後にデバイスラベルが取得可能になるため更新
       void refreshDevices({ requestPermission: false });
     }
 
@@ -350,10 +378,9 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
 
   return (
     <div className={`space-y-3 ${className}`}>
-      {/* デバイス選択ドロップダウン */}
       <div>
         <label htmlFor="audio-device-select" className="block text-xs text-purple-200 mb-1">
-          マイクデバイス
+          {en ? 'Microphone' : 'マイクデバイス'}
         </label>
         <div className="flex gap-2">
           <select
@@ -363,8 +390,8 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-purple-600 lp-mobile-select"
             disabled={isRefreshing || !isSupported}
           >
-            <option value="">未接続（マイクOFF）</option>
-            <option value="default">デフォルト</option>
+            <option value="">{en ? 'Disconnected (Mic OFF)' : '未接続（マイクOFF）'}</option>
+            <option value="default">{en ? 'Default' : 'デフォルト'}</option>
             {devices
               .filter((device) => device.deviceId !== 'default' && device.deviceId !== '')
               .map((device) => (
@@ -377,35 +404,35 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
           <button
             className="btn btn-xs btn-outline btn-purple"
             onClick={() => {
-              // 再検出はユーザー操作なので、必要なら権限要求してからデバイス名を更新する
               void refreshDevices({ requestPermission: true });
             }}
             disabled={isRefreshing || !isSupported}
           >
-            {isRefreshing ? '🔄' : '🔄'} 再検出
+            🔄 {en ? 'Rescan' : '再検出'}
           </button>
         </div>
       </div>
 
-      {/* デバイス情報表示 */}
       <div className="text-xs text-purple-200 space-y-1">
         <div className="flex justify-between">
-          <span>検出デバイス数:</span>
-          <span className="font-mono">{devices.length} 個</span>
+          <span>{en ? 'Devices found:' : '検出デバイス数:'}</span>
+          <span className="font-mono">{devices.length}</span>
         </div>
 
         <div className="flex justify-between">
-          <span>接続状態:</span>
+          <span>{en ? 'Status:' : '接続状態:'}</span>
           {value ? (
-            <span className="text-green-400">✅ 選択済み</span>
+            <span className="text-green-400">{en ? '✅ Selected' : '✅ 選択済み'}</span>
           ) : (
-            <span className="text-gray-400">未接続</span>
+            <span className="text-gray-400">{en ? 'Disconnected' : '未接続'}</span>
           )}
         </div>
 
         {VoiceInputController.isIOS() && (
           <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
-            📱 iOS環境: マイクは「デバイス選択時」に許可が求められます。
+            {en
+              ? '📱 iOS: Microphone permission will be requested when you select a device.'
+              : '📱 iOS環境: マイクは「デバイス選択時」に許可が求められます。'}
           </div>
         )}
 
@@ -448,7 +475,11 @@ export const useAudioOutputDevices = () => {
 
     try {
       if (!navigator.mediaDevices?.enumerateDevices) {
-        throw new Error('このブラウザではデバイス一覧取得がサポートされていません');
+        throw new Error(
+          shouldUseEnglishCopy()
+            ? 'Device enumeration is not supported in this browser'
+            : 'このブラウザではデバイス一覧取得がサポートされていません'
+        );
       }
       const list = await navigator.mediaDevices.enumerateDevices();
       const outputs = list
@@ -503,12 +534,15 @@ export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps>
   className = ''
 }) => {
   const { devices, isRefreshing, error, refreshDevices, isSupported } = useAudioOutputDevices();
+  const profile = useAuthStore((s) => s.profile);
+  const geoCountry = useGeoStore((s) => s.country);
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
   return (
     <div className={`space-y-3 ${className}`}>
       <div>
         <label htmlFor="audio-output-device-select" className="block text-xs text-slate-200 mb-1">
-          出力デバイス
+          {en ? 'Output Device' : '出力デバイス'}
         </label>
         <div className="flex gap-2">
           <select
@@ -518,7 +552,7 @@ export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps>
             className="select select-bordered select-sm flex-1 bg-gray-800 text-white border-slate-600 lp-mobile-select"
             disabled={isRefreshing || !isSupported}
           >
-            <option value="default">システム既定</option>
+            <option value="default">{en ? 'System Default' : 'システム既定'}</option>
             {devices
               .filter((d) => d.deviceId !== 'default')
               .map((device) => (
@@ -532,28 +566,30 @@ export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps>
             onClick={() => void refreshDevices()}
             disabled={isRefreshing}
           >
-            {isRefreshing ? '🔄' : '🔄'} 再検出
+            🔄 {en ? 'Rescan' : '再検出'}
           </button>
         </div>
       </div>
 
       <div className="text-xs text-slate-200 space-y-1">
         <div className="flex justify-between">
-          <span>検出デバイス数:</span>
-          <span className="font-mono">{devices.length} 個</span>
+          <span>{en ? 'Devices found:' : '検出デバイス数:'}</span>
+          <span className="font-mono">{devices.length}</span>
         </div>
         <div className="flex justify-between">
-          <span>対応状況:</span>
+          <span>{en ? 'Compatibility:' : '対応状況:'}</span>
           {isSupported ? (
-            <span className="text-green-400">✅ 対応</span>
+            <span className="text-green-400">{en ? '✅ Supported' : '✅ 対応'}</span>
           ) : (
-            <span className="text-gray-400">未対応</span>
+            <span className="text-gray-400">{en ? 'Not supported' : '未対応'}</span>
           )}
         </div>
 
         {!isSupported && (
           <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
-            このブラウザでは出力デバイスの切り替えができません（iOS Safari は未対応の場合があります）。
+            {en
+              ? 'Output device selection is not available in this browser (iOS Safari may not be supported).'
+              : 'このブラウザでは出力デバイスの切り替えができません（iOS Safari は未対応の場合があります）。'}
           </div>
         )}
 
