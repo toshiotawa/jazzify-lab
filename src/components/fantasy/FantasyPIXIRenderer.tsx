@@ -241,13 +241,13 @@ export class FantasyPIXIInstance {
     if (visual) {
       visual.flashUntil = performance.now() + 450;
       visual.hitNoteOffsets = Array.from({ length: 2 }, () => {
-        const a = Math.random() * Math.PI * 2;
+        const a = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
         const d = 0.3 + Math.random() * 0.25;
-        return { x: Math.cos(a) * d, y: Math.sin(a) * d - 0.3 };
+        return { x: Math.cos(a) * d, y: Math.sin(a) * d };
       });
       
-      const randAngle = Math.random() * Math.PI * 2;
-      const randDist = 40 + Math.random() * 50;
+      const randAngle = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
+      const randDist = 30 + Math.random() * 40;
       this.damagePopups.push({
         id: `damage_${Date.now()}_${Math.random()}`,
         x: visual.x,
@@ -256,7 +256,7 @@ export class FantasyPIXIInstance {
         start: performance.now(),
         duration: 1800,
         offsetX: Math.cos(randAngle) * randDist,
-        offsetY: Math.sin(randAngle) * randDist - 40,
+        offsetY: Math.sin(randAngle) * randDist,
       });
       
       
@@ -639,7 +639,7 @@ export class FantasyPIXIInstance {
       ctx.scale(bounceScale, bounceScale);
       ctx.globalAlpha = alpha;
       
-      const fontSize = 38;
+      const fontSize = 28;
       ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
