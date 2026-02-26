@@ -605,7 +605,19 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
         // Phase 2: ゲームエンジン制御
         initializeGameEngine: async () => {
           const state = get();
-          const { GameEngine } = await import('@/utils/gameEngine');
+          let GameEngine: any;
+          for (let attempt = 0; attempt < 3; attempt++) {
+            try {
+              ({ GameEngine } = await import('@/utils/gameEngine'));
+              break;
+            } catch (err) {
+              if (attempt < 2) {
+                await new Promise(r => setTimeout(r, 1000 * (attempt + 1)));
+                continue;
+              }
+              throw err;
+            }
+          }
           const engine = new GameEngine({ ...state.settings });
           lastCurrentTimeDispatch = 0;
           
@@ -1280,6 +1292,9 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
             }
             // 本番モードでは練習モードガイドを無効化
             state.settings.practiceGuide = 'off';
+            
+            // ステージモードではA/Bリピートを無効化
+            state.abRepeat = { enabled: false, startTime: null, endTime: null };
             
             // 🆕 レッスンモード時：本番モードで課題条件を強制適用
             if (state.lessonContext) {

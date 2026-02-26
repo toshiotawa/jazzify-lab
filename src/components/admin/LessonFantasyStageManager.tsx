@@ -734,7 +734,7 @@ const LessonFantasyStageManager: React.FC = () => {
                               <input type="number" className="input input-bordered w-24" {...register(`chord_progression_data.${idx}.bar` as const, { valueAsNumber: true })} />
                             </td>
                             <td>
-                              <input type="number" step="0.25" className="input input-bordered w-24" {...register(`chord_progression_data.${idx}.beats` as const, { valueAsNumber: true })} />
+                              <input type="number" step="any" className="input input-bordered w-24" {...register(`chord_progression_data.${idx}.beats` as const, { valueAsNumber: true })} />
                             </td>
                             <td>
                               <input className="input input-bordered w-40" placeholder="例: CM7, F#m7" {...register(`chord_progression_data.${idx}.chord` as const)} />
