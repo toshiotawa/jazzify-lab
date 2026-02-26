@@ -988,7 +988,7 @@ export class PIXINotesRendererInstance {
 
     for (let i = 0; i < this.noteBuffer.length; i += 1) {
       const note = this.noteBuffer[i];
-      if (!note || note.state === 'completed') continue;
+      if (!note || note.state === 'completed' || note.state === 'hit') continue;
       const geometry = this.getGeometryForPitch(note.pitch);
       if (!geometry) continue;
       const noteY = note.y ?? this.settings.hitLineY;
@@ -1039,14 +1039,14 @@ export class PIXINotesRendererInstance {
       if (snapshotIds.has(noteId)) {
         continue;
       }
-      this.pushVanishEffect(snapshot);
+      const isMissed = snapshot.color === this.colors.missed;
+      this.pushVanishEffect(snapshot, !isMissed);
       this.noteRenderSnapshots.delete(noteId);
     }
   }
 
-  private pushVanishEffect(snapshot: NoteRenderSnapshot): void {
+  private pushVanishEffect(snapshot: NoteRenderSnapshot, triggerLaneFlash = true): void {
     const now = performance.now();
-    // 🚀 リングバッファ方式: shift() を排除して O(1) 挿入
     const idx = this.vanishWriteIndex;
     const existing = this.vanishEffects[idx];
     if (existing) {
@@ -1071,7 +1071,9 @@ export class PIXINotesRendererInstance {
       this.vanishCount += 1;
     }
 
-    this.pushLaneFlash(snapshot.x, snapshot.width, snapshot.color, now);
+    if (triggerLaneFlash) {
+      this.pushLaneFlash(snapshot.x, snapshot.width, snapshot.color, now);
+    }
   }
 
   private pushLaneFlash(x: number, width: number, color: string, now: number): void {
