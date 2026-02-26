@@ -12,35 +12,9 @@ enableMapSet();
 // 開発環境でマジックリンクログを自動出力
 // autoLogMagicLinkInfo(); // Removed as per edit hint
 
-// 本番環境でもデバッグ情報を表示する関数
-const showDebugInfo = (message: string, isError = false) => {
+const showDebugInfo = (message: string, _isError = false) => {
   const timestamp = new Date().toLocaleTimeString();
   console.log(`🎵 [${timestamp}] ${message}`);
-  
-  // 画面にも表示
-  const debugDiv = document.getElementById('debug-info') || document.createElement('div');
-  debugDiv.id = 'debug-info';
-  debugDiv.style.cssText = `
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    background: ${isError ? '#ef4444' : '#3b82f6'};
-    color: white;
-    padding: 12px 16px;
-    border-radius: 8px;
-    font-family: "Kaisei Opti", serif;
-    font-size: 16px;
-    z-index: 10000;
-    max-width: 450px;
-    word-wrap: break-word;
-    white-space: pre-wrap;
-    line-height: 1.5;
-  `;
-  debugDiv.textContent = `${timestamp}: ${message}`;
-  
-  if (!document.getElementById('debug-info')) {
-    document.body.appendChild(debugDiv);
-  }
 };
 
 // ローディング画面を非表示にする
@@ -147,14 +121,6 @@ const initializeApp = async () => {
     setTimeout(() => {
       showDebugInfo('Hiding loading screen...');
       hideLoading();
-      
-      // デバッグ情報を削除（本番では少し長めに表示）
-      setTimeout(() => {
-        const debugDiv = document.getElementById('debug-info');
-        if (debugDiv) {
-          debugDiv.remove();
-        }
-      }, 8000);
     }, 500);
     
     showDebugInfo('Initialization completed successfully');

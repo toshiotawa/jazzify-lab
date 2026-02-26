@@ -569,8 +569,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       }
 
-      // ルート音再生
-      const allowRootSound = stage?.playRootOnCorrect !== false;
+      // ルート音再生（phrasesステージでは常に鳴らす）
+      const allowRootSound = (stage as any)?.tier === 'phrases' || stage?.playRootOnCorrect !== false;
       if (allowRootSound) {
         const id = chord.id || chord.displayName || chord.root;
         let bassToPlay = chord.root;

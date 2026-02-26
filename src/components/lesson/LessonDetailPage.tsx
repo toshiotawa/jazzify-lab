@@ -222,6 +222,8 @@ const LessonDetailPage: React.FC = () => {
     }
   };
 
+  const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
+
   const handleComplete = async () => {
     if (!lessonId || !lesson) return;
     
@@ -252,7 +254,21 @@ const LessonDetailPage: React.FC = () => {
       // 完了状態を即座に反映（ページに留まる）
       setLessonProgress(prev => prev ? { ...prev, completed: true, completion_date: new Date().toISOString() } : prev);
       setAllRequirementsCompleted(true);
-    } catch (e: any) {
+
+      // ナビゲーション情報を再取得（完了後の最新状態で判定）
+      if (lesson.course_id) {
+        try {
+          clearNavigationCacheForCourse(lesson.course_id);
+          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, profile?.rank);
+          setNavigationInfo(freshNavInfo);
+          if (freshNavInfo.nextLesson && freshNavInfo.canGoNext) {
+            setShowNextLessonPrompt(true);
+          }
+        } catch (_) {
+          // ナビゲーション情報取得失敗は致命的でないため無視
+        }
+      }
+    } catch (e: unknown) {
       toast.error('完了処理に失敗しました');
       console.error('レッスン完了エラー:', e);
     } finally {
@@ -865,9 +881,49 @@ const LessonDetailPage: React.FC = () => {
                   'このレッスンは既に完了しています' : 
                   '動画視聴と実習課題を完了したら押してください'}
               </p>
-              
 
             </div>
+
+            {/* 次のレッスンへ進むポップアップ */}
+            {showNextLessonPrompt && navigationInfo?.nextLesson && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60" onClick={() => setShowNextLessonPrompt(false)}>
+                <div className="bg-slate-800 rounded-xl p-6 max-w-sm mx-4 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
+                  <div className="text-center mb-4">
+                    <div className="text-4xl mb-2">🎉</div>
+                    <h3 className="text-xl font-bold text-white">レッスン完了！</h3>
+                    <p className="text-gray-300 text-sm mt-2">
+                      次のレッスンに進みますか？
+                    </p>
+                    <p className="text-blue-300 text-sm mt-1 font-medium">
+                      {navigationInfo.nextLesson.title}
+                    </p>
+                  </div>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowNextLessonPrompt(false)}
+                      className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm"
+                    >
+                      このまま留まる
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowNextLessonPrompt(false);
+                        if (lesson?.course_id) {
+                          cleanupLessonNavigationCache(lessonId || '', lesson.course_id);
+                          clearSupabaseCache();
+                        }
+                        setTimeout(() => {
+                          window.location.hash = `#lesson-detail?id=${navigationInfo.nextLesson!.id}`;
+                        }, 100);
+                      }}
+                      className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
+                    >
+                      次へ進む <FaChevronRight className="w-3 h-3" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
         </div>
       )}

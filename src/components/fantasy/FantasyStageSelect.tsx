@@ -754,8 +754,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
       </div>
       
-      {/* ランク選択タブ */}
-      <div className="px-4 sm:px-6 mb-4 sm:mb-6">
+      {/* ランク選択タブ（Advancedでは非表示） */}
+      {selectedTier !== 'advanced' && <div className="px-4 sm:px-6 mb-4 sm:mb-6">
         <div className="flex space-x-2 overflow-x-auto">
           {Object.keys(groupedStages).map(rank => (
             <button
@@ -772,11 +772,21 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             </button>
           ))}
         </div>
-      </div>
+      </div>}
       
       {/* ステージ一覧 */}
       <div className="px-4 sm:px-6 pb-6">
-        {selectedRank && groupedStages[selectedRank] && (
+        {selectedTier === 'advanced' ? (
+          <div className="rounded-xl p-8 sm:p-12 bg-gradient-to-br from-slate-700 to-slate-800 text-center">
+            <div className="text-5xl sm:text-6xl mb-4">🔧</div>
+            <h2 className="text-white text-2xl sm:text-3xl font-bold mb-3">Coming Soon...</h2>
+            <p className="text-gray-300 text-sm sm:text-base">
+              {isEnglishCopy
+                ? 'Advanced stages are currently under development. Stay tuned!'
+                : 'Advancedステージは現在準備中です。お楽しみに！'}
+            </p>
+          </div>
+        ) : selectedRank && groupedStages[selectedRank] ? (
           <div className={cn(
             "rounded-xl p-4 sm:p-6 bg-gradient-to-br",
             getRankColor(selectedRankNumber)
@@ -804,7 +814,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               </div>
             </div>
           </div>
-        )}
+        ) : null}
       </div>
       
       {/* フッター */}

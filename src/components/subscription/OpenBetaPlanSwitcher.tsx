@@ -8,6 +8,15 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
 type Rank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
 
+const RANK_DISPLAY_NAMES: Record<Rank, { ja: string; en: string }> = {
+  free: { ja: 'フリー', en: 'Free' },
+  standard: { ja: 'スタンダード', en: 'Standard' },
+  standard_global: { ja: 'スタンダード（グローバル）', en: 'Standard (Global)' },
+  premium: { ja: 'プレミアム', en: 'Premium' },
+  platinum: { ja: 'プラチナ', en: 'Platinum' },
+  black: { ja: 'ブラック', en: 'Black' },
+};
+
 const OpenBetaPlanSwitcher: React.FC = () => {
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -97,7 +106,7 @@ const OpenBetaPlanSwitcher: React.FC = () => {
           <h3 className="text-lg font-semibold text-white">{isEnglishCopy ? 'Open Beta: Change plan' : 'オープンベータ: プラン変更'}</h3>
         {profile?.rank && (
           <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-gray-300">
-              {isEnglishCopy ? 'Current' : '現在'}: {profile.rank}
+              {isEnglishCopy ? 'Current' : '現在'}: {isRank(profile.rank) ? (isEnglishCopy ? RANK_DISPLAY_NAMES[profile.rank].en : RANK_DISPLAY_NAMES[profile.rank].ja) : profile.rank}
           </span>
         )}
       </div>
