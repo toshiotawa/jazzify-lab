@@ -252,7 +252,19 @@ const LessonDetailPage: React.FC = () => {
       });
       
       // 完了状態を即座に反映（ページに留まる）
-      setLessonProgress(prev => prev ? { ...prev, completed: true, completion_date: new Date().toISOString() } : prev);
+      setLessonProgress(prev => prev 
+        ? { ...prev, completed: true, completion_date: new Date().toISOString() } 
+        : {
+            id: '',
+            user_id: profile?.id || '',
+            lesson_id: lessonId,
+            course_id: lesson.course_id,
+            completed: true,
+            completion_date: new Date().toISOString(),
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          }
+      );
       setAllRequirementsCompleted(true);
 
       // ナビゲーション情報を再取得（完了後の最新状態で判定）
