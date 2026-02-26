@@ -19,14 +19,14 @@ export function filterNotesByTimeRange(
     (n) => n.time >= rangeStartTime && n.time <= rangeEndTime
   );
 
-  const offset = rangeStartTime;
-  const offsetNotes = filtered.map((n) => ({
-    ...n,
-    time: n.time - offset,
-  }));
-
   const effAudioStart = audioStartTime ?? Math.max(0, rangeStartTime - audioPaddingSeconds);
   const effAudioEnd = audioEndTime ?? (rangeEndTime + audioPaddingSeconds);
+
+  const offsetNotes = filtered.map((n) => ({
+    ...n,
+    time: n.time - effAudioStart,
+  }));
+
   const duration = effAudioEnd - effAudioStart;
 
   return { notes: offsetNotes, audioStartTime: effAudioStart, audioEndTime: effAudioEnd, duration };
@@ -111,10 +111,6 @@ export async function filterNotesByMeasureRange(
   const filtered = notes.filter(
     (n) => n.time >= rangeStartTime && n.time <= rangeEndTime
   );
-  const offsetNotes = filtered.map((n) => ({
-    ...n,
-    time: n.time - rangeStartTime,
-  }));
 
   let audioStartTime = rangeStartTime;
   let audioEndTime = rangeEndTime;
@@ -140,9 +136,62 @@ export async function filterNotesByMeasureRange(
     }
   }
 
+  const offsetNotes = filtered.map((n) => ({
+    ...n,
+    time: n.time - audioStartTime,
+  }));
+
   const duration = audioEndTime - audioStartTime;
 
   return { notes: offsetNotes, audioStartTime, audioEndTime, duration };
+}
+
+export function truncateMusicXmlByMeasureRange(xmlString: string, startMeasure: number, endMeasure: number): string {
+  const parser = new DOMParser();
+  const xmlDoc = parser.parseFromString(xmlString, 'application/xml');
+  const parts = xmlDoc.querySelectorAll('part');
+
+  const essentialTags = ['divisions', 'key', 'time', 'staves', 'clef'];
+
+  parts.forEach(part => {
+    const measures = Array.from(part.querySelectorAll('measure'));
+    if (measures.length === 0) return;
+
+    const sourceAttrs = measures[0].querySelector('attributes');
+
+    let firstSurvivingMeasure: Element | null = null;
+
+    for (const m of measures) {
+      const num = parseInt(m.getAttribute('number') || '0', 10);
+      if (num < startMeasure || num > endMeasure) {
+        m.parentNode?.removeChild(m);
+      } else if (!firstSurvivingMeasure) {
+        firstSurvivingMeasure = m;
+      }
+    }
+
+    if (!firstSurvivingMeasure || !sourceAttrs) return;
+
+    let targetAttrs = firstSurvivingMeasure.querySelector('attributes');
+    if (!targetAttrs) {
+      firstSurvivingMeasure.insertBefore(
+        sourceAttrs.cloneNode(true),
+        firstSurvivingMeasure.firstChild
+      );
+      return;
+    }
+
+    for (const tag of essentialTags) {
+      if (!targetAttrs.querySelector(tag) && sourceAttrs.querySelector(tag)) {
+        const elements = sourceAttrs.querySelectorAll(tag);
+        elements.forEach(el => {
+          targetAttrs!.appendChild(el.cloneNode(true));
+        });
+      }
+    }
+  });
+
+  return new XMLSerializer().serializeToString(xmlDoc);
 }
 
 export function isRangeDuplicate(song: any): boolean {
