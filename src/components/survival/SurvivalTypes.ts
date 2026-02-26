@@ -265,8 +265,10 @@ export interface Coin {
 }
 
 // ===== 衝撃波エフェクト =====
-// エフェクト展開完了までの時間比率（duration 300ms × 0.03 = 約9msで全展開）
-export const SHOCKWAVE_EXPAND_RATIO = 0.03;
+// エフェクト展開完了までの時間比率（duration × RATIO = 展開時間）
+export const SHOCKWAVE_EXPAND_RATIO = 0.15;
+// 衝撃波エフェクトの持続時間（ミリ秒）
+export const SHOCKWAVE_DURATION = 350;
 
 export interface ShockwaveEffect {
   id: string;

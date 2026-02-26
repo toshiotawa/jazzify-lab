@@ -18,6 +18,7 @@ import {
   LightningEffect,
   SLOT_TIMEOUT,
   EXP_PER_MINUTE,
+  SHOCKWAVE_DURATION,
 } from './SurvivalTypes';
 import {
   createInitialGameState,
@@ -1203,7 +1204,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             radius: 0,
             maxRadius: totalRange,
             startTime: Date.now(),
-            duration: 300,
+            duration: SHOCKWAVE_DURATION,
             direction: prev.player.direction,
           };
           pendingShockwaves.push(newShockwave);
@@ -1272,7 +1273,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 const multiShockwave: ShockwaveEffect = {
                   id: `shock_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
                   x: 0, y: 0, radius: 0, maxRadius: 0,
-                  startTime: Date.now(), duration: 300,
+                  startTime: Date.now(), duration: SHOCKWAVE_DURATION,
                   direction: 'right' as Direction,
                 };
                 
@@ -1565,7 +1566,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         radius: 0,
         maxRadius: totalRange,
         startTime: Date.now(),
-        duration: 300,
+        duration: SHOCKWAVE_DURATION,
         direction: prev.player.direction,
       };
       tapPendingShockwaves.push(newShockwave);
@@ -1633,7 +1634,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             const multiShockwave: ShockwaveEffect = {
               id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
               x: 0, y: 0, radius: 0, maxRadius: 0,
-              startTime: Date.now(), duration: 300,
+              startTime: Date.now(), duration: SHOCKWAVE_DURATION,
               direction: 'right' as Direction,
             };
             
