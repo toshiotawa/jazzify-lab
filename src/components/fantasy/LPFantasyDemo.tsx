@@ -16,7 +16,7 @@ const DEMO_TIME_LIMIT_MS = 90 * 1000;
 const DEMO_CDE_NOTES = ['C', 'D', 'E'];
 
 const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/5b49b467-c54b-4fa8-ba36-bae3cfce424e.mp3';
-const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/77249341-8889-49a4-81e1-b190e0b6227c.mp3';
+const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/b4249680-5471-4e4d-abba-af856ff33310.mp3';
 
 const DEMO_STAGE_CONFIG: DifficultyConfig = {
   difficulty: 'easy',
