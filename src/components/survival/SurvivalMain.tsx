@@ -420,7 +420,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
-        onNextStage={missionMode ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
+        onNextStage={(lessonMode || missionMode) ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
       />
     );
   }

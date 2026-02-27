@@ -310,7 +310,7 @@ const Dashboard: React.FC = () => {
                       </div>
                   ) : userStats ? (
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
-                      {!isStandardGlobal && (<span>{isEnglishCopy ? 'Missions completed' : 'ミッション完了数'} {userStats.missionCompletedCount}</span>)}
+                      <span>{isEnglishCopy ? 'Missions completed' : 'ミッション完了数'} {userStats.missionCompletedCount}</span>
                       {!isStandardGlobal && (<span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>)}
                       <span>{isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'} {userStats.dailyChallengeParticipationDays}</span>
                       {userStats.survivalBestTimeSeconds > 0 && (
@@ -401,20 +401,18 @@ const Dashboard: React.FC = () => {
               {/* クイックアクション */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {/* 今日のミッション */}
-                {!isStandardGlobal && (
                 <button
                   onClick={() => { window.location.hash = '#missions'; }}
                   className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
                 >
                   <div className="flex items-center space-x-3 mb-3">
                     <FaBullseye className="w-6 h-6 text-orange-400" />
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Daily Missions' : '今日のミッション'}</h3>
+                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Missions' : 'ミッション'}</h3>
                   </div>
                   <p className="text-sm text-gray-400">
-                    {isEnglishCopy ? 'Challenge daily missions and earn XP' : '日替わりの課題に挑戦して経験値を獲得しよう'}
+                    {isEnglishCopy ? 'Complete missions and earn XP' : 'ミッションに挑戦して経験値を獲得しよう'}
                   </p>
                 </button>
-                )}
 
                 {/* レジェンドモード（全プラン共通） */}
                 <button

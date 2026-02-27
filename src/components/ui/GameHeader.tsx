@@ -50,7 +50,7 @@ const GameHeader: React.FC = () => {
             {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
             {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
             {!isFree && <HashButton hash="#ranking" disabled={isGuest}>{isEnglishCopy ? 'Ranking' : 'ランキング'}</HashButton>}
-            {!isStandardGlobal && !isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
+            {!isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>{isEnglishCopy ? 'Diary' : '日記'}</HashButton>}
             {!isFree && <HashButton hash="#information" disabled={isGuest}>{isEnglishCopy ? 'Updates' : 'お知らせ'}</HashButton>}
         </div>

@@ -5,9 +5,11 @@ import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { FaArrowLeft, FaTrophy, FaMedal, FaCrown, FaGem, FaStar, FaSearch, FaPlus } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 const MissionRanking: React.FC = () => {
-  const [open, setOpen] = useState(window.location.hash === '#mission-ranking'); // This page will not be reachable for Standard(Global)
+  const [open, setOpen] = useState(window.location.hash === '#mission-ranking');
   const [entries, setEntries] = useState<MissionRankingEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -15,9 +17,9 @@ const MissionRanking: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const { monthly } = useMissionStore();
   const [missionId, setMissionId] = useState<string | null>(null);
-  // If needed later, we can add gating like in LevelRanking header.
   const { profile, user } = useAuthStore();
-  const isStandardGlobal = profile?.rank === 'standard_global';
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const PAGE_SIZE = 50;
   const [offset, setOffset] = useState(0);
 
@@ -78,25 +80,6 @@ const MissionRanking: React.FC = () => {
   }, [open, missionId]);
 
   if (!open) return null;
-
-  if (isStandardGlobal) {
-    return (
-      <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
-        <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
-          <h4 className="text-lg font-bold text-center">この機能はご利用いただけません</h4>
-          <p className="text-center text-gray-300">Standard(Global)プランではミッションランキングは非対応です。</p>
-          <div className="flex flex-col gap-3">
-            <button 
-              className="btn btn-sm btn-outline w-full" 
-              onClick={() => { window.location.href = '/main#dashboard'; }}
-            >
-              ダッシュボードに戻る
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   const handleClose = () => {
     window.location.href = '/main#dashboard';
@@ -175,7 +158,7 @@ const MissionRanking: React.FC = () => {
             >
               <FaArrowLeft />
             </button>
-            <h1 className="text-2xl font-bold text-center flex-1">ミッションランキング</h1>
+            <h1 className="text-2xl font-bold text-center flex-1">{isEnglishCopy ? 'Mission Ranking' : 'ミッションランキング'}</h1>
             <div className="w-8" />
           </div>
 
@@ -183,7 +166,7 @@ const MissionRanking: React.FC = () => {
           {monthly.length > 1 && (
             <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
               <label htmlFor="mission-select" className="block text-sm font-medium text-gray-300 mb-2">
-                ミッションを選択
+                {isEnglishCopy ? 'Select Mission' : 'ミッションを選択'}
               </label>
               <select
                 id="mission-select"
@@ -192,7 +175,7 @@ const MissionRanking: React.FC = () => {
                 onChange={(e) => setMissionId(e.target.value)}
               >
                 {monthly.map(m => (
-                  <option key={m.id} value={m.id}>{m.title}</option>
+                  <option key={m.id} value={m.id}>{isEnglishCopy && m.title_en ? m.title_en : m.title}</option>
                 ))}
               </select>
             </div>
@@ -204,14 +187,14 @@ const MissionRanking: React.FC = () => {
               onClick={scrollToMyRow}
               className="px-3 py-2 rounded-lg text-sm font-medium transition-colors bg-slate-700 text-gray-200 hover:bg-slate-600 inline-flex items-center gap-2"
             >
-              <FaSearch /> 自分を探す
+              <FaSearch /> {isEnglishCopy ? 'Find Me' : '自分を探す'}
             </button>
             <button
               onClick={loadMore}
               disabled={!hasMore || loadingMore}
               className={`px-3 py-2 rounded-lg text-sm font-medium inline-flex items-center gap-2 ${!hasMore ? 'bg-slate-800 text-gray-500' : 'bg-primary-600 text-white hover:bg-primary-500'} ${loadingMore ? 'opacity-70' : ''}`}
             >
-              <FaPlus /> さらに読み込む（50件）
+              <FaPlus /> {isEnglishCopy ? 'Load More (50)' : 'さらに読み込む（50件）'}
             </button>
           </div>
 
@@ -226,13 +209,13 @@ const MissionRanking: React.FC = () => {
           {loading ? (
             <div className="text-center py-12">
               <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary-400 mx-auto mb-4"></div>
-              <p className="text-gray-400">ランキングを読み込み中...</p>
+              <p className="text-gray-400">{isEnglishCopy ? 'Loading ranking...' : 'ランキングを読み込み中...'}</p>
             </div>
           ) : entries.length === 0 ? (
             <div className="text-center py-12">
               <div className="text-6xl mb-4">🏆</div>
-              <p className="text-gray-400">まだランキングデータがありません</p>
-              <p className="text-sm text-gray-500 mt-2">ミッションに挑戦してランキングに参加しましょう！</p>
+              <p className="text-gray-400">{isEnglishCopy ? 'No ranking data yet' : 'まだランキングデータがありません'}</p>
+              <p className="text-sm text-gray-500 mt-2">{isEnglishCopy ? 'Complete missions to join the ranking!' : 'ミッションに挑戦してランキングに参加しましょう！'}</p>
             </div>
           ) : (
             <div className="bg-slate-800 rounded-lg border border-slate-700 overflow-hidden">
@@ -240,11 +223,11 @@ const MissionRanking: React.FC = () => {
                 <table className="w-full text-sm min-w-[600px] sm:min-w-full">
                   <thead>
                     <tr className="bg-slate-700 border-b border-slate-600">
-                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">順位</th>
-                      <th className="py-4 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">ユーザー(タップで詳細)</th>
-                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">クリア回数</th>
-                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">レベル</th>
-                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">ランク</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">#</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[12rem] sm:min-w-[10rem]">{isEnglishCopy ? 'User' : 'ユーザー(タップで詳細)'}</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">{isEnglishCopy ? 'Clears' : 'クリア回数'}</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[4rem]">Lv</th>
+                      <th className="py-4 px-4 text-left font-medium min-w-[6rem] sm:min-w-[5rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -303,7 +286,7 @@ const MissionRanking: React.FC = () => {
               className="btn btn-outline btn-primary" 
               onClick={handleClose}
             >
-              ダッシュボードに戻る
+              {isEnglishCopy ? 'Back to Dashboard' : 'ダッシュボードに戻る'}
             </button>
           </div>
         </div>

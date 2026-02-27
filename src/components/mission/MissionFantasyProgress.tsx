@@ -3,6 +3,9 @@ import type { MissionFantasyStageProgressItem } from '@/platform/supabaseChallen
 import { fetchMissionFantasyProgress } from '@/platform/supabaseChallengeFantasy';
 import { cn } from '@/utils/cn';
 import { FaPlay, FaCheck, FaHatWizard } from 'react-icons/fa';
+import { useAuthStore } from '@/stores/authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface Props {
   missionId: string;
@@ -11,6 +14,9 @@ interface Props {
 }
 
 const MissionFantasyProgress: React.FC<Props> = ({ missionId, progressItems, onLoad }) => {
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   useEffect(() => {
     if (!progressItems) {
       void fetchMissionFantasyProgress(missionId).then(onLoad);
@@ -26,7 +32,7 @@ const MissionFantasyProgress: React.FC<Props> = ({ missionId, progressItems, onL
 
   if (!progressItems) {
     return (
-      <div className="text-center text-gray-400 py-4">読み込み中...</div>
+      <div className="text-center text-gray-400 py-4">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</div>
     );
   }
 
@@ -48,7 +54,7 @@ const MissionFantasyProgress: React.FC<Props> = ({ missionId, progressItems, onL
                   {item.stage.stage_number} - {item.stage.name}
                 </div>
                 <div className="text-xs text-gray-400">
-                  {item.clear_count}/{item.required_count} 回クリア
+                  {item.clear_count}/{item.required_count} {isEnglishCopy ? 'clears' : '回クリア'}
                 </div>
               </div>
             </div>
@@ -58,9 +64,9 @@ const MissionFantasyProgress: React.FC<Props> = ({ missionId, progressItems, onL
               className={cn('btn btn-sm', item.is_completed ? 'btn-success' : 'btn-primary')}
             >
               {item.is_completed ? (
-                <span className="flex items-center space-x-2"><FaCheck className="w-3 h-3" /><span>再挑戦</span></span>
+                <span className="flex items-center space-x-2"><FaCheck className="w-3 h-3" /><span>{isEnglishCopy ? 'Retry' : '再挑戦'}</span></span>
               ) : (
-                <span className="flex items-center space-x-2"><FaPlay className="w-3 h-3" /><span>プレイ</span></span>
+                <span className="flex items-center space-x-2"><FaPlay className="w-3 h-3" /><span>{isEnglishCopy ? 'Play' : 'プレイ'}</span></span>
               )}
             </button>
           </div>

@@ -1,8 +1,10 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, fetchMissionSongProgressAll, claimReward } from '@/platform/supabaseMissions';
+import { Mission, UserMissionProgress, MissionSongProgress, fetchActiveMonthlyMissions, fetchUserMissionProgress, fetchMissionSongProgress, fetchMissionSongProgressAll, claimReward, filterMissionsByPlan } from '@/platform/supabaseMissions';
 import { useToastStore } from '@/stores/toastStore';
 import { useUserStatsStore } from './userStatsStore';
+import { useAuthStore } from './authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface State {
   monthly: Mission[];
@@ -26,10 +28,12 @@ export const useMissionStore = create<State & Actions>()(
 
     fetchAll: async () => {
       set(s=>{s.loading=true;});
-      const [missions, progress] = await Promise.all([
+      const [allMissions, progress] = await Promise.all([
         fetchActiveMonthlyMissions(),
         fetchUserMissionProgress(),
       ]);
+      const rank = useAuthStore.getState().profile?.rank;
+      const missions = filterMissionsByPlan(allMissions, rank);
       const progMap:Record<string,UserMissionProgress> = {};
       progress.forEach(pr=>{progMap[pr.challenge_id]=pr;});
       set(s=>{s.monthly=missions; s.progress=progMap; s.loading=false;});
@@ -96,43 +100,35 @@ export const useMissionStore = create<State & Actions>()(
     },
 
     claim: async(id:string)=>{
+      const profile = useAuthStore.getState().profile;
+      const isEn = shouldUseEnglishCopy({ rank: profile?.rank });
       try {
-        console.log('claimReward開始:', id);
         const xpResult = await claimReward(id);
-        console.log('claimReward完了:', xpResult);
         
-        console.log('fetchAll開始');
         await get().fetchAll();
-        console.log('fetchAll完了');
         
-        // ユーザー統計を更新
         const { fetchStats } = useUserStatsStore.getState();
-        fetchStats().catch(console.error); // エラーは無視
+        fetchStats().catch(() => {});
         
-        // トースト通知を表示
         const { push } = useToastStore.getState();
         if (xpResult) {
-          console.log('トースト通知表示:', xpResult);
           push(
-            `+${xpResult.gainedXp} XP${xpResult.levelUp ? ' (レベルアップ！)' : ''}`,
+            `+${xpResult.gainedXp} XP${xpResult.levelUp ? (isEn ? ' (Level Up!)' : ' (レベルアップ！)') : ''}`,
             'success',
             {
-              title: 'ミッション報酬獲得！',
+              title: isEn ? 'Mission Reward Earned!' : 'ミッション報酬獲得！',
               duration: 5000
             }
           );
         }
       } catch (error) {
-        console.error('報酬の受け取りに失敗しました:', error);
-        
-        // エラーメッセージをトースト通知で表示
         const { push } = useToastStore.getState();
-        const errorMessage = error instanceof Error ? error.message : '報酬の受け取りに失敗しました';
+        const errorMessage = error instanceof Error ? error.message : (isEn ? 'Failed to claim reward' : '報酬の受け取りに失敗しました');
         push(
           errorMessage,
           'error',
           {
-            title: 'エラー',
+            title: isEn ? 'Error' : 'エラー',
             duration: 5000
           }
         );

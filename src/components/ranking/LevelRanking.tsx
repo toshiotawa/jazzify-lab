@@ -74,7 +74,7 @@ const LevelRanking: React.FC = () => {
     try {
       const data = await fetchLevelRankingByView(PAGE_SIZE, 0);
       const filtered = isStandardGlobal
-        ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+        ? data.map(e => ({ ...e, lessons_cleared: 0 }))
         : data;
       setEntries(sortEntries(filtered, sortKey));
       setPageOffset(prev => prev + PAGE_SIZE);
@@ -90,7 +90,7 @@ const LevelRanking: React.FC = () => {
     try {
       const data = await fetchLevelRankingByView(PAGE_SIZE, pageOffset);
       const filtered = isStandardGlobal
-        ? data.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+        ? data.map(e => ({ ...e, lessons_cleared: 0 }))
         : data;
       setEntries(prev => {
         const exist = new Set(prev.map(e => e.id));
@@ -146,7 +146,7 @@ const LevelRanking: React.FC = () => {
         const pageOffset = Math.floor((globalRank - 1) / PAGE_SIZE_NUM) * PAGE_SIZE_NUM;
         const page = await fetchLevelRankingByView(PAGE_SIZE_NUM, pageOffset);
         const adjusted = isStandardGlobal
-          ? page.map(e => ({ ...e, lessons_cleared: 0, missions_completed: 0 }))
+          ? page.map(e => ({ ...e, lessons_cleared: 0 }))
           : page;
         setEntries(prev => {
           const exist = new Map(prev.map(e => [e.id, e] as const));
@@ -289,29 +289,27 @@ const LevelRanking: React.FC = () => {
                 Level
               </button>
               {!isStandardGlobal && (
-                <>
-                  <button
-                    onClick={() => setSortKey('lessons')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      sortKey === 'lessons'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                    }`}
-                  >
-                    Lesson
-                  </button>
-                  <button
-                    onClick={() => setSortKey('missions')}
-                    className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                      sortKey === 'missions'
-                        ? 'bg-primary-600 text-white'
-                        : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
-                    }`}
-                  >
-                    Mission
-                  </button>
-                </>
+                <button
+                  onClick={() => setSortKey('lessons')}
+                  className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                    sortKey === 'lessons'
+                      ? 'bg-primary-600 text-white'
+                      : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                  }`}
+                >
+                  Lesson
+                </button>
               )}
+              <button
+                onClick={() => setSortKey('missions')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  sortKey === 'missions'
+                    ? 'bg-primary-600 text-white'
+                    : 'bg-slate-700 text-gray-300 hover:bg-slate-600'
+                }`}
+              >
+                Mission
+              </button>
               <button
                 onClick={() => { window.location.hash = '#survival-ranking'; }}
                 className="px-4 py-2 rounded-lg text-sm font-medium transition-colors bg-red-800 text-white hover:bg-red-700"
@@ -335,7 +333,7 @@ const LevelRanking: React.FC = () => {
                 {!isStandardGlobal && <th className="py-3 px-2 whitespace-nowrap min-w-[8rem] sm:min-w-[6rem]">{titleColumnText}</th>}
                 <th className="py-3 px-2 min-w-[3rem]">Lv</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Lessons' : 'レッスン'}</th>}
-                {!isStandardGlobal && <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Missions' : 'ミッション'}</th>}
+                <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Missions' : 'ミッション'}</th>
                 <th className="py-3 px-2 min-w-[4rem]">{fantasyColumnText}</th>
                 <th className="py-3 px-2 min-w-[5rem]">{survivalColumnText}</th>
                 {!isStandardGlobal && <th className="py-3 px-2 min-w-[5rem] sm:min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>}
@@ -410,7 +408,7 @@ const LevelRanking: React.FC = () => {
                   )}
                   <td className="py-3 px-2">{e.level}</td>
                   {!isStandardGlobal && <td className="py-3 px-2">{e.lessons_cleared}</td>}
-                  {!isStandardGlobal && <td className="py-3 px-2">{e.missions_completed || 0}</td>}
+                  <td className="py-3 px-2">{e.missions_completed || 0}</td>
                   <td className="py-3 px-2 text-purple-300">{e.fantasy_cleared_stages ?? 0}</td>
                   <td className="py-3 px-2 text-red-300">{e.survival_stages_cleared ?? 0}</td>
                   {!isStandardGlobal && (

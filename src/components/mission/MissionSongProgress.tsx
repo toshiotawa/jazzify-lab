@@ -5,6 +5,9 @@ import { useGameStore } from '@/stores/gameStore';
 import { cn } from '@/utils/cn';
 import { FaPlay, FaMusic, FaCheck, FaKey, FaTachometerAlt, FaStar, FaListUl } from 'react-icons/fa';
 import { log } from '@/utils/logger';
+import { useAuthStore } from '@/stores/authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface Props {
   missionId: string;
@@ -13,6 +16,9 @@ interface Props {
 
 const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { fetchSongProgress } = useMissionStore();
+  const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
 
   useEffect(() => {
@@ -76,11 +82,11 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h4 className="text-lg font-semibold text-white">曲の進捗</h4>
+        <h4 className="text-lg font-semibold text-white">{isEnglishCopy ? 'Song Progress' : '曲の進捗'}</h4>
         {allSongsCompleted && (
           <div className="flex items-center space-x-2 text-emerald-400">
             <FaCheck className="w-4 h-4" />
-            <span className="text-sm font-medium">全ての曲をクリアしました！</span>
+            <span className="text-sm font-medium">{isEnglishCopy ? 'All songs cleared!' : '全ての曲をクリアしました！'}</span>
           </div>
         )}
       </div>
@@ -101,7 +107,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                 <FaMusic className="w-4 h-4 text-blue-400" />
                 <div>
                   <div className="font-medium text-white">
-                    {song.song?.title || `曲 ${song.song_id}`}
+                    {song.song?.title || (isEnglishCopy ? `Song ${song.song_id}` : `曲 ${song.song_id}`)}
                   </div>
                   {song.song?.artist && (
                     <div className="text-sm text-gray-400">{song.song.artist}</div>
@@ -127,40 +133,45 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                 )}
               >
                 <FaPlay className="w-3 h-3" />
-                <span>{song.is_completed ? '再プレイ' : 'プレイ'}</span>
+                <span>{song.is_completed ? (isEnglishCopy ? 'Replay' : '再プレイ') : (isEnglishCopy ? 'Play' : 'プレイ')}</span>
               </button>
             </div>
 
             {/* クリア条件の詳細表示 */}
             <div className="mb-3 p-3 bg-slate-700/50 rounded-lg">
-              <div className="text-xs font-medium text-gray-300 mb-2">クリア条件</div>
+              <div className="text-xs font-medium text-gray-300 mb-2">{isEnglishCopy ? 'Clear Conditions' : 'クリア条件'}</div>
               <div className="grid grid-cols-1 gap-2 text-xs text-gray-400">
                 <div className="flex items-center space-x-2">
                   <FaStar className="w-3 h-3 text-yellow-400" />
-                  <span>ランク{song.min_rank || 'B'}以上</span>
+                  <span>{isEnglishCopy ? `Rank ${song.min_rank || 'B'} or higher` : `ランク${song.min_rank || 'B'}以上`}</span>
                 </div>
                 <div className="flex items-center space-x-2">
                   <FaListUl className="w-3 h-3 text-blue-400" />
-                  <span>{song.required_count || 1}回クリア</span>
+                  <span>{isEnglishCopy ? `Clear ${song.required_count || 1}x` : `${song.required_count || 1}回クリア`}</span>
                 </div>
                 {song.min_speed && song.min_speed !== 1.0 && (
                   <div className="flex items-center space-x-2">
                     <FaTachometerAlt className="w-3 h-3 text-green-400" />
-                    <span>速度{song.min_speed}倍以上</span>
+                    <span>{isEnglishCopy ? `Speed ${song.min_speed}x or faster` : `速度${song.min_speed}倍以上`}</span>
                   </div>
                 )}
                 {song.key_offset && song.key_offset !== 0 && (
                   <div className="flex items-center space-x-2">
                     <FaKey className="w-3 h-3 text-purple-400" />
-                    <span>キー{song.key_offset > 0 ? '+' : ''}{song.key_offset} ({song.key_offset > 0 ? '高く' : '低く'})</span>
+                    <span>{isEnglishCopy
+                      ? `Key ${song.key_offset > 0 ? '+' : ''}${song.key_offset}`
+                      : `キー${song.key_offset > 0 ? '+' : ''}${song.key_offset} (${song.key_offset > 0 ? '高く' : '低く'})`}</span>
                   </div>
                 )}
                 {song.notation_setting && (
                   <div className="flex items-center space-x-2">
                     <FaMusic className="w-3 h-3 text-orange-400" />
                     <span>
-                      楽譜: {song.notation_setting === 'notes_chords' ? 'ノート+コード' :
-                             song.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
+                      {isEnglishCopy ? 'Notation' : '楽譜'}: {song.notation_setting === 'notes_chords'
+                        ? (isEnglishCopy ? 'Notes + Chords' : 'ノート+コード')
+                        : song.notation_setting === 'chords_only'
+                          ? (isEnglishCopy ? 'Chords Only' : 'コードのみ')
+                          : (isEnglishCopy ? 'Both' : '両方')}
                     </span>
                   </div>
                 )}
@@ -170,12 +181,12 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
             {/* 進捗バー */}
             <div className="space-y-2">
               <div className="flex justify-between items-center">
-                <span className="text-xs text-gray-400">クリア回数</span>
+                <span className="text-xs text-gray-400">{isEnglishCopy ? 'Clears' : 'クリア回数'}</span>
                 <span className={cn(
                   "text-xs font-bold",
                   song.is_completed ? "text-emerald-400" : "text-gray-300"
                 )}>
-                  {song.clear_count}/{song.required_count} 回
+                  {song.clear_count}/{song.required_count}{isEnglishCopy ? 'x' : ' 回'}
                 </span>
               </div>
               
@@ -212,7 +223,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
                 <div className="flex items-center justify-center mt-2">
                   <div className="flex items-center space-x-1 text-emerald-400">
                     <FaCheck className="w-3 h-3" />
-                    <span className="text-xs font-medium">クリア済み</span>
+                    <span className="text-xs font-medium">{isEnglishCopy ? 'Cleared' : 'クリア済み'}</span>
                   </div>
                 </div>
               )}
@@ -224,7 +235,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
       {songProgress.length === 0 && (
         <div className="text-center py-8">
           <div className="text-4xl mb-4">🎵</div>
-          <p className="text-gray-400">このミッションには曲が登録されていません</p>
+          <p className="text-gray-400">{isEnglishCopy ? 'No songs registered for this mission' : 'このミッションには曲が登録されていません'}</p>
         </div>
       )}
     </div>
