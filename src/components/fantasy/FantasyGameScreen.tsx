@@ -167,7 +167,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>(() => storedSettings?.keyboardNoteNameStyle ?? 'abc'); // 鍵盤上の音名表示
 
   // リズム譜表示: 管理画面のステージ設定から取得（本番・練習両方で適用）
-  const useRhythmNotation = !!(stage as any).use_rhythm_notation;
+  const useRhythmNotation = !!stage.useRhythmNotation;
   
   // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
@@ -896,13 +896,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const baseStage = {
       ...stage,
       // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
-      noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats,
-      // C&Rフィールドのマッピング
-      callResponseEnabled: !!(stage as any).call_response_enabled,
-      callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
-      callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
-      combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
-      combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
+      noteIntervalBeats: (stage as any).note_interval_beats ?? stage.noteIntervalBeats,
     };
     
     // 速度倍率を適用
@@ -2450,8 +2444,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             listenBars={
               (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex]?.listenBars)
                 ? gameState.combinedSections[gameState.currentSectionIndex].listenBars
-                : ((stage as any).call_response_enabled && (stage as any).call_response_listen_bars)
-                  ? (stage as any).call_response_listen_bars
+                : (stage.callResponseEnabled && stage.callResponseListenBars)
+                  ? stage.callResponseListenBars
                   : undefined
             }
             useRhythmNotation={useRhythmNotation}

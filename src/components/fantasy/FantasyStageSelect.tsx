@@ -174,6 +174,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           // MusicXML（OSMD楽譜表示用）
           musicXml: (stage as any).music_xml,
           isAuftakt: !!(stage as any).is_auftakt,
+          callResponseEnabled: !!(stage as any).call_response_enabled,
+          callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
+          callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
+          combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
+          combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
+          useRhythmNotation: !!(stage as any).use_rhythm_notation,
+          productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
+          productionStartKey: (stage as any).production_start_key ?? undefined,
         }));
         
         setStages(convertedStages);
@@ -293,6 +301,14 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         combinedSectionRepeats: Array.isArray((stage as any).combined_section_repeats) ? (stage as any).combined_section_repeats : undefined,
         combinedSectionMeasureLimits: Array.isArray((stage as any).combined_section_measure_limits) ? (stage as any).combined_section_measure_limits : undefined,
         isAuftakt: !!(stage as any).is_auftakt,
+        callResponseEnabled: !!(stage as any).call_response_enabled,
+        callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
+        callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
+        combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
+        combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
+        useRhythmNotation: !!(stage as any).use_rhythm_notation,
+        productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
+        productionStartKey: (stage as any).production_start_key ?? undefined,
       }));
       
       const convertedProgress: FantasyUserProgress = {

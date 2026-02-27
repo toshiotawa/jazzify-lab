@@ -194,6 +194,8 @@ export interface FantasyStage {
   // コールアンドレスポンス（timing_combining用: セクション別）
   combinedSectionListenBars?: ([number, number] | null)[];
   combinedSectionPlayBars?: ([number, number] | null)[];
+  // リズム譜表示モード
+  useRhythmNotation?: boolean;
 }
 
 export interface MonsterState {

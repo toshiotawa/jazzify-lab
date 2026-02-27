@@ -1356,7 +1356,7 @@ const FantasyStageManager: React.FC = () => {
                       <input
                         type="number"
                         min={1}
-                        className="input input-bordered input-sm w-20"
+                        className="input input-bordered input-sm w-24 text-center"
                         placeholder="開始"
                         value={watch('call_response_listen_bars')?.[0] ?? ''}
                         onChange={(e) => {
@@ -1368,7 +1368,7 @@ const FantasyStageManager: React.FC = () => {
                       <input
                         type="number"
                         min={1}
-                        className="input input-bordered input-sm w-20"
+                        className="input input-bordered input-sm w-24 text-center"
                         placeholder="終了"
                         value={watch('call_response_listen_bars')?.[1] ?? ''}
                         onChange={(e) => {
@@ -1383,7 +1383,7 @@ const FantasyStageManager: React.FC = () => {
                       <input
                         type="number"
                         min={1}
-                        className="input input-bordered input-sm w-20"
+                        className="input input-bordered input-sm w-24 text-center"
                         placeholder="開始"
                         value={watch('call_response_play_bars')?.[0] ?? ''}
                         onChange={(e) => {
@@ -1395,7 +1395,7 @@ const FantasyStageManager: React.FC = () => {
                       <input
                         type="number"
                         min={1}
-                        className="input input-bordered input-sm w-20"
+                        className="input input-bordered input-sm w-24 text-center"
                         placeholder="終了"
                         value={watch('call_response_play_bars')?.[1] ?? ''}
                         onChange={(e) => {
@@ -1442,7 +1442,7 @@ const FantasyStageManager: React.FC = () => {
                             type="number"
                             min={1}
                             max={99}
-                            className="input input-bordered input-xs w-14 text-center"
+                            className="input input-bordered input-xs w-20 text-center"
                             value={repeatCount}
                             onChange={(e) => {
                               const val = Math.max(1, parseInt(e.target.value) || 1);
@@ -1461,7 +1461,7 @@ const FantasyStageManager: React.FC = () => {
                             min={1}
                             max={999}
                             placeholder="全"
-                            className="input input-bordered input-xs w-14 text-center"
+                            className="input input-bordered input-xs w-20 text-center"
                             value={measureLimit ?? ''}
                             onChange={(e) => {
                               const lims = [...(watch('combined_section_measure_limits') || [])];
@@ -1578,7 +1578,7 @@ const FantasyStageManager: React.FC = () => {
                             <>
                               <span className="text-xs text-gray-500">Listen:</span>
                               <input
-                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                type="number" min={1} className="input input-bordered input-xs w-16 text-center"
                                 value={sectionListenBars?.[0] ?? ''}
                                 onChange={(e) => {
                                   const arr = [...(watch('combined_section_listen_bars') || [])];
@@ -1590,7 +1590,7 @@ const FantasyStageManager: React.FC = () => {
                               />
                               <span className="text-xs text-gray-500">〜</span>
                               <input
-                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                type="number" min={1} className="input input-bordered input-xs w-16 text-center"
                                 value={sectionListenBars?.[1] ?? ''}
                                 onChange={(e) => {
                                   const arr = [...(watch('combined_section_listen_bars') || [])];
@@ -1602,7 +1602,7 @@ const FantasyStageManager: React.FC = () => {
                               />
                               <span className="text-xs text-gray-500 ml-1">Play:</span>
                               <input
-                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                type="number" min={1} className="input input-bordered input-xs w-16 text-center"
                                 value={sectionPlayBars?.[0] ?? ''}
                                 onChange={(e) => {
                                   const arr = [...(watch('combined_section_play_bars') || [])];
@@ -1614,7 +1614,7 @@ const FantasyStageManager: React.FC = () => {
                               />
                               <span className="text-xs text-gray-500">〜</span>
                               <input
-                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                type="number" min={1} className="input input-bordered input-xs w-16 text-center"
                                 value={sectionPlayBars?.[1] ?? ''}
                                 onChange={(e) => {
                                   const arr = [...(watch('combined_section_play_bars') || [])];

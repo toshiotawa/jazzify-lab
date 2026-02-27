@@ -1247,7 +1247,6 @@ export function convertToRhythmNotation(doc: Document): void {
     }
   });
 
-  console.log(`🎵 リズム譜変換完了: ${noteElements.length}ノーツを統一ピッチ(${RHYTHM_PITCH.step}${RHYTHM_PITCH.octave})に変換`);
 }
 
 /**

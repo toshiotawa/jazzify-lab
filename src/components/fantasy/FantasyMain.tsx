@@ -302,6 +302,14 @@ const FantasyMain: React.FC = () => {
             combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
             combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
             combinedSectionMeasureLimits: (stage as any).combined_section_measure_limits ?? undefined,
+            callResponseEnabled: !!(stage as any).call_response_enabled,
+            callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
+            callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
+            combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
+            combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
+            useRhythmNotation: !!(stage as any).use_rhythm_notation,
+            productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
+            productionStartKey: (stage as any).production_start_key ?? undefined,
           };
           setCurrentStage(fantasyStage);
         }).catch(err => {
@@ -354,6 +362,14 @@ const FantasyMain: React.FC = () => {
           combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
           combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
           combinedSectionMeasureLimits: (stage as any).combined_section_measure_limits ?? undefined,
+          callResponseEnabled: !!(stage as any).call_response_enabled,
+          callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
+          callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
+          combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
+          combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
+          useRhythmNotation: !!(stage as any).use_rhythm_notation,
+          productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
+          productionStartKey: (stage as any).production_start_key ?? undefined,
         };
         setCurrentStage(fantasyStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
@@ -724,6 +740,14 @@ const FantasyMain: React.FC = () => {
         combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
         combinedSectionRepeats: (nextStageData as any).combined_section_repeats ?? undefined,
         combinedSectionMeasureLimits: (nextStageData as any).combined_section_measure_limits ?? undefined,
+        callResponseEnabled: !!(nextStageData as any).call_response_enabled,
+        callResponseListenBars: (nextStageData as any).call_response_listen_bars ?? undefined,
+        callResponsePlayBars: (nextStageData as any).call_response_play_bars ?? undefined,
+        combinedSectionListenBars: (nextStageData as any).combined_section_listen_bars ?? undefined,
+        combinedSectionPlayBars: (nextStageData as any).combined_section_play_bars ?? undefined,
+        useRhythmNotation: !!(nextStageData as any).use_rhythm_notation,
+        productionRepeatTranspositionMode: (nextStageData as any).production_repeat_transposition_mode ?? undefined,
+        productionStartKey: (nextStageData as any).production_start_key ?? undefined,
       };
 
       setGameResult(null);
