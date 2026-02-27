@@ -881,7 +881,17 @@ const MissionItem: React.FC<{
               <div className="flex items-center gap-2 mb-1">
                 {getCategoryIcon(mission.category)}
                 <h4 className="font-medium truncate">{mission.title}</h4>
+                {(mission as any).audience_type && (mission as any).audience_type !== 'domestic' && (
+                  <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium ${
+                    (mission as any).audience_type === 'global' ? 'bg-blue-600 text-white' : 'bg-purple-600 text-white'
+                  }`}>
+                    {(mission as any).audience_type === 'global' ? 'Global' : 'Both'}
+                  </span>
+                )}
               </div>
+              {(mission as any).title_en && (
+                <p className="text-xs text-gray-500 mb-1">EN: {(mission as any).title_en}</p>
+              )}
               <p className="text-xs text-gray-400">
                 {new Date(mission.start_date).toLocaleDateString()} ~ {new Date(mission.end_date).toLocaleDateString()}
               </p>
