@@ -550,36 +550,17 @@ export class FantasySoundManager {
     }
   }
 
-  // GM音源のノートを停止（自然なダンパーリリース）
-  private _stopGMNote(midiNote: number, fadeTimeSec = 0.01) {
+  // GM音源のノートを即時停止
+  private _stopGMNote(midiNote: number) {
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) return;
     this.activeGMNotes.delete(midiNote);
 
-    const ctx = this.gmAudioContext;
-    const gainNode = activeNodes.gainNode;
-
-    if (ctx && gainNode) {
-      const now = ctx.currentTime;
-      try {
-        gainNode.gain.cancelScheduledValues(now);
-        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
-        gainNode.gain.linearRampToValueAtTime(0, now + fadeTimeSec);
-      } catch { /* ignore */ }
-
-      setTimeout(() => {
-        try {
-          if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
-          if (activeNodes.electric?.stop) activeNodes.electric.stop();
-          gainNode.disconnect();
-        } catch { /* ignore */ }
-      }, fadeTimeSec * 1000 + 50);
-    } else {
-      try {
-        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
-        if (activeNodes.electric?.stop) activeNodes.electric.stop();
-      } catch { /* ignore */ }
-    }
+    try {
+      if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
+      if (activeNodes.electric?.stop) activeNodes.electric.stop();
+      if (activeNodes.gainNode) activeNodes.gainNode.disconnect();
+    } catch { /* ignore */ }
   }
 
   // BGM用: 指定durationで再生し自然にフェードアウト（手動stop不要）
