@@ -1156,9 +1156,9 @@ function getAccidentalText(alter: number): string | null {
 export { estimateMeasureTimeInfo };
 
 /**
- * 指定小節範囲の音符をスラッシュ表記（4分音符4つ）に変換する（C&Rリスニング小節用）
- * 小節内の音符を削除し、4分音符4つ（スラッシュ符頭）で置き換える。
- * 2段譜の場合は各段に4分音符4つを配置する。
+ * 指定小節範囲の音符をジャズ風スラッシュ表記に変換する（C&Rリスニング小節用）
+ * 小節内の音符を削除し、ステムなしスラッシュ符頭の4分音符4つで置き換える。
+ * 2段譜の場合は各段に配置する。
  */
 export function convertMeasuresToRests(doc: Document, startBar: number, endBar: number): void {
   const measures = doc.querySelectorAll('measure');
@@ -1169,13 +1169,12 @@ export function convertMeasuresToRests(doc: Document, startBar: number, endBar: 
     const measureNum = numAttr ? parseInt(numAttr, 10) : 0;
     if (measureNum < startBar || measureNum > endBar) return;
 
-    // divisions を取得（小節の attributes または前の小節から）
     const attrDivisions = measure.querySelector('attributes divisions');
     if (attrDivisions) {
       lastDivisions = parseInt(attrDivisions.textContent || '4', 10);
     }
     const divisions = lastDivisions;
-    const quarterDuration = divisions; // 4分音符 = 1拍 = divisions
+    const quarterDuration = divisions;
 
     const notes = Array.from(measure.querySelectorAll('note'));
     const hasStaff2 = notes.some((n) => {
@@ -1184,10 +1183,8 @@ export function convertMeasuresToRests(doc: Document, startBar: number, endBar: 
     });
     const stavesToFill = hasStaff2 ? [1, 2] : [1];
 
-    // 既存の note を全て削除
     notes.forEach((n) => n.remove());
 
-    // 各段に4分音符4つ（スラッシュ符頭）を追加
     for (const staffNum of stavesToFill) {
       const pitchStep = staffNum >= 2 ? 'G' : 'B';
       const pitchOctave = staffNum >= 2 ? '3' : '4';
@@ -1206,6 +1203,10 @@ export function convertMeasuresToRests(doc: Document, startBar: number, endBar: 
         const typeEl = doc.createElement('type');
         typeEl.textContent = 'quarter';
         noteEl.appendChild(typeEl);
+
+        const stemEl = doc.createElement('stem');
+        stemEl.textContent = 'none';
+        noteEl.appendChild(stemEl);
 
         const notehead = doc.createElement('notehead');
         notehead.textContent = 'slash';
@@ -1228,57 +1229,60 @@ export function convertMeasuresToRests(doc: Document, startBar: number, endBar: 
  * - 右手（staff 1 / トレブル）: B4
  * - 左手（staff 2 / バス）: G3（真ん中のドの少し下のソ）
  * - 全ての音符にスラッシュ符頭を適用（白玉・旗付きも含む）
+ * - 和音（<chord/>タグ付き）の重複音は除去し、1つの符頭にまとめる
  * @param doc MusicXMLのDOMDocument
  */
 export function convertToRhythmNotation(doc: Document): void {
-  const TREBLE_PITCH = { step: 'B', octave: '4' };  // 右手
-  const BASS_PITCH = { step: 'G', octave: '3' };    // 左手（G3 = 真ん中のドの少し下のソ）
+  const TREBLE_PITCH = { step: 'B', octave: '4' };
+  const BASS_PITCH = { step: 'G', octave: '3' };
 
-  const noteElements = doc.querySelectorAll('note');
+  const measures = doc.querySelectorAll('measure');
+  measures.forEach((measure) => {
+    const notes = Array.from(measure.querySelectorAll('note'));
 
-  noteElements.forEach((note) => {
-    const pitch = note.querySelector('pitch');
-    if (!pitch) return; // 休符の場合はスキップ
+    // 和音の重複音（<chord/>タグ付き）を除去
+    const chordNotes = notes.filter(n => n.querySelector('chord') !== null);
+    chordNotes.forEach(n => n.remove());
 
-    // staff 2（左手/バス）かどうかでピッチを分ける
-    const staffEl = note.querySelector('staff');
-    const staffNum = staffEl ? parseInt(staffEl.textContent || '1', 10) : 1;
-    const targetPitch = staffNum >= 2 ? BASS_PITCH : TREBLE_PITCH;
+    // 残った音符（和音の先頭音＋単音）を変換
+    const remainingNotes = Array.from(measure.querySelectorAll('note'));
+    remainingNotes.forEach((note) => {
+      const pitch = note.querySelector('pitch');
+      if (!pitch) return;
 
-    // ステップを更新（音名）
-    const stepElement = pitch.querySelector('step');
-    if (stepElement) {
-      stepElement.textContent = targetPitch.step;
-    }
+      const staffEl = note.querySelector('staff');
+      const staffNum = staffEl ? parseInt(staffEl.textContent || '1', 10) : 1;
+      const targetPitch = staffNum >= 2 ? BASS_PITCH : TREBLE_PITCH;
 
-    // オクターブを更新
-    const octaveElement = pitch.querySelector('octave');
-    if (octaveElement) {
-      octaveElement.textContent = targetPitch.octave;
-    }
+      const stepElement = pitch.querySelector('step');
+      if (stepElement) {
+        stepElement.textContent = targetPitch.step;
+      }
 
-    // 臨時記号（alter）を削除
-    const alterElement = pitch.querySelector('alter');
-    if (alterElement) {
-      alterElement.remove();
-    }
+      const octaveElement = pitch.querySelector('octave');
+      if (octaveElement) {
+        octaveElement.textContent = targetPitch.octave;
+      }
 
-    // 表示用の臨時記号（accidental）も削除
-    const accidentalElement = note.querySelector('accidental');
-    if (accidentalElement) {
-      accidentalElement.remove();
-    }
+      const alterElement = pitch.querySelector('alter');
+      if (alterElement) {
+        alterElement.remove();
+      }
 
-    // 既存の notehead を削除してから追加
-    const existingNotehead = note.querySelector('notehead');
-    if (existingNotehead) {
-      existingNotehead.remove();
-    }
+      const accidentalElement = note.querySelector('accidental');
+      if (accidentalElement) {
+        accidentalElement.remove();
+      }
 
-    // スラッシュ符頭を追加（全ての音符：白玉・2分・4分・8分等全て）
-    const notehead = doc.createElement('notehead');
-    notehead.textContent = 'slash';
-    note.appendChild(notehead);
+      const existingNotehead = note.querySelector('notehead');
+      if (existingNotehead) {
+        existingNotehead.remove();
+      }
+
+      const notehead = doc.createElement('notehead');
+      notehead.textContent = 'slash';
+      note.appendChild(notehead);
+    });
   });
 }
 
