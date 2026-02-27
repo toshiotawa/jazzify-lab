@@ -696,12 +696,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       );
     }
     
+    let nextListenBars: [number, number] | undefined = ns.listenBars;
+    if (ns.callResponseMode === 'alternating') {
+      const nextTotalPlay = (gameState.combinedFullLoopCount ?? 0) * (ns.sectionRepeatCount ?? 1) + (ns.repeatIndex ?? 0);
+      nextListenBars = nextTotalPlay % 2 === 0 ? [1, ns.measureCount] : undefined;
+    }
+
     return {
       musicXml: ns.musicXml,
       bpm: ns.bpm,
       timeSignature: ns.timeSignature,
       transposeOffset: nextTranspose,
-      listenBars: ns.listenBars,
+      listenBars: nextListenBars,
       useRhythmNotation: useRhythmNotation,
     };
   }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount, useRhythmNotation]);
@@ -830,16 +836,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // timing_combining: 最初のセクションのBGMをnoLoopで再生
     if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
       const firstSection = gameState.combinedSections[0];
+      const firstSectionSkipCI = firstSection.callResponseMode === 'alternating' && (firstSection.repeatIndex ?? 0) % 2 === 0;
       bgmManager.play(
         firstSection.bgmUrl ?? '/demo-1.mp3',
         firstSection.bpm,
         firstSection.timeSignature,
         firstSection.measureCount,
-        firstSection.countInMeasures,
+        firstSectionSkipCI ? firstSection.audioCountInMeasures : firstSection.countInMeasures,
         settings.bgmVolume ?? 0.7,
         playbackRate,
         initialPitchShift,
-        true // noLoop
+        true, // noLoop
+        firstSectionSkipCI
       );
       // 次セクション用チェーンを完全に事前構築（ゼロラグ切り替え準備）
       if (gameState.combinedSections.length > 1) {
@@ -855,6 +863,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
     } else {
       const isProgressionOrder = stage.mode === 'progression_order';
+      const isAlternatingCR = stage.callResponseEnabled && stage.callResponseMode === 'alternating';
       bgmManager.play(
         stage.bgmUrl ?? '/demo-1.mp3',
         stage.bpm || 120,
@@ -865,7 +874,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         playbackRate,
         initialPitchShift,
         false,
-        false,
+        isAlternatingCR, // 交互モード: 初回はリスニングなのでカウントインスキップ
         isProgressionOrder
       );
     }
@@ -1318,8 +1327,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     })();
     
     // C&R: リスニング/演奏小節情報（progression_timing用）
-    const crListenBars = stageData.callResponseEnabled ? stageData.callResponseListenBars : undefined;
-    const crPlayBars = stageData.callResponseEnabled ? stageData.callResponsePlayBars : undefined;
+    const crListenBars = (stageData.callResponseEnabled && stageData.callResponseMode !== 'alternating') ? stageData.callResponseListenBars : undefined;
+    const crPlayBars = (stageData.callResponseEnabled && stageData.callResponseMode !== 'alternating') ? stageData.callResponsePlayBars : undefined;
+    const isAlternatingCR = stageData.callResponseEnabled && stageData.callResponseMode === 'alternating';
     let lastCrPhase: string | null = null;
 
     // ★ シームレスループ: 表示ループ自身がオーディオのラップを検知し、
@@ -1466,7 +1476,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
 
           // C&R: timing_combining セクション別オーバーレイ
-          if (section.listenBars && section.playBars) {
+          if (section.callResponseMode === 'alternating') {
+            const fullLoopCount = taikoLoopCycleRef.current ?? 0;
+            const totalPlay = fullLoopCount * (section.sectionRepeatCount ?? 1) + (section.repeatIndex ?? 0);
+            const altPhase = totalPlay % 2 === 0 ? 'listen' : 'play';
+            if (altPhase !== lastCrPhase) {
+              const crText = altPhase === 'listen' ? 'Listen...' : 'Your Turn!';
+              setCrOverlay(crText);
+              if (crOverlayTimerRef.current) clearTimeout(crOverlayTimerRef.current);
+              crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
+              lastCrPhase = altPhase;
+            }
+          } else if (section.listenBars && section.playBars) {
             const sectionSecPerMeasureForCR = (60 / section.bpm) * section.timeSignature;
             const currentBarInSection = Math.floor(currentTime / sectionSecPerMeasureForCR) + 1;
             let crPhase: string | null = null;
@@ -1626,10 +1647,30 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       _prevMusicTime = currentTime;
       // #endregion
-      // PIXIレンダラーに更新を送信
-      fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+      // C&R交互モード: リスニングサイクル中はPIXIノーツを非表示
+      if (isAlternatingCR) {
+        const loopCycle = taikoLoopCycleRef.current ?? 0;
+        const isListenCycle = loopCycle % 2 === 0;
+        if (isListenCycle) {
+          fantasyPixiInstance.updateTaikoNotes([]);
+        } else {
+          fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+        }
+        // ループサイクル変更時にオーバーレイ表示
+        const altPhase = isListenCycle ? 'listen' : 'play';
+        if (altPhase !== lastCrPhase) {
+          const text = isListenCycle ? 'Listen...' : 'Your Turn!';
+          setCrOverlay(text);
+          if (crOverlayTimerRef.current) clearTimeout(crOverlayTimerRef.current);
+          crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
+          lastCrPhase = altPhase;
+        }
+      } else {
+        // PIXIレンダラーに更新を送信
+        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+      }
 
-      // C&R: リスニング/演奏フェーズの切り替えオーバーレイ
+      // C&R手動モード: リスニング/演奏フェーズの切り替えオーバーレイ
       if (crListenBars && crPlayBars) {
         const currentBar = Math.floor(normalizedTime / secPerMeasure) + 1;
         let phase: string | null = null;
@@ -2447,13 +2488,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
             nextListenBars={nextSectionSheetInfo?.listenBars}
             nextUseRhythmNotation={nextSectionSheetInfo?.useRhythmNotation}
-            listenBars={
-              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex]?.listenBars)
-                ? gameState.combinedSections[gameState.currentSectionIndex].listenBars
-                : (stage.callResponseEnabled && stage.callResponseListenBars)
-                  ? stage.callResponseListenBars
-                  : undefined
-            }
+            listenBars={(() => {
+              if (gameState.isCombiningMode) {
+                const sec = gameState.combinedSections[gameState.currentSectionIndex];
+                if (!sec) return undefined;
+                if (sec.callResponseMode === 'alternating') {
+                  const totalPlay = (gameState.combinedFullLoopCount ?? 0) * (sec.sectionRepeatCount ?? 1) + (sec.repeatIndex ?? 0);
+                  return totalPlay % 2 === 0 ? [1, sec.measureCount] as [number, number] : undefined;
+                }
+                return sec.listenBars;
+              }
+              if (stage.callResponseEnabled && stage.callResponseMode === 'alternating') {
+                return (gameState.taikoLoopCycle % 2) === 0 ? [1, stage.measureCount ?? 8] as [number, number] : undefined;
+              }
+              return (stage.callResponseEnabled && stage.callResponseListenBars) ? stage.callResponseListenBars : undefined;
+            })()}
             useRhythmNotation={useRhythmNotation}
             className="w-full h-full"
           />

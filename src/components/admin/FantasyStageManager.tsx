@@ -87,11 +87,13 @@ interface StageFormValues {
   is_auftakt: boolean;
   // コールアンドレスポンス（progression_timing用）
   call_response_enabled: boolean;
+  call_response_mode: 'manual' | 'alternating';
   call_response_listen_bars: [number, number] | null;
   call_response_play_bars: [number, number] | null;
   // コールアンドレスポンス（timing_combining用: セクション別）
   combined_section_listen_bars: ([number, number] | null)[];
   combined_section_play_bars: ([number, number] | null)[];
+  combined_section_cr_modes: ('off' | 'manual' | 'alternating')[];
   // リズム譜表示モード
   use_rhythm_notation: boolean;
 }
@@ -135,10 +137,12 @@ const defaultValues: StageFormValues = {
   is_auftakt: false,
   // コールアンドレスポンス
   call_response_enabled: false,
+  call_response_mode: 'manual',
   call_response_listen_bars: null,
   call_response_play_bars: null,
   combined_section_listen_bars: [],
   combined_section_play_bars: [],
+  combined_section_cr_modes: [],
   use_rhythm_notation: false,
 };
 
@@ -380,10 +384,12 @@ const FantasyStageManager: React.FC = () => {
         combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
         combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
         call_response_enabled: !!(s as any).call_response_enabled,
+        call_response_mode: (s as any).call_response_mode || 'manual',
         call_response_listen_bars: Array.isArray((s as any).call_response_listen_bars) ? (s as any).call_response_listen_bars : null,
         call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
         combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
         combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
+        combined_section_cr_modes: Array.isArray((s as any).combined_section_cr_modes) ? (s as any).combined_section_cr_modes : [],
         use_rhythm_notation: !!(s as any).use_rhythm_notation,
       };
       reset(v);
@@ -436,10 +442,12 @@ const FantasyStageManager: React.FC = () => {
       is_auftakt: v.is_auftakt,
       // コールアンドレスポンス
       call_response_enabled: v.mode === 'progression_timing' ? v.call_response_enabled : false,
-      call_response_listen_bars: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_listen_bars : null,
-      call_response_play_bars: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_play_bars : null,
+      call_response_mode: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_mode : null,
+      call_response_listen_bars: (v.mode === 'progression_timing' && v.call_response_enabled && v.call_response_mode === 'manual') ? v.call_response_listen_bars : null,
+      call_response_play_bars: (v.mode === 'progression_timing' && v.call_response_enabled && v.call_response_mode === 'manual') ? v.call_response_play_bars : null,
       combined_section_listen_bars: v.mode === 'timing_combining' ? v.combined_section_listen_bars : null,
       combined_section_play_bars: v.mode === 'timing_combining' ? v.combined_section_play_bars : null,
+      combined_section_cr_modes: v.mode === 'timing_combining' ? v.combined_section_cr_modes : null,
       // リズム譜表示モード（progression_timing / timing_combining のみ有効）
       use_rhythm_notation: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.use_rhythm_notation : false,
     };
@@ -508,10 +516,12 @@ const FantasyStageManager: React.FC = () => {
       combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
       is_auftakt: !!(s as any).is_auftakt,
       call_response_enabled: !!(s as any).call_response_enabled,
+      call_response_mode: (s as any).call_response_mode || 'manual',
       call_response_listen_bars: Array.isArray((s as any).call_response_listen_bars) ? (s as any).call_response_listen_bars : null,
       call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
       combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
       combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
+      combined_section_cr_modes: Array.isArray((s as any).combined_section_cr_modes) ? (s as any).combined_section_cr_modes : [],
       use_rhythm_notation: !!(s as any).use_rhythm_notation,
     };
   }, []);
@@ -1332,21 +1342,33 @@ const FantasyStageManager: React.FC = () => {
             {mode === 'progression_timing' && (
               <Section title="コールアンドレスポンス（C&R）">
                 <div className="flex items-center gap-3 mb-3">
-                  <input
-                    type="checkbox"
-                    className="toggle toggle-primary"
-                    checked={watch('call_response_enabled')}
+                  <select
+                    className="select select-bordered select-sm"
+                    value={!watch('call_response_enabled') ? 'off' : watch('call_response_mode') === 'alternating' ? 'alternating' : 'manual'}
                     onChange={(e) => {
-                      setValue('call_response_enabled', e.target.checked);
-                      if (e.target.checked && !watch('call_response_listen_bars')) {
-                        setValue('call_response_listen_bars', [1, 4]);
-                        setValue('call_response_play_bars', [5, 8]);
+                      const val = e.target.value;
+                      if (val === 'off') {
+                        setValue('call_response_enabled', false);
+                        setValue('call_response_mode', 'manual');
+                      } else if (val === 'manual') {
+                        setValue('call_response_enabled', true);
+                        setValue('call_response_mode', 'manual');
+                        if (!watch('call_response_listen_bars')) {
+                          setValue('call_response_listen_bars', [1, 4]);
+                          setValue('call_response_play_bars', [5, 8]);
+                        }
+                      } else {
+                        setValue('call_response_enabled', true);
+                        setValue('call_response_mode', 'alternating');
                       }
                     }}
-                  />
-                  <span className="text-sm text-gray-300">C&Rを有効にする</span>
+                  >
+                    <option value="off">OFF</option>
+                    <option value="manual">手動設定（リスニング/演奏小節を指定）</option>
+                    <option value="alternating">交互（奇数回=Listen / 偶数回=Play）</option>
+                  </select>
                 </div>
-                {watch('call_response_enabled') && (
+                {watch('call_response_enabled') && watch('call_response_mode') === 'manual' && (
                   <div className="space-y-3 pl-2 border-l-2 border-blue-500/30">
                     <p className="text-xs text-gray-400">
                       リスニング小節ではノーツが生成されず、楽譜は休符表示になります。演奏小節で演奏してください。
@@ -1407,6 +1429,14 @@ const FantasyStageManager: React.FC = () => {
                     </div>
                   </div>
                 )}
+                {watch('call_response_enabled') && watch('call_response_mode') === 'alternating' && (
+                  <div className="pl-2 border-l-2 border-purple-500/30">
+                    <p className="text-xs text-gray-400">
+                      奇数回（1回目, 3回目...）はリスニング、偶数回（2回目, 4回目...）は演奏になります。
+                      初回はリスニングのためカウントインをスキップします。
+                    </p>
+                  </div>
+                )}
               </Section>
             )}
 
@@ -1426,9 +1456,11 @@ const FantasyStageManager: React.FC = () => {
                     const measureLimit = limits[idx];
                     const listenBarsArr = watch('combined_section_listen_bars') || [];
                     const playBarsArr = watch('combined_section_play_bars') || [];
+                    const crModesArr = watch('combined_section_cr_modes') || [];
                     const sectionListenBars = listenBarsArr[idx] ?? null;
                     const sectionPlayBars = playBarsArr[idx] ?? null;
-                    const hasCR = sectionListenBars !== null || sectionPlayBars !== null;
+                    const sectionCrMode = crModesArr[idx] ?? 'off';
+                    const hasCR = sectionCrMode !== 'off';
                     return (
                       <div key={`${stageId}_${idx}`} className="bg-gray-800/50 rounded px-3 py-2 space-y-1">
                         <div className="flex items-center gap-2">
@@ -1482,22 +1514,26 @@ const FantasyStageManager: React.FC = () => {
                             const lims = [...(watch('combined_section_measure_limits') || [])];
                             const lb = [...(watch('combined_section_listen_bars') || [])];
                             const pb = [...(watch('combined_section_play_bars') || [])];
+                            const modes = [...(watch('combined_section_cr_modes') || [])];
                             while (reps.length < ids.length) reps.push(1);
                             while (lims.length < ids.length) lims.push(null);
                             while (lb.length < ids.length) lb.push(null);
                             while (pb.length < ids.length) pb.push(null);
+                            while (modes.length < ids.length) modes.push('off');
                             if (idx > 0) {
                               [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
                               [reps[idx - 1], reps[idx]] = [reps[idx], reps[idx - 1]];
                               [lims[idx - 1], lims[idx]] = [lims[idx], lims[idx - 1]];
                               [lb[idx - 1], lb[idx]] = [lb[idx], lb[idx - 1]];
                               [pb[idx - 1], pb[idx]] = [pb[idx], pb[idx - 1]];
+                              [modes[idx - 1], modes[idx]] = [modes[idx], modes[idx - 1]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
                             setValue('combined_section_listen_bars', lb);
                             setValue('combined_section_play_bars', pb);
+                            setValue('combined_section_cr_modes', modes);
                           }}
                         >▲</button>
                         <button
@@ -1510,22 +1546,26 @@ const FantasyStageManager: React.FC = () => {
                             const lims = [...(watch('combined_section_measure_limits') || [])];
                             const lb = [...(watch('combined_section_listen_bars') || [])];
                             const pb = [...(watch('combined_section_play_bars') || [])];
+                            const modes = [...(watch('combined_section_cr_modes') || [])];
                             while (reps.length < ids.length) reps.push(1);
                             while (lims.length < ids.length) lims.push(null);
                             while (lb.length < ids.length) lb.push(null);
                             while (pb.length < ids.length) pb.push(null);
+                            while (modes.length < ids.length) modes.push('off');
                             if (idx < ids.length - 1) {
                               [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
                               [reps[idx], reps[idx + 1]] = [reps[idx + 1], reps[idx]];
                               [lims[idx], lims[idx + 1]] = [lims[idx + 1], lims[idx]];
                               [lb[idx], lb[idx + 1]] = [lb[idx + 1], lb[idx]];
                               [pb[idx], pb[idx + 1]] = [pb[idx + 1], pb[idx]];
+                              [modes[idx], modes[idx + 1]] = [modes[idx + 1], modes[idx]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
                             setValue('combined_section_listen_bars', lb);
                             setValue('combined_section_play_bars', pb);
+                            setValue('combined_section_cr_modes', modes);
                           }}
                         >▼</button>
                         <button
@@ -1537,44 +1577,54 @@ const FantasyStageManager: React.FC = () => {
                             const lims = [...(watch('combined_section_measure_limits') || [])];
                             const lb = [...(watch('combined_section_listen_bars') || [])];
                             const pb = [...(watch('combined_section_play_bars') || [])];
+                            const modes = [...(watch('combined_section_cr_modes') || [])];
                             reps.splice(idx, 1);
                             lims.splice(idx, 1);
                             lb.splice(idx, 1);
                             pb.splice(idx, 1);
+                            modes.splice(idx, 1);
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
                             setValue('combined_section_listen_bars', lb);
                             setValue('combined_section_play_bars', pb);
+                            setValue('combined_section_cr_modes', modes);
                           }}
                         >削除</button>
                         </div>
                         {/* C&R設定（セクション別） */}
                         <div className="flex items-center gap-2 ml-8 flex-wrap">
-                          <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
-                            <input
-                              type="checkbox"
-                              className="checkbox checkbox-xs"
-                              checked={hasCR}
-                              onChange={(e) => {
-                                const lbArr = [...(watch('combined_section_listen_bars') || [])];
-                                const pbArr = [...(watch('combined_section_play_bars') || [])];
-                                while (lbArr.length <= idx) lbArr.push(null);
-                                while (pbArr.length <= idx) pbArr.push(null);
-                                if (e.target.checked) {
-                                  lbArr[idx] = [1, 4];
-                                  pbArr[idx] = [5, 8];
-                                } else {
-                                  lbArr[idx] = null;
-                                  pbArr[idx] = null;
-                                }
-                                setValue('combined_section_listen_bars', lbArr);
-                                setValue('combined_section_play_bars', pbArr);
-                              }}
-                            />
-                            <span>C&R</span>
-                          </label>
-                          {hasCR && (
+                          <label className="text-xs text-gray-500 shrink-0">C&R:</label>
+                          <select
+                            className="select select-bordered select-xs"
+                            value={sectionCrMode}
+                            onChange={(e) => {
+                              const val = e.target.value as 'off' | 'manual' | 'alternating';
+                              const modes = [...(watch('combined_section_cr_modes') || [])];
+                              const lbArr = [...(watch('combined_section_listen_bars') || [])];
+                              const pbArr = [...(watch('combined_section_play_bars') || [])];
+                              while (modes.length <= idx) modes.push('off');
+                              while (lbArr.length <= idx) lbArr.push(null);
+                              while (pbArr.length <= idx) pbArr.push(null);
+                              modes[idx] = val;
+                              if (val === 'manual' && !lbArr[idx]) {
+                                lbArr[idx] = [1, 4];
+                                pbArr[idx] = [5, 8];
+                              }
+                              if (val !== 'manual') {
+                                lbArr[idx] = null;
+                                pbArr[idx] = null;
+                              }
+                              setValue('combined_section_cr_modes', modes);
+                              setValue('combined_section_listen_bars', lbArr);
+                              setValue('combined_section_play_bars', pbArr);
+                            }}
+                          >
+                            <option value="off">OFF</option>
+                            <option value="manual">手動</option>
+                            <option value="alternating">交互</option>
+                          </select>
+                          {sectionCrMode === 'manual' && (
                             <>
                               <span className="text-xs text-gray-500">Listen:</span>
                               <input
@@ -1626,6 +1676,9 @@ const FantasyStageManager: React.FC = () => {
                               />
                             </>
                           )}
+                          {sectionCrMode === 'alternating' && (
+                            <span className="text-xs text-purple-400">奇数=Listen / 偶数=Play</span>
+                          )}
                         </div>
                       </div>
                     );
@@ -1642,11 +1695,13 @@ const FantasyStageManager: React.FC = () => {
                         const lims = [...(watch('combined_section_measure_limits') || []), null];
                         const lb = [...(watch('combined_section_listen_bars') || []), null];
                         const pb = [...(watch('combined_section_play_bars') || []), null];
+                        const modes = [...(watch('combined_section_cr_modes') || []), 'off' as const];
                         setValue('combined_stage_ids', ids);
                         setValue('combined_section_repeats', reps);
                         setValue('combined_section_measure_limits', lims);
                         setValue('combined_section_listen_bars', lb);
                         setValue('combined_section_play_bars', pb);
+                        setValue('combined_section_cr_modes', modes);
                       }}
                     >
                       <option value="">-- ステージを追加 --</option>

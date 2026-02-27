@@ -189,11 +189,13 @@ export interface FantasyStage {
   isAuftakt?: boolean;
   // コールアンドレスポンス（progression_timing用）
   callResponseEnabled?: boolean;
+  callResponseMode?: 'manual' | 'alternating';
   callResponseListenBars?: [number, number];
   callResponsePlayBars?: [number, number];
   // コールアンドレスポンス（timing_combining用: セクション別）
   combinedSectionListenBars?: ([number, number] | null)[];
   combinedSectionPlayBars?: ([number, number] | null)[];
+  combinedSectionCrModes?: ('off' | 'manual' | 'alternating')[];
   // リズム譜表示モード
   useRhythmNotation?: boolean;
 }
@@ -232,6 +234,9 @@ export interface CombinedSection {
   isAuftakt: boolean; // アウフタクト（弱起）: MusicXMLにカウントイン小節が含まれるかの判定に使用
   listenBars?: [number, number]; // C&R: リスニング小節範囲（ノーツなし）
   playBars?: [number, number];   // C&R: 演奏小節範囲
+  callResponseMode?: 'manual' | 'alternating';
+  repeatIndex?: number; // 親セクションの何回目のリピートか（0-indexed）
+  sectionRepeatCount?: number; // 親セクションの総リピート回数
 }
 
 export interface FantasyGameState {
@@ -1682,6 +1687,7 @@ export const useFantasyGameEngine = ({
             const measureLimits = stage.combinedSectionMeasureLimits;
             const sectionListenBarsAll = stage.combinedSectionListenBars;
             const sectionPlayBarsAll = stage.combinedSectionPlayBars;
+            const sectionCrModes = stage.combinedSectionCrModes;
             
             for (let stageIdx = 0; stageIdx < stage.combinedStages.length; stageIdx++) {
               const childStage = stage.combinedStages[stageIdx];
@@ -1701,6 +1707,7 @@ export const useFantasyGameEngine = ({
               // C&R設定（セクション別）
               const sectionListenBars = sectionListenBarsAll?.[stageIdx] ?? null;
               const sectionPlayBars = sectionPlayBarsAll?.[stageIdx] ?? null;
+              const sectionCrMode = sectionCrModes?.[stageIdx] ?? 'off';
               
               let progressionData: ChordProgressionDataItem[] | null = null;
               if (childStage.musicXml) {
@@ -1719,7 +1726,9 @@ export const useFantasyGameEngine = ({
               for (let rep = 0; rep < repeatCount; rep++) {
                 const isFirstPlay = rep === 0;
                 const isAuftakt = isFirstPlay && !!childStage.isAuftakt;
-                const countIn = isFirstPlay ? childCountIn : 0;
+                // 交互モード: リスニングイテレーション（奇数回=rep偶数）ではカウントインスキップ
+                const isAlternatingListen = sectionCrMode === 'alternating' && rep % 2 === 0;
+                const countIn = (isFirstPlay && !isAlternatingListen) ? childCountIn : 0;
                 const sectionDuration = (countIn + effectiveMeasureCount) * secPerMeasure;
                 
                 let filteredProgression = progressionData;
@@ -1728,10 +1737,14 @@ export const useFantasyGameEngine = ({
                   filteredProgression = filteredProgression.filter(item => item.bar <= maxBar);
                 }
 
-                // C&R: リスニング小節のノーツを除外
-                if (sectionListenBars && filteredProgression) {
+                // C&R手動モード: リスニング小節のノーツを除外
+                if (sectionCrMode === 'manual' && sectionListenBars && filteredProgression) {
                   const [lStart, lEnd] = sectionListenBars;
                   filteredProgression = filteredProgression.filter(item => item.bar < lStart || item.bar > lEnd);
+                }
+                // C&R交互モード: リスニングイテレーションでは全ノーツを除外
+                if (isAlternatingListen && filteredProgression) {
+                  filteredProgression = [];
                 }
                 
                 let sectionMusicXml = childStage.musicXml;
@@ -1768,8 +1781,11 @@ export const useFantasyGameEngine = ({
                   globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
                   sectionDuration,
                   isAuftakt,
-                  listenBars: sectionListenBars ?? undefined,
-                  playBars: sectionPlayBars ?? undefined,
+                  listenBars: sectionCrMode === 'manual' ? (sectionListenBars ?? undefined) : undefined,
+                  playBars: sectionCrMode === 'manual' ? (sectionPlayBars ?? undefined) : undefined,
+                  callResponseMode: sectionCrMode !== 'off' ? (sectionCrMode as 'manual' | 'alternating') : undefined,
+                  repeatIndex: rep,
+                  sectionRepeatCount: repeatCount,
                 };
                 combinedSections.push(section);
                 
@@ -1817,8 +1833,8 @@ export const useFantasyGameEngine = ({
           }
 
           if (progressionData) {
-            // C&R: リスニング小節のノーツを除外
-            if (stage.callResponseEnabled && stage.callResponseListenBars) {
+            // C&R手動モード: リスニング小節のノーツを除外（交互モードでは全ノーツ保持）
+            if (stage.callResponseEnabled && stage.callResponseMode !== 'alternating' && stage.callResponseListenBars) {
               const [lStart, lEnd] = stage.callResponseListenBars;
               progressionData = progressionData.filter(item => item.bar < lStart || item.bar > lEnd);
             }
@@ -2552,10 +2568,17 @@ export const useFantasyGameEngine = ({
             }
           }
           
-          // C&R: リスニング小節中はミス判定・ゲージ更新をスキップ（ノーツがないため攻撃も発生させない）
+          // C&R手動モード: リスニング小節中はミス判定・ゲージ更新をスキップ
           if (section.listenBars && section.playBars) {
             const currentBarInSection = Math.floor(currentTime / secPerMeasure) + 1;
             if (currentBarInSection >= section.listenBars[0] && currentBarInSection <= section.listenBars[1]) {
+              return { ...prevState, lastNormalizedTime: currentTime };
+            }
+          }
+          // C&R交互モード: リスニングセクション（ノーツ空）では全処理スキップ
+          if (section.callResponseMode === 'alternating') {
+            const totalPlay = prevState.combinedFullLoopCount * (section.sectionRepeatCount ?? 1) + (section.repeatIndex ?? 0);
+            if (totalPlay % 2 === 0) {
               return { ...prevState, lastNormalizedTime: currentTime };
             }
           }
@@ -2909,10 +2932,16 @@ export const useFantasyGameEngine = ({
           return { ...prevState, lastNormalizedTime: -1 };
         }
         
-        // C&R: リスニング小節中はミス判定・攻撃をスキップ（ノーツがないため）
-        if (stage.callResponseEnabled && stage.callResponseListenBars) {
+        // C&R手動モード: リスニング小節中はミス判定・攻撃をスキップ（ノーツがないため）
+        if (stage.callResponseEnabled && stage.callResponseMode !== 'alternating' && stage.callResponseListenBars) {
           const currentBar = Math.floor(normalizedTime / secPerMeasure) + 1;
           if (currentBar >= stage.callResponseListenBars[0] && currentBar <= stage.callResponseListenBars[1]) {
+            return { ...prevState, lastNormalizedTime: normalizedTime };
+          }
+        }
+        // C&R交互モード: リスニングサイクル（奇数回=偶数loopCycle）では全処理スキップ
+        if (stage.callResponseEnabled && stage.callResponseMode === 'alternating') {
+          if ((prevState.taikoLoopCycle % 2) === 0) {
             return { ...prevState, lastNormalizedTime: normalizedTime };
           }
         }

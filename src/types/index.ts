@@ -602,11 +602,13 @@ export interface FantasyStage {
   is_auftakt?: boolean;
   // コールアンドレスポンス（progression_timing用）
   call_response_enabled?: boolean;
+  call_response_mode?: 'manual' | 'alternating'; // manual=手動設定, alternating=交互(奇数Listen/偶数Play)
   call_response_listen_bars?: [number, number]; // [startBar, endBar] リスニング小節範囲
   call_response_play_bars?: [number, number];   // [startBar, endBar] 演奏小節範囲
   // コールアンドレスポンス（timing_combining用: セクション別）
   combined_section_listen_bars?: ([number, number] | null)[];
   combined_section_play_bars?: ([number, number] | null)[];
+  combined_section_cr_modes?: ('off' | 'manual' | 'alternating')[];
   // リズム譜表示モード
   use_rhythm_notation?: boolean;
 }
