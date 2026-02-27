@@ -1156,82 +1156,105 @@ function getAccidentalText(alter: number): string | null {
 export { estimateMeasureTimeInfo };
 
 /**
- * 指定小節範囲の音符を休符に変換する（C&Rリスニング小節用）
- * MusicXMLの <measure number="N"> 内の <note> 要素で、
- * <pitch> を持つものを <rest/> に変換する。
- * 和音（<chord/>タグ付き）は完全に除去し、先頭ノートのみ休符化する。
+ * 指定小節範囲の音符をスラッシュ表記（4分音符4つ）に変換する（C&Rリスニング小節用）
+ * 小節内の音符を削除し、4分音符4つ（スラッシュ符頭）で置き換える。
+ * 2段譜の場合は各段に4分音符4つを配置する。
  */
 export function convertMeasuresToRests(doc: Document, startBar: number, endBar: number): void {
   const measures = doc.querySelectorAll('measure');
+  let lastDivisions = 4;
+
   measures.forEach((measure) => {
     const numAttr = measure.getAttribute('number');
     const measureNum = numAttr ? parseInt(numAttr, 10) : 0;
     if (measureNum < startBar || measureNum > endBar) return;
 
-    const notes = Array.from(measure.querySelectorAll('note'));
-    const toRemove: Element[] = [];
-
-    for (const noteEl of notes) {
-      const isChordNote = noteEl.querySelector('chord') !== null;
-      if (isChordNote) {
-        toRemove.push(noteEl);
-        continue;
-      }
-
-      const pitch = noteEl.querySelector('pitch');
-      if (!pitch) continue;
-
-      pitch.remove();
-      const restEl = doc.createElement('rest');
-      noteEl.insertBefore(restEl, noteEl.firstChild);
-
-      const accidental = noteEl.querySelector('accidental');
-      if (accidental) accidental.remove();
-      const stem = noteEl.querySelector('stem');
-      if (stem) stem.remove();
-      const beam = noteEl.querySelectorAll('beam');
-      beam.forEach(b => b.remove());
-      const notations = noteEl.querySelector('notations');
-      if (notations) notations.remove();
-      const lyric = noteEl.querySelector('lyric');
-      if (lyric) lyric.remove();
+    // divisions を取得（小節の attributes または前の小節から）
+    const attrDivisions = measure.querySelector('attributes divisions');
+    if (attrDivisions) {
+      lastDivisions = parseInt(attrDivisions.textContent || '4', 10);
     }
+    const divisions = lastDivisions;
+    const quarterDuration = divisions; // 4分音符 = 1拍 = divisions
 
-    for (const el of toRemove) {
-      el.parentNode?.removeChild(el);
+    const notes = Array.from(measure.querySelectorAll('note'));
+    const hasStaff2 = notes.some((n) => {
+      const s = n.querySelector('staff');
+      return s && parseInt(s.textContent || '1', 10) >= 2;
+    });
+    const stavesToFill = hasStaff2 ? [1, 2] : [1];
+
+    // 既存の note を全て削除
+    notes.forEach((n) => n.remove());
+
+    // 各段に4分音符4つ（スラッシュ符頭）を追加
+    for (const staffNum of stavesToFill) {
+      const pitchStep = staffNum >= 2 ? 'G' : 'B';
+      const pitchOctave = staffNum >= 2 ? '3' : '4';
+
+      for (let i = 0; i < 4; i++) {
+        const noteEl = doc.createElement('note');
+        const pitch = doc.createElement('pitch');
+        pitch.appendChild(doc.createElement('step')).textContent = pitchStep;
+        pitch.appendChild(doc.createElement('octave')).textContent = pitchOctave;
+        noteEl.appendChild(pitch);
+
+        const durationEl = doc.createElement('duration');
+        durationEl.textContent = String(quarterDuration);
+        noteEl.appendChild(durationEl);
+
+        const typeEl = doc.createElement('type');
+        typeEl.textContent = 'quarter';
+        noteEl.appendChild(typeEl);
+
+        const notehead = doc.createElement('notehead');
+        notehead.textContent = 'slash';
+        noteEl.appendChild(notehead);
+
+        if (stavesToFill.length > 1) {
+          const staffEl = doc.createElement('staff');
+          staffEl.textContent = String(staffNum);
+          noteEl.appendChild(staffEl);
+        }
+
+        measure.appendChild(noteEl);
+      }
     }
   });
 }
 
 /**
- * リズム譜変換: 全ての音符の高さを一定にする
- * 符頭の高さを統一して表示し、リズムのみを視覚化
+ * リズム譜変換: 符頭の高さを統一し、リズム譜として表示
+ * - 右手（staff 1 / トレブル）: B4
+ * - 左手（staff 2 / バス）: G3（真ん中のドの少し下のソ）
+ * - 符頭は元の音符の長さ（whole, half, quarter, eighth等）を維持し、リズム譜として表示
  * @param doc MusicXMLのDOMDocument
  */
 export function convertToRhythmNotation(doc: Document): void {
-  // リズム譜で使用する標準ピッチ（B4 = 第3線上）
-  const RHYTHM_PITCH = {
-    step: 'B',
-    octave: '4',
-    alter: null as number | null  // 臨時記号なし
-  };
+  const TREBLE_PITCH = { step: 'B', octave: '4' };  // 右手
+  const BASS_PITCH = { step: 'G', octave: '3' };    // 左手（G3 = 真ん中のドの少し下のソ）
 
   const noteElements = doc.querySelectorAll('note');
-  
+
   noteElements.forEach((note) => {
     const pitch = note.querySelector('pitch');
     if (!pitch) return; // 休符の場合はスキップ
 
+    // staff 2（左手/バス）かどうかでピッチを分ける
+    const staffEl = note.querySelector('staff');
+    const staffNum = staffEl ? parseInt(staffEl.textContent || '1', 10) : 1;
+    const targetPitch = staffNum >= 2 ? BASS_PITCH : TREBLE_PITCH;
+
     // ステップを更新（音名）
     const stepElement = pitch.querySelector('step');
     if (stepElement) {
-      stepElement.textContent = RHYTHM_PITCH.step;
+      stepElement.textContent = targetPitch.step;
     }
 
     // オクターブを更新
     const octaveElement = pitch.querySelector('octave');
     if (octaveElement) {
-      octaveElement.textContent = RHYTHM_PITCH.octave;
+      octaveElement.textContent = targetPitch.octave;
     }
 
     // 臨時記号（alter）を削除
@@ -1246,7 +1269,6 @@ export function convertToRhythmNotation(doc: Document): void {
       accidentalElement.remove();
     }
   });
-
 }
 
 /**

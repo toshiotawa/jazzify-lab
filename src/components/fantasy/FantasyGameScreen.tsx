@@ -701,8 +701,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       bpm: ns.bpm,
       timeSignature: ns.timeSignature,
       transposeOffset: nextTranspose,
+      listenBars: ns.listenBars,
+      useRhythmNotation: useRhythmNotation,
     };
-  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount]);
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount, useRhythmNotation]);
   
   
   // 楽譜の段数を判定（MusicXMLパート数から）
@@ -1388,7 +1390,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id, 
               chord: note.chord.displayName, 
               x,
-              noteNames: getDisplayNoteNames(note)
+              noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
             });
           }
         }
@@ -1422,7 +1424,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 id: note.id,
                 chord: note.chord.displayName,
                 x,
-                noteNames: getDisplayNoteNames(note)
+                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
               });
             }
           }
@@ -1449,7 +1451,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 id: `next_${note.id}`,
                 chord: note.chord.displayName,
                 x,
-                noteNames: getDisplayNoteNames(note)
+                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
               });
             }
           }
@@ -1547,7 +1549,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id,
               chord: note.chord.displayName,
               x,
-              noteNames: getDisplayNoteNames(note)
+              noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
             });
           }
         });
@@ -1608,7 +1610,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
             x,
-            noteNames: getDisplayNoteNames(note)
+            noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
           });
         }
       }
@@ -1680,7 +1682,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
     // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない
-  }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage]);
+  }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage, useRhythmNotation]);
   
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
@@ -2441,6 +2443,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             nextBpm={nextSectionSheetInfo?.bpm}
             nextTimeSignature={nextSectionSheetInfo?.timeSignature}
             nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
+            nextListenBars={nextSectionSheetInfo?.listenBars}
+            nextUseRhythmNotation={nextSectionSheetInfo?.useRhythmNotation}
             listenBars={
               (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex]?.listenBars)
                 ? gameState.combinedSections[gameState.currentSectionIndex].listenBars

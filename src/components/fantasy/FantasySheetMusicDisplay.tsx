@@ -42,8 +42,12 @@ interface FantasySheetMusicDisplayProps {
   nextTimeSignature?: number;
   /** 次セクションの移調オフセット（結合モード用、省略時はtransposeOffsetと同じ） */
   nextSectionTransposeOffset?: number;
+  /** 次セクションのC&Rリスニング小節範囲（結合モード: 次セクション固有の設定） */
+  nextListenBars?: [number, number];
+  /** 次セクションのリズム譜モード（結合モード: 次セクション固有の設定） */
+  nextUseRhythmNotation?: boolean;
   /** 結合モード: 全セクションの譜面データを事前レンダリング用に渡す */
-  preloadSections?: Array<{ musicXml: string; bpm: number; timeSignature: number }>;
+  preloadSections?: Array<{ musicXml: string; bpm: number; timeSignature: number; listenBars?: [number, number]; useRhythmNotation?: boolean }>;
   /** C&R: リスニング小節範囲（楽譜上で休符に変換） */
   listenBars?: [number, number];
   /** リズム譜モード: 全音符の高さをB4に統一して表示 */
@@ -125,6 +129,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   nextBpm,
   nextTimeSignature,
   nextSectionTransposeOffset,
+  nextListenBars,
+  nextUseRhythmNotation,
   preloadSections,
   listenBars,
   useRhythmNotation = false,
@@ -376,6 +382,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   }, [musicXml, initializeAllSheets]);
   
   // 次セクションの楽譜を背景でプリレンダリング（結合モード: 右側に連続表示用）
+  // 次セクション固有の listenBars / useRhythmNotation を使用（C&R混在時のセクション切り替え修正）
   useEffect(() => {
     if (!nextMusicXml) {
       setNextSectionCache(null);
@@ -383,36 +390,40 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     const prBpm = nextBpm ?? bpm ?? 120;
     const prTimeSig = nextTimeSignature ?? timeSignature ?? 4;
-    const cacheKey = getSheetCacheKey(nextMusicXml, prBpm, prTimeSig, simpleMode);
-    
+    const nextLB = nextListenBars;
+    const nextRhythm = nextUseRhythmNotation ?? false;
+    const cacheKey = getSheetCacheKey(nextMusicXml, prBpm, prTimeSig, simpleMode, nextLB, nextRhythm);
+
     const cached = sheetRenderCache.get(cacheKey);
     if (cached) {
       setNextSectionCache(cached);
       return;
     }
-    
+
     if (!preRenderContainerRef.current) return;
-    
+
     const gen = ++preRenderGenRef.current;
     const xmlToRender = nextMusicXml;
     const container = preRenderContainerRef.current;
-    
+
     (async () => {
       try {
         const imageCache: SheetImageCache = {};
         const mapCache: TimeMapCache = {};
-        
+
         for (let i = 0; i < 12; i++) {
           if (gen !== preRenderGenRef.current) return;
           const offset = i <= 6 ? i : i - 12;
           if (container) container.innerHTML = '';
-          const result = await renderSheetForOffset(xmlToRender, offset, container, simpleMode, prBpm, prTimeSig);
+          const result = await renderSheetForOffset(
+            xmlToRender, offset, container, simpleMode, prBpm, prTimeSig, nextLB, nextRhythm
+          );
           if (result) {
             imageCache[offset] = result.imageData;
             mapCache[offset] = { mapping: result.mapping, sheetWidth: result.sheetWidth };
           }
         }
-        
+
         if (gen !== preRenderGenRef.current) return;
         if (Object.keys(imageCache).length < 12) return;
         const maxSheetWidth = Math.max(...Object.values(mapCache).map(m => m.sheetWidth), 0);
@@ -421,7 +432,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         setNextSectionCache(entry);
       } catch {}
     })();
-  }, [nextMusicXml, nextBpm, nextTimeSignature, bpm, timeSignature, simpleMode, renderSheetForOffset]);
+  }, [nextMusicXml, nextBpm, nextTimeSignature, nextListenBars, nextUseRhythmNotation, bpm, timeSignature, simpleMode, renderSheetForOffset]);
   
   // 結合モード: 全セクションの譜面を初期化時に一括で事前レンダリング
   // preRenderContainerRef とは別の専用コンテナで、次セクションプリレンダリングとのDOM競合を防ぐ
@@ -431,30 +442,30 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     if (!preloadContainerRef.current) return;
     
     const uncached = preloadSections.filter(s => {
-      const key = getSheetCacheKey(s.musicXml, s.bpm, s.timeSignature, simpleMode);
+      const key = getSheetCacheKey(s.musicXml, s.bpm, s.timeSignature, simpleMode, s.listenBars, s.useRhythmNotation);
       return !sheetRenderCache.has(key);
     });
     if (uncached.length === 0) return;
-    
+
     const gen = ++preloadGenRef.current;
     const container = preloadContainerRef.current;
-    
+
     (async () => {
       for (const section of uncached) {
         if (gen !== preloadGenRef.current) return;
-        const cacheKey = getSheetCacheKey(section.musicXml, section.bpm, section.timeSignature, simpleMode);
+        const cacheKey = getSheetCacheKey(section.musicXml, section.bpm, section.timeSignature, simpleMode, section.listenBars, section.useRhythmNotation);
         if (sheetRenderCache.has(cacheKey)) continue;
-        
+
         const imageCache: SheetImageCache = {};
         const mapCache: TimeMapCache = {};
         let allRendered = true;
-        
+
         for (let i = 0; i < 12; i++) {
           if (gen !== preloadGenRef.current) return;
           const offset = i <= 6 ? i : i - 12;
           if (container) container.innerHTML = '';
           const result = await renderSheetForOffset(
-            section.musicXml, offset, container, simpleMode, section.bpm, section.timeSignature
+            section.musicXml, offset, container, simpleMode, section.bpm, section.timeSignature, section.listenBars, section.useRhythmNotation
           );
           if (result) {
             imageCache[offset] = result.imageData;
