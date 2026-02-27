@@ -24,6 +24,7 @@ interface SurvivalGameOverProps {
   waveFailedReason?: string;
   finalWave?: number;
   stageDefinition?: StageDefinition;
+  isLessonMode?: boolean;
   hintMode?: boolean;
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
@@ -48,6 +49,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   waveFailedReason,
   finalWave,
   stageDefinition,
+  isLessonMode = false,
   hintMode = false,
   onRetryWithHint,
   onRetryWithoutHint,
@@ -70,7 +72,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (!profile || isGuest) return;
 
-      if (isStageClear && !stageSaved) {
+      if (isStageClear && !stageSaved && !isLessonMode) {
         try {
           await upsertSurvivalStageClear(
             profile.id,

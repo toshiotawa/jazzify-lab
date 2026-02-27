@@ -307,7 +307,7 @@ export async function removeFantasyStageFromLesson(lessonId: string, fantasyStag
 
 type SurvivalLessonSongData = {
   lesson_id: string;
-  survival_allowed_chords: string[];
+  survival_stage_number: number;
   clear_conditions?: ClearConditions;
 };
 
@@ -334,7 +334,7 @@ export async function addSurvivalStageToLesson(data: SurvivalLessonSongData): Pr
       fantasy_stage_id: null,
       is_fantasy: false,
       is_survival: true,
-      survival_allowed_chords: data.survival_allowed_chords,
+      survival_stage_number: data.survival_stage_number,
       clear_conditions: data.clear_conditions,
       order_index: nextOrderIndex,
     })

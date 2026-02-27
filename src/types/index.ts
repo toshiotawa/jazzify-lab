@@ -649,6 +649,7 @@ export interface LessonSong {
   is_fantasy: boolean;
   is_survival?: boolean;
   survival_allowed_chords?: string[];
+  survival_stage_number?: number;
   clear_conditions?: ClearConditions;
   order_index?: number;
   title?: string | null;

@@ -51,7 +51,7 @@ interface SurvivalMainProps {
 interface LessonContext {
   lessonId: string;
   lessonSongId: string;
-  allowedChords: string[];
+  stageNumber: number;
   clearConditions: any;
 }
 
@@ -91,18 +91,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
 
     const lessonId = lessonParams.get('lessonId') || '';
     const lessonSongId = lessonParams.get('lessonSongId') || '';
-    let allowedChords: string[] = [];
+    const stageNumber = parseInt(lessonParams.get('stageNumber') || '0', 10);
     let clearConditions: any = {};
 
-    try { allowedChords = JSON.parse(lessonParams.get('allowedChords') || '[]'); } catch { /* ignore */ }
     try { clearConditions = JSON.parse(lessonParams.get('clearConditions') || '{}'); } catch { /* ignore */ }
 
-    if (!lessonId || !lessonSongId || allowedChords.length === 0) {
+    const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
+    if (!lessonId || !lessonSongId || !stageDef) {
       window.location.hash = '#lessons';
       return;
     }
 
-    setLessonContext({ lessonId, lessonSongId, allowedChords, clearConditions });
+    setLessonContext({ lessonId, lessonSongId, stageNumber, clearConditions });
 
     const initLesson = async () => {
       try {
@@ -117,30 +117,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
         faiChar = chars.find(isFaiCharacter);
       } catch { /* ignore */ }
 
-      const baseConfig = DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
+      const baseConfig = DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
       const lessonConfig: DifficultyConfig = {
         ...baseConfig,
-        allowedChords,
+        difficulty: stageDef.difficulty,
+        allowedChords: stageDef.allowedChords,
       };
 
-      const lessonStageDefinition: StageDefinition = {
-        stageNumber: 0,
-        name: 'レッスン課題',
-        nameEn: 'Lesson Task',
-        difficulty: 'easy',
-        chordSuffix: '',
-        chordDisplayName: 'レッスン',
-        chordDisplayNameEn: 'Lesson',
-        rootPattern: 'all',
-        rootPatternName: 'レッスン',
-        rootPatternNameEn: 'Lesson',
-        allowedChords,
-      };
-
-      setSelectedDifficulty('easy');
+      setSelectedDifficulty(stageDef.difficulty);
       setSelectedConfig(lessonConfig);
       setSelectedCharacter(faiChar);
-      setActiveStageDefinition(lessonStageDefinition);
+      setActiveStageDefinition(stageDef);
       setScreen('game');
       setLessonInitialized(true);
     };
@@ -343,6 +331,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
         character={selectedCharacter}
         stageDefinition={activeStageDefinition ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
+        isLessonMode={!!lessonMode}
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}

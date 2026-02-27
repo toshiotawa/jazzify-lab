@@ -45,6 +45,7 @@ import {
   LessonNavigationInfo 
 } from '@/utils/lessonNavigation';
 import { NavLinkKey } from '@/types';
+import { getStageByNumber, STAGE_KILL_QUOTA, STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
 
 const NAV_LINK_CONFIG: Record<NavLinkKey, { label: string; hash: string; icon: React.ReactNode; color: string }> = {
   dashboard:   { label: 'ダッシュボード', hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
@@ -160,10 +161,11 @@ const LessonDetailPage: React.FC = () => {
           is_fantasy: ls.is_fantasy,
           is_survival: ls.is_survival,
           survival_allowed_chords: ls.survival_allowed_chords,
+          survival_stage_number: ls.survival_stage_number,
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -541,19 +543,30 @@ const LessonDetailPage: React.FC = () => {
                         </div>
                         
                         {/* サバイバルステージ情報 */}
-                        {isSurvival && (
-                          <div className="mb-3 text-sm">
-                            <div className="font-medium text-red-300">
-                              サバイバルモード (5分生存でクリア)
+                        {isSurvival && (() => {
+                          const stageDef = req.survival_stage_number ? getStageByNumber(req.survival_stage_number) : null;
+                          return (
+                            <div className="mb-3 text-sm">
+                              <div className="font-medium text-red-300">
+                                サバイバル ステージモード
+                              </div>
+                              {stageDef ? (
+                                <>
+                                  <div className="text-gray-300 text-xs mt-1">
+                                    Stage {stageDef.stageNumber}: {stageDef.name}
+                                  </div>
+                                  <div className="text-gray-400 text-xs mt-1">
+                                    {STAGE_TIME_LIMIT_SECONDS}秒生存 + {STAGE_KILL_QUOTA}体撃破でクリア
+                                  </div>
+                                </>
+                              ) : (
+                                <div className="text-gray-500 text-xs mt-1">
+                                  ステージ未設定
+                                </div>
+                              )}
                             </div>
-                            <div className="text-gray-400 text-xs mt-1">
-                              コード: {(req.survival_allowed_chords || []).length}種
-                            </div>
-                            <div className="text-gray-500 text-xs mt-1 max-w-full truncate">
-                              {(req.survival_allowed_chords || []).join(', ')}
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* ファンタジーステージ情報 */}
                         {isFantasy && !isSurvival && req.fantasy_stage && (
@@ -726,7 +739,7 @@ const LessonDetailPage: React.FC = () => {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
                               params.set('lessonSongId', req.lesson_song_id);
-                              params.set('allowedChords', JSON.stringify(req.survival_allowed_chords || []));
+                              params.set('stageNumber', String(req.survival_stage_number || 0));
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               window.location.hash = `#survival-lesson?${params.toString()}`;
                             } else if (isFantasy) {
