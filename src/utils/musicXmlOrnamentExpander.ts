@@ -131,59 +131,58 @@ export function getLowerNeighbor(midiPitch: number, fifths: number): number {
 
 /**
  * MusicXMLの <note> 要素から装飾記号を検出
+ *
+ * querySelector ではなく tagName 直接比較で要素を検索する。
+ * CSS セレクタの解釈で 'mordent' が 'inverted-mordent' にマッチする
+ * 曖昧さを排除するため。
  */
 export function detectOrnaments(noteEl: Element): OrnamentInfo | null {
   const ornaments = noteEl.querySelector('ornaments');
   if (!ornaments) return null;
 
   // accidental-mark の取得
-  const accMarkEl = ornaments.querySelector('accidental-mark');
   let accidentalMark: number | undefined;
-  if (accMarkEl?.textContent) {
-    switch (accMarkEl.textContent.trim()) {
-      case 'sharp': accidentalMark = 1; break;
-      case 'flat': accidentalMark = -1; break;
-      case 'natural': accidentalMark = 0; break;
-      case 'double-sharp': accidentalMark = 2; break;
-      case 'double-flat': accidentalMark = -2; break;
+  for (const child of ornaments.children) {
+    if (child.tagName === 'accidental-mark' && child.textContent) {
+      switch (child.textContent.trim()) {
+        case 'sharp': accidentalMark = 1; break;
+        case 'flat': accidentalMark = -1; break;
+        case 'natural': accidentalMark = 0; break;
+        case 'double-sharp': accidentalMark = 2; break;
+        case 'double-flat': accidentalMark = -2; break;
+      }
     }
   }
 
-  // 各装飾タイプを優先順に検出
-  const mordentEl = ornaments.querySelector('mordent');
-  if (mordentEl) {
-    const long = mordentEl.getAttribute('long') === 'yes';
-    return { type: 'mordent', long, accidentalMark };
-  }
+  // tagName の完全一致で装飾タイプを検出
+  // inverted-mordent / delayed-turn を先に判定し、
+  // mordent / turn の部分一致を防ぐ
+  for (const child of ornaments.children) {
+    const tag = child.tagName;
 
-  const invertedMordentEl = ornaments.querySelector('inverted-mordent');
-  if (invertedMordentEl) {
-    const long = invertedMordentEl.getAttribute('long') === 'yes';
-    return { type: 'inverted-mordent', long, accidentalMark };
-  }
-
-  if (ornaments.querySelector('trill-mark')) {
-    return { type: 'trill-mark', accidentalMark };
-  }
-
-  const turnEl = ornaments.querySelector('turn');
-  if (turnEl) {
-    return { type: 'turn', accidentalMark };
-  }
-
-  const delayedTurnEl = ornaments.querySelector('delayed-turn');
-  if (delayedTurnEl) {
-    return { type: 'delayed-turn', accidentalMark };
-  }
-
-  if (ornaments.querySelector('shake')) {
-    return { type: 'shake', accidentalMark };
-  }
-
-  // wavy-line は通常 trill の延長を示す
-  const wavyLine = ornaments.querySelector('wavy-line');
-  if (wavyLine && wavyLine.getAttribute('type') === 'start') {
-    return { type: 'wavy-line', accidentalMark };
+    if (tag === 'inverted-mordent') {
+      const long = child.getAttribute('long') === 'yes';
+      return { type: 'inverted-mordent', long, accidentalMark };
+    }
+    if (tag === 'mordent') {
+      const long = child.getAttribute('long') === 'yes';
+      return { type: 'mordent', long, accidentalMark };
+    }
+    if (tag === 'trill-mark') {
+      return { type: 'trill-mark', accidentalMark };
+    }
+    if (tag === 'delayed-turn') {
+      return { type: 'delayed-turn', accidentalMark };
+    }
+    if (tag === 'turn') {
+      return { type: 'turn', accidentalMark };
+    }
+    if (tag === 'shake') {
+      return { type: 'shake', accidentalMark };
+    }
+    if (tag === 'wavy-line' && child.getAttribute('type') === 'start') {
+      return { type: 'wavy-line', accidentalMark };
+    }
   }
 
   return null;
@@ -308,11 +307,17 @@ export function expandOrnament(
     case 'wavy-line':
     case 'shake': {
       // 主音と上隣接音の交互 (trill / wavy-line / shake)
-      const trillUnit = Math.max(1, Math.floor(durationDivisions / 8));
+      // 32分音符を基準にしつつ、最低6音（3往復）を保証する
+      const MIN_TRILL_NOTES = 6;
+      const thirtySecondDiv = divisionsPerQuarter / 8;
+      const trillUnit = Math.max(
+        0.25,
+        Math.min(thirtySecondDiv, durationDivisions / MIN_TRILL_NOTES),
+      );
       const notes: ExpandedNote[] = [];
       let remaining = durationDivisions;
       let isUpper = false;
-      while (remaining > 0) {
+      while (remaining > trillUnit * 0.5) {
         const d = Math.min(trillUnit, remaining);
         notes.push({
           pitch: isUpper ? upper : mainPitch,
@@ -322,6 +327,9 @@ export function expandOrnament(
         });
         remaining -= d;
         isUpper = !isUpper;
+      }
+      if (notes.length > 0 && remaining > 0) {
+        notes[notes.length - 1].durationDivisions += remaining;
       }
       return notes;
     }
