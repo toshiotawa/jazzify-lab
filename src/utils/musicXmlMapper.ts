@@ -1224,10 +1224,10 @@ export function convertMeasuresToRests(doc: Document, startBar: number, endBar: 
 }
 
 /**
- * リズム譜変換: 符頭の高さを統一し、リズム譜として表示
+ * リズム譜変換: 符頭をスラッシュに統一し、高さを一定にして表示
  * - 右手（staff 1 / トレブル）: B4
  * - 左手（staff 2 / バス）: G3（真ん中のドの少し下のソ）
- * - 符頭は元の音符の長さ（whole, half, quarter, eighth等）を維持し、リズム譜として表示
+ * - 全ての音符にスラッシュ符頭を適用（白玉・旗付きも含む）
  * @param doc MusicXMLのDOMDocument
  */
 export function convertToRhythmNotation(doc: Document): void {
@@ -1268,6 +1268,17 @@ export function convertToRhythmNotation(doc: Document): void {
     if (accidentalElement) {
       accidentalElement.remove();
     }
+
+    // 既存の notehead を削除してから追加
+    const existingNotehead = note.querySelector('notehead');
+    if (existingNotehead) {
+      existingNotehead.remove();
+    }
+
+    // スラッシュ符頭を追加（全ての音符：白玉・2分・4分・8分等全て）
+    const notehead = doc.createElement('notehead');
+    notehead.textContent = 'slash';
+    note.appendChild(notehead);
   });
 }
 

@@ -175,6 +175,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   
   
   // 単一キーの楽譜をレンダリングして画像とタイムマッピングを取得
+  // overrideListenBars / overrideRhythmNotation: undefined=コンポーネントpropsにフォールバック, null=明示的に無し
   const renderSheetForOffset = useCallback(async (
     xml: string,
     offset: number,
@@ -182,8 +183,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     useSimpleMode: boolean,
     overrideBpm?: number,
     overrideTimeSig?: number,
-    overrideListenBars?: [number, number],
-    overrideRhythmNotation?: boolean
+    overrideListenBars?: [number, number] | null,
+    overrideRhythmNotation?: boolean | null
   ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; sheetWidth: number } | null> => {
     const effectiveBpm = overrideBpm ?? bpm ?? 120;
     const effectiveTimeSig = overrideTimeSig ?? timeSignature ?? 4;
@@ -192,8 +193,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       let displayXml = stripLyricsFromMusicXml(transposedXml);
 
       // C&R リスニング小節の音符を休符化 / リズム譜変換
-      const effectiveListenBars = overrideListenBars ?? listenBars;
-      const effectiveRhythm = overrideRhythmNotation ?? useRhythmNotation;
+      // undefined=コンポーネントpropsにフォールバック, null=明示的に無効
+      const effectiveListenBars = overrideListenBars !== undefined ? overrideListenBars : listenBars;
+      const effectiveRhythm = overrideRhythmNotation !== undefined ? overrideRhythmNotation : useRhythmNotation;
       if (effectiveListenBars || effectiveRhythm) {
         const parser = new DOMParser();
         const doc = parser.parseFromString(displayXml, 'text/xml');
@@ -416,7 +418,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           const offset = i <= 6 ? i : i - 12;
           if (container) container.innerHTML = '';
           const result = await renderSheetForOffset(
-            xmlToRender, offset, container, simpleMode, prBpm, prTimeSig, nextLB, nextRhythm
+            xmlToRender, offset, container, simpleMode, prBpm, prTimeSig, nextLB ?? null, nextRhythm ?? null
           );
           if (result) {
             imageCache[offset] = result.imageData;
@@ -465,7 +467,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           const offset = i <= 6 ? i : i - 12;
           if (container) container.innerHTML = '';
           const result = await renderSheetForOffset(
-            section.musicXml, offset, container, simpleMode, section.bpm, section.timeSignature, section.listenBars, section.useRhythmNotation
+            section.musicXml, offset, container, simpleMode, section.bpm, section.timeSignature, section.listenBars ?? null, section.useRhythmNotation ?? null
           );
           if (result) {
             imageCache[offset] = result.imageData;
