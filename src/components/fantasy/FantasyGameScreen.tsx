@@ -2422,8 +2422,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
             countInMeasures={
               (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
-                ? gameState.combinedSections[gameState.currentSectionIndex].countInMeasures
-                : (stage.countInMeasures || 0)
+                ? (gameState.combinedSections[gameState.currentSectionIndex].isAuftakt
+                    ? gameState.combinedSections[gameState.currentSectionIndex].countInMeasures
+                    : 0)
+                : (stage.isAuftakt ? (stage.countInMeasures || 0) : 0)
             }
             transposeOffset={gameState.currentTransposeOffset || 0}
             nextTransposeOffset={

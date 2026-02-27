@@ -229,6 +229,7 @@ export interface CombinedSection {
   globalNoteStartIndex: number; // 統合taikoNotes配列での開始インデックス
   globalNoteEndIndex: number; // 統合taikoNotes配列での終了インデックス（排他的）
   sectionDuration: number; // カウントイン + 本編小節の合計時間（秒）
+  isAuftakt: boolean; // アウフタクト（弱起）: MusicXMLにカウントイン小節が含まれるかの判定に使用
   listenBars?: [number, number]; // C&R: リスニング小節範囲（ノーツなし）
   playBars?: [number, number];   // C&R: 演奏小節範囲
 }
@@ -1766,6 +1767,7 @@ export const useFantasyGameEngine = ({
                   globalNoteStartIndex: globalNoteIndex,
                   globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
                   sectionDuration,
+                  isAuftakt,
                   listenBars: sectionListenBars ?? undefined,
                   playBars: sectionPlayBars ?? undefined,
                 };
