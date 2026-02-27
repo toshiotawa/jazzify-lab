@@ -285,21 +285,24 @@ export function expandOrnament(
   switch (ornament.type) {
     case 'mordent': {
       // 主音(32分) → 下隣接音(32分) → 主音(残り)
-      const remaining = Math.max(1, durationDivisions - 2 * thirtySecond);
+      // 装飾音の合計が durationDivisions を超えないようクランプ
+      const ornDur = Math.min(thirtySecond, durationDivisions / 3);
+      const mRemaining = durationDivisions - 2 * ornDur;
       return [
-        { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
-        { pitch: lower, durationDivisions: thirtySecond, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: remaining, isOrnament: false, noteName: mainNoteName },
+        { pitch: mainPitch, durationDivisions: ornDur, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: ornDur, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: mRemaining, isOrnament: false, noteName: mainNoteName },
       ];
     }
 
     case 'inverted-mordent': {
       // 主音(32分) → 上隣接音(32分) → 主音(残り)
-      const remaining = Math.max(1, durationDivisions - 2 * thirtySecond);
+      const imOrnDur = Math.min(thirtySecond, durationDivisions / 3);
+      const imRemaining = durationDivisions - 2 * imOrnDur;
       return [
-        { pitch: mainPitch, durationDivisions: thirtySecond, isOrnament: true, noteName: mainNoteName },
-        { pitch: upper, durationDivisions: thirtySecond, isOrnament: true, noteName: upperName },
-        { pitch: mainPitch, durationDivisions: remaining, isOrnament: false, noteName: mainNoteName },
+        { pitch: mainPitch, durationDivisions: imOrnDur, isOrnament: true, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: imOrnDur, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: imRemaining, isOrnament: false, noteName: mainNoteName },
       ];
     }
 
@@ -307,8 +310,8 @@ export function expandOrnament(
     case 'wavy-line':
     case 'shake': {
       // 主音と上隣接音の交互 (trill / wavy-line / shake)
-      // 32分音符を基準にしつつ、最低6音（3往復）を保証する
-      const MIN_TRILL_NOTES = 6;
+      // 32分音符を基準にしつつ、最低5音（2往復）を保証する
+      const MIN_TRILL_NOTES = 5;
       const thirtySecondDiv = divisionsPerQuarter / 8;
       const trillUnit = Math.max(
         0.25,
