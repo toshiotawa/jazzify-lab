@@ -668,16 +668,7 @@ export class FantasySoundManager {
       this.gmWetGain = this.gmAudioContext.createGain();
       this.gmConvolver = this.gmAudioContext.createConvolver();
 
-      this.gmConvolver.buffer = this._createReverbImpulse(this.gmAudioContext, 0.6, 3.5);
-
-      this.gmMasterGain.connect(this.gmDryGain);
-      this.gmDryGain.connect(this.gmAudioContext.destination);
-      this.gmDryGain.gain.value = 0.92;
-
-      this.gmMasterGain.connect(this.gmConvolver);
-      this.gmConvolver.connect(this.gmWetGain);
-      this.gmWetGain.connect(this.gmAudioContext.destination);
-      this.gmWetGain.gain.value = 0.12;
+      this.gmMasterGain.connect(this.gmAudioContext.destination);
 
       const soundfontOptions: any = {
         soundfont: 'MusyngKite',
