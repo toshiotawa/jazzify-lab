@@ -807,6 +807,24 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 finalXml = null;
               }
             }
+            if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
+              const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
+              const xmlBpm = extractTempoFromMusicXml(finalXml);
+              if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
+                const scale = xmlBpm / targetSong.bpm;
+                finalNotes = finalNotes.map(n => ({
+                  ...n,
+                  time: n.time * scale,
+                  ...(n.duration != null ? { duration: n.duration * scale } : {}),
+                }));
+                finalChords = finalChords.map(c => ({
+                  ...c,
+                  startTime: c.startTime * scale,
+                  ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
+                }));
+              }
+            }
+
             return { finalNotes, finalXml, finalChords };
           };
 
@@ -1275,6 +1293,25 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   finalXml = null;
                 }
               }
+
+              if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
+                const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
+                const xmlBpm = extractTempoFromMusicXml(finalXml);
+                if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
+                  const scale = xmlBpm / targetSong.bpm;
+                  finalNotes = finalNotes.map(n => ({
+                    ...n,
+                    time: n.time * scale,
+                    ...(n.duration != null ? { duration: n.duration * scale } : {}),
+                  }));
+                  finalChords = finalChords.map(c => ({
+                    ...c,
+                    startTime: c.startTime * scale,
+                    ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
+                  }));
+                }
+              }
+
               return { finalNotes, finalXml, finalChords };
             };
             
@@ -1633,6 +1670,25 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                  finalXml = null;
                }
              }
+
+             if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
+               const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
+               const xmlBpm = extractTempoFromMusicXml(finalXml);
+               if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
+                 const scale = xmlBpm / targetSong.bpm;
+                 finalNotes = finalNotes.map(n => ({
+                   ...n,
+                   time: n.time * scale,
+                   ...(n.duration != null ? { duration: n.duration * scale } : {}),
+                 }));
+                 finalChords = finalChords.map(c => ({
+                   ...c,
+                   startTime: c.startTime * scale,
+                   ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
+                 }));
+               }
+             }
+
              return { finalNotes, finalXml, finalChords };
           };
           
