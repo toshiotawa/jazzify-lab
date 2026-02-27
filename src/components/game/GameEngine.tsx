@@ -1208,7 +1208,7 @@ useEffect(() => {
     }
   }, [gameEngine, ensureMidiModule]);
 
-  // BGM合成: 音源なし曲でノーツを自動演奏してBGMとして鳴らす
+  // BGM合成: 音源なし曲でノーツを自動演奏してBGMとして鳴らす（オートプレイと同じ経路）
   useEffect(() => {
     if (!gameEngine) return;
 
@@ -1216,15 +1216,22 @@ useEffect(() => {
       gameEngine.setEnableBgmSynthesis(true);
       gameEngine.setBgmNoteCallback((pitch: number, durationSec: number) => {
         if (!isPlayingRef.current) return;
-        if (FantasySoundManager.isGMReady()) {
-          const velocity = 0.45;
-          FantasySoundManager.playBgmNote(pitch, velocity, durationSec);
+        const releaseMs = Math.max(50, durationSec * 1000 - 30);
+        const module = midiModuleRef.current;
+        if (module) {
+          void module.playNote(pitch, 80).catch(() => {});
+          setTimeout(() => module.stopNote(pitch), releaseMs);
+          return;
         }
+        void ensureMidiModule().then((m) => {
+          void m.playNote(pitch, 80).catch(() => {});
+          setTimeout(() => m.stopNote(pitch), releaseMs);
+        }).catch(() => {});
       });
     } else {
       gameEngine.setEnableBgmSynthesis(false);
     }
-  }, [gameEngine, hasAudioTrack]);
+  }, [gameEngine, hasAudioTrack, ensureMidiModule]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {
