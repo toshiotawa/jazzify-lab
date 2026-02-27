@@ -92,6 +92,8 @@ interface StageFormValues {
   // コールアンドレスポンス（timing_combining用: セクション別）
   combined_section_listen_bars: ([number, number] | null)[];
   combined_section_play_bars: ([number, number] | null)[];
+  // リズム譜表示モード
+  use_rhythm_notation: boolean;
 }
 
 const defaultValues: StageFormValues = {
@@ -137,6 +139,7 @@ const defaultValues: StageFormValues = {
   call_response_play_bars: null,
   combined_section_listen_bars: [],
   combined_section_play_bars: [],
+  use_rhythm_notation: false,
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -381,6 +384,7 @@ const FantasyStageManager: React.FC = () => {
         call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
         combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
         combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
+        use_rhythm_notation: !!(s as any).use_rhythm_notation,
       };
       reset(v);
     } catch (e: any) {
@@ -436,6 +440,8 @@ const FantasyStageManager: React.FC = () => {
       call_response_play_bars: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_play_bars : null,
       combined_section_listen_bars: v.mode === 'timing_combining' ? v.combined_section_listen_bars : null,
       combined_section_play_bars: v.mode === 'timing_combining' ? v.combined_section_play_bars : null,
+      // リズム譜表示モード（progression_timing / timing_combining のみ有効）
+      use_rhythm_notation: (v.mode === 'progression_timing' || v.mode === 'timing_combining') ? v.use_rhythm_notation : false,
     };
 
     // モードに応じた不要フィールドの削除
@@ -506,6 +512,7 @@ const FantasyStageManager: React.FC = () => {
       call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
       combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
       combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
+      use_rhythm_notation: !!(s as any).use_rhythm_notation,
     };
   }, []);
 
@@ -1656,6 +1663,23 @@ const FantasyStageManager: React.FC = () => {
                     選択数: {(watch('combined_stage_ids') || []).length} ステージ
                   </p>
                 </div>
+              </Section>
+            )}
+
+            {/* progression_timing / timing_combining 用: リズム譜表示 */}
+            {(mode === 'progression_timing' || mode === 'timing_combining') && (
+              <Section title="リズム譜表示">
+                <div className="flex items-center gap-3">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-primary"
+                    {...register('use_rhythm_notation')}
+                  />
+                  <span className="text-sm text-gray-300">リズム譜表示を有効にする</span>
+                </div>
+                <p className="text-xs text-gray-400 mt-2">
+                  ONにすると、楽譜上の音符の高さがすべて固定（B4）になり、リズムのみを視覚化します。本番モード・練習モードの両方で適用されます。
+                </p>
               </Section>
             )}
 

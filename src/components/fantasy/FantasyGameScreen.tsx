@@ -150,7 +150,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     simpleNoteName: boolean;
     keyboardNoteNameStyle: 'off' | 'abc' | 'solfege';
     showKeyboardGuide: boolean;
-    useRhythmNotation?: boolean;
   }) => {
     try {
       localStorage.setItem(FANTASY_SETTINGS_KEY, JSON.stringify(settings));
@@ -166,7 +165,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(() => storedSettings?.noteNameLang ?? noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(() => storedSettings?.simpleNoteName ?? simpleNoteName);
   const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>(() => storedSettings?.keyboardNoteNameStyle ?? 'abc'); // 鍵盤上の音名表示
-  const [useRhythmNotation, setUseRhythmNotation] = useState(() => storedSettings?.useRhythmNotation ?? false);
+
+  // リズム譜表示: 管理画面のステージ設定から取得（本番・練習両方で適用）
+  const useRhythmNotation = !!(stage as any).use_rhythm_notation;
   
   // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
@@ -1951,35 +1952,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   </div>
                 )}
                 
-                {/* リズム譜表示チェックボックス（MusicXMLがある場合のみ） */}
-                {(stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && (currentSectionMusicXml || stage.music_xml) && (
-                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
-                    <label className="flex items-center gap-2 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        className="checkbox checkbox-sm checkbox-primary"
-                        checked={useRhythmNotation}
-                        onChange={(e) => {
-                          setUseRhythmNotation(e.target.checked);
-                          saveFantasySettings({
-                            noteNameLang: currentNoteNameLang,
-                            simpleNoteName: currentSimpleNoteName,
-                            keyboardNoteNameStyle,
-                            showKeyboardGuide,
-                            useRhythmNotation: e.target.checked,
-                          });
-                        }}
-                      />
-                      <span className="text-sm text-gray-300">
-                        {isEnglishCopy ? 'Rhythm Notation' : 'リズム譜表示'}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        ({isEnglishCopy ? 'Fixed pitch display' : '音の高さを固定'})
-                      </span>
-                    </label>
-                  </div>
-                )}
-
                 {/* 速度選択ドロップダウン + 練習開始ボタン */}
                 <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
                   <div className="flex items-center gap-2">

@@ -607,6 +607,8 @@ export interface FantasyStage {
   // コールアンドレスポンス（timing_combining用: セクション別）
   combined_section_listen_bars?: ([number, number] | null)[];
   combined_section_play_bars?: ([number, number] | null)[];
+  // リズム譜表示モード
+  use_rhythm_notation?: boolean;
 }
 
 // ファンタジーステージクリア記録

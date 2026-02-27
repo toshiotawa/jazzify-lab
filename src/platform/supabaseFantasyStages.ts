@@ -322,6 +322,8 @@ export interface UpsertFantasyStagePayload {
   call_response_play_bars?: [number, number] | null;
   combined_section_listen_bars?: ([number, number] | null)[] | null;
   combined_section_play_bars?: ([number, number] | null)[] | null;
+  // リズム譜表示モード
+  use_rhythm_notation?: boolean;
 }
 
 /**
