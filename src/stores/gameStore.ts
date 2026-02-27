@@ -737,6 +737,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                   throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                 }
 
+                if (targetSong.bpm && targetSong.bpm > 0) {
+                  const { overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
+                  xmlString = overrideMusicXmlTempo(xmlString, targetSong.bpm);
+                }
+
                 if (targetSong.range_type === 'measure' && targetSong.range_start_measure != null && targetSong.range_end_measure != null) {
                   const { truncateMusicXmlByMeasureRange } = await import('@/utils/songRangeFilter');
                   xmlString = truncateMusicXmlByMeasureRange(xmlString, targetSong.range_start_measure, targetSong.range_end_measure);
@@ -807,24 +812,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 finalXml = null;
               }
             }
-            if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
-              const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
-              const xmlBpm = extractTempoFromMusicXml(finalXml);
-              if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
-                const scale = xmlBpm / targetSong.bpm;
-                finalNotes = finalNotes.map(n => ({
-                  ...n,
-                  time: n.time * scale,
-                  ...(n.duration != null ? { duration: n.duration * scale } : {}),
-                }));
-                finalChords = finalChords.map(c => ({
-                  ...c,
-                  startTime: c.startTime * scale,
-                  ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
-                }));
-              }
-            }
-
             return { finalNotes, finalXml, finalChords };
           };
 
@@ -1230,6 +1217,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                     console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                     throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                   }
+
+                  if (targetSong.bpm && targetSong.bpm > 0) {
+                    const { overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
+                    xmlString = overrideMusicXmlTempo(xmlString, targetSong.bpm);
+                  }
                   
                   if (targetSong.range_type === 'measure' && targetSong.range_start_measure != null && targetSong.range_end_measure != null) {
                     const { truncateMusicXmlByMeasureRange } = await import('@/utils/songRangeFilter');
@@ -1291,24 +1283,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                 } catch (error) {
                   console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                   finalXml = null;
-                }
-              }
-
-              if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
-                const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
-                const xmlBpm = extractTempoFromMusicXml(finalXml);
-                if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
-                  const scale = xmlBpm / targetSong.bpm;
-                  finalNotes = finalNotes.map(n => ({
-                    ...n,
-                    time: n.time * scale,
-                    ...(n.duration != null ? { duration: n.duration * scale } : {}),
-                  }));
-                  finalChords = finalChords.map(c => ({
-                    ...c,
-                    startTime: c.startTime * scale,
-                    ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
-                  }));
                 }
               }
 
@@ -1604,6 +1578,11 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                    console.warn('⚠️ MusicXMLファイルの代わりにHTMLが返されました:', targetSong.musicXmlFile);
                    throw new Error('MusicXMLファイルの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
                  }
+
+                 if (targetSong.bpm && targetSong.bpm > 0) {
+                   const { overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
+                   xmlString = overrideMusicXmlTempo(xmlString, targetSong.bpm);
+                 }
                  
                  if (targetSong.range_type === 'measure' && targetSong.range_start_measure != null && targetSong.range_end_measure != null) {
                    const { truncateMusicXmlByMeasureRange } = await import('@/utils/songRangeFilter');
@@ -1668,24 +1647,6 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
                } catch (error) {
                  console.warn('⚠️ MusicXML音名抽出に失敗:', error);
                  finalXml = null;
-               }
-             }
-
-             if (targetSong.bpm && targetSong.bpm > 0 && finalXml) {
-               const { extractTempoFromMusicXml } = await import('@/utils/musicXmlToNotes');
-               const xmlBpm = extractTempoFromMusicXml(finalXml);
-               if (xmlBpm > 0 && Math.abs(xmlBpm - targetSong.bpm) > 0.5) {
-                 const scale = xmlBpm / targetSong.bpm;
-                 finalNotes = finalNotes.map(n => ({
-                   ...n,
-                   time: n.time * scale,
-                   ...(n.duration != null ? { duration: n.duration * scale } : {}),
-                 }));
-                 finalChords = finalChords.map(c => ({
-                   ...c,
-                   startTime: c.startTime * scale,
-                   ...(c.endTime != null ? { endTime: c.endTime * scale } : {}),
-                 }));
                }
              }
 

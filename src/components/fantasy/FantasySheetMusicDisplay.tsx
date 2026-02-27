@@ -265,7 +265,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
                     firstMeasureX = measureX;
                   }
                   
-                  const timeMs = measureIndex * secPerMeasure * 1000;
+                  const timeMs = (measureIndex - countInMeasures) * secPerMeasure * 1000;
                   mapping.push({
                     timeMs,
                     xPosition: measureX * scaleFactor
@@ -278,7 +278,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
       }
       
-      if (firstMeasureX !== null && mapping.length > 0) {
+      if (countInMeasures === 0 && firstMeasureX !== null && mapping.length > 0) {
         if (mapping[0].timeMs !== 0) {
           mapping.unshift({
             timeMs: 0,
@@ -295,7 +295,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       devLog.debug(`⚠️ キー${offset}の楽譜レンダリングエラー:`, err);
       return null;
     }
-  }, [bpm, timeSignature, listenBars, useRhythmNotation]);
+  }, [bpm, timeSignature, listenBars, useRhythmNotation, countInMeasures]);
   
   // 12キー分の楽譜を事前レンダリング（-5〜+6の範囲）
   const initializeAllSheets = useCallback(async () => {

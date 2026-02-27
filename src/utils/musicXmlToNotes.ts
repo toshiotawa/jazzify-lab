@@ -560,6 +560,18 @@ export function extractTempoFromMusicXml(xmlText: string): number {
 }
 
 /**
+ * MusicXML内の全ての <sound tempo="..."> を指定BPMに書き換える。
+ * song.bpm が設定されている場合にXMLパース前に呼び出すことで、
+ * ノーツ時間・範囲計算・譜面スクロール全てが新BPMで統一される。
+ */
+export function overrideMusicXmlTempo(xmlText: string, newBpm: number): string {
+  return xmlText.replace(
+    /(<sound\b[^>]*\btempo\s*=\s*")([^"]+)(")/g,
+    (_match, pre, _oldTempo, post) => `${pre}${newBpm}${post}`
+  );
+}
+
+/**
  * MusicXMLからの曲の推定長さ (秒) を取得
  */
 export function estimateDurationFromMusicXml(xmlText: string): number {

@@ -112,14 +112,17 @@ const GameScreen: React.FC = () => {
               pitch: n.pitch 
             }));
           } else if (song.xml_url) {
-            const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+            const { parseMusicXmlToNoteData, overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
             const xmlResponse = await fetch(song.xml_url);
             if (!xmlResponse.ok) {
               throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
             }
-            const xmlText = await xmlResponse.text();
+            let xmlText = await xmlResponse.text();
             if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
               throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
+            }
+            if (song.bpm && song.bpm > 0) {
+              xmlText = overrideMusicXmlTempo(xmlText, song.bpm);
             }
             mapped = parseMusicXmlToNoteData(xmlText, song.id);
           } else {
@@ -139,7 +142,11 @@ const GameScreen: React.FC = () => {
             } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
               const xmlResp = await fetch(song.xml_url);
               if (xmlResp.ok) {
-                const xmlTxt = await xmlResp.text();
+                let xmlTxt = await xmlResp.text();
+                if (song.bpm && song.bpm > 0) {
+                  const { overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
+                  xmlTxt = overrideMusicXmlTempo(xmlTxt, song.bpm);
+                }
                 const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1, song.audio_padding_seconds);
                 mapped = result.notes;
                 rangeAudioStart = result.audioStartTime;
@@ -339,12 +346,15 @@ const GameScreen: React.FC = () => {
               id: `${song.id}-${idx}`, time: n.time, pitch: n.pitch 
             }));
           } else if (song.xml_url) {
-            const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+            const { parseMusicXmlToNoteData, overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
             const xmlResponse = await fetch(song.xml_url);
             if (!xmlResponse.ok) throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
-            const xmlText = await xmlResponse.text();
+            let xmlText = await xmlResponse.text();
             if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
               throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
+            }
+            if (song.bpm && song.bpm > 0) {
+              xmlText = overrideMusicXmlTempo(xmlText, song.bpm);
             }
             mapped = parseMusicXmlToNoteData(xmlText, song.id);
           } else {
@@ -364,7 +374,11 @@ const GameScreen: React.FC = () => {
             } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
               const xmlResp = await fetch(song.xml_url);
               if (xmlResp.ok) {
-                const xmlTxt = await xmlResp.text();
+                let xmlTxt = await xmlResp.text();
+                if (song.bpm && song.bpm > 0) {
+                  const { overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
+                  xmlTxt = overrideMusicXmlTempo(xmlTxt, song.bpm);
+                }
                 const result = await filterNotesByMeasureRange(mapped, xmlTxt, song.range_start_measure, song.range_end_measure, song.audio_padding_measures ?? 1, song.audio_padding_seconds);
                 mapped = result.notes;
                 mRangeAudioStart = result.audioStartTime;
@@ -776,15 +790,17 @@ const SongSelectionScreen: React.FC = () => {
                       }));
 
                     } else if (song.xml_url) {
-                      // ---- MusicXML-only フロー: MusicXMLからノーツを生成 ----
-                      const { parseMusicXmlToNoteData } = await import('@/utils/musicXmlToNotes');
+                      const { parseMusicXmlToNoteData, overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
                       const xmlResponse = await fetch(song.xml_url);
                       if (!xmlResponse.ok) {
                         throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
                       }
-                      const xmlText = await xmlResponse.text();
+                      let xmlText = await xmlResponse.text();
                       if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
                         throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
+                      }
+                      if (song.bpm && song.bpm > 0) {
+                        xmlText = overrideMusicXmlTempo(xmlText, song.bpm);
                       }
                       mapped = parseMusicXmlToNoteData(xmlText, song.id);
 
@@ -812,7 +828,11 @@ const SongSelectionScreen: React.FC = () => {
                       } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
                         const xmlResp = await fetch(song.xml_url);
                         if (xmlResp.ok) {
-                          const xmlTxt = await xmlResp.text();
+                          let xmlTxt = await xmlResp.text();
+                          if (song.bpm && song.bpm > 0) {
+                            const { overrideMusicXmlTempo: ovr } = await import('@/utils/musicXmlToNotes');
+                            xmlTxt = ovr(xmlTxt, song.bpm);
+                          }
                           const result = await filterNotesByMeasureRange(
                             mapped,
                             xmlTxt,
