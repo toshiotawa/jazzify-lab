@@ -2550,6 +2550,14 @@ export const useFantasyGameEngine = ({
             }
           }
           
+          // C&R: リスニング小節中はミス判定・ゲージ更新をスキップ（ノーツがないため攻撃も発生させない）
+          if (section.listenBars && section.playBars) {
+            const currentBarInSection = Math.floor(currentTime / secPerMeasure) + 1;
+            if (currentBarInSection >= section.listenBars[0] && currentBarInSection <= section.listenBars[1]) {
+              return { ...prevState, lastNormalizedTime: currentTime };
+            }
+          }
+          
           // --- セクション内の通常ミス判定 ---
           const noteIdx = prevState.currentNoteIndex;
           const currentNote = prevState.taikoNotes[noteIdx];
@@ -2692,16 +2700,6 @@ export const useFantasyGameEngine = ({
           // 次ループ突入時のみリセット・巻き戻し
           const newLoopCycle = (prevState.taikoLoopCycle ?? 0) + 1;
           
-          console.log('🔄 ループ境界検出:', {
-            newLoopCycle,
-            normalizedTime: normalizedTime.toFixed(3),
-            lastNorm: lastNorm.toFixed(3),
-            isInCountIn,
-            hasTransposeSettings: !!prevState.transposeSettings,
-            originalNotesCount: prevState.originalTaikoNotes.length,
-            prevTransposeOffset: prevState.currentTransposeOffset
-          });
-          
           // リピートごとの移調を適用（移調設定がある場合）
           let transposedNotes = prevState.originalTaikoNotes.length > 0 
             ? prevState.originalTaikoNotes 
@@ -2716,13 +2714,6 @@ export const useFantasyGameEngine = ({
               prevState.transposeSettings.repeatKeyChange
             );
             
-            console.log('🎹 移調オフセット計算:', {
-              keyOffset: prevState.transposeSettings.keyOffset,
-              repeatKeyChange: prevState.transposeSettings.repeatKeyChange,
-              newLoopCycle,
-              newTransposeOffset
-            });
-            
             // 移調を適用（簡易設定フラグを使用）
             const simpleMode = displayOpts?.simple ?? true;
             if (newTransposeOffset !== 0) {
@@ -2735,7 +2726,6 @@ export const useFantasyGameEngine = ({
             // BGMのピッチシフトを直接変更（Reactのバッチ処理を待たずに即座に反映）
             // これにより、ノーツの移調とBGMのピッチが同時に変更される
             bgmManager.setPitchShift(newTransposeOffset);
-            console.log('🎵 BGMピッチシフト変更:', newTransposeOffset);
           }
           
           // アウフタクト: 2回目以降のループではカウントイン中のノーツを除外
@@ -2915,6 +2905,14 @@ export const useFantasyGameEngine = ({
         // カウントイン中はミス判定しない
         if (currentTime < -0.01) {
           return { ...prevState, lastNormalizedTime: -1 };
+        }
+        
+        // C&R: リスニング小節中はミス判定・攻撃をスキップ（ノーツがないため）
+        if (stage.callResponseEnabled && stage.callResponseListenBars) {
+          const currentBar = Math.floor(normalizedTime / secPerMeasure) + 1;
+          if (currentBar >= stage.callResponseListenBars[0] && currentBar <= stage.callResponseListenBars[1]) {
+            return { ...prevState, lastNormalizedTime: normalizedTime };
+          }
         }
         
         // ミス判定：+150ms以上経過した場合
