@@ -859,8 +859,15 @@ const MissionItem: React.FC<{
     }`}>
       {editing ? (
         <form className="grid grid-cols-1 sm:grid-cols-2 gap-3" onSubmit={handleSubmit(onUpdate)}>
-          <input className="input input-bordered sm:col-span-2 text-white" placeholder="タイトル" {...register('title')} />
-          <textarea className="textarea textarea-bordered sm:col-span-2 text-white" rows={2} placeholder="説明" {...register('description')} />
+          <input className="input input-bordered text-white" placeholder="タイトル (日本語)" {...register('title')} />
+          <input className="input input-bordered text-white" placeholder="Title (English)" {...register('title_en')} />
+          <textarea className="textarea textarea-bordered text-white" rows={2} placeholder="説明 (日本語)" {...register('description')} />
+          <textarea className="textarea textarea-bordered text-white" rows={2} placeholder="Description (English)" {...register('description_en')} />
+          <select className="select select-bordered text-white" {...register('audience_type')}>
+            <option value="domestic">国内のみ</option>
+            <option value="both">国内 + グローバル</option>
+            <option value="global">グローバルのみ</option>
+          </select>
           <input className="input input-bordered text-white" type="number" step="100" placeholder="報酬XP" {...register('reward_multiplier', { valueAsNumber: true })} />
           <div className="sm:col-span-2 flex gap-2">
             <button className="btn btn-xs btn-primary" type="submit">保存</button>

@@ -412,9 +412,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isMissionMode
-                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                    {isLessonMode
+                      ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
+                      : isMissionMode
+                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : isStageClear && !onNextStage ? (
@@ -422,9 +424,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   onClick={onBackToSelect}
                   className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-green-600 hover:bg-green-500"
                 >
-                  {isMissionMode
-                    ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                    : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                  {isLessonMode
+                    ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
+                    : isMissionMode
+                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                 </button>
               ) : isStageClearHint && onRetryWithoutHint ? (
                 <>
@@ -438,9 +442,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isMissionMode
-                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                    {isLessonMode
+                      ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
+                      : isMissionMode
+                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : !hintMode && !isStageClear && !isStageClearHint && onRetryWithHint ? (
@@ -461,9 +467,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isMissionMode
-                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                    {isLessonMode
+                      ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
+                      : isMissionMode
+                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : (
@@ -478,9 +486,11 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isMissionMode
-                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                    {isLessonMode
+                      ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
+                      : isMissionMode
+                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               )}
