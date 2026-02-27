@@ -310,29 +310,20 @@ export function expandOrnament(
     case 'wavy-line':
     case 'shake': {
       // 主音と上隣接音の交互 (trill / wavy-line / shake)
-      // 32分音符を基準にしつつ、最低5音（2往復）を保証する
-      const MIN_TRILL_NOTES = 5;
+      // 奇数個の音で生成し、必ず main で終了する
       const thirtySecondDiv = divisionsPerQuarter / 8;
-      const trillUnit = Math.max(
-        0.25,
-        Math.min(thirtySecondDiv, durationDivisions / MIN_TRILL_NOTES),
-      );
+      let noteCount = Math.max(5, Math.round(durationDivisions / thirtySecondDiv));
+      if (noteCount % 2 === 0) noteCount--;
+      const tUnit = durationDivisions / noteCount;
       const notes: ExpandedNote[] = [];
-      let remaining = durationDivisions;
-      let isUpper = false;
-      while (remaining > trillUnit * 0.5) {
-        const d = Math.min(trillUnit, remaining);
+      for (let i = 0; i < noteCount; i++) {
+        const isUp = i % 2 === 1;
         notes.push({
-          pitch: isUpper ? upper : mainPitch,
-          durationDivisions: d,
+          pitch: isUp ? upper : mainPitch,
+          durationDivisions: tUnit,
           isOrnament: true,
-          noteName: isUpper ? upperName : mainNoteName,
+          noteName: isUp ? upperName : mainNoteName,
         });
-        remaining -= d;
-        isUpper = !isUpper;
-      }
-      if (notes.length > 0 && remaining > 0) {
-        notes[notes.length - 1].durationDivisions += remaining;
       }
       return notes;
     }
