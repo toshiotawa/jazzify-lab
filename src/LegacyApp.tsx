@@ -299,6 +299,9 @@ const App: React.FC = () => {
     case '#survival-lesson':
       MainContent = isFree ? <Dashboard /> : <SurvivalMain lessonMode />;
       break;
+    case '#survival-mission':
+      MainContent = isFree ? <Dashboard /> : <SurvivalMain missionMode />;
+      break;
     case '#songs':
     case '#practice':
     case '#performance':

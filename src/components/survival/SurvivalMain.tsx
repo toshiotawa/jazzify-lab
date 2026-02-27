@@ -17,6 +17,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { fetchSurvivalCharacters, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { incrementSurvivalMissionProgressOnClear } from '@/platform/supabaseChallengeSurvival';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 
@@ -46,6 +47,7 @@ type SurvivalTab = 'stage' | 'free';
 
 interface SurvivalMainProps {
   lessonMode?: boolean;
+  missionMode?: boolean;
 }
 
 interface LessonContext {
@@ -55,6 +57,11 @@ interface LessonContext {
   clearConditions: any;
 }
 
+interface MissionContext {
+  missionId: string;
+  stageNumber: number;
+}
+
 const isFaiCharacter = (character: SurvivalCharacter): boolean => {
   const normalizedName = character.name.trim();
   const normalizedNameEn = (character.nameEn ?? '').trim().toLowerCase();
@@ -62,12 +69,12 @@ const isFaiCharacter = (character: SurvivalCharacter): boolean => {
   return normalizedName === 'ファイ' || normalizedNameEn === 'fai' || normalizedId === 'fai';
 };
 
-const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
+const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
-  const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'select');
+  const [screen, setScreen] = useState<Screen>((lessonMode || missionMode) ? 'game' : 'select');
   const [activeTab, setActiveTab] = useState<SurvivalTab>('stage');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
@@ -77,6 +84,8 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
   const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
+  const [missionContext, setMissionContext] = useState<MissionContext | null>(null);
+  const [missionInitialized, setMissionInitialized] = useState(false);
 
   const lessonParams = useMemo(() => {
     if (!lessonMode) return null;
@@ -85,6 +94,14 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     if (qIndex < 0) return null;
     return new URLSearchParams(hash.slice(qIndex + 1));
   }, [lessonMode]);
+
+  const missionParams = useMemo(() => {
+    if (!missionMode) return null;
+    const hash = window.location.hash;
+    const qIndex = hash.indexOf('?');
+    if (qIndex < 0) return null;
+    return new URLSearchParams(hash.slice(qIndex + 1));
+  }, [missionMode]);
 
   useEffect(() => {
     if (!lessonMode || !lessonParams || lessonInitialized) return;
@@ -135,6 +152,64 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
 
     initLesson();
   }, [lessonMode, lessonParams, lessonInitialized]);
+
+  // ミッションモード初期化
+  useEffect(() => {
+    if (!missionMode || !missionParams || missionInitialized) return;
+
+    const missionId = missionParams.get('missionId') || '';
+    const stageNumber = parseInt(missionParams.get('stageNumber') || '0', 10);
+
+    const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
+    if (!missionId || !stageDef) {
+      window.location.hash = '#missions';
+      return;
+    }
+
+    setMissionContext({ missionId, stageNumber });
+
+    const initMission = async () => {
+      try {
+        await FantasySoundManager.unlock();
+        await initializeAudioSystem();
+      } catch { /* ignore */ }
+
+      let faiChar: SurvivalCharacter | undefined;
+      try {
+        const charRows = await fetchSurvivalCharacters();
+        const chars = charRows.map(convertToSurvivalCharacter);
+        faiChar = chars.find(isFaiCharacter);
+      } catch { /* ignore */ }
+
+      const baseConfig = DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
+      const missionConfig: DifficultyConfig = {
+        ...baseConfig,
+        difficulty: stageDef.difficulty,
+        allowedChords: stageDef.allowedChords,
+      };
+
+      setSelectedDifficulty(stageDef.difficulty);
+      setSelectedConfig(missionConfig);
+      setSelectedCharacter(faiChar);
+      setActiveStageDefinition(stageDef);
+      setActiveHintMode(false);
+      setScreen('game');
+      setMissionInitialized(true);
+    };
+
+    initMission();
+  }, [missionMode, missionParams, missionInitialized]);
+
+  const handleMissionStageClear = useCallback(async () => {
+    if (!missionContext || !profile) return;
+    try {
+      await incrementSurvivalMissionProgressOnClear(
+        missionContext.missionId,
+        missionContext.stageNumber
+      );
+    } catch { /* ignore */ }
+  }, [missionContext, profile]);
 
   const handleLessonStageClear = useCallback(async () => {
     if (!lessonContext || !profile) return;
@@ -218,6 +293,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
+    if (missionMode) {
+      window.location.hash = '#missions';
+      return;
+    }
     if (activeStageDefinition) {
       setActiveTab('stage');
     } else {
@@ -230,17 +309,21 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
     setActiveHintMode(false);
-  }, [activeStageDefinition, lessonMode, lessonContext]);
+  }, [activeStageDefinition, lessonMode, lessonContext, missionMode]);
 
   const handleBackToMenu = useCallback(() => {
     if (lessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
+    if (missionMode) {
+      window.location.hash = '#missions';
+      return;
+    }
     window.location.hash = '#dashboard';
-  }, [lessonMode, lessonContext]);
+  }, [lessonMode, lessonContext, missionMode]);
 
-  if (lessonMode && !lessonInitialized) {
+  if ((lessonMode && !lessonInitialized) || (missionMode && !missionInitialized)) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
@@ -331,11 +414,13 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
         character={selectedCharacter}
         stageDefinition={activeStageDefinition ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
+        onMissionStageClear={missionMode ? handleMissionStageClear : undefined}
         isLessonMode={!!lessonMode}
+        isMissionMode={!!missionMode}
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
-        onNextStage={activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined}
+        onNextStage={missionMode ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
       />
     );
   }

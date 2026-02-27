@@ -1,14 +1,18 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache, clearCacheByPattern } from '@/platform/supabaseClient';
 
 export type ChallengeType = 'weekly' | 'monthly';
-export type ChallengeCategory = 'diary' | 'song_clear' | 'fantasy_clear';
+export type ChallengeCategory = 'diary' | 'song_clear' | 'fantasy_clear' | 'survival_clear';
+export type ChallengeAudienceType = 'domestic' | 'global' | 'both';
 
 export interface Challenge {
   id: string;
   type: ChallengeType;
   category: ChallengeCategory;
   title: string;
+  title_en?: string | null;
   description?: string | null;
+  description_en?: string | null;
+  audience_type: ChallengeAudienceType;
   start_date: string; // ISO yyyy-mm-dd
   end_date: string;   // ISO yyyy-mm-dd
   reward_multiplier: number;

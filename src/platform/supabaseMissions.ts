@@ -12,13 +12,18 @@ export interface MissionSong {
   songs?: { id: string; title: string; artist?: string };
 }
 
+export type MissionAudienceType = 'domestic' | 'global' | 'both';
+
 export interface Mission {
   id: string;
   type: 'weekly' | 'monthly';
-  category: 'diary' | 'song_clear' | 'fantasy_clear';
+  category: 'diary' | 'song_clear' | 'fantasy_clear' | 'survival_clear';
   diary_count?: number | null;
   title: string;
+  title_en?: string | null;
   description?: string | null;
+  description_en?: string | null;
+  audience_type: MissionAudienceType;
   start_date: string;
   end_date: string;
   clears_required?: number | null;
@@ -60,20 +65,18 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
   const { data, error } = await fetchWithCache(key, async () => {
     const result = await getSupabaseClient()
       .from('challenges')
-      .select('id,type,category,diary_count,title,description,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
+      .select('id,type,category,diary_count,title,title_en,description,description_en,audience_type,start_date,end_date,reward_multiplier,challenge_tracks(song_id,key_offset,min_speed,min_rank,clears_required,notation_setting,songs(id,title,artist))')
       .eq('type','monthly')
-      .lte('start_date', today)  // 開始日が今日以前（今日を含む）
-      .gte('end_date', today);   // 終了日が今日以降（今日を含む）
-    
-    console.log('fetchActiveMonthlyMissions raw data:', result);
+      .lte('start_date', today)
+      .gte('end_date', today);
     return result;
-  }, 1000 * 60 * 3); // 最適化: 3分キャッシュ（短いTTLで最新情報を確保）
+  }, 1000 * 60 * 3);
   if (error) throw error;
   
-  // データを正しくマッピング
   const missions = data.map((mission: any) => ({
     ...mission,
     category: mission.category || 'song_clear',
+    audience_type: mission.audience_type || 'domestic',
     songs: mission.challenge_tracks?.map((track: any) => ({
       song_id: track.song_id,
       key_offset: track.key_offset || 0,
@@ -85,8 +88,20 @@ export async function fetchActiveMonthlyMissions(): Promise<Mission[]> {
     })) || []
   }));
   
-  console.log('fetchActiveMonthlyMissions processed missions:', missions);
   return missions as Mission[];
+}
+
+/**
+ * ユーザーのプランに応じてミッションをフィルタリング
+ */
+export function filterMissionsByPlan(missions: Mission[], rank: string | null | undefined): Mission[] {
+  if (!rank) return [];
+  const isGlobal = rank === 'standard_global';
+  return missions.filter(m => {
+    if (m.audience_type === 'both') return true;
+    if (isGlobal) return m.audience_type === 'global';
+    return m.audience_type === 'domestic';
+  });
 }
 
 export async function fetchMissionSongs(missionId: string): Promise<MissionSong[]> {
@@ -462,6 +477,27 @@ export async function claimReward(missionId: string) {
           .eq('user_id', userId)
           .eq('challenge_id', missionId)
           .eq('fantasy_stage_id', tr.fantasy_stage_id)
+          .maybeSingle();
+        const required = tr.clears_required || 1;
+        const actual = p?.clear_count || 0;
+        if (actual >= required) totalCompleted++;
+      }
+    } else if (mission.category === 'survival_clear') {
+      const { data: tracks, error: tracksError } = await supabase
+        .from('challenge_survival_stages')
+        .select('stage_number, clears_required')
+        .eq('challenge_id', missionId);
+      if (tracksError) throw tracksError;
+      const trackList = tracks || [];
+      totalRequired = trackList.length;
+
+      for (const tr of trackList) {
+        const { data: p } = await supabase
+          .from('user_challenge_survival_progress')
+          .select('clear_count')
+          .eq('user_id', userId)
+          .eq('challenge_id', missionId)
+          .eq('stage_number', tr.stage_number)
           .maybeSingle();
         const required = tr.clears_required || 1;
         const actual = p?.clear_count || 0;

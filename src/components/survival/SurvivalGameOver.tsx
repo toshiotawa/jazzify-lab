@@ -25,6 +25,7 @@ interface SurvivalGameOverProps {
   finalWave?: number;
   stageDefinition?: StageDefinition;
   isLessonMode?: boolean;
+  isMissionMode?: boolean;
   hintMode?: boolean;
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
@@ -50,6 +51,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   finalWave,
   stageDefinition,
   isLessonMode = false,
+  isMissionMode = false,
   hintMode = false,
   onRetryWithHint,
   onRetryWithoutHint,
@@ -72,7 +74,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (!profile || isGuest) return;
 
-      if (isStageClear && !stageSaved && !isLessonMode) {
+      if (isStageClear && !stageSaved && !isLessonMode && !isMissionMode) {
         try {
           await upsertSurvivalStageClear(
             profile.id,
@@ -410,7 +412,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                    {isMissionMode
+                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : isStageClear && !onNextStage ? (
@@ -418,7 +422,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   onClick={onBackToSelect}
                   className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-green-600 hover:bg-green-500"
                 >
-                  {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                  {isMissionMode
+                    ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                    : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                 </button>
               ) : isStageClearHint && onRetryWithoutHint ? (
                 <>
@@ -432,7 +438,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                    {isMissionMode
+                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : !hintMode && !isStageClear && !isStageClearHint && onRetryWithHint ? (
@@ -453,7 +461,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                    {isMissionMode
+                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : (
@@ -468,7 +478,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     onClick={onBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
-                    {isEnglishCopy ? 'Stage Select' : 'ステージ選択'}
+                    {isMissionMode
+                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               )}

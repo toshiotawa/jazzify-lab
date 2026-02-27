@@ -19,17 +19,22 @@ import { useToast, handleApiError } from '@/stores/toastStore';
 import SongSelector from './SongSelector';
 
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy, FaHatWizard } from 'react-icons/fa';
+import { FaMusic, FaTrash, FaEdit, FaPlus, FaBook, FaPlay, FaTrophy, FaHatWizard, FaSkull } from 'react-icons/fa';
 import { FantasyStageSelector } from './FantasyStageSelector';
 import { getChallengeFantasyTracks, addFantasyStageToChallenge, removeFantasyStageFromChallenge, updateFantasyStageInChallenge } from '@/platform/supabaseChallengeFantasy';
 import { fetchFantasyStageById, fetchFantasyStages } from '@/platform/supabaseFantasyStages';
+import { getChallengeSurvivalStages, addSurvivalStageToChallenge, removeSurvivalStageFromChallenge, updateSurvivalStageInChallenge } from '@/platform/supabaseChallengeSurvival';
+import { ALL_STAGES } from '@/components/survival/SurvivalStageDefinitions';
 import type { RepeatTranspositionMode, FantasyStage } from '@/types';
 
 interface FormValues {
   type: ChallengeType;
   category: ChallengeCategory;
   title: string;
+  title_en?: string;
   description?: string;
+  description_en?: string;
+  audience_type: 'domestic' | 'global' | 'both';
   start_date: string;
   end_date: string;
   reward_multiplier: number;
@@ -69,10 +74,20 @@ const MissionManager: React.FC = () => {
   }>>([]);
   const [showFormFantasyAddModal, setShowFormFantasyAddModal] = useState(false);
 
+  // 新規作成用: サバイバル選択リスト
+  const [selectedSurvival, setSelectedSurvival] = useState<Array<{
+    stageNumber: number;
+    label: string;
+    clears: number;
+  }>>([]);
+  const [showFormSurvivalAddModal, setShowFormSurvivalAddModal] = useState(false);
+  const [showSurvivalAddModal, setShowSurvivalAddModal] = useState(false);
+
   const { register, handleSubmit, reset, watch } = useForm<FormValues>({
     defaultValues: {
       type: 'monthly',
       category: 'song_clear',
+      audience_type: 'domestic',
       start_date: new Date().toISOString().substring(0, 10),
       end_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().substring(0, 10),
       reward_multiplier: 2000,
@@ -118,7 +133,10 @@ const MissionManager: React.FC = () => {
         type: v.type,
         category: v.category,
         title: v.title,
+        title_en: v.title_en || null,
         description: v.description,
+        description_en: v.description_en || null,
+        audience_type: v.audience_type || 'domestic',
         start_date: v.start_date,
         end_date: v.end_date,
         reward_multiplier: v.reward_multiplier,
@@ -147,6 +165,11 @@ const MissionManager: React.FC = () => {
           });
         }
         toast.success(`ミッションを追加し、ファンタジーステージを${selectedFantasy.length}件追加しました`, { title: '追加完了', duration: 3000 });
+      } else if (v.category === 'survival_clear' && selectedSurvival.length > 0) {
+        for (const item of selectedSurvival) {
+          await addSurvivalStageToChallenge(newChallengeId, item.stageNumber, item.clears);
+        }
+        toast.success(`ミッションを追加し、サバイバルステージを${selectedSurvival.length}件追加しました`, { title: '追加完了', duration: 3000 });
       } else {
         toast.success('ミッションを追加しました', { title: '追加完了', duration: 3000 });
       }
@@ -155,6 +178,7 @@ const MissionManager: React.FC = () => {
       setSelectedSongs([]);
       setSongConditions({});
       setSelectedFantasy([]);
+      setSelectedSurvival([]);
 
       await load();
     } catch (e) {
@@ -277,7 +301,10 @@ const MissionManager: React.FC = () => {
   };
 
   const getCategoryLabel = (category: ChallengeCategory) => {
-    return category === 'diary' ? '日記投稿' : '曲クリア';
+    if (category === 'diary') return '日記投稿';
+    if (category === 'fantasy_clear') return 'ファンタジー';
+    if (category === 'survival_clear') return 'サバイバル';
+    return '曲クリア';
   };
 
   const getTypeLabel = (type: ChallengeType) => {
@@ -308,16 +335,34 @@ const MissionManager: React.FC = () => {
               <select className="select select-bordered w-full text-white" {...register('category')}>
                 <option value="song_clear">曲クリア</option>
                 <option value="fantasy_clear">ファンタジー</option>
+                <option value="survival_clear">サバイバル</option>
                 <option value="diary">日記投稿</option>
               </select>
             </label>
           </div>
 
-          <input 
-            className="input input-bordered w-full text-white" 
-            placeholder="ミッションタイトル" 
-            {...register('title', { required: true })} 
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <input 
+              className="input input-bordered w-full text-white" 
+              placeholder="ミッションタイトル (日本語)" 
+              {...register('title', { required: true })} 
+            />
+            <input 
+              className="input input-bordered w-full text-white" 
+              placeholder="Mission Title (English)" 
+              {...register('title_en')} 
+            />
+          </div>
+
+          <label className="block">
+            <span className="text-sm font-medium mb-1 block">対象ユーザー</span>
+            <select className="select select-bordered w-full text-white" {...register('audience_type')}>
+              <option value="domestic">国内のみ</option>
+              <option value="both">国内 + グローバル</option>
+              <option value="global">グローバルのみ</option>
+            </select>
+            <p className="text-xs text-gray-400 mt-1">domestic: 国内ユーザーのみ、global: Standard(Global)ユーザーのみ、both: 両方</p>
+          </label>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <label className="block">
@@ -355,12 +400,20 @@ const MissionManager: React.FC = () => {
             ) : null}
           </div>
 
-          <textarea 
-            className="textarea textarea-bordered w-full text-white" 
-            rows={3} 
-            placeholder="ミッションの説明" 
-            {...register('description')} 
-          />
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <textarea 
+              className="textarea textarea-bordered w-full text-white" 
+              rows={3} 
+              placeholder="ミッションの説明 (日本語)" 
+              {...register('description')} 
+            />
+            <textarea 
+              className="textarea textarea-bordered w-full text-white" 
+              rows={3} 
+              placeholder="Mission Description (English)" 
+              {...register('description_en')} 
+            />
+          </div>
 
           {/* 曲クリアタイプ */}
           {watchedCategory === 'song_clear' && (
@@ -468,6 +521,44 @@ const MissionManager: React.FC = () => {
             </div>
           )}
 
+          {/* サバイバルタイプ */}
+          {watchedCategory === 'survival_clear' && (
+            <div className="border border-red-600 rounded-lg p-4 bg-slate-800/30">
+              <div className="flex items-center justify-between mb-4">
+                <h4 className="font-medium text-lg">サバイバルステージ選択</h4>
+                <button type="button" className="btn btn-primary btn-sm" onClick={() => setShowFormSurvivalAddModal(true)}>追加</button>
+              </div>
+              {selectedSurvival.length === 0 ? (
+                <div className="text-center py-4 text-gray-400">
+                  <FaSkull className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                  <p>ステージが選択されていません</p>
+                  <p className="text-sm">「追加」ボタンからステージを選択してください</p>
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {selectedSurvival.map((s) => (
+                    <div key={s.stageNumber} className="flex items-center justify-between p-2 bg-slate-700/50 rounded">
+                      <div className="text-sm text-white">
+                        {s.label}
+                        <span className="ml-2 text-xs text-gray-300">必要クリア: {s.clears}回</span>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" className="btn btn-xs" onClick={() => {
+                          const input = prompt('必要クリア回数を入力してください', String(s.clears));
+                          if (!input) return;
+                          const num = parseInt(input, 10);
+                          if (!Number.isFinite(num) || num <= 0) { toast.error('1以上の数値を入力してください'); return; }
+                          setSelectedSurvival(prev => prev.map(x => x.stageNumber === s.stageNumber ? { ...x, clears: num } : x));
+                        }}>編集</button>
+                        <button type="button" className="btn btn-xs btn-error" onClick={() => setSelectedSurvival(prev => prev.filter(x => x.stageNumber !== s.stageNumber))}>削除</button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
           <button className="btn btn-primary w-full md:w-auto" type="submit">
             <FaPlus className="w-4 h-4 mr-2" />
             ミッションを追加
@@ -540,6 +631,22 @@ const MissionManager: React.FC = () => {
                     <p className="text-sm text-gray-400 mt-1">
                       楽曲の追加は不要です。日記投稿数で判定されます。
                     </p>
+                  </div>
+                ) : selectedMission.category === 'survival_clear' ? (
+                  <div className="bg-red-900/20 border border-red-500/30 rounded-lg p-4">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex items-center">
+                        <FaSkull className="w-4 h-4 mr-2 text-red-400" />
+                        <span className="font-medium">サバイバルステージ</span>
+                      </div>
+                      <button
+                        className="btn btn-primary btn-sm"
+                        onClick={() => setShowSurvivalAddModal(true)}
+                      >
+                        追加
+                      </button>
+                    </div>
+                    <AdminSurvivalTrackList missionId={selectedMission.id} />
                   </div>
                 ) : selectedMission.category === 'fantasy_clear' ? (
                   <div className="bg-purple-900/20 border border-purple-500/30 rounded-lg p-4">
@@ -635,6 +742,26 @@ const MissionManager: React.FC = () => {
         }} />
       )}
 
+      {/* サバイバルステージ追加モーダル（既存ミッション用） */}
+      {showSurvivalAddModal && selectedMission && (
+        <SurvivalAddModal missionId={selectedMission.id} onClose={() => setShowSurvivalAddModal(false)} onAdded={() => {
+          void load();
+          setShowSurvivalAddModal(false);
+        }} />
+      )}
+
+      {/* フォーム用サバイバル追加モーダル */}
+      {showFormSurvivalAddModal && (
+        <SurvivalAddModal missionId={null} onClose={() => setShowFormSurvivalAddModal(false)} onAdded={(stageNumber, clears, label) => {
+          if (selectedSurvival.some(s => s.stageNumber === stageNumber)) {
+            toast.error('このステージは既に追加されています');
+            return;
+          }
+          setSelectedSurvival(prev => [...prev, { stageNumber, label, clears }]);
+          setShowFormSurvivalAddModal(false);
+        }} />
+      )}
+
       {/* フォーム用ファンタジー追加モーダル */}
       {showFormFantasyAddModal && (
         <FormFantasyAddModal onClose={() => setShowFormFantasyAddModal(false)} onAdd={async (stageId, clears, mode, overrideRepeatTranspositionMode, overrideStartKey) => {
@@ -674,11 +801,17 @@ const MissionItem: React.FC<{
   const toast = useToast();
 
   const getCategoryIcon = (category: ChallengeCategory) => {
-    return category === 'diary' ? <FaBook className="w-3 h-3" /> : <FaPlay className="w-3 h-3" />;
+    if (category === 'diary') return <FaBook className="w-3 h-3" />;
+    if (category === 'fantasy_clear') return <FaHatWizard className="w-3 h-3" />;
+    if (category === 'survival_clear') return <FaSkull className="w-3 h-3" />;
+    return <FaPlay className="w-3 h-3" />;
   };
 
   const getCategoryLabel = (category: ChallengeCategory) => {
-    return category === 'diary' ? '日記投稿' : '曲クリア';
+    if (category === 'diary') return '日記投稿';
+    if (category === 'fantasy_clear') return 'ファンタジー';
+    if (category === 'survival_clear') return 'サバイバル';
+    return '曲クリア';
   };
 
   const getTypeLabel = (type: ChallengeType) => {
@@ -1442,6 +1575,172 @@ const FormFantasyAddModal: React.FC<{
                   overrideKey
                 ); 
               }
+            }}
+          >
+            追加
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// サバイバルトラック一覧（管理・既存ミッション用）
+const AdminSurvivalTrackList: React.FC<{ missionId: string }> = ({ missionId }) => {
+  const [tracks, setTracks] = React.useState<Array<{
+    stage_number: number;
+    stage_name: string;
+    clears_required: number;
+    difficulty: string;
+  }>>([]);
+  const [editingTrack, setEditingTrack] = React.useState<number | null>(null);
+  const toast = useToast();
+
+  const load = async () => {
+    try {
+      const rows = await getChallengeSurvivalStages(missionId);
+      setTracks(rows.map(r => ({
+        stage_number: r.stage_number,
+        stage_name: r.stage_name,
+        clears_required: r.clears_required,
+        difficulty: r.difficulty,
+      })));
+    } catch {
+      toast.error('サバイバルステージの取得に失敗しました');
+    }
+  };
+
+  React.useEffect(() => { void load(); }, [missionId]);
+
+  return (
+    <div className="space-y-2">
+      {tracks.length === 0 && (
+        <div className="text-sm text-gray-400">ステージが追加されていません</div>
+      )}
+      {tracks.map(t => (
+        <div key={t.stage_number} className="p-2 bg-slate-700/50 rounded">
+          <div className="flex items-center justify-between">
+            <div className="text-sm text-white">
+              {t.stage_name}
+              <span className="ml-2 text-xs text-gray-300">必要クリア: {t.clears_required}回</span>
+              <span className="ml-2 text-xs text-gray-400">[{t.difficulty}]</span>
+            </div>
+            <div className="flex gap-2">
+              <button className="btn btn-xs" onClick={() => setEditingTrack(editingTrack === t.stage_number ? null : t.stage_number)}>
+                {editingTrack === t.stage_number ? '閉じる' : '編集'}
+              </button>
+              <button className="btn btn-xs btn-error" onClick={async () => {
+                if (!confirm('このステージを削除しますか？')) return;
+                try {
+                  await removeSurvivalStageFromChallenge(missionId, t.stage_number);
+                  toast.success('削除しました');
+                  void load();
+                } catch {
+                  toast.error('削除に失敗しました');
+                }
+              }}>削除</button>
+            </div>
+          </div>
+          {editingTrack === t.stage_number && (
+            <div className="mt-3 p-3 bg-slate-800 rounded border border-slate-600">
+              <div>
+                <label className="block text-xs text-gray-300 mb-1">必要クリア回数</label>
+                <input
+                  type="number"
+                  min={1}
+                  defaultValue={t.clears_required}
+                  className="input input-bordered input-sm w-full text-white"
+                  onBlur={async (e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!Number.isFinite(val) || val <= 0) return;
+                    try {
+                      await updateSurvivalStageInChallenge(missionId, t.stage_number, val);
+                      toast.success('更新しました');
+                      void load();
+                      setEditingTrack(null);
+                    } catch {
+                      toast.error('更新に失敗しました');
+                    }
+                  }}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+};
+
+// サバイバルステージ追加モーダル
+const SurvivalAddModal: React.FC<{
+  missionId: string | null;
+  onClose: () => void;
+  onAdded: (stageNumber: number, clears: number, label: string) => void;
+}> = ({ missionId, onClose, onAdded }) => {
+  const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
+  const [count, setCount] = useState<number>(1);
+  const [searchText, setSearchText] = useState('');
+  const toast = useToast();
+
+  const filteredStages = ALL_STAGES.filter(s => {
+    if (!searchText) return true;
+    const lower = searchText.toLowerCase();
+    return s.name.toLowerCase().includes(lower) || s.nameEn.toLowerCase().includes(lower) || String(s.stageNumber).includes(lower);
+  });
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70">
+      <div className="bg-slate-800 rounded-lg p-6 w-full max-w-2xl max-h-[80vh] overflow-y-auto">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-lg font-bold">サバイバルステージを追加</h3>
+          <button className="btn btn-sm btn-ghost" onClick={onClose}>✕</button>
+        </div>
+        <div className="space-y-4">
+          <input
+            type="text"
+            className="input input-bordered w-full text-white"
+            placeholder="ステージ名 or 番号で検索..."
+            value={searchText}
+            onChange={e => setSearchText(e.target.value)}
+          />
+          <div className="max-h-60 overflow-y-auto border border-slate-600 rounded-lg">
+            {filteredStages.map(s => (
+              <button
+                key={s.stageNumber}
+                type="button"
+                className={`w-full text-left px-3 py-2 text-sm hover:bg-slate-700 transition-colors border-b border-slate-700 last:border-b-0 ${
+                  selectedStageNumber === s.stageNumber ? 'bg-purple-900/50 text-purple-300' : 'text-white'
+                }`}
+                onClick={() => setSelectedStageNumber(s.stageNumber)}
+              >
+                <span className="font-medium">{s.name}</span>
+                <span className="ml-2 text-xs text-gray-400">[{s.difficulty}]</span>
+              </button>
+            ))}
+          </div>
+          <div>
+            <label className="block text-sm mb-1">必要クリア回数</label>
+            <input type="number" min={1} value={count} onChange={(e) => setCount(parseInt(e.target.value, 10) || 1)} className="input input-bordered w-full text-white" />
+          </div>
+          <button
+            className="btn btn-primary w-full"
+            disabled={!selectedStageNumber || count <= 0}
+            onClick={async () => {
+              if (!selectedStageNumber) return;
+              const stageDef = ALL_STAGES.find(s => s.stageNumber === selectedStageNumber);
+              const label = stageDef?.name ?? `Stage ${selectedStageNumber}`;
+              if (missionId) {
+                try {
+                  await addSurvivalStageToChallenge(missionId, selectedStageNumber, count);
+                  toast.success('追加しました');
+                } catch {
+                  toast.error('追加に失敗しました');
+                  return;
+                }
+              }
+              onAdded(selectedStageNumber, count, label);
+              onClose();
             }}
           >
             追加
