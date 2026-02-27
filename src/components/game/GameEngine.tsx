@@ -1193,7 +1193,7 @@ useEffect(() => {
 
       gameEngine.setAutoPlayNoteCallback((pitch: number, durationSec: number) => {
         if (!isPlayingRef.current) return;
-        const releaseMs = Math.max(120, durationSec * 1000 + 80);
+        const releaseMs = Math.max(50, durationSec * 1000 - 30);
         const module = midiModuleRef.current;
         if (module) {
           void module.playNote(pitch, 80).catch(() => {});
