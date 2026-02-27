@@ -279,6 +279,7 @@ export interface ShockwaveEffect {
   startTime: number;
   duration: number;
   direction?: Direction;  // 前方のみエフェクト表示用
+  color?: string;         // 衝撃波の色（B列連続ヒットで変化）
 }
 
 // ===== 雷エフェクト =====

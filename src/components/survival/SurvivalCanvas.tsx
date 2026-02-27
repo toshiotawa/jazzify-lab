@@ -611,7 +611,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // 衝撃波リング（前方のみ）
       ctx.globalAlpha = alpha * 0.6;
-      ctx.strokeStyle = '#f97316';
+      ctx.strokeStyle = sw.color ?? '#f97316';
       ctx.lineWidth = 8 * (1 - progress);
       ctx.beginPath();
       ctx.arc(screenX, screenY, currentRadius, baseAngle - arcSpread / 2, baseAngle + arcSpread / 2);
