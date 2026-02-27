@@ -384,10 +384,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
   const pendingShockwavesRef = useRef<ShockwaveEffect[]>([]);
   
-  // B列連続ヒットカウンター（色変化用）
-  const bHitCountRef = useRef(0);
-  const bHitLastTimeRef = useRef(0);
-  const B_HIT_COMBO_TIMEOUT = 3000; // 3秒以内に次のB列攻撃がないとリセット
+  // B列多段攻撃のN回目ごとの色（1回目=オレンジ, 2回目=赤, ...）
   const B_HIT_COLORS = [
     '#f97316', // 1: オレンジ
     '#ef4444', // 2: 赤
@@ -1218,14 +1215,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const attackX = prev.player.x + dirVec.x * 40;
           const attackY = prev.player.y + dirVec.y * 40;
           
-          const nowMs = Date.now();
-          if (nowMs - bHitLastTimeRef.current > B_HIT_COMBO_TIMEOUT) {
-            bHitCountRef.current = 0;
-          }
-          bHitCountRef.current++;
-          bHitLastTimeRef.current = nowMs;
-          const bColor = B_HIT_COLORS[Math.min(bHitCountRef.current - 1, B_HIT_COLORS.length - 1)];
-          
           const newShockwave: ShockwaveEffect = {
             id: `shock_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
             x: attackX,
@@ -1235,7 +1224,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             startTime: Date.now(),
             duration: SHOCKWAVE_DURATION,
             direction: prev.player.direction,
-            color: bColor,
+            color: B_HIT_COLORS[0],
           };
           pendingShockwavesRef.current.push(newShockwave);
           
@@ -1295,18 +1284,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             return enemy;
           });
           
-          // 多段攻撃処理（B列）
+          // 多段攻撃処理（B列）- N回目ごとに色変化
           const bMultiHitLevel = prev.player.skills.multiHitLevel;
-          const multiHitColor = bColor;
           if (bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
+              const hitColor = B_HIT_COLORS[Math.min(hit, B_HIT_COLORS.length - 1)];
               setTimeout(() => {
                 const multiShockwave: ShockwaveEffect = {
                   id: `shock_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
                   x: 0, y: 0, radius: 0, maxRadius: 0,
                   startTime: Date.now(), duration: SHOCKWAVE_DURATION,
                   direction: 'right' as Direction,
-                  color: multiHitColor,
+                  color: hitColor,
                 };
                 
                 setGameState(gs => {
@@ -1586,14 +1575,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const attackX = prev.player.x + dirVec.x * 40;
       const attackY = prev.player.y + dirVec.y * 40;
       
-      const nowMsTap = Date.now();
-      if (nowMsTap - bHitLastTimeRef.current > B_HIT_COMBO_TIMEOUT) {
-        bHitCountRef.current = 0;
-      }
-      bHitCountRef.current++;
-      bHitLastTimeRef.current = nowMsTap;
-      const bColorTap = B_HIT_COLORS[Math.min(bHitCountRef.current - 1, B_HIT_COLORS.length - 1)];
-      
       const newShockwave: ShockwaveEffect = {
         id: `shock_tap_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
         x: attackX,
@@ -1603,7 +1584,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         startTime: Date.now(),
         duration: SHOCKWAVE_DURATION,
         direction: prev.player.direction,
-        color: bColorTap,
+        color: B_HIT_COLORS[0],
       };
       pendingShockwavesRef.current.push(newShockwave);
       
@@ -1664,16 +1645,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       });
         
       const tapBMultiHitLevel = prev.player.skills.multiHitLevel;
-      const tapMultiHitColor = bColorTap;
       if (tapBMultiHitLevel > 0) {
         for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
+          const tapHitColor = B_HIT_COLORS[Math.min(hit, B_HIT_COLORS.length - 1)];
           setTimeout(() => {
             const multiShockwave: ShockwaveEffect = {
               id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
               x: 0, y: 0, radius: 0, maxRadius: 0,
               startTime: Date.now(), duration: SHOCKWAVE_DURATION,
               direction: 'right' as Direction,
-              color: tapMultiHitColor,
+              color: tapHitColor,
             };
             
             setGameState(gs => {

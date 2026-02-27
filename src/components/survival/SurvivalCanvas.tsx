@@ -617,14 +617,13 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.arc(screenX, screenY, currentRadius, baseAngle - arcSpread / 2, baseAngle + arcSpread / 2);
       ctx.stroke();
       
-      // 衝撃波アイコン（前方のみ配置）
+      // 衝撃波アイコン（軽量化のため2個のみ）
       ctx.globalAlpha = alpha;
-      ctx.font = '20px sans-serif';
+      ctx.font = '16px sans-serif';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
-      const iconCount = 4;
-      for (let i = 0; i < iconCount; i++) {
-        const angle = baseAngle - arcSpread / 2 + (i / (iconCount - 1)) * arcSpread;
+      for (let i = 0; i < 2; i++) {
+        const angle = baseAngle - arcSpread / 2 + (i * arcSpread);
         const ix = screenX + Math.cos(angle) * currentRadius;
         const iy = screenY + Math.sin(angle) * currentRadius;
         ctx.fillText('💥', ix, iy);
