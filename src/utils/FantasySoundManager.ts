@@ -551,7 +551,7 @@ export class FantasySoundManager {
   }
 
   // GM音源のノートを停止（自然なダンパーリリース）
-  private _stopGMNote(midiNote: number, fadeTimeSec = 0.25) {
+  private _stopGMNote(midiNote: number, fadeTimeSec = 0.01) {
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) return;
     this.activeGMNotes.delete(midiNote);
