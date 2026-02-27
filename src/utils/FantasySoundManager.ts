@@ -550,8 +550,8 @@ export class FantasySoundManager {
     }
   }
 
-  // GM音源のノートを停止（フェードアウト付き）
-  private _stopGMNote(midiNote: number, fadeTimeSec = 0.08) {
+  // GM音源のノートを停止（自然なダンパーリリース）
+  private _stopGMNote(midiNote: number, fadeTimeSec = 0.25) {
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) return;
     this.activeGMNotes.delete(midiNote);
@@ -668,16 +668,16 @@ export class FantasySoundManager {
       this.gmWetGain = this.gmAudioContext.createGain();
       this.gmConvolver = this.gmAudioContext.createConvolver();
 
-      this.gmConvolver.buffer = this._createReverbImpulse(this.gmAudioContext, 1.8, 2.5);
+      this.gmConvolver.buffer = this._createReverbImpulse(this.gmAudioContext, 0.6, 3.5);
 
       this.gmMasterGain.connect(this.gmDryGain);
       this.gmDryGain.connect(this.gmAudioContext.destination);
-      this.gmDryGain.gain.value = 0.85;
+      this.gmDryGain.gain.value = 0.92;
 
       this.gmMasterGain.connect(this.gmConvolver);
       this.gmConvolver.connect(this.gmWetGain);
       this.gmWetGain.connect(this.gmAudioContext.destination);
-      this.gmWetGain.gain.value = 0.25;
+      this.gmWetGain.gain.value = 0.12;
 
       const soundfontOptions: any = {
         soundfont: 'MusyngKite',
