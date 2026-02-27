@@ -95,7 +95,11 @@ export class FantasySoundManager {
   // ミックスバランス（0.0 = アコースティックのみ、1.0 = エレクトリックのみ、0.5 = 半々）
   private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
   // アクティブなノート（停止用に追跡）
-  private activeGMNotes: Map<number, { acoustic?: any; electric?: any }> = new Map();
+  private activeGMNotes: Map<number, { acoustic?: any; electric?: any; gainNode?: GainNode }> = new Map();
+  private gmMasterGain: GainNode | null = null;
+  private gmDryGain: GainNode | null = null;
+  private gmWetGain: GainNode | null = null;
+  private gmConvolver: ConvolverNode | null = null;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -124,6 +128,11 @@ export class FantasySoundManager {
   // GM音源のノートを停止
   public static stopGMNote(midiNote: number) {
     return this.instance._stopGMNote(midiNote);
+  }
+  
+  // BGM用: ノートを指定時間鳴らして自然にフェードアウト（手動停止不要）
+  public static playBgmNote(midiNote: number, velocity: number, durationSec: number) {
+    return this.instance._playBgmGMNote(midiNote, velocity, durationSec);
   }
   
   // GM音源が利用可能かどうか
@@ -495,69 +504,132 @@ export class FantasySoundManager {
 
   // GM音源でMIDIノートを再生（ピアノ演奏用）
   private async _playGMNote(midiNote: number, velocity: number = 1.0) {
-    // GM音源が準備できていない場合は何もしない
     if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) {
       return;
     }
     
     try {
-      // AudioContextがsuspended状態ならresumeする
       if (this.gmAudioContext.state === 'suspended') {
         await this.gmAudioContext.resume();
       }
       
-      // 既に再生中のノートがあれば停止
       this._stopGMNote(midiNote);
       
-      const currentTime = this.gmAudioContext.currentTime;
-      // 音量を大きめに設定（8.0倍でブースト）+ ピアノ音量設定を反映
+      const ctx = this.gmAudioContext;
+      const currentTime = ctx.currentTime;
       const volumeBoost = 8.0;
       const baseGain = velocity * volumeBoost * this.gmPianoVolume;
-      // ミックス時は両方の音を重ねるので、合計が baseGain になるように
-      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);  // アコースティックは常に強め
+      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
       const electricGain = baseGain * this.gmMixBalance;
       
-      const activeNodes: { acoustic?: any; electric?: any } = {};
+      const noteGain = ctx.createGain();
+      noteGain.gain.value = 1.0;
+      noteGain.connect(this.gmMasterGain || ctx.destination);
       
-      // アコースティックピアノを再生
+      const activeNodes: { acoustic?: any; electric?: any; gainNode?: GainNode } = { gainNode: noteGain };
+      
       if (acousticGain > 0) {
         activeNodes.acoustic = this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
-          duration: 10.0  // 長めのduration（手動停止するため）
-        });
+          duration: 10.0,
+          destination: noteGain
+        } as any);
       }
       
-      // エレクトリックピアノを再生（ミックス）
       if (this.gmElectricPiano && electricGain > 0) {
         activeNodes.electric = this.gmElectricPiano.play(midiNote.toString(), currentTime, {
           gain: electricGain,
-          duration: 10.0
-        });
+          duration: 10.0,
+          destination: noteGain
+        } as any);
       }
       
-      // アクティブなノートとして追跡
       this.activeGMNotes.set(midiNote, activeNodes);
     } catch {
       // GM note playback error - ignore
     }
   }
 
-  // GM音源のノートを停止
-  private _stopGMNote(midiNote: number) {
+  // GM音源のノートを停止（フェードアウト付き）
+  private _stopGMNote(midiNote: number, fadeTimeSec = 0.08) {
     const activeNodes = this.activeGMNotes.get(midiNote);
-    if (activeNodes) {
+    if (!activeNodes) return;
+    this.activeGMNotes.delete(midiNote);
+
+    const ctx = this.gmAudioContext;
+    const gainNode = activeNodes.gainNode;
+
+    if (ctx && gainNode) {
+      const now = ctx.currentTime;
       try {
-        // soundfont-playerのノードを停止
-        if (activeNodes.acoustic && typeof activeNodes.acoustic.stop === 'function') {
-          activeNodes.acoustic.stop();
-        }
-        if (activeNodes.electric && typeof activeNodes.electric.stop === 'function') {
-          activeNodes.electric.stop();
-        }
-      } catch (e) {
-        // 停止に失敗しても無視
+        gainNode.gain.cancelScheduledValues(now);
+        gainNode.gain.setValueAtTime(gainNode.gain.value, now);
+        gainNode.gain.linearRampToValueAtTime(0, now + fadeTimeSec);
+      } catch { /* ignore */ }
+
+      setTimeout(() => {
+        try {
+          if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
+          if (activeNodes.electric?.stop) activeNodes.electric.stop();
+          gainNode.disconnect();
+        } catch { /* ignore */ }
+      }, fadeTimeSec * 1000 + 50);
+    } else {
+      try {
+        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
+        if (activeNodes.electric?.stop) activeNodes.electric.stop();
+      } catch { /* ignore */ }
+    }
+  }
+
+  // BGM用: 指定durationで再生し自然にフェードアウト（手動stop不要）
+  private _playBgmGMNote(midiNote: number, velocity: number, durationSec: number) {
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmAcousticPiano) return;
+
+    try {
+      const ctx = this.gmAudioContext;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
       }
-      this.activeGMNotes.delete(midiNote);
+
+      const currentTime = ctx.currentTime;
+      const volumeBoost = 8.0;
+      const baseGain = velocity * volumeBoost * this.gmPianoVolume;
+      const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
+      const electricGain = baseGain * this.gmMixBalance;
+
+      const noteGain = ctx.createGain();
+      noteGain.gain.value = 1.0;
+      noteGain.connect(this.gmMasterGain || ctx.destination);
+
+      const fadeStart = currentTime + durationSec;
+      const fadeTime = 0.35;
+      noteGain.gain.setValueAtTime(1.0, fadeStart);
+      noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
+
+      const totalDuration = durationSec + fadeTime + 0.05;
+
+      if (acousticGain > 0) {
+        this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+          gain: acousticGain,
+          duration: totalDuration,
+          destination: noteGain
+        } as any);
+      }
+
+      if (this.gmElectricPiano && electricGain > 0) {
+        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+          gain: electricGain,
+          duration: totalDuration,
+          destination: noteGain
+        } as any);
+      }
+
+      setTimeout(() => {
+        try { noteGain.disconnect(); } catch { /* ignore */ }
+      }, totalDuration * 1000 + 100);
+    } catch {
+      // BGM note playback error - ignore
     }
   }
 
@@ -571,29 +643,54 @@ export class FantasySoundManager {
     this._syncRootBassVolume();
   }
 
+  private _createReverbImpulse(context: AudioContext, duration = 1.8, decay = 2.5): AudioBuffer {
+    const sampleRate = context.sampleRate;
+    const length = Math.floor(sampleRate * duration);
+    const impulse = context.createBuffer(2, length, sampleRate);
+    for (let ch = 0; ch < 2; ch++) {
+      const data = impulse.getChannelData(ch);
+      for (let i = 0; i < length; i++) {
+        data[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / length, decay);
+      }
+    }
+    return impulse;
+  }
+
   // GM音源（Acoustic + Electric Piano）の読み込み
   private async _loadGMPiano(): Promise<void> {
     try {
-      // AudioContextを作成または再利用
       if (!this.gmAudioContext) {
         this.gmAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
-      
-      // CDN: https://gleitz.github.io/midi-js-soundfonts/
-      const soundfontOptions = {
-        soundfont: 'MusyngKite' as const,  // 高品質なSoundFont
-        format: 'mp3' as const,            // MP3形式（軽量）
+
+      this.gmMasterGain = this.gmAudioContext.createGain();
+      this.gmDryGain = this.gmAudioContext.createGain();
+      this.gmWetGain = this.gmAudioContext.createGain();
+      this.gmConvolver = this.gmAudioContext.createConvolver();
+
+      this.gmConvolver.buffer = this._createReverbImpulse(this.gmAudioContext, 1.8, 2.5);
+
+      this.gmMasterGain.connect(this.gmDryGain);
+      this.gmDryGain.connect(this.gmAudioContext.destination);
+      this.gmDryGain.gain.value = 0.85;
+
+      this.gmMasterGain.connect(this.gmConvolver);
+      this.gmConvolver.connect(this.gmWetGain);
+      this.gmWetGain.connect(this.gmAudioContext.destination);
+      this.gmWetGain.gain.value = 0.25;
+
+      const soundfontOptions: any = {
+        soundfont: 'MusyngKite',
+        format: 'mp3',
+        destination: this.gmMasterGain
       };
-      
-      // 両方の音源を並列で読み込み
+
       const [acoustic, electric] = await Promise.all([
-        // Acoustic Grand Piano (Program 0)
         Soundfont.instrument(
           this.gmAudioContext,
           'acoustic_grand_piano',
           soundfontOptions
         ),
-        // Electric Piano 1 - Rhodes系 (Program 4)
         Soundfont.instrument(
           this.gmAudioContext,
           'electric_piano_1',
@@ -605,7 +702,6 @@ export class FantasySoundManager {
       this.gmElectricPiano = electric;
       this.gmPianoReady = true;
     } catch {
-      // GM Piano load error - ignored
       this.gmPianoReady = false;
     }
   }

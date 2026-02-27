@@ -83,6 +83,8 @@ export class GameEngine {
   private onJudgment?: (judgment: JudgmentResult) => void;
   private onKeyHighlight?: (pitch: number, timestamp: number) => void; // 練習モードガイド用
   private onAutoPlayNote?: (pitch: number, durationSec: number) => void; // オートプレイ音声再生用
+  private onBgmNote?: (pitch: number, durationSec: number) => void; // BGM合成用
+  private enableBgmSynthesis: boolean = false;
   
   private isGameLoopRunning: boolean = false; // ゲームループの状態を追跡
   private rafHandle: number | ReturnType<typeof setTimeout> | null = null;
@@ -113,6 +115,14 @@ export class GameEngine {
 
   setAutoPlayNoteCallback(callback: (pitch: number, durationSec: number) => void): void {
     this.onAutoPlayNote = callback;
+  }
+
+  setBgmNoteCallback(callback: (pitch: number, durationSec: number) => void): void {
+    this.onBgmNote = callback;
+  }
+
+  setEnableBgmSynthesis(enabled: boolean): void {
+    this.enableBgmSynthesis = enabled;
   }
   
   private getHardwareLatency(): number {
@@ -828,8 +838,15 @@ export class GameEngine {
         // 重複ログ防止フラグを即座に設定
         note.crossingLogged = true;
 
-      // 練習モードガイド処理
+      // BGM合成: 音源なし時にノーツを自動演奏（判定は行わない）
       const practiceGuide = this.settings.practiceGuide ?? 'key';
+      if (this.enableBgmSynthesis && this.onBgmNote && practiceGuide !== 'key_auto') {
+        const bgmPitch = note.pitch + this.settings.transpose;
+        const bgmDuration = note.duration ?? 0.3;
+        this.onBgmNote(bgmPitch, bgmDuration);
+      }
+
+      // 練習モードガイド処理
       if (practiceGuide !== 'off') {
         const effectivePitch = note.pitch + this.settings.transpose;
         

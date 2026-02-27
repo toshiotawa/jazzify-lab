@@ -1193,7 +1193,7 @@ useEffect(() => {
 
       gameEngine.setAutoPlayNoteCallback((pitch: number, durationSec: number) => {
         if (!isPlayingRef.current) return;
-        const releaseMs = Math.max(50, durationSec * 1000 - 30);
+        const releaseMs = Math.max(120, durationSec * 1000 + 80);
         const module = midiModuleRef.current;
         if (module) {
           void module.playNote(pitch, 80).catch(() => {});
@@ -1207,6 +1207,24 @@ useEffect(() => {
       });
     }
   }, [gameEngine, ensureMidiModule]);
+
+  // BGM合成: 音源なし曲でノーツを自動演奏してBGMとして鳴らす
+  useEffect(() => {
+    if (!gameEngine) return;
+
+    if (!hasAudioTrack) {
+      gameEngine.setEnableBgmSynthesis(true);
+      gameEngine.setBgmNoteCallback((pitch: number, durationSec: number) => {
+        if (!isPlayingRef.current) return;
+        if (FantasySoundManager.isGMReady()) {
+          const velocity = 0.45;
+          FantasySoundManager.playBgmNote(pitch, velocity, durationSec);
+        }
+      });
+    } else {
+      gameEngine.setEnableBgmSynthesis(false);
+    }
+  }, [gameEngine, hasAudioTrack]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {
