@@ -1,7 +1,12 @@
 import { parseChordName, buildChordNotes } from '@/utils/chord-utils';
 import type { ChordProgressionDataItem } from '@/components/fantasy/TaikoNoteSystem';
 import { note as parseNote } from 'tonal';
-import { isGraceNote, getTieTypes } from './musicXmlOrnamentExpander';
+import {
+  isGraceNote,
+  getTieTypes,
+  collectGraceNotesBefore,
+  expandGraceNotes,
+} from './musicXmlOrnamentExpander';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
@@ -103,7 +108,7 @@ export function convertMusicXmlToProgressionData(
       if (el.tagName === 'note') {
         const noteEl = el;
 
-        // 装飾音符 (grace note) はスキップ (duration なし)
+        // 装飾音符 (grace note) はここではスキップ（主音処理時に collectGraceNotesBefore で処理）
         if (isGraceNote(noteEl)) {
           continue;
         }
@@ -136,15 +141,49 @@ export function convertMusicXmlToProgressionData(
 
         // 歌詞からコード名を取得（グループ内を走査）
         // 新しい歌詞が見つかった場合、currentLyricDisplayを更新
-        let foundNewLyric = false;
         for (const g of group) {
           const lyricText = g.querySelector('lyric text')?.textContent?.trim();
           if (lyricText) {
             currentLyricDisplay = lyricText;
-            foundNewLyric = true;
             break;
           }
         }
+
+        // 装飾音符 (grace notes) の展開
+        const graceNotes = collectGraceNotesBefore(elements, idx);
+        const mainDuration = parseInt(noteEl.querySelector('duration')?.textContent || '0', 10);
+        const isDotted = noteEl.querySelector('dot') !== null;
+        const [graceExpanded, graceDivStolen, isLongAppoggiatura] = expandGraceNotes(graceNotes, mainDuration, isDotted);
+
+        // grace notes をエントリとして追加
+        if (graceExpanded.length > 0) {
+          let graceOffset = 0;
+          for (const gn of graceExpanded) {
+            let gracePos: number;
+            if (isLongAppoggiatura) {
+              gracePos = currentPos + graceOffset;
+            } else {
+              gracePos = currentPos - graceDivStolen + graceOffset;
+            }
+            const rawName = gn.noteName;
+            const match = rawName.match(/^([A-G][#b]*)(\d+)$/);
+            const gnStep = match ? match[1] : rawName;
+            const gnOctave = match ? parseInt(match[2], 10) : 4;
+            result.push({
+              bar,
+              beats: toBeats(Math.max(0, gracePos), divisionsPerQuarter),
+              chord: gnStep,
+              octave: gnOctave,
+              inversion: 0,
+              type: 'note',
+              lyricDisplay: currentLyricDisplay || undefined,
+            } as ChordProgressionDataItem);
+            graceOffset += gn.durationDivisions;
+          }
+        }
+
+        // 長前打音の場合、主音の位置を前打音の分だけ後ろにずらす
+        const mainNotePos = isLongAppoggiatura ? currentPos + graceDivStolen : currentPos;
 
         // 最低音（ベース）を推定
         const pitches = group
@@ -172,13 +211,13 @@ export function convertMusicXmlToProgressionData(
           const noteNames = pitches.map(p => p.step);
           result.push({
             bar,
-            beats: toBeats(currentPos, divisionsPerQuarter),
-            chord: noteNames.join(''), // 例: "CEG" - 実際の音符
+            beats: toBeats(mainNotePos, divisionsPerQuarter),
+            chord: noteNames.join(''),
             octave: bass ? bass.octave : 4,
             inversion: 0,
-            notes: noteNames, // 個別の音名配列（正解判定用）
+            notes: noteNames,
             type: 'chord',
-            lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
+            lyricDisplay: currentLyricDisplay || undefined,
           } as ChordProgressionDataItem);
         } else {
           // 単音扱い
@@ -186,12 +225,12 @@ export function convertMusicXmlToProgressionData(
           if (single) {
             result.push({
               bar,
-              beats: toBeats(currentPos, divisionsPerQuarter),
-              chord: single.step, // 音名のみ（例: 'G', 'F#'）- 実際の音符
+              beats: toBeats(mainNotePos, divisionsPerQuarter),
+              chord: single.step,
               octave: single.octave,
               inversion: 0,
               type: 'note',
-              lyricDisplay: currentLyricDisplay || undefined // 表示用歌詞テキスト
+              lyricDisplay: currentLyricDisplay || undefined,
             } as ChordProgressionDataItem);
           }
         }
