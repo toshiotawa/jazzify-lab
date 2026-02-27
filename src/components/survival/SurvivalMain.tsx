@@ -15,7 +15,7 @@ import { FaBolt, FaTrophy } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { fetchSurvivalCharacters, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
+import { fetchSurvivalCharacters, fetchSurvivalDifficultySettings, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { incrementSurvivalMissionProgressOnClear } from '@/platform/supabaseChallengeSurvival';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -68,6 +68,29 @@ const isFaiCharacter = (character: SurvivalCharacter): boolean => {
   const normalizedId = character.id.trim().toLowerCase();
   return normalizedName === 'ファイ' || normalizedNameEn === 'fai' || normalizedId === 'fai';
 };
+
+async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
+  try {
+    const settingsData = await fetchSurvivalDifficultySettings();
+    if (settingsData.length > 0) {
+      return settingsData.map((s): DifficultyConfig => ({
+        difficulty: s.difficulty,
+        displayName: s.displayName,
+        description: s.description || '',
+        descriptionEn: s.descriptionEn || '',
+        allowedChords: s.allowedChords,
+        enemySpawnRate: s.enemySpawnRate,
+        enemySpawnCount: s.enemySpawnCount,
+        enemyStatMultiplier: s.enemyStatMultiplier,
+        expMultiplier: s.expMultiplier,
+        itemDropRate: s.itemDropRate,
+        bgmOddWaveUrl: s.bgmOddWaveUrl,
+        bgmEvenWaveUrl: s.bgmEvenWaveUrl,
+      }));
+    }
+  } catch { /* fallback */ }
+  return [];
+}
 
 const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) => {
   const { profile } = useAuthStore();
@@ -134,7 +157,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
         faiChar = chars.find(isFaiCharacter);
       } catch { /* ignore */ }
 
-      const baseConfig = DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
+      const dbConfigs = await fetchDbDifficultyConfigs();
+      const baseConfig = dbConfigs.find(c => c.difficulty === stageDef.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
       const lessonConfig: DifficultyConfig = {
         ...baseConfig,
@@ -181,7 +206,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
         faiChar = chars.find(isFaiCharacter);
       } catch { /* ignore */ }
 
-      const baseConfig = DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
+      const dbConfigs = await fetchDbDifficultyConfigs();
+      const baseConfig = dbConfigs.find(c => c.difficulty === stageDef.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
       const missionConfig: DifficultyConfig = {
         ...baseConfig,
