@@ -14,7 +14,7 @@ import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
-import { stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
+import { stripLyricsFromMusicXml, convertToRhythmNotation, convertMeasuresToRests } from '@/utils/musicXmlMapper';
 import { transposeMusicXml } from '@/utils/musicXmlTransposer';
 
 interface FantasySheetMusicDisplayProps {
@@ -44,6 +44,10 @@ interface FantasySheetMusicDisplayProps {
   nextSectionTransposeOffset?: number;
   /** 結合モード: 全セクションの譜面データを事前レンダリング用に渡す */
   preloadSections?: Array<{ musicXml: string; bpm: number; timeSignature: number }>;
+  /** C&R: リスニング小節範囲（楽譜上で休符に変換） */
+  listenBars?: [number, number];
+  /** リズム譜モード: 全音符の高さをB4に統一して表示 */
+  useRhythmNotation?: boolean;
   className?: string;
 }
 
@@ -55,12 +59,16 @@ interface SheetRenderCacheEntry {
 }
 const sheetRenderCache = new Map<string, SheetRenderCacheEntry>();
 
-function getSheetCacheKey(xml: string, bpmVal: number, timeSigVal: number, simple: boolean): string {
+function getSheetCacheKey(
+  xml: string, bpmVal: number, timeSigVal: number, simple: boolean,
+  lBars?: [number, number], rhythm?: boolean
+): string {
   let hash = 0;
   for (let i = 0; i < xml.length; i++) {
     hash = ((hash << 5) - hash + xml.charCodeAt(i)) | 0;
   }
-  return `${xml.length}_${hash}_${bpmVal}_${timeSigVal}_${simple}`;
+  const lbKey = lBars ? `${lBars[0]}-${lBars[1]}` : '';
+  return `${xml.length}_${hash}_${bpmVal}_${timeSigVal}_${simple}_${lbKey}_${!!rhythm}`;
 }
 
 // プレイヘッドの位置（左端からのピクセル数）
@@ -118,6 +126,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   nextTimeSignature,
   nextSectionTransposeOffset,
   preloadSections,
+  listenBars,
+  useRhythmNotation = false,
   className
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -165,13 +175,30 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     container: HTMLDivElement,
     useSimpleMode: boolean,
     overrideBpm?: number,
-    overrideTimeSig?: number
+    overrideTimeSig?: number,
+    overrideListenBars?: [number, number],
+    overrideRhythmNotation?: boolean
   ): Promise<{ imageData: string; mapping: TimeMappingEntry[]; sheetWidth: number } | null> => {
     const effectiveBpm = overrideBpm ?? bpm ?? 120;
     const effectiveTimeSig = overrideTimeSig ?? timeSignature ?? 4;
     try {
       const transposedXml = (offset !== 0 || useSimpleMode) ? transposeMusicXml(xml, offset, useSimpleMode) : xml;
-      const displayXml = stripLyricsFromMusicXml(transposedXml);
+      let displayXml = stripLyricsFromMusicXml(transposedXml);
+
+      // C&R リスニング小節の音符を休符化 / リズム譜変換
+      const effectiveListenBars = overrideListenBars ?? listenBars;
+      const effectiveRhythm = overrideRhythmNotation ?? useRhythmNotation;
+      if (effectiveListenBars || effectiveRhythm) {
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(displayXml, 'text/xml');
+        if (effectiveListenBars) {
+          convertMeasuresToRests(doc, effectiveListenBars[0], effectiveListenBars[1]);
+        }
+        if (effectiveRhythm) {
+          convertToRhythmNotation(doc);
+        }
+        displayXml = new XMLSerializer().serializeToString(doc);
+      }
       
       const options: IOSMDOptions = {
         autoResize: false,
@@ -260,7 +287,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       devLog.debug(`⚠️ キー${offset}の楽譜レンダリングエラー:`, err);
       return null;
     }
-  }, [bpm, timeSignature]);
+  }, [bpm, timeSignature, listenBars, useRhythmNotation]);
   
   // 12キー分の楽譜を事前レンダリング（-5〜+6の範囲）
   const initializeAllSheets = useCallback(async () => {
@@ -270,7 +297,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     }
     
     // 永続キャッシュチェック → ヒット時は即時スワップ（OSMDレンダリングをスキップ）
-    const cacheKey = getSheetCacheKey(musicXml, bpm || 120, timeSignature || 4, simpleMode);
+    const cacheKey = getSheetCacheKey(musicXml, bpm || 120, timeSignature || 4, simpleMode, listenBars, useRhythmNotation);
     const cached = sheetRenderCache.get(cacheKey);
     if (cached) {
       sheetWidthRef.current = cached.timeMaps[0]?.sheetWidth || cached.maxSheetWidth;
@@ -339,7 +366,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
     } finally {
       setIsLoading(false);
     }
-  }, [musicXml, width, renderSheetForOffset, bpm, timeSignature, simpleMode]);
+  }, [musicXml, width, renderSheetForOffset, bpm, timeSignature, simpleMode, listenBars, useRhythmNotation]);
   
   // musicXmlまたはloopInfoが変更されたら12キー分をレンダリング
   useEffect(() => {

@@ -316,6 +316,12 @@ export interface UpsertFantasyStagePayload {
   combined_section_measure_limits?: (number | null)[] | null;
   // アウフタクト（弱起）
   is_auftakt?: boolean;
+  // コールアンドレスポンス
+  call_response_enabled?: boolean;
+  call_response_listen_bars?: [number, number] | null;
+  call_response_play_bars?: [number, number] | null;
+  combined_section_listen_bars?: ([number, number] | null)[] | null;
+  combined_section_play_bars?: ([number, number] | null)[] | null;
 }
 
 /**

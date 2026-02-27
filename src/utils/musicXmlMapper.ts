@@ -1156,11 +1156,59 @@ function getAccidentalText(alter: number): string | null {
 export { estimateMeasureTimeInfo };
 
 /**
+ * 指定小節範囲の音符を休符に変換する（C&Rリスニング小節用）
+ * MusicXMLの <measure number="N"> 内の <note> 要素で、
+ * <pitch> を持つものを <rest/> に変換する。
+ * 和音（<chord/>タグ付き）は完全に除去し、先頭ノートのみ休符化する。
+ */
+export function convertMeasuresToRests(doc: Document, startBar: number, endBar: number): void {
+  const measures = doc.querySelectorAll('measure');
+  measures.forEach((measure) => {
+    const numAttr = measure.getAttribute('number');
+    const measureNum = numAttr ? parseInt(numAttr, 10) : 0;
+    if (measureNum < startBar || measureNum > endBar) return;
+
+    const notes = Array.from(measure.querySelectorAll('note'));
+    const toRemove: Element[] = [];
+
+    for (const noteEl of notes) {
+      const isChordNote = noteEl.querySelector('chord') !== null;
+      if (isChordNote) {
+        toRemove.push(noteEl);
+        continue;
+      }
+
+      const pitch = noteEl.querySelector('pitch');
+      if (!pitch) continue;
+
+      pitch.remove();
+      const restEl = doc.createElement('rest');
+      noteEl.insertBefore(restEl, noteEl.firstChild);
+
+      const accidental = noteEl.querySelector('accidental');
+      if (accidental) accidental.remove();
+      const stem = noteEl.querySelector('stem');
+      if (stem) stem.remove();
+      const beam = noteEl.querySelectorAll('beam');
+      beam.forEach(b => b.remove());
+      const notations = noteEl.querySelector('notations');
+      if (notations) notations.remove();
+      const lyric = noteEl.querySelector('lyric');
+      if (lyric) lyric.remove();
+    }
+
+    for (const el of toRemove) {
+      el.parentNode?.removeChild(el);
+    }
+  });
+}
+
+/**
  * リズム譜変換: 全ての音符の高さを一定にする
  * 符頭の高さを統一して表示し、リズムのみを視覚化
  * @param doc MusicXMLのDOMDocument
  */
-function convertToRhythmNotation(doc: Document): void {
+export function convertToRhythmNotation(doc: Document): void {
   // リズム譜で使用する標準ピッチ（B4 = 第3線上）
   const RHYTHM_PITCH = {
     step: 'B',

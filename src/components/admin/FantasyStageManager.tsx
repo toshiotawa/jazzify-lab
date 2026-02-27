@@ -85,6 +85,13 @@ interface StageFormValues {
   combined_section_measure_limits: (number | null)[];
   // アウフタクト
   is_auftakt: boolean;
+  // コールアンドレスポンス（progression_timing用）
+  call_response_enabled: boolean;
+  call_response_listen_bars: [number, number] | null;
+  call_response_play_bars: [number, number] | null;
+  // コールアンドレスポンス（timing_combining用: セクション別）
+  combined_section_listen_bars: ([number, number] | null)[];
+  combined_section_play_bars: ([number, number] | null)[];
 }
 
 const defaultValues: StageFormValues = {
@@ -124,6 +131,12 @@ const defaultValues: StageFormValues = {
   combined_section_measure_limits: [],
   // アウフタクト
   is_auftakt: false,
+  // コールアンドレスポンス
+  call_response_enabled: false,
+  call_response_listen_bars: null,
+  call_response_play_bars: null,
+  combined_section_listen_bars: [],
+  combined_section_play_bars: [],
 };
 
 // 楽譜モード用の音名リスト（プレフィックス付き）
@@ -363,6 +376,11 @@ const FantasyStageManager: React.FC = () => {
         combined_stage_ids: Array.isArray((s as any).combined_stage_ids) ? (s as any).combined_stage_ids : [],
         combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
         combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
+        call_response_enabled: !!(s as any).call_response_enabled,
+        call_response_listen_bars: Array.isArray((s as any).call_response_listen_bars) ? (s as any).call_response_listen_bars : null,
+        call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
+        combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
+        combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
       };
       reset(v);
     } catch (e: any) {
@@ -412,6 +430,12 @@ const FantasyStageManager: React.FC = () => {
       combined_section_measure_limits: v.mode === 'timing_combining' ? v.combined_section_measure_limits : null,
       // アウフタクト
       is_auftakt: v.is_auftakt,
+      // コールアンドレスポンス
+      call_response_enabled: v.mode === 'progression_timing' ? v.call_response_enabled : false,
+      call_response_listen_bars: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_listen_bars : null,
+      call_response_play_bars: (v.mode === 'progression_timing' && v.call_response_enabled) ? v.call_response_play_bars : null,
+      combined_section_listen_bars: v.mode === 'timing_combining' ? v.combined_section_listen_bars : null,
+      combined_section_play_bars: v.mode === 'timing_combining' ? v.combined_section_play_bars : null,
     };
 
     // モードに応じた不要フィールドの削除
@@ -477,6 +501,11 @@ const FantasyStageManager: React.FC = () => {
       combined_section_repeats: Array.isArray((s as any).combined_section_repeats) ? (s as any).combined_section_repeats : [],
       combined_section_measure_limits: Array.isArray((s as any).combined_section_measure_limits) ? (s as any).combined_section_measure_limits : [],
       is_auftakt: !!(s as any).is_auftakt,
+      call_response_enabled: !!(s as any).call_response_enabled,
+      call_response_listen_bars: Array.isArray((s as any).call_response_listen_bars) ? (s as any).call_response_listen_bars : null,
+      call_response_play_bars: Array.isArray((s as any).call_response_play_bars) ? (s as any).call_response_play_bars : null,
+      combined_section_listen_bars: Array.isArray((s as any).combined_section_listen_bars) ? (s as any).combined_section_listen_bars : [],
+      combined_section_play_bars: Array.isArray((s as any).combined_section_play_bars) ? (s as any).combined_section_play_bars : [],
     };
   }, []);
 
@@ -1292,6 +1321,88 @@ const FantasyStageManager: React.FC = () => {
               </Section>
             )}
 
+            {/* progression_timing 用: コールアンドレスポンス設定 */}
+            {mode === 'progression_timing' && (
+              <Section title="コールアンドレスポンス（C&R）">
+                <div className="flex items-center gap-3 mb-3">
+                  <input
+                    type="checkbox"
+                    className="toggle toggle-primary"
+                    checked={watch('call_response_enabled')}
+                    onChange={(e) => {
+                      setValue('call_response_enabled', e.target.checked);
+                      if (e.target.checked && !watch('call_response_listen_bars')) {
+                        setValue('call_response_listen_bars', [1, 4]);
+                        setValue('call_response_play_bars', [5, 8]);
+                      }
+                    }}
+                  />
+                  <span className="text-sm text-gray-300">C&Rを有効にする</span>
+                </div>
+                {watch('call_response_enabled') && (
+                  <div className="space-y-3 pl-2 border-l-2 border-blue-500/30">
+                    <p className="text-xs text-gray-400">
+                      リスニング小節ではノーツが生成されず、楽譜は休符表示になります。演奏小節で演奏してください。
+                    </p>
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs text-gray-300 min-w-[100px]">リスニング小節:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="input input-bordered input-sm w-20"
+                        placeholder="開始"
+                        value={watch('call_response_listen_bars')?.[0] ?? ''}
+                        onChange={(e) => {
+                          const cur = watch('call_response_listen_bars') || [1, 4];
+                          setValue('call_response_listen_bars', [parseInt(e.target.value) || 1, cur[1]]);
+                        }}
+                      />
+                      <span className="text-gray-400">〜</span>
+                      <input
+                        type="number"
+                        min={1}
+                        className="input input-bordered input-sm w-20"
+                        placeholder="終了"
+                        value={watch('call_response_listen_bars')?.[1] ?? ''}
+                        onChange={(e) => {
+                          const cur = watch('call_response_listen_bars') || [1, 4];
+                          setValue('call_response_listen_bars', [cur[0], parseInt(e.target.value) || 4]);
+                        }}
+                      />
+                      <span className="text-xs text-gray-500">小節</span>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <label className="text-xs text-gray-300 min-w-[100px]">演奏小節:</label>
+                      <input
+                        type="number"
+                        min={1}
+                        className="input input-bordered input-sm w-20"
+                        placeholder="開始"
+                        value={watch('call_response_play_bars')?.[0] ?? ''}
+                        onChange={(e) => {
+                          const cur = watch('call_response_play_bars') || [5, 8];
+                          setValue('call_response_play_bars', [parseInt(e.target.value) || 5, cur[1]]);
+                        }}
+                      />
+                      <span className="text-gray-400">〜</span>
+                      <input
+                        type="number"
+                        min={1}
+                        className="input input-bordered input-sm w-20"
+                        placeholder="終了"
+                        value={watch('call_response_play_bars')?.[1] ?? ''}
+                        onChange={(e) => {
+                          const cur = watch('call_response_play_bars') || [5, 8];
+                          setValue('call_response_play_bars', [cur[0], parseInt(e.target.value) || 8]);
+                        }}
+                      />
+                      <span className="text-xs text-gray-500">小節</span>
+                    </div>
+                  </div>
+                )}
+              </Section>
+            )}
+
             {/* timing_combining 用: 子ステージ選択 */}
             {mode === 'timing_combining' && (
               <Section title="結合するステージ（progression_timing）">
@@ -1306,8 +1417,14 @@ const FantasyStageManager: React.FC = () => {
                     const repeatCount = repeats[idx] ?? 1;
                     const limits = watch('combined_section_measure_limits') || [];
                     const measureLimit = limits[idx];
+                    const listenBarsArr = watch('combined_section_listen_bars') || [];
+                    const playBarsArr = watch('combined_section_play_bars') || [];
+                    const sectionListenBars = listenBarsArr[idx] ?? null;
+                    const sectionPlayBars = playBarsArr[idx] ?? null;
+                    const hasCR = sectionListenBars !== null || sectionPlayBars !== null;
                     return (
-                      <div key={`${stageId}_${idx}`} className="flex items-center gap-2 bg-gray-800/50 rounded px-3 py-2">
+                      <div key={`${stageId}_${idx}`} className="bg-gray-800/50 rounded px-3 py-2 space-y-1">
+                        <div className="flex items-center gap-2">
                         <span className="text-sm text-gray-300 w-8">{idx + 1}.</span>
                         <span className="flex-1 text-sm text-white truncate">
                           {foundStage ? `${foundStage.stage_number} - ${foundStage.name}` : stageId}
@@ -1356,16 +1473,24 @@ const FantasyStageManager: React.FC = () => {
                             const ids = [...(watch('combined_stage_ids') || [])];
                             const reps = [...(watch('combined_section_repeats') || [])];
                             const lims = [...(watch('combined_section_measure_limits') || [])];
+                            const lb = [...(watch('combined_section_listen_bars') || [])];
+                            const pb = [...(watch('combined_section_play_bars') || [])];
                             while (reps.length < ids.length) reps.push(1);
                             while (lims.length < ids.length) lims.push(null);
+                            while (lb.length < ids.length) lb.push(null);
+                            while (pb.length < ids.length) pb.push(null);
                             if (idx > 0) {
                               [ids[idx - 1], ids[idx]] = [ids[idx], ids[idx - 1]];
                               [reps[idx - 1], reps[idx]] = [reps[idx], reps[idx - 1]];
                               [lims[idx - 1], lims[idx]] = [lims[idx], lims[idx - 1]];
+                              [lb[idx - 1], lb[idx]] = [lb[idx], lb[idx - 1]];
+                              [pb[idx - 1], pb[idx]] = [pb[idx], pb[idx - 1]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
+                            setValue('combined_section_listen_bars', lb);
+                            setValue('combined_section_play_bars', pb);
                           }}
                         >▲</button>
                         <button
@@ -1376,16 +1501,24 @@ const FantasyStageManager: React.FC = () => {
                             const ids = [...(watch('combined_stage_ids') || [])];
                             const reps = [...(watch('combined_section_repeats') || [])];
                             const lims = [...(watch('combined_section_measure_limits') || [])];
+                            const lb = [...(watch('combined_section_listen_bars') || [])];
+                            const pb = [...(watch('combined_section_play_bars') || [])];
                             while (reps.length < ids.length) reps.push(1);
                             while (lims.length < ids.length) lims.push(null);
+                            while (lb.length < ids.length) lb.push(null);
+                            while (pb.length < ids.length) pb.push(null);
                             if (idx < ids.length - 1) {
                               [ids[idx], ids[idx + 1]] = [ids[idx + 1], ids[idx]];
                               [reps[idx], reps[idx + 1]] = [reps[idx + 1], reps[idx]];
                               [lims[idx], lims[idx + 1]] = [lims[idx + 1], lims[idx]];
+                              [lb[idx], lb[idx + 1]] = [lb[idx + 1], lb[idx]];
+                              [pb[idx], pb[idx + 1]] = [pb[idx + 1], pb[idx]];
                             }
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
+                            setValue('combined_section_listen_bars', lb);
+                            setValue('combined_section_play_bars', pb);
                           }}
                         >▼</button>
                         <button
@@ -1395,13 +1528,98 @@ const FantasyStageManager: React.FC = () => {
                             const ids = (watch('combined_stage_ids') || []).filter((_: string, i: number) => i !== idx);
                             const reps = [...(watch('combined_section_repeats') || [])];
                             const lims = [...(watch('combined_section_measure_limits') || [])];
+                            const lb = [...(watch('combined_section_listen_bars') || [])];
+                            const pb = [...(watch('combined_section_play_bars') || [])];
                             reps.splice(idx, 1);
                             lims.splice(idx, 1);
+                            lb.splice(idx, 1);
+                            pb.splice(idx, 1);
                             setValue('combined_stage_ids', ids);
                             setValue('combined_section_repeats', reps);
                             setValue('combined_section_measure_limits', lims);
+                            setValue('combined_section_listen_bars', lb);
+                            setValue('combined_section_play_bars', pb);
                           }}
                         >削除</button>
+                        </div>
+                        {/* C&R設定（セクション別） */}
+                        <div className="flex items-center gap-2 ml-8 flex-wrap">
+                          <label className="flex items-center gap-1 text-xs text-gray-500 shrink-0">
+                            <input
+                              type="checkbox"
+                              className="checkbox checkbox-xs"
+                              checked={hasCR}
+                              onChange={(e) => {
+                                const lbArr = [...(watch('combined_section_listen_bars') || [])];
+                                const pbArr = [...(watch('combined_section_play_bars') || [])];
+                                while (lbArr.length <= idx) lbArr.push(null);
+                                while (pbArr.length <= idx) pbArr.push(null);
+                                if (e.target.checked) {
+                                  lbArr[idx] = [1, 4];
+                                  pbArr[idx] = [5, 8];
+                                } else {
+                                  lbArr[idx] = null;
+                                  pbArr[idx] = null;
+                                }
+                                setValue('combined_section_listen_bars', lbArr);
+                                setValue('combined_section_play_bars', pbArr);
+                              }}
+                            />
+                            <span>C&R</span>
+                          </label>
+                          {hasCR && (
+                            <>
+                              <span className="text-xs text-gray-500">Listen:</span>
+                              <input
+                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                value={sectionListenBars?.[0] ?? ''}
+                                onChange={(e) => {
+                                  const arr = [...(watch('combined_section_listen_bars') || [])];
+                                  while (arr.length <= idx) arr.push(null);
+                                  const cur = arr[idx] || [1, 4];
+                                  arr[idx] = [parseInt(e.target.value) || 1, cur[1]];
+                                  setValue('combined_section_listen_bars', arr);
+                                }}
+                              />
+                              <span className="text-xs text-gray-500">〜</span>
+                              <input
+                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                value={sectionListenBars?.[1] ?? ''}
+                                onChange={(e) => {
+                                  const arr = [...(watch('combined_section_listen_bars') || [])];
+                                  while (arr.length <= idx) arr.push(null);
+                                  const cur = arr[idx] || [1, 4];
+                                  arr[idx] = [cur[0], parseInt(e.target.value) || 4];
+                                  setValue('combined_section_listen_bars', arr);
+                                }}
+                              />
+                              <span className="text-xs text-gray-500 ml-1">Play:</span>
+                              <input
+                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                value={sectionPlayBars?.[0] ?? ''}
+                                onChange={(e) => {
+                                  const arr = [...(watch('combined_section_play_bars') || [])];
+                                  while (arr.length <= idx) arr.push(null);
+                                  const cur = arr[idx] || [5, 8];
+                                  arr[idx] = [parseInt(e.target.value) || 5, cur[1]];
+                                  setValue('combined_section_play_bars', arr);
+                                }}
+                              />
+                              <span className="text-xs text-gray-500">〜</span>
+                              <input
+                                type="number" min={1} className="input input-bordered input-xs w-12 text-center"
+                                value={sectionPlayBars?.[1] ?? ''}
+                                onChange={(e) => {
+                                  const arr = [...(watch('combined_section_play_bars') || [])];
+                                  while (arr.length <= idx) arr.push(null);
+                                  const cur = arr[idx] || [5, 8];
+                                  arr[idx] = [cur[0], parseInt(e.target.value) || 8];
+                                  setValue('combined_section_play_bars', arr);
+                                }}
+                              />
+                            </>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
@@ -1415,9 +1633,13 @@ const FantasyStageManager: React.FC = () => {
                         const ids = [...(watch('combined_stage_ids') || []), selectedId];
                         const reps = [...(watch('combined_section_repeats') || []), 1];
                         const lims = [...(watch('combined_section_measure_limits') || []), null];
+                        const lb = [...(watch('combined_section_listen_bars') || []), null];
+                        const pb = [...(watch('combined_section_play_bars') || []), null];
                         setValue('combined_stage_ids', ids);
                         setValue('combined_section_repeats', reps);
                         setValue('combined_section_measure_limits', lims);
+                        setValue('combined_section_listen_bars', lb);
+                        setValue('combined_section_play_bars', pb);
                       }}
                     >
                       <option value="">-- ステージを追加 --</option>

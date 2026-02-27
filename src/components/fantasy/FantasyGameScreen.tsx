@@ -150,6 +150,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     simpleNoteName: boolean;
     keyboardNoteNameStyle: 'off' | 'abc' | 'solfege';
     showKeyboardGuide: boolean;
+    useRhythmNotation?: boolean;
   }) => {
     try {
       localStorage.setItem(FANTASY_SETTINGS_KEY, JSON.stringify(settings));
@@ -165,6 +166,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const [currentNoteNameLang, setCurrentNoteNameLang] = useState<DisplayOpts['lang']>(() => storedSettings?.noteNameLang ?? noteNameLang);
   const [currentSimpleNoteName, setCurrentSimpleNoteName] = useState(() => storedSettings?.simpleNoteName ?? simpleNoteName);
   const [keyboardNoteNameStyle, setKeyboardNoteNameStyle] = useState<'off' | 'abc' | 'solfege'>(() => storedSettings?.keyboardNoteNameStyle ?? 'abc'); // 鍵盤上の音名表示
+  const [useRhythmNotation, setUseRhythmNotation] = useState(() => storedSettings?.useRhythmNotation ?? false);
   
   // 魔法名表示状態 - 削除（パフォーマンス改善のため）
   
@@ -195,6 +197,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 移調練習用の状態（progression_timingモードかつ練習モードでのみ使用）
   const [transposeKeyOffset, setTransposeKeyOffset] = useState<number>(0); // -6 ~ +6
   const [repeatKeyChange, setRepeatKeyChange] = useState<RepeatKeyChange>('off');
+
+  // C&Rオーバーレイ状態
+  const [crOverlay, setCrOverlay] = useState<string | null>(null);
+  const crOverlayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastCrPhaseRef = useRef<string | null>(null);
   
   // 🚀 初期化完了状態を追跡
   const [isInitialized, setIsInitialized] = useState(false);
@@ -889,6 +896,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       ...stage,
       // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
       noteIntervalBeats: (stage as any).note_interval_beats ?? (stage as any).noteIntervalBeats,
+      // C&Rフィールドのマッピング
+      callResponseEnabled: !!(stage as any).call_response_enabled,
+      callResponseListenBars: (stage as any).call_response_listen_bars ?? undefined,
+      callResponsePlayBars: (stage as any).call_response_play_bars ?? undefined,
+      combinedSectionListenBars: (stage as any).combined_section_listen_bars ?? undefined,
+      combinedSectionPlayBars: (stage as any).combined_section_play_bars ?? undefined,
     };
     
     // 速度倍率を適用
@@ -1307,6 +1320,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return markers;
     })();
     
+    // C&R: リスニング/演奏小節情報（progression_timing用）
+    const crListenBars = stageData.callResponseEnabled ? stageData.callResponseListenBars : undefined;
+    const crPlayBars = stageData.callResponseEnabled ? stageData.callResponsePlayBars : undefined;
+    let lastCrPhase: string | null = null;
+
     // ★ シームレスループ: 表示ループ自身がオーディオのラップを検知し、
     // React state の更新を待たずに即座にノーツ表示を切り替える。
     // これにより state 更新のレイテンシ（useEffect → ref 伝播）による
@@ -1449,6 +1467,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           _prevMusicTime = currentTime;
           // #endregion
           fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+
+          // C&R: timing_combining セクション別オーバーレイ
+          if (section.listenBars && section.playBars) {
+            const sectionSecPerMeasureForCR = (60 / section.bpm) * section.timeSignature;
+            const currentBarInSection = Math.floor(currentTime / sectionSecPerMeasureForCR) + 1;
+            let crPhase: string | null = null;
+            if (currentBarInSection >= section.listenBars[0] && currentBarInSection <= section.listenBars[1]) {
+              crPhase = 'listen';
+            } else if (currentBarInSection >= section.playBars[0] && currentBarInSection <= section.playBars[1]) {
+              crPhase = 'play';
+            }
+            if (crPhase && crPhase !== lastCrPhase) {
+              const crText = crPhase === 'listen' ? 'Listen...' : 'Your Turn!';
+              setCrOverlay(crText);
+              if (crOverlayTimerRef.current) clearTimeout(crOverlayTimerRef.current);
+              crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
+            }
+            lastCrPhase = crPhase;
+          }
+
           fantasyPixiInstance.updateOverlayText(null);
           animationId = requestAnimationFrame(updateTaikoNotes);
           return;
@@ -1593,6 +1631,24 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // #endregion
       // PIXIレンダラーに更新を送信
       fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+
+      // C&R: リスニング/演奏フェーズの切り替えオーバーレイ
+      if (crListenBars && crPlayBars) {
+        const currentBar = Math.floor(normalizedTime / secPerMeasure) + 1;
+        let phase: string | null = null;
+        if (currentBar >= crListenBars[0] && currentBar <= crListenBars[1]) {
+          phase = 'listen';
+        } else if (currentBar >= crPlayBars[0] && currentBar <= crPlayBars[1]) {
+          phase = 'play';
+        }
+        if (phase && phase !== lastCrPhase) {
+          const text = phase === 'listen' ? 'Listen...' : 'Your Turn!';
+          setCrOverlay(text);
+          if (crOverlayTimerRef.current) clearTimeout(crOverlayTimerRef.current);
+          crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
+        }
+        lastCrPhase = phase;
+      }
 
       // オーバーレイテキスト（Harmony由来の text を拍に紐付け、次の text まで持続）
       if (overlayMarkers.length > 0) {
@@ -1895,6 +1951,35 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   </div>
                 )}
                 
+                {/* リズム譜表示チェックボックス（MusicXMLがある場合のみ） */}
+                {(stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && (currentSectionMusicXml || stage.music_xml) && (
+                  <div className="bg-gray-800/50 rounded-lg p-3 border border-gray-700">
+                    <label className="flex items-center gap-2 cursor-pointer">
+                      <input
+                        type="checkbox"
+                        className="checkbox checkbox-sm checkbox-primary"
+                        checked={useRhythmNotation}
+                        onChange={(e) => {
+                          setUseRhythmNotation(e.target.checked);
+                          saveFantasySettings({
+                            noteNameLang: currentNoteNameLang,
+                            simpleNoteName: currentSimpleNoteName,
+                            keyboardNoteNameStyle,
+                            showKeyboardGuide,
+                            useRhythmNotation: e.target.checked,
+                          });
+                        }}
+                      />
+                      <span className="text-sm text-gray-300">
+                        {isEnglishCopy ? 'Rhythm Notation' : 'リズム譜表示'}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        ({isEnglishCopy ? 'Fixed pitch display' : '音の高さを固定'})
+                      </span>
+                    </label>
+                  </div>
+                )}
+
                 {/* 速度選択ドロップダウン + 練習開始ボタン */}
                 <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
                   <div className="flex items-center gap-2">
@@ -2390,6 +2475,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             nextBpm={nextSectionSheetInfo?.bpm}
             nextTimeSignature={nextSectionSheetInfo?.timeSignature}
             nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
+            listenBars={
+              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex]?.listenBars)
+                ? gameState.combinedSections[gameState.currentSectionIndex].listenBars
+                : ((stage as any).call_response_enabled && (stage as any).call_response_listen_bars)
+                  ? (stage as any).call_response_listen_bars
+                  : undefined
+            }
+            useRhythmNotation={useRhythmNotation}
             className="w-full h-full"
           />
         </div>
@@ -2579,6 +2672,20 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         <div className="absolute inset-0 flex items-center justify-center z-[9999] pointer-events-none">
           <span className="font-sans text-6xl text-white drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]">
             {overlay.text}
+          </span>
+        </div>
+      )}
+
+      {/* C&R オーバーレイ (Listen... / Your Turn!) */}
+      {crOverlay && (
+        <div className="absolute inset-0 flex items-center justify-center z-[9997] pointer-events-none animate-fade-in">
+          <span className={cn(
+            "font-sans text-4xl font-bold px-8 py-3 rounded-2xl drop-shadow-[0_4px_8px_rgba(0,0,0,0.8)]",
+            crOverlay === 'Listen...'
+              ? "text-cyan-300 bg-cyan-900/50 border border-cyan-500/40"
+              : "text-amber-300 bg-amber-900/50 border border-amber-500/40"
+          )}>
+            {crOverlay}
           </span>
         </div>
       )}

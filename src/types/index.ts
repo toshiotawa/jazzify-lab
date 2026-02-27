@@ -600,6 +600,13 @@ export interface FantasyStage {
   combined_section_measure_limits?: (number | null)[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   is_auftakt?: boolean;
+  // コールアンドレスポンス（progression_timing用）
+  call_response_enabled?: boolean;
+  call_response_listen_bars?: [number, number]; // [startBar, endBar] リスニング小節範囲
+  call_response_play_bars?: [number, number];   // [startBar, endBar] 演奏小節範囲
+  // コールアンドレスポンス（timing_combining用: セクション別）
+  combined_section_listen_bars?: ([number, number] | null)[];
+  combined_section_play_bars?: ([number, number] | null)[];
 }
 
 // ファンタジーステージクリア記録

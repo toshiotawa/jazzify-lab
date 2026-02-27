@@ -187,6 +187,13 @@ export interface FantasyStage {
   combinedSectionMeasureLimits?: (number | null)[];
   // アウフタクト（弱起）: trueの場合、1回目のループでカウントイン小節にもノーツを生成
   isAuftakt?: boolean;
+  // コールアンドレスポンス（progression_timing用）
+  callResponseEnabled?: boolean;
+  callResponseListenBars?: [number, number];
+  callResponsePlayBars?: [number, number];
+  // コールアンドレスポンス（timing_combining用: セクション別）
+  combinedSectionListenBars?: ([number, number] | null)[];
+  combinedSectionPlayBars?: ([number, number] | null)[];
 }
 
 export interface MonsterState {
@@ -220,6 +227,8 @@ export interface CombinedSection {
   globalNoteStartIndex: number; // 統合taikoNotes配列での開始インデックス
   globalNoteEndIndex: number; // 統合taikoNotes配列での終了インデックス（排他的）
   sectionDuration: number; // カウントイン + 本編小節の合計時間（秒）
+  listenBars?: [number, number]; // C&R: リスニング小節範囲（ノーツなし）
+  playBars?: [number, number];   // C&R: 演奏小節範囲
 }
 
 export interface FantasyGameState {
@@ -1668,6 +1677,8 @@ export const useFantasyGameEngine = ({
             let globalNoteIndex = 0;
             const repeats = stage.combinedSectionRepeats;
             const measureLimits = stage.combinedSectionMeasureLimits;
+            const sectionListenBarsAll = stage.combinedSectionListenBars;
+            const sectionPlayBarsAll = stage.combinedSectionPlayBars;
             
             for (let stageIdx = 0; stageIdx < stage.combinedStages.length; stageIdx++) {
               const childStage = stage.combinedStages[stageIdx];
@@ -1683,6 +1694,10 @@ export const useFantasyGameEngine = ({
                 ? Math.min(measureLimits[stageIdx]!, originalMeasureCount)
                 : null;
               const effectiveMeasureCount = measureLimit ?? originalMeasureCount;
+
+              // C&R設定（セクション別）
+              const sectionListenBars = sectionListenBarsAll?.[stageIdx] ?? null;
+              const sectionPlayBars = sectionPlayBarsAll?.[stageIdx] ?? null;
               
               let progressionData: ChordProgressionDataItem[] | null = null;
               if (childStage.musicXml) {
@@ -1708,6 +1723,12 @@ export const useFantasyGameEngine = ({
                 if (measureLimit != null && filteredProgression) {
                   const maxBar = (isAuftakt ? childCountIn : 0) + measureLimit;
                   filteredProgression = filteredProgression.filter(item => item.bar <= maxBar);
+                }
+
+                // C&R: リスニング小節のノーツを除外
+                if (sectionListenBars && filteredProgression) {
+                  const [lStart, lEnd] = sectionListenBars;
+                  filteredProgression = filteredProgression.filter(item => item.bar < lStart || item.bar > lEnd);
                 }
                 
                 let sectionMusicXml = childStage.musicXml;
@@ -1743,6 +1764,8 @@ export const useFantasyGameEngine = ({
                   globalNoteStartIndex: globalNoteIndex,
                   globalNoteEndIndex: globalNoteIndex + sectionNotes.length,
                   sectionDuration,
+                  listenBars: sectionListenBars ?? undefined,
+                  playBars: sectionPlayBars ?? undefined,
                 };
                 combinedSections.push(section);
                 
@@ -1790,6 +1813,11 @@ export const useFantasyGameEngine = ({
           }
 
           if (progressionData) {
+            // C&R: リスニング小節のノーツを除外
+            if (stage.callResponseEnabled && stage.callResponseListenBars) {
+              const [lStart, lEnd] = stage.callResponseListenBars;
+              progressionData = progressionData.filter(item => item.bar < lStart || item.bar > lEnd);
+            }
             taikoNotes = parseChordProgressionData(
               progressionData,
               stage.bpm || 120,
