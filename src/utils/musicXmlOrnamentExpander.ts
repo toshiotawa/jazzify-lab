@@ -268,24 +268,12 @@ export function expandOrnament(
   const upperName = midiToNoteName(upper, useFlatNames);
   const lowerName = midiToNoteName(lower, useFlatNames);
 
-  // 32分音符 = 1拍(quarter)の1/8
-  const thirtySecond = Math.max(1, Math.round(divisionsPerQuarter / 8));
-  // 装飾ノートの最小 duration (全体の 1/4 を目安、trill/turn 用)
-  const ornUnit = Math.max(1, Math.floor(durationDivisions / 4));
-
-  // clampLast: 展開後の合計が durationDivisions を超えないよう最後のノートを制限
-  const clampLast = (notes: ExpandedNote[]): ExpandedNote[] => {
-    let used = 0;
-    for (let i = 0; i < notes.length - 1; i += 1) used += notes[i].durationDivisions;
-    const last = notes[notes.length - 1];
-    last.durationDivisions = Math.max(1, durationDivisions - used);
-    return notes;
-  };
+  // 32分音符 = 1拍(quarter)の1/8 — 全装飾音の基準単位
+  const thirtySecond = divisionsPerQuarter / 8;
 
   switch (ornament.type) {
     case 'mordent': {
       // 主音(32分) → 下隣接音(32分) → 主音(残り)
-      // 装飾音の合計が durationDivisions を超えないようクランプ
       const ornDur = Math.min(thirtySecond, durationDivisions / 3);
       const mRemaining = durationDivisions - 2 * ornDur;
       return [
@@ -309,10 +297,8 @@ export function expandOrnament(
     case 'trill-mark':
     case 'wavy-line':
     case 'shake': {
-      // 主音と上隣接音の交互 (trill / wavy-line / shake)
-      // 奇数個の音で生成し、必ず main で終了する
-      const thirtySecondDiv = divisionsPerQuarter / 8;
-      let noteCount = Math.max(5, Math.round(durationDivisions / thirtySecondDiv));
+      // 主音と上隣接音の交互 — 32分音符ベースで奇数個生成
+      let noteCount = Math.max(5, Math.round(durationDivisions / thirtySecond));
       if (noteCount % 2 === 0) noteCount--;
       const tUnit = durationDivisions / noteCount;
       const notes: ExpandedNote[] = [];
@@ -329,27 +315,28 @@ export function expandOrnament(
     }
 
     case 'turn': {
-      // 上→主→下→主
-      const tUnit = Math.max(1, Math.floor(durationDivisions / 4));
-      return clampLast([
+      // 上(32分) → 主(32分) → 下(32分) → 主(残り)
+      const tUnit = Math.min(thirtySecond, durationDivisions / 4);
+      const turnRemaining = durationDivisions - 3 * tUnit;
+      return [
         { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
         { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
         { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
-      ]);
+        { pitch: mainPitch, durationDivisions: turnRemaining, isOrnament: false, noteName: mainNoteName },
+      ];
     }
 
     case 'delayed-turn': {
-      // 主音(前半) → 上→主→下→主
-      const half = Math.floor(durationDivisions / 2);
-      const tUnit = Math.max(1, Math.floor(half / 4));
-      return clampLast([
-        { pitch: mainPitch, durationDivisions: half, isOrnament: false, noteName: mainNoteName },
-        { pitch: upper, durationDivisions: tUnit, isOrnament: true, noteName: upperName },
-        { pitch: mainPitch, durationDivisions: tUnit, isOrnament: true, noteName: mainNoteName },
-        { pitch: lower, durationDivisions: tUnit, isOrnament: true, noteName: lowerName },
-        { pitch: mainPitch, durationDivisions: 0, isOrnament: false, noteName: mainNoteName },
-      ]);
+      // 主音(持続) → 上(32分) → 主(32分) → 下(32分) → 主(32分)
+      const dtUnit = Math.min(thirtySecond, durationDivisions / 5);
+      const sustained = durationDivisions - 4 * dtUnit;
+      return [
+        { pitch: mainPitch, durationDivisions: sustained, isOrnament: false, noteName: mainNoteName },
+        { pitch: upper, durationDivisions: dtUnit, isOrnament: true, noteName: upperName },
+        { pitch: mainPitch, durationDivisions: dtUnit, isOrnament: true, noteName: mainNoteName },
+        { pitch: lower, durationDivisions: dtUnit, isOrnament: true, noteName: lowerName },
+        { pitch: mainPitch, durationDivisions: dtUnit, isOrnament: false, noteName: mainNoteName },
+      ];
     }
 
     default:
