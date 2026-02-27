@@ -362,18 +362,47 @@ export function expandOrnament(
 
 /**
  * grace notes を ExpandedNote[] に変換
+ *
+ * バロック長前打音ルール (slash="no"):
+ *   - 付点なし主音 → 前打音が主音 duration の 1/2 を取る
+ *   - 付点あり主音 → 前打音が主音 duration の 2/3 を取る
+ *   - 拍の上 (on-beat) に配置し、主音をその分後ろにずらす
+ *
+ * 短前打音 (slash="yes" / acciaccatura):
+ *   - 主音 duration の 1/4 を上限として短く配置
+ *   - 拍の前 (before-beat) に配置（従来動作）
+ *
  * @param graceNotes 装飾音符情報配列
  * @param mainNoteDuration 主音の duration (divisions)
- * @returns [graceExpandedNotes, 主音から差し引く divisions]
+ * @param isDotted 主音が付点かどうか
+ * @returns [graceExpandedNotes, 主音から差し引く divisions, 長前打音か]
  */
 export function expandGraceNotes(
   graceNotes: GraceNoteInfo[],
   mainNoteDuration: number,
-): [ExpandedNote[], number] {
-  if (graceNotes.length === 0) return [[], 0];
+  isDotted = false,
+): [ExpandedNote[], number, boolean] {
+  if (graceNotes.length === 0) return [[], 0, false];
 
-  // 各 grace note に割り当てる duration:
-  // 主音の 1/8 を上限として均等割り
+  const isLong = graceNotes.some(g => !g.isSlash);
+
+  if (isLong) {
+    const ratio = isDotted ? 2 / 3 : 1 / 2;
+    const graceTotal = Math.max(1, Math.round(mainNoteDuration * ratio));
+    const eachDur = Math.max(1, Math.floor(graceTotal / graceNotes.length));
+    const actualTotal = eachDur * graceNotes.length;
+
+    const expanded: ExpandedNote[] = graceNotes.map((g) => ({
+      pitch: g.pitch,
+      durationDivisions: eachDur,
+      isOrnament: true,
+      noteName: g.noteName,
+    }));
+
+    return [expanded, actualTotal, true];
+  }
+
+  // 短前打音: 主音の 1/4 を上限として均等割り
   const graceTotal = Math.min(
     Math.floor(mainNoteDuration / 4),
     Math.max(graceNotes.length, 1),
@@ -388,7 +417,7 @@ export function expandGraceNotes(
     noteName: g.noteName,
   }));
 
-  return [expanded, actualTotal];
+  return [expanded, actualTotal, false];
 }
 
 /**

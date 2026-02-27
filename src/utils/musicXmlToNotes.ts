@@ -256,6 +256,10 @@ export function parseMusicXmlToNoteData(
 
   const collected: RawParsedNote[] = [];
 
+  // タイチェーン追跡: 先頭ノートの duration を累積するためのマップ
+  // key = "pitch:voice:staff", value = collected 配列のインデックス
+  const activeTies = new Map<string, number>();
+
   for (const measureEl of measures) {
     // ---- attributes 更新 ----
     const divEl = measureEl.querySelector('attributes > divisions');
@@ -344,12 +348,39 @@ export function parseMusicXmlToNoteData(
       // 和音 (<chord>) なら位置を戻さない
       const isChord = noteEl.querySelector('chord') !== null;
 
-      // タイ処理: stop のみ(start なし) → スキップ
+      // タイ処理: tie-stop を持つノートはすべてスキップ（中間ノート含む）
+      // 先頭ノートの durationSec に累積する
       const { hasStart: hasTieStart, hasStop: hasTieStop } = getTieTypes(noteEl);
-      if (hasTieStop && !hasTieStart) {
+      if (hasTieStop) {
+        const dur = parseInt(noteEl.querySelector('duration')?.textContent ?? '0', 10);
         if (!isChord) {
-          const dur = parseInt(noteEl.querySelector('duration')?.textContent ?? '0', 10);
           posInDivisions += isNaN(dur) ? 0 : dur;
+        }
+
+        // ピッチ取得して先頭ノートの duration を累積
+        const tPitchEl = noteEl.querySelector('pitch');
+        if (tPitchEl) {
+          const tStep = tPitchEl.querySelector('step')?.textContent ?? 'C';
+          const tAlter = parseInt(tPitchEl.querySelector('alter')?.textContent ?? '0', 10);
+          const tOctave = parseInt(tPitchEl.querySelector('octave')?.textContent ?? '4', 10);
+          const tPitch = stepAlterOctaveToMidi(tStep, tAlter, tOctave);
+          const tVoice = parseInt(noteEl.querySelector('voice')?.textContent ?? '1', 10);
+          const tStaffNum = parseInt(noteEl.querySelector('staff')?.textContent ?? '0', 10);
+          const tStaff = tStaffNum > 0 ? tStaffNum : (tVoice <= 1 ? 1 : 2);
+          const tieKey = `${tPitch}:${tVoice}:${tStaff}`;
+
+          const origIdx = activeTies.get(tieKey);
+          if (origIdx !== undefined && origIdx < collected.length) {
+            const tieNotePos = isChord ? lastNonChordPos : (posInDivisions - (isNaN(dur) ? 0 : dur));
+            const addedSec = divisionsToSeconds(absDivisionsBase + tieNotePos, dur, tempo, divisionsPerQuarter);
+            collected[origIdx].durationSec += addedSec;
+          }
+
+          if (hasTieStart) {
+            // チェーン継続: 同じ先頭ノートを追跡し続ける
+          } else {
+            activeTies.delete(tieKey);
+          }
         }
         continue;
       }
@@ -383,25 +414,47 @@ export function parseMusicXmlToNoteData(
       }
       const noteTime = currentTimeBase + divisionsToSeconds(absDivisionsBase, notePos, tempo, divisionsPerQuarter);
 
-      // ---- grace notes (主音の直前) ----
+      // ---- grace notes ----
       const graceNotes = collectGraceNotesBefore(elements, idx);
-      const [graceExpanded, graceDivStolen] = expandGraceNotes(graceNotes, duration);
+      const isDotted = noteEl.querySelector('dot') !== null;
+      const [graceExpanded, graceDivStolen, isLongAppoggiatura] = expandGraceNotes(graceNotes, duration, isDotted);
       const effectiveDuration = Math.max(1, duration - graceDivStolen);
 
-      // grace note を追加
+      // grace note の時間差 (秒)
+      const graceStolenSec = graceDivStolen > 0
+        ? divisionsToSeconds(absDivisionsBase + notePos, graceDivStolen, tempo, divisionsPerQuarter)
+        : 0;
+
+      // grace notes を追加
       let graceOffset = 0;
       for (const gn of graceExpanded) {
-        const graceAbsDiv = absDivisionsBase + notePos - graceDivStolen + graceOffset;
+        let graceTime: number;
+        if (isLongAppoggiatura) {
+          // 長前打音: 拍の上 (on-beat) に配置
+          graceTime = noteTime + divisionsToSeconds(absDivisionsBase + notePos, graceOffset, tempo, divisionsPerQuarter);
+        } else {
+          // 短前打音: 拍の前 (before-beat) に配置
+          const graceAbsDiv = absDivisionsBase + notePos - graceDivStolen + graceOffset;
+          graceTime = noteTime - divisionsToSeconds(graceAbsDiv, graceDivStolen - graceOffset, tempo, divisionsPerQuarter);
+        }
         collected.push({
-          time: noteTime - divisionsToSeconds(graceAbsDiv, graceDivStolen - graceOffset, tempo, divisionsPerQuarter),
+          time: graceTime,
           pitch: gn.pitch,
           noteName: gn.noteName,
           isOrnament: true,
           staff: noteStaff,
-          durationSec: divisionsToSeconds(graceAbsDiv, gn.durationDivisions, tempo, divisionsPerQuarter),
+          durationSec: divisionsToSeconds(
+            absDivisionsBase + notePos + graceOffset,
+            gn.durationDivisions,
+            tempo,
+            divisionsPerQuarter,
+          ),
         });
         graceOffset += gn.durationDivisions;
       }
+
+      // 長前打音の場合、主音の開始時刻を前打音の後ろにずらす
+      const mainNoteTime = isLongAppoggiatura ? noteTime + graceStolenSec : noteTime;
 
       // ---- 装飾記号 (ornaments) ----
       const ornament = detectOrnaments(noteEl);
@@ -419,25 +472,31 @@ export function parseMusicXmlToNoteData(
         let offset = 0;
         for (const en of expanded) {
           collected.push({
-            time: noteTime + divisionsToSeconds(absDivisionsBase + notePos, offset, tempo, divisionsPerQuarter),
+            time: mainNoteTime + divisionsToSeconds(absDivisionsBase + notePos + graceDivStolen, offset, tempo, divisionsPerQuarter),
             pitch: en.pitch,
             noteName: en.noteName,
             isOrnament: en.isOrnament,
             staff: noteStaff,
-            durationSec: divisionsToSeconds(absDivisionsBase + notePos + offset, en.durationDivisions, tempo, divisionsPerQuarter),
+            durationSec: divisionsToSeconds(absDivisionsBase + notePos + graceDivStolen + offset, en.durationDivisions, tempo, divisionsPerQuarter),
           });
           offset += en.durationDivisions;
         }
       } else {
         // 通常ノート
         collected.push({
-          time: noteTime,
+          time: mainNoteTime,
           pitch: mainPitch,
           noteName: mainName,
           isOrnament: false,
           staff: noteStaff,
-          durationSec: divisionsToSeconds(absDivisionsBase + notePos, effectiveDuration, tempo, divisionsPerQuarter),
+          durationSec: divisionsToSeconds(absDivisionsBase + notePos + graceDivStolen, effectiveDuration, tempo, divisionsPerQuarter),
         });
+      }
+
+      // タイ開始ノートを追跡（先頭ノートの duration 累積用）
+      if (hasTieStart && !hasTieStop) {
+        const tieKey = `${mainPitch}:${voiceNum}:${noteStaff}`;
+        activeTies.set(tieKey, collected.length - 1);
       }
 
       // 位置を進める (和音でなければ)

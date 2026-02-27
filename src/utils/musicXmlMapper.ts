@@ -7,7 +7,6 @@ import {
   expandOrnament,
   isGraceNote,
   collectGraceNotesBefore,
-  expandGraceNotes,
   getKeyFifths,
   stepAlterOctaveToMidi,
   stepAlterToDisplayName,
@@ -41,9 +40,9 @@ export function extractPlayableNoteNames(doc: Document): string[] {
       return;
     }
     
-    // Skip tie stop (後ろ側)
-    const { hasStart: tieStart, hasStop: tieStop } = getTieTypes(noteEl);
-    if (tieStop && !tieStart) {
+    // Skip tie stop (後ろ側 + チェーン中間ノート)
+    const { hasStop: tieStop } = getTieTypes(noteEl);
+    if (tieStop) {
       skippedTies++;
       return;
     }
@@ -97,9 +96,9 @@ export function extractPlayableNoteNamesWithOrnaments(doc: Document): string[] {
       // Skip rests
       if (el.querySelector('rest')) continue;
 
-      // Skip tie-stop only
-      const { hasStart: tStart, hasStop: tStop } = getTieTypes(el);
-      if (tStop && !tStart) {
+      // Skip tie-stop (チェーン中間ノート含む)
+      const { hasStop: tStop } = getTieTypes(el);
+      if (tStop) {
         continue;
       }
 
@@ -200,9 +199,9 @@ function extractNotePositions(doc: Document): MusicXmlNotePosition[] {
         return;
       }
       
-      // Skip tie stop (後ろ側)
-      const { hasStart: npTieStart, hasStop: npTieStop } = getTieTypes(noteEl);
-      if (npTieStop && !npTieStart) {
+      // Skip tie stop (後ろ側 + チェーン中間ノート)
+      const { hasStop: npTieStop } = getTieTypes(noteEl);
+      if (npTieStop) {
         const durationEl = noteEl.querySelector('duration');
         if (durationEl) {
           currentPosition += parseInt(durationEl.textContent || '0', 10);
