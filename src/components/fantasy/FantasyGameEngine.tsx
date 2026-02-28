@@ -1123,13 +1123,13 @@ export const useFantasyGameEngine = ({
     // 負の値を modulo すると loopDuration 付近にラップし、偽ループ境界検出の原因になる。
     const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
     const lastNormToStore = currentTime < -0.01 ? -1 : normalizedTime;
-    lastNormalizedTimeRef.current = lastNormToStore;
 
     // ★ ループ境界検出: タイマー（updateEnemyGauge）に先行して、
     // 同一の setGameState 更新内でリセットを原子的に適用する。
     // これにより、ヒット処理とリセットのレースコンディションを根本排除する。
     let workingState = prevState;
     const lastNorm = lastNormalizedTimeRef.current;
+    lastNormalizedTimeRef.current = lastNormToStore;
     if (lastNorm >= 0 && currentTime >= -0.01) {
       const loopTimeDiff = lastNorm - normalizedTime;
       const isSignificantJump = loopTimeDiff > loopDuration * 0.5;
