@@ -298,6 +298,7 @@ const FantasyMain: React.FC = () => {
             playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
             isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
             sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+            required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
             musicXml: (stage as any).music_xml,
             combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
             combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
@@ -360,6 +361,7 @@ const FantasyMain: React.FC = () => {
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
+          required_clears_for_next: (stage as any).required_clears_for_next ?? 5,
           musicXml: (stage as any).music_xml,
           combinedStageIds: (stage as any).combined_stage_ids ?? undefined,
           combinedSectionRepeats: (stage as any).combined_section_repeats ?? undefined,
@@ -740,6 +742,7 @@ const FantasyMain: React.FC = () => {
         // 楽譜モード
         isSheetMusicMode: !!(nextStageData as any).is_sheet_music_mode,
         sheetMusicClef: (nextStageData as any).sheet_music_clef || 'treble',
+        required_clears_for_next: (nextStageData as any).required_clears_for_next ?? 5,
         musicXml: (nextStageData as any).music_xml,
         combinedStageIds: (nextStageData as any).combined_stage_ids ?? undefined,
         combinedSectionRepeats: (nextStageData as any).combined_section_repeats ?? undefined,

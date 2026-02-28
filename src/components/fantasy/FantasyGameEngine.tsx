@@ -164,6 +164,8 @@ export interface FantasyStage {
   tier?: 'basic' | 'advanced';
   // 追加: 1小節内のノート間隔（太鼓進行のシンプル生成で使用）
   noteIntervalBeats?: number;
+  // 次ステージ開放に必要なクリア換算回数（Sランク=10回換算、それ以外=1回）
+  required_clears_for_next?: number;
   // 楽譜モード: true の場合、敵のアイコンを楽譜画像に置き換え
   isSheetMusicMode?: boolean;
   // 楽譜タイプ: treble=ト音記号, bass=ヘ音記号
