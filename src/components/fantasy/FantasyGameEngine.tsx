@@ -955,6 +955,9 @@ export const useFantasyGameEngine = ({
     // コード完成判定（handleTaikoModeInput と同等）
     const currentMonster = prevState.activeMonsters[0];
     if (!currentMonster) return prevState;
+
+    // 撃破済みモンスター（defeatedAt設定済み）への二重カウント防止
+    if (currentMonster.defeatedAt !== undefined) return prevState;
     
     const effectiveChord = chosen.n.chord;
     const targetNotesMod12: number[] = Array.from(new Set<number>(effectiveChord.notes.map((n: number) => n % 12)));
@@ -1349,6 +1352,11 @@ export const useFantasyGameEngine = ({
     // 現在のモンスターの正解済み音を更新
     const currentMonster = workingState.activeMonsters[0];
     if (!currentMonster) return { ...workingState, lastNormalizedTime: lastNormToStore };
+
+    // 撃破済みモンスター（defeatedAt設定済み）への二重カウント防止
+    if (currentMonster.defeatedAt !== undefined) {
+      return { ...workingState, lastNormalizedTime: lastNormToStore };
+    }
 
     // 移調ループの場合、次のループのノーツは移調後のコードを使用
     const effectiveChord = chosen.nextLoopChord || chosenNote.chord;
@@ -3170,8 +3178,8 @@ export const useFantasyGameEngine = ({
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
         
-        // 既に完成しているモンスターや、入力音と関係ないモンスターはスキップ
-        if (!targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
+        // 撃破済みモンスターや、既に完成しているモンスター、入力音と関係ないモンスターはスキップ
+        if (monster.defeatedAt !== undefined || !targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
             return monster;
         }
         
