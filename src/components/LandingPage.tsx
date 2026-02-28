@@ -166,20 +166,20 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
-                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-2xl shadow-2xl" style={{ border: '1px solid rgba(200,162,77,0.12)' }} />
+                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
                     <TypewriterText
                       text={heroTitleText}
-                    className="lp-display text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
+                    className="lp-display-hero text-5xl sm:text-6xl md:text-8xl font-black mb-6 section-title"
                     dataAnimate="from-behind heading-underline"
                     speedMsPerChar={110}
                     delayMs={100}
                   />
                     <TypewriterText
                       text={heroSubtitleText}
-                    className="text-lg sm:text-xl md:text-2xl mb-8"
+                    className="text-lg sm:text-xl md:text-2xl mb-10"
                     dataAnimate="from-behind"
                     speedMsPerChar={120}
                     delayMs={1000}
@@ -189,7 +189,7 @@ const LandingPage: React.FC = () => {
                   <Link
                       to="/signup"
                       aria-label={heroCtaAria}
-                    className="lp-btn-gold inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg shadow-lg"
+                    className="lp-btn-gold inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg"
                   >
                       {primaryCtaLabel}
                   </Link>
@@ -207,10 +207,13 @@ const LandingPage: React.FC = () => {
         {/* ===== English sections ===== */}
         {isEnglishLanding && (
           <>
-            <section id="pricing" className="py-20 story-gradient" data-animate="slide-right text-up">
+            <div className="lp-gold-rule my-8" />
+            <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
               <div className="container mx-auto px-6">
-                <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
-                  <img src="/stage_icons/10.png" alt="Pricing" className="w-16 h-16" />
+                <div className="text-center mb-6">
+                  <span className="lp-section-label" data-animate="from-behind">001 — pricing</span>
+                </div>
+                <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title" data-animate="from-behind heading-underline">
                   Pricing
                 </h2>
                 <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
@@ -229,27 +232,30 @@ const LandingPage: React.FC = () => {
               </div>
             </section>
 
-            <section id="faq" className="py-20" data-animate="slide-left text-up">
+            <div className="lp-gold-rule my-8" />
+            <section id="faq" className="py-24 sm:py-32" data-animate="slide-left text-up">
               <div className="container mx-auto px-6">
-                <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
-                  <img src="/stage_icons/1.png" alt="FAQ" className="w-16 h-16" />
+                <div className="text-center mb-6">
+                  <span className="lp-section-label" data-animate="from-behind">002 — faq</span>
+                </div>
+                <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title" data-animate="from-behind heading-underline">
                   FAQ
                 </h2>
-                <div className="max-w-4xl mx-auto space-y-6" data-animate="alt-cards text-up">
+                <div className="max-w-3xl mx-auto" data-animate="alt-cards text-up">
                   {(Array.from([1, 2, 3]) as number[]).map((id) => (
-                    <div key={id} className="faq-item rounded-xl p-6">
+                    <div key={id} className="faq-item py-6">
                       <button
-                        className="w-full flex items-center justify-between cursor-pointer"
+                        className="w-full flex items-center justify-between cursor-pointer text-left gap-4"
                         onClick={() => toggleFAQ(id)}
                         aria-expanded={openFaqId === id}
                         aria-controls={`faq-content-en-${id}`}
                       >
-                        <h3 className="text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
+                        <h3 className="text-base sm:text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
                           {id === 1 && 'What devices can I use?'}
                           {id === 2 && 'How do I use MIDI devices on iOS (iPhone/iPad)?'}
                           {id === 3 && 'Can I cancel anytime?'}
                         </h3>
-                        <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ color: 'var(--lp-gold)' }}></i>
+                        <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} shrink-0`} style={{ color: 'var(--lp-gold-dim)' }}></i>
                       </button>
                       <div
                         id={`faq-content-en-${id}`}
@@ -285,100 +291,107 @@ const LandingPage: React.FC = () => {
         {/* ===== Japanese sections ===== */}
         {!isEnglishLanding && (
           <>
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* 成果セクション */}
-        <section className="py-16 sm:py-20" data-animate="slide-left text-up">
+        <section className="py-24 sm:py-32" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">001 — learn</span>
+            </div>
             <h2
-              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title"
+              className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
               data-animate="from-behind heading-underline"
             >
               Jazzifyで身につくこと
             </h2>
-            <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
-              <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
+            <div className="grid md:grid-cols-3 gap-12 max-w-5xl mx-auto" data-animate="alt-cards text-up">
+              <div className="text-center p-8">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
                   <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
-                <p style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
+                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
               </div>
-              <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
+              <div className="text-center p-8">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
                   <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold mb-2" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
-                <p style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
+                <h3 className="text-xl font-bold mb-3" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
               </div>
-              <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
+              <div className="text-center p-8">
+                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
                   <img src="/stage_icons/3.png" alt="体系的レッスン" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold mb-2" style={{ color: '#7db4d8' }}>基礎から体系的にレッスン</h3>
-                <p style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、何から始めればいいか迷わない</p>
+                <h3 className="text-xl font-bold mb-3" style={{ color: '#7db4d8' }}>基礎から体系的にレッスン</h3>
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、何から始めればいいか迷わない</p>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* 学習モード */}
-        <section id="modes" className="py-16 sm:py-20 story-gradient" data-animate="slide-right text-up">
+        <section id="modes" className="py-24 sm:py-32" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">002 — modes</span>
+            </div>
             <h2
-              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title flex items-center justify-center gap-4"
+              className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
               data-animate="from-behind heading-underline"
             >
-              <img src="/stage_icons/1.png" alt="学習モード" className="w-16 h-16" loading="lazy" />
               学習モード
             </h2>
 
-            <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
-              <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
+            <div className="grid lg:grid-cols-3 gap-10 max-w-5xl mx-auto" data-animate="alt-cards text-up">
+              <div className="feature-card rounded-lg overflow-hidden text-center">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
                   <img src="/regend_demo.png" alt="レジェンドモード：楽譜とピアノロールで名演ソロを再現" className="w-full h-full object-cover" loading="lazy" />
                 </div>
-                <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
-                    <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-12 h-12 object-contain" loading="lazy" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>レジェンドモード</h3>
-                  <p style={{ color: 'var(--lp-cream-muted)' }}>巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
+                <div className="p-8">
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>レジェンドモード</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
                 </div>
               </div>
 
-              <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
+              <div className="feature-card rounded-lg overflow-hidden text-center">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
                   <img src="/fantasy_demo.png" alt="ファンタジーモード：RPG風バトルでコード進行をマスター" className="w-full h-full object-cover" loading="lazy" />
                 </div>
-                <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
-                    <img src="/monster_icons/monster_35.png" alt="ファンタジーモード" className="w-12 h-12 object-contain" loading="lazy" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ファンタジーモード</h3>
-                  <p style={{ color: 'var(--lp-cream-muted)' }}>RPG風バトルで、コード進行をゲーム感覚でマスター</p>
+                <div className="p-8">
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ファンタジーモード</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>RPG風バトルで、コード進行をゲーム感覚でマスター</p>
                 </div>
               </div>
 
-              <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
+              <div className="feature-card rounded-lg overflow-hidden text-center">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
                   <img src="/lessons_demo.png" alt="レッスンモード：コースとレッスンで体系的に学習" className="w-full h-full object-cover" loading="lazy" />
                 </div>
-                <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
-                    <img src="/stage_icons/3.png" alt="レッスンモード" className="w-12 h-12 object-contain" loading="lazy" />
-                  </div>
-                  <h3 className="text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>レッスンモード</h3>
-                  <p style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
+                <div className="p-8">
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>レッスンモード</h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
                 </div>
               </div>
             </div>
           </div>
         </section>
 
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* 料金プラン */}
-        <section id="pricing" className="py-16 sm:py-20" data-animate="slide-right text-up">
+        <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
-              <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" loading="lazy" />
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">003 — pricing</span>
+            </div>
+            <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-8 section-title" data-animate="from-behind heading-underline">
               料金プラン
             </h2>
             <p className="text-center text-sm mb-10" style={{ color: 'var(--lp-gold)' }}>すべての有料プランに7日間（1週間）無料トライアル</p>
@@ -446,24 +459,29 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* FAQ */}
-        <section id="faq" className="py-16 sm:py-20 story-gradient" data-animate="slide-left text-up">
+        <section id="faq" className="py-24 sm:py-32" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
-              <img src="/stage_icons/1.png" alt="よくある質問" className="w-16 h-16" loading="lazy" />
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">004 — faq</span>
+            </div>
+            <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title" data-animate="from-behind heading-underline">
               よくある質問
             </h2>
 
-            <div className="max-w-4xl mx-auto space-y-6" data-animate="alt-cards text-up">
+            <div className="max-w-3xl mx-auto" data-animate="alt-cards text-up">
               {(Array.from([1, 2, 3, 4, 5, 6]) as number[]).map((id) => (
-                <div key={id} className="faq-item rounded-xl p-6">
+                <div key={id} className="faq-item py-6">
                   <button
-                    className="w-full flex items-center justify-between cursor-pointer"
+                    className="w-full flex items-center justify-between cursor-pointer text-left gap-4"
                     onClick={() => toggleFAQ(id)}
                     aria-expanded={openFaqId === id}
                     aria-controls={`faq-content-${id}`}
                   >
-                    <h3 className="text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
+                    <h3 className="text-base sm:text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
                       {id === 1 && '楽器未経験者でも大丈夫ですか？'}
                       {id === 2 && 'どんな楽器に対応していますか？'}
                       {id === 3 && 'オフラインでも使用できますか？'}
@@ -471,7 +489,7 @@ const LandingPage: React.FC = () => {
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
                       {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
                     </h3>
-                    <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ color: 'var(--lp-gold)' }}></i>
+                    <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} shrink-0`} style={{ color: 'var(--lp-gold-dim)' }}></i>
                   </button>
                   <div
                     id={`faq-content-${id}`}
@@ -511,20 +529,26 @@ const LandingPage: React.FC = () => {
           </>
         )}
 
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* Developer's Voice */}
-        <section className="py-20 sm:py-28 relative overflow-hidden" data-animate="slide-left text-up">
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 50% at 30% 50%, rgba(59,107,156,0.06), transparent), radial-gradient(ellipse 50% 60% at 70% 40%, rgba(200,162,77,0.04), transparent)' }} />
+        <section className="py-28 sm:py-40 relative overflow-hidden" data-animate="slide-left text-up">
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 50% 60% at 25% 40%, rgba(59,107,156,0.06), transparent)' }} />
           <div className="container mx-auto px-6 relative z-10">
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">{isEnglishLanding ? '005 — voice' : '005 — voice'}</span>
+            </div>
             <h2
-              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title"
+              className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
               data-animate="from-behind heading-underline"
             >
               {isEnglishLanding ? "Developer's Voice" : '開発者の声'}
             </h2>
 
-            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-10 md:gap-16" data-animate="alt-cards text-up">
-              <div className="shrink-0">
-                <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden lp-developer-photo">
+            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start gap-12 md:gap-20" data-animate="alt-cards text-up">
+              <div className="shrink-0 relative">
+                <div className="w-52 h-64 sm:w-60 sm:h-72 rounded-lg overflow-hidden lp-developer-photo">
                   <img
                     src="/profile.jpg"
                     alt={isEnglishLanding ? 'Developer playing piano at a jazz club' : '開発者 ジャズクラブでの演奏風景'}
@@ -534,17 +558,17 @@ const LandingPage: React.FC = () => {
                 </div>
               </div>
 
-              <div className="flex-1 text-center md:text-left">
-                <div className="lp-quote-mark text-6xl leading-none mb-2 hidden md:block" aria-hidden="true">&ldquo;</div>
-                <blockquote className="text-lg sm:text-xl leading-relaxed mb-6" style={{ color: 'var(--lp-cream)' }}>
+              <div className="flex-1 md:pt-4">
+                <div className="lp-quote-mark text-9xl leading-none mb-0 hidden md:block" style={{ marginBottom: '-2rem' }} aria-hidden="true">&ldquo;</div>
+                <blockquote className="lp-display text-xl sm:text-2xl md:text-3xl leading-snug mb-8 font-light" style={{ color: 'var(--lp-cream)', fontStyle: 'italic', fontVariationSettings: "'opsz' 36, 'SOFT' 0, 'WONK' 1" }}>
                   {isEnglishLanding
-                    ? 'When I started learning jazz on my own, I kept hitting walls — I didn\'t know how to practice. I wished for something that made getting better feel like an adventure. That\'s why I built Jazzify.'
-                    : 'ジャズを独学で始めた時、練習方法がわからず何度も壁にぶつかりました。「もっと楽しく、ゲーム感覚で上達できたら」——その思いが、Jazzifyの原点です。'}
+                    ? 'When I started learning jazz on my own, I kept hitting walls — I didn\'t know how to practice. "If only something like this existed when I was a beginner" — that thought is what started Jazzify.'
+                    : 'ジャズを独学で始めた時、練習方法がわからず何度も壁にぶつかりました。「私が初学者のころにこんなものがあれば、」——その思いが、Jazzifyの原点です。'}
                 </blockquote>
-                <div className="lp-divider mb-4" />
+                <div className="lp-divider mb-5" />
                 <div>
-                  <p className="font-bold text-base" style={{ color: 'var(--lp-gold-light)' }}>
-                    {isEnglishLanding ? 'Saita' : 'Saita'}
+                  <p className="lp-mono text-xs mb-1" style={{ color: 'var(--lp-gold)' }}>
+                    Saita
                   </p>
                   <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                     {isEnglishLanding ? 'Jazzify Developer & Jazz Pianist' : 'Jazzify 開発者 / ジャズピアニスト'}
@@ -555,19 +579,22 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* Final CTA */}
-        <section className="py-20 relative" data-animate="slide-right text-up">
-          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 50%, rgba(200,162,77,0.05), transparent)' }} />
+        <section className="py-28 sm:py-36 relative" data-animate="slide-right text-up">
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 50% 40% at 50% 50%, rgba(200,162,77,0.04), transparent)' }} />
           <div className="container mx-auto px-6 text-center relative z-10">
-            <h2 className="lp-display text-4xl md:text-5xl font-extrabold mb-6 section-title" data-animate="from-behind heading-underline">
+            <h2 className="lp-display-hero text-4xl sm:text-5xl md:text-7xl font-extrabold mb-8 section-title" data-animate="from-behind heading-underline">
               {finalHeadingText}
             </h2>
-            <p className="mb-8" style={{ color: 'var(--lp-cream-muted)' }}>{finalDescriptionText}</p>
+            <p className="mb-12 text-lg" style={{ color: 'var(--lp-cream-muted)' }}>{finalDescriptionText}</p>
             <div className="flex items-center justify-center">
               <Link
                 to="/signup"
                 aria-label={heroCtaAria}
-                className="lp-btn-gold px-6 py-2.5 sm:px-8 sm:py-3 rounded-full text-sm sm:text-base"
+                className="lp-btn-gold px-8 py-3 sm:px-10 sm:py-4 rounded-full text-base sm:text-lg"
               >
                 {primaryCtaLabel}
               </Link>
