@@ -27,6 +27,7 @@ export interface Song {
   phrase?: boolean;
   jazz_piano?: boolean;
   classic_piano?: boolean;
+  solo_transcription?: boolean;
   source_song_id?: string | null;
   range_type?: SongRangeType | null;
   range_start_measure?: number | null;
@@ -349,6 +350,7 @@ export async function duplicateSongWithRange(params: RangeDuplicateParams): Prom
       phrase: sourceSong.phrase,
       jazz_piano: sourceSong.jazz_piano,
       classic_piano: sourceSong.classic_piano,
+      solo_transcription: sourceSong.solo_transcription,
       source_song_id: params.sourceSongId,
       range_type: params.rangeType,
       range_start_measure: params.rangeStartMeasure ?? null,

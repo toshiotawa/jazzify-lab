@@ -22,6 +22,7 @@ interface SongFormData {
   phrase?: boolean;
   jazz_piano?: boolean;
   classic_piano?: boolean;
+  solo_transcription?: boolean;
 }
 
 interface EditFormData {
@@ -35,6 +36,7 @@ interface EditFormData {
   phrase: boolean;
   jazz_piano: boolean;
   classic_piano: boolean;
+  solo_transcription: boolean;
   audioFile?: FileList;
   xmlFile?: FileList;
   jsonFile?: FileList;
@@ -127,6 +129,7 @@ const SongManager: React.FC = () => {
       phrase: song.phrase ?? false,
       jazz_piano: song.jazz_piano ?? false,
       classic_piano: song.classic_piano ?? false,
+      solo_transcription: song.solo_transcription ?? false,
     });
   }, [editReset]);
 
@@ -168,6 +171,7 @@ const SongManager: React.FC = () => {
         phrase: values.phrase,
         jazz_piano: values.jazz_piano,
         classic_piano: values.classic_piano,
+        solo_transcription: values.solo_transcription,
       };
 
       if (jsonData !== undefined) {
@@ -259,6 +263,7 @@ const SongManager: React.FC = () => {
         phrase: values.phrase ?? false,
         jazz_piano: values.jazz_piano ?? false,
         classic_piano: values.classic_piano ?? false,
+        solo_transcription: values.solo_transcription ?? false,
       }, files);
 
       console.log('アップロード成功:', result);
@@ -380,6 +385,13 @@ const SongManager: React.FC = () => {
           <label className="label cursor-pointer justify-start gap-3">
             <input type="checkbox" className="checkbox checkbox-secondary" {...register('classic_piano')} />
             <span className="label-text">Classic Piano</span>
+          </label>
+        </div>
+
+        <div className="form-control">
+          <label className="label cursor-pointer justify-start gap-3">
+            <input type="checkbox" className="checkbox checkbox-secondary" {...register('solo_transcription')} />
+            <span className="label-text">Solo Transcription</span>
           </label>
         </div>
 
@@ -639,6 +651,13 @@ const SongManager: React.FC = () => {
                 </label>
               </div>
 
+              <div className="form-control">
+                <label className="label cursor-pointer justify-start gap-3">
+                  <input type="checkbox" className="checkbox checkbox-secondary" {...editRegister('solo_transcription')} />
+                  <span className="label-text">Solo Transcription</span>
+                </label>
+              </div>
+
               <div className="divider text-xs">楽譜表示オプション</div>
 
               <div className="form-control">
@@ -808,6 +827,7 @@ const SortableSongItem: React.FC<SortableSongItemProps> = ({ song, onEdit, onDel
           {song.phrase && <span className="text-xs bg-pink-600/20 text-pink-400 px-2 py-0.5 rounded">Phrase</span>}
           {song.jazz_piano && <span className="text-xs bg-amber-600/20 text-amber-400 px-2 py-0.5 rounded">Jazz Piano</span>}
           {song.classic_piano && <span className="text-xs bg-indigo-600/20 text-indigo-400 px-2 py-0.5 rounded">Classic Piano</span>}
+          {song.solo_transcription && <span className="text-xs bg-teal-600/20 text-teal-400 px-2 py-0.5 rounded">Solo Transcription</span>}
           {song.hide_sheet_music && <span className="text-xs bg-orange-600/20 text-orange-400 px-2 py-0.5 rounded">譜面非表示</span>}
           {song.use_rhythm_notation && <span className="text-xs bg-yellow-600/20 text-yellow-400 px-2 py-0.5 rounded">リズム譜</span>}
           {song.global_available && <span className="text-xs bg-cyan-600/20 text-cyan-400 px-2 py-0.5 rounded">Global</span>}

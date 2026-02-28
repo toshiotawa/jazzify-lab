@@ -997,12 +997,13 @@ const SongSelectionScreen: React.FC = () => {
  * ゲームプレイ画面
  */
 const GamePlayScreen: React.FC = () => {
-  const { currentSong, mode, settings, lessonContext, missionContext } = useGameSelector((s) => ({
+  const { currentSong, mode, settings, lessonContext, missionContext, musicXml } = useGameSelector((s) => ({
     currentSong: s.currentSong,
     mode: s.mode,
     settings: s.settings,
     lessonContext: s.lessonContext,
-    missionContext: s.missionContext
+    missionContext: s.missionContext,
+    musicXml: s.musicXml
   }));
   const gameActions = useGameActions();
   const { profile: gpProfile } = useAuthStore();
@@ -1066,8 +1067,8 @@ const GamePlayScreen: React.FC = () => {
     <div className="flex-1 flex flex-col h-full">
       {/* メインコンテンツエリア - 残りのスペースを使用 */}
       <div className="flex-1 flex flex-col overflow-hidden relative">
-        {/* 楽譜表示エリア（上側） - showSheetMusicがtrueの場合のみ表示 */}
-        {settings.showSheetMusic && (
+        {/* 楽譜表示エリア（上側） - 楽譜表示ON かつ hide_sheet_music でない かつ musicXml がある場合のみ表示 */}
+        {settings.showSheetMusic && !currentSong?.hide_sheet_music && !!musicXml && (
           <>
             <div 
               className="min-h-0 overflow-hidden flex-shrink-0"
@@ -1092,7 +1093,7 @@ const GamePlayScreen: React.FC = () => {
         <div 
           className="flex-1 min-h-0"
           style={{ 
-            height: settings.showSheetMusic ? `${100 - sheetMusicHeightPercentage}%` : '100%'
+            height: (settings.showSheetMusic && !currentSong?.hide_sheet_music && !!musicXml) ? `${100 - sheetMusicHeightPercentage}%` : '100%'
           }}
         >
           <GameEngineComponent className="h-full w-full" />
@@ -1352,6 +1353,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
             {song.phrase && <span className="text-xs bg-pink-600/20 text-pink-400 px-1.5 py-0.5 rounded">Phrase</span>}
             {song.jazz_piano && <span className="text-xs bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded">Jazz Piano</span>}
             {song.classic_piano && <span className="text-xs bg-indigo-600/20 text-indigo-400 px-1.5 py-0.5 rounded">Classic Piano</span>}
+            {song.solo_transcription && <span className="text-xs bg-teal-600/20 text-teal-400 px-1.5 py-0.5 rounded">Solo Transcription</span>}
           </div>
         </div>
 

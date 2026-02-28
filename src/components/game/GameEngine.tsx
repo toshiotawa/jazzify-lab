@@ -769,6 +769,16 @@ useEffect(() => {
 }, [gameEngine, isPlaying, stopCurrentBufferSource]);
 
 useEffect(() => {
+  if (!gameEngine || !isPlaying || !audioLoaded || !hasAudioTrack || !audioBufferRef.current) {
+    return;
+  }
+  if (bufferSourceRef.current) {
+    return;
+  }
+  void playFromOffsetRef.current(currentTimeRef.current);
+}, [audioLoaded, gameEngine, hasAudioTrack, isPlaying]);
+
+useEffect(() => {
   return () => {
     audioFetchAbortRef.current?.abort();
     stopCurrentBufferSource();

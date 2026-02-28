@@ -704,17 +704,7 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     }, []);
 
     if (!shouldRenderSheet) {
-      return (
-        <div
-          className={cn(
-            'flex items-center justify-center bg-slate-900 text-gray-400',
-            className
-          )}
-          aria-label="楽譜表示オフ"
-        >
-          楽譜表示はオフになっています
-        </div>
-      );
+      return null;
     }
 
   return (
