@@ -128,7 +128,7 @@ export class MIDIController {
         throw new Error(`${message} ${help}`);
       }
 
-      this.midiAccess = await navigator.requestMIDIAccess();
+      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
 
       this.midiAccess.onstatechange = (event): void => {
         console.log('MIDI state changed:', event);

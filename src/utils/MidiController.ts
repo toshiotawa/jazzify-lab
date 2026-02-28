@@ -308,14 +308,10 @@ export class MIDIController {
     }
 
     try {
-      // 共通音声システムを初期化（LPなど軽量指定の考慮）
-      await initializeAudioSystem();
-      
-      // MIDI API の存在確認
+      // MIDI API の存在確認（オーディオ初期化より先に実行）
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
-        // iOS等でMIDI APIがない場合でもエラーをスローせず、音声システムのみ利用可能にする
         if (isIOS) {
           console.log('📱 iOS detected: Web MIDI API not available, touch/click input will be used');
         } else {
@@ -323,11 +319,17 @@ export class MIDIController {
         }
         this.midiSupported = false;
         this.isInitialized = true;
+        // オーディオ初期化はMIDIと独立して実行（ブロックしない）
+        void initializeAudioSystem().catch((err) => {
+          console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
+        });
         return;
       }
 
-      this.midiAccess = await navigator.requestMIDIAccess();
+      // MIDI アクセス要求を最優先で実行（オーディオ初期化でブロックしない）
+      this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
       this.midiSupported = true;
+      console.log('✅ MIDI access acquired, inputs:', this.midiAccess.inputs.size);
 
       this.midiAccess!.onstatechange = (event): void => {
         if (event.port) {
@@ -347,20 +349,26 @@ export class MIDIController {
             }
           }
         }
-        // 自動復旧を試行
         void this.checkAndRestoreConnection();
-        // デバイスリスト更新のコールバックを呼び出し
         this.notifyConnectionChange(this.isConnected());
       };
 
       this.isInitialized = true;
 
+      // オーディオ初期化はMIDI準備完了後にバックグラウンドで実行
+      void initializeAudioSystem().catch((err) => {
+        console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
+      });
+
     } catch (error) {
       console.error('❌ MIDI Error:', error);
-      // MIDI初期化に失敗しても音声システムは利用可能なため、エラーをスローしない
       this.midiSupported = false;
       this.isInitialized = true;
       this.notifyConnectionChange(false);
+      // MIDIが失敗してもオーディオは初期化試行
+      void initializeAudioSystem().catch((err) => {
+        console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
+      });
     }
   }
 

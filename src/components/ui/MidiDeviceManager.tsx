@@ -13,6 +13,28 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 
+// MIDIAccess をキャッシュして複数回の requestMIDIAccess 呼び出しを避ける
+let cachedMidiAccess: MIDIAccess | null = null;
+
+const getMidiAccess = async (): Promise<MIDIAccess> => {
+  if (cachedMidiAccess) return cachedMidiAccess;
+  cachedMidiAccess = await navigator.requestMIDIAccess({ sysex: false });
+  return cachedMidiAccess;
+};
+
+const enumerateMidiDevices = (midiAccess: MIDIAccess): MidiDevice[] => {
+  const deviceList: MidiDevice[] = [];
+  midiAccess.inputs.forEach((input) => {
+    deviceList.push({
+      id: input.id,
+      name: input.name || `Unknown Device (${input.id})`,
+      manufacturer: input.manufacturer || '',
+      connected: input.state === 'connected'
+    });
+  });
+  return deviceList;
+};
+
 // MIDIデバイス管理用カスタムフック
 export const useMidiDevices = () => {
   const [devices, setDevices] = useState<MidiDevice[]>([]);
@@ -21,13 +43,12 @@ export const useMidiDevices = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // MIDIデバイス一覧を取得
+  // MIDIデバイス一覧を取得（リトライ対応）
   const refreshDevices = useCallback(async () => {
     setIsRefreshing(true);
     setError(null);
     
     try {
-      // Web MIDI API の存在確認
       if (!navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
@@ -40,19 +61,19 @@ export const useMidiDevices = () => {
         throw new Error(message);
       }
 
-      // MIDI アクセス要求
-      const midiAccess = await navigator.requestMIDIAccess();
-      
-      // デバイス一覧を構築
-      const deviceList: MidiDevice[] = [];
-      midiAccess.inputs.forEach((input) => {
-        deviceList.push({
-          id: input.id,
-          name: input.name || `Unknown Device (${input.id})`,
-          manufacturer: input.manufacturer || '',
-          connected: input.state === 'connected'
-        });
-      });
+      const midiAccess = await getMidiAccess();
+      let deviceList = enumerateMidiDevices(midiAccess);
+
+      // Web MIDI Browser (iOS) ではデバイス検出が遅延することがあるためリトライ
+      if (deviceList.length === 0) {
+        for (let attempt = 0; attempt < 3; attempt++) {
+          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
+          cachedMidiAccess = null;
+          const retryAccess = await getMidiAccess();
+          deviceList = enumerateMidiDevices(retryAccess);
+          if (deviceList.length > 0) break;
+        }
+      }
 
       setDevices(deviceList);
       console.log(`🎹 Found ${deviceList.length} MIDI devices:`, deviceList);
@@ -72,17 +93,18 @@ export const useMidiDevices = () => {
     refreshDevices();
   }, [refreshDevices]);
 
-  // MIDIデバイス状態変更の監視
+  // MIDIデバイス状態変更の監視（キャッシュ済みMIDIAccessを再利用）
   useEffect(() => {
     let midiAccess: MIDIAccess | null = null;
+    let cancelled = false;
 
     const setupMidiStateMonitoring = async () => {
       try {
-        midiAccess = await navigator.requestMIDIAccess();
+        if (!navigator.requestMIDIAccess) return;
+        midiAccess = await getMidiAccess();
+        if (cancelled) return;
         
-        // デバイス状態変更時に一覧を更新
-        midiAccess.onstatechange = (event) => {
-          console.log('🎹 MIDI device state changed:', event);
+        midiAccess.onstatechange = () => {
           refreshDevices();
         };
       } catch (err) {
@@ -93,6 +115,7 @@ export const useMidiDevices = () => {
     setupMidiStateMonitoring();
 
     return () => {
+      cancelled = true;
       if (midiAccess) {
         midiAccess.onstatechange = null;
       }

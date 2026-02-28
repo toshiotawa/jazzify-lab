@@ -14,8 +14,12 @@ declare global {
     webkitAudioContext?: typeof AudioContext;
   }
   
+  interface MIDIOptions {
+    sysex?: boolean;
+  }
+
   interface Navigator {
-    requestMIDIAccess(): Promise<MIDIAccess>;
+    requestMIDIAccess(options?: MIDIOptions): Promise<MIDIAccess>;
   }
   
   interface MIDIAccess {
