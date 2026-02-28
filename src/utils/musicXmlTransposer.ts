@@ -385,17 +385,24 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
     if (!parsed.empty) {
       const { letter, acc, oct } = parsed;
       
-      // 音名（オクターブなし）を取得
       const noteNameWithoutOctave = letter + (acc || '');
       
-      // ターゲットキーのスケールに合わせて調整
       const adjustedNote = adjustNoteToKeyScale(noteNameWithoutOctave, targetKeyName, simpleMode);
       const adjustedParsed = Note.get(adjustedNote);
       
       const finalLetter = adjustedParsed?.letter || letter;
       const finalAcc = adjustedParsed?.acc || acc;
+
+      // オクターブ境界を跨ぐ異名同音の補正（B##→C#, Cbb→Bb 等）
+      let finalOctave = oct;
+      if (adjustedNote !== noteNameWithoutOctave && oct !== undefined) {
+        const originalMidi = Note.midi(noteStr);
+        const adjustedMidi = Note.midi(adjustedNote + oct);
+        if (originalMidi !== null && adjustedMidi !== null && originalMidi !== adjustedMidi) {
+          finalOctave = (oct) + Math.round((originalMidi - adjustedMidi) / 12);
+        }
+      }
       
-      // Clear existing children then append
       Array.from(pitchEl.children).forEach((c) => c.remove());
       const stepEl = doc.createElement('step');
       stepEl.textContent = finalLetter;
@@ -412,10 +419,9 @@ export function transposeMusicXml(xmlString: string, semitones: number, simpleMo
         pitchEl.appendChild(alterEl);
       }
       const octaveEl = doc.createElement('octave');
-      octaveEl.textContent = String(oct);
+      octaveEl.textContent = String(finalOctave);
       pitchEl.appendChild(octaveEl);
 
-      // 既存の<accidental>要素を削除
       const existingAccidental = noteEl.querySelector('accidental');
       if (existingAccidental) {
         existingAccidental.remove();
