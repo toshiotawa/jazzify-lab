@@ -3091,7 +3091,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
-            contentScale={isMobile ? 0.75 : 1}
+            contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : 1}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             characterAvatarUrl={character?.avatarUrl}
