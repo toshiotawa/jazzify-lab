@@ -33,7 +33,10 @@ const GameHeader: React.FC = () => {
               {isEnglishCopy ? 'Home' : 'トップ'}
           </button>
 
-          {/* 曲選択タブ (standard_global でもアクセス可能) */}
+            {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
+            {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
+            {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
+
           {!isFree && (
             <HashButton
               hash="#songs"
@@ -46,9 +49,6 @@ const GameHeader: React.FC = () => {
             </HashButton>
           )}
 
-            {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
-            {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
-            {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
             {!isFree && <HashButton hash="#ranking" disabled={isGuest}>{isEnglishCopy ? 'Ranking' : 'ランキング'}</HashButton>}
             {!isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
             {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>{isEnglishCopy ? 'Diary' : '日記'}</HashButton>}
