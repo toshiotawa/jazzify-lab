@@ -447,6 +447,13 @@ export class FantasyPIXIInstance {
         ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
       }
       
+      // 非同期ロード完了後にキャッシュから画像を反映
+      if (!monster.image) {
+        monster.image = this.imageCache.get(monster.icon)
+          ?? this.imageTexturesRef?.current.get(monster.icon)
+          ?? null;
+      }
+
       // モンスター画像を描画（背景・枠なし）
       if (monster.image) {
         const imgW = monsterSize;
@@ -740,6 +747,12 @@ export class FantasyPIXIInstance {
       // プリロードキャッシュにも追加（他のインスタンスで再利用）
       if (this.imageTexturesRef?.current) {
         this.imageTexturesRef.current.set(icon, img);
+      }
+      // 表示中モンスターの image フィールドを即時反映
+      for (const m of this.monsters) {
+        if (m.icon === icon && !m.image) {
+          m.image = img;
+        }
       }
       this.requestRender();
     };

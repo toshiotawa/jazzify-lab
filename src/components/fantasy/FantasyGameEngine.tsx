@@ -2439,6 +2439,24 @@ export const useFantasyGameEngine = ({
                     0.7, stage.speedMultiplier || 1.0, preloadPitchShift, true, preloadSkipCI
                   );
                 }
+              } else {
+                // 最後のセクションに遷移 → ループ用に最初のセクションのBGMを事前準備
+                const loopSection = prevState.combinedSections[0];
+                if (loopSection?.bgmUrl) {
+                  const loopPitchShift = prevState.transposeSettings
+                    ? calculateTransposeOffset(
+                        prevState.transposeSettings.keyOffset,
+                        prevState.combinedFullLoopCount + 1,
+                        prevState.transposeSettings.repeatKeyChange
+                      )
+                    : prevState.currentTransposeOffset;
+                  const loopSkipCI = loopSection.countInMeasures !== loopSection.audioCountInMeasures;
+                  bgmManager.prepareNextSection(
+                    loopSection.bgmUrl, loopSection.bpm, loopSection.timeSignature,
+                    loopSection.measureCount, loopSection.audioCountInMeasures,
+                    0.7, stage.speedMultiplier || 1.0, loopPitchShift, true, loopSkipCI
+                  );
+                }
               }
               
               combiningSync.sectionIndex = nextSectionIdx;
@@ -2487,20 +2505,22 @@ export const useFantasyGameEngine = ({
                   transposedNotes = transposeTaikoNotes(transposedNotes, 0, simpleMode);
                 }
                 
-                // BGM即時切り替え（移調リスタート）
+                // BGM即時切り替え（移調リスタート）— 事前準備チェーンを優先使用
                 const firstSection = prevState.combinedSections[0];
                 if (firstSection.bgmUrl) {
                   const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
                   const sameUrl = firstSection.bgmUrl === bgmManager.getCurrentUrl();
-                  if (!(sameUrl && bgmManager.restartSameSection(
-                    firstSection.bpm, firstSection.timeSignature,
-                    firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
-                  ))) {
-                    bgmManager.play(
-                      firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                      firstSection.measureCount, firstSection.audioCountInMeasures,
-                      0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, firstSkipCI
-                    );
+                  if (!bgmManager.switchToPreparedSection()) {
+                    if (!(sameUrl && bgmManager.restartSameSection(
+                      firstSection.bpm, firstSection.timeSignature,
+                      firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
+                    ))) {
+                      bgmManager.play(
+                        firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                        firstSection.measureCount, firstSection.audioCountInMeasures,
+                        0.7, stage.speedMultiplier || 1.0, newTransposeOffset, true, firstSkipCI
+                      );
+                    }
                   }
                 }
                 // リスタート後、次セクション用チェーンを事前構築
@@ -2552,20 +2572,22 @@ export const useFantasyGameEngine = ({
                 };
               }
               
-              // 移調設定なし: BGM即時切り替え
+              // 移調設定なし: BGM即時切り替え — 事前準備チェーンを優先使用
               const firstSection = prevState.combinedSections[0];
               if (firstSection.bgmUrl) {
                 const firstSkipCI = firstSection.countInMeasures !== firstSection.audioCountInMeasures;
                 const sameUrl = firstSection.bgmUrl === bgmManager.getCurrentUrl();
-                if (!(sameUrl && bgmManager.restartSameSection(
-                  firstSection.bpm, firstSection.timeSignature,
-                  firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
-                ))) {
-                  bgmManager.play(
-                    firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
-                    firstSection.measureCount, firstSection.audioCountInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, firstSkipCI
-                  );
+                if (!bgmManager.switchToPreparedSection()) {
+                  if (!(sameUrl && bgmManager.restartSameSection(
+                    firstSection.bpm, firstSection.timeSignature,
+                    firstSection.measureCount, firstSection.audioCountInMeasures, firstSkipCI
+                  ))) {
+                    bgmManager.play(
+                      firstSection.bgmUrl, firstSection.bpm, firstSection.timeSignature,
+                      firstSection.measureCount, firstSection.audioCountInMeasures,
+                      0.7, stage.speedMultiplier || 1.0, prevState.currentTransposeOffset, true, firstSkipCI
+                    );
+                  }
                 }
               }
               // リスタート後、次セクション用チェーンを事前構築
