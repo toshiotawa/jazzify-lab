@@ -179,21 +179,26 @@ export class FantasySoundManager {
     const baseUrl = import.meta.env.BASE_URL || '/';
     const path = (file: string) => `${baseUrl}sounds/${file}`;
 
-    const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res, _rej) => {
+    const load = (key: keyof typeof this.audioMap, file: string) => new Promise<void>((res) => {
       const a = this.audioMap[key].base;
       const fullPath = path(file);
+      let resolved = false;
+      const done = (ready: boolean) => {
+        if (resolved) return;
+        resolved = true;
+        if (ready) this.audioMap[key].ready = true;
+        res();
+      };
       a.src = fullPath;
       a.preload = 'auto';
-      a.load();
       a.volume = this._volume;
-      a.addEventListener('canplaythrough', () => {
-        this.audioMap[key].ready = true;
-        res();
-      });
-      a.addEventListener('error', () => {
-        // エラーでも resolve – 再生時にフォールバック
-        res();
-      });
+      // iOS Safari: readyState >= 4 ならロード済み（イベント発火不要）
+      if (a.readyState >= 4) { done(true); return; }
+      a.addEventListener('canplaythrough', () => done(true), { once: true });
+      a.addEventListener('error', () => done(false), { once: true });
+      a.load();
+      // iOS Autoplay制限で canplaythrough が発火しないケースへの安全弁
+      setTimeout(() => done(false), 3000);
     });
 
     const promises = [

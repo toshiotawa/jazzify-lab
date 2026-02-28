@@ -326,21 +326,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       const initPromise = (async () => {
         try {
-          await controller.initialize();
-          
-          await Promise.all([
-            initializeAudioSystem().then(() => {
-              updateGlobalVolume(0.8);
-            }),
-            FantasySoundManager.init(
-              settings.soundEffectVolume ?? 0.8,
-              settings.rootSoundVolume ?? 0.5,
-              stage?.playRootOnCorrect !== false
-            ).then(() => {
-              FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-            })
+          const initWork = async () => {
+            await controller.initialize();
+            await Promise.all([
+              initializeAudioSystem().then(() => {
+                updateGlobalVolume(0.8);
+              }),
+              FantasySoundManager.init(
+                settings.soundEffectVolume ?? 0.8,
+                settings.rootSoundVolume ?? 0.5,
+                stage?.playRootOnCorrect !== false
+              ).then(() => {
+                FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+              })
+            ]);
+          };
+          // iOS等で初期化Promiseが永久にpendingになるケースの安全弁
+          await Promise.race([
+            initWork(),
+            new Promise<void>((resolve) => setTimeout(resolve, 10000))
           ]);
-          
           setIsInitialized(true);
         } catch (error) {
           console.error('Audio system initialization failed:', error);
