@@ -346,7 +346,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           };
           await Promise.race([
             initWork(),
-            new Promise<void>((resolve) => setTimeout(resolve, 10000))
+            new Promise<void>((resolve) => setTimeout(resolve, 5000))
           ]);
           setIsInitialized(true);
         } catch (error) {
