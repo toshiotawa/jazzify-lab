@@ -661,7 +661,7 @@ const SongSelectionScreen: React.FC = () => {
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-white">{isEnglishCopy ? 'Legend Mode' : 'レジェンドモード'}</h2>
           <div className="text-sm text-gray-400">
-            {filteredSongs.length} {isEnglishCopy ? 'songs' : '曲'}
+            {dbSongs.length} {isEnglishCopy ? 'songs' : '曲'}
           </div>
         </div>
 
