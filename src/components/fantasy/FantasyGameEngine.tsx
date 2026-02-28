@@ -964,17 +964,38 @@ export const useFantasyGameEngine = ({
       const updatedNotes = [...prevState.taikoNotes];
       updatedNotes[chosen.i] = { ...chosen.n, isHit: true };
       
-      let nextIndex = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
-      while (nextIndex < sectionEnd && updatedNotes[nextIndex]?.isHit) nextIndex++;
-      
-      const isLastInSection = nextIndex >= sectionEnd;
-      const nextNote = isLastInSection
-        ? (prevState.combinedSections[prevState.currentSectionIndex + 1]
+      // 後のノーツが選ばれた場合、先のノーツをスキップしない
+      const didSkipEarlierNotes = !chosen.isNextSectionNote && chosen.i > currentIndex;
+      let nextIndex: number;
+      let isLastInSection: boolean;
+      if (didSkipEarlierNotes) {
+        nextIndex = currentIndex;
+        isLastInSection = false;
+      } else {
+        nextIndex = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
+        while (nextIndex < sectionEnd && updatedNotes[nextIndex]?.isHit) nextIndex++;
+        isLastInSection = nextIndex >= sectionEnd;
+      }
+
+      let nextNote, nextNextNote;
+      if (didSkipEarlierNotes) {
+        nextNote = prevState.taikoNotes[currentIndex];
+        let nnIdx = currentIndex + 1;
+        while (nnIdx < sectionEnd && (nnIdx === chosen.i || updatedNotes[nnIdx]?.isHit)) nnIdx++;
+        nextNextNote = nnIdx < sectionEnd
+          ? updatedNotes[nnIdx]
+          : (prevState.combinedSections[prevState.currentSectionIndex + 1]
+            ? prevState.taikoNotes[prevState.combinedSections[prevState.currentSectionIndex + 1].globalNoteStartIndex]
+            : prevState.taikoNotes[currentIndex]);
+      } else if (isLastInSection) {
+        nextNote = prevState.combinedSections[prevState.currentSectionIndex + 1]
           ? prevState.taikoNotes[prevState.combinedSections[prevState.currentSectionIndex + 1].globalNoteStartIndex]
-          : chosen.n)
-        : updatedNotes[nextIndex];
-      const nextNextNote = isLastInSection ? nextNote
-        : ((nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote);
+          : chosen.n;
+        nextNextNote = nextNote;
+      } else {
+        nextNote = updatedNotes[nextIndex];
+        nextNextNote = (nextIndex + 1 < sectionEnd) ? updatedNotes[nextIndex + 1] : nextNote;
+      }
       // ダメージ計算
       const stageForDamage = stage!;
       const isSpecialAttack = prevState.playerSp >= 5;
@@ -1344,9 +1365,22 @@ export const useFantasyGameEngine = ({
       const nextIndexByChosen = chosenIndex + 1;
       const isLastNoteByChosen = nextIndexByChosen >= workingState.taikoNotes.length;
 
+      // 後のノーツが選ばれた場合、先のノーツをスキップせず currentNoteIndex を維持
+      // ミスタイマーが先のノーツを自然にミス判定する
+      const didSkipEarlierNotes = !chosen.isNextLoopNote && !wasAwaitingLoop && chosenIndex > currentIndex;
+      const effectiveNextIndex = didSkipEarlierNotes ? currentIndex : nextIndexByChosen;
+      const isEffectivelyLast = didSkipEarlierNotes ? false : isLastNoteByChosen;
+
       // 次のノーツ情報を取得（ループ対応）
       let nextNote, nextNextNote;
-      if (!isLastNoteByChosen) {
+      if (didSkipEarlierNotes) {
+        nextNote = workingState.taikoNotes[currentIndex];
+        let nnIdx = currentIndex + 1;
+        while (nnIdx < workingState.taikoNotes.length && (nnIdx === chosenIndex || workingState.taikoNotes[nnIdx].isHit)) nnIdx++;
+        nextNextNote = nnIdx < workingState.taikoNotes.length
+          ? workingState.taikoNotes[nnIdx]
+          : workingState.taikoNotes[0];
+      } else if (!isLastNoteByChosen) {
         nextNote = workingState.taikoNotes[nextIndexByChosen];
         nextNextNote = (nextIndexByChosen + 1 < workingState.taikoNotes.length)
           ? workingState.taikoNotes[nextIndexByChosen + 1]
@@ -1460,20 +1494,20 @@ export const useFantasyGameEngine = ({
           ...workingState,
           activeMonsters: monstersWithDefeat,
           playerSp: newSp,
-          currentNoteIndex: isLastNoteByChosen ? workingState.currentNoteIndex : nextIndexByChosen,
+          currentNoteIndex: isEffectivelyLast ? workingState.currentNoteIndex : effectiveNextIndex,
           taikoNotes: updatedTaikoNotes,
           correctAnswers: workingState.correctAnswers + 1,
           combo: workingState.combo + 1,
           score: workingState.score + 100 * actualDamage,
           enemiesDefeated: newEnemiesDefeated,
-          awaitingLoopStart: isLastNoteByChosen ? true : false,
+          awaitingLoopStart: isEffectivelyLast,
           preHitNoteIndices: updatedPreHitIndices,
           lastNormalizedTime: lastNormToStore
         };
       }
 
       // 末尾ノーツをヒットした場合は次ループ開始待ち
-      if (isLastNoteByChosen) {
+      if (isEffectivelyLast) {
         return {
           ...workingState,
           activeMonsters: updatedMonsters,
@@ -1492,7 +1526,7 @@ export const useFantasyGameEngine = ({
         ...workingState,
         activeMonsters: updatedMonsters,
         playerSp: newSp,
-        currentNoteIndex: nextIndexByChosen,
+        currentNoteIndex: effectiveNextIndex,
         taikoNotes: updatedTaikoNotes,
         correctAnswers: workingState.correctAnswers + 1,
         combo: workingState.combo + 1,
