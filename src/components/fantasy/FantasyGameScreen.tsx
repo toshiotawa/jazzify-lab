@@ -711,8 +711,39 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       useRhythmNotation: useRhythmNotation,
     };
   }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount, useRhythmNotation]);
-  
-  
+
+  // timing_combining: 全セクションの楽譜を初期化時に一括プリレンダリング
+  const combiningPreloadSections = useMemo(() => {
+    if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode) return undefined;
+    const sections = gameState.combinedSections;
+    if (sections.length === 0) return undefined;
+
+    const seen = new Set<string>();
+    const result: Array<{
+      musicXml: string;
+      bpm: number;
+      timeSignature: number;
+      listenBars?: [number, number];
+      useRhythmNotation?: boolean;
+    }> = [];
+
+    for (const section of sections) {
+      if (!section.musicXml) continue;
+      const dedup = `${section.musicXml.length}_${section.bpm}_${section.timeSignature}_${section.listenBars?.[0] ?? ''}_${section.listenBars?.[1] ?? ''}_${!!useRhythmNotation}`;
+      if (seen.has(dedup)) continue;
+      seen.add(dedup);
+      result.push({
+        musicXml: section.musicXml,
+        bpm: section.bpm,
+        timeSignature: section.timeSignature,
+        listenBars: section.listenBars,
+        useRhythmNotation: useRhythmNotation || undefined,
+      });
+    }
+
+    return result.length > 0 ? result : undefined;
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, useRhythmNotation]);
+
   // 楽譜の段数を判定（MusicXMLパート数から）
   const currentStaves = useMemo(() => {
     if (!currentSectionMusicXml) return 1;
@@ -2517,6 +2548,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               return (stage.callResponseEnabled && stage.callResponseListenBars) ? stage.callResponseListenBars : undefined;
             })()}
             useRhythmNotation={useRhythmNotation}
+            preloadSections={combiningPreloadSections}
             className="w-full h-full"
           />
         </div>

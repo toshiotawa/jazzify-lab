@@ -2404,19 +2404,19 @@ export const useFantasyGameEngine = ({
                   : prevState.currentTransposeOffset;
                 const skipCI = nextSection.countInMeasures !== nextSection.audioCountInMeasures;
                 
-                // 同一BGM URL: 既存チェーンを再利用してギャップレス遷移
-                const sameUrl = nextBgmUrl === bgmManager.getCurrentUrl();
-                if (sameUrl && bgmManager.restartSameSection(
-                  nextSection.bpm, nextSection.timeSignature,
-                  nextSection.measureCount, nextSection.audioCountInMeasures, skipCI
-                )) {
-                  // 成功 — 事前準備チェーンは不要なので破棄
-                } else if (!bgmManager.switchToPreparedSection()) {
-                  bgmManager.play(
-                    nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
-                    nextSection.measureCount, nextSection.audioCountInMeasures,
-                    0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true, skipCI
-                  );
+                // 事前準備チェーンを優先使用（ゼロラグ切り替え）
+                if (!bgmManager.switchToPreparedSection()) {
+                  const sameUrl = nextBgmUrl === bgmManager.getCurrentUrl();
+                  if (!(sameUrl && bgmManager.restartSameSection(
+                    nextSection.bpm, nextSection.timeSignature,
+                    nextSection.measureCount, nextSection.audioCountInMeasures, skipCI
+                  ))) {
+                    bgmManager.play(
+                      nextBgmUrl, nextSection.bpm, nextSection.timeSignature,
+                      nextSection.measureCount, nextSection.audioCountInMeasures,
+                      0.7, stage.speedMultiplier || 1.0, sectionPitchShift, true, skipCI
+                    );
+                  }
                 }
               }
               
