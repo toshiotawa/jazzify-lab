@@ -3033,6 +3033,10 @@ export const useFantasyGameEngine = ({
             timers.set(attackerId, t);
           }
           
+          // ミスしたノーツに isMissed フラグを立てる（表示で判定ライン奥まで流し続けるため）
+          const updatedTaikoNotes = [...prevState.taikoNotes];
+          updatedTaikoNotes[currentNoteIndex] = { ...currentNote, isMissed: true };
+          
           // HP減少とゲームオーバー判定（練習モードではスキップ）
           const newHp = isPracticeMode ? prevState.playerHp : Math.max(0, prevState.playerHp - 1);
           const newSp = isPracticeMode ? prevState.playerSp : 0; // 練習モードではSPもリセットしない
@@ -3041,6 +3045,7 @@ export const useFantasyGameEngine = ({
           if (isGameOver) {
             const finalState = {
               ...prevState,
+              taikoNotes: updatedTaikoNotes,
               playerHp: 0,
               isGameActive: false,
               isGameOver: true,
@@ -3065,6 +3070,7 @@ export const useFantasyGameEngine = ({
             const nextNextNote = prevState.taikoNotes.length > 1 ? prevState.taikoNotes[1] : prevState.taikoNotes[0];
             return {
               ...prevState,
+              taikoNotes: updatedTaikoNotes,
               playerHp: newHp,
               playerSp: newSp,
               awaitingLoopStart: true,
@@ -3080,10 +3086,11 @@ export const useFantasyGameEngine = ({
             };
           }
           
-          const nextNote = prevState.taikoNotes[nextIndex];
-          const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
+          const nextNote = updatedTaikoNotes[nextIndex];
+          const nextNextNote = (nextIndex + 1 < updatedTaikoNotes.length) ? updatedTaikoNotes[nextIndex + 1] : updatedTaikoNotes[0];
           return {
             ...prevState,
+            taikoNotes: updatedTaikoNotes,
             playerHp: newHp,
             playerSp: newSp,
             currentNoteIndex: nextIndex,

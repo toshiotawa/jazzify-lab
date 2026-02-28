@@ -1421,11 +1421,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
           
           // 現在のセクション内のノーツを表示
+          // ★ isHit は即非表示、isMissed は画面内なら流し続ける
           if (!isAwaitingLoop) {
             for (let i = combiningSync.noteStartIndex; i < combiningSync.noteEndIndex; i++) {
-              if (i < currentNoteIndex) continue;
               const note = taikoNotes[i];
               if (!note) continue;
+              if (note.isHit) continue;
+              if (!note.isMissed && i < currentNoteIndex) continue;
               const timeUntilHit = note.hitTime - currentTime;
               if (timeUntilHit < -0.35) continue;
               if (timeUntilHit > lookAheadTime) break;
@@ -1550,21 +1552,31 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
       
       // 通常のノーツ（現在ループのみ表示）
-      // ★ currentNoteIndex より前のノーツは非表示（消化済み）
-      // ★ currentNoteIndex より後ろで isHit のノーツも非表示（順番飛ばしでヒット済み）
-      //   → スキップされた手前のノーツだけが判定ラインの奥まで自然に流れる
+      // ★ isHit のノーツは即非表示（ヒット消化済み）
+      // ★ isMissed のノーツはミス後も画面内なら流し続ける（判定ライン奥まで自然に流れる）
+      // ★ それ以外は currentNoteIndex で制御
       if (!isAwaitingLoop) {
+        const lowerBound = -0.35;
         taikoNotes.forEach((note, index) => {
+          if (note.isHit) return;
+
+          if (note.isMissed) {
+            const timeUntilHit = note.hitTime - normalizedTime;
+            if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
+              const x = judgeLinePos.x + timeUntilHit * noteSpeed;
+              notesToDisplay.push({
+                id: note.id,
+                chord: note.chord.displayName,
+                x,
+                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+              });
+            }
+            return;
+          }
+
           if (index < currentNoteIndex) return;
-          if (index > currentNoteIndex && note.isHit) return;
 
-          // 現在ループ基準の時間差
           const timeUntilHit = note.hitTime - normalizedTime;
-
-          // 判定ライン左側も少しだけ表示
-          const lowerBound = -0.35;
-
-          // 表示範囲内のノーツ（現在ループのみ）
           if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
             const x = judgeLinePos.x + timeUntilHit * noteSpeed;
             notesToDisplay.push({
