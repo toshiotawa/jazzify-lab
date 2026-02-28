@@ -644,95 +644,18 @@ const AccountPage: React.FC = () => {
                           {rankLabel[profile.rank]}
                         </span>
                       </div>
-                      
-                        {/* サブスクリプション状態表示 */}
-                          {profile.rank !== 'free' && (
-                            <div className="text-sm text-gray-200">
-                              {isEnglishCopy ? 'Check the portal for your next renewal date.' : '次回の更新日はポータルでご確認ください。'}
-                            </div>
-                          )}
-                      
-                      {/* 管理ボタン */}
-                      {profile.rank !== 'free' && (profile.stripe_customer_id || (profile as any).lemon_customer_id) ? (
-                        <button
-                          className="btn btn-sm btn-primary w-full mt-2"
-                          onClick={async () => {
-                            try {
-                              const endpoint = isJapanUser
-                                ? '/.netlify/functions/createPortalSession'
-                                : '/.netlify/functions/lemonsqueezyResolveLink';
-                              const response = await fetch(endpoint, {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
-                                },
-                              });
-                              
-                              if (response.ok) {
-                                const { url } = await response.json();
-                                window.open(url, '_blank');
-                              } else {
-                                if (response.status === 404) {
-                                  alert(isEnglishCopy ? 'No subscription found. Please select a plan.' : 'まだStripeのサブスクリプションが見つかりません。利用プランを選択してください。');
-                                  window.location.href = '/main#pricing';
-                                } else {
-                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
-                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open subscription management' : 'サブスクリプション管理画面の表示に失敗しました');
-                                  alert(msg);
-                                }
-                              }
-                            } catch (error) {
-                              console.error('Portal session error:', error);
-                              alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
-                            }
-                          }}
-                          >
-                            {isEnglishCopy ? 'Manage Plan' : 'プラン確認・変更'}
-                          </button>
-                      ) : (
-                        <div className="text-center pt-2">
-                          <p className="text-sm text-gray-400 mb-2">
-                            {isEnglishCopy ? 'Unlock premium features' : 'プレミアム機能をご利用ください'}
-                          </p>
-                          <button
-                            className="btn btn-sm btn-primary"
-                            onClick={async () => {
-                              try {
-                                if (isJapanUser) {
-                                  window.location.href = '/main#pricing';
-                                  return;
-                                }
-                                const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
-                                  method: 'POST',
-                                  headers: {
-                                    'Content-Type': 'application/json',
-                                    'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
-                                  },
-                                });
-                                if (response.ok) {
-                                  const { url } = await response.json();
-                                  window.location.href = url;
-                                } else {
-                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
-                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to generate checkout page' : '購入ページの生成に失敗しました');
-                                  alert(msg);
-                                }
-                              } catch (error) {
-                                alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
-                              }
-                            }}
-                          >
-                            {isEnglishCopy ? 'Select a Plan' : 'プランを選択'}
-                          </button>
-                        </div>
-                      )}
-                      <button
-                        className="btn btn-sm btn-outline w-full mt-2"
-                        onClick={() => { window.location.href = '/main#plan-comparison'; }}
-                      >
-                        {isEnglishCopy ? 'Compare Plans' : 'プラン比較表を見る'}
-                      </button>
+
+                      {/* オープンβ期間中の案内 */}
+                      <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-700/30 mt-2">
+                        <p className="text-sm text-yellow-200 mb-1">
+                          {isEnglishCopy ? 'Open Beta — all features are free until March 15.' : 'オープンβテスト中 — 3/15まで全機能を無料でご利用いただけます。'}
+                        </p>
+                        <p className="text-xs text-gray-400">
+                          {isEnglishCopy
+                            ? 'Subscription management will be available after the official launch on March 19.'
+                            : 'サブスクリプション管理は3/19の正式リリース後にご利用いただけます。'}
+                        </p>
+                      </div>
                     </div>
                   </div>
 

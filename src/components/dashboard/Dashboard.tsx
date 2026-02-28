@@ -252,6 +252,26 @@ const Dashboard: React.FC = () => {
       {/* ダッシュボードコンテンツ */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          {/* オープンβ通知 */}
+          {!isGuest && (
+            <div className="bg-gradient-to-r from-yellow-900/30 to-amber-900/20 rounded-lg p-5 border border-yellow-700/40">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-600/30 text-yellow-300 border border-yellow-600/40">
+                  {isEnglishCopy ? 'OPEN BETA' : 'オープンβ'}
+                </span>
+              </div>
+              <p className="text-sm text-gray-200 mb-2">
+                {isEnglishCopy
+                  ? 'Open beta until March 15 — all features are free to play. Official launch scheduled for March 19.'
+                  : '3/15までオープンβテスト中です。すべての機能を無料でお試しいただけます。3/19に正式リリース予定。'}
+              </p>
+              <p className="text-xs text-gray-400">
+                {isEnglishCopy
+                  ? 'All accounts will be deleted after the open beta ends. Please re-register after the official launch.'
+                  : 'オープンβテスト終了後、アカウントは全て削除されます。正式リリース後に再度ご登録ください。'}
+              </p>
+            </div>
+          )}
           {/* オープンベータ: プラン変更 UI */}
           {!isGuest && <OpenBetaPlanSwitcher />}
           {/* チュートリアル進捗 */}

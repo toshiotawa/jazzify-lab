@@ -199,8 +199,27 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
+        {/* Open Beta Banner */}
+        <section className="py-10 sm:py-14 text-center" style={{ background: 'linear-gradient(180deg, rgba(200,162,77,0.06) 0%, transparent 100%)' }}>
+          <div className="container mx-auto px-6">
+            <div className="inline-block mb-4 px-4 py-1 rounded-full text-xs font-bold lp-mono" style={{ background: 'rgba(200,162,77,0.12)', color: 'var(--lp-gold-light)', border: '1px solid rgba(200,162,77,0.2)' }}>
+              {isEnglishLanding ? 'OPEN BETA' : 'オープンβテスト中'}
+            </div>
+            <p className="text-lg sm:text-xl mb-2" style={{ color: 'var(--lp-cream)' }}>
+              {isEnglishLanding
+                ? 'Open beta until March 15 — play all features for free.'
+                : '3/15までオープンβテスト中。すべての機能を無料でプレイできます。'}
+            </p>
+            <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+              {isEnglishLanding
+                ? 'Official launch scheduled for March 19.'
+                : '3/19に正式リリース予定。'}
+            </p>
+          </div>
+        </section>
+
         {/* Fantasy Demo */}
-        <React.Suspense fallback={<div className="py-12 text-center text-gray-400">{isEnglishLanding ? 'Loading demo...' : 'デモを読み込み中...'}</div>}>
+        <React.Suspense fallback={<div className="py-12 text-center" style={{ color: 'var(--lp-cream-muted)' }}>{isEnglishLanding ? 'Loading demo...' : 'デモを読み込み中...'}</div>}>
           <LPFantasyDemo />
         </React.Suspense>
 
@@ -440,7 +459,7 @@ const LandingPage: React.FC = () => {
                     { label: 'サバイバル', values: ['×', '1キャラ', '無制限', '無制限', '無制限'] },
                     { label: 'レッスン', values: ['×', '1コースのみ', '無制限', '無制限', '無制限'] },
                     { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '×', '月10ブロック', '月10ブロック'] },
-                    { label: 'LINEでの課題添削', values: ['×', '×', '×', '×', '○'] },
+                    { label: 'LINEでの上達サポート', values: ['×', '×', '×', '×', '○'] },
                   ] as { label: string; values: string[] }[]).map((row, idx) => (
                     <tr key={idx} style={{ background: idx % 2 === 0 ? 'rgba(7,11,20,0.4)' : 'rgba(13,19,33,0.3)' }}>
                       <td className="p-3 text-sm font-medium whitespace-pre-line" style={{ border: '1px solid rgba(200,162,77,0.06)', color: 'var(--lp-cream-muted)' }}>{row.label}</td>
@@ -568,7 +587,7 @@ const LandingPage: React.FC = () => {
                 <div className="lp-divider mb-5" />
                 <div>
                   <p className="lp-mono text-xs mb-1" style={{ color: 'var(--lp-gold)' }}>
-                    Saita
+                    {isEnglishLanding ? 'Toshio Nagayoshi' : '永吉 俊雄'}
                   </p>
                   <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                     {isEnglishLanding ? 'Jazzify Developer & Jazz Pianist' : 'Jazzify 開発者 / ジャズピアニスト'}
