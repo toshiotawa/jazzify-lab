@@ -959,8 +959,44 @@ export const useFantasyGameEngine = ({
     const currentMonster = prevState.activeMonsters[0];
     if (!currentMonster) return prevState;
 
-    // 撃破済みモンスター（defeatedAt設定済み）への二重カウント防止
-    if (currentMonster.defeatedAt !== undefined) return prevState;
+    // 撃破済みモンスター: ノーツ判定は継続するがダメージは発生しない
+    if (currentMonster.defeatedAt !== undefined) {
+      const defChord = chosen.n.chord;
+      const defTargetMod12: number[] = Array.from(new Set<number>(defChord.notes.map((n: number) => n % 12)));
+      const defCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
+      const defChordComplete = defTargetMod12.every((t: number) => defCorrectNotes.includes(t));
+      if (defChordComplete) {
+        const defNotes = prevState.taikoNotes.slice();
+        defNotes[chosen.i] = { ...chosen.n, isHit: true };
+        const defSkip = !chosen.isNextSectionNote && chosen.i > currentIndex;
+        let defNext: number;
+        let defLast: boolean;
+        if (defSkip) {
+          defNext = currentIndex;
+          defLast = false;
+        } else {
+          defNext = chosen.isNextSectionNote ? currentIndex : chosen.i + 1;
+          while (defNext < sectionEnd && defNotes[defNext]?.isHit) defNext++;
+          defLast = defNext >= sectionEnd;
+        }
+        return {
+          ...prevState,
+          taikoNotes: defNotes,
+          currentNoteIndex: defLast ? currentIndex : defNext,
+          awaitingLoopStart: defLast,
+          combo: prevState.combo + 1,
+          activeMonsters: prevState.activeMonsters.map(m =>
+            m.id === currentMonster.id ? { ...m, correctNotes: [] } : m
+          ),
+        };
+      }
+      return {
+        ...prevState,
+        activeMonsters: prevState.activeMonsters.map(m =>
+          m.id === currentMonster.id ? { ...m, correctNotes: defCorrectNotes } : m
+        ),
+      };
+    }
     
     const effectiveChord = chosen.n.chord;
     const targetNotesMod12: number[] = Array.from(new Set<number>(effectiveChord.notes.map((n: number) => n % 12)));
@@ -1350,8 +1386,52 @@ export const useFantasyGameEngine = ({
     const currentMonster = workingState.activeMonsters[0];
     if (!currentMonster) return workingState;
 
-    // 撃破済みモンスター（defeatedAt設定済み）への二重カウント防止
-    if (currentMonster.defeatedAt !== undefined) return workingState;
+    // 撃破済みモンスター: ノーツ判定は継続するがダメージは発生しない
+    if (currentMonster.defeatedAt !== undefined) {
+      const defChord = chosen.nextLoopChord || chosenNote.chord;
+      const defTargetMod12: number[] = Array.from(new Set<number>(defChord.notes.map((n: number) => n % 12)));
+      const defCorrectNotes = [...currentMonster.correctNotes, noteMod12].filter((v, i, a) => a.indexOf(v) === i);
+      const defChordComplete = defTargetMod12.every((t: number) => defCorrectNotes.includes(t));
+      if (defChordComplete) {
+        const wasAwaitingLoop = workingState.awaitingLoopStart;
+        const defNextIdx = chosenIndex + 1;
+        const defIsLast = defNextIdx >= workingState.taikoNotes.length;
+        const defSkip = !chosen.isNextLoopNote && !wasAwaitingLoop && chosenIndex > currentIndex;
+        const defEffNext = defSkip ? currentIndex : defNextIdx;
+        const defEffLast = defSkip ? false : defIsLast;
+        const defIsPreHit = chosen.isNextLoopNote && !wasAwaitingLoop;
+        const defPreHitIdxs = [...(workingState.preHitNoteIndices || [])];
+        let defTaikoNotes;
+        if (wasAwaitingLoop) {
+          defTaikoNotes = workingState.taikoNotes.map((n, i) => ({
+            ...n, isHit: i === chosenIndex, isMissed: false
+          }));
+          if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
+        } else if (defIsPreHit) {
+          defTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+          if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
+        } else {
+          defTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+        }
+        return {
+          ...workingState,
+          taikoNotes: defTaikoNotes,
+          currentNoteIndex: defEffLast ? workingState.currentNoteIndex : defEffNext,
+          combo: workingState.combo + 1,
+          awaitingLoopStart: defEffLast,
+          preHitNoteIndices: (defIsPreHit || wasAwaitingLoop) ? defPreHitIdxs : workingState.preHitNoteIndices,
+          activeMonsters: workingState.activeMonsters.map(m =>
+            m.id === currentMonster.id ? { ...m, correctNotes: [] } : m
+          ),
+        };
+      }
+      return {
+        ...workingState,
+        activeMonsters: workingState.activeMonsters.map(m =>
+          m.id === currentMonster.id ? { ...m, correctNotes: defCorrectNotes } : m
+        ),
+      };
+    }
 
     // 移調ループの場合、次のループのノーツは移調後のコードを使用
     const effectiveChord = chosen.nextLoopChord || chosenNote.chord;
@@ -2676,9 +2756,10 @@ export const useFantasyGameEngine = ({
             };
           }
           
-          // ミス判定: +150ms以上経過
+          // ミス判定: +150ms以上経過 → 直接HP減少（非combiningと同一方式）
           const timeDiff = currentTime - currentNote.hitTime;
           if (timeDiff > 0.15) {
+            const isPracticeMode = prevState.playMode === 'practice';
             const sectionEnd = section.globalNoteEndIndex;
             const updatedNotes = prevState.taikoNotes.slice();
             updatedNotes[noteIdx] = { ...currentNote, isMissed: true };
@@ -2696,50 +2777,57 @@ export const useFantasyGameEngine = ({
               ? nextNote
               : ((nextIdx + 1 < sectionEnd) ? updatedNotes[nextIdx + 1] : nextNote);
             
-            const updatedMonsters = prevState.activeMonsters.map(m => ({
-              ...m,
-              gauge: Math.min(m.gauge + (60 / (stage.enemyGaugeSeconds || 5)) * 0.05, m.maxHp),
-              chordTarget: nextNote?.chord ?? m.chordTarget,
-              nextChord: nextNextNote?.chord ?? m.nextChord,
-            }));
-
-            const attackingMonster = updatedMonsters.find(m => m.gauge >= 100);
-            lastNormalizedTimeRef.current = currentTime;
-            if (attackingMonster) {
+            const attackerId = prevState.activeMonsters?.[0]?.id;
+            if (attackerId && !isPracticeMode) {
               const { setEnrage } = useEnemyStore.getState();
               const timers = enrageTimersRef.current;
-              const oldTimer = timers.get(attackingMonster.id);
+              const oldTimer = timers.get(attackerId);
               if (oldTimer) clearTimeout(oldTimer);
-              setEnrage(attackingMonster.id, true);
+              setEnrage(attackerId, true);
               const t = setTimeout(() => {
-                setEnrage(attackingMonster.id, false);
-                timers.delete(attackingMonster.id);
+                setEnrage(attackerId, false);
+                timers.delete(attackerId);
               }, 500);
-              timers.set(attackingMonster.id, t);
+              timers.set(attackerId, t);
+            }
 
-              const resetMonsters = updatedMonsters.map(m =>
-                m.id === attackingMonster.id ? { ...m, gauge: 0 } : m
-              );
-              setTimeout(() => handleEnemyAttack(attackingMonster.id), 0);
+            const newHp = isPracticeMode ? prevState.playerHp : Math.max(0, prevState.playerHp - 1);
+            const newSp = isPracticeMode ? prevState.playerSp : 0;
+            const isGameOver = !isPracticeMode && newHp <= 0;
 
-              const nextState = {
+            lastNormalizedTimeRef.current = currentTime;
+
+            if (isGameOver) {
+              const finalState = {
                 ...prevState,
                 taikoNotes: updatedNotes,
-                currentNoteIndex: isLastInSection ? noteIdx : nextIdx,
-                awaitingLoopStart: isLastInSection,
-                activeMonsters: resetMonsters,
-                enemyGauge: 0,
+                playerHp: 0,
+                isGameActive: false,
+                isGameOver: true,
+                gameResult: 'gameover' as const,
+                isCompleting: true,
+                combo: 0,
               };
-              onGameStateChange(nextState);
-              return nextState;
+              setTimeout(() => {
+                try { onGameComplete('gameover', finalState); } catch {}
+              }, 100);
+              return finalState;
             }
 
             return {
               ...prevState,
               taikoNotes: updatedNotes,
+              playerHp: newHp,
+              playerSp: newSp,
               currentNoteIndex: isLastInSection ? noteIdx : nextIdx,
               awaitingLoopStart: isLastInSection,
-              activeMonsters: updatedMonsters,
+              combo: 0,
+              activeMonsters: prevState.activeMonsters.map(m => ({
+                ...m,
+                correctNotes: [],
+                chordTarget: nextNote?.chord ?? m.chordTarget,
+                nextChord: nextNextNote?.chord ?? m.nextChord,
+              })),
             };
           }
           
