@@ -622,21 +622,18 @@ const SongSelectionScreen: React.FC = () => {
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
-  const [sortBy, setSortBy] = React.useState<'default' | 'artist' | 'title'>('default');
-  const [searchTerm, setSearchTerm] = React.useState('');
+  const [activeTab, setActiveTab] = React.useState<'bach' | 'parker'>('bach');
   
   const isStandardGlobal = profile?.rank === 'standard_global';
 
   React.useEffect(() => {
     (async () => {
       try {
-        // standard_global プランの場合は global_available=true の曲のみ取得
         const allSongs = isStandardGlobal
           ? await fetchGlobalAvailableSongs('general')
           : await fetchSongs('general');
         setDbSongs(allSongs);
         
-        // ユーザー統計を取得
       if (user) {
         const { fetchUserSongStatsMap } = await import('@/platform/unifiedSongProgress');
         const statsMap = await fetchUserSongStatsMap(user.id);
@@ -648,36 +645,15 @@ const SongSelectionScreen: React.FC = () => {
     })();
   }, [profile, user, isStandardGlobal]);
 
-  // 楽曲ソート機能
-  const sortedSongs = React.useMemo(() => {
-    let sorted = [...dbSongs];
-    
-    // 検索フィルタ
-    if (searchTerm && searchTerm.trim() !== '') {
-      const term = searchTerm.toLowerCase();
-      sorted = sorted.filter(song => (
-        (song.title || '').toLowerCase().includes(term) ||
-        (song.artist || '').toLowerCase().includes(term)
-      ));
-    }
-    
-    sorted.sort((a, b) => {
-      if (sortBy === 'default') {
-        return (a.sort_order ?? 0) - (b.sort_order ?? 0);
-      }
-      if (sortBy === 'artist') {
-        const artistCompare = (a.artist || '').localeCompare(b.artist || '');
-        if (artistCompare !== 0) return artistCompare;
-        return (a.title || '').localeCompare(b.title || '');
-      }
-      if (sortBy === 'title') {
-        return (a.title || '').localeCompare(b.title || '');
-      }
-      return 0;
+  const filteredSongs = React.useMemo(() => {
+    const filtered = dbSongs.filter(song => {
+      const artist = (song.artist || '').trim().toLowerCase();
+      if (activeTab === 'bach') return artist.includes('bach');
+      return artist === 'charlie parker';
     });
-    
-    return sorted;
-  }, [dbSongs, sortBy, searchTerm]);
+    filtered.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
+    return filtered;
+  }, [dbSongs, activeTab]);
 
   return (
     <div className="flex-1 p-3 sm:p-6 overflow-auto">
@@ -685,52 +661,37 @@ const SongSelectionScreen: React.FC = () => {
         <div className="flex items-center justify-between mb-4 sm:mb-6">
           <h2 className="text-xl sm:text-2xl font-bold text-white">{isEnglishCopy ? 'Legend Mode' : 'レジェンドモード'}</h2>
           <div className="text-sm text-gray-400">
-            {sortedSongs.length} {isEnglishCopy ? 'songs' : '曲'}
+            {filteredSongs.length} {isEnglishCopy ? 'songs' : '曲'}
           </div>
         </div>
 
-
-        <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
-          <div className="flex items-center space-x-2 mb-1">
-            <FaMusic className="text-green-400" />
-            <h3 className="text-sm font-semibold">{isEnglishCopy ? 'Choose a song to practice' : '楽曲を選んで練習しましょう'}</h3>
-          </div>
-          <p className="text-gray-300 text-xs sm:text-sm">
-            {isEnglishCopy ? 'Filter songs by sorting or searching. Select a song to start practicing at your own pace.' : 'ソートや検索で楽曲を絞り込み、選択すると練習画面に移動します。自分のペースで練習を進めましょう。'}
-          </p>
-        </div>
-        
-        {/* フィルター コントロール */}
-
-        <div className="flex flex-wrap items-center gap-3 mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
-          <div className="flex items-center space-x-2 whitespace-nowrap">
-            <label className="text-sm text-gray-300">{isEnglishCopy ? 'Sort:' : 'ソート:'}</label>
-            <select
-              value={sortBy}
-              onChange={(e) => setSortBy(e.target.value as 'default' | 'artist' | 'title')}
-              className="select select-sm bg-slate-700 text-white border-slate-600"
-            >
-              <option value="default">{isEnglishCopy ? 'Default' : 'デフォルト'}</option>
-              <option value="artist">{isEnglishCopy ? 'By Artist' : 'アーティスト順'}</option>
-              <option value="title">{isEnglishCopy ? 'By Title' : 'タイトル順'}</option>
-            </select>
-          </div>
-
-          <div className="flex items-center space-x-2 flex-1 min-w-[200px]">
-            <label className="text-sm text-gray-300">{isEnglishCopy ? 'Search:' : '検索:'}</label>
-            <input
-              type="text"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              placeholder={isEnglishCopy ? 'Search by title or artist' : '曲名・アーティストで検索'}
-              className="input input-sm bg-slate-700 text-white border-slate-600 w-full"
-            />
-          </div>
+        {/* アーティストタブ */}
+        <div className="flex gap-2 mb-6">
+          <button
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              activeTab === 'bach'
+                ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
+                : 'bg-slate-800 text-gray-400 hover:bg-slate-700 hover:text-gray-200 border border-slate-700'
+            }`}
+            onClick={() => setActiveTab('bach')}
+          >
+            Bach
+          </button>
+          <button
+            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
+              activeTab === 'parker'
+                ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/30'
+                : 'bg-slate-800 text-gray-400 hover:bg-slate-700 hover:text-gray-200 border border-slate-700'
+            }`}
+            onClick={() => setActiveTab('parker')}
+          >
+            Charlie Parker
+          </button>
         </div>
         
-        {/* 楽曲リスト - 軽量化されたレイアウト */}
+        {/* 楽曲リスト */}
         <div className="space-y-2">
-          {sortedSongs.map((song) => {
+          {filteredSongs.map((song) => {
             const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
             const songStat = songStats[song.id];
             return (
