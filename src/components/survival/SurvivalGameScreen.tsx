@@ -890,8 +890,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const wrapper = canvasWrapperRef.current;
     if (!wrapper) return;
 
+    const isInteractiveElement = (el: EventTarget | null): boolean => {
+      if (!(el instanceof HTMLElement)) return false;
+      const tag = el.tagName;
+      if (tag === 'BUTTON' || tag === 'A' || tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA') return true;
+      if (el.closest('button, a, [role="button"], .pointer-events-auto')) return true;
+      return false;
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       if (!isTouchDevice.current || e.touches.length === 0) return;
+      if (isInteractiveElement(e.target)) return;
       e.preventDefault();
       const touch = e.touches[0];
       floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
