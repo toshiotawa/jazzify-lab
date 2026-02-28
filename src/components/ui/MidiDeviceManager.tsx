@@ -88,9 +88,37 @@ export const useMidiDevices = () => {
     }
   }, []);
 
-  // 初回ロード時にデバイス一覧を取得
+  // 初回ロード＋ユーザージェスチャー後の自動再スキャン
   useEffect(() => {
-    refreshDevices();
+    let gestureCleanup: (() => void) | null = null;
+
+    const initialScan = async () => {
+      await refreshDevices();
+    };
+
+    initialScan().then(() => {
+      // iOS Web MIDI Browser では requestMIDIAccess がユーザージェスチャー後でないと
+      // デバイスを返さないことがあるため、0台の場合はインタラクション後に自動再スキャン
+      const scheduleGestureRescan = () => {
+        const handler = () => {
+          cachedMidiAccess = null;
+          refreshDevices();
+          document.removeEventListener('click', handler);
+          document.removeEventListener('touchend', handler);
+        };
+        document.addEventListener('click', handler, { once: true });
+        document.addEventListener('touchend', handler, { once: true });
+        gestureCleanup = () => {
+          document.removeEventListener('click', handler);
+          document.removeEventListener('touchend', handler);
+        };
+      };
+      scheduleGestureRescan();
+    });
+
+    return () => {
+      gestureCleanup?.();
+    };
   }, [refreshDevices]);
 
   // MIDIデバイス状態変更の監視（キャッシュ済みMIDIAccessを再利用）
