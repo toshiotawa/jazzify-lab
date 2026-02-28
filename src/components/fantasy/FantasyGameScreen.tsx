@@ -1550,12 +1550,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
       
       // 通常のノーツ（現在ループのみ表示）
-      // ★ isHit フラグを表示判定に使わない（currentNoteIndex のみで制御）
-      // これにより state 側でのノーツ配列リセットが表示に影響しなくなる
+      // ★ currentNoteIndex より前のノーツは非表示（消化済み）
+      // ★ currentNoteIndex より後ろで isHit のノーツも非表示（順番飛ばしでヒット済み）
+      //   → スキップされた手前のノーツだけが判定ラインの奥まで自然に流れる
       if (!isAwaitingLoop) {
         taikoNotes.forEach((note, index) => {
-          // 消化済みインデックスは表示しない
           if (index < currentNoteIndex) return;
+          if (index > currentNoteIndex && note.isHit) return;
 
           // 現在ループ基準の時間差
           const timeUntilHit = note.hitTime - normalizedTime;
