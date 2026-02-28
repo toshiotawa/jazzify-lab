@@ -324,10 +324,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
+      // レジェンドモードと同一順序: オーディオ先 → MIDI後
       const initPromise = (async () => {
         try {
           const initWork = async () => {
-            await controller.initialize();
+            // 1. オーディオ + サウンドを先に並列初期化
             await Promise.all([
               initializeAudioSystem().then(() => {
                 updateGlobalVolume(0.8);
@@ -340,8 +341,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
               })
             ]);
+            // 2. オーディオ準備完了後にMIDI初期化
+            await controller.initialize();
           };
-          // iOS等で初期化Promiseが永久にpendingになるケースの安全弁
           await Promise.race([
             initWork(),
             new Promise<void>((resolve) => setTimeout(resolve, 10000))

@@ -615,12 +615,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
+      // レジェンドモードと同一順序: オーディオ先 → MIDI後
       const initPromise = (async () => {
         try {
-          await controller.initialize();
-          
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
+          // 1. オーディオ + サウンドを先に並列初期化
           await Promise.all([
             initializeAudioSystem().then(() => {
               updateGlobalVolume(settings.midiVolume ?? 0.8);
@@ -629,6 +629,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               FantasySoundManager.enableRootSound(true);
             })
           ]);
+          // 2. オーディオ準備完了後にMIDI初期化
+          await controller.initialize();
           
           // MIDIControllerにキーハイライト機能を設定（初期化後に設定）
           controller.setKeyHighlightCallback((note: number, active: boolean) => {
