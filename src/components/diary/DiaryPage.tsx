@@ -238,6 +238,19 @@ const DiaryPage: React.FC = () => {
               </div>
             ) : (
               <div className="pb-6">
+                {/* 説明セクション */}
+                <div className="px-4 sm:px-6 pt-4">
+                  <div className="p-4 bg-slate-800 rounded-lg border border-slate-700">
+                    <div className="flex items-center space-x-2 mb-1">
+                      <FaCalendarAlt className="text-blue-400 text-sm" />
+                      <h3 className="text-sm font-semibold">練習日記</h3>
+                    </div>
+                    <p className="text-gray-300 text-xs sm:text-sm">
+                      日々の練習内容を記録して振り返りましょう。テキストや画像で練習の成果を残すことができます。
+                    </p>
+                  </div>
+                </div>
+
                 {/* ユーザープロフィール */}
                 {profile && (
                   <div className="p-4 sm:p-6 border-b border-slate-700">

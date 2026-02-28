@@ -260,6 +260,21 @@ const LevelRanking: React.FC = () => {
           <p className="text-center text-gray-400">Loading...</p>
         ) : (
           <div className="space-y-4">
+            {/* 説明セクション */}
+            <div className="p-4 bg-slate-800 rounded-lg border border-slate-700">
+              <div className="flex items-center space-x-2 mb-1">
+                <FaTrophy className="text-yellow-400 text-sm" />
+                <h3 className="text-sm font-semibold">
+                  {isEnglishCopy ? 'Player Rankings' : 'プレイヤーランキング'}
+                </h3>
+              </div>
+              <p className="text-gray-300 text-xs sm:text-sm">
+                {isEnglishCopy
+                  ? 'Compare your progress with other players. Sort by Level, Survival record, or Legend Mode clears.'
+                  : 'レベル、サバイバル記録、レジェンドモードのクリア数など、他のプレイヤーと競い合いましょう。'}
+              </p>
+            </div>
+
             {/* アクションバー */}
             <div className="flex flex-wrap items-center justify-center gap-2">
               <button

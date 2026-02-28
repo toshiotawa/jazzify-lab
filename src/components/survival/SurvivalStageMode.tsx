@@ -262,6 +262,21 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
       <div className="px-4 sm:px-6 pb-32 sm:pb-6">
         <div className="max-w-2xl mx-auto space-y-4">
 
+          {/* 説明セクション */}
+          <div className="bg-black/40 rounded-xl p-4 border border-purple-500/30">
+            <div className="flex items-center space-x-2 mb-1">
+              <FaTrophy className="text-yellow-400 text-sm" />
+              <h3 className="text-sm font-semibold font-sans">
+                {isEnglishCopy ? 'Clear all 105 stages!' : '全105ステージを制覇しよう！'}
+              </h3>
+            </div>
+            <p className="text-gray-400 text-xs sm:text-sm font-sans">
+              {isEnglishCopy
+                ? 'Survive 90 seconds and defeat 300 enemies to clear each stage. Stages get progressively harder with new characters and faster enemies.'
+                : '各ステージで90秒生存し、300体撃破でクリアです。ステージが進むにつれ新キャラクターが登場し、敵の速度も上がります。'}
+            </p>
+          </div>
+
           {/* 進捗バー */}
           <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/30">
             <div className="flex justify-between items-center mb-2">

@@ -665,6 +665,18 @@ const SongSelectionScreen: React.FC = () => {
           </div>
         </div>
 
+        <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
+          <div className="flex items-center space-x-2 mb-1">
+            <FaMusic className="text-green-400" />
+            <h3 className="text-sm font-semibold">{isEnglishCopy ? 'Choose a song to practice' : '楽曲を選んで練習しましょう'}</h3>
+          </div>
+          <p className="text-gray-300 text-xs sm:text-sm">
+            {isEnglishCopy
+              ? 'Select a song to start practicing at your own pace. Play along with the original recording.'
+              : '楽曲を選択すると練習画面に移動します。原曲の音源に合わせて演奏を楽しみましょう。'}
+          </p>
+        </div>
+
         {/* アーティストタブ */}
         <div className="flex gap-2 mb-6">
           <button

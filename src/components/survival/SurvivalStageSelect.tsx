@@ -426,6 +426,25 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
         </div>
       )}
 
+      {/* 説明セクション */}
+      <div className="px-4 sm:px-6">
+        <div className="max-w-4xl mx-auto mb-4">
+          <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/30">
+            <div className="flex items-center space-x-2 mb-1">
+              <FaBolt className="text-yellow-400 text-sm" />
+              <h3 className="text-sm font-semibold font-sans">
+                {isEnglishCopy ? 'Choose your challenge!' : '好きな設定で挑戦しよう！'}
+              </h3>
+            </div>
+            <p className="text-gray-400 text-xs sm:text-sm font-sans">
+              {isEnglishCopy
+                ? 'Pick your character and difficulty level freely. Survive for 20 minutes to achieve victory. Your high scores will be recorded.'
+                : 'キャラクターと難易度を自由に選んで挑戦できます。20分間生き残れば勝利です。ハイスコアが記録されます。'}
+            </p>
+          </div>
+        </div>
+      </div>
+
       {/* 難易度別セクション */}
       <div className="px-4 sm:px-6 pb-6">
         <div className="max-w-4xl mx-auto space-y-3">
