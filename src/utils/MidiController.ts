@@ -87,22 +87,26 @@ const disposeSampler = (sampler: ToneSampler | null): void => {
   }
 };
 
+// 排他ロック: 並行呼び出しでも初期化は1回だけ実行される
+let audioInitPromise: Promise<void> | null = null;
+
 /**
  * 音声システムの初期化（遅延最適化設定付き）
+ * 複数箇所から同時に呼ばれても安全（Promiseベースのシングルトン）
  */
-export const initializeAudioSystem = async (): Promise<void> => {
-  if (audioSystemInitialized) {
-    console.log('🎹 Audio system already initialized');
-    return;
-  }
+export const initializeAudioSystem = (): Promise<void> => {
+  if (audioSystemInitialized) return Promise.resolve();
+  if (audioInitPromise) return audioInitPromise;
+  audioInitPromise = doInitializeAudioSystem();
+  return audioInitPromise;
+};
 
+const doInitializeAudioSystem = async (): Promise<void> => {
   try {
     console.log('🎹 Initializing optimized audio system...');
     
-    // ユーザーインタラクションを待つ
     await detectUserInteraction();
     
-    // Tone.jsの存在確認
     if (typeof window === 'undefined' || !window.Tone) {
       console.warn('⚠️ Tone.js not available, attempting to load...');
       let retryCount = 0;
@@ -120,24 +124,21 @@ export const initializeAudioSystem = async (): Promise<void> => {
           
           if (retryCount >= maxRetries) {
             console.error('❌ All dynamic import attempts failed');
+            audioInitPromise = null;
             throw new Error(`音声/MIDIシステム初期化に失敗 (ユーザーインタラクション後に再試行): ${toneError instanceof Error ? toneError.message : 'Unknown error'}`);
           }
           
-          // 指数バックオフで再試行
           await new Promise(resolve => setTimeout(resolve, 1000 * Math.pow(2, retryCount - 1)));
         }
       }
     }
 
-    // 遅延最適化設定: "interactive" モード + lookAhead=0
     const ToneLib: any = (window as any).Tone;
     const optimizedContext = new ToneLib.Context({
       latencyHint: 'interactive',
       lookAhead: 0
     });
     ToneLib.setContext(optimizedContext);
-    
-    console.log('✅ Tone.js context optimized for low latency');
 
     globalSampler = new ToneLib.Sampler({
       urls: LIGHT_SAMPLER_URLS,
@@ -154,6 +155,7 @@ export const initializeAudioSystem = async (): Promise<void> => {
     console.log('✅ Optimized audio system initialized successfully');
     
   } catch (error) {
+    audioInitPromise = null;
     console.error('❌ Audio system initialization failed:', error);
     throw error;
   }

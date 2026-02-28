@@ -615,13 +615,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // MIDI・オーディオ・サウンドを全て並列初期化
       const initPromise = (async () => {
         try {
+          await controller.initialize();
+          
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
           await Promise.all([
-            controller.initialize(),
             initializeAudioSystem().then(() => {
               updateGlobalVolume(settings.midiVolume ?? 0.8);
             }),

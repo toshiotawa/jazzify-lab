@@ -324,11 +324,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // MIDI・オーディオ・サウンドを全て並列初期化
       const initPromise = (async () => {
         try {
+          await controller.initialize();
+          
           await Promise.all([
-            controller.initialize(),
             initializeAudioSystem().then(() => {
               updateGlobalVolume(0.8);
             }),
