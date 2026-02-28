@@ -115,32 +115,35 @@ const LandingPage: React.FC = () => {
   };
 
   return (
-    <div className="lp-root text-white flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif' }}>
+    <div className="lp-root flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif', color: 'var(--lp-cream)' }}>
         <Helmet>
           <title>Jazzify</title>
           <meta name="description" content={helmetDescription} />
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
-        <link href="https://fonts.googleapis.com/css2?family=Kaisei+Opti:wght@400;700&display=swap" rel="stylesheet" />
+        <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,600&family=Kaisei+Opti:wght@400;700&display=swap" rel="stylesheet" />
       </Helmet>
 
-      <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef}>
+      <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef} style={{ background: 'var(--lp-base)' }}>
         {/* Header */}
-        <nav className="fixed top-0 left-0 right-0 w-full bg-slate-900 bg-opacity-90 backdrop-blur-md z-50 border-b border-purple-500 border-opacity-30">
+        <nav className="fixed top-0 left-0 right-0 w-full z-50" style={{ background: 'rgba(7,11,20,0.88)', backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)', borderBottom: '1px solid rgba(200,162,77,0.12)' }}>
           <div className="container mx-auto px-6 py-2 md:py-4">
             <div className="flex items-center justify-between">
-              <h1 className="flex items-center gap-3 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
+              <h1 className="lp-display flex items-center gap-3 text-2xl font-bold" style={{ color: 'var(--lp-gold)' }}>
                 <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" />
                 Jazzify
               </h1>
 
               {navLinks.length > 0 && (
-                <div className="hidden md:flex items-center gap-6 text-sm text-gray-300">
+                <div className="hidden md:flex items-center gap-6 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                   {navLinks.map((link) => (
                     <a
                       key={link.id}
                       href={`#${link.id}`}
-                      className="hover:text-purple-400 transition"
+                      className="transition-colors duration-200"
+                      style={{ ['--tw-text-opacity' as string]: 1 }}
+                      onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--lp-gold)')}
+                      onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--lp-cream-muted)')}
                       onClick={(e) => handleAnchorClick(e, link.id)}
                     >
                       {link.label}
@@ -150,7 +153,7 @@ const LandingPage: React.FC = () => {
               )}
 
               <div className="flex items-center gap-2 sm:gap-3">
-                <Link to="/signup" className="px-3 py-1.5 sm:px-4 sm:py-2 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition text-xs sm:text-sm font-bold whitespace-nowrap">
+                <Link to="/signup" className="lp-btn-gold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm whitespace-nowrap">
                   {isEnglishLanding ? 'Sign In / Sign Up' : 'ログイン/無料トライアル'}
                 </Link>
               </div>
@@ -163,20 +166,20 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
-                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-2xl shadow-2xl border border-white/10" />
+                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-2xl shadow-2xl" style={{ border: '1px solid rgba(200,162,77,0.12)' }} />
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
                     <TypewriterText
                       text={heroTitleText}
-                    className="text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
+                    className="lp-display text-4xl sm:text-5xl md:text-7xl font-black mb-4 section-title"
                     dataAnimate="from-behind heading-underline"
                     speedMsPerChar={110}
                     delayMs={100}
                   />
                     <TypewriterText
                       text={heroSubtitleText}
-                    className="text-lg sm:text-xl md:text-2xl text-purple-200 mb-8"
+                    className="text-lg sm:text-xl md:text-2xl mb-8"
                     dataAnimate="from-behind"
                     speedMsPerChar={120}
                     delayMs={1000}
@@ -186,7 +189,7 @@ const LandingPage: React.FC = () => {
                   <Link
                       to="/signup"
                       aria-label={heroCtaAria}
-                    className="inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 font-bold shadow-lg text-base sm:text-lg"
+                    className="lp-btn-gold inline-flex items-center justify-center px-6 py-3 sm:px-8 sm:py-4 rounded-full text-base sm:text-lg shadow-lg"
                   >
                       {primaryCtaLabel}
                   </Link>
@@ -206,20 +209,20 @@ const LandingPage: React.FC = () => {
           <>
             <section id="pricing" className="py-20 story-gradient" data-animate="slide-right text-up">
               <div className="container mx-auto px-6">
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+                <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
                   <img src="/stage_icons/10.png" alt="Pricing" className="w-16 h-16" />
                   Pricing
                 </h2>
                 <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
                   <div className="pricing-card premium rounded-2xl p-8 text-center">
-                    <div className="bg-gradient-to-r from-purple-400 to-pink-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">Standard</div>
-                    <h3 className="text-2xl font-bold text-purple-300 mb-4">Monthly Plan</h3>
-                    <div className="text-4xl font-bold text-white mb-6">$19<span className="text-sm text-gray-400">/month</span></div>
-                    <ul className="space-y-3 text-sm text-gray-400 mb-6">
-                      <li><i className="fas fa-check text-green-400 mr-2"></i>1 week free trial</li>
-                      <li><i className="fas fa-check text-green-400 mr-2"></i>Fantasy Mode (unlimited)</li>
-                      <li><i className="fas fa-check text-green-400 mr-2"></i>MIDI keyboard support</li>
-                      <li><i className="fas fa-check text-green-400 mr-2"></i>Cancel anytime</li>
+                    <div className="lp-btn-gold text-xs px-3 py-1 rounded-full inline-block mb-4">Standard</div>
+                    <h3 className="text-2xl font-bold mb-4 lp-display" style={{ color: 'var(--lp-gold-light)' }}>Monthly Plan</h3>
+                    <div className="text-4xl font-bold mb-6 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/month</span></div>
+                    <ul className="space-y-3 text-sm mb-6" style={{ color: 'var(--lp-cream-muted)' }}>
+                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>1 week free trial</li>
+                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>Fantasy Mode (unlimited)</li>
+                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>MIDI keyboard support</li>
+                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>Cancel anytime</li>
                     </ul>
                   </div>
                 </div>
@@ -228,7 +231,7 @@ const LandingPage: React.FC = () => {
 
             <section id="faq" className="py-20" data-animate="slide-left text-up">
               <div className="container mx-auto px-6">
-                <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+                <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
                   <img src="/stage_icons/1.png" alt="FAQ" className="w-16 h-16" />
                   FAQ
                 </h2>
@@ -241,16 +244,17 @@ const LandingPage: React.FC = () => {
                         aria-expanded={openFaqId === id}
                         aria-controls={`faq-content-en-${id}`}
                       >
-                        <h3 className="text-lg font-bold text-white">
+                        <h3 className="text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
                           {id === 1 && 'What devices can I use?'}
                           {id === 2 && 'How do I use MIDI devices on iOS (iPhone/iPad)?'}
                           {id === 3 && 'Can I cancel anytime?'}
                         </h3>
-                        <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} text-purple-400`}></i>
+                        <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ color: 'var(--lp-gold)' }}></i>
                       </button>
                       <div
                         id={`faq-content-en-${id}`}
-                        className={`mt-4 text-gray-400 ${openFaqId === id ? '' : 'hidden'}`}
+                        className={`mt-4 ${openFaqId === id ? '' : 'hidden'}`}
+                        style={{ color: 'var(--lp-cream-muted)' }}
                       >
                         {id === 1 && 'You can use MIDI keyboards with our application. Connect your MIDI device and start practicing!'}
                         {id === 2 && (
@@ -260,7 +264,8 @@ const LandingPage: React.FC = () => {
                               href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="underline text-blue-300"
+                              className="underline"
+                              style={{ color: '#7db4d8' }}
                             >
                               Web MIDI Browser
                             </a>
@@ -284,32 +289,32 @@ const LandingPage: React.FC = () => {
         <section className="py-16 sm:py-20" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
             <h2
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title"
+              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title"
               data-animate="from-behind heading-underline"
             >
               Jazzifyで身につくこと
             </h2>
             <div className="grid md:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
                   <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold text-purple-300 mb-2">ジャズの響きを手に覚えこませる</h3>
-                <p className="text-gray-400">ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
+                <h3 className="text-xl font-bold mb-2" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
+                <p style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
               </div>
               <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
                   <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold text-yellow-300 mb-2">名演ソロを耳コピ＆再現</h3>
-                <p className="text-gray-400">巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
+                <h3 className="text-xl font-bold mb-2" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
+                <p style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
               </div>
               <div className="text-center p-6">
-                <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                <div className="w-20 h-20 mx-auto mb-4 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.15)' }}>
                   <img src="/stage_icons/3.png" alt="体系的レッスン" className="w-14 h-14 object-contain" loading="lazy" />
                 </div>
-                <h3 className="text-xl font-bold text-blue-300 mb-2">基礎から体系的にレッスン</h3>
-                <p className="text-gray-400">動画付きカリキュラムで、何から始めればいいか迷わない</p>
+                <h3 className="text-xl font-bold mb-2" style={{ color: '#7db4d8' }}>基礎から体系的にレッスン</h3>
+                <p style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、何から始めればいいか迷わない</p>
               </div>
             </div>
           </div>
@@ -319,7 +324,7 @@ const LandingPage: React.FC = () => {
         <section id="modes" className="py-16 sm:py-20 story-gradient" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
             <h2
-              className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title flex items-center justify-center gap-4"
+              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-12 section-title flex items-center justify-center gap-4"
               data-animate="from-behind heading-underline"
             >
               <img src="/stage_icons/1.png" alt="学習モード" className="w-16 h-16" loading="lazy" />
@@ -328,41 +333,41 @@ const LandingPage: React.FC = () => {
 
             <div className="grid lg:grid-cols-3 gap-8 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
                   <img src="/regend_demo.png" alt="レジェンドモード：楽譜とピアノロールで名演ソロを再現" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
                     <img src="/monster_icons/monster_61.png" alt="レジェンドモード" className="w-12 h-12 object-contain" loading="lazy" />
                   </div>
-                  <h3 className="text-2xl font-bold text-yellow-300 mb-3">レジェンドモード</h3>
-                  <p className="text-gray-300">巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
+                  <h3 className="text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>レジェンドモード</h3>
+                  <p style={{ color: 'var(--lp-cream-muted)' }}>巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
                 </div>
               </div>
 
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
                   <img src="/fantasy_demo.png" alt="ファンタジーモード：RPG風バトルでコード進行をマスター" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
                     <img src="/monster_icons/monster_35.png" alt="ファンタジーモード" className="w-12 h-12 object-contain" loading="lazy" />
                   </div>
-                  <h3 className="text-2xl font-bold text-purple-300 mb-3">ファンタジーモード</h3>
-                  <p className="text-gray-300">RPG風バトルで、コード進行をゲーム感覚でマスター</p>
+                  <h3 className="text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ファンタジーモード</h3>
+                  <p style={{ color: 'var(--lp-cream-muted)' }}>RPG風バトルで、コード進行をゲーム感覚でマスター</p>
                 </div>
               </div>
 
               <div className="feature-card rounded-2xl overflow-hidden text-center">
-                <div className="w-full aspect-video bg-slate-800/60 border-b border-slate-700 flex items-center justify-center overflow-hidden">
+                <div className="w-full aspect-video flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', borderBottom: '1px solid rgba(200,162,77,0.08)' }}>
                   <img src="/lessons_demo.png" alt="レッスンモード：コースとレッスンで体系的に学習" className="w-full h-full object-cover" loading="lazy" />
                 </div>
                 <div className="p-6">
-                  <div className="w-16 h-16 mx-auto mb-3 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
+                  <div className="w-16 h-16 mx-auto mb-3 rounded-full flex items-center justify-center overflow-hidden" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.12)' }}>
                     <img src="/stage_icons/3.png" alt="レッスンモード" className="w-12 h-12 object-contain" loading="lazy" />
                   </div>
-                  <h3 className="text-2xl font-bold text-blue-300 mb-3">レッスンモード</h3>
-                  <p className="text-gray-300">動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
+                  <h3 className="text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>レッスンモード</h3>
+                  <p style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
                 </div>
               </div>
             </div>
@@ -372,44 +377,44 @@ const LandingPage: React.FC = () => {
         {/* 料金プラン */}
         <section id="pricing" className="py-16 sm:py-20" data-animate="slide-right text-up">
           <div className="max-w-7xl mx-auto px-4 sm:px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+            <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" loading="lazy" />
               料金プラン
             </h2>
-            <p className="text-center text-sm text-green-400 mb-10">すべての有料プランに7日間（1週間）無料トライアル</p>
+            <p className="text-center text-sm mb-10" style={{ color: 'var(--lp-gold)' }}>すべての有料プランに7日間（1週間）無料トライアル</p>
 
             <div className="overflow-x-auto" data-animate="alt-cards text-up">
               <table className="w-full border-collapse">
                 <thead>
                   <tr>
-                    <th className="p-3 text-left bg-slate-900/80 border border-slate-700 min-w-[140px]">
-                      <span className="text-gray-400 text-sm">機能</span>
+                    <th className="p-3 text-left min-w-[140px]" style={{ background: 'rgba(7,11,20,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
+                      <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>機能</span>
                     </th>
-                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
-                      <div className="text-lg font-semibold text-white">フリー</div>
-                      <div className="text-2xl font-bold text-white mt-1">¥0</div>
+                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
+                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>フリー</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥0</div>
                     </th>
-                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
-                      <div className="text-lg font-semibold text-white">スタンダード</div>
-                      <div className="text-2xl font-bold text-white mt-1">¥2,980<span className="text-xs text-gray-400 font-normal">/月</span></div>
-                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
+                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>スタンダード</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥2,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
                     </th>
-                    <th className="p-4 text-center border border-slate-700 border-t-2 border-t-purple-500 min-w-[120px] bg-slate-800/80">
-                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 bg-gradient-to-r from-yellow-400 to-orange-400 text-black">おすすめ</span>
-                      <div className="text-lg font-semibold text-white">プレミアム</div>
-                      <div className="text-2xl font-bold text-white mt-1">¥8,980<span className="text-xs text-gray-400 font-normal">/月</span></div>
-                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)', borderTop: '2px solid var(--lp-gold)' }}>
+                      <span className="lp-btn-gold inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2">おすすめ</span>
+                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プレミアム</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥8,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
                     </th>
-                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-slate-800/80">
-                      <div className="text-lg font-semibold text-white">プラチナ</div>
-                      <div className="text-2xl font-bold text-white mt-1">¥14,800<span className="text-xs text-gray-400 font-normal">/月</span></div>
-                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
+                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プラチナ</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥14,800<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
                     </th>
-                    <th className="p-4 text-center border border-slate-700 min-w-[120px] bg-gradient-to-br from-slate-900/80 via-slate-800/80 to-black/80">
-                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 bg-slate-200 text-black">最上位</span>
-                      <div className="text-lg font-semibold text-white">ブラック</div>
-                      <div className="text-2xl font-bold text-white mt-1">¥19,800<span className="text-xs text-gray-400 font-normal">/月</span></div>
-                      <div className="text-xs text-green-400 mt-1">7日間無料トライアル</div>
+                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'linear-gradient(160deg, rgba(13,19,33,0.9), rgba(7,11,20,0.95))', border: '1px solid rgba(200,162,77,0.08)' }}>
+                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2" style={{ background: 'rgba(200,162,77,0.15)', color: 'var(--lp-gold-light)' }}>最上位</span>
+                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>ブラック</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥19,800<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
                     </th>
                   </tr>
                 </thead>
@@ -424,13 +429,13 @@ const LandingPage: React.FC = () => {
                     { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '×', '月10ブロック', '月10ブロック'] },
                     { label: 'LINEでの課題添削', values: ['×', '×', '×', '×', '○'] },
                   ] as { label: string; values: string[] }[]).map((row, idx) => (
-                    <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/40' : 'bg-slate-800/20'}>
-                      <td className="p-3 border border-slate-700 text-sm text-gray-300 font-medium whitespace-pre-line">{row.label}</td>
+                    <tr key={idx} style={{ background: idx % 2 === 0 ? 'rgba(7,11,20,0.4)' : 'rgba(13,19,33,0.3)' }}>
+                      <td className="p-3 text-sm font-medium whitespace-pre-line" style={{ border: '1px solid rgba(200,162,77,0.06)', color: 'var(--lp-cream-muted)' }}>{row.label}</td>
                       {row.values.map((v, i) => (
-                        <td key={i} className="p-3 border border-slate-700 text-center">
-                          {v === '○' ? <span className="text-green-400 text-lg font-bold">○</span>
-                            : v === '×' ? <span className="text-red-400 text-lg font-bold">×</span>
-                            : <span className="text-white text-sm font-medium">{v}</span>}
+                        <td key={i} className="p-3 text-center" style={{ border: '1px solid rgba(200,162,77,0.06)' }}>
+                          {v === '○' ? <span className="text-lg font-bold" style={{ color: 'var(--lp-gold)' }}>○</span>
+                            : v === '×' ? <span className="text-lg font-bold" style={{ color: '#6b5c5c' }}>×</span>
+                            : <span className="text-sm font-medium" style={{ color: 'var(--lp-cream)' }}>{v}</span>}
                         </td>
                       ))}
                     </tr>
@@ -444,7 +449,7 @@ const LandingPage: React.FC = () => {
         {/* FAQ */}
         <section id="faq" className="py-16 sm:py-20 story-gradient" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
-            <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
+            <h2 className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title flex items-center justify-center gap-4" data-animate="from-behind heading-underline">
               <img src="/stage_icons/1.png" alt="よくある質問" className="w-16 h-16" loading="lazy" />
               よくある質問
             </h2>
@@ -458,7 +463,7 @@ const LandingPage: React.FC = () => {
                     aria-expanded={openFaqId === id}
                     aria-controls={`faq-content-${id}`}
                   >
-                    <h3 className="text-lg font-bold text-white">
+                    <h3 className="text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
                       {id === 1 && '楽器未経験者でも大丈夫ですか？'}
                       {id === 2 && 'どんな楽器に対応していますか？'}
                       {id === 3 && 'オフラインでも使用できますか？'}
@@ -466,11 +471,12 @@ const LandingPage: React.FC = () => {
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
                       {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
                     </h3>
-                    <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} text-purple-400`}></i>
+                    <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'}`} style={{ color: 'var(--lp-gold)' }}></i>
                   </button>
                   <div
                     id={`faq-content-${id}`}
-                    className={`mt-4 text-gray-400 ${openFaqId === id ? '' : 'hidden'}`}
+                    className={`mt-4 ${openFaqId === id ? '' : 'hidden'}`}
+                    style={{ color: 'var(--lp-cream-muted)' }}
                   >
                     {id === 1 && 'はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。'}
                     {id === 2 && 'ピアノ、ギター、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。'}
@@ -484,14 +490,15 @@ const LandingPage: React.FC = () => {
                           href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="underline text-blue-300"
+                          className="underline"
+                          style={{ color: '#7db4d8' }}
                         >
                           Web MIDI Browser
                         </a>
                         {' '}のご利用をご検討ください。{' '}
-                        <Link to="/help/ios-midi" className="underline text-blue-300">詳しくはこちら</Link>
+                        <Link to="/help/ios-midi" className="underline" style={{ color: '#7db4d8' }}>詳しくはこちら</Link>
                         {' ／ '}
-                        <Link to="/contact" className="underline text-blue-300">お問い合わせフォーム</Link>
+                        <Link to="/contact" className="underline" style={{ color: '#7db4d8' }}>お問い合わせフォーム</Link>
                         へどうぞ。
                       </span>
                     )}
@@ -504,18 +511,63 @@ const LandingPage: React.FC = () => {
           </>
         )}
 
+        {/* Developer's Voice */}
+        <section className="py-20 sm:py-28 relative overflow-hidden" data-animate="slide-left text-up">
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 70% 50% at 30% 50%, rgba(59,107,156,0.06), transparent), radial-gradient(ellipse 50% 60% at 70% 40%, rgba(200,162,77,0.04), transparent)' }} />
+          <div className="container mx-auto px-6 relative z-10">
+            <h2
+              className="lp-display text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-16 section-title"
+              data-animate="from-behind heading-underline"
+            >
+              {isEnglishLanding ? "Developer's Voice" : '開発者の声'}
+            </h2>
+
+            <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-center gap-10 md:gap-16" data-animate="alt-cards text-up">
+              <div className="shrink-0">
+                <div className="w-48 h-48 sm:w-56 sm:h-56 rounded-2xl overflow-hidden lp-developer-photo">
+                  <img
+                    src="/profile.jpg"
+                    alt={isEnglishLanding ? 'Developer playing piano at a jazz club' : '開発者 ジャズクラブでの演奏風景'}
+                    className="w-full h-full object-cover"
+                    loading="lazy"
+                  />
+                </div>
+              </div>
+
+              <div className="flex-1 text-center md:text-left">
+                <div className="lp-quote-mark text-6xl leading-none mb-2 hidden md:block" aria-hidden="true">&ldquo;</div>
+                <blockquote className="text-lg sm:text-xl leading-relaxed mb-6" style={{ color: 'var(--lp-cream)' }}>
+                  {isEnglishLanding
+                    ? 'When I started learning jazz on my own, I kept hitting walls — I didn\'t know how to practice. I wished for something that made getting better feel like an adventure. That\'s why I built Jazzify.'
+                    : 'ジャズを独学で始めた時、練習方法がわからず何度も壁にぶつかりました。「もっと楽しく、ゲーム感覚で上達できたら」——その思いが、Jazzifyの原点です。'}
+                </blockquote>
+                <div className="lp-divider mb-4" />
+                <div>
+                  <p className="font-bold text-base" style={{ color: 'var(--lp-gold-light)' }}>
+                    {isEnglishLanding ? 'Saita' : 'Saita'}
+                  </p>
+                  <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+                    {isEnglishLanding ? 'Jazzify Developer & Jazz Pianist' : 'Jazzify 開発者 / ジャズピアニスト'}
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Final CTA */}
-        <section className="py-20" data-animate="slide-right text-up">
-          <div className="container mx-auto px-6 text-center">
-            <h2 className="text-4xl md:text-5xl font-extrabold mb-6" data-animate="from-behind heading-underline">
+        <section className="py-20 relative" data-animate="slide-right text-up">
+          <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 60% 40% at 50% 50%, rgba(200,162,77,0.05), transparent)' }} />
+          <div className="container mx-auto px-6 text-center relative z-10">
+            <h2 className="lp-display text-4xl md:text-5xl font-extrabold mb-6 section-title" data-animate="from-behind heading-underline">
               {finalHeadingText}
             </h2>
-            <p className="text-gray-300 mb-8">{finalDescriptionText}</p>
+            <p className="mb-8" style={{ color: 'var(--lp-cream-muted)' }}>{finalDescriptionText}</p>
             <div className="flex items-center justify-center">
               <Link
                 to="/signup"
                 aria-label={heroCtaAria}
-                className="px-6 py-2.5 sm:px-8 sm:py-3 rounded-full bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 transition font-bold text-sm sm:text-base"
+                className="lp-btn-gold px-6 py-2.5 sm:px-8 sm:py-3 rounded-full text-sm sm:text-base"
               >
                 {primaryCtaLabel}
               </Link>
@@ -525,28 +577,28 @@ const LandingPage: React.FC = () => {
 
         {/* English Footer */}
         {isEnglishLanding && (
-          <footer className="py-16 bg-slate-900 border-t border-purple-500 border-opacity-30">
+          <footer className="py-16" style={{ background: 'var(--lp-base)', borderTop: '1px solid rgba(200,162,77,0.1)' }}>
             <div className="container mx-auto px-6">
               <div className="grid md:grid-cols-2 gap-8 mb-12">
                 <div className="col-span-1">
-                  <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+                  <h3 className="lp-display text-2xl font-bold mb-4" style={{ color: 'var(--lp-gold)' }}>
                     <i className="fas fa-music mr-2"></i>Jazzify
                   </h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
                     Embark on a jazz adventure in a fantasy realm. A learning platform for all jazz enthusiasts, from beginners to advanced players.
                   </p>
                 </div>
                 <div>
-                  <h4 className="text-white font-bold mb-4">Support</h4>
-                  <ul className="space-y-2 text-sm text-gray-400">
-                    <li><Link to="/contact" className="hover:text-purple-400 transition">Contact</Link></li>
-                    <li><Link to="/terms" className="hover:text-purple-400 transition">Terms of Service</Link></li>
-                    <li><Link to="/privacy" className="hover:text-purple-400 transition">Privacy Policy</Link></li>
-                    <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">Legal Notice</Link></li>
+                  <h4 className="font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Support</h4>
+                  <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+                    <li><Link to="/contact" className="transition-colors duration-200 hover:opacity-80">Contact</Link></li>
+                    <li><Link to="/terms" className="transition-colors duration-200 hover:opacity-80">Terms of Service</Link></li>
+                    <li><Link to="/privacy" className="transition-colors duration-200 hover:opacity-80">Privacy Policy</Link></li>
+                    <li><Link to="/legal/tokushoho" className="transition-colors duration-200 hover:opacity-80">Legal Notice</Link></li>
                   </ul>
                 </div>
               </div>
-              <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
+              <div className="pt-8 text-center text-sm" style={{ borderTop: '1px solid rgba(200,162,77,0.08)', color: 'var(--lp-cream-muted)' }}>
                 <p>&copy; {new Date().getFullYear()} Jazzify. All rights reserved.</p>
               </div>
             </div>
@@ -555,46 +607,46 @@ const LandingPage: React.FC = () => {
 
         {/* Japanese Footer */}
         {!isEnglishLanding && (
-          <footer className="py-16 bg-slate-900 border-t border-purple-500 border-opacity-30">
+          <footer className="py-16" style={{ background: 'var(--lp-base)', borderTop: '1px solid rgba(200,162,77,0.1)' }}>
             <div className="container mx-auto px-6">
               <div className="grid md:grid-cols-3 gap-8 mb-12">
                 <div className="col-span-1">
-                  <h3 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400 mb-4">
+                  <h3 className="lp-display text-2xl font-bold mb-4" style={{ color: 'var(--lp-gold)' }}>
                     <i className="fas fa-music mr-2"></i>Jazzify
                   </h3>
-                  <p className="text-gray-400 text-sm leading-relaxed">
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
                     ゲーム感覚でジャズが弾けるようになる。初心者から上級者まで、すべてのジャズ愛好家のための学習プラットフォームです。
                   </p>
                 </div>
 
                 <div>
-                  <h4 className="text-white font-bold mb-4">サービス</h4>
-                  <ul className="space-y-2 text-sm text-gray-400">
+                  <h4 className="font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>サービス</h4>
+                  <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
                     {navLinks.map(l => (
                       <li key={l.id}>
-                        <a href={`#${l.id}`} className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, l.id)}>
+                        <a href={`#${l.id}`} className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, l.id)}>
                           {l.label}
                         </a>
                       </li>
                     ))}
-                    <li><Link to="/signup" className="hover:text-purple-400 transition">無料体験</Link></li>
+                    <li><Link to="/signup" className="transition-colors duration-200 hover:opacity-80">無料体験</Link></li>
                   </ul>
                 </div>
 
                 <div>
-                  <h4 className="text-white font-bold mb-4">サポート</h4>
-                  <ul className="space-y-2 text-sm text-gray-400">
-                    <li><a href="#faq" className="hover:text-purple-400 transition" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
-                    <li><Link to="/help/ios-midi" className="hover:text-purple-400 transition">iPhone/iPadでMIDIを使う</Link></li>
-                    <li><Link to="/contact" className="hover:text-purple-400 transition">お問い合わせ</Link></li>
-                    <li><Link to="/terms" className="hover:text-purple-400 transition">利用規約</Link></li>
-                    <li><Link to="/privacy" className="hover:text-purple-400 transition">プライバシーポリシー</Link></li>
-                    <li><Link to="/legal/tokushoho" className="hover:text-purple-400 transition">特定商取引法に基づく表記</Link></li>
+                  <h4 className="font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>サポート</h4>
+                  <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+                    <li><a href="#faq" className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, 'faq')}>よくある質問</a></li>
+                    <li><Link to="/help/ios-midi" className="transition-colors duration-200 hover:opacity-80">iPhone/iPadでMIDIを使う</Link></li>
+                    <li><Link to="/contact" className="transition-colors duration-200 hover:opacity-80">お問い合わせ</Link></li>
+                    <li><Link to="/terms" className="transition-colors duration-200 hover:opacity-80">利用規約</Link></li>
+                    <li><Link to="/privacy" className="transition-colors duration-200 hover:opacity-80">プライバシーポリシー</Link></li>
+                    <li><Link to="/legal/tokushoho" className="transition-colors duration-200 hover:opacity-80">特定商取引法に基づく表記</Link></li>
                   </ul>
                 </div>
               </div>
 
-              <div className="border-t border-gray-700 pt-8 text-center text-sm text-gray-400">
+              <div className="pt-8 text-center text-sm" style={{ borderTop: '1px solid rgba(200,162,77,0.08)', color: 'var(--lp-cream-muted)' }}>
                 <p>&copy; {new Date().getFullYear()} Jazzify. All rights reserved.</p>
               </div>
             </div>
