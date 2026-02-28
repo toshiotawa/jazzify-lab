@@ -1378,10 +1378,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     let displayWrapPending = false;
     let wrapAtLoopCycle = -1;
     let lastKnownLoopCycle = -1;
-    // #region agent log
-    let _prevMusicTime = -999;
-    let _wrapLogCooldown = 0;
-    // #endregion
     
     const updateTaikoNotes = (timestamp: number) => {
       // フレームレート制御
@@ -1506,13 +1502,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
           }
           
-          // #region agent log
-          const _combTimeJump = Math.abs(currentTime - _prevMusicTime);
-          if (_prevMusicTime > -900 && _combTimeJump > 0.5) {
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:combiningTimeJump',message:'combining music time jump',data:{prevTime:_prevMusicTime.toFixed(4),currentTime:currentTime.toFixed(4),jump:_combTimeJump.toFixed(4),sectionIdx:combiningSync.sectionIndex,noteStart:combiningSync.noteStartIndex,noteEnd:combiningSync.noteEndIndex,stateNoteIndex,noteCount:notesToDisplay.length},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-          }
-          _prevMusicTime = currentTime;
-          // #endregion
           fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
 
           // C&R: timing_combining セクション別オーバーレイ
@@ -1565,10 +1554,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       if (lastDisplayNorm >= 0 && lastDisplayNorm - normalizedTime > loopDuration * 0.5) {
         displayWrapPending = true;
         wrapAtLoopCycle = preCheckCycle;
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrap',message:'displayWrapPending SET',data:{lastDisplayNorm,normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,preCheckCycle,currentCycle:lastKnownLoopCycle,prevMusicTime:_prevMusicTime,loopDuration},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
-        _wrapLogCooldown = 10;
-        // #endregion
       }
       lastDisplayNorm = normalizedTime;
       
@@ -1576,9 +1561,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 前フレームのサイクル値と比較することで、エンジンが先にループ処理した場合も正しくクリアする
       const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
       if (displayWrapPending && currentLoopCycle > wrapAtLoopCycle) {
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:displayWrapClear',message:'displayWrapPending CLEAR',data:{normalizedTime,currentTime,stateNoteIndex,stateAwaitingLoop,wrapAtLoopCycle,currentLoopCycle,framesSinceWrap:10-_wrapLogCooldown},timestamp:Date.now(),hypothesisId:'H3_H4'})}).catch(()=>{});
-        // #endregion
         displayWrapPending = false;
       }
       
@@ -1687,17 +1669,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       }
       
-      // #region agent log
-      if (_wrapLogCooldown > 0) {
-        _wrapLogCooldown--;
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:renderFrame',message:'frame near wrap',data:{normalizedTime:normalizedTime.toFixed(4),currentTime:currentTime.toFixed(4),displayWrapPending,currentNoteIndex,isAwaitingLoop,noteCount:notesToDisplay.length,noteIds:notesToDisplay.slice(0,3).map(n=>n.id),cooldown:_wrapLogCooldown},timestamp:Date.now(),hypothesisId:'H4'})}).catch(()=>{});
-      }
-      const _timeJump = Math.abs(currentTime - _prevMusicTime);
-      if (_prevMusicTime > -900 && _timeJump > 0.5) {
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'FantasyGameScreen.tsx:timeJump',message:'music time discontinuity',data:{prevTime:_prevMusicTime.toFixed(4),currentTime:currentTime.toFixed(4),jump:_timeJump.toFixed(4),normalizedTime:normalizedTime.toFixed(4),isCombining:combiningSync.active},timestamp:Date.now(),hypothesisId:'H2'})}).catch(()=>{});
-      }
-      _prevMusicTime = currentTime;
-      // #endregion
       // C&R交互モード: リスニングサイクル中はPIXIノーツを非表示
       if (isAlternatingCR) {
         const loopCycle = taikoLoopCycleRef.current ?? 0;

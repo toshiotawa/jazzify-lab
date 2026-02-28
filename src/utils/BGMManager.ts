@@ -153,12 +153,6 @@ class BGMManager {
   ): boolean {
     if (!this.isPlaying) return false
 
-    // #region agent log
-    const _preTime = this.getCurrentMusicTime();
-    const _prePerf = performance.now();
-    const _preWaStartAt = this.waStartAt;
-    // #endregion
-
     const countInMeasures = Math.max(0, Math.floor(countIn || 0))
     const secPerBeat = 60 / bpm
     const secPerMeas = secPerBeat * timeSig
@@ -186,10 +180,6 @@ class BGMManager {
         this.waStartAt = now + this.pitchShiftLatency - startOffset / this.playbackRate
         this.startTime = performance.now()
         this.playInitiatedAt = performance.now()
-        // #region agent log
-        const _postTime = this.getCurrentMusicTime();
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:Tone',message:'restartSameSection complete',data:{preTime:_preTime,postTime:_postTime,gapMs:performance.now()-_prePerf,startOffset,skipCountIn,preWaStartAt:_preWaStartAt,postWaStartAt:this.waStartAt,backend:'tone'},timestamp:Date.now()})}).catch(()=>{});
-        // #endregion
         return true
       } catch { return false }
     }
@@ -198,10 +188,6 @@ class BGMManager {
       this._startWaSourceAt(startOffset)
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
-      // #region agent log
-      const _postTime = this.getCurrentMusicTime();
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:WA',message:'restartSameSection complete',data:{preTime:_preTime,postTime:_postTime,gapMs:performance.now()-_prePerf,startOffset,skipCountIn,preWaStartAt:_preWaStartAt,postWaStartAt:this.waStartAt,noLoop:this.noLoop,backend:'webaudio'},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return true
     }
 
@@ -222,9 +208,6 @@ class BGMManager {
       this._htmlSwapPending = false
       this.startTime = performance.now()
       this.playInitiatedAt = performance.now()
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:restartSameSection:HTML',message:'restartSameSection complete',data:{preTime:_preTime,startOffset,skipCountIn,htmlSeekTarget:startOffset,backend:'html'},timestamp:Date.now()})}).catch(()=>{});
-      // #endregion
       return true
     }
 
@@ -292,20 +275,11 @@ class BGMManager {
     // Tone.js PitchShiftで速度変更時のピッチ補償も行う
     if (this.pitchShift !== 0 || this.playbackRate !== 1.0) {
       this.useTonePitchShift = true
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:route',message:'using Tone.js path',data:{pitchShift:this.pitchShift,playbackRate:this.playbackRate,proxyUrl:toProxyUrl(url)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
-      // #endregion
       this._playTonePitchShift(url, volume).catch(err => {
         console.warn('Tone.js failed, fallback to WebAudio:', err)
-        // #region agent log
-        fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:toneFail',message:'Tone.js failed, trying WebAudio',data:{error:String(err)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
-        // #endregion
         this.useTonePitchShift = false
         this._playWebAudio(url, volume).catch(err2 => {
           console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err2)
-          // #region agent log
-          fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:waFail',message:'WebAudio also failed, using HTMLAudio',data:{error:String(err2)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
-          // #endregion
           this._playHtmlAudio(url, volume)
         })
       })
@@ -313,15 +287,9 @@ class BGMManager {
     }
 
     this.useTonePitchShift = false
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:route',message:'using WebAudio path',data:{pitchShift:this.pitchShift,playbackRate:this.playbackRate,proxyUrl:toProxyUrl(url)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
-    // #endregion
     // Web Audio 経路でシームレスループ
     this._playWebAudio(url, volume).catch(err => {
       console.warn('WebAudio BGM failed, fallback to HTMLAudio:', err)
-      // #region agent log
-      fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:play:waFail2',message:'WebAudio failed, using HTMLAudio',data:{error:String(err)},timestamp:Date.now(),hypothesisId:'H_ROUTE'})}).catch(()=>{})
-      // #endregion
       this._playHtmlAudio(url, volume)
     })
   }
@@ -748,12 +716,6 @@ class BGMManager {
     return 0
   }
 
-  // #region agent log
-  private _lastGetTimePerf = 0
-  private _lastGetTimeResult = 0
-  private _stallLogCooldown = 0
-  // #endregion
-
   getCurrentMusicTime(): number {
     if (this.isPlaying) {
       // 出力レイテンシ補正: AudioContextの報告時間はスピーカー出力より先行するため、
@@ -770,19 +732,6 @@ class BGMManager {
             // playbackRateを考慮した音楽的な時間（BGM先頭=0）
             const musicTime = elapsedRealTime * this.playbackRate
             const result = this.normalizeMusicTime(musicTime)
-            // #region agent log
-            const now = performance.now()
-            if (this._stallLogCooldown <= 0 && this._lastGetTimePerf > 0) {
-              const dtMs = now - this._lastGetTimePerf
-              const dtResult = result - this._lastGetTimeResult
-              if (dtMs > 5 && dtResult < dtMs * 0.0003 && result < 0.2) {
-                fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:Tone',message:'time stall detected',data:{backend:'tone',rawTime:Tone.now(),waStartAt:this.waStartAt,latencyComp:latencyCompensation,musicTime,result,prevResult:this._lastGetTimeResult,dtMs,dtResult,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{})
-                this._stallLogCooldown = 60
-              }
-            }
-            this._lastGetTimePerf = now; this._lastGetTimeResult = result
-            if (this._stallLogCooldown > 0) this._stallLogCooldown--
-            // #endregion
             return result
           }
         } catch {}
@@ -795,19 +744,6 @@ class BGMManager {
         // playbackRateを考慮した音楽的な時間（BGM先頭=0）
         const musicTime = elapsedRealTime * this.playbackRate
         const result = this.normalizeMusicTime(musicTime)
-        // #region agent log
-        const now = performance.now()
-        if (this._stallLogCooldown <= 0 && this._lastGetTimePerf > 0) {
-          const dtMs = now - this._lastGetTimePerf
-          const dtResult = result - this._lastGetTimeResult
-          if (dtMs > 5 && dtResult < dtMs * 0.0003 && result < 0.2) {
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:WA',message:'time stall detected',data:{backend:'webaudio',ctxTime:this.waContext.currentTime,waStartAt:this.waStartAt,latencyComp:latencyCompensation,musicTime,result,prevResult:this._lastGetTimeResult,dtMs,dtResult,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H7'})}).catch(()=>{})
-            this._stallLogCooldown = 60
-          }
-        }
-        this._lastGetTimePerf = now; this._lastGetTimeResult = result
-        if (this._stallLogCooldown > 0) this._stallLogCooldown--
-        // #endregion
         return result
       }
       // HTMLAudioの場合、currentTimeは既に再生速度を考慮した音楽的な時間
@@ -819,9 +755,6 @@ class BGMManager {
           const elapsed = (now - this.htmlSeekPerfStart) / 1000
           const expected = this.htmlSeekTarget + elapsed * this.playbackRate
           if (Math.abs(rawTime - expected) < 1.0) {
-            // #region agent log
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:seekComp:clear',message:'seek compensation cleared',data:{rawTime,expected,diff:Math.abs(rawTime-expected),seekTarget:this.htmlSeekTarget,elapsedMs:elapsed*1000},timestamp:Date.now(),hypothesisId:'H8_seekClear'})}).catch(()=>{})
-            // #endregion
             this.htmlSeekTarget = null
             this._htmlLastRawTime = expected
             this._htmlLastRawPerf = now
@@ -841,18 +774,6 @@ class BGMManager {
         }
         const elapsed = (now - this._htmlLastRawPerf) / 1000
         const interpolated = this._htmlLastRawTime + elapsed * this.playbackRate
-        // #region agent log
-        if (this._stallLogCooldown <= 0) {
-          const norm = this.normalizeMusicTime(interpolated)
-          if (this._lastGetTimeResult > 0 && norm < this._lastGetTimeResult - 0.001 && this._lastGetTimeResult < this.loopEnd - this.loopBegin - 0.5) {
-            fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:getCurrentMusicTime:HTML',message:'backward jump detected',data:{rawTime,interpolated,norm,prevResult:this._lastGetTimeResult,_htmlLastRawTime:this._htmlLastRawTime,_htmlLastRawPerf:this._htmlLastRawPerf,currentInterpolated,htmlSeekTarget:this.htmlSeekTarget,now},timestamp:Date.now(),hypothesisId:'H8_backward'})}).catch(()=>{})
-            this._stallLogCooldown = 30
-          }
-        }
-        if (this._stallLogCooldown > 0) this._stallLogCooldown--
-        this._lastGetTimePerf = now
-        this._lastGetTimeResult = this.normalizeMusicTime(interpolated)
-        // #endregion
         return this.normalizeMusicTime(interpolated)
       }
     }
@@ -1163,9 +1084,6 @@ class BGMManager {
     this.isPlaying = true
     this.isLoadingAudio = false
     this.startTime = performance.now()
-    // #region agent log
-    fetch('http://127.0.0.1:7242/ingest/861544d8-fdbc-428a-966c-4c8525f6f97a',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'BGMManager.ts:_playWebAudio:success',message:'WebAudio playback started',data:{url:toProxyUrl(url),sampleRate:this.waBuffer?.sampleRate,duration:this.waBuffer?.duration,loopBegin:this.loopBegin,loopEnd:this.loopEnd},timestamp:Date.now(),hypothesisId:'H_WA'})}).catch(()=>{})
-    // #endregion
     console.log('🎵 BGM再生開始 (WebAudio):', { url, bpm: this.bpm, loopBegin: this.loopBegin, loopEnd: this.loopEnd, countIn: this.countInMeasures, startOffset: this.audioStartOffset })
   }
 
