@@ -640,14 +640,31 @@ export class FantasyPIXIInstance {
     
     this.damagePopups.forEach((popup) => {
       const progress = (now - popup.start) / popup.duration;
-      const alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
-      const yOffset = -progress * 50;
-      const bounceScale = progress < 0.1
-        ? 1 + Math.sin((progress / 0.1) * Math.PI) * 0.5
-        : 1.2 + progress * 0.15;
-      
+
+      let alpha: number;
+      let yOffset: number;
+      let bounceScale: number;
+      let ox: number;
+      let oy: number;
+
+      if (this.isSheetMusicMode) {
+        alpha = 1 - progress;
+        yOffset = 0;
+        bounceScale = 1;
+        ox = 0;
+        oy = 0;
+      } else {
+        alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
+        yOffset = -progress * 50;
+        bounceScale = progress < 0.1
+          ? 1 + Math.sin((progress / 0.1) * Math.PI) * 0.5
+          : 1.2 + progress * 0.15;
+        ox = popup.offsetX;
+        oy = popup.offsetY;
+      }
+
       ctx.save();
-      ctx.translate(popup.x + popup.offsetX, popup.y + popup.offsetY + yOffset);
+      ctx.translate(popup.x + ox, popup.y + oy + yOffset);
       ctx.scale(bounceScale, bounceScale);
       ctx.globalAlpha = alpha;
       
