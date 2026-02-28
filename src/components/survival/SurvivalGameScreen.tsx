@@ -615,15 +615,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // 非同期初期化を開始し、完了を追跡
+      // MIDI・オーディオ・サウンドを全て並列初期化
       const initPromise = (async () => {
         try {
-          await controller.initialize();
-          
-          // 音声システムとFantasySoundManagerを並列初期化（ファンタジーモードと同様）
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
           await Promise.all([
+            controller.initialize(),
             initializeAudioSystem().then(() => {
               updateGlobalVolume(settings.midiVolume ?? 0.8);
             }),

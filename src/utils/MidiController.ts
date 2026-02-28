@@ -308,7 +308,7 @@ export class MIDIController {
     }
 
     try {
-      // MIDI API の存在確認（オーディオ初期化より先に実行）
+      // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
@@ -319,14 +319,9 @@ export class MIDIController {
         }
         this.midiSupported = false;
         this.isInitialized = true;
-        // オーディオ初期化はMIDIと独立して実行（ブロックしない）
-        void initializeAudioSystem().catch((err) => {
-          console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
-        });
         return;
       }
 
-      // MIDI アクセス要求を最優先で実行（オーディオ初期化でブロックしない）
       this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
       this.midiSupported = true;
       console.log('✅ MIDI access acquired, inputs:', this.midiAccess.inputs.size);
@@ -355,20 +350,11 @@ export class MIDIController {
 
       this.isInitialized = true;
 
-      // オーディオ初期化はMIDI準備完了後にバックグラウンドで実行
-      void initializeAudioSystem().catch((err) => {
-        console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
-      });
-
     } catch (error) {
       console.error('❌ MIDI Error:', error);
       this.midiSupported = false;
       this.isInitialized = true;
       this.notifyConnectionChange(false);
-      // MIDIが失敗してもオーディオは初期化試行
-      void initializeAudioSystem().catch((err) => {
-        console.warn('⚠️ Audio system initialization failed (non-blocking):', err);
-      });
     }
   }
 

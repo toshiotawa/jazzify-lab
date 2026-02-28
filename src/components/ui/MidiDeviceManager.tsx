@@ -43,7 +43,7 @@ export const useMidiDevices = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // MIDIデバイス一覧を取得（リトライ対応）
+  // 単発のデバイススキャン（UIトリガー用: 再スキャンボタン等）
   const refreshDevices = useCallback(async () => {
     setIsRefreshing(true);
     setError(null);
@@ -61,19 +61,9 @@ export const useMidiDevices = () => {
         throw new Error(message);
       }
 
+      cachedMidiAccess = null;
       const midiAccess = await getMidiAccess();
-      let deviceList = enumerateMidiDevices(midiAccess);
-
-      // Web MIDI Browser (iOS) ではデバイス検出が遅延することがあるためリトライ
-      if (deviceList.length === 0) {
-        for (let attempt = 0; attempt < 3; attempt++) {
-          await new Promise(resolve => setTimeout(resolve, 500 * (attempt + 1)));
-          cachedMidiAccess = null;
-          const retryAccess = await getMidiAccess();
-          deviceList = enumerateMidiDevices(retryAccess);
-          if (deviceList.length > 0) break;
-        }
-      }
+      const deviceList = enumerateMidiDevices(midiAccess);
 
       setDevices(deviceList);
       console.log(`🎹 Found ${deviceList.length} MIDI devices:`, deviceList);
@@ -88,38 +78,36 @@ export const useMidiDevices = () => {
     }
   }, []);
 
-  // 初回ロード＋ユーザージェスチャー後の自動再スキャン
+  // 初回スキャン＋バックグラウンドポーリング（デバイス未検出時）
   useEffect(() => {
-    let gestureCleanup: (() => void) | null = null;
+    if (!navigator.requestMIDIAccess) return;
+    let cancelled = false;
+    let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const initialScan = async () => {
-      await refreshDevices();
+    const poll = async (attempt: number) => {
+      if (cancelled) return;
+      cachedMidiAccess = null;
+      try {
+        const midiAccess = await getMidiAccess();
+        if (cancelled) return;
+        const deviceList = enumerateMidiDevices(midiAccess);
+        setDevices(deviceList);
+        if (deviceList.length > 0) return;
+      } catch { /* ignore */ }
+
+      // 最大10回（約15秒間）ポーリング
+      if (attempt < 10 && !cancelled) {
+        pollTimer = setTimeout(() => poll(attempt + 1), 1500);
+      }
     };
 
-    initialScan().then(() => {
-      // iOS Web MIDI Browser では requestMIDIAccess がユーザージェスチャー後でないと
-      // デバイスを返さないことがあるため、0台の場合はインタラクション後に自動再スキャン
-      const scheduleGestureRescan = () => {
-        const handler = () => {
-          cachedMidiAccess = null;
-          refreshDevices();
-          document.removeEventListener('click', handler);
-          document.removeEventListener('touchend', handler);
-        };
-        document.addEventListener('click', handler, { once: true });
-        document.addEventListener('touchend', handler, { once: true });
-        gestureCleanup = () => {
-          document.removeEventListener('click', handler);
-          document.removeEventListener('touchend', handler);
-        };
-      };
-      scheduleGestureRescan();
-    });
+    poll(0);
 
     return () => {
-      gestureCleanup?.();
+      cancelled = true;
+      if (pollTimer) clearTimeout(pollTimer);
     };
-  }, [refreshDevices]);
+  }, []);
 
   // MIDIデバイス状態変更の監視（キャッシュ済みMIDIAccessを再利用）
   useEffect(() => {

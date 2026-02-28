@@ -324,18 +324,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // 🚀 初期化を開始し、完了を追跡
+      // MIDI・オーディオ・サウンドを全て並列初期化
       const initPromise = (async () => {
         try {
-          await controller.initialize();
-          
-          // 音声システムとFantasySoundManagerを並列初期化（両方完了を待つ）
           await Promise.all([
-            // 音声システム初期化
+            controller.initialize(),
             initializeAudioSystem().then(() => {
               updateGlobalVolume(0.8);
             }),
-            // FantasySoundManagerの初期化（完了を待つ）
             FantasySoundManager.init(
               settings.soundEffectVolume ?? 0.8,
               settings.rootSoundVolume ?? 0.5,
@@ -348,7 +344,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           setIsInitialized(true);
         } catch (error) {
           console.error('Audio system initialization failed:', error);
-          // エラーでも初期化完了とする（ゲームは開始可能）
           setIsInitialized(true);
         }
       })();
