@@ -13,13 +13,18 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 
-// MIDIAccess をキャッシュして複数回の requestMIDIAccess 呼び出しを避ける
+// requestMIDIAccess は1回だけ呼び、結果を永続キャッシュする
 let cachedMidiAccess: MIDIAccess | null = null;
+let midiAccessPromise: Promise<MIDIAccess> | null = null;
 
-const getMidiAccess = async (): Promise<MIDIAccess> => {
-  if (cachedMidiAccess) return cachedMidiAccess;
-  cachedMidiAccess = await navigator.requestMIDIAccess({ sysex: false });
-  return cachedMidiAccess;
+const getMidiAccess = (): Promise<MIDIAccess> => {
+  if (cachedMidiAccess) return Promise.resolve(cachedMidiAccess);
+  if (midiAccessPromise) return midiAccessPromise;
+  midiAccessPromise = navigator.requestMIDIAccess({ sysex: false }).then((access) => {
+    cachedMidiAccess = access;
+    return access;
+  });
+  return midiAccessPromise;
 };
 
 const enumerateMidiDevices = (midiAccess: MIDIAccess): MidiDevice[] => {
@@ -43,7 +48,7 @@ export const useMidiDevices = () => {
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // 単発のデバイススキャン（UIトリガー用: 再スキャンボタン等）
+  // 手動再スキャン（再スキャンボタン等）: 同じMIDIAccessから再列挙
   const refreshDevices = useCallback(async () => {
     setIsRefreshing(true);
     setError(null);
@@ -61,82 +66,63 @@ export const useMidiDevices = () => {
         throw new Error(message);
       }
 
-      cachedMidiAccess = null;
       const midiAccess = await getMidiAccess();
       const deviceList = enumerateMidiDevices(midiAccess);
-
       setDevices(deviceList);
-      console.log(`🎹 Found ${deviceList.length} MIDI devices:`, deviceList);
       
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Unknown error occurred';
       setError(errorMessage);
-      console.error('❌ MIDI device refresh failed:', err);
       setDevices([]);
     } finally {
       setIsRefreshing(false);
     }
   }, []);
 
-  // 初回スキャン＋バックグラウンドポーリング（デバイス未検出時）
+  // 初回取得 + 同一MIDIAccessからの再列挙ポーリング + onstatechange
   useEffect(() => {
     if (!navigator.requestMIDIAccess) return;
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
 
-    const poll = async (attempt: number) => {
-      if (cancelled) return;
-      cachedMidiAccess = null;
+    const init = async () => {
       try {
         const midiAccess = await getMidiAccess();
         if (cancelled) return;
-        const deviceList = enumerateMidiDevices(midiAccess);
-        setDevices(deviceList);
-        if (deviceList.length > 0) return;
-      } catch { /* ignore */ }
 
-      // 最大10回（約15秒間）ポーリング
-      if (attempt < 10 && !cancelled) {
-        pollTimer = setTimeout(() => poll(attempt + 1), 1500);
+        // onstatechange で接続変更を監視（MIDIAccessオブジェクトは使い回し）
+        midiAccess.onstatechange = () => {
+          if (!cancelled) {
+            setDevices(enumerateMidiDevices(midiAccess));
+          }
+        };
+
+        // 同一MIDIAccessオブジェクトの inputs を再列挙するポーリング
+        // requestMIDIAccess() は再度呼ばない
+        let attempt = 0;
+        const reEnumerate = () => {
+          if (cancelled) return;
+          const list = enumerateMidiDevices(midiAccess);
+          setDevices(list);
+          if (list.length === 0 && attempt < 10) {
+            attempt++;
+            pollTimer = setTimeout(reEnumerate, 1500);
+          }
+        };
+        reEnumerate();
+      } catch {
+        // requestMIDIAccess 失敗時は refreshDevices に任せる
       }
     };
 
-    poll(0);
+    init();
 
     return () => {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
+      // onstatechange はクリアしない（キャッシュされたMIDIAccessに残す）
     };
   }, []);
-
-  // MIDIデバイス状態変更の監視（キャッシュ済みMIDIAccessを再利用）
-  useEffect(() => {
-    let midiAccess: MIDIAccess | null = null;
-    let cancelled = false;
-
-    const setupMidiStateMonitoring = async () => {
-      try {
-        if (!navigator.requestMIDIAccess) return;
-        midiAccess = await getMidiAccess();
-        if (cancelled) return;
-        
-        midiAccess.onstatechange = () => {
-          refreshDevices();
-        };
-      } catch (err) {
-        console.warn('⚠️ MIDI state monitoring setup failed:', err);
-      }
-    };
-
-    setupMidiStateMonitoring();
-
-    return () => {
-      cancelled = true;
-      if (midiAccess) {
-        midiAccess.onstatechange = null;
-      }
-    };
-  }, [refreshDevices]);
 
   return {
     devices,

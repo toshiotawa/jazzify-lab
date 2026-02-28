@@ -308,6 +308,9 @@ export class MIDIController {
     }
 
     try {
+      // 共通音声システムを初期化（ユーザーインタラクション待ちを含む）
+      await initializeAudioSystem();
+
       // MIDI API の存在確認
       if (typeof navigator === 'undefined' || !navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -324,7 +327,6 @@ export class MIDIController {
 
       this.midiAccess = await navigator.requestMIDIAccess({ sysex: false });
       this.midiSupported = true;
-      console.log('✅ MIDI access acquired, inputs:', this.midiAccess.inputs.size);
 
       this.midiAccess!.onstatechange = (event): void => {
         if (event.port) {
