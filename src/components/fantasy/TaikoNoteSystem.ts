@@ -1112,10 +1112,8 @@ export function getVisibleNotes(
   lookAheadTime: number = 3
 ): TaikoNote[] {
   return notes.filter(note => {
-    // 既にヒットまたはミスしたノーツは表示しない
-    if (note.isHit || note.isMissed) return false;
+    if (note.isHit) return false;
     
-    // 現在時刻から lookAheadTime 秒先までのノーツを表示
     const timeUntilHit = note.hitTime - currentTime;
     return timeUntilHit >= -0.5 && timeUntilHit <= lookAheadTime;
   });
@@ -1235,15 +1233,12 @@ export function getVisibleNotesWithLoop(
   const visibleNotes: TaikoNote[] = [];
   
   notes.forEach(note => {
-    if (note.isHit || note.isMissed) return;
+    if (note.isHit) return;
     
     let timeUntilHit = note.hitTime - currentTime;
     
-    // ループを考慮
     if (loopDuration !== undefined && loopDuration > 0) {
-      // ループ終端に近い場合、次のループのノーツも考慮
       if (currentTime + lookAheadTime > loopDuration && note.hitTime < lookAheadTime) {
-        // 仮想的に次のループの位置として扱う
         timeUntilHit = (note.hitTime + loopDuration) - currentTime;
       }
     }
@@ -1290,11 +1285,10 @@ export function getVisibleNotesOptimized(
     // 最大表示数に達したら終了
     if (visibleCount >= PERFORMANCE_CONFIG.MAX_VISIBLE_NOTES) break;
     
-    if (note.isHit || note.isMissed) continue;
+    if (note.isHit) continue;
     
     let timeUntilHit = note.hitTime - currentTime;
     
-    // ループを考慮
     if (loopDuration !== undefined && loopDuration > 0) {
       if (currentTime + lookAheadTime > loopDuration && note.hitTime < lookAheadTime) {
         timeUntilHit = (note.hitTime + loopDuration) - currentTime;
