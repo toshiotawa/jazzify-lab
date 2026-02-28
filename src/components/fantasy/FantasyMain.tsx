@@ -183,6 +183,7 @@ const FantasyMain: React.FC = () => {
   const [missionContext, setMissionContext] = useState<{ missionId: string; stageId: string } | null>(null);
   const [isMissionMode, setIsMissionMode] = useState(false);
   const [lastPlayedTier, setLastPlayedTier] = useState<'basic' | 'advanced' | 'phrases' | null>(null);
+  const [lastPlayedRank, setLastPlayedRank] = useState<string | null>(null);
   
   // 次ステージ開放情報
   const [nextStageUnlockInfo, setNextStageUnlockInfo] = useState<{
@@ -394,6 +395,7 @@ const FantasyMain: React.FC = () => {
     setGameKey(prevKey => prevKey + 1);
     const tier = ((stage as any).tier as 'basic' | 'advanced' | 'phrases') || 'basic';
     setLastPlayedTier(tier);
+    setLastPlayedRank(stage.stageNumber?.split('-')[0] || null);
   }, []);
   
   // ゲーム完了ハンドラ
@@ -782,6 +784,8 @@ const FantasyMain: React.FC = () => {
       <FantasyStageSelect
         onStageSelect={handleStageSelect}
         onBackToMenu={handleBackToMenu}
+        initialTier={lastPlayedTier}
+        initialRank={lastPlayedRank}
       />
     );
   }
@@ -984,6 +988,7 @@ const FantasyMain: React.FC = () => {
       onStageSelect={handleStageSelect}
       onBackToMenu={handleBackToMenu}
       initialTier={lastPlayedTier}
+      initialRank={lastPlayedRank}
     />
   );
 };

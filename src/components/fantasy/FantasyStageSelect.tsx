@@ -3,7 +3,7 @@
  * ステージ一覧表示とアンロック管理
  */
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { FaHatWizard } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
@@ -62,6 +62,7 @@ interface FantasyStageSelectProps {
   onBackToMenu: () => void;
   lessonContext?: LessonContext | null;
   initialTier?: 'basic' | 'advanced' | 'phrases' | null;
+  initialRank?: string | null;
 }
 
 // ===== 定数 =====
@@ -86,7 +87,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   onStageSelect,
   onBackToMenu,
   lessonContext,
-  initialTier
+  initialTier,
+  initialRank
 }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -101,8 +103,9 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const [userProgress, setUserProgress] = useState<FantasyUserProgress | null>(null);
   const [stageClears, setStageClears] = useState<FantasyStageClear[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [selectedRank, setSelectedRank] = useState<string>('1');
+  const [selectedRank, setSelectedRank] = useState<string>(initialRank || '1');
   const [selectedTier, setSelectedTier] = useState<'basic' | 'advanced' | 'phrases'>(initialTier || 'basic');
+  const initialRankApplied = useRef(!!initialRank);
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -384,6 +387,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     // Tier変更時に最初のランクへ移動（直前のeffectで処理済み）
     if (!userProgress) {
       if (isFreeOrGuest) setSelectedRank('1');
+      return;
+    }
+    // initialRankが指定されていて未消費の場合は、そちらを優先（戻るボタンで戻ってきた場合）
+    if (initialRankApplied.current) {
+      initialRankApplied.current = false;
       return;
     }
     // Basic/Advanced/Phrasesともに数値ランク（1,2,3...）運用。選択Tierの現在地ランクを開く
@@ -755,8 +763,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           </div>
           <p className="text-gray-400 text-xs sm:text-sm font-sans">
             {isEnglishCopy
-              ? 'Play the correct chord to attack monsters. Clear stages to unlock new ones and raise your wizard rank.'
-              : '正しいコードを演奏してモンスターを攻撃しよう。ステージをクリアして新しいステージを解放し、ウィザードランクを上げましょう。'}
+              ? 'Play the correct chord to attack monsters. Clear stages to unlock new ones and raise your jazz skill.'
+              : '正しいコードを演奏してモンスターを攻撃しよう。ステージをクリアして新しいステージを解放し、ジャズ力を上げよう！。'}
           </p>
         </div>
       </div>
