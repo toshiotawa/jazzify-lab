@@ -1253,6 +1253,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       isTaikoModeRef.current = gameState.isTaikoMode;
     }
   }, [fantasyPixiInstance, gameState.isTaikoMode]);
+
+  // 楽譜モードフラグをPIXIレンダラーに反映
+  useEffect(() => {
+    if (fantasyPixiInstance) {
+      fantasyPixiInstance.setSheetMusicMode(!!stage?.isSheetMusicMode);
+    }
+  }, [fantasyPixiInstance, stage?.isSheetMusicMode]);
   
   // 🚀 パフォーマンス最適化: 太鼓ノーツ更新用のrefを追加（useEffectの依存配列から除外するため）
   const taikoNotesRef = useRef(gameState.taikoNotes);

@@ -104,6 +104,7 @@ export class FantasyPIXIInstance {
   private lastRenderTime = 0;
   private readonly minRenderInterval = 16; // 16ms = 60FPS
   private needsRender = true; // 変更があった場合のみ true
+  private isSheetMusicMode = false;
 
   // 🚀 ノーツ描画最適化: プリレンダリングキャッシュ
   private noteCircleCache: HTMLCanvasElement | null = null;
@@ -138,6 +139,10 @@ export class FantasyPIXIInstance {
     this.enragedState = useEnemyStore.getState().enraged;
     
     this.startLoop();
+  }
+
+  setSheetMusicMode(enabled: boolean): void {
+    this.isSheetMusicMode = enabled;
   }
 
   resize(width: number, height: number): void {
@@ -254,7 +259,7 @@ export class FantasyPIXIInstance {
         y: visual.y,
         value: damageDealt,
         start: performance.now(),
-        duration: 1800,
+        duration: this.isSheetMusicMode ? 100 : 1800,
         offsetX: Math.cos(randAngle) * randDist,
         offsetY: Math.sin(randAngle) * randDist,
       });
