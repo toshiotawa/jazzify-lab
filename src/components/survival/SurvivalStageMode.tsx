@@ -242,9 +242,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
                 <span>STAGE MODE</span>
               </h1>
               <p className="text-gray-400 text-sm sm:text-base font-sans">
-                {isEnglishCopy
-                  ? 'Survive 90 seconds and defeat 300 enemies to clear! Complete all 105 stages!'
-                  : '90秒生存+300体撃破でクリア！全105ステージを制覇せよ！'}
+                {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇せよ！'}
               </p>
             </div>
             <div className="flex gap-2">
@@ -267,13 +265,13 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
             <div className="flex items-center space-x-2 mb-1">
               <FaTrophy className="text-yellow-400 text-sm" />
               <h3 className="text-sm font-semibold font-sans">
-                {isEnglishCopy ? 'Clear all 105 stages!' : '全105ステージを制覇しよう！'}
+                {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇しよう！'}
               </h3>
             </div>
             <p className="text-gray-400 text-xs sm:text-sm font-sans">
               {isEnglishCopy
-                ? 'Survive 90 seconds and defeat 300 enemies to clear each stage. Stages get progressively harder with new characters and faster enemies.'
-                : '各ステージで90秒生存し、300体撃破でクリアです。ステージが進むにつれ新キャラクターが登場し、敵の速度も上がります。'}
+                ? 'Stages get progressively harder with new characters and faster enemies.'
+                : 'ステージが進むにつれ新キャラクターが登場し、敵の速度も上がります。'}
             </p>
           </div>
 

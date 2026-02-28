@@ -411,9 +411,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <span>FREE PLAY</span>
               </h1>
               <p className="text-gray-400 text-sm sm:text-base font-sans">
-                {isEnglishCopy
-                  ? 'Choose your character and difficulty! Survive for 20 minutes!'
-                  : 'キャラクターと難易度を自由に選んで挑戦！20分間生き残れ！'}
+                {isEnglishCopy ? 'Choose your challenge!' : '自由に挑戦！'}
               </p>
             </div>
             <button
@@ -438,8 +436,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </div>
             <p className="text-gray-400 text-xs sm:text-sm font-sans">
               {isEnglishCopy
-                ? 'Pick your character and difficulty level freely. Survive for 20 minutes to achieve victory. Your high scores will be recorded.'
-                : 'キャラクターと難易度を自由に選んで挑戦できます。20分間生き残れば勝利です。ハイスコアが記録されます。'}
+                ? 'Pick your character and difficulty level freely. Your high scores will be recorded.'
+                : 'キャラクターと難易度を自由に選んで挑戦できます。ハイスコアが記録されます。'}
             </p>
           </div>
         </div>

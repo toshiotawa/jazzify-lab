@@ -4,6 +4,7 @@
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { FaHatWizard } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
 // BackButton は未使用のため削除
@@ -743,6 +744,23 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
       </div>
       
+      {/* 説明セクション */}
+      <div className="px-4 sm:px-6 mb-4">
+        <div className="bg-black/40 rounded-xl p-4 border border-purple-500/30">
+          <div className="flex items-center space-x-2 mb-1">
+            <FaHatWizard className="text-purple-400 text-sm" />
+            <h3 className="text-sm font-semibold text-white font-sans">
+              {isEnglishCopy ? 'Defeat monsters with chords!' : 'コードでモンスターを倒そう！'}
+            </h3>
+          </div>
+          <p className="text-gray-400 text-xs sm:text-sm font-sans">
+            {isEnglishCopy
+              ? 'Play the correct chord to attack monsters. Clear stages to unlock new ones and raise your wizard rank.'
+              : '正しいコードを演奏してモンスターを攻撃しよう。ステージをクリアして新しいステージを解放し、ウィザードランクを上げましょう。'}
+          </p>
+        </div>
+      </div>
+
       {/* フリープラン・ゲストユーザー向けのメッセージ */}
       {isFreeOrGuest && (
           <div className="mx-4 sm:mx-6 mb-4 p-3 sm:p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
