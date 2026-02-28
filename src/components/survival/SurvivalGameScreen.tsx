@@ -472,19 +472,23 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // ビューポートサイズ（Canvasラッパーを計測して設定）
   const [viewportSize, setViewportSize] = useState({ width: 800, height: 500 });
   const [isMobile, setIsMobile] = useState(false);
+  const isTouchDevice = useRef(false);
   // MIDI接続状態
   const [isMidiConnected, setIsMidiConnected] = useState(false);
   
   // ビューポートサイズ更新（Canvasラッパーを計測、マウント後にResizeObserverを設定）
   useEffect(() => {
+    const hasTouch = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
+    isTouchDevice.current = hasTouch;
+    const detectMobile = () => window.innerWidth < 768 || hasTouch;
     const updateFromWindow = () => {
       const width = Math.min(window.innerWidth - 32, 1200);
       const height = Math.min(window.innerHeight - 350, 600);
       setViewportSize({ width, height });
-      setIsMobile(window.innerWidth < 768);
+      setIsMobile(detectMobile());
     };
-    setIsMobile(window.innerWidth < 768);
-    const onWindowResize = () => setIsMobile(window.innerWidth < 768);
+    setIsMobile(detectMobile());
+    const onWindowResize = () => setIsMobile(detectMobile());
     window.addEventListener('resize', onWindowResize);
     let cleanup: (() => void) | null = null;
     const id = setTimeout(() => {
@@ -882,48 +886,68 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   }, []);
   
   // フローティングスティック操作ハンドラー（モバイル用：キャンバスエリア全体で操作）
-  const handleCanvasTouchStart = useCallback((e: React.TouchEvent) => {
-    if (!isMobile || e.touches.length === 0) return;
-    const touch = e.touches[0];
-    floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
-    setFloatingStick({
-      baseX: touch.clientX, baseY: touch.clientY,
-      stickX: 0, stickY: 0, visible: true,
-    });
-  }, [isMobile]);
-  
-  const handleCanvasTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!floatingStickRef.current || e.touches.length === 0) return;
-    e.preventDefault();
-    const touch = e.touches[0];
-    const base = floatingStickRef.current;
-    let dx = touch.clientX - base.baseX;
-    let dy = touch.clientY - base.baseY;
-    
-    const maxRadius = 44;
-    const dist = Math.sqrt(dx * dx + dy * dy);
-    if (dist > maxRadius) {
-      dx = (dx / dist) * maxRadius;
-      dy = (dy / dist) * maxRadius;
-    }
-    
-    setFloatingStick(prev => ({
-      ...prev, stickX: dx, stickY: dy,
-    }));
-    
-    const threshold = 12;
-    const keys = new Set<string>();
-    if (dy < -threshold) keys.add('w');
-    if (dy > threshold) keys.add('s');
-    if (dx < -threshold) keys.add('a');
-    if (dx > threshold) keys.add('d');
-    virtualKeysRef.current = keys;
-  }, []);
-  
-  const handleCanvasTouchEnd = useCallback(() => {
-    floatingStickRef.current = null;
-    setFloatingStick(prev => ({ ...prev, visible: false }));
-    virtualKeysRef.current = new Set();
+  // iOS Safari ではReact合成イベントがpassiveリスナーとして登録されるため
+  // preventDefault()が無視される。ネイティブリスナーで { passive: false } を使用。
+  useEffect(() => {
+    const wrapper = canvasWrapperRef.current;
+    if (!wrapper) return;
+
+    const onTouchStart = (e: TouchEvent) => {
+      if (!isTouchDevice.current || e.touches.length === 0) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
+      setFloatingStick({
+        baseX: touch.clientX, baseY: touch.clientY,
+        stickX: 0, stickY: 0, visible: true,
+      });
+    };
+
+    const onTouchMove = (e: TouchEvent) => {
+      if (!floatingStickRef.current || e.touches.length === 0) return;
+      e.preventDefault();
+      const touch = e.touches[0];
+      const base = floatingStickRef.current;
+      let dx = touch.clientX - base.baseX;
+      let dy = touch.clientY - base.baseY;
+
+      const maxRadius = 44;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist > maxRadius) {
+        dx = (dx / dist) * maxRadius;
+        dy = (dy / dist) * maxRadius;
+      }
+
+      setFloatingStick(prev => ({
+        ...prev, stickX: dx, stickY: dy,
+      }));
+
+      const threshold = 12;
+      const keys = new Set<string>();
+      if (dy < -threshold) keys.add('w');
+      if (dy > threshold) keys.add('s');
+      if (dx < -threshold) keys.add('a');
+      if (dx > threshold) keys.add('d');
+      virtualKeysRef.current = keys;
+    };
+
+    const onTouchEnd = () => {
+      floatingStickRef.current = null;
+      setFloatingStick(prev => ({ ...prev, visible: false }));
+      virtualKeysRef.current = new Set();
+    };
+
+    wrapper.addEventListener('touchstart', onTouchStart, { passive: false });
+    wrapper.addEventListener('touchmove', onTouchMove, { passive: false });
+    wrapper.addEventListener('touchend', onTouchEnd);
+    wrapper.addEventListener('touchcancel', onTouchEnd);
+
+    return () => {
+      wrapper.removeEventListener('touchstart', onTouchStart);
+      wrapper.removeEventListener('touchmove', onTouchMove);
+      wrapper.removeEventListener('touchend', onTouchEnd);
+      wrapper.removeEventListener('touchcancel', onTouchEnd);
+    };
   }, []);
   
   // ゲーム開始
@@ -2973,10 +2997,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         <div
           ref={canvasWrapperRef}
           className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
-          onTouchStart={handleCanvasTouchStart}
-          onTouchMove={handleCanvasTouchMove}
-          onTouchEnd={handleCanvasTouchEnd}
-          onTouchCancel={handleCanvasTouchEnd}
         >
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
           <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
