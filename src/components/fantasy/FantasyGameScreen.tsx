@@ -1434,7 +1434,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id, 
               chord: note.chord.displayName, 
               x,
-              noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+              noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
             });
           }
         }
@@ -1470,7 +1470,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 id: note.id,
                 chord: note.chord.displayName,
                 x,
-                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+                noteNames: (useRhythmNotation && section.callResponseMode && section.callResponseMode !== 'off') ? [] : getDisplayNoteNames(note)
               });
             }
           }
@@ -1497,7 +1497,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 id: `next_${note.id}`,
                 chord: note.chord.displayName,
                 x,
-                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+                noteNames: (useRhythmNotation && nextSection.callResponseMode && nextSection.callResponseMode !== 'off') ? [] : getDisplayNoteNames(note)
               });
             }
           }
@@ -1588,7 +1588,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 id: note.id,
                 chord: note.chord.displayName,
                 x,
-                noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+                noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
               });
             }
             return;
@@ -1603,7 +1603,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               id: note.id,
               chord: note.chord.displayName,
               x,
-              noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+              noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
             });
           }
         });
@@ -1664,7 +1664,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
             x,
-            noteNames: useRhythmNotation ? [] : getDisplayNoteNames(note)
+            noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
           });
         }
       }
