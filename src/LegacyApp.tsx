@@ -1,6 +1,5 @@
 import React, { useEffect, useState } from 'react';
 import { useGameStore } from '@/stores/gameStore';
-import GameScreen from '@/components/game/GameScreen';
 import LoadingScreen from '@/components/ui/LoadingScreen';
 import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { cn } from '@/utils/cn';
@@ -26,10 +25,11 @@ import DailyChallengeRanking from '@/components/ranking/DailyChallengeRanking';
 import MissionPage from '@/components/mission/MissionPage';
 import AdminDashboard from '@/components/admin/AdminDashboard';
 import PricingTable from '@/components/subscription/PricingTable';
-import FantasyMain from '@/components/fantasy/FantasyMain';
-import StoryPage from '@/components/fantasy/StoryPage';
-import DailyChallengeMain from '@/components/dailyChallenge/DailyChallengeMain';
-import SurvivalMain from '@/components/survival/SurvivalMain';
+const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
+const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
+const LazyDailyChallengeMain = React.lazy(() => import('@/components/dailyChallenge/DailyChallengeMain'));
+const LazySurvivalMain = React.lazy(() => import('@/components/survival/SurvivalMain'));
+const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
 
 /**
  * メインアプリケーションコンポーネント
@@ -257,32 +257,64 @@ const App: React.FC = () => {
       MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
       break;
     case '#fantasy':
-      MainContent = isFree ? <Dashboard /> : <FantasyMain />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyFantasyMain />
+        </React.Suspense>
+      );
       break;
     case '#daily-challenge':
-      MainContent = isFree ? <Dashboard /> : <DailyChallengeMain />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyDailyChallengeMain />
+        </React.Suspense>
+      );
       break;
     case '#Story':
-      MainContent = isFree ? <Dashboard /> : <StoryPage />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyStoryPage />
+        </React.Suspense>
+      );
       break;
     case '#survival':
-      MainContent = isFree ? <Dashboard /> : <SurvivalMain />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazySurvivalMain />
+        </React.Suspense>
+      );
       break;
     case '#survival-lesson':
-      MainContent = isFree ? <Dashboard /> : <SurvivalMain lessonMode />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazySurvivalMain lessonMode />
+        </React.Suspense>
+      );
       break;
     case '#survival-mission':
-      MainContent = isFree ? <Dashboard /> : <SurvivalMain missionMode />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazySurvivalMain missionMode />
+        </React.Suspense>
+      );
       break;
     case '#songs':
     case '#practice':
     case '#performance':
     case '#play-lesson':
     case '#play-mission':
-      MainContent = isFree ? <Dashboard /> : <GameScreen />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyGameScreen />
+        </React.Suspense>
+      );
       break;
     default:
-      MainContent = isFree ? <Dashboard /> : <GameScreen />;
+      MainContent = isFree ? <Dashboard /> : (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyGameScreen />
+        </React.Suspense>
+      );
       break;
   }
 

@@ -20,7 +20,7 @@ import {
   transposeTaikoNotes,
   calculateTransposeOffset
 } from './TaikoNoteSystem';
-import FantasySheetMusicDisplay from './FantasySheetMusicDisplay';
+const LazyFantasySheetMusicDisplay = React.lazy(() => import('./FantasySheetMusicDisplay'));
 import { countMusicXmlStaves } from '@/utils/musicXmlMapper';
 import { PIXINotesRenderer, PIXINotesRendererInstance } from '../game/PIXINotesRenderer';
 import { FantasyPIXIRenderer, FantasyPIXIInstance } from './FantasyPIXIRenderer';
@@ -2493,7 +2493,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           className="mx-2 mb-1 rounded-lg overflow-hidden flex-shrink-0"
           style={{ height: `${sheetMusicHeight}px` }}
         >
-          <FantasySheetMusicDisplay
+          <React.Suspense fallback={
+            <div className="w-full h-full flex items-center justify-center bg-gray-800/50 text-gray-400 text-sm">
+              楽譜を読み込み中...
+            </div>
+          }>
+            <LazyFantasySheetMusicDisplay
             width={monsterAreaWidth || window.innerWidth - 16}
             height={sheetMusicHeight}
             musicXml={currentSectionMusicXml || ''}
@@ -2558,6 +2563,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             preloadSections={combiningPreloadSections}
             className="w-full h-full"
           />
+          </React.Suspense>
         </div>
       )}
       

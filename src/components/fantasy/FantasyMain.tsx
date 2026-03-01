@@ -250,11 +250,7 @@ const FantasyMain: React.FC = () => {
         true
       ).catch(() => {});
     }).catch(() => {});
-    // Tone.js: BGM再生に必須。main.tsxより先にファンタジーへ来た場合に備える
-    import('tone').then((Tone) => {
-      (window as any).Tone = Tone;
-      Tone.start?.().catch(() => {});
-    }).catch(() => {});
+    // Tone.js: main.tsxでロード済み。二重ロードを避けるためここではimportしない（BGMManager.ensureContextRunningAsyncが未ロード時は補完）
     // モンスター画像: 18体を先行プリロード（getStageMonsterIdsのシャッフルと重複しやすく、iOSで敵アイコン遅延を防止）
     import('@/components/fantasy/FantasyGameEngine').then(({ preloadMonsterImages, globalImageCache }) => {
       const commonIds = Array.from({ length: 18 }, (_, i) => `monster_${String(i + 1).padStart(2, '0')}`);
