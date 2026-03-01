@@ -19,8 +19,6 @@ interface SurvivalCodeSlotsProps {
   isAMagicSlot?: boolean;
   isBMagicSlot?: boolean;
   isStageMode?: boolean;
-  /** LPデモ等でコンパクト表示 */
-  compact?: boolean;
 }
 
 // ===== スロットタイプの色設定 =====
@@ -66,7 +64,6 @@ interface SlotDisplayProps {
   isHinted: boolean;
   isMagicOnCooldown?: boolean;  // 対象列の魔法がクールダウン中か
   isMagicSlot?: boolean;        // この列が魔法スロットか
-  compact?: boolean;
 }
 
 const SlotDisplay: React.FC<SlotDisplayProps> = ({
@@ -75,7 +72,6 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
   isHinted,
   isMagicOnCooldown = false,
   isMagicSlot = false,
-  compact = false,
 }) => {
   const colors = SLOT_COLORS[slot.type];
   
@@ -94,8 +90,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 現在のスロット */}
       <div
         className={cn(
-          'relative w-full rounded-lg border-2 overflow-hidden transition-all',
-          compact ? 'h-10' : 'h-14 md:h-20',
+          'relative w-full h-14 md:h-20 rounded-lg border-2 overflow-hidden transition-all',
           colors.border,
           'bg-gradient-to-br',
           colors.bg,
@@ -107,7 +102,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
         )}
       >
         {/* ラベル */}
-        <div className={cn('absolute left-1 font-sans opacity-70', compact ? 'top-0.5 text-[9px]' : 'top-1 text-xs')}>
+        <div className="absolute top-1 left-1 text-xs font-sans opacity-70">
           {slotLabel}
         </div>
         
@@ -116,7 +111,6 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           {slot.isEnabled ? (
             <span className={cn(
               'font-bold font-sans leading-tight text-center break-all',
-              compact ? 'text-xs' :
               (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-[10px] md:text-xs' :
               (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-xs md:text-sm' :
               (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-sm md:text-lg' : 'text-base md:text-2xl',
@@ -126,7 +120,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
               {slot.chord?.displayName ?? '---'}
             </span>
           ) : (
-            <span className={cn('text-gray-400 font-sans', compact ? 'text-sm' : 'text-lg')}>
+            <span className="text-lg text-gray-400 font-sans">
               🔒
             </span>
           )}
@@ -134,7 +128,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
         
         {/* 進捗バー（下部） */}
         {slot.isEnabled && !slot.isCompleted && !isDisabledByCooldown && (
-          <div className={cn('absolute bottom-0 left-0 right-0 bg-black/40', compact ? 'h-1' : 'h-1.5')}>
+          <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40">
             <div
               className="h-full bg-green-400 transition-all duration-100"
               style={{ width: `${progressPercent}%` }}
@@ -158,8 +152,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 次のスロット（見やすく大きめ表示） */}
       <div
         className={cn(
-          'w-full rounded-lg border-2 flex flex-col items-center justify-center',
-          compact ? 'h-6' : 'h-8 md:h-10',
+          'w-full h-8 md:h-10 rounded-lg border-2 flex flex-col items-center justify-center',
           'bg-gradient-to-br from-gray-800/80 to-gray-900/80',
           colors.border,
           'border-opacity-50',
@@ -167,10 +160,9 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           isDisabledByCooldown && 'opacity-30'
         )}
       >
-        <span className={cn('font-sans text-gray-500 leading-none', compact ? 'text-[8px]' : 'text-[10px]')}>NEXT</span>
+        <span className="text-[10px] font-sans text-gray-500 leading-none">NEXT</span>
         <span className={cn(
           'font-bold font-sans leading-tight text-center break-all',
-          compact ? 'text-[10px]' :
           (nextSlot.chord?.displayName?.length ?? 0) > 8 ? 'text-[10px]' :
           (nextSlot.chord?.displayName?.length ?? 0) > 5 ? 'text-xs' : 'text-base',
           colors.text
@@ -214,12 +206,9 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
   };
   
   return (
-    <div className={cn(
-      'flex flex-col items-center bg-black/60 rounded-xl backdrop-blur-sm border border-gray-700 w-full md:w-auto',
-      compact ? 'gap-0.5 py-1 px-1 rounded-lg md:min-w-0' : 'gap-2 py-2 px-0 md:px-4 md:min-w-[28rem] lg:min-w-[32rem]'
-    )}>
+    <div className="flex flex-col items-center gap-2 py-2 px-0 md:px-4 bg-black/60 rounded-xl backdrop-blur-sm border border-gray-700 w-full md:w-auto md:min-w-[28rem] lg:min-w-[32rem]">
       {/* スロット行 */}
-      <div className={cn('flex w-full justify-center', compact ? 'gap-0.5' : 'gap-1 md:gap-2')}>
+      <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
           if (isStageMode && index >= 3) return null;
           return (
@@ -230,7 +219,6 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
               isHinted={hintSlotIndex === index}
               isMagicOnCooldown={getSlotCooldown(index)}
               isMagicSlot={isSlotMagic(index)}
-              compact={compact}
             />
           );
         })}
