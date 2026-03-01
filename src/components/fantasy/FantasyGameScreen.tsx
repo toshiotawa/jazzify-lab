@@ -1042,6 +1042,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
         const mainUrl = stageWithSettings.bgmUrl;
         if (mainUrl && !urls.includes(mainUrl)) urls.push(mainUrl);
+        // 楽譜モード(single/single_order): bgmUrlが空またはメインのみの場合はフォールバックを必ずプリロード
+        // 再生時に stage.bgmUrl ?? '/demo-1.mp3 を使うため、確実に再生可能にする
+        const isSheetMusicSingle = (stageWithSettings.mode === 'single' || stageWithSettings.mode === 'single_order') && stageWithSettings.isSheetMusicMode;
+        const fallbackUrl = '/demo-1.mp3';
+        if (isSheetMusicSingle && !urls.includes(fallbackUrl)) {
+          urls.push(fallbackUrl);
+        }
         await Promise.all(urls.map(u => bgmManager.preloadAudioAsync(u)));
       } catch { /* ignore */ }
     })();
