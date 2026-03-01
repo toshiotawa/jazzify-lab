@@ -224,6 +224,8 @@ interface SurvivalGameScreenProps {
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
   onNextStage?: () => void;
+  /** LPデモ等で親コンテナに収める場合 true。min-h の代わりに h-full min-h-0 を使用 */
+  embeddedFullHeight?: boolean;
 }
 
 const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
@@ -242,6 +244,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onRetryWithHint,
   onRetryWithoutHint,
   onNextStage,
+  embeddedFullHeight = false,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -2886,7 +2889,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   };
 
   return (
-    <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen">
+    <div
+      className={cn(
+        'bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen',
+        embeddedFullHeight ? 'flex-1 min-h-0 overflow-hidden' : 'min-h-[var(--dvh,100dvh)]'
+      )}
+    >
       {/* 初期化エラー表示（閉じられるトースト） */}
       {initError && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md">

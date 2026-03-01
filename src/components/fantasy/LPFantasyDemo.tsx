@@ -103,6 +103,8 @@ const LPFantasyDemo: React.FC = () => {
     }
   }, []);
 
+  const dvhCleanupRef = useRef<(() => void) | null>(null);
+
   const closeDemo = useCallback((showCtaOverlay: boolean) => {
     setIsOpen(false);
     clearDemoTimer();
@@ -111,7 +113,11 @@ const LPFantasyDemo: React.FC = () => {
       (document as any).webkitExitFullscreen?.();
       (document as any).msExitFullscreen?.();
     } catch { /* noop */ }
-    try { document.documentElement.style.removeProperty('--dvh'); } catch { /* noop */ }
+    try {
+      dvhCleanupRef.current?.();
+      dvhCleanupRef.current = null;
+      document.documentElement.style.removeProperty('--dvh');
+    } catch { /* noop */ }
     setSuspendPiano(false);
     if (showCtaOverlay) setShowCta(true);
   }, [clearDemoTimer]);
@@ -122,12 +128,29 @@ const LPFantasyDemo: React.FC = () => {
     setShowCta(false);
 
     try {
+      dvhCleanupRef.current?.();
+      dvhCleanupRef.current = null;
       const setDvh = () => {
-        const dvh = Math.max(window.innerHeight, document.documentElement.clientHeight);
+        const vv = (window as any).visualViewport;
+        const dvh = vv
+          ? Math.max(vv.height, window.innerHeight, document.documentElement.clientHeight)
+          : Math.max(window.innerHeight, document.documentElement.clientHeight);
         document.documentElement.style.setProperty('--dvh', dvh + 'px');
       };
       setDvh();
       window.addEventListener('resize', setDvh, { passive: true });
+      const vv = (window as any).visualViewport;
+      if (vv) {
+        vv.addEventListener('resize', setDvh, { passive: true });
+        vv.addEventListener('scroll', setDvh, { passive: true });
+      }
+      dvhCleanupRef.current = () => {
+        window.removeEventListener('resize', setDvh);
+        if (vv) {
+          vv.removeEventListener('resize', setDvh);
+          vv.removeEventListener('scroll', setDvh);
+        }
+      };
       setTimeout(setDvh, 200);
       setTimeout(setDvh, 500);
     } catch { /* noop */ }
@@ -228,11 +251,12 @@ const LPFantasyDemo: React.FC = () => {
       {isOpen && (
         <div
           ref={containerRef}
-          className="fixed inset-0 z-[1000] bg-black min-h-[var(--dvh,100dvh)] flex flex-col"
+          className="fixed inset-0 z-[1000] bg-black h-[var(--dvh,100dvh)] max-h-[var(--dvh,100dvh)] overflow-hidden flex flex-col"
+          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
           role="dialog"
           aria-modal="true"
         >
-          <div className="absolute top-3 right-3 z-50">
+          <div className="absolute top-3 right-3 z-50" style={{ top: 'max(12px, env(safe-area-inset-top))' }}>
             <button
               onClick={handleDemoExit}
               className="px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-white border border-white/10"
@@ -240,7 +264,7 @@ const LPFantasyDemo: React.FC = () => {
               {exitFullscreenText}
             </button>
           </div>
-          <div className="absolute inset-0">
+          <div className="absolute inset-0 flex flex-col min-h-0 overflow-hidden">
             <Suspense fallback={<div className="w-full h-full flex items-center justify-center text-white">{modalLoadingText}</div>}>
               <SurvivalGameScreen
                 difficulty="easy"
@@ -249,6 +273,7 @@ const LPFantasyDemo: React.FC = () => {
                 onBackToMenu={handleDemoExit}
                 stageDefinition={DEMO_STAGE_DEFINITION}
                 hintMode={true}
+                embeddedFullHeight={true}
               />
             </Suspense>
           </div>
