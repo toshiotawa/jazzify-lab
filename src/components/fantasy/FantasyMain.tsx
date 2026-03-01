@@ -237,6 +237,20 @@ const FantasyMain: React.FC = () => {
     !!nextStageUnlockInfo &&
     (!nextStageUnlockInfo.isUnlocked || shouldShowStageUnlockedMessage);
   
+  // ステージ選択画面表示中にAudio/サウンド初期化を先行開始（ゲーム開始の高速化）
+  useEffect(() => {
+    import('@/utils/MidiController').then(({ initializeAudioSystem }) => {
+      initializeAudioSystem().catch(() => {});
+    }).catch(() => {});
+    import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+      FantasySoundManager.init(
+        settings.soundEffectVolume ?? 0.8,
+        settings.rootSoundVolume ?? 0.5,
+        true
+      ).catch(() => {});
+    }).catch(() => {});
+  }, [settings.soundEffectVolume, settings.rootSoundVolume]);
+
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');

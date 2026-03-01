@@ -1032,35 +1032,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
     
     // BGM音声をReady中にプリロード（ゲーム初期化と並列）
-    // BGM再生時に即座に開始できるよう事前にデコード済みバッファをキャッシュする
+    // await可能版を使い、Ready解除前にBGMデコード済みバッファを確保
     const bgmPreloadPromise = (async () => {
       try {
+        const urls: string[] = [];
         if (stageWithSettings.mode === 'timing_combining' && stageWithSettings.combinedStages?.length) {
-          const firstChild = stageWithSettings.combinedStages[0];
-          if (firstChild?.bgmUrl) bgmManager.preloadAudio(firstChild.bgmUrl);
+          const firstUrl = stageWithSettings.combinedStages[0]?.bgmUrl;
+          if (firstUrl) urls.push(firstUrl);
         }
-        const bgmUrl = stageWithSettings.bgmUrl;
-        if (bgmUrl) bgmManager.preloadAudio(bgmUrl);
+        const mainUrl = stageWithSettings.bgmUrl;
+        if (mainUrl && !urls.includes(mainUrl)) urls.push(mainUrl);
+        await Promise.all(urls.map(u => bgmManager.preloadAudioAsync(u)));
       } catch { /* ignore */ }
     })();
 
     await Promise.all([
       initializeGame(stageWithSettings, mode),
-      bgmPreloadPromise,
+      Promise.race([bgmPreloadPromise, new Promise<void>(r => setTimeout(r, 6000))]),
+      Promise.race([FantasySoundManager.warmupRootSound().catch(() => {}), new Promise<void>(r => setTimeout(r, 500))]),
     ]);
     
-    // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
-    // iOS: ctx.resume()がジェスチャー外だと永久に解決しない場合があるのでタイムアウト付き
-    try {
-      await Promise.race([
-        FantasySoundManager.warmupRootSound(),
-        new Promise<void>(resolve => setTimeout(resolve, 500))
-      ]);
-    } catch {
-      // ウォームアップ失敗は無視
-    }
-    
-    setIsGameReady(true); // 画像プリロード完了
+    setIsGameReady(true);
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, stage.mode]);
 
   // デイリーチャレンジ: タイムリミットで終了

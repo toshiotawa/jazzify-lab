@@ -34,6 +34,9 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
+// モジュールレベル画像キャッシュ: ステージ間で永続化しiOS再ロードを回避
+const globalImageCache = new Map<string, HTMLImageElement>();
+
 // 🚀 パフォーマンス最適化: 直接PNGをロード（WebPフォールバック不要）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -808,8 +811,8 @@ export const useFantasyGameEngine = ({
   
   // ステージで使用するモンスターIDを保持
   const [stageMonsterIds, setStageMonsterIds] = useState<string[]>([]);
-  // プリロードしたテクスチャを保持
-  const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(new Map());
+  // プリロードしたテクスチャを保持（モジュールレベルキャッシュを共有）
+  const imageTexturesRef = useRef<Map<string, HTMLImageElement>>(globalImageCache);
   // 怒り状態の自動解除タイマーをモンスターIDごとに管理
   const enrageTimersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   // 袋形式ランダムセレクター（コード選択の偏り防止）
