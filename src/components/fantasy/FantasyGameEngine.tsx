@@ -34,8 +34,8 @@ import { note as parseNote } from 'tonal';
 
 // ===== 型定義 =====
 
-// モジュールレベル画像キャッシュ: ステージ間で永続化しiOS再ロードを回避
-const globalImageCache = new Map<string, HTMLImageElement>();
+// モジュールレベル画像キャッシュ: ステージ間で永続化しiOS再ロードを回避（FantasyMainのステージ選択時プリロード用にexport）
+export const globalImageCache = new Map<string, HTMLImageElement>();
 
 // 🚀 パフォーマンス最適化: 直接PNGをロード（WebPフォールバック不要）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>

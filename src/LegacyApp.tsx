@@ -71,58 +71,30 @@ const App: React.FC = () => {
   useEffect(() => {
     const initializeApp = async () => {
       try {
-        console.log('🎵 Initializing Jazz Learning Game App...');
-        setInitProgress(0.1);
-        
-        // 基本的な環境チェック（簡素化）
-        setInitProgress(0.3);
         if (typeof window === 'undefined') {
           throw new Error('Window object not available');
         }
-        
         setInitProgress(0.5);
-        
-        // 簡素化された初期化 - エラーが起きやすい処理を削除
-        console.log('🔊 Checking basic browser features...');
-        
-        // Web Audio API の基本チェック（但しエラーは無視）
-        if (typeof AudioContext !== 'undefined' || typeof (window as any).webkitAudioContext !== 'undefined') {
-          console.log('🔊 Audio context available');
-        } else {
-          console.warn('⚠️ Web Audio API not supported');
-        }
-        
-        setInitProgress(0.7);
-        
-        // MIDI API の基本チェック（但しエラーは無視）
-        if (typeof navigator !== 'undefined' && navigator.requestMIDIAccess !== undefined) {
-          console.log('🎹 MIDI API available');
-        } else {
-          console.warn('⚠️ Web MIDI API not supported');
-        }
-        
-        setInitProgress(0.9);
-        
-        // 最終チェック（シンプルに）
-        await new Promise(resolve => setTimeout(resolve, 300));
-        
+        // 必須チェックのみ同期的に実行、ブラウザ機能チェックはバックグラウンド
+        setTimeout(() => {
+          if (typeof AudioContext === 'undefined' && typeof (window as any).webkitAudioContext === 'undefined') {
+            console.warn('⚠️ Web Audio API not supported');
+          }
+          if (typeof navigator !== 'undefined' && navigator.requestMIDIAccess === undefined) {
+            console.warn('⚠️ Web MIDI API not supported');
+          }
+        }, 0);
+        await new Promise(resolve => setTimeout(resolve, 30));
         setInitProgress(1.0);
         setIsInitialized(true);
-        console.log('✅ Jazz Learning Game App initialized successfully');
-        
       } catch (error) {
         console.error('❌ Failed to initialize app:', error);
         setInitError(error instanceof Error ? error.message : 'Unknown error occurred');
         setInitProgress(0);
       }
     };
-    
-    // 初期化を少し遅延させて確実に実行
-    const timeoutId = setTimeout(initializeApp, 100);
-    
-    return () => {
-      clearTimeout(timeoutId);
-    };
+    const timeoutId = setTimeout(initializeApp, 0);
+    return () => clearTimeout(timeoutId);
   }, []);
   
   useEffect(() => {

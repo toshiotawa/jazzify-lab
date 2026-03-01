@@ -251,6 +251,25 @@ const FantasyMain: React.FC = () => {
     }).catch(() => {});
   }, [settings.soundEffectVolume, settings.rootSoundVolume]);
 
+  // ステージ選択時に画像を即座にプリロード開始（Challengeクリック時にはキャッシュ済み）
+  useEffect(() => {
+    const stage = currentStage;
+    if (!stage) return;
+    import('@/components/fantasy/FantasyGameEngine').then(({ preloadMonsterImages, preloadSheetMusicImages, globalImageCache }) => {
+      import('@/data/monsters').then(({ getStageMonsterIds }) => {
+        if (stage.isSheetMusicMode && stage.allowedChords?.length) {
+          const noteNames = stage.allowedChords.map((chord: unknown) =>
+            typeof chord === 'string' ? chord : (chord as { chord?: string })?.chord
+          ).filter(Boolean) as string[];
+          preloadSheetMusicImages(noteNames, globalImageCache).catch(() => {});
+        } else {
+          const monsterIds = getStageMonsterIds(stage.enemyCount ?? 6);
+          preloadMonsterImages(monsterIds, globalImageCache).catch(() => {});
+        }
+      });
+    }).catch(() => {});
+  }, [currentStage?.id]);
+
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {
     const params = new URLSearchParams(window.location.hash.split('?')[1] || '');

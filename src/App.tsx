@@ -26,19 +26,18 @@ const App: React.FC = () => {
   // アプリケーション起動時に一度だけ認証状態を初期化（タイムアウト付き）
   useEffect(() => {
     const initializeAuth = async () => {
-      console.log('🚀 App: 認証初期化開始');
       try {
         await Promise.race([
           init(),
           new Promise<void>((_, reject) =>
-            setTimeout(() => reject(new Error('Auth init timeout')), 10000)
+            setTimeout(() => reject(new Error('Auth init timeout')), 5000)
           ),
         ]);
       } catch (e) {
         console.warn('⚠️ App: 認証初期化タイムアウトまたはエラー、続行します', e);
       }
-      console.log('✅ App: 認証初期化完了');
       setInitialized(true);
+      import('./LegacyApp').catch(() => {});
     };
     initializeAuth();
   }, [init]);

@@ -916,9 +916,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage, settings.bgmVolume, selectedSpeedMultiplier]);
+  }, [gameState.isGameActive, isReady, stage?.id, stage?.mode, settings.bgmVolume, selectedSpeedMultiplier]);
+  // 注: stage オブジェクト全体ではなく stage.id/mode のみ依存に含め、親の再レンダーで不要な effect 再実行を防止
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
-  // 注: gameState.transposeSettingsも除外（初回再生後に変更されない）
   
   // 現在の敵情報を取得
   const currentEnemy = getCurrentEnemy(gameState.currentEnemyIndex);
