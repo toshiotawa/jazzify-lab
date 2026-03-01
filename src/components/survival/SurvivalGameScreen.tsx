@@ -521,7 +521,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, []);
   
-  // BGM再生制御（WAVEごとに切り替え）
+  // ステージモード: 30秒区切りでBGM切り替え判定（0-29s: odd, 30-59s: odd, 60-89s: even）
+  const stageBgmPhase = isStageMode ? Math.floor(gameState.elapsedTime / 30) : 0;
+
+  // BGM再生制御（WAVEごとに切り替え / ステージモードは残り30秒でevenに切り替え）
   useEffect(() => {
     // ゲームオーバーまたはポーズ中はBGMを停止
     if (gameState.isGameOver || gameState.isPaused || !gameState.isPlaying) {
@@ -531,9 +534,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return;
     }
     
-    // WAVEに応じたBGM URLを決定
-    const isOddWave = gameState.wave.currentWave % 2 === 1;
-    const targetBgmUrl = isOddWave ? config.bgmOddWaveUrl : config.bgmEvenWaveUrl;
+    // BGM URLを決定: ステージモードは残り30秒でeven、それ以外はWAVEの奇数/偶数
+    const useEvenBgm = isStageMode
+      ? gameState.elapsedTime >= STAGE_TIME_LIMIT_SECONDS - 30
+      : gameState.wave.currentWave % 2 === 0;
+    const targetBgmUrl = useEvenBgm ? config.bgmEvenWaveUrl : config.bgmOddWaveUrl;
     
     // BGMが設定されていない場合は何もしない
     if (!targetBgmUrl) {
@@ -581,7 +586,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       // コンポーネントアンマウント時はBGMを停止
       // 注: WAVEが変わるたびに呼ばれるので、この中ではBGMを停止しない
     };
-  }, [gameState.wave.currentWave, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, config.bgmOddWaveUrl, config.bgmEvenWaveUrl]);
+  }, [gameState.wave.currentWave, gameState.isGameOver, gameState.isPaused, gameState.isPlaying, isStageMode, stageBgmPhase, config.bgmOddWaveUrl, config.bgmEvenWaveUrl]);
   
   // コンポーネントアンマウント時にBGMを停止
   useEffect(() => {
@@ -2949,7 +2954,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       )}
       
       {/* メインゲームエリア（Canvasが全高さ・ヘッダーはCanvas上にオーバーレイ） */}
-      <div className="flex-1 flex flex-col items-center justify-center gap-2 px-4 relative min-h-0">
+      <div
+        className={cn(
+          'flex-1 flex flex-col items-center relative min-h-0',
+          embeddedFullHeight ? 'justify-start gap-1 px-2' : 'justify-center gap-2 px-4'
+        )}
+      >
         {/* フローティングスティック（モバイル時のみ・タッチ位置に出現） */}
         {isMobile && floatingStick.visible && (
           <div
@@ -3261,10 +3271,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       </div>
       
       {/* ピアノ（PIXINotesRenderer使用） */}
+      {(() => {
+        const pianoHeight = embeddedFullHeight ? 80 : 120;
+        return (
       <div 
         ref={gameAreaRef}
         className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
-        style={{ height: '120px' }}
+        style={{ height: `${pianoHeight}px` }}
       >
         {(() => {
           const { width: pixiWidth, needsScroll } = calculatePianoWidth();
@@ -3292,7 +3305,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               >
                 <PIXINotesRenderer
                   width={pixiWidth}
-                  height={120}
+                  height={pianoHeight}
                   onReady={handlePixiReady}
                   className="w-full h-full"
                 />
@@ -3303,7 +3316,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               <div className="absolute inset-0 overflow-hidden">
                 <PIXINotesRenderer
                   width={pixiWidth}
-                  height={120}
+                  height={pianoHeight}
                   onReady={handlePixiReady}
                   className="w-full h-full"
                 />
@@ -3312,6 +3325,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         })()}
       </div>
+    );
+  })()}
       
       {/* レベルアップ画面（ステージモードでは非表示） */}
       {!isStageMode && gameState.isLevelingUp && (

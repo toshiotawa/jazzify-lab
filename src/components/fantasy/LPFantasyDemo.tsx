@@ -109,6 +109,8 @@ const LPFantasyDemo: React.FC = () => {
     setIsOpen(false);
     clearDemoTimer();
     try {
+      document.body.style.overflow = '';
+      document.documentElement.style.overflow = '';
       if (document.fullscreenElement) document.exitFullscreen?.().catch(() => {});
       (document as any).webkitExitFullscreen?.();
       (document as any).msExitFullscreen?.();
@@ -126,15 +128,22 @@ const LPFantasyDemo: React.FC = () => {
     setSuspendPiano(true);
     setIsOpen(true);
     setShowCta(false);
+    try {
+      document.body.style.overflow = 'hidden';
+      document.documentElement.style.overflow = 'hidden';
+      window.scrollTo(0, 0);
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    } catch { /* noop */ }
 
     try {
       dvhCleanupRef.current?.();
       dvhCleanupRef.current = null;
       const setDvh = () => {
         const vv = (window as any).visualViewport;
-        const dvh = vv
-          ? Math.max(vv.height, window.innerHeight, document.documentElement.clientHeight)
-          : Math.max(window.innerHeight, document.documentElement.clientHeight);
+        const vals = [window.innerHeight, document.documentElement.clientHeight];
+        if (vv) vals.push(vv.height);
+        const dvh = Math.min(...vals);
         document.documentElement.style.setProperty('--dvh', dvh + 'px');
       };
       setDvh();
@@ -251,12 +260,19 @@ const LPFantasyDemo: React.FC = () => {
       {isOpen && (
         <div
           ref={containerRef}
-          className="fixed inset-0 z-[1000] bg-black h-[var(--dvh,100dvh)] max-h-[var(--dvh,100dvh)] overflow-hidden flex flex-col"
-          style={{ paddingBottom: 'env(safe-area-inset-bottom)' }}
+          className="fixed inset-0 z-[1000] bg-black overflow-hidden flex flex-col"
+          style={{
+            height: 'var(--dvh, 100svh)',
+            maxHeight: 'var(--dvh, 100svh)',
+            paddingTop: 'env(safe-area-inset-top)',
+            paddingBottom: 'env(safe-area-inset-bottom)',
+            paddingLeft: 'env(safe-area-inset-left)',
+            paddingRight: 'env(safe-area-inset-right)',
+          }}
           role="dialog"
           aria-modal="true"
         >
-          <div className="absolute top-3 right-3 z-50" style={{ top: 'max(12px, env(safe-area-inset-top))' }}>
+          <div className="absolute top-0 right-0 z-50 pt-[max(12px,env(safe-area-inset-top))] pr-[max(12px,env(safe-area-inset-right))]">
             <button
               onClick={handleDemoExit}
               className="px-3 py-2 rounded bg-gray-800 hover:bg-gray-700 text-sm text-white border border-white/10"
