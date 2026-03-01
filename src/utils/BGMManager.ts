@@ -793,12 +793,10 @@ class BGMManager {
       }
     }
     
-    // 非同期BGMロード中: performance.now()ベースでカウントイン時間を模擬
-    // これにより Tone.js/WebAudio のロード中もノーツ描画が進み、ゲームが固まらない
+    // 非同期BGMロード中: 時間を進めない（ノーツがBGMより先に流れるのを防止）
+    // プリロードにより通常はこの分岐には到達しない
     if (this.isLoadingAudio && this.playInitiatedAt > 0) {
-      const elapsedMs = performance.now() - this.playInitiatedAt
-      const elapsedSec = (elapsedMs / 1000) * this.playbackRate + this.audioStartOffset
-      return this.normalizeMusicTime(elapsedSec)
+      return this.normalizeMusicTime(this.audioStartOffset)
     }
     
     return 0

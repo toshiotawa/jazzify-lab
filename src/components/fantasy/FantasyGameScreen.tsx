@@ -1031,7 +1031,23 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }));
     }
     
-    await initializeGame(stageWithSettings, mode);
+    // BGM音声をReady中にプリロード（ゲーム初期化と並列）
+    // BGM再生時に即座に開始できるよう事前にデコード済みバッファをキャッシュする
+    const bgmPreloadPromise = (async () => {
+      try {
+        if (stageWithSettings.mode === 'timing_combining' && stageWithSettings.combinedStages?.length) {
+          const firstChild = stageWithSettings.combinedStages[0];
+          if (firstChild?.bgmUrl) bgmManager.preloadAudio(firstChild.bgmUrl);
+        }
+        const bgmUrl = stageWithSettings.bgmUrl;
+        if (bgmUrl) bgmManager.preloadAudio(bgmUrl);
+      } catch { /* ignore */ }
+    })();
+
+    await Promise.all([
+      initializeGame(stageWithSettings, mode),
+      bgmPreloadPromise,
+    ]);
     
     // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
     // iOS: ctx.resume()がジェスチャー外だと永久に解決しない場合があるのでタイムアウト付き
