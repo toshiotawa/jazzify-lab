@@ -1668,7 +1668,7 @@ export const useFantasyGameEngine = ({
 
     // 🚀 画像プリロード（優先分をawait、残りはバックグラウンド）
     const textureMap = imageTexturesRef.current;
-    const IMAGE_PRELOAD_TIMEOUT = 4000;
+    const IMAGE_PRELOAD_TIMEOUT = 6000; // iOS等で読み込みが遅い場合に備え6秒に延長
     
     try {
       if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {

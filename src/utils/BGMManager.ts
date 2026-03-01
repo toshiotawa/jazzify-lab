@@ -634,7 +634,12 @@ class BGMManager {
    */
   async ensureContextRunningAsync(): Promise<void> {
     try {
-      const ToneLib = (window as any).Tone
+      let ToneLib = (window as any).Tone
+      if (!ToneLib) {
+        const Tone = await import('tone')
+        ;(window as any).Tone = Tone
+        ToneLib = Tone
+      }
       if (ToneLib?.start) await ToneLib.start()
       if (ToneLib?.context?.state === 'suspended') {
         await ToneLib.context.resume()

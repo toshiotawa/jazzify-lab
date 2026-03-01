@@ -238,6 +238,7 @@ const FantasyMain: React.FC = () => {
     (!nextStageUnlockInfo.isUnlocked || shouldShowStageUnlockedMessage);
   
   // ステージ選択画面表示中にAudio/サウンド初期化を先行開始（ゲーム開始の高速化）
+  // iOS: Tone.js・モンスター画像を早期プリロードし、BGM・敵アイコンの遅延を防止
   useEffect(() => {
     import('@/utils/MidiController').then(({ initializeAudioSystem }) => {
       initializeAudioSystem().catch(() => {});
@@ -249,12 +250,27 @@ const FantasyMain: React.FC = () => {
         true
       ).catch(() => {});
     }).catch(() => {});
+    // Tone.js: BGM再生に必須。main.tsxより先にファンタジーへ来た場合に備える
+    import('tone').then((Tone) => {
+      (window as any).Tone = Tone;
+      Tone.start?.().catch(() => {});
+    }).catch(() => {});
+    // モンスター画像: 18体を先行プリロード（getStageMonsterIdsのシャッフルと重複しやすく、iOSで敵アイコン遅延を防止）
+    import('@/components/fantasy/FantasyGameEngine').then(({ preloadMonsterImages, globalImageCache }) => {
+      const commonIds = Array.from({ length: 18 }, (_, i) => `monster_${String(i + 1).padStart(2, '0')}`);
+      preloadMonsterImages(commonIds, globalImageCache).catch(() => {});
+    }).catch(() => {});
   }, [settings.soundEffectVolume, settings.rootSoundVolume]);
 
   // ステージ選択時に画像を即座にプリロード開始（Challengeクリック時にはキャッシュ済み）
+  // ステージ選択はユーザージェスチャーなので、このタイミングでAudioContextをアンロック（iOS対応）
   useEffect(() => {
     const stage = currentStage;
     if (!stage) return;
+    import('@/utils/BGMManager').then(({ bgmManager }) => {
+      bgmManager.ensureContextRunning();
+      bgmManager.ensureContextRunningAsync().catch(() => {});
+    }).catch(() => {});
     import('@/components/fantasy/FantasyGameEngine').then(({ preloadMonsterImages, preloadSheetMusicImages, globalImageCache }) => {
       import('@/data/monsters').then(({ getStageMonsterIds }) => {
         if (stage.isSheetMusicMode && stage.allowedChords?.length) {
