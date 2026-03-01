@@ -99,8 +99,8 @@ const LandingPage: React.FC = () => {
   const primaryCtaLabel = isEnglishLanding ? 'Start Free Trial' : '無料トライアルを始める';
   const heroCtaAria = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
   const helmetDescription = isEnglishLanding
-    ? 'Start your jazz adventure in a fantasy realm. Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
-    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。コード進行の暗記、名演ソロの再現、動画レッスンまで。';
+    ? 'Start your jazz adventure in a fantasy realm. Practice with real-time feedback, unlock quests, and battle through Fantasy Mode. Try free trial now.'
+    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。コード進行の暗記、名演ソロの再現、ファンタジーモードでの冒険まで。無料トライアルで今すぐ始めよう。';
   const finalHeadingText = isEnglishLanding ? 'Start your free trial now' : '今すぐ無料トライアルを始める';
   const finalDescriptionText = isEnglishLanding
     ? 'Registration takes just a few minutes. You can also try the demo first.'
