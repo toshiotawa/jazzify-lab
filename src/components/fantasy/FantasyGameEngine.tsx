@@ -1663,34 +1663,28 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // 🚀 最初のモンスター画像を確実にプリロード（ゲーム開始前に完了）
+    // 🚀 全モンスター画像をプリロード（ゲーム開始前に完了）
+    // iOS: 画像ロードがハングする場合に備えてタイムアウト付き
     const textureMap = imageTexturesRef.current;
-    // 既存のキャッシュを活用（クリアしない）
-    
-    // 最初のモンスター（最大4体）を優先的にプリロード
-    const priorityIds = monsterIds.slice(0, Math.min(4, monsterIds.length));
     
     try {
-      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
-        // 楽譜モードの場合は楽譜画像をプリロード（待機）
-        const noteNames = stage.allowedChords.map(chord => 
-          typeof chord === 'string' ? chord : (chord as any).chord || chord
-        ).filter(Boolean);
-        await preloadSheetMusicImages(noteNames, textureMap);
-        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-      } else {
-        // 最初の4体のモンスター画像を確実にプリロード（待機）
-        await preloadMonsterImages(priorityIds, textureMap);
-        devLog.debug('✅ 優先モンスター画像プリロード完了:', { count: priorityIds.length });
-        
-        // 残りをバックグラウンドで読み込み（待機しない）
-        if (monsterIds.length > 4) {
-          const remainingIds = monsterIds.slice(4);
-          preloadMonsterImages(remainingIds, textureMap).then(() => {
-            devLog.debug('✅ 残りモンスター画像プリロード完了:', { count: remainingIds.length });
-          }).catch(() => {});
-        }
-      }
+      const preloadPromise = (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0)
+        ? (async () => {
+            const noteNames = stage.allowedChords!.map(chord => 
+              typeof chord === 'string' ? chord : (chord as any).chord || chord
+            ).filter(Boolean);
+            await preloadSheetMusicImages(noteNames, textureMap);
+            devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
+          })()
+        : (async () => {
+            await preloadMonsterImages(monsterIds, textureMap);
+            devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
+          })();
+      
+      await Promise.race([
+        preloadPromise,
+        new Promise<void>(resolve => setTimeout(resolve, 8000))
+      ]);
     } catch (error) {
       devLog.debug('⚠️ 画像プリロード失敗（続行）:', error);
     }

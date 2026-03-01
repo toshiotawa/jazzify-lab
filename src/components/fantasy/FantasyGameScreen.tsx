@@ -849,6 +849,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     if (!gameState.isGameActive) return;
     if (isReady) return;
 
+    // iOS: BGM再生前にAudioContextが確実にrunningであることを保証
+    bgmManager.ensureContextRunning();
+
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
@@ -961,6 +964,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     speedMultiplier: number = 1.0,
     transposeOpts?: { keyOffset: number; repeatKeyChange: RepeatKeyChange }
   ) => {
+    // iOS Safari: ユーザージェスチャーのコールスタック内でAudioContextをアンロック
+    // awaitの前に同期的に呼ぶことでiOSの自動再生制限を回避
+    bgmManager.ensureContextRunning();
+    FantasySoundManager.unlock().catch(() => {});
+
     // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {
       await initPromiseRef.current;
@@ -1026,8 +1034,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     await initializeGame(stageWithSettings, mode);
     
     // 🎵 ルート音システムのウォームアップ（最初の音が遅延しないように）
+    // iOS: ctx.resume()がジェスチャー外だと永久に解決しない場合があるのでタイムアウト付き
     try {
-      await FantasySoundManager.warmupRootSound();
+      await Promise.race([
+        FantasySoundManager.warmupRootSound(),
+        new Promise<void>(resolve => setTimeout(resolve, 2000))
+      ]);
     } catch {
       // ウォームアップ失敗は無視
     }

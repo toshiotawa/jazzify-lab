@@ -592,6 +592,21 @@ class BGMManager {
     this.pendingUrl = ''
   }
 
+  ensureContextRunning() {
+    try {
+      const ToneLib = (window as any).Tone
+      if (ToneLib?.start) ToneLib.start()
+      if (ToneLib?.context?.state === 'suspended') {
+        ToneLib.context.resume()
+      }
+    } catch {}
+    try {
+      if (this.waContext && this.waContext.state === 'suspended') {
+        this.waContext.resume()
+      }
+    } catch {}
+  }
+
   setVolume(v: number) {
     const vol = Math.max(0, Math.min(1, v))
     if (this.audio) {
