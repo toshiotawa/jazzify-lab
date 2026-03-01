@@ -627,6 +627,29 @@ class BGMManager {
     } catch {}
   }
 
+  /**
+   * iOS対応: AudioContext の resume を await し、decodeAudioData 実行前に
+   * コンテキストが running であることを保証する。
+   * 楽譜モード single などで BGM プリロードがハングするのを防ぐ。
+   */
+  async ensureContextRunningAsync(): Promise<void> {
+    try {
+      const ToneLib = (window as any).Tone
+      if (ToneLib?.start) await ToneLib.start()
+      if (ToneLib?.context?.state === 'suspended') {
+        await ToneLib.context.resume()
+      }
+    } catch {}
+    try {
+      if (!this.waContext) {
+        this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      }
+      if (this.waContext.state === 'suspended') {
+        await this.waContext.resume()
+      }
+    } catch {}
+  }
+
   setVolume(v: number) {
     const vol = Math.max(0, Math.min(1, v))
     if (this.audio) {
