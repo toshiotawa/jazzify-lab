@@ -872,9 +872,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // timing_combining: 最初のセクションのBGMをnoLoopで再生
     if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
       const firstSection = gameState.combinedSections[0];
+      const firstBgmUrl = firstSection.bgmUrl;
       const firstSectionSkipCI = firstSection.callResponseMode === 'alternating' && (firstSection.repeatIndex ?? 0) % 2 === 0;
-      bgmManager.play(
-        firstSection.bgmUrl ?? '/demo-1.mp3',
+      if (firstBgmUrl) {
+        bgmManager.play(
+          firstBgmUrl,
         firstSection.bpm,
         firstSection.timeSignature,
         firstSection.measureCount,
@@ -884,7 +886,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         initialPitchShift,
         true, // noLoop
         firstSectionSkipCI
-      );
+        );
+      }
       // 次セクション用チェーンを完全に事前構築（ゼロラグ切り替え準備）
       if (gameState.combinedSections.length > 1) {
         const nextSection = gameState.combinedSections[1];
@@ -898,26 +901,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         }
       }
     } else {
-      const isProgressionOrder = stage.mode === 'progression_order';
-      const isAlternatingCR = stage.callResponseEnabled && stage.callResponseMode === 'alternating';
-      bgmManager.play(
-        stage.bgmUrl ?? '/demo-1.mp3',
-        stage.bpm || 120,
-        stage.timeSignature || 4,
-        stage.measureCount ?? 8,
-        stage.countInMeasures ?? 0,
-        settings.bgmVolume ?? 0.7,
-        playbackRate,
-        initialPitchShift,
-        false,
-        isAlternatingCR, // 交互モード: 初回はリスニングなのでカウントインスキップ
-        isProgressionOrder
-      );
+      const bgmUrl = stage.bgmUrl;
+      if (bgmUrl) {
+        const isProgressionOrder = stage.mode === 'progression_order';
+        const isAlternatingCR = stage.callResponseEnabled && stage.callResponseMode === 'alternating';
+        bgmManager.play(
+          bgmUrl,
+          stage.bpm || 120,
+          stage.timeSignature || 4,
+          stage.measureCount ?? 8,
+          stage.countInMeasures ?? 0,
+          settings.bgmVolume ?? 0.7,
+          playbackRate,
+          initialPitchShift,
+          false,
+          isAlternatingCR, // 交互モード: 初回はリスニングなのでカウントインスキップ
+          isProgressionOrder
+        );
+      }
     }
 
     return () => bgmManager.stop();
-  }, [gameState.isGameActive, isReady, stage?.id, stage?.mode, settings.bgmVolume, selectedSpeedMultiplier]);
-  // 注: stage オブジェクト全体ではなく stage.id/mode のみ依存に含め、親の再レンダーで不要な effect 再実行を防止
+  }, [gameState.isGameActive, isReady, stage?.id, stage?.mode, stage?.bgmUrl, settings.bgmVolume, selectedSpeedMultiplier]);
+  // 注: stage オブジェクト全体ではなく stage.id/mode/bgmUrl のみ依存に含め、親の再レンダーで不要な effect 再実行を防止
   // 注: gameState.currentTransposeOffsetは意図的に依存配列から除外（ループ時の再起動防止）
   
   // 現在の敵情報を取得

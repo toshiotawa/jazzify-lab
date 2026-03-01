@@ -1681,7 +1681,10 @@ export const useFantasyGameEngine = ({
         ]);
         devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
       } else {
-        const priorityCount = Math.min(6, monsterIds.length);
+        // single/single_order: 敵を素早く倒すと次が表示されるため、全モンスターを先行プリロード
+        const priorityCount = (stage.mode === 'single' || stage.mode === 'single_order')
+          ? monsterIds.length
+          : Math.min(10, monsterIds.length);
         const priorityIds = monsterIds.slice(0, priorityCount);
         await Promise.race([
           preloadMonsterImages(priorityIds, textureMap),

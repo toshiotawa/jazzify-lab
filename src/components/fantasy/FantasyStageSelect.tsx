@@ -170,6 +170,11 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
           playRootOnCorrect: (stage as any).play_root_on_correct ?? true,
           bpm: (stage as any).bpm || 120,
           tier: (stage as any).stage_tier || 'basic',
+          // BGM（ゲスト用にも必須 - 欠落で無音になる）
+          bgmUrl: stage.bgm_url || (stage as any).mp3_url,
+          measureCount: (stage as any).measure_count,
+          countInMeasures: (stage as any).count_in_measures,
+          timeSignature: (stage as any).time_signature,
           // 楽譜モード
           isSheetMusicMode: !!(stage as any).is_sheet_music_mode,
           sheetMusicClef: (stage as any).sheet_music_clef || 'treble',
