@@ -3023,11 +3023,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         {/* Canvasエリア（全高さ占有・ヘッダーはCanvas上にオーバーレイで配置） */}
         <div
           ref={canvasWrapperRef}
-          className="flex-1 min-h-0 w-full relative rounded-xl overflow-hidden border-2 border-gray-700 touch-none flex items-center justify-center"
+          className={cn(
+            'flex-1 min-h-0 w-full relative overflow-hidden touch-none flex items-center justify-center',
+            embeddedFullHeight ? 'rounded-lg border border-gray-700' : 'rounded-xl border-2 border-gray-700'
+          )}
         >
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
-          <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
-            <div className="flex flex-col gap-0.5">
+          <div className={cn(
+            'absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/70 to-transparent pointer-events-none',
+            embeddedFullHeight ? 'px-1 pt-[max(2px,env(safe-area-inset-top))] pb-0.5' : 'px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1'
+          )}>
+            <div className={cn('flex flex-col', embeddedFullHeight ? 'gap-0' : 'gap-0.5')}>
               {!isStageMode && (
                 <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
                   <div
@@ -3036,8 +3042,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   />
                 </div>
               )}
-              <div className="flex justify-between items-center gap-1 flex-nowrap">
-                <div className="flex items-center gap-1 md:gap-2 text-white font-sans text-[10px] md:text-sm min-w-0">
+              <div className={cn('flex justify-between items-center flex-nowrap', embeddedFullHeight ? 'gap-0.5' : 'gap-1')}>
+                <div className={cn('flex text-white font-sans min-w-0', embeddedFullHeight ? 'gap-0.5 text-[9px]' : 'gap-1 md:gap-2 text-[10px] md:text-sm')}>
                   {!isStageMode && (
                     <span className="bg-yellow-600/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0">W{gameState.wave.currentWave}</span>
                   )}
@@ -3070,9 +3076,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-0.5 md:gap-1 shrink-0">
-                  <span className="text-[10px]">❤️</span>
-                  <div className="w-10 md:w-16 h-1.5 md:h-2 bg-gray-700 rounded-full overflow-hidden">
+                <div className={cn('flex items-center shrink-0', embeddedFullHeight ? 'gap-0.5' : 'gap-0.5 md:gap-1')}>
+                  <span className={embeddedFullHeight ? 'text-[9px]' : 'text-[10px]'}>❤️</span>
+                  <div className={cn('bg-gray-700 rounded-full overflow-hidden', embeddedFullHeight ? 'w-8 h-1' : 'w-10 md:w-16 h-1.5 md:h-2')}>
                     <div
                       className={cn(
                         'h-full transition-all duration-200',
@@ -3082,7 +3088,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       style={{ width: `${(gameState.player.stats.hp / gameState.player.stats.maxHp) * 100}%` }}
                     />
                   </div>
-                  <span className="text-white font-sans text-[10px] md:text-xs tabular-nums">{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
+                  <span className={cn('text-white font-sans tabular-nums', embeddedFullHeight ? 'text-[9px]' : 'text-[10px] md:text-xs')}>{Math.floor(gameState.player.stats.hp)}/{gameState.player.stats.maxHp}</span>
                 </div>
                 <div className="flex gap-0.5 shrink-0 pointer-events-auto">
                   <button
@@ -3090,18 +3096,24 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       setIsSettingsOpen(true);
                       setGameState(prev => ({ ...prev, isPaused: true }));
                     }}
-                    className="p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px] flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation"
+                    className={cn(
+                      'flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation',
+                      embeddedFullHeight ? 'p-1 min-w-[28px] min-h-[28px]' : 'p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px]'
+                    )}
                     title={isEnglishCopy ? 'Settings' : '設定'}
                     aria-label={isEnglishCopy ? 'Settings' : '設定'}
                   >
-                    <span className="text-sm md:text-base">⚙️</span>
+                    <span className={embeddedFullHeight ? 'text-xs' : 'text-sm md:text-base'}>⚙️</span>
                   </button>
                   <button
                     onClick={() => setGameState(prev => ({ ...prev, isPaused: !prev.isPaused }))}
-                    className="p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px] flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation"
+                    className={cn(
+                      'flex items-center justify-center bg-gray-700/90 hover:bg-gray-600 rounded text-white touch-manipulation',
+                      embeddedFullHeight ? 'p-1 min-w-[28px] min-h-[28px]' : 'p-1.5 min-w-[36px] min-h-[36px] md:min-w-[40px] md:min-h-[40px]'
+                    )}
                     aria-label={gameState.isPaused ? (isEnglishCopy ? 'Resume' : '再開') : (isEnglishCopy ? 'Pause' : '一時停止')}
                   >
-                    <span className="text-sm md:text-base">{gameState.isPaused ? '▶️' : '⏸️'}</span>
+                    <span className={embeddedFullHeight ? 'text-xs' : 'text-sm md:text-base'}>{gameState.isPaused ? '▶️' : '⏸️'}</span>
                   </button>
                 </div>
               </div>
@@ -3111,7 +3123,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             gameState={gameState}
             viewportWidth={viewportSize.width}
             viewportHeight={viewportSize.height}
-            contentScale={isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : 1}
+            contentScale={embeddedFullHeight && isMobile ? 0.65 : (isMobile ? (viewportSize.width >= 768 ? 0.95 : 0.75) : 1)}
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             characterAvatarUrl={character?.avatarUrl}
@@ -3267,16 +3279,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isAMagicSlot={isAMagicSlot}
           isBMagicSlot={isBMagicSlot}
           isStageMode={isStageMode}
+          compact={embeddedFullHeight}
         />
       </div>
       
       {/* ピアノ（PIXINotesRenderer使用） */}
       {(() => {
-        const pianoHeight = embeddedFullHeight ? 80 : 120;
+        const pianoHeight = embeddedFullHeight ? 64 : 120;
         return (
       <div 
         ref={gameAreaRef}
-        className="relative mx-2 mb-1 bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full"
+        className={cn('relative bg-black bg-opacity-20 rounded-lg overflow-hidden flex-shrink-0 w-full', embeddedFullHeight ? 'mx-1 mb-0.5' : 'mx-2 mb-1')}
         style={{ height: `${pianoHeight}px` }}
       >
         {(() => {
