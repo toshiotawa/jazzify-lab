@@ -1054,7 +1054,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     try {
       await Promise.race([
         FantasySoundManager.warmupRootSound(),
-        new Promise<void>(resolve => setTimeout(resolve, 2000))
+        new Promise<void>(resolve => setTimeout(resolve, 500))
       ]);
     } catch {
       // ウォームアップ失敗は無視

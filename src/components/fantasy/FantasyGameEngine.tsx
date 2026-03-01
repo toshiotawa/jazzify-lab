@@ -1663,28 +1663,33 @@ export const useFantasyGameEngine = ({
     })();
     setStageMonsterIds(monsterIds);
 
-    // 🚀 全モンスター画像をプリロード（ゲーム開始前に完了）
-    // iOS: 画像ロードがハングする場合に備えてタイムアウト付き
+    // 🚀 画像プリロード（優先分をawait、残りはバックグラウンド）
     const textureMap = imageTexturesRef.current;
+    const IMAGE_PRELOAD_TIMEOUT = 4000;
     
     try {
-      const preloadPromise = (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0)
-        ? (async () => {
-            const noteNames = stage.allowedChords!.map(chord => 
-              typeof chord === 'string' ? chord : (chord as any).chord || chord
-            ).filter(Boolean);
-            await preloadSheetMusicImages(noteNames, textureMap);
-            devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
-          })()
-        : (async () => {
-            await preloadMonsterImages(monsterIds, textureMap);
-            devLog.debug('✅ モンスター画像プリロード完了:', { count: monsterIds.length });
-          })();
-      
-      await Promise.race([
-        preloadPromise,
-        new Promise<void>(resolve => setTimeout(resolve, 8000))
-      ]);
+      if (stage.isSheetMusicMode && stage.allowedChords && stage.allowedChords.length > 0) {
+        const noteNames = stage.allowedChords.map(chord => 
+          typeof chord === 'string' ? chord : (chord as any).chord || chord
+        ).filter(Boolean);
+        await Promise.race([
+          preloadSheetMusicImages(noteNames, textureMap),
+          new Promise<void>(resolve => setTimeout(resolve, IMAGE_PRELOAD_TIMEOUT))
+        ]);
+        devLog.debug('✅ 楽譜画像プリロード完了:', { count: noteNames.length, playMode });
+      } else {
+        const priorityCount = Math.min(6, monsterIds.length);
+        const priorityIds = monsterIds.slice(0, priorityCount);
+        await Promise.race([
+          preloadMonsterImages(priorityIds, textureMap),
+          new Promise<void>(resolve => setTimeout(resolve, IMAGE_PRELOAD_TIMEOUT))
+        ]);
+        devLog.debug('✅ 優先モンスター画像プリロード完了:', { count: priorityIds.length });
+        
+        if (monsterIds.length > priorityCount) {
+          preloadMonsterImages(monsterIds.slice(priorityCount), textureMap).catch(() => {});
+        }
+      }
     } catch (error) {
       devLog.debug('⚠️ 画像プリロード失敗（続行）:', error);
     }

@@ -601,7 +601,10 @@ class BGMManager {
       }
     } catch {}
     try {
-      if (this.waContext && this.waContext.state === 'suspended') {
+      if (!this.waContext) {
+        this.waContext = new (window.AudioContext || (window as any).webkitAudioContext)({ latencyHint: 'interactive' })
+      }
+      if (this.waContext.state === 'suspended') {
         this.waContext.resume()
       }
     } catch {}
