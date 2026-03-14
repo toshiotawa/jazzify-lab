@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import '@/app-extra.css';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 

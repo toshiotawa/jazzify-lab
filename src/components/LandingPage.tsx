@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import '@/landing.css';
 
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 

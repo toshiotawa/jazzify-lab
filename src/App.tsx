@@ -82,6 +82,13 @@ const App: React.FC = () => {
     };
   }, [authBootstrapStarted, authReady, shouldBootstrapAuth]);
 
+  useEffect(() => {
+    if (pathname === '/') {
+      return;
+    }
+    void import('@/app-extra.css');
+  }, [pathname]);
+
   return (
     <>
       {shouldLoadFontAwesome && (
