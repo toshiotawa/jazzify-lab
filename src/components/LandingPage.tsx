@@ -52,6 +52,28 @@ const LandingPage: React.FC = () => {
     return () => observer.disconnect();
   }, [shouldRenderFantasyDemo]);
 
+  // data-animate 要素に is-inview を付与して本文を表示（スクロール連動アニメーション）
+  useEffect(() => {
+    const scrollRoot = scrollRef.current;
+    if (!scrollRoot) return;
+
+    const animateObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) {
+            entry.target.classList.add('is-inview');
+          }
+        });
+      },
+      { root: scrollRoot, threshold: 0.05, rootMargin: '0px 0px -5% 0px' }
+    );
+
+    const animateElements = scrollRoot.querySelectorAll('[data-animate]');
+    animateElements.forEach((el) => animateObserver.observe(el));
+
+    return () => animateObserver.disconnect();
+  }, [shouldRenderFantasyDemo]);
+
   const [openFaqId, setOpenFaqId] = useState<number | null>(null);
 
   const toggleFAQ = (id: number) => {
