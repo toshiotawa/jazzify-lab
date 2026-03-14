@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useRef } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
@@ -6,42 +6,15 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
-const TypewriterText: React.FC<{
+const HeroText: React.FC<{
   text: string;
   className?: string;
-  speedMsPerChar?: number;
-  delayMs?: number;
   dataAnimate?: string;
-}> = ({ text, className = '', speedMsPerChar = 80, delayMs = 0, dataAnimate }) => {
-  const [displayedText, setDisplayedText] = useState('');
-  useEffect(() => {
-    let cancelled = false;
-    let intervalId: number | undefined;
-    const start = () => {
-      let index = 0;
-      intervalId = window.setInterval(() => {
-        if (cancelled) return;
-        index += 1;
-        setDisplayedText(text.slice(0, index));
-        if (index >= text.length) {
-          if (intervalId) window.clearInterval(intervalId);
-        }
-      }, speedMsPerChar);
-    };
-    const startTimer = window.setTimeout(start, delayMs);
-    return () => {
-      cancelled = true;
-      if (startTimer) window.clearTimeout(startTimer);
-      if (intervalId) window.clearInterval(intervalId);
-    };
-  }, [text, speedMsPerChar, delayMs]);
-  return (
-    <p className={`relative ${className}`} data-animate={dataAnimate} aria-label={text}>
-      <span className="invisible" aria-hidden="true">{text}</span>
-      <span className="absolute inset-0">{displayedText}<span className="type-caret" aria-hidden="true">|</span></span>
-    </p>
-  );
-};
+}> = ({ text, className = '', dataAnimate }) => (
+  <p className={className} data-animate={dataAnimate}>
+    {text}
+  </p>
+);
 
 const LandingPage: React.FC = () => {
   const { profile } = useAuthStore();
@@ -167,25 +140,21 @@ const LandingPage: React.FC = () => {
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
                 <picture>
-                  <source srcSet="/first-view.webp" type="image/webp" />
+                  <source srcSet="/first-view-sm.webp 616w, /first-view.webp 1080w" sizes="(max-width: 768px) 100vw, 50vw" type="image/webp" />
                   <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" width={1080} height={1080} fetchPriority="high" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
                 </picture>
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
-                    <TypewriterText
-                      text={heroTitleText}
+                  <HeroText
+                    text={heroTitleText}
                     className="lp-display-hero text-5xl sm:text-6xl md:text-8xl font-black mb-6 section-title"
                     dataAnimate="from-behind heading-underline"
-                    speedMsPerChar={110}
-                    delayMs={100}
                   />
-                    <TypewriterText
-                      text={heroSubtitleText}
+                  <HeroText
+                    text={heroSubtitleText}
                     className="text-lg sm:text-xl md:text-2xl mb-10"
                     dataAnimate="from-behind"
-                    speedMsPerChar={120}
-                    delayMs={1000}
                   />
                 </div>
                 <div className="text-center md:text-left">
@@ -331,14 +300,20 @@ const LandingPage: React.FC = () => {
             <div className="grid md:grid-cols-3 gap-12 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
+                  <picture>
+                    <source srcSet="/monster_icons/monster_35.webp" type="image/webp" />
+                    <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
+                  </picture>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
               </div>
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
+                  <picture>
+                    <source srcSet="/monster_icons/monster_61.webp" type="image/webp" />
+                    <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
+                  </picture>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
