@@ -5,26 +5,27 @@ import ErrorBoundary from '@/components/ui/ErrorBoundary';
 import { cn } from '@/utils/cn';
 
 import ToastContainer from '@/components/ui/ToastContainer';
-import AuthLanding from '@/components/auth/AuthLanding';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import ProfileWizard from '@/components/auth/ProfileWizard';
-import AccountPage from '@/components/ui/AccountModal';
-import MypagePage from '@/components/ui/MypageModal';
-import DiaryPage from '@/components/diary/DiaryPage';
-import DiaryDetailPage from '@/components/diary/DiaryDetailPage';
-import LessonPage from '@/components/lesson/LessonPage';
-import LessonDetailPage from '@/components/lesson/LessonDetailPage';
 import Dashboard from '@/components/dashboard/Dashboard';
-import InformationPage from '@/components/information/InformationPage';
-import LevelRanking from '@/components/ranking/LevelRanking';
-import MissionRanking from '@/components/ranking/MissionRanking';
-import SurvivalRanking from '@/components/ranking/SurvivalRanking';
-import DailyChallengeRanking from '@/components/ranking/DailyChallengeRanking';
-import MissionPage from '@/components/mission/MissionPage';
-import AdminDashboard from '@/components/admin/AdminDashboard';
-import PricingTable from '@/components/subscription/PricingTable';
+
+const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
+const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
+const AccountPage = React.lazy(() => import('@/components/ui/AccountModal'));
+const MypagePage = React.lazy(() => import('@/components/ui/MypageModal'));
+const DiaryPage = React.lazy(() => import('@/components/diary/DiaryPage'));
+const DiaryDetailPage = React.lazy(() => import('@/components/diary/DiaryDetailPage'));
+const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
+const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
+const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
+const LevelRanking = React.lazy(() => import('@/components/ranking/LevelRanking'));
+const MissionRanking = React.lazy(() => import('@/components/ranking/MissionRanking'));
+const SurvivalRanking = React.lazy(() => import('@/components/ranking/SurvivalRanking'));
+const DailyChallengeRanking = React.lazy(() => import('@/components/ranking/DailyChallengeRanking'));
+const MissionPage = React.lazy(() => import('@/components/mission/MissionPage'));
+const AdminDashboard = React.lazy(() => import('@/components/admin/AdminDashboard'));
+const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
 const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
 const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'));
 const LazyDailyChallengeMain = React.lazy(() => import('@/components/dailyChallenge/DailyChallengeMain'));
@@ -162,38 +163,37 @@ const App: React.FC = () => {
 
   if (!user && !isGuest || forceLogin) {
     return (
-      <>
+      <React.Suspense fallback={<LoadingScreen />}>
         <AuthLanding mode="login" />
         <ToastContainer />
-      </>
+      </React.Suspense>
     );
   }
 
-  // 専用ページ (#account / #mypage) 表示中は他コンテンツを隠す
   if (hash.startsWith('#account')) {
     return (
-      <>
+      <React.Suspense fallback={<LoadingScreen />}>
         <AccountPage />
         <ToastContainer />
-      </>
+      </React.Suspense>
     );
   }
 
   if (hash === '#mypage' && !isFree) {
     return (
-      <>
+      <React.Suspense fallback={<LoadingScreen />}>
         <MypagePage />
         <ToastContainer />
-      </>
+      </React.Suspense>
     );
   }
 
   if (hash.startsWith('#diary-detail') && !isFree) {
     return (
-      <>
+      <React.Suspense fallback={<LoadingScreen />}>
         <DiaryDetailPage />
         <ToastContainer />
-      </>
+      </React.Suspense>
     );
   }
 
@@ -320,26 +320,20 @@ const App: React.FC = () => {
 
   return (
     <ErrorBoundary>
-      <div 
-        className={cn(
-          'game-container',
-          'relative w-full h-screen overflow-hidden',
-          'bg-gradient-game text-white',
-          'font-sans antialiased'
-        )}
-      >
-        {/* ログインユーザー専用モーダル類 */}
-        {user && !isGuest && (
-          <>
-            <ProfileWizard />
-          </>
-        )}
-        
-        {/* メインコンテンツ */}
-        {MainContent}
-        
-        <ToastContainer />
-      </div>
+      <React.Suspense fallback={<LoadingScreen />}>
+        <div 
+          className={cn(
+            'game-container',
+            'relative w-full h-screen overflow-hidden',
+            'bg-gradient-game text-white',
+            'font-sans antialiased'
+          )}
+        >
+          {user && !isGuest && <ProfileWizard />}
+          {MainContent}
+          <ToastContainer />
+        </div>
+      </React.Suspense>
     </ErrorBoundary>
   );
 };

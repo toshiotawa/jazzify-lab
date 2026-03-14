@@ -107,21 +107,8 @@ const initializeApp = async () => {
     
     showDebugInfo('React app rendered successfully');
     
-    // Tone.js を動的にロードして初期化（遅延ロード）
-    try {
-      const Tone = await import('tone');
-      (window as any).Tone = Tone;
-      showDebugInfo('Tone.js loaded and attached to window');
-    } catch (toneError) {
-      showDebugInfo(`Tone.js loading failed: ${toneError}`, true);
-      // Tone.jsのエラーは致命的ではないため続行
-    }
-    
-    // 初期化完了後にローディング画面を非表示
-    setTimeout(() => {
-      showDebugInfo('Hiding loading screen...');
-      hideLoading();
-    }, 500);
+    showDebugInfo('Hiding loading screen...');
+    hideLoading();
     
     showDebugInfo('Initialization completed successfully');
 

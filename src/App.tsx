@@ -1,29 +1,36 @@
 import React, { Suspense, useEffect, useState } from 'react';
 import { Routes, Route } from 'react-router-dom';
 import LandingPage from '@/components/LandingPage';
-import AuthLanding from '@/components/auth/AuthLanding';
-import VerifyOtpPage from '@/components/auth/VerifyOtpPage';
 import AuthGate from '@/components/auth/AuthGate';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
-import HelpIosMidi from '@/components/help/HelpIosMidi';
-import ContactPage from '@/components/contact/ContactPage';
-import TermsPage from '@/components/legal/TermsPage';
-import PrivacyPage from '@/components/legal/PrivacyPage';
-import TokushohoPage from '@/components/legal/TokushohoPage';
-import WithdrawalCompletePage from '@/components/auth/WithdrawalCompletePage';
 
-// LegacyApp はバンドルサイズが大きいため遅延読み込みする
 const LegacyApp = React.lazy(() => import('./LegacyApp'));
+const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
+const VerifyOtpPage = React.lazy(() => import('@/components/auth/VerifyOtpPage'));
+const HelpIosMidi = React.lazy(() => import('@/components/help/HelpIosMidi'));
+const ContactPage = React.lazy(() => import('@/components/contact/ContactPage'));
+const TermsPage = React.lazy(() => import('@/components/legal/TermsPage'));
+const PrivacyPage = React.lazy(() => import('@/components/legal/PrivacyPage'));
+const TokushohoPage = React.lazy(() => import('@/components/legal/TokushohoPage'));
+const WithdrawalCompletePage = React.lazy(() => import('@/components/auth/WithdrawalCompletePage'));
+
+const AuthLoadingFallback: React.FC = () => (
+  <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white">
+    <div className="flex flex-col items-center space-y-4">
+      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
+      <div>Initializing...</div>
+    </div>
+  </div>
+);
 
 const App: React.FC = () => {
-  const [initialized, setInitialized] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   const { init } = useAuthStore();
   const ensureGeoCountry = useGeoStore(state => state.ensureCountry);
 
-  // アプリケーション起動時に一度だけ認証状態を初期化（タイムアウト付き）
   useEffect(() => {
     const initializeAuth = async () => {
       try {
@@ -36,8 +43,9 @@ const App: React.FC = () => {
       } catch (e) {
         console.warn('⚠️ App: 認証初期化タイムアウトまたはエラー、続行します', e);
       }
-      setInitialized(true);
-      import('./LegacyApp').catch(() => {});
+      setAuthReady(true);
+      const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
+      idle(() => import('./LegacyApp').catch(() => {}));
     };
     initializeAuth();
   }, [init]);
@@ -45,18 +53,6 @@ const App: React.FC = () => {
   useEffect(() => {
     void ensureGeoCountry();
   }, [ensureGeoCountry]);
-
-  // 初期化中はローディング表示
-  if (!initialized) {
-    return (
-      <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white">
-        <div className="flex flex-col items-center space-y-4">
-          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <div>Initializing...</div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <>
@@ -68,7 +64,7 @@ const App: React.FC = () => {
         }
       >
         <Routes>
-          {/* ========== 公開ルート (AuthGateの外) ========== */}
+          {/* ========== 公開ルート — 認証完了を待たず即座に表示 ========== */}
           <Route path="/" element={<LandingPage />} />
           <Route path="/help/ios-midi" element={<HelpIosMidi />} />
           <Route path="/contact" element={<ContactPage />} />
@@ -77,17 +73,20 @@ const App: React.FC = () => {
           <Route path="/legal/tokushoho" element={<TokushohoPage />} />
           <Route path="/withdrawal-complete" element={<WithdrawalCompletePage />} />
           <Route path="/login" element={<AuthLanding mode="login" />} />
-            <Route path="/signup" element={<AuthLanding mode="signup" />} />
-            <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
+          <Route path="/signup" element={<AuthLanding mode="signup" />} />
+          <Route path="/login/verify-otp" element={<VerifyOtpPage />} />
 
-          {/* ========== 保護ルート (AuthGateの内側) ========== */}
-          {/* '/*' を使い、上記以外のすべてのパスを保護対象にする */}
+          {/* ========== 保護ルート — 認証完了後にのみ表示 ========== */}
           <Route
             path="/*"
             element={
-              <AuthGate>
-                <LegacyApp />
-              </AuthGate>
+              authReady ? (
+                <AuthGate>
+                  <LegacyApp />
+                </AuthGate>
+              ) : (
+                <AuthLoadingFallback />
+              )
             }
           />
         </Routes>
