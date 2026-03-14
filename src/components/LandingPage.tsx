@@ -1,9 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
-import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { useGeoStore } from '@/stores/geoStore';
+
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
 
 const HeroText: React.FC<{
@@ -16,37 +15,41 @@ const HeroText: React.FC<{
   </p>
 );
 
+const CheckIcon: React.FC = () => (
+  <span aria-hidden="true" className="mr-2 font-bold" style={{ color: 'var(--lp-gold)' }}>✓</span>
+);
+
+const ChevronIcon: React.FC<{ open: boolean }> = ({ open }) => (
+  <span aria-hidden="true" className="shrink-0" style={{ color: 'var(--lp-gold-dim)' }}>
+    {open ? '▴' : '▾'}
+  </span>
+);
+
+const MusicNoteIcon: React.FC = () => (
+  <span aria-hidden="true" className="mr-2">♪</span>
+);
+
 const LandingPage: React.FC = () => {
-  const { profile } = useAuthStore();
-  const geoCountry = useGeoStore(state => state.country);
   const scrollRef = useRef<HTMLDivElement | null>(null);
-  const isEnglishLanding = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const demoSentinelRef = useRef<HTMLDivElement | null>(null);
+  const [shouldRenderFantasyDemo, setShouldRenderFantasyDemo] = useState(false);
+  const isEnglishLanding = shouldUseEnglishCopy();
 
   useEffect(() => {
     const root = scrollRef.current;
-    if (!root) return;
-    const observed = new Set<Element>();
+    const target = demoSentinelRef.current;
+    if (!root || !target || shouldRenderFantasyDemo) return;
+
     const observer = new IntersectionObserver((entries) => {
-      entries.forEach((entry) => {
-        if (entry.isIntersecting) {
-          (entry.target as HTMLElement).classList.add('is-inview');
-          observer.unobserve(entry.target);
-          observed.delete(entry.target);
-        }
-      });
-    }, { root, threshold: 0.2, rootMargin: '0px 0px -80px 0px' });
+      if (entries.some((entry) => entry.isIntersecting)) {
+        setShouldRenderFantasyDemo(true);
+        observer.disconnect();
+      }
+    }, { root, threshold: 0, rootMargin: '300px 0px' });
 
-    const watch = () => {
-      root.querySelectorAll('[data-animate]')
-        .forEach((el) => { if (!observed.has(el)) { observer.observe(el); observed.add(el); } });
-    };
-
-    watch();
-    const mo = new MutationObserver(watch);
-    mo.observe(root, { childList: true, subtree: true });
-
-    return () => { observer.disconnect(); mo.disconnect(); };
-  }, []);
+    observer.observe(target);
+    return () => observer.disconnect();
+  }, [shouldRenderFantasyDemo]);
 
   const [openFaqId, setOpenFaqId] = useState<number | null>(null);
 
@@ -140,7 +143,7 @@ const LandingPage: React.FC = () => {
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
                 <picture>
-                  <source srcSet="/first-view-sm.webp 616w, /first-view.webp 1080w" sizes="(max-width: 768px) 100vw, 50vw" type="image/webp" />
+                  <source srcSet="/first-view-sm.webp 616w, /first-view-md.webp 768w, /first-view.webp 1080w" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 50vw" type="image/webp" />
                   <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" width={1080} height={1080} fetchPriority="high" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
                 </picture>
               </div>
@@ -191,9 +194,20 @@ const LandingPage: React.FC = () => {
         </section>
 
         {/* Fantasy Demo */}
-        <React.Suspense fallback={<div className="py-12 text-center" style={{ color: 'var(--lp-cream-muted)' }}>{isEnglishLanding ? 'Loading demo...' : 'デモを読み込み中...'}</div>}>
-          <LPFantasyDemo />
-        </React.Suspense>
+        <div ref={demoSentinelRef} />
+        {shouldRenderFantasyDemo ? (
+          <React.Suspense fallback={<div className="py-12 text-center" style={{ color: 'var(--lp-cream-muted)' }}>{isEnglishLanding ? 'Loading demo...' : 'デモを読み込み中...'}</div>}>
+            <LPFantasyDemo />
+          </React.Suspense>
+        ) : (
+          <section className="py-10">
+            <div className="container mx-auto px-6">
+              <div className="rounded-2xl border border-purple-500/20 bg-slate-900/40 p-6 text-center" style={{ color: 'var(--lp-cream-muted)' }}>
+                {isEnglishLanding ? 'Demo will load when you scroll here.' : 'この位置までスクロールするとデモを読み込みます。'}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ===== English sections ===== */}
         {isEnglishLanding && (
@@ -213,10 +227,10 @@ const LandingPage: React.FC = () => {
                     <h3 className="text-2xl font-bold mb-4 lp-display" style={{ color: 'var(--lp-gold-light)' }}>Monthly Plan</h3>
                     <div className="text-4xl font-bold mb-6 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/month</span></div>
                     <ul className="space-y-3 text-sm mb-6" style={{ color: 'var(--lp-cream-muted)' }}>
-                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>1 week free trial</li>
-                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>Fantasy Mode (unlimited)</li>
-                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>MIDI keyboard support</li>
-                      <li><i className="fas fa-check mr-2" style={{ color: 'var(--lp-gold)' }}></i>Cancel anytime</li>
+                      <li><CheckIcon />1 week free trial</li>
+                      <li><CheckIcon />Fantasy Mode (unlimited)</li>
+                      <li><CheckIcon />MIDI keyboard support</li>
+                      <li><CheckIcon />Cancel anytime</li>
                     </ul>
                   </div>
                 </div>
@@ -246,7 +260,7 @@ const LandingPage: React.FC = () => {
                           {id === 2 && 'How do I use MIDI devices on iOS (iPhone/iPad)?'}
                           {id === 3 && 'Can I cancel anytime?'}
                         </h3>
-                        <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} shrink-0`} style={{ color: 'var(--lp-gold-dim)' }}></i>
+                        <ChevronIcon open={openFaqId === id} />
                       </button>
                       <div
                         id={`faq-content-en-${id}`}
@@ -498,7 +512,7 @@ const LandingPage: React.FC = () => {
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
                       {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
                     </h3>
-                    <i className={`fas ${openFaqId === id ? 'fa-chevron-up' : 'fa-chevron-down'} shrink-0`} style={{ color: 'var(--lp-gold-dim)' }}></i>
+                    <ChevronIcon open={openFaqId === id} />
                   </button>
                   <div
                     id={`faq-content-${id}`}
@@ -622,7 +636,7 @@ const LandingPage: React.FC = () => {
               <div className="grid md:grid-cols-2 gap-8 mb-12">
                 <div className="col-span-1">
                   <h3 className="lp-display text-2xl font-bold mb-4" style={{ color: 'var(--lp-gold)' }}>
-                    <i className="fas fa-music mr-2"></i>Jazzify
+                    <MusicNoteIcon />Jazzify
                   </h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
                     Embark on a jazz adventure in a fantasy realm. A learning platform for all jazz enthusiasts, from beginners to advanced players.
@@ -652,7 +666,7 @@ const LandingPage: React.FC = () => {
               <div className="grid md:grid-cols-3 gap-8 mb-12">
                 <div className="col-span-1">
                   <h3 className="lp-display text-2xl font-bold mb-4" style={{ color: 'var(--lp-gold)' }}>
-                    <i className="fas fa-music mr-2"></i>Jazzify
+                    <MusicNoteIcon />Jazzify
                   </h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
                     ゲーム感覚でジャズが弾けるようになる。初心者から上級者まで、すべてのジャズ愛好家のための学習プラットフォームです。

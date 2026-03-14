@@ -2,9 +2,7 @@ import React, { useCallback, useEffect, useRef, useState, Suspense } from 'react
 import { Link } from 'react-router-dom';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
-import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { useGeoStore } from '@/stores/geoStore';
 import type { DifficultyConfig } from '@/components/survival/SurvivalTypes';
 import type { StageDefinition } from '@/components/survival/SurvivalStageDefinitions';
 
@@ -53,9 +51,7 @@ const LPFantasyDemo: React.FC = () => {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const timerRef = useRef<number | null>(null);
   const { settings, updateSettings } = useGameStore();
-  const { profile } = useAuthStore();
-  const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy();
 
   const demoTitle = isEnglishCopy ? 'Demo Play' : 'デモプレイ';
   const fullscreenButtonLabel = isEnglishCopy ? 'Play Demo (90s)' : 'デモプレイ（90秒）';

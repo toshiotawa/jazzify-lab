@@ -1,13 +1,11 @@
-import React, { Suspense, useEffect, useState } from 'react';
-import { Routes, Route } from 'react-router-dom';
-import LandingPage from '@/components/LandingPage';
-import AuthGate from '@/components/auth/AuthGate';
+import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import { Routes, Route, useLocation } from 'react-router-dom';
+import { Helmet } from 'react-helmet-async';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
-import { useAuthStore } from '@/stores/authStore';
-import { useGeoStore } from '@/stores/geoStore';
 
-const LegacyApp = React.lazy(() => import('./LegacyApp'));
+const LandingPage = React.lazy(() => import('@/components/LandingPage'));
+const ProtectedAppRoute = React.lazy(() => import('@/routes/ProtectedAppRoute'));
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const VerifyOtpPage = React.lazy(() => import('@/components/auth/VerifyOtpPage'));
 const HelpIosMidi = React.lazy(() => import('@/components/help/HelpIosMidi'));
@@ -16,6 +14,16 @@ const TermsPage = React.lazy(() => import('@/components/legal/TermsPage'));
 const PrivacyPage = React.lazy(() => import('@/components/legal/PrivacyPage'));
 const TokushohoPage = React.lazy(() => import('@/components/legal/TokushohoPage'));
 const WithdrawalCompletePage = React.lazy(() => import('@/components/auth/WithdrawalCompletePage'));
+
+const PUBLIC_INFO_PATHS = new Set([
+  '/',
+  '/help/ios-midi',
+  '/contact',
+  '/terms',
+  '/privacy',
+  '/legal/tokushoho',
+  '/withdrawal-complete',
+]);
 
 const AuthLoadingFallback: React.FC = () => (
   <div className="w-full h-screen flex items-center justify-center bg-black/70 text-white">
@@ -27,15 +35,33 @@ const AuthLoadingFallback: React.FC = () => (
 );
 
 const App: React.FC = () => {
+  const location = useLocation();
   const [authReady, setAuthReady] = useState(false);
-  const { init } = useAuthStore();
-  const ensureGeoCountry = useGeoStore(state => state.ensureCountry);
+  const [authBootstrapStarted, setAuthBootstrapStarted] = useState(false);
+  const pathname = location.pathname;
+  const shouldBootstrapAuth = useMemo(
+    () => !PUBLIC_INFO_PATHS.has(pathname),
+    [pathname],
+  );
+  const shouldLoadFontAwesome = pathname !== '/';
 
   useEffect(() => {
+    if (!shouldBootstrapAuth || authReady || authBootstrapStarted) {
+      return;
+    }
+
+    let cancelled = false;
+    setAuthBootstrapStarted(true);
+
     const initializeAuth = async () => {
       try {
+        const [{ useAuthStore }, { useGeoStore }] = await Promise.all([
+          import('@/stores/authStore'),
+          import('@/stores/geoStore'),
+        ]);
+        void useGeoStore.getState().ensureCountry();
         await Promise.race([
-          init(),
+          useAuthStore.getState().init(),
           new Promise<void>((_, reject) =>
             setTimeout(() => reject(new Error('Auth init timeout')), 5000)
           ),
@@ -43,19 +69,29 @@ const App: React.FC = () => {
       } catch (e) {
         console.warn('⚠️ App: 認証初期化タイムアウトまたはエラー、続行します', e);
       }
+      if (cancelled) {
+        return;
+      }
       setAuthReady(true);
       const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
-      idle(() => import('./LegacyApp').catch(() => {}));
+      idle(() => import('@/routes/ProtectedAppRoute').catch(() => {}));
     };
     initializeAuth();
-  }, [init]);
-
-  useEffect(() => {
-    void ensureGeoCountry();
-  }, [ensureGeoCountry]);
+    return () => {
+      cancelled = true;
+    };
+  }, [authBootstrapStarted, authReady, shouldBootstrapAuth]);
 
   return (
     <>
+      {shouldLoadFontAwesome && (
+        <Helmet>
+          <link
+            rel="stylesheet"
+            href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"
+          />
+        </Helmet>
+      )}
       <Suspense
         fallback={
           <div className="w-full h-screen flex items-center justify-center text-white">
@@ -81,9 +117,7 @@ const App: React.FC = () => {
             path="/*"
             element={
               authReady ? (
-                <AuthGate>
-                  <LegacyApp />
-                </AuthGate>
+                <ProtectedAppRoute />
               ) : (
                 <AuthLoadingFallback />
               )
