@@ -193,7 +193,10 @@ const LPFantasyDemo: React.FC = () => {
           className="text-3xl sm:text-4xl md:text-5xl font-bold text-center mb-8 section-title flex items-center justify-center gap-4"
           data-animate="from-behind heading-underline"
         >
-          <img src="/stage_icons/9.png" alt={demoTitle} className="w-16 h-16" />
+          <picture>
+            <source srcSet="/stage_icons/9.webp" type="image/webp" />
+            <img src="/stage_icons/9.png" alt={demoTitle} className="w-16 h-16" width={64} height={64} />
+          </picture>
           {demoTitle}
         </h2>
 

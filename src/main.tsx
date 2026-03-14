@@ -19,13 +19,11 @@ const showDebugInfo = (message: string, _isError = false) => {
 
 // ローディング画面を非表示にする
 const hideLoading = () => {
-  const loadingElement = document.getElementById('loading');
-  if (loadingElement) {
-    loadingElement.style.opacity = '0';
-    setTimeout(() => {
-      loadingElement.style.display = 'none';
-    }, 300);
-  }
+  const el = document.getElementById('loading');
+  if (!el) return;
+  el.style.opacity = '0';
+  el.addEventListener('transitionend', () => { el.style.display = 'none'; }, { once: true });
+  setTimeout(() => { el.style.display = 'none'; }, 250);
 };
 
 // エラー表示関数（簡素化）

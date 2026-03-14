@@ -6,15 +6,19 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0, user-scalable=no, viewport-fit=cover" />
   <meta name="description" content="Jazz Learning Game - Learn jazz piano and guitar through interactive gameplay" />
   
+  <!-- LCP image preload -->
+  <link rel="preload" as="image" href="/first-view.webp" type="image/webp">
+  
   <!-- Fonts (non-blocking) -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,600&family=Kaisei+Opti:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap" onload="this.onload=null;this.rel='stylesheet'">
-  <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,400;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400;1,9..144,600&family=Kaisei+Opti:wght@400;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet"></noscript>
+  <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=Kaisei+Opti:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+  <noscript><link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,600;0,9..144,700;0,9..144,800;1,9..144,400&family=Kaisei+Opti:wght@400;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet"></noscript>
   
   <!-- FontAwesome CDN (non-blocking) -->
   <link rel="preload" as="style" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css" onload="this.onload=null;this.rel='stylesheet'">
   <noscript><link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css"></noscript>
+  <style>@font-face{font-family:'Font Awesome 6 Free';font-display:swap}@font-face{font-family:'Font Awesome 6 Brands';font-display:swap}</style>
   
   <!-- PWA Meta Tags -->
   <meta name="theme-color" content="#0f0f23" />
@@ -28,7 +32,6 @@
   <title>Jazzify</title>
   
   <style>
-    /* Critical CSS for loading screen */
     body {
       margin: 0;
       font-family: 'Kaisei Opti', serif;
@@ -36,6 +39,13 @@
       color: white;
       overflow: hidden;
     }
+    /* LP firstview critical styles */
+    .lp-root{font-family:'Kaisei Opti',serif;--lp-gold:#c8a24d;--lp-gold-light:#e4c570;--lp-gold-dim:#a07c30;--lp-cream:#ede5d8;--lp-cream-muted:#b5ada2;--lp-base:#060a12;position:relative}
+    .lp-root>*{position:relative;z-index:2}
+    .hero-bg{background:radial-gradient(ellipse 45% 55% at 20% 25%,rgba(200,162,77,.14),transparent),radial-gradient(ellipse 35% 45% at 80% 75%,rgba(59,107,156,.10),transparent),linear-gradient(180deg,#060a12,#0b0f1a)}
+    .firstview-layout{display:flex;flex-direction:row;gap:2rem}
+    @media(max-width:640px)and (orientation:portrait){.firstview-layout{flex-direction:column}}
+    .lp-btn-gold{background:linear-gradient(135deg,#c8a24d,#e4c570);color:#060a12;font-weight:700;letter-spacing:.02em;border:none;cursor:pointer}
     
     #loading {
       position: fixed;
@@ -49,6 +59,7 @@
       align-items: center;
       z-index: 9999;
       background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+      transition: opacity 0.2s ease-out;
     }
     
     .loading-spinner {

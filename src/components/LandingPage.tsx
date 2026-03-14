@@ -36,9 +36,9 @@ const TypewriterText: React.FC<{
     };
   }, [text, speedMsPerChar, delayMs]);
   return (
-    <p className={className} data-animate={dataAnimate} aria-label={text}>
-      <span>{displayedText}</span>
-      <span className="type-caret" aria-hidden="true">|</span>
+    <p className={`relative ${className}`} data-animate={dataAnimate} aria-label={text}>
+      <span className="invisible" aria-hidden="true">{text}</span>
+      <span className="absolute inset-0">{displayedText}<span className="type-caret" aria-hidden="true">|</span></span>
     </p>
   );
 };
@@ -127,7 +127,10 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6 py-2 md:py-4">
             <div className="flex items-center justify-between">
               <h1 className="lp-display flex items-center gap-3 text-2xl font-bold" style={{ color: 'var(--lp-gold)' }}>
-                <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" />
+                <picture>
+                  <source srcSet="/default_avater/default-avater.webp" type="image/webp" />
+                  <img src="/default_avater/default-avater.png" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" width={32} height={32} />
+                </picture>
                 Jazzify
               </h1>
 
@@ -163,7 +166,10 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6">
             <div className="firstview-layout items-center">
               <div className="w-full md:w-1/2">
-                <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
+                <picture>
+                  <source srcSet="/first-view.webp" type="image/webp" />
+                  <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" width={1080} height={1080} fetchPriority="high" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
+                </picture>
               </div>
               <div className="w-full md:w-1/2">
                 <div className="text-center md:text-left">
@@ -325,21 +331,24 @@ const LandingPage: React.FC = () => {
             <div className="grid md:grid-cols-3 gap-12 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" loading="lazy" />
+                  <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
               </div>
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" loading="lazy" />
+                  <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
               </div>
               <div className="text-center p-8">
                 <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <img src="/stage_icons/3.png" alt="体系的レッスン" className="w-14 h-14 object-contain" loading="lazy" />
+                  <picture>
+                    <source srcSet="/stage_icons/3.webp" type="image/webp" />
+                    <img src="/stage_icons/3.png" alt="体系的レッスン" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
+                  </picture>
                 </div>
                 <h3 className="text-xl font-bold mb-3" style={{ color: '#7db4d8' }}>基礎から体系的にレッスン</h3>
                 <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、何から始めればいいか迷わない</p>
@@ -367,7 +376,10 @@ const LandingPage: React.FC = () => {
             <div className="grid lg:grid-cols-3 gap-10 max-w-5xl mx-auto" data-animate="alt-cards text-up">
               <div className="feature-card rounded-lg overflow-hidden text-center">
                 <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
-                  <img src="/regend_demo.png" alt="レジェンドモード：楽譜とピアノロールで名演ソロを再現" className="w-full h-full object-cover" loading="lazy" />
+                  <picture>
+                    <source srcSet="/regend_demo.webp" type="image/webp" />
+                    <img src="/regend_demo.png" alt="レジェンドモード：楽譜とピアノロールで名演ソロを再現" className="w-full h-full object-cover" loading="lazy" />
+                  </picture>
                 </div>
                 <div className="p-8">
                   <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>レジェンドモード</h3>
@@ -377,7 +389,10 @@ const LandingPage: React.FC = () => {
 
               <div className="feature-card rounded-lg overflow-hidden text-center">
                 <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
-                  <img src="/fantasy_demo.png" alt="ファンタジーモード：RPG風バトルでコード進行をマスター" className="w-full h-full object-cover" loading="lazy" />
+                  <picture>
+                    <source srcSet="/fantasy_demo.webp" type="image/webp" />
+                    <img src="/fantasy_demo.png" alt="ファンタジーモード：RPG風バトルでコード進行をマスター" className="w-full h-full object-cover" loading="lazy" />
+                  </picture>
                 </div>
                 <div className="p-8">
                   <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ファンタジーモード</h3>
@@ -387,7 +402,10 @@ const LandingPage: React.FC = () => {
 
               <div className="feature-card rounded-lg overflow-hidden text-center">
                 <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
-                  <img src="/lessons_demo.png" alt="レッスンモード：コースとレッスンで体系的に学習" className="w-full h-full object-cover" loading="lazy" />
+                  <picture>
+                    <source srcSet="/lessons_demo.webp" type="image/webp" />
+                    <img src="/lessons_demo.png" alt="レッスンモード：コースとレッスンで体系的に学習" className="w-full h-full object-cover" loading="lazy" />
+                  </picture>
                 </div>
                 <div className="p-8">
                   <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>レッスンモード</h3>
@@ -565,12 +583,16 @@ const LandingPage: React.FC = () => {
             <div className="max-w-4xl mx-auto flex flex-col md:flex-row items-start gap-12 md:gap-20" data-animate="alt-cards text-up">
               <div className="shrink-0 relative">
                 <div className="w-52 h-64 sm:w-60 sm:h-72 rounded-lg overflow-hidden lp-developer-photo">
-                  <img
-                    src="/profile.jpg"
-                    alt={isEnglishLanding ? 'Developer playing piano at a jazz club' : '開発者 ジャズクラブでの演奏風景'}
-                    className="w-full h-full object-cover"
-                    loading="lazy"
-                  />
+                  <picture>
+                    <source srcSet="/profile.webp" type="image/webp" />
+                    <img
+                      src="/profile.jpg"
+                      alt={isEnglishLanding ? 'Developer playing piano at a jazz club' : '開発者 ジャズクラブでの演奏風景'}
+                      className="w-full h-full object-cover"
+                      width={480} height={576}
+                      loading="lazy"
+                    />
+                  </picture>
                 </div>
               </div>
 
