@@ -1,4 +1,4 @@
-import React, { Suspense, useEffect, useMemo, useState } from 'react';
+import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { Routes, Route, useLocation } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import ToastContainer from '@/components/ui/ToastContainer';
@@ -37,7 +37,7 @@ const AuthLoadingFallback: React.FC = () => (
 const App: React.FC = () => {
   const location = useLocation();
   const [authReady, setAuthReady] = useState(false);
-  const [authBootstrapStarted, setAuthBootstrapStarted] = useState(false);
+  const authBootstrapStartedRef = useRef(false);
   const pathname = location.pathname;
   const shouldBootstrapAuth = useMemo(
     () => !PUBLIC_INFO_PATHS.has(pathname),
@@ -46,12 +46,10 @@ const App: React.FC = () => {
   const shouldLoadFontAwesome = pathname !== '/';
 
   useEffect(() => {
-    if (!shouldBootstrapAuth || authReady || authBootstrapStarted) {
+    if (!shouldBootstrapAuth || authReady || authBootstrapStartedRef.current) {
       return;
     }
-
-    let cancelled = false;
-    setAuthBootstrapStarted(true);
+    authBootstrapStartedRef.current = true;
 
     const initializeAuth = async () => {
       try {
@@ -69,18 +67,12 @@ const App: React.FC = () => {
       } catch (e) {
         console.warn('⚠️ App: 認証初期化タイムアウトまたはエラー、続行します', e);
       }
-      if (cancelled) {
-        return;
-      }
       setAuthReady(true);
       const idle = typeof requestIdleCallback === 'function' ? requestIdleCallback : (cb: () => void) => setTimeout(cb, 200);
       idle(() => import('@/routes/ProtectedAppRoute').catch(() => {}));
     };
     initializeAuth();
-    return () => {
-      cancelled = true;
-    };
-  }, [authBootstrapStarted, authReady, shouldBootstrapAuth]);
+  }, [authReady, shouldBootstrapAuth]);
 
   useEffect(() => {
     if (pathname === '/') {
