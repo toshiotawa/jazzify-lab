@@ -75,7 +75,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const today = useMemo(() => toLocalDateString(new Date()), []);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   
   const difficultyLabel = isEnglishCopy ? difficultyLabelEn : difficultyLabelJp;
   const dayLabels = isEnglishCopy ? dayLabelsEn : dayLabelsJp;

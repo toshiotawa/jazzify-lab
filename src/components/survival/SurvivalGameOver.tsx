@@ -56,7 +56,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 }) => {
   const { profile, isGuest, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
   const [stageSaved, setStageSaved] = useState(false);
 

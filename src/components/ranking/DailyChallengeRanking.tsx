@@ -34,7 +34,7 @@ const DailyChallengeRanking: React.FC = () => {
 
   const { user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#daily-challenge-ranking');

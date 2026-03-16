@@ -266,7 +266,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
 }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const isDomesticStandard = profile?.rank === 'standard';
 
   // 状態管理

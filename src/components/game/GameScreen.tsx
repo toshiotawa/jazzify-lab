@@ -618,7 +618,7 @@ const SongSelectionScreen: React.FC = () => {
   const gameActions = useGameActions();
   const { profile, user } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [dbSongs, setDbSongs] = React.useState<any[]>([]);
   const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
   const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
@@ -981,7 +981,7 @@ const GamePlayScreen: React.FC = () => {
   const gameActions = useGameActions();
   const { profile: gpProfile } = useAuthStore();
   const gpGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: gpProfile?.rank, country: gpProfile?.country ?? gpGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: gpProfile?.rank, country: gpProfile?.country ?? gpGeoCountry, preferredLocale: gpProfile?.preferred_locale });
   
   // 楽譜エリアの高さ比率を管理（パーセンテージ）- localStorageで保持
   const [sheetMusicHeightPercentage, setSheetMusicHeightPercentage] = useState(() => {
@@ -1100,7 +1100,7 @@ const ModeToggleButton: React.FC = () => {
   const gameActions = useGameActions();
   const { profile: mtProfile } = useAuthStore();
   const mtGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: mtProfile?.rank, country: mtProfile?.country ?? mtGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: mtProfile?.rank, country: mtProfile?.country ?? mtGeoCountry, preferredLocale: mtProfile?.preferred_locale });
 
   return (
     <div className="absolute right-4 top-1/2 transform -translate-y-1/2 z-10">
@@ -1154,7 +1154,7 @@ const LessonBackButton: React.FC = () => {
   }));
   const { profile: lbProfile } = useAuthStore();
   const lbGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: lbProfile?.rank, country: lbProfile?.country ?? lbGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: lbProfile?.rank, country: lbProfile?.country ?? lbGeoCountry, preferredLocale: lbProfile?.preferred_locale });
 
   // レッスンコンテキストがない場合は何も表示しない
   if (!lessonContext) {
@@ -1195,7 +1195,7 @@ const MissionBackButton: React.FC = () => {
   }));
   const { profile: mbProfile } = useAuthStore();
   const mbGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: mbProfile?.rank, country: mbProfile?.country ?? mbGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: mbProfile?.rank, country: mbProfile?.country ?? mbGeoCountry, preferredLocale: mbProfile?.preferred_locale });
 
   // ミッションコンテキストがない場合は何も表示しない
   if (!missionContext) {
@@ -1242,7 +1242,7 @@ const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, on
   const [showKeyClearsModal, setShowKeyClearsModal] = React.useState(false);
   const { profile: slProfile } = useAuthStore();
   const slGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: slProfile?.rank, country: slProfile?.country ?? slGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: slProfile?.rank, country: slProfile?.country ?? slGeoCountry, preferredLocale: slProfile?.preferred_locale });
 
 
 
@@ -1474,7 +1474,7 @@ const SettingsPanel: React.FC = () => {
   const gameActions = useGameActions();
   const { profile: spProfile } = useAuthStore();
   const spGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: spProfile?.rank, country: spProfile?.country ?? spGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: spProfile?.rank, country: spProfile?.country ?? spGeoCountry, preferredLocale: spProfile?.preferred_locale });
   
   // 本番モード + レッスンコンテキスト時の課題条件制限フラグ
   const isStageWithLessonConstraints = mode === 'performance' && lessonContext;
@@ -2153,7 +2153,7 @@ const SettingsPanel: React.FC = () => {
 const HeaderRightControls: React.FC = () => {
   const { user, profile: hrcProfile } = useAuthStore();
   const hrcGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: hrcProfile?.rank, country: hrcProfile?.country ?? hrcGeoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: hrcProfile?.rank, country: hrcProfile?.country ?? hrcGeoCountry, preferredLocale: hrcProfile?.preferred_locale });
 
   if (!user) {
     return (

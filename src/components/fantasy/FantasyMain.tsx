@@ -155,7 +155,7 @@ const FantasyMain: React.FC = () => {
   const geoCountry = useGeoStore(state => state.country);
   const { settings } = useGameStore();
   const toast = useToast();
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';

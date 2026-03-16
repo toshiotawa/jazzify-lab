@@ -40,7 +40,7 @@ const SurvivalLevelUp: React.FC<SurvivalLevelUpProps> = ({
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   const [timer, setTimer] = useState(SELECTION_TIMEOUT);
   const [inputEnabled, setInputEnabled] = useState(false);

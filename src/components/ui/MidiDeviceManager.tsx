@@ -151,7 +151,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   const { devices, isRefreshing, error, refreshDevices } = useMidiDevices();
   const profile = useAuthStore((s) => s.profile);
   const geoCountry = useGeoStore((s) => s.country);
-  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   const handleDeviceChange = (newDeviceId: string | null) => {
     if (newDeviceId && newDeviceId === value) {
@@ -373,7 +373,7 @@ export const AudioDeviceSelector: React.FC<AudioDeviceSelectorProps> = ({
   const { devices, isRefreshing, error, isSupported, refreshDevices } = useAudioDevices();
   const profile = useAuthStore((s) => s.profile);
   const geoCountry = useGeoStore((s) => s.country);
-  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   const handleDeviceChange = async (newDeviceId: string | null) => {
     if (!newDeviceId) {
@@ -561,7 +561,7 @@ export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps>
   const { devices, isRefreshing, error, refreshDevices, isSupported } = useAudioOutputDevices();
   const profile = useAuthStore((s) => s.profile);
   const geoCountry = useGeoStore((s) => s.country);
-  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   return (
     <div className={`space-y-3 ${className}`}>

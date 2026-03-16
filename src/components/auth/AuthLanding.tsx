@@ -18,7 +18,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   // 国選択はOTP後のプロフィール作成段階へ移動
   const navigate = useNavigate();
   const location = useLocation();
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const tablistLabel = isEnglishCopy ? 'Authentication mode' : '認証切替';
   const tabSignupLabel = isEnglishCopy ? 'Sign Up' : '会員登録';
   const tabLoginLabel = isEnglishCopy ? 'Log In' : 'ログイン';

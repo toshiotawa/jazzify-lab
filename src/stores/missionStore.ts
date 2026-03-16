@@ -101,7 +101,7 @@ export const useMissionStore = create<State & Actions>()(
 
     claim: async(id:string)=>{
       const profile = useAuthStore.getState().profile;
-      const isEn = shouldUseEnglishCopy({ rank: profile?.rank });
+      const isEn = shouldUseEnglishCopy({ rank: profile?.rank, preferredLocale: profile?.preferred_locale });
       try {
         const xpResult = await claimReward(id);
         

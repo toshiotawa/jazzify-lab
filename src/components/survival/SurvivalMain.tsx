@@ -85,7 +85,7 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
 const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'select');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);

@@ -23,7 +23,7 @@ interface Props {
 const MissionSurvivalProgress: React.FC<Props> = ({ missionId, progressItems, onLoad }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   useEffect(() => {
     if (!progressItems) {
       void fetchMissionSurvivalProgress(missionId).then(onLoad);

@@ -19,7 +19,7 @@ const MissionRanking: React.FC = () => {
   const [missionId, setMissionId] = useState<string | null>(null);
   const { profile, user } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const PAGE_SIZE = 50;
   const [offset, setOffset] = useState(0);
 

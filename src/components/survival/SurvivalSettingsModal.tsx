@@ -68,7 +68,7 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   const { settings, updateSettings } = useGameStore();
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   
   const [midiDeviceId, setMidiDeviceId] = useState<string | null>(settings.selectedMidiDevice ?? null);
   const [volume, setVolume] = useState<number>(settings.midiVolume ?? 0.8);

@@ -42,6 +42,7 @@ const App: React.FC = () => {
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     geoCountryHint: geoCountry,
+    preferredLocale: profile?.preferred_locale,
   });
   
   // hash monitor

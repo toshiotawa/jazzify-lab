@@ -53,6 +53,7 @@ const DiaryPage: React.FC = () => {
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: authProfile?.rank,
     geoCountryHint: geoCountry,
+    preferredLocale: authProfile?.preferred_locale,
   });
   const { fetchLikeUsers, likeUsers, comments, fetchComments, update, deleteDiary, like } = useDiaryStore();
   const { addComment, deleteComment, likeComment } = useDiaryStore();

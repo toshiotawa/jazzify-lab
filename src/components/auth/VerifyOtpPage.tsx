@@ -2,14 +2,17 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
 const VerifyOtpPage: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const toast = useToast();
-  const { verifyOtp, loading } = useAuthStore();
+  const { verifyOtp, loading, profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   
-  // URLクエリからメールアドレスを取得
   const [email, setEmail] = useState('');
   const [otpCode, setOtpCode] = useState('');
 
@@ -21,23 +24,21 @@ const VerifyOtpPage: React.FC = () => {
     if (emailFromQuery) {
       setEmail(emailFromQuery);
     } else {
-      // emailがなければログイン画面に戻す
-      toast.error('不正なアクセスです。再度操作をお試しください。');
+      toast.error(en ? 'Invalid access. Please try again.' : '不正なアクセスです。再度操作をお試しください。');
       navigate('/login', { replace: true });
     }
   }, [location.search]);
 
   const handleVerifyOtp = async () => {
     if (otpCode.length !== 6) {
-      return toast.error('認証コードは6桁で入力してください');
+      return toast.error(en ? 'Please enter a 6-digit code.' : '認証コードは6桁で入力してください');
     }
 
     try {
       await verifyOtp(email, otpCode);
-      // トースト通知は不要（新規ユーザーはプロフィール登録へ、既存ユーザーはダッシュボードへ遷移するため）
       navigate(redirect || '/main#dashboard', { replace: true });
-    } catch (err) {
-      toast.error('OTP検証に失敗しました。コードを確認してください。');
+    } catch {
+      toast.error(en ? 'OTP verification failed. Please check your code.' : 'OTP検証に失敗しました。コードを確認してください。');
     }
   };
 
@@ -51,7 +52,7 @@ const VerifyOtpPage: React.FC = () => {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white">
         <div className="flex flex-col items-center space-y-4">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white"></div>
-          <div>読み込み中...</div>
+          <div>{en ? 'Loading...' : '読み込み中...'}</div>
         </div>
       </div>
     );
@@ -61,9 +62,13 @@ const VerifyOtpPage: React.FC = () => {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-slate-900 to-black text-white p-4">
       <div className="w-full max-w-md space-y-6 bg-slate-800/60 p-6 rounded-lg">
         <div className="text-center">
-          <h2 className="text-2xl font-bold">認証コードの入力</h2>
+          <h2 className="text-2xl font-bold">
+            {en ? 'Enter Verification Code' : '認証コードの入力'}
+          </h2>
           <p className="text-sm text-gray-300 mt-2">
-            {email} に送信された6桁のコードを入力してください。
+            {en
+              ? `Enter the 6-digit code sent to ${email}.`
+              : `${email} に送信された6桁のコードを入力してください。`}
           </p>
         </div>
         <input
@@ -77,23 +82,24 @@ const VerifyOtpPage: React.FC = () => {
           placeholder="000000"
           maxLength={6}
           disabled={loading}
+          aria-label={en ? 'Verification code' : '認証コード'}
         />
         <button
           className="btn btn-primary w-full"
           disabled={loading || otpCode.length !== 6}
           onClick={handleVerifyOtp}
         >
-          {loading ? '認証中...' : '認証する'}
+          {loading ? (en ? 'Verifying...' : '認証中...') : (en ? 'Verify' : '認証する')}
         </button>
         <button
           className="btn btn-ghost btn-sm w-full"
           onClick={handleBack}
         >
-          戻る
+          {en ? 'Back' : '戻る'}
         </button>
       </div>
     </div>
   );
 };
 
-export default VerifyOtpPage; 
+export default VerifyOtpPage;

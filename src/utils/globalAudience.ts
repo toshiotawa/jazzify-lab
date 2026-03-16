@@ -130,7 +130,7 @@ export const persistPreferredLocale = (locale: AppLocale | null): void => {
   }
 };
 
-const detectBrowserLocale = (): AppLocale | null => {
+export const detectBrowserLocale = (): AppLocale | null => {
   if (!isBrowserEnvironment()) {
     return null;
   }

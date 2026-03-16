@@ -18,7 +18,7 @@ const MissionSongProgress: React.FC<Props> = ({ missionId, songProgress }) => {
   const { fetchSongProgress } = useMissionStore();
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
 
   useEffect(() => {

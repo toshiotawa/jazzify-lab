@@ -246,7 +246,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const { settings } = useGameStore();
   
   // 初期化エラー状態

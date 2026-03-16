@@ -109,7 +109,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [onGameComplete]);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const localizedStageName = useMemo(
     () => getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }),
     [stage, profile?.rank, geoCountry],

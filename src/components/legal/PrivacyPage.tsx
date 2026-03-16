@@ -14,7 +14,7 @@ const PrivacyPage: React.FC = () => {
   const navigate = useNavigate();
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const lastUpdated = isEnglishCopy ? 'November 4, 2025' : '2025年11月4日';
   const backButtonLabel = isEnglishCopy ? '← Back' : '← 戻る';
   const backButtonAria = isEnglishCopy ? 'Go back to the previous page' : '前のページに戻る';

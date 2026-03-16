@@ -20,7 +20,7 @@ const DiaryFeed: React.FC = () => {
   const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update, loadMore, hasMore, loadingMore } = useDiaryStore();
   const { user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string|null>(null);

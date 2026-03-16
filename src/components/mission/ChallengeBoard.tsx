@@ -9,7 +9,7 @@ const ChallengeBoard: React.FC = () => {
   const { monthly, progress, loading, fetchAll } = useMissionStore();
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   
   useEffect(() => {
     if (monthly.length === 0 && !loading) {

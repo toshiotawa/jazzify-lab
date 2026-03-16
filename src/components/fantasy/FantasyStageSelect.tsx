@@ -92,7 +92,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
 }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const fantasyHeaderTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
   const currentStageLabel = isEnglishCopy ? 'Current stage' : '現在地';
   const storyButtonLabel = isEnglishCopy ? 'Story' : 'ストーリー';
