@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView } from '@/utils/iosbridge';
 
 type PlanKey = 'free' | 'premium';
 
@@ -74,11 +75,63 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const [loading, setLoading] = useState<string | null>(null);
+  const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale ?? null,
   });
+
+  const isIOS = isIOSWebView();
+
+  useEffect(() => {
+    const checkBilling = async () => {
+      try {
+        const token = useAuthStore.getState().session?.access_token;
+        if (!token) return;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setBillingProvider(data.provider ?? null);
+        }
+      } catch { /* ignore */ }
+    };
+    checkBilling();
+  }, []);
+
+  if (isIOS) {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-8">
+        <div className="text-center text-gray-400">
+          <p>{isEnglishCopy
+            ? 'Subscription management is available in the app settings.'
+            : 'サブスクリプション管理はアプリの設定から行えます。'}</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (billingProvider === 'apple') {
+    return (
+      <div className="w-full h-full flex items-center justify-center p-8">
+        <div className="text-center">
+          <div className="text-orange-400 text-lg font-bold mb-4">
+            {isEnglishCopy
+              ? 'You have an active subscription via the iOS app.'
+              : 'iOSアプリ経由でサブスクリプションが有効です。'}
+          </div>
+          <p className="text-gray-400">
+            {isEnglishCopy
+              ? 'To manage your subscription, please use the iOS app settings.'
+              : 'サブスクリプションの管理はiOSアプリの設定から行ってください。'}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   const plans = PLANS.map(plan => ({
     ...plan,

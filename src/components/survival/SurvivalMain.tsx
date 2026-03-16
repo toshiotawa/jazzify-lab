@@ -43,6 +43,7 @@ type Screen = 'select' | 'game';
 
 interface SurvivalMainProps {
   lessonMode?: boolean;
+  demoMode?: boolean;
 }
 
 interface LessonContext {
@@ -82,12 +83,16 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
   return [];
 }
 
-const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
+const DEMO_CDE_NOTES = ['C', 'D', 'E'];
+const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/5b49b467-c54b-4fa8-ba36-bae3cfce424e.mp3';
+const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/b4249680-5471-4e4d-abba-af856ff33310.mp3';
+
+const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
-  const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'select');
+  const [screen, setScreen] = useState<Screen>((lessonMode || demoMode) ? 'game' : 'select');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);

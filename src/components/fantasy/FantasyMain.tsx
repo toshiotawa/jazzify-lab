@@ -150,7 +150,12 @@ interface GameResult {
   clearCredit: number;
 }
 
-const FantasyMain: React.FC = () => {
+interface FantasyMainProps {
+  demoStage?: string;
+  initialStage?: string;
+}
+
+const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) => {
   const { profile, isGuest } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const { settings } = useGameStore();

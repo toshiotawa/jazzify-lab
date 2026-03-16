@@ -1,0 +1,41 @@
+name: Jazzify
+options:
+  bundleIdPrefix: jp.jazzify
+  deploymentTarget:
+    iOS: "16.0"
+  xcodeVersion: "15.0"
+  generateEmptyDirectories: true
+  groupSortPosition: top
+
+settings:
+  base:
+    SWIFT_VERSION: "5.9"
+    MARKETING_VERSION: "1.0.0"
+    CURRENT_PROJECT_VERSION: "1"
+
+packages:
+  Supabase:
+    url: https://github.com/supabase/supabase-swift
+    from: "2.0.0"
+
+targets:
+  Jazzify:
+    type: application
+    platform: iOS
+    sources:
+      - path: Jazzify
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app
+        INFOPLIST_FILE: Jazzify/Info.plist
+        CODE_SIGN_ENTITLEMENTS: Jazzify/Jazzify.entitlements
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        DEVELOPMENT_TEAM: ""
+    dependencies:
+      - package: Supabase
+        product: Supabase
+    entitlements:
+      path: Jazzify/Jazzify.entitlements
+      properties:
+        com.apple.developer.in-app-payments:
+          - merchant.jp.jazzify

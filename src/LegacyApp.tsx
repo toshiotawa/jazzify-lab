@@ -9,6 +9,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import Dashboard from '@/components/dashboard/Dashboard';
+import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
 
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
@@ -154,7 +155,72 @@ const App: React.FC = () => {
     );
   }
 
-  if (authLoading) return <LoadingScreen />;
+  if (authLoading && !isIOSWebView()) return <LoadingScreen />;
+
+  const iosMode = getIOSMode();
+  if (isIOSWebView() && iosMode) {
+    const iosShowHeader = false;
+    if (iosShowHeader !== useGameStore.getState().settings.showHeader) {
+      updateGameSettings({ showHeader: false });
+    }
+
+    let IOSContent: React.ReactNode;
+    switch (iosMode) {
+      case 'demo-lp':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazySurvivalMain demoMode />
+          </React.Suspense>
+        );
+        break;
+      case 'demo-fantasy':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyFantasyMain demoStage={getIOSParam('stage') ?? '1-1'} />
+          </React.Suspense>
+        );
+        break;
+      case 'fantasy': {
+        const stageParam = getIOSParam('stage');
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyFantasyMain initialStage={stageParam ?? undefined} />
+          </React.Suspense>
+        );
+        break;
+      }
+      case 'play-lesson':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyGameScreen />
+          </React.Suspense>
+        );
+        break;
+      case 'songs':
+      case 'practice':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyGameScreen />
+          </React.Suspense>
+        );
+        break;
+      default:
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyGameScreen />
+          </React.Suspense>
+        );
+        break;
+    }
+
+    return (
+      <ErrorBoundary>
+        <div className="game-container relative w-full h-screen overflow-hidden bg-gradient-game text-white font-sans antialiased">
+          {IOSContent}
+        </div>
+      </ErrorBoundary>
+    );
+  }
 
   if (!user && !isGuest || forceLogin) {
     return (

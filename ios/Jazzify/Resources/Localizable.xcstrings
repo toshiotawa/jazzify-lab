@@ -1,0 +1,318 @@
+{
+  "sourceLanguage" : "ja",
+  "strings" : {
+    "login" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログイン" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Log In" } }
+      }
+    },
+    "signup" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "会員登録" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Sign Up" } }
+      }
+    },
+    "email_address" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メールアドレス" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Email address" } }
+      }
+    },
+    "password" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "パスワード" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Password" } }
+      }
+    },
+    "send_verification_code" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証コードを送信" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Send verification code" } }
+      }
+    },
+    "verification_note" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証コードは6桁の数字で送信されます" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "A 6-digit verification code will be sent to your email." } }
+      }
+    },
+    "demo_play" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "デモプレイ" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Demo Play" } }
+      }
+    },
+    "stage_1_1" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ステージ1-1" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stage 1-1" } }
+      }
+    },
+    "try_without_account" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アカウントなしで体験" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Try without an account" } }
+      }
+    },
+    "enter_verification_code" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証コードを入力" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Enter verification code" } }
+      }
+    },
+    "verify" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "認証する" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Verify" } }
+      }
+    },
+    "top" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "トップ" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Top" } }
+      }
+    },
+    "lessons" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "レッスン" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Lessons" } }
+      }
+    },
+    "fantasy" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ファンタジー" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Fantasy" } }
+      }
+    },
+    "settings" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "設定" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Settings" } }
+      }
+    },
+    "welcome_back" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "おかえりなさい" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Welcome back" } }
+      }
+    },
+    "quick_actions" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "クイックアクション" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Quick Actions" } }
+      }
+    },
+    "practice" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "練習" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Practice" } }
+      }
+    },
+    "stats" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "統計" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Stats" } }
+      }
+    },
+    "premium_unlock_prompt" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プレミアムプランで全機能をアンロック" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Unlock all features with Premium" } }
+      }
+    },
+    "premium_all_features" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "全レッスン・全ステージ・全機能が使い放題" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Access all lessons, stages, and features" } }
+      }
+    },
+    "nickname" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ニックネーム" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Nickname" } }
+      }
+    },
+    "email" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "メール" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Email" } }
+      }
+    },
+    "level" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "レベル" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Level" } }
+      }
+    },
+    "plan" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プラン" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Plan" } }
+      }
+    },
+    "language" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "言語" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } }
+      }
+    },
+    "language_settings" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "言語設定" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Language" } }
+      }
+    },
+    "midi_devices" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "MIDI デバイス" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "MIDI Devices" } }
+      }
+    },
+    "manage_subscription" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプション管理" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manage Subscription" } }
+      }
+    },
+    "active" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Active" } }
+      }
+    },
+    "billing" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "課金" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Billing" } }
+      }
+    },
+    "delete_account" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アカウント削除（退会）" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete Account" } }
+      }
+    },
+    "logout" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "ログアウト" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Log Out" } }
+      }
+    },
+    "account_actions" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アカウント操作" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Account Actions" } }
+      }
+    },
+    "cannot_delete_while_subscription_active" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "有効なサブスクリプションが残っているため、退会できません。先にサブスクリプションを解約し、利用期間終了後に再度お試しください。" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You cannot delete your account while an active subscription exists. Please cancel your subscription first and try again after the period ends." } }
+      }
+    },
+    "subscription_cancel_first" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプションを先に解約してください" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Please cancel your subscription first" } }
+      }
+    },
+    "terms" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "利用規約" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Terms of Service" } }
+      }
+    },
+    "privacy_policy" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プライバシーポリシー" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Privacy Policy" } }
+      }
+    },
+    "subscribe_premium" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "プレミアムに登録" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscribe to Premium" } }
+      }
+    },
+    "restore_purchases" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "購入を復元" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Restore Purchases" } }
+      }
+    },
+    "subscription_auto_renew_note" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "サブスクリプションは自動的に更新されます。更新日の24時間前までにキャンセルすることで、次回の請求を停止できます。" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Subscriptions automatically renew. You can cancel at least 24 hours before the renewal date to stop the next charge." } }
+      }
+    },
+    "already_subscribed" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "現在プレミアムプランをご利用中です" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "You are currently on the Premium plan" } }
+      }
+    },
+    "per_month" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "/ 月" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "/ month" } }
+      }
+    },
+    "no_midi_devices" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "MIDI デバイスが見つかりません" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "No MIDI devices found" } }
+      }
+    },
+    "connect_midi_keyboard" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "MIDI キーボードを接続してください" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connect a MIDI keyboard" } }
+      }
+    },
+    "connected_devices" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "接続中のデバイス" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Connected Devices" } }
+      }
+    },
+    "close" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "閉じる" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Done" } }
+      }
+    },
+    "cancel" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "キャンセル" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Cancel" } }
+      }
+    },
+    "delete" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "削除する" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Delete" } }
+      }
+    },
+    "delete_account_confirm" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "この操作は取り消せません。アカウント情報は完全に削除されます。" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "This action cannot be undone. Your account data will be permanently deleted." } }
+      }
+    },
+    "account" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "アカウント" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Account" } }
+      }
+    },
+    "manage_in_apple_settings" : {
+      "localizations" : {
+        "ja" : { "stringUnit" : { "state" : "translated", "value" : "Apple でサブスクリプションを管理" } },
+        "en" : { "stringUnit" : { "state" : "translated", "value" : "Manage in Apple Settings" } }
+      }
+    }
+  },
+  "version" : "1.0"
+}

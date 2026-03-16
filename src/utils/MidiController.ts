@@ -291,13 +291,37 @@ export class MIDIController {
   // 音声再生制御フラグ
   private readonly playMidiSound: boolean;
 
+  private nativeMIDICleanup: (() => void) | null = null;
+
   constructor(options: MidiControllerOptions & { playMidiSound?: boolean }) {
     this.onNoteOn = options.onNoteOn;
     this.onNoteOff = options.onNoteOff;
     this.onConnectionChange = options.onConnectionChange || null;
-    this.playMidiSound = options.playMidiSound ?? true; // デフォルトは音を鳴らす
+    this.playMidiSound = options.playMidiSound ?? true;
 
-    console.log('🎹 MIDI Controller initialized (using global audio system)');
+    this.setupNativeMIDIBridge();
+  }
+
+  private setupNativeMIDIBridge(): void {
+    if (typeof window === 'undefined') return;
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('platform') !== 'ios') return;
+
+    const handler = (status: number, note: number, velocity: number) => {
+      if (!this.isEnabled) return;
+      const command = status & 0xf0;
+      if (command === 0x90 && velocity > 0) {
+        this.handleNoteOn(note, velocity);
+      } else if (command === 0x80 || (command === 0x90 && velocity === 0)) {
+        this.handleNoteOff(note);
+      }
+    };
+    window.onNativeMidiMessage = handler;
+    this.nativeMIDICleanup = () => {
+      if (window.onNativeMidiMessage === handler) {
+        window.onNativeMidiMessage = undefined;
+      }
+    };
   }
 
   // MIDI APIが利用可能かどうか
@@ -616,6 +640,8 @@ export class MIDIController {
 
   public async destroy(): Promise<void> {
     this.disconnect();
+    this.nativeMIDICleanup?.();
+    this.nativeMIDICleanup = null;
     this.isInitialized = false;
   }
 
