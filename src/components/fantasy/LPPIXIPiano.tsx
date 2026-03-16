@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState, Suspense } from 'react';
 import { MIDIController, playNote, stopNote } from '@/utils/MidiController';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 // PIXIレンダラーは動的にimportして初期バンドルを軽量化
 const LazyPIXINotes = React.lazy(() => import('../game/PIXINotesRenderer').then(m => ({ default: m.PIXINotesRenderer })));
@@ -24,6 +25,7 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
 
   const hasUserScrolledRef = useRef(false);
   const isProgrammaticScrollRef = useRef(false);
+  const isEnglishCopy = shouldUseEnglishCopy();
 
   // 外枠のサイズに応じて（必要であれば）横幅を調整
   useEffect(() => {
@@ -205,11 +207,11 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
             type="button"
             onClick={handleUserActivate}
             className="absolute right-3 bottom-24 z-40 px-3 py-2 text-white text-[13px] md:text-sm bg-black/60 backdrop-blur-sm rounded-full shadow-lg ring-1 ring-white/20 hover:bg-black/70 hover:ring-white/30 transition pointer-events-auto select-none font-medium flex items-center gap-1.5 animate-pulse"
-            aria-label="音声を有効化"
-            title="音声を有効化"
+            aria-label={isEnglishCopy ? 'Enable audio' : '音声を有効化'}
+            title={isEnglishCopy ? 'Enable audio' : '音声を有効化'}
           >
             <span className="inline-block">🔊</span>
-            タップして音声を有効化
+            {isEnglishCopy ? 'Tap to enable audio' : 'タップして音声を有効化'}
           </button>
           <div
             className="absolute inset-0 z-30 cursor-pointer"
