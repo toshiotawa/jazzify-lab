@@ -194,12 +194,13 @@ export const detectPreferredLocale = (): AppLocale => {
   const subdomainLocale = resolveSubdomainLocale(hostname);
   if (subdomainLocale) return subdomainLocale;
 
-  // 優先順位4: TLD (.jp → ja, .com → en)
-  const tldLocale = resolveTopLevelLocale(hostname);
-  if (tldLocale) return tldLocale;
-
+  // 優先順位4: ブラウザ言語設定
   const browserLocale = detectBrowserLocale();
   if (browserLocale) return browserLocale;
+
+  // 優先順位5: TLD (.jp → ja, .com → en)
+  const tldLocale = resolveTopLevelLocale(hostname);
+  if (tldLocale) return tldLocale;
 
   return LOCALE_JA;
 };
