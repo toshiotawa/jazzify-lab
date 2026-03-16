@@ -55,6 +55,7 @@ interface AuthActions {
   init: () => Promise<void>;
   sendOtp: (email: string, mode?: 'signup' | 'login') => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
+  signInWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   enterGuestMode: () => void;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
@@ -444,9 +445,41 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-    /**
-     * ログアウト
-     */
+    signInWithPassword: async (email: string, password: string) => {
+      const supabase = getSupabaseClient();
+      set(state => {
+        state.loading = true;
+        state.error = null;
+      });
+
+      try {
+        const { data, error } = await supabase.auth.signInWithPassword({
+          email,
+          password,
+        });
+
+        if (error) throw error;
+
+        if (data.session) {
+          set(state => {
+            state.user = data.session!.user;
+            state.session = data.session;
+            state.loading = false;
+            state.error = null;
+            state.isGuest = false;
+          });
+          await get().fetchProfile();
+        }
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : 'パスワード認証に失敗しました';
+        set(state => {
+          state.loading = false;
+          state.error = errorMessage;
+        });
+        throw new Error(errorMessage);
+      }
+    },
+
     logout: async () => {
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();

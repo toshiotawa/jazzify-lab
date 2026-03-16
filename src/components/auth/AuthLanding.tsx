@@ -9,11 +9,15 @@ interface AuthLandingProps {
   mode: 'signup' | 'login';
 }
 
+const REVIEW_EMAIL = 'toshiotawa@me.com';
+
 const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
-  const { sendOtp, enterGuestMode, loading, error, user, isGuest, profile } = useAuthStore();
+  const { sendOtp, signInWithPassword, enterGuestMode, loading, error, user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const toast = useToast();
   const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [showPasswordField, setShowPasswordField] = useState(false);
   const [signupDisabled, setSignupDisabled] = useState(false);
   // 国選択はOTP後のプロフィール作成段階へ移動
   const navigate = useNavigate();
@@ -51,9 +55,28 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
   // 地理情報の事前取得や国のローカル保存は行わない
 
+  const isReviewAccount = email.toLowerCase().trim() === REVIEW_EMAIL;
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!email) return;
+
+    if (isReviewAccount && !showPasswordField) {
+      setShowPasswordField(true);
+      return;
+    }
+
+    if (isReviewAccount && showPasswordField) {
+      try {
+        await signInWithPassword(email.toLowerCase().trim(), password);
+        const currentParams = new URLSearchParams(location.search);
+        const redirect = currentParams.get('redirect') || '';
+        navigate(redirect || '/main#dashboard', { replace: true });
+      } catch (err) {
+        toast.error(handleApiError(err, isEnglishCopy ? 'Login' : 'ログイン'));
+      }
+      return;
+    }
 
     setSignupDisabled(false);
 
@@ -64,7 +87,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
           duration: 5000,
         });
 
-      // 現在のURLからredirectパラメータを引き継ぐ
       const currentParams = new URLSearchParams(location.search);
       const redirect = currentParams.get('redirect') || '';
       const params = new URLSearchParams({ email, mode });
@@ -140,19 +162,47 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
                   type="email"
                   id="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (showPasswordField && e.target.value.toLowerCase().trim() !== REVIEW_EMAIL) {
+                      setShowPasswordField(false);
+                      setPassword('');
+                    }
+                  }}
                   className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-400 focus:outline-none"
                   placeholder="you@example.com"
                   required
                   disabled={loading}
                 />
               </div>
+              {showPasswordField && (
+                <div>
+                  <label htmlFor="password" className="block text-sm font-medium mb-2">
+                    {isEnglishCopy ? 'Password' : 'パスワード'}
+                  </label>
+                  <input
+                    type="password"
+                    id="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="w-full px-3 py-2 bg-gray-700 rounded border border-gray-600 focus:border-blue-400 focus:outline-none"
+                    placeholder="••••••••"
+                    required
+                    disabled={loading}
+                    autoFocus
+                  />
+                </div>
+              )}
                 <button
                   type="submit"
-                  disabled={loading || !email}
+                  disabled={loading || !email || (showPasswordField && !password)}
                   className="w-full btn btn-primary"
                 >
-                  {loading ? (isEnglishCopy ? 'Sending...' : '送信中...') : submitButtonLabel}
+                  {loading
+                    ? (isEnglishCopy ? 'Signing in...' : 'ログイン中...')
+                    : showPasswordField
+                      ? (isEnglishCopy ? 'Sign In' : 'ログイン')
+                      : submitButtonLabel}
                 </button>
             </form>
             {error && <p className="text-red-400 text-sm">{error}</p>}
