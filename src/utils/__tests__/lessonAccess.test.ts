@@ -46,7 +46,28 @@ const createProgress = (overrides: Partial<LessonProgress>): LessonProgress => (
 });
 
 describe('resolveCourseAccess', () => {
-  it('プレミア会員は管理者解放で前提条件未達でもアクセス可能になる', () => {
+  it('前提条件を満たしている場合はアクセス可能', () => {
+    const prerequisiteCourse = createCourse({ id: 'course-pre', title: 'プレコース' });
+    const targetCourse = createCourse({
+      prerequisites: [
+        {
+          prerequisite_course_id: prerequisiteCourse.id,
+          prerequisite_course: prerequisiteCourse,
+        },
+      ],
+    });
+
+    const result = resolveCourseAccess({
+      course: targetCourse,
+      userRank: 'premium',
+      completedCourseIds: [prerequisiteCourse.id],
+    });
+
+    expect(result.canAccess).toBe(true);
+    expect(result.prerequisitesMet).toBe(true);
+  });
+
+  it('前提条件を満たしていない場合はアクセス不可', () => {
     const prerequisiteCourse = createCourse({ id: 'course-pre', title: 'プレコース' });
     const targetCourse = createCourse({
       prerequisites: [
@@ -61,67 +82,33 @@ describe('resolveCourseAccess', () => {
       course: targetCourse,
       userRank: 'premium',
       completedCourseIds: [],
-      manualOverride: true,
-    });
-
-    expect(result.canAccess).toBe(true);
-    expect(result.manualUnlockApplied).toBe(true);
-    expect(result.manualUnlockSuppressed).toBe(false);
-  });
-
-  it('スタンダード会員では管理者解放が抑止され通常条件が優先される', () => {
-    const prerequisiteCourse = createCourse({ id: 'course-pre', title: 'プレコース' });
-    const targetCourse = createCourse({
-      prerequisites: [
-        {
-          prerequisite_course_id: prerequisiteCourse.id,
-          prerequisite_course: prerequisiteCourse,
-        },
-      ],
-    });
-
-    const result = resolveCourseAccess({
-      course: targetCourse,
-      userRank: 'standard',
-      completedCourseIds: [],
-      manualOverride: true,
     });
 
     expect(result.canAccess).toBe(false);
-    expect(result.manualUnlockApplied).toBe(false);
-    expect(result.manualUnlockSuppressed).toBe(true);
+    expect(result.prerequisitesMet).toBe(false);
     expect(result.reason).toContain('前提コース');
   });
 });
 
 describe('buildLessonAccessGraph', () => {
-  it('管理者解放はプレミア会員のみ有効となりスタンダードでは無効化される', () => {
+  it('前ブロック未完了の場合は次のブロックがロックされる', () => {
     const lessonBlock1 = createLesson({ id: 'lesson-1', order_index: 0, block_number: 1 });
     const lessonBlock2 = createLesson({ id: 'lesson-2', order_index: 1, block_number: 2 });
     const lessons: Lesson[] = [lessonBlock1, lessonBlock2];
 
     const progressMap = {
-      [lessonBlock1.id]: createProgress({ lesson_id: lessonBlock1.id, is_unlocked: true }),
-      [lessonBlock2.id]: createProgress({ lesson_id: lessonBlock2.id, is_unlocked: true }),
+      [lessonBlock1.id]: createProgress({ lesson_id: lessonBlock1.id }),
     } satisfies Record<string, LessonProgress>;
 
-    const premiumGraph = buildLessonAccessGraph({
+    const graph = buildLessonAccessGraph({
       lessons,
       progressMap,
       userRank: 'premium',
     });
 
-    expect(premiumGraph.blockStates[2].manualUnlockApplied).toBe(true);
-    expect(premiumGraph.lessonStates[lessonBlock2.id].isUnlocked).toBe(true);
-
-    const standardGraph = buildLessonAccessGraph({
-      lessons,
-      progressMap,
-      userRank: 'standard',
-    });
-
-    expect(standardGraph.blockStates[2].manualUnlockApplied).toBe(false);
-    expect(standardGraph.lessonStates[lessonBlock2.id].isUnlocked).toBe(false);
+    expect(graph.blockStates[1].isUnlocked).toBe(true);
+    expect(graph.blockStates[2].isUnlocked).toBe(false);
+    expect(graph.lessonStates[lessonBlock2.id].isUnlocked).toBe(false);
   });
 
   it('通常条件で解放されたブロックでは全レッスンがアクセス可能になる', () => {
@@ -148,7 +135,7 @@ describe('buildLessonAccessGraph', () => {
     expect(graph.lessonStates[block2Lesson2.id].isUnlocked).toBe(true);
   });
 
-  it('通常条件に戻すと未達ブロックはロックされる', () => {
+  it('前ブロックが未完了なら後続ブロックはロックされる', () => {
     const block1Lesson = createLesson({ id: 'block1-1', block_number: 1, order_index: 0 });
     const block2Lesson = createLesson({ id: 'block2-1', block_number: 2, order_index: 1 });
     const block3Lesson1 = createLesson({ id: 'block3-1', block_number: 3, order_index: 2 });
@@ -158,7 +145,6 @@ describe('buildLessonAccessGraph', () => {
 
     const progressMap = {
       [block1Lesson.id]: createProgress({ lesson_id: block1Lesson.id, completed: true }),
-      [block3Lesson1.id]: createProgress({ lesson_id: block3Lesson1.id, completed: true, is_unlocked: true }),
     } satisfies Record<string, LessonProgress>;
 
     const graph = buildLessonAccessGraph({
@@ -167,6 +153,7 @@ describe('buildLessonAccessGraph', () => {
       userRank: 'free',
     });
 
+    expect(graph.blockStates[2].isUnlocked).toBe(true);
     expect(graph.blockStates[3].isUnlocked).toBe(false);
     expect(graph.lessonStates[block3Lesson1.id].isUnlocked).toBe(false);
     expect(graph.lessonStates[block3Lesson2.id].isUnlocked).toBe(false);

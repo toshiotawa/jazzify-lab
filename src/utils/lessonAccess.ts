@@ -8,11 +8,6 @@ const PREMIUM_RANKS: ReadonlySet<MembershipRank> = new Set([
   'black',
 ]);
 
-const PLATINUM_OR_BLACK_RANKS: ReadonlySet<MembershipRank> = new Set([
-  'platinum',
-  'black',
-]);
-
 const DEFAULT_RANK: MembershipRank = 'free';
 
 export const isPremiumRank = (rank?: MembershipRank | null): boolean => {
@@ -20,13 +15,6 @@ export const isPremiumRank = (rank?: MembershipRank | null): boolean => {
     return false;
   }
   return PREMIUM_RANKS.has(rank);
-};
-
-export const isPlatinumOrBlack = (rank?: MembershipRank | null): boolean => {
-  if (!rank) {
-    return false;
-  }
-  return PLATINUM_OR_BLACK_RANKS.has(rank);
 };
 
 export const normalizeRank = (rank?: MembershipRank | null): MembershipRank => {
@@ -40,15 +28,11 @@ export interface CourseAccessOptions {
   course: Course;
   userRank?: MembershipRank | null;
   completedCourseIds: string[];
-  manualOverride?: boolean | null;
 }
 
 export interface CourseAccessResult {
   canAccess: boolean;
   reason?: string;
-  manualUnlockApplied: boolean;
-  manualUnlockSuppressed: boolean;
-  manualLockApplied: boolean;
   prerequisitesMet: boolean;
   rankAllows: boolean;
   requiresPremium: boolean;
@@ -78,51 +62,15 @@ export const resolveCourseAccess = ({
   course,
   userRank,
   completedCourseIds,
-  manualOverride,
 }: CourseAccessOptions): CourseAccessResult => {
   const rank = normalizeRank(userRank);
   const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
-
   const { rankAllows, requiresPremium } = resolveCourseRank(course, rank);
 
   if (!rankAllows) {
     return {
       canAccess: false,
       reason: 'プレミアムプラン以上が必要です',
-      manualUnlockApplied: false,
-      manualUnlockSuppressed: Boolean(manualOverride),
-      manualLockApplied: false,
-      prerequisitesMet,
-      rankAllows,
-      requiresPremium,
-    };
-  }
-
-  const manualUnlock = manualOverride === true && !prerequisitesMet;
-  const manualLock = manualOverride === false && !prerequisitesMet;
-  const manualUnlockApplied = manualUnlock && isPremiumRank(rank);
-  const manualUnlockSuppressed = manualUnlock && !manualUnlockApplied;
-  const manualLockApplied = manualLock;
-
-  if (manualLockApplied) {
-    return {
-      canAccess: false,
-      reason: '管理者により一時的に利用が制限されています。',
-      manualUnlockApplied: false,
-      manualUnlockSuppressed,
-      manualLockApplied: true,
-      prerequisitesMet,
-      rankAllows,
-      requiresPremium,
-    };
-  }
-
-  if (manualUnlockApplied) {
-    return {
-      canAccess: true,
-      manualUnlockApplied: true,
-      manualUnlockSuppressed,
-      manualLockApplied: false,
       prerequisitesMet,
       rankAllows,
       requiresPremium,
@@ -132,9 +80,6 @@ export const resolveCourseAccess = ({
   if (prerequisitesMet) {
     return {
       canAccess: true,
-      manualUnlockApplied: false,
-      manualUnlockSuppressed,
-      manualLockApplied: false,
       prerequisitesMet: true,
       rankAllows,
       requiresPremium,
@@ -146,9 +91,6 @@ export const resolveCourseAccess = ({
   return {
     canAccess: false,
     reason: prerequisiteNames ? `前提コース（${prerequisiteNames}）を完了してください` : '前提コースを完了してください',
-    manualUnlockApplied: false,
-    manualUnlockSuppressed,
-    manualLockApplied: false,
     prerequisitesMet: false,
     rankAllows,
     requiresPremium,
@@ -158,18 +100,12 @@ export const resolveCourseAccess = ({
 export interface LessonAccessState {
   isUnlocked: boolean;
   isCompleted: boolean;
-  manualUnlockApplied: boolean;
-  manualUnlockSuppressed: boolean;
-  isBlockUnlocked?: boolean;
 }
 
 export interface BlockAccessState {
   blockNumber: number;
   isUnlocked: boolean;
   isCompleted: boolean;
-  manualUnlockApplied: boolean;
-  manualUnlockSuppressed: boolean;
-  isNaturallyUnlocked: boolean;
 }
 
 export interface LessonAccessGraph {
@@ -215,25 +151,10 @@ const isBlockCompleted = (
   return lessons.every((lesson) => progressMap[lesson.id]?.completed === true);
 };
 
-const collectManualUnlockPresence = (
-  lessons: Lesson[],
-  progressMap: Record<string, LessonProgress | undefined>,
-  baseUnlocked: boolean,
-): boolean => {
-  return lessons.some((lesson) => {
-    const progress = progressMap[lesson.id];
-    return progress?.is_unlocked === true && !baseUnlocked;
-  });
-};
-
 export const buildLessonAccessGraph = ({
   lessons,
   progressMap,
-  userRank,
 }: LessonAccessOptions): LessonAccessGraph => {
-  const normalizedRank = normalizeRank(userRank);
-  const premium = isPremiumRank(normalizedRank);
-
   const sortedLessons = sortLessonsForAccess(lessons);
   const blockMap = groupLessonsByBlock(sortedLessons);
   const blockNumbers = Array.from(blockMap.keys()).sort((a, b) => a - b);
@@ -246,38 +167,20 @@ export const buildLessonAccessGraph = ({
     const previousBlockNumber = blockNumbers[index - 1];
     const previousCompleted = index === 0 ? true : blockStates[previousBlockNumber]?.isCompleted === true;
 
-    const baseUnlocked = index === 0 ? true : previousCompleted;
-    const manualUnlockPresent = collectManualUnlockPresence(blockLessons, progressMap, baseUnlocked);
-    const manualUnlockApplied = manualUnlockPresent && premium;
-    const manualUnlockSuppressed = manualUnlockPresent && !premium;
-    const blockUnlocked = baseUnlocked || manualUnlockApplied;
-    const isNaturallyUnlocked = baseUnlocked;
+    const blockUnlocked = index === 0 ? true : previousCompleted;
     const completed = isBlockCompleted(blockLessons, progressMap);
 
     blockStates[blockNumber] = {
       blockNumber,
       isUnlocked: blockUnlocked,
       isCompleted: completed,
-      manualUnlockApplied,
-      manualUnlockSuppressed,
-      isNaturallyUnlocked,
     };
 
     blockLessons.forEach((lesson) => {
-      const progress = progressMap[lesson.id];
-      const manualUnlock = progress?.is_unlocked === true && !baseUnlocked;
-      const manualUnlockAppliedForLesson = manualUnlock && premium;
-      const manualUnlockSuppressedForLesson = manualUnlock && !premium;
-
-      const completedLesson = progress?.completed === true;
-      const unlocked = blockUnlocked || manualUnlockAppliedForLesson;
-
+      const completedLesson = progressMap[lesson.id]?.completed === true;
       lessonStates[lesson.id] = {
-        isUnlocked: unlocked,
+        isUnlocked: blockUnlocked,
         isCompleted: completedLesson,
-        manualUnlockApplied: manualUnlockAppliedForLesson,
-        manualUnlockSuppressed: manualUnlockSuppressedForLesson,
-        isBlockUnlocked: blockUnlocked,
       };
     });
   });

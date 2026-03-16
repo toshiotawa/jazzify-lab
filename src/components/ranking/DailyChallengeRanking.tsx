@@ -7,11 +7,9 @@ import {
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
-import { FaCrown, FaStar, FaGem, FaMedal, FaHatWizard, FaSearch, FaPlus, FaTrophy, FaGraduationCap, FaArrowLeft } from 'react-icons/fa';
+import { FaSearch, FaPlus, FaArrowLeft } from 'react-icons/fa';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 import type { DailyChallengeDifficulty } from '@/types';
 
 const DIFFICULTIES: { key: DailyChallengeDifficulty; label: string; labelEn: string; color: string }[] = [
@@ -34,13 +32,9 @@ const DailyChallengeRanking: React.FC = () => {
 
   const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('super_beginner');
 
-  const [hoveredUserId, setHoveredUserId] = useState<string | null>(null);
-  const [clickedUserId, setClickedUserId] = useState<string | null>(null);
-
   const { user, isGuest, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
-  const isStandardGlobal = profile?.rank === 'standard_global';
 
   useEffect(() => {
     const handler = () => setOpen(window.location.hash === '#daily-challenge-ranking');
@@ -130,36 +124,6 @@ const DailyChallengeRanking: React.FC = () => {
     );
   }
 
-  const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
-    if ((TITLES as readonly string[]).includes(title)) return 'level';
-    if (MISSION_TITLES.some(mt => mt.name === title)) return 'mission';
-    if (LESSON_TITLES.some(lt => lt.name === title)) return 'lesson';
-    if ((WIZARD_TITLES as readonly string[]).includes(title)) return 'wizard';
-    return 'level';
-  };
-
-  const getTitleIcon = (title: string) => {
-    const t = getTitleType(title);
-    switch (t) {
-      case 'level': return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
-      case 'mission': return <FaTrophy className="text-xs flex-shrink-0 text-purple-400" />;
-      case 'lesson': return <FaGraduationCap className="text-xs flex-shrink-0 text-blue-400" />;
-      case 'wizard': return <FaHatWizard className="text-xs flex-shrink-0 text-green-400" />;
-      default: return <FaCrown className="text-xs flex-shrink-0 text-yellow-400" />;
-    }
-  };
-
-  const getRankIcon = (r: string) => {
-    switch (r.toLowerCase()) {
-      case 'black': return <FaCrown className="text-slate-200 text-sm" />;
-      case 'platinum': return <FaCrown className="text-purple-400 text-sm" />;
-      case 'premium': return <FaGem className="text-yellow-400 text-sm" />;
-      case 'standard':
-      case 'standard_global': return <FaStar className="text-blue-400 text-xs" />;
-      default: return <FaMedal className="text-gray-400 text-xs" />;
-    }
-  };
-
   const findMeText = isEnglishCopy ? 'Find Me' : '自分を探す';
   const loadMoreText = isEnglishCopy ? 'Load More (50)' : 'さらに読み込む（50件）';
 
@@ -222,7 +186,6 @@ const DailyChallengeRanking: React.FC = () => {
                 <tr className="border-b border-slate-700 text-left">
                   <th className="py-3 px-2 min-w-[2.5rem]">#</th>
                   <th className="py-3 px-2 min-w-[10rem]">{isEnglishCopy ? 'User' : 'ユーザー'}</th>
-                  {!isStandardGlobal && <th className="py-3 px-2 whitespace-nowrap min-w-[6rem]">{isEnglishCopy ? 'Title' : '称号'}</th>}
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Best Score' : 'ハイスコア'}</th>
                   <th className="py-3 px-2 min-w-[3rem]">{isEnglishCopy ? 'Plays' : '回数'}</th>
                   <th className="py-3 px-2 min-w-[4rem]">{isEnglishCopy ? 'Rank' : 'ランク'}</th>
@@ -248,45 +211,17 @@ const DailyChallengeRanking: React.FC = () => {
                       </td>
                       <td className="py-3 px-2">
                         <button
-                          onClick={() => { window.location.hash = `#diary-user?id=${e.user_id}`; }}
+                          onClick={() => {}}
                           className={`flex items-center gap-2 text-blue-400 hover:text-blue-300 hover:underline transition-colors w-full ${isCurrentUser ? 'font-bold' : ''}`}
                         >
                           <img src={e.avatar_url || DEFAULT_AVATAR_URL} alt="avatar" className="w-8 h-8 rounded-full object-cover flex-shrink-0" />
                           <span className="truncate min-w-0 flex-1 underline">{e.nickname}</span>
                         </button>
                       </td>
-                      {!isStandardGlobal && (
-                      <td className="py-3 px-2 whitespace-nowrap">
-                        <div className="relative">
-                          <div
-                            className="flex items-center gap-1 text-yellow-400 cursor-help"
-                            onMouseEnter={() => setHoveredUserId(e.user_id)}
-                            onMouseLeave={() => setHoveredUserId(null)}
-                            onClick={(event) => { event.stopPropagation(); setClickedUserId(clickedUserId === e.user_id ? null : e.user_id); }}
-                          >
-                            {getTitleIcon((e.selected_title as Title) || DEFAULT_TITLE)}
-                            <span className="text-xs truncate">
-                              {translateTitle((e.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
-                            </span>
-                          </div>
-                          {(hoveredUserId === e.user_id || clickedUserId === e.user_id) && (
-                            <div className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap" style={{ bottom: '100%', left: '50%', transform: 'translateX(-50%)', marginBottom: '4px' }}>
-                              <div className="relative">
-                                <div>{translateTitleRequirement(getTitleRequirement((e.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}</div>
-                                <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '50%', transform: 'translateX(-50%)' }} />
-                              </div>
-                            </div>
-                          )}
-                        </div>
-                      </td>
-                      )}
                       <td className="py-3 px-2 text-yellow-300 font-mono font-bold">{e.best_score}</td>
                       <td className="py-3 px-2 text-gray-300">{e.play_count}</td>
                       <td className="py-3 px-2">
-                        <div className="flex items-center space-x-1">
-                          {getRankIcon(e.rank)}
-                          <span className="capitalize text-xs">{e.rank}</span>
-                        </div>
+                        <span className="capitalize text-xs">{e.rank}</span>
                       </td>
                     </tr>
                   );

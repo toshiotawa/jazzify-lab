@@ -49,8 +49,16 @@ const createCheckout = async (params: {
 }): Promise<string> => {
   const apiKey = ensureEnv('LEMONSQUEEZY_API_KEY');
   const storeId = ensureEnv('LEMONSQUEEZY_STORE_ID');
-  const trialVariantId = process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL || '';
-  const normalVariantId = ensureEnv('LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL');
+  const trialVariantId =
+    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM_TRIAL ||
+    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL_TRIAL ||
+    '';
+  const normalVariantId =
+    process.env.LEMONSQUEEZY_VARIANT_ID_PREMIUM ||
+    process.env.LEMONSQUEEZY_VARIANT_ID_STANDARD_GLOBAL;
+  if (!normalVariantId) {
+    throw new Error('Missing environment variable: LEMONSQUEEZY_VARIANT_ID_PREMIUM');
+  }
   const variantId = (params.trial && trialVariantId) ? trialVariantId : normalVariantId;
 
   const siteUrl = ensureEnv('SITE_URL');
@@ -200,7 +208,7 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const userEmail = auth.data.user.email ?? auth.data.user.user_metadata?.email ?? '';
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('email, rank, country, lemon_customer_id, lemon_trial_used')
+      .select('email, rank, lemon_customer_id, lemon_trial_used')
       .eq('id', userId)
       .single();
 
@@ -211,12 +219,6 @@ export const handler = async (event: NetlifyEvent, _context: NetlifyContext) => 
     const email = (profile.email ?? userEmail ?? '').trim();
     if (!email) {
       return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Email is required for checkout. Please set your email in account settings.' }) };
-    }
-
-    const isJapan = profile.country === 'JP';
-    if (isJapan) {
-      // 日本ユーザーは既存（Stripe）フローを利用
-      return { statusCode: 400, headers: responseHeaders, body: JSON.stringify({ error: 'Global checkout is not available for JP users' }) };
     }
 
     const hasSubscription = profile.rank && profile.rank !== 'free';

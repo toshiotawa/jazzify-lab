@@ -3,6 +3,8 @@ import { immer } from 'zustand/middleware/immer';
 import { Session, User } from '@supabase/supabase-js';
 import { getSupabaseClient, fetchWithCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useUserStatsStore } from './userStatsStore';
+import { persistPreferredLocale, resolveAudienceLocale } from '@/utils/globalAudience';
+import { normalizeMembershipTier } from '@/utils/membership';
 
 interface AuthState {
   user: User | null;
@@ -32,6 +34,7 @@ interface AuthState {
     selected_title?: string | null;
     next_season_xp_multiplier?: number;
     country?: string | null;
+    preferred_locale?: 'ja' | 'en' | null;
     // Stripe subscription fields
     stripe_customer_id?: string;
     will_cancel?: boolean;
@@ -494,7 +497,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           cacheKey,
           async () => await supabase
             .from('profiles')
-            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
+            .select('nickname, rank, level, xp, is_admin, avatar_url, bio, twitter_handle, next_season_xp_multiplier, selected_title, stripe_customer_id, will_cancel, cancel_date, downgrade_to, downgrade_date, stripe_trial_start, stripe_trial_end, email, country, preferred_locale, lemon_customer_id, lemon_subscription_id, lemon_subscription_status, lemon_trial_used')
             .eq('id', user.id)
             .maybeSingle(),
           1000 * 60 * 5
@@ -509,13 +512,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           if (data && !error) {
             state.profile = {
               nickname: data.nickname,
-              rank: data.rank,
+              rank: normalizeMembershipTier(data.rank),
               level: data.level,
               xp: data.xp,
               isAdmin: data.is_admin,
               id: user.id,
               email: data.email || user.email,
               country: data.country || null,
+              preferred_locale: data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null,
               avatar_url: data.avatar_url,
               bio: data.bio,
               twitter_handle: data.twitter_handle,
@@ -533,6 +537,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
               lemon_subscription_status: data.lemon_subscription_status ?? null,
               lemon_trial_used: data.lemon_trial_used ?? null,
             };
+            persistPreferredLocale(data.preferred_locale === 'en' ? 'en' : data.preferred_locale === 'ja' ? 'ja' : null);
           } else {
             state.profile = null;
           }
@@ -576,7 +581,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-         createProfile: async (nickname, agreed, country) => {
+         createProfile: async (nickname, agreed, _country) => {
       if (!agreed) {
         set(state => {
           state.error = '利用規約に同意してください';
@@ -626,7 +631,7 @@ export const useAuthStore = create<AuthState & AuthActions>()(
            xp: 0,
            level: 1,
            is_admin: false,
-           country: country === 'JP' ? 'JP' : country ? String(country) : null,
+           preferred_locale: resolveAudienceLocale(),
          });
         
         if (error) {

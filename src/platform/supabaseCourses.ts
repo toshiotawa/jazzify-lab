@@ -219,24 +219,15 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
 }
 
 /**
- * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限、管理者アンロックを含む）
- * @param {Course} course
- * @param {string} userRank
- * @param {string[]} completedCourseIds
- * @param {boolean} isUnlocked user_course_progressのis_unlockedフラグ
- * @returns {object} { canAccess: boolean, reason?: string, manualUnlockApplied?: boolean, manualUnlockSuppressed?: boolean, manualLockApplied?: boolean, prerequisitesMet: boolean, rankAllows: boolean, requiresPremium: boolean }
+ * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限）
  */
 export function canAccessCourse(
   course: Course, 
   userRank: MembershipRank, 
   completedCourseIds: string[] = [],
-  isUnlocked: boolean | null = null
 ): {
   canAccess: boolean;
   reason?: string;
-  manualUnlockApplied?: boolean;
-  manualUnlockSuppressed?: boolean;
-  manualLockApplied?: boolean;
   prerequisitesMet: boolean;
   rankAllows: boolean;
   requiresPremium: boolean;
@@ -245,15 +236,11 @@ export function canAccessCourse(
     course,
     userRank,
     completedCourseIds,
-    manualOverride: isUnlocked,
   });
 
   return {
     canAccess: result.canAccess,
     reason: result.reason,
-    manualUnlockApplied: result.manualUnlockApplied,
-    manualUnlockSuppressed: result.manualUnlockSuppressed,
-    manualLockApplied: result.manualLockApplied,
     prerequisitesMet: result.prerequisitesMet,
     rankAllows: result.rankAllows,
     requiresPremium: result.requiresPremium,

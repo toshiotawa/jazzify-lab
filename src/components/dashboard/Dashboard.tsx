@@ -7,36 +7,17 @@ import { mdToHtml } from '@/utils/markdown';
 import { 
   FaBell, 
   FaExternalLinkAlt, 
-  FaTrophy, 
-  FaCalendarAlt,
-  FaMusic,
-  FaArrowLeft,
-  FaBullseye,
-  FaUser,
-  FaCrown,
-  FaGraduationCap,
   FaGem,
-  FaStar,
   FaMedal,
-  FaMagic,
-  FaHatWizard,
-  FaList,
-  FaEdit,
-  FaSkull,
-  FaGuitar
 } from 'react-icons/fa';
-import { FaUsers } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-// xpToNextLevel, currentLevelXP は未使用
-import { calcLevel } from '@/platform/supabaseXp';
+import { getMembershipLabel } from '@/utils/membership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
-import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZARD_TITLES, getTitleRequirement } from '@/utils/titleConstants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 import TutorialProgressSection from '@/components/dashboard/TutorialProgressSection';
-import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
 
 /**
  * ダッシュボード画面
@@ -48,26 +29,21 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
     const { profile, isGuest, logout, optimisticAvatarUrl } = useAuthStore();
     const geoCountry = useGeoStore(state => state.country);
-    const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+    const isEnglishCopy = shouldUseEnglishCopy({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale ?? null,
+    });
   const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
   const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
   const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';
-  const totalXpLabel = isEnglishCopy ? 'Total XP' : '累計経験値';
   const statsLoadingText = isEnglishCopy ? 'Loading stats...' : '統計を読み込み中...';
-  const xpProgressLabel = isEnglishCopy ? 'XP to next level' : '次レベルまで';
-  const fantasyQuickTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
-  const fantasyQuickDescription = isEnglishCopy ? 'RPG-style chord practice game' : 'RPG風のコード練習ゲーム';
-  const legendQuickTitle = isEnglishCopy ? 'Legend Mode' : 'レジェンドモード';
-  const legendQuickDescription = isEnglishCopy ? 'Practice with real songs' : '楽曲を選んで練習を開始';
-  const survivalQuickTitle = isEnglishCopy ? 'Survival Mode' : 'サバイバルモード';
-  const survivalQuickDescription = isEnglishCopy ? 'Survive as long as you can!' : '生存時間を競うサバイバル';
   const guestHeading = isEnglishCopy ? 'Guest mode' : 'ゲストプレイ中';
   const guestBodyLine1 = isEnglishCopy ? 'You are currently playing as a guest.' : '現在ゲストとしてプレイしています。';
   const guestBodyLine2 = isEnglishCopy ? 'Sign in to unlock more features.' : 'ログインすると、より多くの機能をご利用いただけます。';
   const guestFantasyButton = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
   const guestLoginButton = isEnglishCopy ? 'Log in / Sign up' : 'ログイン / 会員登録';
   const guestLogoutButton = isEnglishCopy ? 'Log out' : 'ログアウト';
-  const isStandardGlobal = profile?.rank === 'standard_global';
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
 
@@ -100,7 +76,7 @@ const Dashboard: React.FC = () => {
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
         promises.push(
-          fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default').then(announcementsData => {
+          fetchActiveAnnouncements('default').then(announcementsData => {
             // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
             const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
               // まず優先度で比較
@@ -166,67 +142,18 @@ const Dashboard: React.FC = () => {
     window.location.hash = '';
   };
 
-  // 称号の種類を判定する関数
-    const getTitleType = (title: string): 'level' | 'mission' | 'lesson' | 'wizard' => {
-    // レベル称号の判定
-    if (TITLES.includes(title as any)) {
-      return 'level';
-    }
-    // ミッション称号の判定
-    if (MISSION_TITLES.some(mt => mt.name === title)) {
-      return 'mission';
-    }
-    // レッスン称号の判定
-    if (LESSON_TITLES.some(lt => lt.name === title)) {
-      return 'lesson';
-    }
-    // 魔法使い称号の判定
-    if (WIZARD_TITLES.includes(title as any)) {
-      return 'wizard';
-    }
-    // デフォルトはレベル称号
-    return 'level';
-  };
-
-  // 称号タイプに応じたアイコンを取得する関数
-  const getTitleIcon = (title: string) => {
-    const titleType = getTitleType(title);
-    switch (titleType) {
-      case 'level':
-        return <FaCrown className="text-yellow-400 text-sm" />;
-      case 'mission':
-        return <FaTrophy className="text-purple-400 text-sm" />;
-      case 'lesson':
-        return <FaGraduationCap className="text-blue-400 text-sm" />;
-      case 'wizard':
-        return <FaHatWizard className="text-green-400 text-sm" />;
-      default:
-        return <FaCrown className="text-yellow-400 text-sm" />;
-    }
-  };
-
   // ランクに応じたアイコンを取得する関数
     const getRankIcon = (rank: string) => {
 
       switch (rank.toLowerCase()) {
-        case 'black':
-          return <FaCrown className="text-slate-200 text-lg" />;
-        case 'platinum':
-          return <FaCrown className="text-purple-400 text-lg" />;
         case 'premium':
           return <FaGem className="text-yellow-400 text-lg" />;
-        case 'standard':
-        case 'standard_global':
-          return <FaStar className="text-blue-400 text-sm" />;
         case 'free':
         default:
           return <FaMedal className="text-gray-400 text-sm" />;
       }
     };
 
-
-  const [hoveredTitle, setHoveredTitle] = useState<boolean>(false);
-  const [clickedTitle, setClickedTitle] = useState<boolean>(false);
 
   if (!open) return null;
 
@@ -288,50 +215,20 @@ const Dashboard: React.FC = () => {
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{profile.nickname}</h2>
                   
-                  {/* 称号表示（standard_globalは非表示） */}
-                  {!isStandardGlobal && (
-                  <div className="relative mb-2">
-                    <div 
-                      className="flex items-center space-x-2 cursor-help max-w-full"
-                      onMouseEnter={()=>setHoveredTitle(true)}
-                      onMouseLeave={()=>setHoveredTitle(false)}
-                      onClick={(e)=>{ e.stopPropagation(); setClickedTitle(v=>!v); }}
-                    >
-                      {getTitleIcon((profile.selected_title as Title) || DEFAULT_TITLE)}
-                      <span className="text-yellow-400 font-medium text-sm truncate max-w-[240px]">
-                        {translateTitle((profile.selected_title as Title) || DEFAULT_TITLE, isEnglishCopy)}
-                      </span>
-                    </div>
-                    {(hoveredTitle || clickedTitle) && (
-                      <div 
-                        className="absolute z-50 bg-gray-900 text-white text-xs p-2 rounded shadow-lg whitespace-nowrap"
-                        style={{ bottom: '100%', left: '0', marginBottom: '4px' }}
-                      >
-                        {translateTitleRequirement(getTitleRequirement((profile.selected_title as Title) || DEFAULT_TITLE), isEnglishCopy)}
-                        <div className="absolute w-0 h-0 border-l-4 border-r-4 border-t-4 border-transparent border-t-gray-900" style={{ bottom: '-4px', left: '12px' }} />
-                      </div>
-                    )}
-                  </div>
-                  )}
-                  
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
-                    <span>Lv.{profile.level}</span>
                     <div className="flex items-center space-x-1">
                       {getRankIcon(profile.rank)}
-                      <span className="capitalize">{profile.rank}</span>
+                      <span>{getMembershipLabel(profile.rank, isEnglishCopy ? 'en' : 'ja')}</span>
                     </div>
-                      <span>{totalXpLabel} {profile.xp.toLocaleString()}</span>
                   </div>
                   
-                  {/* ミッション・レッスン統計 */}
                   {statsLoading ? (
                       <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
                         <span className="animate-pulse">{statsLoadingText}</span>
                       </div>
                   ) : userStats ? (
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
-                      <span>{isEnglishCopy ? 'Missions completed' : 'ミッション完了数'} {userStats.missionCompletedCount}</span>
-                      {!isStandardGlobal && (<span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>)}
+                      <span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>
                       <span>{isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'} {userStats.dailyChallengeParticipationDays}</span>
                       {userStats.survivalBestTimeSeconds > 0 && (
                         <span>
@@ -340,27 +237,6 @@ const Dashboard: React.FC = () => {
                       )}
                     </div>
                   ) : null}
-                  
-                  {/* 経験値進捗 */}
-                  <div className="mt-4">
-                    {(() => {
-                      const levelInfo = calcLevel(profile.xp);
-                      return (
-                        <>
-                          <div className="flex justify-between text-sm text-gray-400 mb-1">
-                            <span>{levelInfo.remainder.toLocaleString()} / {levelInfo.nextLevelXp.toLocaleString()}</span>
-                              <span>{xpProgressLabel}: {(levelInfo.nextLevelXp - levelInfo.remainder).toLocaleString()}</span>
-                          </div>
-                          <div className="bg-slate-700 h-2 rounded overflow-hidden">
-                            <div 
-                              className="bg-blue-500 h-full transition-all"
-                              style={{ width: `${(levelInfo.remainder / levelInfo.nextLevelXp) * 100}%` }}
-                            />
-                          </div>
-                        </>
-                      );
-                    })()}
-                  </div>
                 </div>
               </div>
             </div>
@@ -416,114 +292,6 @@ const Dashboard: React.FC = () => {
                     </div>
                   )}
                 </div>
-              </div>
-
-              {/* クイックアクション */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {/* 今日のミッション */}
-                <button
-                  onClick={() => { window.location.hash = '#missions'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaBullseye className="w-6 h-6 text-orange-400" />
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Missions' : 'ミッション'}</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    {isEnglishCopy ? 'Complete missions and earn XP' : 'ミッションに挑戦して経験値を獲得しよう'}
-                  </p>
-                </button>
-
-                {/* レジェンドモード（全プラン共通） */}
-                <button
-                  onClick={() => { window.location.hash = '#songs'; }}
-                  className="bg-gradient-to-br from-green-800 to-emerald-800 rounded-lg p-6 border border-green-600 hover:border-green-400 transition-colors text-left relative overflow-hidden"
-                >
-                  <div className="flex items-center space-x-3 mb-3 relative z-10">
-                    <FaMusic className="w-6 h-6 text-green-300" />
-                    <h3 className="text-lg font-semibold text-white">{legendQuickTitle}</h3>
-                  </div>
-                  <p className="text-sm text-green-100 relative z-10">
-                    {legendQuickDescription}
-                  </p>
-                </button>
-
-                {/* レッスン */}
-                <button
-                  onClick={() => { window.location.hash = '#lessons'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaTrophy className="w-6 h-6 text-purple-400" />
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Lessons' : 'レッスン'}</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    {isEnglishCopy ? 'Learn jazz theory' : 'ジャズ理論を学習'}
-                  </p>
-                </button>
-
-                {/* ランキング */}
-                {!isStandardGlobal && (
-                <button
-                  onClick={() => { window.location.hash = '#ranking'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaList className="w-6 h-6 text-yellow-400" />
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Ranking' : 'ランキング'}</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    {isEnglishCopy ? 'Check everyone\'s scores' : 'みんなの成績をチェック'}
-                  </p>
-                </button>
-                )}
-
-                {/* 日記 */}
-                {!isStandardGlobal && (
-                <button
-                  onClick={() => { window.location.hash = '#diary'; }}
-                  className="bg-slate-800 rounded-lg p-6 border border-slate-700 hover:border-primary-500 transition-colors text-left"
-                >
-                  <div className="flex items-center space-x-3 mb-3">
-                    <FaEdit className="w-6 h-6 text-pink-400" />
-                    <h3 className="text-lg font-semibold">{isEnglishCopy ? 'Diary' : '日記'}</h3>
-                  </div>
-                  <p className="text-sm text-gray-400">
-                    {isEnglishCopy ? 'Record today\'s practice' : '今日の練習を記録'}
-                  </p>
-                </button>
-                )}
-
-                  {/* ファンタジーモード */}
-                  <button
-                    onClick={() => { window.location.hash = '#fantasy'; }}
-                    className="bg-gradient-to-br from-purple-800 to-pink-800 rounded-lg p-6 border border-purple-600 hover:border-purple-400 transition-colors text-left relative overflow-hidden"
-                  >
-                    <div className="absolute top-0 right-0 opacity-20">
-                      <img src="/default_avater/default-avater.png" alt={fantasyQuickTitle} className="w-24 h-24" />
-                    </div>
-                    <div className="flex items-center space-x-3 mb-3 relative z-10">
-                      <FaMagic className="w-6 h-6 text-yellow-400" />
-                      <h3 className="text-lg font-semibold text-white">{fantasyQuickTitle}</h3>
-                    </div>
-                    <p className="text-sm text-purple-100 relative z-10">
-                      {fantasyQuickDescription}
-                    </p>
-                  </button>
-
-                  {/* サバイバルモード */}
-                  <button
-                    onClick={() => { window.location.hash = '#survival'; }}
-                    className="bg-gradient-to-br from-red-800 to-orange-800 rounded-lg p-6 border border-red-600 hover:border-red-400 transition-colors text-left relative overflow-hidden"
-                  >
-                    <div className="flex items-center space-x-3 mb-3 relative z-10">
-                      <FaSkull className="w-6 h-6 text-red-300" />
-                      <h3 className="text-lg font-semibold text-white">{survivalQuickTitle}</h3>
-                    </div>
-                    <p className="text-sm text-red-100 relative z-10">
-                      {survivalQuickDescription}
-                    </p>
-                  </button>
               </div>
 
               {/* 記録（デイリーチャレンジ） */}

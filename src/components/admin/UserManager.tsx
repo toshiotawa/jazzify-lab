@@ -397,8 +397,6 @@ const UserManager: React.FC = () => {
       isCompleted: blockState?.isCompleted ?? false,
       completedCount,
       totalCount: blockLessons.length,
-      manualUnlockApplied: blockState?.manualUnlockApplied ?? false,
-      manualUnlockSuppressed: blockState?.manualUnlockSuppressed ?? false,
     };
   };
 
@@ -674,12 +672,6 @@ const UserManager: React.FC = () => {
                                   </div>
                                 )}
 
-                                  {blockStatus.manualUnlockApplied && (
-                                    <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                                      <FaUnlock className="text-[10px]" />
-                                      手動解放
-                                    </span>
-                                  )}
                               </div>
                               
                               {/* ブロック進捗 */}

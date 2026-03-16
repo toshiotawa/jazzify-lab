@@ -3,59 +3,40 @@ import { useAuthStore } from '@/stores/authStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { getMembershipLabel, normalizeMembershipTier } from '@/utils/membership';
 
 // オープンベータ用の簡易プラン変更UI
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
-type Rank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
-
-const RANK_DISPLAY_NAMES: Record<Rank, { ja: string; en: string }> = {
-  free: { ja: 'フリー', en: 'Free' },
-  standard: { ja: 'スタンダード', en: 'Standard' },
-  standard_global: { ja: 'スタンダード（グローバル）', en: 'Standard (Global)' },
-  premium: { ja: 'プレミアム', en: 'Premium' },
-  platinum: { ja: 'プラチナ', en: 'Platinum' },
-  black: { ja: 'ブラック', en: 'Black' },
-};
+type Rank = 'free' | 'premium';
 
 const OpenBetaPlanSwitcher: React.FC = () => {
   const { profile } = useAuthStore();
   const toast = useToast();
   const [updating, setUpdating] = useState(false);
-  const [selected, setSelected] = useState<Rank>(profile?.rank || 'free');
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country });
+  const [selected, setSelected] = useState<Rank>(normalizeMembershipTier(profile?.rank));
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
 
     const isRank = (value: string): value is Rank => (
       value === 'free' ||
-      value === 'standard' ||
-      value === 'standard_global' ||
-      value === 'premium' ||
-      value === 'platinum' ||
-      value === 'black'
+      value === 'premium'
     );
 
     const availablePlans = useMemo((): Array<{ value: Rank; label: string }> => {
-    const isJapan = (profile?.country || '').toUpperCase() === 'JP' || (profile?.country || '').toLowerCase() === 'japan';
-
-      if (isJapan) {
-        return [
-          { value: 'free', label: 'フリー' },
-          { value: 'standard', label: 'スタンダード' },
-          { value: 'premium', label: 'プレミアム' },
-          { value: 'platinum', label: 'プラチナ' },
-          { value: 'black', label: 'ブラック' },
-        ];
-      }
-
-  return [
-        { value: 'free', label: isEnglishCopy ? 'Free' : 'フリー' },
-        { value: 'standard_global', label: isEnglishCopy ? 'Standard (Global)' : 'スタンダード（グローバル）' },
-    ];
-    }, [profile?.country, isEnglishCopy]);
+      const locale = isEnglishCopy ? 'en' : 'ja';
+      return [
+        { value: 'free', label: getMembershipLabel('free', locale) },
+        { value: 'premium', label: getMembershipLabel('premium', locale) },
+      ];
+    }, [isEnglishCopy]);
 
   // プロフィールのrankが変わったらセレクトを同期
   useEffect(() => {
-    if (profile?.rank && isRank(profile.rank)) {
-      setSelected(profile.rank);
+    if (profile?.rank) {
+      setSelected(normalizeMembershipTier(profile.rank));
     }
   }, [profile?.rank]);
 
@@ -106,7 +87,7 @@ const OpenBetaPlanSwitcher: React.FC = () => {
           <h3 className="text-lg font-semibold text-white">{isEnglishCopy ? 'Open Beta: Change plan' : 'オープンベータ: プラン変更'}</h3>
         {profile?.rank && (
           <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-gray-300">
-              {isEnglishCopy ? 'Current' : '現在'}: {isRank(profile.rank) ? (isEnglishCopy ? RANK_DISPLAY_NAMES[profile.rank].en : RANK_DISPLAY_NAMES[profile.rank].ja) : profile.rank}
+              {isEnglishCopy ? 'Current' : '現在'}: {getMembershipLabel(profile.rank, isEnglishCopy ? 'en' : 'ja')}
           </span>
         )}
       </div>

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
-import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { Navigate, useLocation } from 'react-router-dom';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -25,7 +24,11 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     location.pathname === '/login' ||
     location.pathname === '/signup' ||
     location.pathname === '/login/verify-otp';
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: authProfile?.rank, country: authProfile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: authProfile?.rank,
+    country: authProfile?.country ?? geoCountry,
+    preferredLocale: authProfile?.preferred_locale ?? null,
+  });
   const locale: TermsLocale = isEnglishCopy ? 'en' : 'ja';
   const termsContent = getTermsContent(locale);
   const loadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
@@ -91,7 +94,6 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
           onRetry={fetchProfile}
           isEnglishCopy={isEnglishCopy}
           termsContent={termsContent}
-          locale={locale}
         />
       );
   }
@@ -114,22 +116,15 @@ interface AccountModalProps {
   onRetry: () => Promise<void>;
   isEnglishCopy: boolean;
   termsContent: ReturnType<typeof getTermsContent>;
-  locale: TermsLocale;
 }
 
-const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent, locale }) => {
+const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent }) => {
   const [nickname, setNickname] = useState('');
   const [agreed, setAgreed] = useState(false);
-  const [country, setCountry] = useState<string>(() => localStorage.getItem('signup_country') || 'JP');
   const [submitting, setSubmitting] = useState(false);
-  const countryLocale = locale === 'ja' ? 'ja' : 'en';
   const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
   const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
   const nicknamePlaceholder = isEnglishCopy ? 'Nickname (required)' : 'ニックネーム（必須）';
-  const countryLabel = isEnglishCopy ? 'Country' : '国';
-  const countryHelper = isEnglishCopy
-    ? 'Choosing the wrong country may change available payment methods.'
-    : '※ 国を誤って選ぶと支払い方法が変わります';
   const summaryUpdatedLabel = isEnglishCopy ? 'Last updated:' : '最終更新日:';
   const existingProfileButton = isEnglishCopy ? 'Start the game' : 'ゲームを開始';
   const registerButtonLabel = isEnglishCopy ? 'Create profile' : '登録して開始';
@@ -147,7 +142,7 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
 
     setSubmitting(true);
     try {
-      await onSubmit(nickname.trim(), agreed, country);
+      await onSubmit(nickname.trim(), agreed);
     } finally {
       setSubmitting(false);
     }
@@ -193,23 +188,6 @@ const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error
                 className="w-full px-4 py-2 rounded bg-slate-700 focus:outline-none focus:ring-2 focus:ring-blue-500"
                 disabled={submitting}
               />
-              <div className="space-y-2">
-                  <label className="block text-sm">{countryLabel}</label>
-                <select
-                  className="select select-bordered w-full"
-                  value={country}
-                  onChange={e => {
-                    setCountry(e.target.value);
-                    localStorage.setItem('signup_country', e.target.value);
-                  }}
-                  disabled={submitting}
-                >
-                    {getSortedCountryCodes(countryLocale).map(c => (
-                      <option key={c} value={c}>{getCountryLabel(c, countryLocale)}</option>
-                  ))}
-                </select>
-                  <p className="text-xs text-orange-300">{countryHelper}</p>
-              </div>
               <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2">
                 <div className="flex items-baseline justify-between">
                     <p className="text-sm font-semibold text-white">{termsSummaryHeading}</p>

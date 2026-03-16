@@ -38,11 +38,7 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
   const getExpectedXp = () => {
     if (!profile) return 5000;
     const baseXp = 5000;
-    const multiplier = profile.rank === 'premium'
-      ? 1.5
-      : profile.rank === 'platinum' || profile.rank === 'black'
-        ? 2
-        : 1;
+    const multiplier = profile.rank === 'free' ? 1 : 1.5;
     return Math.round(baseXp * multiplier);
   };
 

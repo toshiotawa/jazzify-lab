@@ -10,7 +10,6 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
-import { addXp } from '@/platform/supabaseXp';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 import { StageDefinition, TOTAL_STAGES, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
 
@@ -25,7 +24,6 @@ interface SurvivalGameOverProps {
   finalWave?: number;
   stageDefinition?: StageDefinition;
   isLessonMode?: boolean;
-  isMissionMode?: boolean;
   hintMode?: boolean;
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
@@ -51,7 +49,6 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   finalWave,
   stageDefinition,
   isLessonMode = false,
-  isMissionMode = false,
   hintMode = false,
   onRetryWithHint,
   onRetryWithoutHint,
@@ -61,7 +58,6 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
-  const [xpAdded, setXpAdded] = useState(false);
   const [stageSaved, setStageSaved] = useState(false);
 
   const isStageMode = !!stageDefinition;
@@ -74,7 +70,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
 
       if (!profile || isGuest) return;
 
-      if (isStageClear && !stageSaved && !isLessonMode && !isMissionMode) {
+      if (isStageClear && !stageSaved && !isLessonMode) {
         try {
           await upsertSurvivalStageClear(
             profile.id,
@@ -109,30 +105,10 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
         }
       }
 
-      if (!xpAdded && result.earnedXp > 0) {
-        try {
-          const reason = stageDefinition
-            ? `survival_stage_${stageDefinition.stageNumber}_${isStageClear ? 'clear' : 'fail'}`
-            : `survival_${difficulty}_${Math.floor(survivalTime / 60)}min`;
-          await addXp({
-            songId: null,
-            baseXp: result.earnedXp,
-            speedMultiplier: 1,
-            rankMultiplier: 1,
-            transposeMultiplier: 1,
-            membershipMultiplier: 1,
-            reason,
-          });
-          setXpAdded(true);
-          await fetchProfile({ forceRefresh: true });
-        } catch {
-          // XP付与失敗
-        }
-      }
     };
 
     saveResults();
-  }, [profile, isGuest, difficulty, result, xpAdded, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
+  }, [profile, isGuest, difficulty, result, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
 
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);
@@ -379,23 +355,6 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
           </div>
         )}
 
-        {/* 獲得経験値 */}
-        <div className="bg-gradient-to-r from-yellow-900/40 to-orange-900/40 rounded-xl p-3 border border-yellow-500/30 mb-4">
-          <div className="flex items-center justify-between">
-            <div className="text-sm text-yellow-300 font-sans">
-              ✨ {isEnglishCopy ? 'Earned XP' : '獲得経験値'}
-            </div>
-            <div className="text-2xl font-bold text-yellow-400 font-sans">
-              +{result.earnedXp} XP
-            </div>
-          </div>
-          <div className="text-xs text-gray-400 mt-1">
-            {isEnglishCopy
-              ? `(${Math.floor(result.survivalTime / 60)} minutes × 2,000 XP)`
-              : `(${Math.floor(result.survivalTime / 60)}分 × 2,000 XP)`}
-          </div>
-        </div>
-
         {/* アクションボタン */}
         <div className="flex flex-col gap-2">
           {isStageMode ? (
@@ -414,9 +373,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   >
                     {isLessonMode
                       ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
-                      : isMissionMode
-                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : isStageClear && !onNextStage ? (
@@ -426,9 +383,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                 >
                   {isLessonMode
                     ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
-                    : isMissionMode
-                      ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                    : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                 </button>
               ) : isStageClearHint && onRetryWithoutHint ? (
                 <>
@@ -444,9 +399,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   >
                     {isLessonMode
                       ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
-                      : isMissionMode
-                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : !hintMode && !isStageClear && !isStageClearHint && onRetryWithHint ? (
@@ -469,9 +422,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   >
                     {isLessonMode
                       ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
-                      : isMissionMode
-                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               ) : (
@@ -488,9 +439,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   >
                     {isLessonMode
                       ? (isEnglishCopy ? 'Back to Lesson' : 'レッスンに戻る')
-                      : isMissionMode
-                        ? (isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る')
-                        : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
+                      : (isEnglishCopy ? 'Stage Select' : 'ステージ選択')}
                   </button>
                 </>
               )}

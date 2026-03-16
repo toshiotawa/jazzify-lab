@@ -241,7 +241,7 @@ const MissionRanking: React.FC = () => {
                         </td>
                         <td className="py-4 px-4">
                           <button
-                            onClick={() => {window.location.hash = `#diary-user?id=${entry.user_id}`;}}
+                            onClick={() => {}}
                             className="flex items-center space-x-3 min-w-0 w-full text-blue-400 hover:text-blue-300 hover:underline transition-colors"
                           >
                             <img 

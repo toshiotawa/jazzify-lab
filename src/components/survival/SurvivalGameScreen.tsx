@@ -219,7 +219,6 @@ interface SurvivalGameScreenProps {
   onLessonStageClear?: () => void;
   onMissionStageClear?: () => void;
   isLessonMode?: boolean;
-  isMissionMode?: boolean;
   hintMode?: boolean;
   onRetryWithHint?: () => void;
   onRetryWithoutHint?: () => void;
@@ -239,7 +238,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   onLessonStageClear,
   onMissionStageClear,
   isLessonMode = false,
-  isMissionMode = false,
   hintMode = false,
   onRetryWithHint,
   onRetryWithoutHint,
@@ -3355,7 +3353,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           finalWave={gameState.wave.currentWave}
           stageDefinition={stageDefinition}
           isLessonMode={isLessonMode}
-          isMissionMode={isMissionMode}
           hintMode={hintMode}
           onRetryWithHint={onRetryWithHint}
           onRetryWithoutHint={onRetryWithoutHint}

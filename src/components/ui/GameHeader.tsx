@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import { useAuthStore } from '@/stores/authStore';
-import { useGameActions } from '@/stores/helpers';
-import NotificationBell from '@/components/ui/NotificationBell';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaUserCircle } from 'react-icons/fa';
@@ -11,11 +9,13 @@ import { FaUserCircle } from 'react-icons/fa';
  * GameScreen だけでなくマイページやアカウントページでも再利用する。
  */
 const GameHeader: React.FC = () => {
-    const gameActions = useGameActions();
       const { isGuest, profile } = useAuthStore();
       const geoCountry = useGeoStore(state => state.country);
-      const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
-  const isStandardGlobal = profile?.rank === 'standard_global';
+      const isEnglishCopy = shouldUseEnglishCopy({
+        rank: profile?.rank,
+        country: profile?.country ?? geoCountry,
+        preferredLocale: profile?.preferred_locale ?? null,
+      });
   const isFree = profile?.rank === 'free';
 
   return (
@@ -33,26 +33,7 @@ const GameHeader: React.FC = () => {
               {isEnglishCopy ? 'Home' : 'トップ'}
           </button>
 
-            {!isStandardGlobal && !isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
-            {!isFree && <HashButton hash="#fantasy">{isEnglishCopy ? 'Fantasy' : 'ファンタジー'}</HashButton>}
-            {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
-
-          {!isFree && (
-            <HashButton
-              hash="#songs"
-              onClick={() => {
-                gameActions.setCurrentTab?.('songs');
-              }}
-              disabled={isGuest}
-            >
-                {isEnglishCopy ? 'Legend' : 'レジェンド'}
-            </HashButton>
-          )}
-
-            {!isFree && <HashButton hash="#ranking" disabled={isGuest}>{isEnglishCopy ? 'Ranking' : 'ランキング'}</HashButton>}
-            {!isFree && <HashButton hash="#missions" disabled={isGuest}>{isEnglishCopy ? 'Missions' : 'ミッション'}</HashButton>}
-            {!isStandardGlobal && !isFree && <HashButton hash="#diary" disabled={isGuest}>{isEnglishCopy ? 'Diary' : '日記'}</HashButton>}
-            {!isFree && <HashButton hash="#information" disabled={isGuest}>{isEnglishCopy ? 'Updates' : 'お知らせ'}</HashButton>}
+            {!isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
         </div>
 
           {/* 右側のコントロール */}
@@ -108,8 +89,6 @@ const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy
     <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 whitespace-nowrap">
       {user && !isGuest ? (
         <>
-          {/* 通知ベル（アカウントの左） */}
-          <NotificationBell />
           {/* モバイル: アイコンのみ */}
           <a 
             href="#account" 

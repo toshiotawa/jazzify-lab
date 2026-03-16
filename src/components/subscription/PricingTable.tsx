@@ -1,26 +1,9 @@
 import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useGeoStore } from '@/stores/geoStore';
 
-interface PlanPrice {
-  monthly: string;
-}
-
-const PLAN_PRICES: Record<'standard' | 'premium' | 'platinum' | 'black', PlanPrice> = {
-  standard: {
-    monthly: import.meta.env.VITE_STRIPE_STANDARD_MONTHLY_PRICE_ID || '',
-  },
-  premium: {
-    monthly: import.meta.env.VITE_STRIPE_PREMIUM_MONTHLY_PRICE_ID || '',
-  },
-  platinum: {
-    monthly: import.meta.env.VITE_STRIPE_PLATINUM_MONTHLY_PRICE_ID || '',
-  },
-  black: {
-    monthly: import.meta.env.VITE_STRIPE_BLACK_MONTHLY_PRICE_ID || '',
-  },
-};
-
-type PlanKey = 'free' | 'standard' | 'premium' | 'platinum' | 'black';
+type PlanKey = 'free' | 'premium';
 
 interface PlanColumn {
   key: PlanKey;
@@ -35,42 +18,19 @@ interface PlanColumn {
 const PLANS: PlanColumn[] = [
   {
     key: 'free',
-    name: 'フリー',
+    name: 'Free',
     price: '¥0',
     priceSuffix: '',
     headerClass: 'bg-slate-800',
   },
   {
-    key: 'standard',
-    name: 'スタンダード',
-    price: '¥2,980',
-    priceSuffix: '/月',
-    headerClass: 'bg-slate-800',
-  },
-  {
     key: 'premium',
-    name: 'プレミアム',
-    price: '¥8,980',
+    name: 'Premium',
+    price: '$19',
     priceSuffix: '/月',
     badge: 'おすすめ',
     badgeClass: 'bg-primary-500 text-white',
     headerClass: 'bg-slate-800 border-t-2 border-primary-500',
-  },
-  {
-    key: 'platinum',
-    name: 'プラチナ',
-    price: '¥14,800',
-    priceSuffix: '/月',
-    headerClass: 'bg-slate-800',
-  },
-  {
-    key: 'black',
-    name: 'ブラック',
-    price: '¥19,800',
-    priceSuffix: '/月',
-    badge: '最上位',
-    badgeClass: 'bg-slate-200 text-black',
-    headerClass: 'bg-gradient-to-br from-slate-900 via-slate-800 to-black',
   },
 ];
 
@@ -82,35 +42,27 @@ interface FeatureRow {
 const FEATURES: FeatureRow[] = [
   {
     label: 'コミュニティ機能\n(日記・ランキング)',
-    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+    values: { free: '×', premium: '○' },
   },
   {
     label: 'ミッション',
-    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+    values: { free: '×', premium: '○' },
   },
   {
     label: 'ファンタジー',
-    values: { free: '×', standard: '○', premium: '○', platinum: '○', black: '○' },
+    values: { free: '×', premium: '○' },
   },
   {
     label: 'レジェンド',
-    values: { free: '×', standard: '5曲', premium: '無制限', platinum: '無制限', black: '無制限' },
+    values: { free: '×', premium: '無制限' },
   },
   {
     label: 'サバイバル',
-    values: { free: '×', standard: '1キャラ', premium: '無制限', platinum: '無制限', black: '無制限' },
+    values: { free: '×', premium: '無制限' },
   },
   {
     label: 'レッスン',
-    values: { free: '×', standard: '1コースのみ', premium: '無制限', platinum: '無制限', black: '無制限' },
-  },
-  {
-    label: 'レッスンブロックの\n手動解放',
-    values: { free: '×', standard: '×', premium: '×', platinum: '月10ブロック', black: '月10ブロック' },
-  },
-  {
-    label: 'LINEでの課題添削',
-    values: { free: '×', standard: '×', premium: '×', platinum: '×', black: '○' },
+    values: { free: '×', premium: '無制限' },
   },
 ];
 
@@ -120,83 +72,57 @@ interface Props {
 
 const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
   const [loading, setLoading] = useState<string | null>(null);
-  const normalizedCountry = profile?.country ? profile.country.trim().toUpperCase() : null;
-  const isJapanUser =
-    !normalizedCountry ||
-    normalizedCountry === 'JP' ||
-    normalizedCountry === 'JPN' ||
-    normalizedCountry === 'JAPAN';
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
 
-  const handlePlanSelect = async (plan: 'standard' | 'premium' | 'platinum' | 'black') => {
+  const plans = PLANS.map(plan => ({
+    ...plan,
+    name:
+      plan.key === 'free'
+        ? (isEnglishCopy ? 'Free' : 'フリー')
+        : (isEnglishCopy ? 'Premium' : 'プレミアム'),
+    priceSuffix:
+      plan.key === 'free'
+        ? ''
+        : (isEnglishCopy ? '/month' : '/月'),
+    badge:
+      plan.key === 'premium'
+        ? (isEnglishCopy ? 'Recommended' : 'おすすめ')
+        : null,
+  }));
+
+  const handlePlanSelect = async (plan: 'premium') => {
     if (!profile) {
-      alert('ログインが必要です');
-      return;
-    }
-
-    if (!isJapanUser) {
-      if (plan !== 'standard') {
-        alert('海外ユーザーはStandard(Global)プランをご利用ください。');
-        return;
-      }
-
-      setLoading(plan);
-      try {
-        const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${useAuthStore.getState().session?.access_token || ''}`,
-          },
-        });
-
-        if (response.ok) {
-          const { url } = await response.json();
-          window.location.href = url;
-        } else {
-          const err = await response.json().catch(() => ({ error: 'グローバルプランの取得に失敗しました', details: '' }));
-          const msg = [err.error, err.details].filter(Boolean).join(': ');
-          alert(msg || 'エラーが発生しました');
-        }
-      } catch (error) {
-        console.error('LemonSqueezy link error:', error);
-        alert('エラーが発生しました');
-      } finally {
-        setLoading(null);
-      }
-      return;
-    }
-
-    const priceId = PLAN_PRICES[plan].monthly;
-    if (!priceId) {
-      alert('プラン情報が正しく設定されていません');
+      alert(isEnglishCopy ? 'You need to log in first.' : 'ログインが必要です');
       return;
     }
 
     setLoading(plan);
 
     try {
-      const response = await fetch('/.netlify/functions/createCheckoutSession', {
+      const response = await fetch('/.netlify/functions/lemonsqueezyResolveLink', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${useAuthStore.getState().session?.access_token || ''}`,
         },
-        body: JSON.stringify({
-          priceId,
-        }),
       });
 
       if (response.ok) {
         const { url } = await response.json();
         window.location.href = url;
       } else {
-        const error = await response.json();
-        alert(`エラー: ${error.error}`);
+        const error = await response.json().catch(() => ({ error: isEnglishCopy ? 'Failed to open checkout' : 'チェックアウトの起動に失敗しました' }));
+        alert(`Error: ${error.error}`);
       }
     } catch (error) {
-      console.error('Checkout session error:', error);
-      alert('エラーが発生しました');
+      console.error('LemonSqueezy checkout error:', error);
+      alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
     } finally {
       setLoading(null);
     }
@@ -217,17 +143,18 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
       <div className="w-full max-w-7xl mx-auto p-6">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-white mb-4">
-            {mode === 'checkout' ? 'プランを選択' : 'プラン比較'}
+            {mode === 'checkout'
+              ? (isEnglishCopy ? 'Choose your plan' : 'プランを選択')
+              : (isEnglishCopy ? 'Plan comparison' : 'プラン比較')}
           </h2>
           <p className="text-gray-300 mb-4">
-            Jazz Learning Gameのプレミアム機能をご利用ください
+            {isEnglishCopy
+              ? 'Unlock all lessons and game modes with Premium.'
+              : 'Premium で全レッスンと全ゲームモードを利用できます。'}
           </p>
-          {!isJapanUser && (
-            <p className="text-sm text-yellow-400 mb-2">
-              ※ Standard(Global) は海外向けの限定機能プランです（本画面からの購入対象外）。
-            </p>
-          )}
-          <div className="text-sm text-green-400">すべての有料プランに7日間（1週間）無料トライアル</div>
+          <div className="text-sm text-green-400">
+            {isEnglishCopy ? '7-day free trial included with Premium.' : 'Premium には7日間の無料トライアルがあります。'}
+          </div>
         </div>
 
         {/* 比較テーブル */}
@@ -239,7 +166,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                 <th className="p-3 text-left bg-slate-900 border border-slate-700 min-w-[140px]">
                   <span className="text-gray-400 text-sm">機能</span>
                 </th>
-                {PLANS.map((plan) => (
+                {plans.map((plan) => (
                   <th
                     key={plan.key}
                     className={`p-4 text-center border border-slate-700 min-w-[130px] ${plan.headerClass}`}
@@ -271,7 +198,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                   <td className="p-3 border border-slate-700 text-sm text-gray-300 font-medium whitespace-pre-line">
                     {feature.label}
                   </td>
-                  {PLANS.map((plan) => (
+                  {plans.map((plan) => (
                     <td
                       key={plan.key}
                       className="p-3 border border-slate-700 text-center"
@@ -295,10 +222,12 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                       ) : (
                         <button
                           className="btn btn-primary btn-sm w-full"
-                          onClick={() => handlePlanSelect(plan.key as 'standard' | 'premium' | 'platinum' | 'black')}
+                          onClick={() => handlePlanSelect(plan.key as 'premium')}
                           disabled={loading === plan.key}
                         >
-                          {loading === plan.key ? '処理中...' : '選択する'}
+                          {loading === plan.key
+                            ? (isEnglishCopy ? 'Processing...' : '処理中...')
+                            : (isEnglishCopy ? 'Select' : '選択する')}
                         </button>
                       )}
                     </td>
@@ -315,7 +244,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               className="btn btn-outline"
               onClick={() => { window.history.back(); }}
             >
-              戻る
+              {isEnglishCopy ? 'Back' : '戻る'}
             </button>
           </div>
         )}

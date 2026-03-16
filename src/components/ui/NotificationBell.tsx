@@ -5,15 +5,20 @@ import { useAuthStore } from '@/stores/authStore';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { isPremiumTier } from '@/utils/membership';
 
 const NotificationBell: React.FC = () => {
   const { user, isGuest, profile } = useAuthStore();
   const { items, unread, open, fetch, setOpen, loading, markRead } = useNotificationStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
 
-  const allowedRank = profile?.rank === 'standard' || profile?.rank === 'standard_global' || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
+  const allowedRank = isPremiumTier(profile?.rank);
   const canShow = !!user && !isGuest && allowedRank;
 
   // 翻訳テキスト

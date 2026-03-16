@@ -44,14 +44,6 @@ const MypagePage: React.FC = () => {
               <span className="text-gray-400 mr-2">ランク:</span>
               <span>{profile.rank}</span>
             </div>
-            <div>
-              <span className="text-gray-400 mr-2">レベル:</span>
-              <span>{profile.level}</span>
-            </div>
-            <div>
-              <span className="text-gray-400 mr-2">累計:</span>
-              <span>{profile.xp}</span>
-            </div>
           </div>
         </div>
       </div>

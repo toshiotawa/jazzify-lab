@@ -1,6 +1,7 @@
 import { getSupabaseClient, fetchWithCache, clearSupabaseCache } from '@/platform/supabaseClient';
 import { requireUserId } from '@/platform/authHelpers';
 import { uploadSongFile, deleteSongFiles } from '@/platform/r2Storage';
+import { normalizeMembershipTier } from '@/utils/membership';
 
 export type SongUsageType = 'general' | 'lesson';
 
@@ -242,11 +243,11 @@ export async function deleteSong(id: string): Promise<void> {
   clearSupabaseCache();
 }
 
-const rankOrder = ['free', 'standard', 'standard_global', 'premium', 'platinum', 'black'] as const;
-export type MembershipRank = typeof rankOrder[number];
+const rankOrder = ['free', 'premium'] as const;
+export type MembershipRank = 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
 
 export function rankAllowed(userRank: MembershipRank, songRank: MembershipRank) {
-  return rankOrder.indexOf(userRank) >= rankOrder.indexOf(songRank);
+  return rankOrder.indexOf(normalizeMembershipTier(userRank)) >= rankOrder.indexOf(normalizeMembershipTier(songRank));
 }
 
 export async function fetchAccessibleSongs(userRank: MembershipRank, usageType?: SongUsageType): Promise<Song[]> {

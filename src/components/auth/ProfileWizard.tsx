@@ -1,7 +1,6 @@
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
-import { getCountryLabel, getSortedCountryCodes } from '@/constants/countries';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -10,11 +9,13 @@ const ProfileWizard: React.FC = () => {
   const { createProfile, hasProfile, error, profile } = useAuthStore();
   const [nickname,setNickname] = useState('');
   const [agreed,setAgreed] = useState(false);
-  const [country, setCountry] = useState<string>('JP');
-  const [loadingGeo, setLoadingGeo] = useState<boolean>(false);
   const toast = useToast();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
   const locale: TermsLocale = isEnglishCopy ? 'en' : 'ja';
   const termsContent = getTermsContent(locale);
   const modalTitle = isEnglishCopy ? 'Complete Your Profile' : 'プロフィール登録';
@@ -22,10 +23,6 @@ const ProfileWizard: React.FC = () => {
   const nicknameRequiredToast = isEnglishCopy ? 'Please enter a nickname.' : 'ニックネームを入力してください';
   const termsAgreementToast = isEnglishCopy ? 'Please agree to the Terms of Service.' : '利用規約に同意してください';
   const profileCreatedToast = isEnglishCopy ? 'Profile created.' : 'プロフィールを作成しました';
-  const countryLabel = isEnglishCopy ? 'Country' : '国';
-  const countryHelper = isEnglishCopy
-    ? 'Selecting the wrong country may change the payment methods you see later.'
-    : '※ 国を誤って選ぶと支払い方法が変わります';
   const submitLabel = isEnglishCopy ? 'Save and start' : '登録して開始';
   const checkboxTextIntro = isEnglishCopy ? 'I agree to the ' : '';
   const checkboxTextLinkSeparator = isEnglishCopy ? ' and ' : ' と ';
@@ -33,28 +30,6 @@ const ProfileWizard: React.FC = () => {
   const termsLinkLabel = isEnglishCopy ? 'Terms of Service' : '利用規約';
   const privacyLinkLabel = isEnglishCopy ? 'Privacy Policy' : 'プライバシーポリシー';
   const summaryUpdatedLabel = isEnglishCopy ? 'Last updated:' : '最終更新日:';
-
-  useEffect(() => {
-    let aborted = false;
-    // 1) prefer previously selected signup country from localStorage
-    const stored = localStorage.getItem('signup_country');
-    if (stored) {
-      setCountry(stored);
-    }
-    // 2) fetch default country from Netlify Function
-    setLoadingGeo(true);
-    fetch('/.netlify/functions/getGeoCountry')
-      .then(res => res.ok ? res.json() : Promise.reject(new Error('Geo API error')))
-      .then(data => {
-        if (aborted) return;
-        const code = (data?.country as string | null)?.toUpperCase() || null;
-        if (code === 'JP') setCountry(prev => prev || 'JP');
-        else if (code) setCountry(prev => prev || 'OVERSEAS');
-      })
-      .catch(() => {})
-      .finally(() => setLoadingGeo(false));
-    return () => { aborted = true; };
-  }, []);
 
   if (hasProfile) return null;
 
@@ -67,7 +42,7 @@ const ProfileWizard: React.FC = () => {
       toast.error(termsAgreementToast);
       return;
     }
-    await createProfile(nickname, agreed, country);
+    await createProfile(nickname, agreed);
     toast.success(profileCreatedToast);
   };
 
@@ -76,20 +51,6 @@ const ProfileWizard: React.FC = () => {
       <div className="bg-slate-800 p-6 rounded-lg w-full max-w-sm space-y-4" onClick={e=>e.stopPropagation()}>
         <h2 className="text-xl font-bold text-center">{modalTitle}</h2>
         <input className="input input-bordered w-full" placeholder={nicknamePlaceholder} value={nickname} onChange={e=>setNickname(e.target.value)} />
-        <div className="space-y-2">
-          <label className="block text-sm">{countryLabel}</label>
-          <select
-            className="select select-bordered w-full"
-            value={country}
-            onChange={e => setCountry(e.target.value)}
-            disabled={loadingGeo}
-          >
-            {getSortedCountryCodes(locale === 'ja' ? 'ja' : 'en').map(c => (
-              <option key={c} value={c}>{getCountryLabel(c, locale === 'ja' ? 'ja' : 'en')}</option>
-            ))}
-          </select>
-          <p className="text-xs text-orange-300">{countryHelper}</p>
-        </div>
         <div className="border border-white/10 bg-slate-900/60 rounded-lg p-3 space-y-2 text-left">
           <div className="flex items-baseline justify-between">
             <p className="text-sm font-semibold text-white">{termsContent.summaryHeading}</p>

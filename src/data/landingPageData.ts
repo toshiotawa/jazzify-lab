@@ -82,21 +82,17 @@ export const faqDataEn: FAQItem[] = [
 ];
 
 export const pricingFeaturesJa: PricingFeatureRow[] = [
-  { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○', '○', '○'] },
-  { label: 'ミッション', values: ['×', '○', '○', '○'] },
-  { label: 'ファンタジー', values: ['×', '○', '○', '○'] },
-  { label: 'レジェンド', values: ['×', '5曲', '無制限', '無制限'] },
-  { label: 'サバイバル', values: ['×', '1キャラ', '無制限', '無制限'] },
-  { label: 'レッスン', values: ['×', '1コースのみ', '無制限', '無制限'] },
-  { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '無制限', '月10ブロック'] },
-  { label: 'LINEでの課題添削', values: ['×', '×', '×', '○'] },
+  { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○'] },
+  { label: 'ミッション', values: ['×', '○'] },
+  { label: 'ファンタジー', values: ['×', '○'] },
+  { label: 'レジェンド', values: ['×', '無制限'] },
+  { label: 'サバイバル', values: ['×', '無制限'] },
+  { label: 'レッスン', values: ['×', '無制限'] },
 ];
 
 export const pricingPlansJa = [
   { name: 'フリー', price: '¥0', priceSuffix: '', trial: false, badge: null, highlighted: false },
-  { name: 'スタンダード', price: '¥2,980', priceSuffix: '/月', trial: true, badge: null, highlighted: false },
-  { name: 'プレミアム', price: '¥8,980', priceSuffix: '/月', trial: true, badge: 'おすすめ', highlighted: true },
-  { name: 'プラチナ', price: '¥14,800', priceSuffix: '/月', trial: true, badge: '最上位', highlighted: false },
+  { name: 'プレミアム', price: '$19', priceSuffix: '/月', trial: true, badge: 'おすすめ', highlighted: true },
 ];
 
 export interface NavLink {

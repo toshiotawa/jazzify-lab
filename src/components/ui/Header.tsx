@@ -4,14 +4,17 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaBars, FaTimes } from 'react-icons/fa';
-import NotificationBell from '@/components/ui/NotificationBell';
 
 const Header: React.FC = () => {
   const { user, isGuest, logout, enterGuestMode, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const toast = useToast();
   const [menuOpen, setMenuOpen] = useState(false);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
   // ログイン状態に移行したらゲストIDをクリーンアップ
   if (user && !isGuest) {
     try { localStorage.removeItem('guest_id'); } catch {}
@@ -67,17 +70,10 @@ const Header: React.FC = () => {
               <button className="btn btn-sm btn-primary text-sm px-3 py-1.5" onClick={()=>{location.href='/main#dashboard'}}>
                 {isEnglishCopy ? 'Dashboard' : 'ダッシュボード'}
             </button>
-            {/* 通知ベル（アカウントの左） */}
-            <NotificationBell />
             <button className="btn btn-sm text-sm px-3 py-1.5" onClick={()=>{location.hash='#account'}}>
                 {isEnglishCopy ? 'Account' : 'アカウント'}
             </button>
             
-            {useAuthStore.getState().profile?.rank !== 'standard_global' && (
-              <button className="btn btn-sm btn-outline text-sm px-3 py-1.5" onClick={()=>{location.hash='#diary';}}>
-                  {isEnglishCopy ? 'Community' : 'コミュニティ'}
-              </button>
-            )}
           </>
         )}
       </div>
@@ -115,10 +111,6 @@ const Header: React.FC = () => {
             )}
             {user && (
               <>
-                {/* 通知ベル（アカウントの左） */}
-                <div className="flex items-center">
-                  <NotificationBell />
-                </div>
                   <button 
                     className="btn btn-sm btn-primary w-full text-left text-base" 
                     onClick={()=>{location.href='/main#dashboard'; setMenuOpen(false);}}
@@ -132,14 +124,6 @@ const Header: React.FC = () => {
                     {isEnglishCopy ? 'Account' : 'アカウント'}
                   </button>
                   
-                  {useAuthStore.getState().profile?.rank !== 'standard_global' && (
-                    <button 
-                      className="btn btn-sm btn-outline w-full text-left text-base" 
-                      onClick={()=>{location.hash='#diary'; setMenuOpen(false);}}
-                    >
-                      {isEnglishCopy ? 'Community' : 'コミュニティ'}
-                    </button>
-                  )}
               </>
             )}
           </div>

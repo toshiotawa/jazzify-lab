@@ -30,7 +30,7 @@ const EnglishPricing: React.FC = () => (
       <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
         <div className="pricing-card premium rounded-2xl p-8 text-center">
           <div className="bg-gradient-to-r from-purple-400 to-pink-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">
-            Standard
+            Premium
           </div>
           <h3 className="text-2xl font-bold text-purple-300 mb-4">Monthly Plan</h3>
           <div className="text-4xl font-bold text-white mb-6">

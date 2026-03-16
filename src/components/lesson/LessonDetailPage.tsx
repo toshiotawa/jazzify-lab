@@ -13,8 +13,9 @@ import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { useUserStatsStore } from '@/stores/userStatsStore';
+import { isPremiumTier } from '@/utils/membership';
 import { Lesson, LessonSong } from '@/types';
-import { fetchCourseById, canAccessCourse, fetchUserCourseUnlockStatus, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
+import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
     FaCheck, 
@@ -83,7 +84,7 @@ const LessonDetailPage: React.FC = () => {
   const toast = useToast();
   const { fetchStats } = useUserStatsStore();
 
-  const isPlatinumMember = profile?.rank === 'platinum' || profile?.rank === 'black';
+  const isPlatinumMember = isPremiumTier(profile?.rank);
   const visibleAttachments = useMemo(
     () => attachments.filter(att => !att.platinum_only || isPlatinumMember),
     [attachments, isPlatinumMember]
@@ -181,16 +182,13 @@ const LessonDetailPage: React.FC = () => {
 
       // 直接アクセス時のコース受講可否ガード（premium_onlyを唯一の判定）
       if (lessonData?.course_id && profile?.id) {
-        const [course, unlockMap, completedCourses] = await Promise.all([
+        const [course, completedCourses] = await Promise.all([
           fetchCourseById(lessonData.course_id),
-          fetchUserCourseUnlockStatus(profile.id),
           fetchUserCompletedCourses(profile.id)
         ]);
         if (course) {
-          const isGlobalTargetCourse = course.audience === 'global' || course.audience === 'both';
-          setShouldHideVideos(isGlobalTargetCourse && profile?.rank === 'standard_global');
-          const unlockFlag = unlockMap[course.id] !== undefined ? unlockMap[course.id] : null;
-          const access = canAccessCourse(course, profile.rank, completedCourses, unlockFlag);
+          setShouldHideVideos(false);
+          const access = canAccessCourse(course, profile.rank, completedCourses);
           if (!access.canAccess) {
             toast.warning(access.reason || 'このコースにはアクセスできません');
             window.location.hash = '#lessons';

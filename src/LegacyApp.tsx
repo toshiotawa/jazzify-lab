@@ -14,16 +14,9 @@ const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
 const AccountPage = React.lazy(() => import('@/components/ui/AccountModal'));
 const MypagePage = React.lazy(() => import('@/components/ui/MypageModal'));
-const DiaryPage = React.lazy(() => import('@/components/diary/DiaryPage'));
-const DiaryDetailPage = React.lazy(() => import('@/components/diary/DiaryDetailPage'));
 const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
 const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
-const LevelRanking = React.lazy(() => import('@/components/ranking/LevelRanking'));
-const MissionRanking = React.lazy(() => import('@/components/ranking/MissionRanking'));
-const SurvivalRanking = React.lazy(() => import('@/components/ranking/SurvivalRanking'));
-const DailyChallengeRanking = React.lazy(() => import('@/components/ranking/DailyChallengeRanking'));
-const MissionPage = React.lazy(() => import('@/components/mission/MissionPage'));
 const AdminDashboard = React.lazy(() => import('@/components/admin/AdminDashboard'));
 const PricingTable = React.lazy(() => import('@/components/subscription/PricingTable'));
 const LazyFantasyMain = React.lazy(() => import('@/components/fantasy/FantasyMain'));
@@ -188,14 +181,6 @@ const App: React.FC = () => {
     );
   }
 
-  if (hash.startsWith('#diary-detail') && !isFree) {
-    return (
-      <React.Suspense fallback={<LoadingScreen />}>
-        <DiaryDetailPage />
-        <ToastContainer />
-      </React.Suspense>
-    );
-  }
 
   // メインコンテンツの条件付きレンダリング
   let MainContent: React.ReactNode;
@@ -208,31 +193,11 @@ const App: React.FC = () => {
     case '#dashboard':
       MainContent = <Dashboard />;
       break;
-    case '#diary':
-    case '#diary-user':
-      MainContent = isFree ? <Dashboard /> : <DiaryPage />;
-      break;
     case '#lessons':
       MainContent = isFree ? <Dashboard /> : <LessonPage />;
       break;
     case '#lesson-detail':
       MainContent = isFree ? <Dashboard /> : <LessonDetailPage />;
-      break;
-    case '#ranking':
-      MainContent = isFree ? <Dashboard /> : <LevelRanking />;
-      break;
-    case '#missions':
-    case '#mission':
-      MainContent = isFree ? <Dashboard /> : <MissionPage />;
-      break;
-    case '#mission-ranking':
-      MainContent = isFree ? <Dashboard /> : <MissionRanking />;
-      break;
-    case '#survival-ranking':
-      MainContent = isFree ? <Dashboard /> : <SurvivalRanking />;
-      break;
-    case '#daily-challenge-ranking':
-      MainContent = isFree ? <Dashboard /> : <DailyChallengeRanking />;
       break;
     case '#information':
       MainContent = isFree ? <Dashboard /> : <InformationPage />;
@@ -291,18 +256,10 @@ const App: React.FC = () => {
         </React.Suspense>
       );
       break;
-    case '#survival-mission':
-      MainContent = isFree ? <Dashboard /> : (
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazySurvivalMain missionMode />
-        </React.Suspense>
-      );
-      break;
     case '#songs':
     case '#practice':
     case '#performance':
     case '#play-lesson':
-    case '#play-mission':
       MainContent = isFree ? <Dashboard /> : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyGameScreen />

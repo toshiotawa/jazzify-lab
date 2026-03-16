@@ -5,19 +5,16 @@
  */
 
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
-import { cn } from '@/utils/cn';
 import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
-import SurvivalStageSelect, { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
+import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
 import SurvivalStageMode from './SurvivalStageMode';
 import SurvivalGameScreen from './SurvivalGameScreen';
 import { StageDefinition, STAGE_TIME_LIMIT_SECONDS, ALL_STAGES, TOTAL_STAGES } from './SurvivalStageDefinitions';
-import { FaBolt, FaTrophy } from 'react-icons/fa';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { fetchSurvivalCharacters, fetchSurvivalDifficultySettings, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { incrementSurvivalMissionProgressOnClear } from '@/platform/supabaseChallengeSurvival';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 
@@ -43,11 +40,9 @@ const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacte
 });
 
 type Screen = 'select' | 'game';
-type SurvivalTab = 'stage' | 'free';
 
 interface SurvivalMainProps {
   lessonMode?: boolean;
-  missionMode?: boolean;
 }
 
 interface LessonContext {
@@ -55,11 +50,6 @@ interface LessonContext {
   lessonSongId: string;
   stageNumber: number;
   clearConditions: any;
-}
-
-interface MissionContext {
-  missionId: string;
-  stageNumber: number;
 }
 
 const isFaiCharacter = (character: SurvivalCharacter): boolean => {
@@ -92,13 +82,12 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
   return [];
 }
 
-const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) => {
+const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
 
-  const [screen, setScreen] = useState<Screen>((lessonMode || missionMode) ? 'game' : 'select');
-  const [activeTab, setActiveTab] = useState<SurvivalTab>('stage');
+  const [screen, setScreen] = useState<Screen>(lessonMode ? 'game' : 'select');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
@@ -107,8 +96,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
   const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
-  const [missionContext, setMissionContext] = useState<MissionContext | null>(null);
-  const [missionInitialized, setMissionInitialized] = useState(false);
 
   const lessonParams = useMemo(() => {
     if (!lessonMode) return null;
@@ -118,13 +105,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
     return new URLSearchParams(hash.slice(qIndex + 1));
   }, [lessonMode]);
 
-  const missionParams = useMemo(() => {
-    if (!missionMode) return null;
-    const hash = window.location.hash;
-    const qIndex = hash.indexOf('?');
-    if (qIndex < 0) return null;
-    return new URLSearchParams(hash.slice(qIndex + 1));
-  }, [missionMode]);
 
   useEffect(() => {
     if (!lessonMode || !lessonParams || lessonInitialized) return;
@@ -178,66 +158,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
     initLesson();
   }, [lessonMode, lessonParams, lessonInitialized]);
 
-  // ミッションモード初期化
-  useEffect(() => {
-    if (!missionMode || !missionParams || missionInitialized) return;
-
-    const missionId = missionParams.get('missionId') || '';
-    const stageNumber = parseInt(missionParams.get('stageNumber') || '0', 10);
-
-    const stageDef = ALL_STAGES.find(s => s.stageNumber === stageNumber);
-    if (!missionId || !stageDef) {
-      window.location.hash = '#missions';
-      return;
-    }
-
-    setMissionContext({ missionId, stageNumber });
-
-    const initMission = async () => {
-      try {
-        await FantasySoundManager.unlock();
-        await initializeAudioSystem();
-      } catch { /* ignore */ }
-
-      let faiChar: SurvivalCharacter | undefined;
-      try {
-        const charRows = await fetchSurvivalCharacters();
-        const chars = charRows.map(convertToSurvivalCharacter);
-        faiChar = chars.find(isFaiCharacter);
-      } catch { /* ignore */ }
-
-      const dbConfigs = await fetchDbDifficultyConfigs();
-      const baseConfig = dbConfigs.find(c => c.difficulty === stageDef.difficulty)
-        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === stageDef.difficulty)
-        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
-      const missionConfig: DifficultyConfig = {
-        ...baseConfig,
-        difficulty: stageDef.difficulty,
-        allowedChords: stageDef.allowedChords,
-      };
-
-      setSelectedDifficulty(stageDef.difficulty);
-      setSelectedConfig(missionConfig);
-      setSelectedCharacter(faiChar);
-      setActiveStageDefinition(stageDef);
-      setActiveHintMode(false);
-      setScreen('game');
-      setMissionInitialized(true);
-    };
-
-    initMission();
-  }, [missionMode, missionParams, missionInitialized]);
-
-  const handleMissionStageClear = useCallback(async () => {
-    if (!missionContext || !profile) return;
-    try {
-      await incrementSurvivalMissionProgressOnClear(
-        missionContext.missionId,
-        missionContext.stageNumber
-      );
-    } catch { /* ignore */ }
-  }, [missionContext, profile]);
-
   const handleLessonStageClear = useCallback(async () => {
     if (!lessonContext || !profile) return;
     try {
@@ -250,20 +170,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
       );
     } catch { /* ignore */ }
   }, [lessonContext, profile]);
-
-  const handleFreePlaySelect = useCallback((
-    difficulty: SurvivalDifficulty,
-    config: DifficultyConfig,
-    debug?: DebugSettings,
-    character?: SurvivalCharacter,
-  ) => {
-    setSelectedDifficulty(difficulty);
-    setSelectedConfig(config);
-    setDebugSettings(debug);
-    setSelectedCharacter(character);
-    setActiveStageDefinition(null);
-    setScreen('game');
-  }, []);
 
   const handleStageSelect = useCallback((
     difficulty: SurvivalDifficulty,
@@ -320,15 +226,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
-    if (missionMode) {
-      window.location.hash = '#missions';
-      return;
-    }
-    if (activeStageDefinition) {
-      setActiveTab('stage');
-    } else {
-      setActiveTab('free');
-    }
     setScreen('select');
     setSelectedDifficulty(null);
     setSelectedConfig(null);
@@ -336,21 +233,17 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
     setActiveHintMode(false);
-  }, [activeStageDefinition, lessonMode, lessonContext, missionMode]);
+  }, [activeStageDefinition, lessonMode, lessonContext]);
 
   const handleBackToMenu = useCallback(() => {
     if (lessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
-    if (missionMode) {
-      window.location.hash = '#missions';
-      return;
-    }
     window.location.hash = '#dashboard';
-  }, [lessonMode, lessonContext, missionMode]);
+  }, [lessonMode, lessonContext]);
 
-  if ((lessonMode && !lessonInitialized) || (missionMode && !missionInitialized)) {
+  if (lessonMode && !lessonInitialized) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
@@ -377,55 +270,18 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
             </button>
           </div>
 
-          <div className="flex gap-0 max-w-2xl mx-auto">
-            <button
-              onClick={() => setActiveTab('stage')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-3 font-bold font-sans text-sm sm:text-base transition-all duration-200 border-b-2',
-                activeTab === 'stage'
-                  ? 'border-purple-400 text-purple-300 bg-purple-900/20'
-                  : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
-              )}
-            >
-              <FaTrophy className={cn(activeTab === 'stage' ? 'text-purple-400' : 'text-gray-600')} />
-              STAGE MODE
-            </button>
-            <button
-              onClick={() => setActiveTab('free')}
-              className={cn(
-                'flex-1 flex items-center justify-center gap-2 px-4 py-3 font-bold font-sans text-sm sm:text-base transition-all duration-200 border-b-2',
-                activeTab === 'free'
-                  ? 'border-yellow-400 text-yellow-300 bg-yellow-900/20'
-                  : 'border-transparent text-gray-500 hover:text-gray-300 hover:bg-gray-800/30'
-              )}
-            >
-              <FaBolt className={cn(activeTab === 'free' ? 'text-yellow-400' : 'text-gray-600')} />
-              FREE PLAY
-            </button>
-          </div>
-
           <div className="max-w-2xl mx-auto mt-3">
             <p className="text-gray-400 text-sm font-sans text-center">
-              {activeTab === 'stage'
-                ? (isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇せよ！')
-                : (isEnglishCopy ? 'Choose your challenge!' : '自由に挑戦！')}
+              {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇せよ！'}
             </p>
           </div>
         </div>
 
-        {activeTab === 'stage' ? (
-          <SurvivalStageMode
-            embedded
-            onStageSelect={handleStageSelect}
-            onBackToMenu={handleBackToMenu}
-          />
-        ) : (
-          <SurvivalStageSelect
-            embedded
-            onStageSelect={handleFreePlaySelect}
-            onBackToMenu={handleBackToMenu}
-          />
-        )}
+        <SurvivalStageMode
+          embedded
+          onStageSelect={handleStageSelect}
+          onBackToMenu={handleBackToMenu}
+        />
       </div>
     );
   }
@@ -441,21 +297,19 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, missionMode }) 
         character={selectedCharacter}
         stageDefinition={activeStageDefinition ?? undefined}
         onLessonStageClear={lessonMode ? handleLessonStageClear : undefined}
-        onMissionStageClear={missionMode ? handleMissionStageClear : undefined}
         isLessonMode={!!lessonMode}
-        isMissionMode={!!missionMode}
         hintMode={activeHintMode}
         onRetryWithHint={activeStageDefinition ? handleRetryWithHint : undefined}
         onRetryWithoutHint={activeStageDefinition ? handleRetryWithoutHint : undefined}
-        onNextStage={(lessonMode || missionMode) ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
+        onNextStage={lessonMode ? undefined : (activeStageDefinition && activeStageDefinition.stageNumber < TOTAL_STAGES ? handleNextStage : undefined)}
       />
     );
   }
 
   return (
-    <SurvivalStageSelect
+    <SurvivalStageMode
       embedded
-      onStageSelect={handleFreePlaySelect}
+      onStageSelect={handleStageSelect}
       onBackToMenu={handleBackToMenu}
     />
   );

@@ -1,9 +1,9 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
-import { fetchCoursesWithDetails, fetchUserCompletedCourses, fetchUserCourseUnlockStatus, canAccessCourse, manualUnlockCourse } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll, manualUnlockBlock, fetchBlockUnlockCredits } from '@/platform/supabaseLessonProgress';
+import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
@@ -11,16 +11,14 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { 
   FaLock, 
-  FaUnlock,
   FaCheck, 
   FaStar, 
   FaGraduationCap,
-  FaLockOpen
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
-import { buildLessonAccessGraph, LessonAccessGraph, isPlatinumOrBlack } from '@/utils/lessonAccess';
+import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 
 /**
  * レッスン学習画面
@@ -34,27 +32,17 @@ const LessonPage: React.FC = () => {
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
-  const [courseUnlockStatus, setCourseUnlockStatus] = useState<Record<string, boolean | null>>({});
   const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const geoCountry = useGeoStore(s => s.country);
-  const isStandardGlobal = profile?.rank === 'standard_global';
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
   const mainAreaRef = useRef<HTMLDivElement>(null);
   const lessonScrollRef = useRef<HTMLDivElement>(null);
   const shouldScrollToIncomplete = useRef(false);
   const [scrollTrigger, setScrollTrigger] = useState(0);
-  const userIsPlatinumOrBlack = isPlatinumOrBlack(profile?.rank);
 
-  // 手動解放モーダル関連
-  const [courseUnlockModalTarget, setCourseUnlockModalTarget] = useState<Course | null>(null);
-  const [blockUnlockModalTarget, setBlockUnlockModalTarget] = useState<{ courseId: string; blockNumber: number } | null>(null);
-  const [blockUnlockConfirmStep, setBlockUnlockConfirmStep] = useState<'first' | 'final'>('first');
-  const [blockUnlockCredits, setBlockUnlockCredits] = useState<number>(0);
-  const [upgradeModalOpen, setUpgradeModalOpen] = useState(false);
-  const [unlockProcessing, setUnlockProcessing] = useState(false);
   const lessonAccessGraph = useMemo<LessonAccessGraph>(() => {
     if (lessons.length === 0) {
       return { lessonStates: {}, blockStates: {} };
@@ -95,9 +83,7 @@ const LessonPage: React.FC = () => {
       const wasOpen = open;
       setOpen(isLessonsPage);
       
-      // レッスン詳細から戻ってきた場合は強制再読み込み
       if (isLessonsPage && !wasOpen && profile && selectedCourse) {
-        // ナビゲーションキャッシュをクリア
         clearNavigationCacheForCourse(selectedCourse.id);
         loadLessons(selectedCourse.id);
       }
@@ -108,37 +94,30 @@ const LessonPage: React.FC = () => {
     return () => window.removeEventListener('hashchange', checkHash);
   }, [open, profile, selectedCourse]);
 
-  // 重複呼び出し防止: selectedCourse変更時に一度だけ実行
   useEffect(() => {
     if (selectedCourse?.id) {
       loadLessons(selectedCourse.id);
     }
   }, [selectedCourse?.id]);
 
-  // リアルタイム更新監視を追加（最適化版）
   useEffect(() => {
-    // 最適化: レッスンページが開いている場合のみ監視
     if (!open || !selectedCourse) return;
 
-    // 最適化: 管理者またはレッスン編集権限がある場合のみ監視
     const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
     if (!shouldMonitor) return;
 
-    // レッスンテーブルの変更を監視（最適化: キャッシュクリアを最小限に）
     const unsubscribeLessons = subscribeRealtime(
       'lesson-changes',
       'lessons',
       '*',
       (_payload: unknown) => {
-        // データが変更されたら現在のコースのレッスンを再読み込み
         if (selectedCourse) {
           loadLessons(selectedCourse.id);
         }
       },
-      { clearCache: false } // キャッシュクリアを無効化
+      { clearCache: false }
     );
 
-    // lesson_songsテーブルの変更も監視（最適化: キャッシュクリアを最小限に）
     const unsubscribeLessonSongs = subscribeRealtime(
       'lesson-songs-changes',
       'lesson_songs',
@@ -148,10 +127,9 @@ const LessonPage: React.FC = () => {
           loadLessons(selectedCourse.id);
         }
       },
-      { clearCache: false } // キャッシュクリアを無効化
+      { clearCache: false }
     );
 
-    // 要件進捗の変更（user_lesson_requirements_progress）を監視し、該当キャッシュをピンポイント無効化
     const unsubscribeReqs = subscribeRealtime(
       'lesson-reqs-progress',
       'user_lesson_requirements_progress',
@@ -178,81 +156,23 @@ const LessonPage: React.FC = () => {
     };
   }, [open, selectedCourse, profile?.isAdmin, profile?.rank]);
 
-  const loadCredits = useCallback(async () => {
-    if (!userIsPlatinumOrBlack) return;
-    try {
-      const credits = await fetchBlockUnlockCredits();
-      setBlockUnlockCredits(credits);
-    } catch {
-      setBlockUnlockCredits(0);
-    }
-  }, [userIsPlatinumOrBlack]);
-
-  const handleCourseManualUnlock = useCallback(async (course: Course) => {
-    if (!userIsPlatinumOrBlack || unlockProcessing) return;
-    setUnlockProcessing(true);
-    try {
-      await manualUnlockCourse(course.id);
-      toast.success(`「${course.title}」を手動で解放しました`);
-      setCourseUnlockModalTarget(null);
-      await loadData();
-      setSelectedCourse(course);
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'コースの解放に失敗しました');
-    } finally {
-      setUnlockProcessing(false);
-    }
-  }, [userIsPlatinumOrBlack, unlockProcessing]);
-
-  const handleBlockManualUnlock = useCallback(async () => {
-    if (!blockUnlockModalTarget || !userIsPlatinumOrBlack || unlockProcessing) return;
-    setUnlockProcessing(true);
-    try {
-      const remaining = await manualUnlockBlock(blockUnlockModalTarget.courseId, blockUnlockModalTarget.blockNumber);
-      setBlockUnlockCredits(remaining);
-      toast.success(`ブロック ${blockUnlockModalTarget.blockNumber} を手動で解放しました`);
-      setBlockUnlockModalTarget(null);
-      setBlockUnlockConfirmStep('first');
-      if (selectedCourse) {
-        await loadLessons(selectedCourse.id);
-      }
-    } catch (e: unknown) {
-      toast.error(e instanceof Error ? e.message : 'ブロックの解放に失敗しました');
-    } finally {
-      setUnlockProcessing(false);
-    }
-  }, [blockUnlockModalTarget, userIsPlatinumOrBlack, unlockProcessing, selectedCourse]);
-
-  const openBlockUnlockModal = useCallback(async (courseId: string, blockNumber: number) => {
-    if (userIsPlatinumOrBlack) {
-      await loadCredits();
-      setBlockUnlockModalTarget({ courseId, blockNumber });
-      setBlockUnlockConfirmStep('first');
-    } else {
-      setUpgradeModalOpen(true);
-    }
-  }, [userIsPlatinumOrBlack, loadCredits]);
-
   const loadData = async () => {
     setLoading(true);
     try {
-      const [coursesData, completedCourses, unlockStatus] = await Promise.all([
+      const [coursesData, completedCourses] = await Promise.all([
         fetchCoursesWithDetails(),
         profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([]),
-        profile ? fetchUserCourseUnlockStatus(profile.id) : Promise.resolve({} as Record<string, boolean | null>)
       ]);
       
-      const audienceFilter = isStandardGlobal ? 'global' : 'japan';
-      const filteredCourses = coursesData.filter(c => {
-        const a = c.audience || 'both';
-        return a === 'both' || a === audienceFilter;
-      });
-      const sortedCourses = filteredCourses.sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+      const sortedCourses = coursesData
+        .filter(c => {
+          const a = c.audience || 'both';
+          return a === 'both' || a === 'japan';
+        })
+        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
       setCourses(sortedCourses);
       setCompletedCourseIds(completedCourses);
-      setCourseUnlockStatus(unlockStatus);
       
-      // 全コースの進捗データを一括取得して完了率を計算（N→1クエリ）
       if (profile) {
         try {
           const [allProgress, lessonsByCourse] = await Promise.all([
@@ -283,16 +203,9 @@ const LessonPage: React.FC = () => {
           console.error('Error loading course progress data:', error);
         }
       }
-      
-      // クレジット取得
-      if (userIsPlatinumOrBlack) {
-        loadCredits();
-      }
 
-      // アクセス可能な最初のコースを選択
       const firstAccessibleCourse = sortedCourses.find(course => {
-        const courseUnlockFlag = unlockStatus[course.id] !== undefined ? unlockStatus[course.id] : null;
-        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses, courseUnlockFlag);
+        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses);
         return accessResult.canAccess;
       });
       if (firstAccessibleCourse) {
@@ -395,6 +308,7 @@ const LessonPage: React.FC = () => {
       console.error('Error loading lessons:', e);
     }
   };
+
   const getLessonCompletionRate = (lesson: Lesson): number => {
     const requirements = lessonRequirementsProgress[lesson.id] || [];
     if (requirements.length === 0) return 0;
@@ -404,24 +318,17 @@ const LessonPage: React.FC = () => {
   };
 
   const getCourseCompletionRate = (course: Course): number => {
-    // 事前計算されたコース進捗データから取得
     if (allCoursesProgress[course.id] !== undefined) {
       return allCoursesProgress[course.id];
     }
     
-    // 選択中のコースで詳細データが利用可能な場合は計算
     if (course.id === selectedCourse?.id && lessons.length > 0) {
       const totalLessons = lessons.length;
       const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
       return Math.round((completedLessons / totalLessons) * 100);
     }
     
-    // デフォルトは0%
     return 0;
-  };
-
-  const handleClose = () => {
-    window.location.href = '/main#dashboard';
   };
 
   const handleLessonClick = (lesson: Lesson) => {
@@ -484,7 +391,6 @@ const LessonPage: React.FC = () => {
       <div className="flex-1 p-4 overflow-y-auto md:overflow-hidden flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="flex-1 bg-slate-900 text-white flex flex-col md:min-h-0 md:overflow-hidden">
 
-          {/* ページ説明 */}
           <div className="shrink-0 px-6 pb-4">
             <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
               <div className="flex items-center space-x-2 mb-1">
@@ -511,11 +417,8 @@ const LessonPage: React.FC = () => {
                   <div className="flex-1 overflow-y-auto overflow-x-hidden p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
                     <div className="flex flex-row flex-wrap md:flex-col md:flex-nowrap gap-3 md:w-auto">
                     {courses.map((course: Course) => {
-                      const courseUnlockFlag = courseUnlockStatus[course.id] !== undefined ? courseUnlockStatus[course.id] : null;
-                      const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, courseUnlockFlag);
+                      const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
                       const accessible = accessResult.canAccess;
-                      const manualUnlockBadgeVisible = accessResult.manualUnlockApplied === true;
-                      const manualLockBadgeVisible = accessResult.manualLockApplied === true;
 
                       return (
                         <div
@@ -536,38 +439,19 @@ const LessonPage: React.FC = () => {
                                   mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
                                 }, 50);
                               }
-                            } else if (
-                              userIsPlatinumOrBlack &&
-                              !manualLockBadgeVisible &&
-                              accessResult.rankAllows &&
-                              !accessResult.prerequisitesMet
-                            ) {
-                              setCourseUnlockModalTarget(course);
                             } else {
                               toast.warning(accessResult.reason || 'このコースにはアクセスできません');
                             }
                           }}
                         >
-                          {(course.premium_only || manualUnlockBadgeVisible || manualLockBadgeVisible || (!accessible && courseUnlockFlag === null)) && (
+                          {(course.premium_only || !accessible) && (
                             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
                               {course.premium_only && (
                                 <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
                                   Premium
                                 </span>
                               )}
-                              {manualUnlockBadgeVisible && (
-                                <span className="bg-emerald-600 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <FaUnlock className="text-[10px]" />
-                                  手動解放
-                                </span>
-                              )}
-                              {manualLockBadgeVisible && (
-                                <span className="bg-red-600 text-white text-[10px] px-2 py-0.5 rounded-full flex items-center gap-1">
-                                  <FaLock className="text-[10px]" />
-                                  管理者ロック
-                                </span>
-                              )}
-                              {!accessible && courseUnlockFlag === null && <FaLock className="text-xs text-gray-400" />}
+                              {!accessible && <FaLock className="text-xs text-gray-400" />}
                             </div>
                           )}
                           <h3 className="font-medium truncate mb-2">
@@ -595,20 +479,8 @@ const LessonPage: React.FC = () => {
                           )}
 
                           {!accessible && (
-                            <div
-                              className={`mb-2 p-2 rounded border ${
-                                manualLockBadgeVisible
-                                  ? 'bg-red-900/30 border-red-600'
-                                  : 'bg-orange-900/30 border-orange-600'
-                              }`}
-                            >
-                              <p
-                                className={`text-xs ${
-                                  manualLockBadgeVisible
-                                    ? 'text-red-300'
-                                    : 'text-orange-300'
-                                }`}
-                              >
+                            <div className="mb-2 p-2 rounded border bg-orange-900/30 border-orange-600">
+                              <p className="text-xs text-orange-300">
                                 {accessResult.reason || 'このコースには現在アクセスできません。'}
                               </p>
                             </div>
@@ -666,11 +538,6 @@ const LessonPage: React.FC = () => {
                             const blockState = lessonAccessGraph.blockStates[blockNum];
                             const isBlockUnlocked = blockState?.isUnlocked ?? false;
                             const isBlockCompleted = blockState?.isCompleted ?? false;
-                            const manualBadgeVisible = blockState?.manualUnlockApplied === true;
-                            const manualUnlockSuppressed = blockState?.manualUnlockSuppressed === true;
-                            const isNaturallyUnlocked = blockState?.isNaturallyUnlocked ?? false;
-                            const showManualUnlockBadge = manualBadgeVisible || manualUnlockSuppressed;
-                            const showUnlockButton = !isBlockUnlocked && !isBlockCompleted && !showManualUnlockBadge && !isNaturallyUnlocked && blockNum > 1;
 
                             return (
                               <div key={blockNum} className="bg-slate-800 rounded-lg p-4 relative">
@@ -689,25 +556,6 @@ const LessonPage: React.FC = () => {
                                       <span className="flex items-center text-gray-400">
                                         <FaLock className="mr-1" /> 未解放 - 前のブロックを完了してください
                                       </span>
-                                    )}
-                                    {showManualUnlockBadge && (
-                                      <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2 py-0.5 text-xs text-white">
-                                        <FaUnlock /> 手動解放
-                                      </span>
-                                    )}
-                                    {showUnlockButton && (
-                                      <button
-                                        className="inline-flex items-center gap-1 rounded-lg bg-amber-600 hover:bg-amber-500 px-3 py-1.5 text-xs font-semibold text-white transition-colors"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          if (selectedCourse) {
-                                            openBlockUnlockModal(selectedCourse.id, blockNum);
-                                          }
-                                        }}
-                                      >
-                                        <FaLockOpen className="text-xs" />
-                                        解放
-                                      </button>
                                     )}
                                   </div>
                                 </div>
@@ -796,185 +644,8 @@ const LessonPage: React.FC = () => {
           )}
         </div>
       </div>
-
-      {/* コース手動解放モーダル（プラチナ/ブラック用） */}
-      {courseUnlockModalTarget && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
-          onClick={() => setCourseUnlockModalTarget(null)}
-        >
-          <div
-            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-amber-600/20 flex items-center justify-center">
-                <FaLockOpen className="text-amber-400 text-lg" />
-              </div>
-              <h3 className="text-lg font-bold text-white">コースを手動で解放しますか？</h3>
-            </div>
-            <p className="text-gray-300 text-sm mb-2">
-              「{courseUnlockModalTarget.title}」を手動で解放します。
-            </p>
-            <p className="text-gray-400 text-xs mb-6">
-              ブロック1も自動的に解放されます。コースの解放に回数制限はありません。
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
-                onClick={() => setCourseUnlockModalTarget(null)}
-                disabled={unlockProcessing}
-              >
-                いいえ
-              </button>
-              <button
-                className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-                onClick={() => handleCourseManualUnlock(courseUnlockModalTarget)}
-                disabled={unlockProcessing}
-              >
-                {unlockProcessing ? '処理中...' : 'はい'}
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* ブロック手動解放モーダル（プラチナ/ブラック用・二重確認） */}
-      {blockUnlockModalTarget && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
-          onClick={() => {
-            setBlockUnlockModalTarget(null);
-            setBlockUnlockConfirmStep('first');
-          }}
-        >
-          <div
-            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {blockUnlockConfirmStep === 'first' ? (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-amber-600/20 flex items-center justify-center">
-                    <FaLockOpen className="text-amber-400 text-lg" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white">このブロックを解放しますか？</h3>
-                </div>
-                <div className="bg-slate-800 rounded-lg p-3 mb-4 border border-slate-700">
-                  <p className="text-amber-400 text-sm font-semibold">
-                    残り解放可能回数: {blockUnlockCredits}
-                  </p>
-                </div>
-                <p className="text-gray-300 text-sm mb-6">
-                  ブロック {blockUnlockModalTarget.blockNumber} を手動で解放します。
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
-                    onClick={() => {
-                      setBlockUnlockModalTarget(null);
-                      setBlockUnlockConfirmStep('first');
-                    }}
-                  >
-                    いいえ
-                  </button>
-                  <button
-                    className="px-4 py-2 rounded-lg bg-amber-600 hover:bg-amber-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-                    onClick={() => setBlockUnlockConfirmStep('final')}
-                    disabled={blockUnlockCredits <= 0}
-                  >
-                    はい
-                  </button>
-                </div>
-                {blockUnlockCredits <= 0 && (
-                  <p className="text-red-400 text-xs mt-3 text-center">
-                    解放可能回数が不足しています。次のサブスクリプション更新で10回分追加されます。
-                  </p>
-                )}
-              </>
-            ) : (
-              <>
-                <div className="flex items-center gap-3 mb-4">
-                  <div className="w-10 h-10 rounded-full bg-red-600/20 flex items-center justify-center">
-                    <FaLockOpen className="text-red-400 text-lg" />
-                  </div>
-                  <h3 className="text-lg font-bold text-white">本当に解放しますか？</h3>
-                </div>
-                <p className="text-red-300 text-sm mb-6">
-                  この動作は取り消しできません。解放可能回数が1回消費されます。
-                </p>
-                <div className="flex gap-3 justify-end">
-                  <button
-                    className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
-                    onClick={() => {
-                      setBlockUnlockModalTarget(null);
-                      setBlockUnlockConfirmStep('first');
-                    }}
-                    disabled={unlockProcessing}
-                  >
-                    いいえ
-                  </button>
-                  <button
-                    className="px-4 py-2 rounded-lg bg-red-600 hover:bg-red-500 text-white text-sm font-semibold transition-colors disabled:opacity-50"
-                    onClick={handleBlockManualUnlock}
-                    disabled={unlockProcessing}
-                  >
-                    {unlockProcessing ? '処理中...' : 'はい'}
-                  </button>
-                </div>
-              </>
-            )}
-          </div>
-        </div>,
-        document.body
-      )}
-
-      {/* アップグレード案内モーダル（スタンダード/プレミアム用） */}
-      {upgradeModalOpen && createPortal(
-        <div
-          className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
-          onClick={() => setUpgradeModalOpen(false)}
-        >
-          <div
-            className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="flex items-center gap-3 mb-4">
-              <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center">
-                <FaLock className="text-blue-400 text-lg" />
-              </div>
-              <h3 className="text-lg font-bold text-white">ブロックの解放</h3>
-            </div>
-            <p className="text-gray-300 text-sm mb-2">
-              前のブロックのレッスンを全て完了してください。
-            </p>
-            <p className="text-gray-400 text-sm mb-6">
-              プラチナプラン以上でブロック解放が手動で行えます。
-            </p>
-            <div className="flex gap-3 justify-end">
-              <button
-                className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
-                onClick={() => setUpgradeModalOpen(false)}
-              >
-                キャンセル
-              </button>
-              <button
-                className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
-                onClick={() => {
-                  setUpgradeModalOpen(false);
-                  window.location.hash = '#account?tab=subscription';
-                }}
-              >
-                プランのアップグレード
-              </button>
-            </div>
-          </div>
-        </div>,
-        document.body
-      )}
     </div>
   );
 };
 
-export default LessonPage; 
+export default LessonPage;

@@ -1,12 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
-import { addXp, calcLevel } from '@/platform/supabaseXp';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
-import { updateMissionSongProgress } from '@/platform/supabaseMissions';
 import { useAuthStore } from '@/stores/authStore';
-import { useMissionStore } from '@/stores/missionStore';
-import { calculateXPDetailed, XPDetailed } from '@/utils/xpCalculator';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
 
@@ -23,112 +19,26 @@ const ResultModal: React.FC = () => {
     seek,
     setCurrentTab,
     clearLessonContext,
-    clearMissionContext
   } = useGameActions();
 
   const { profile, fetchProfile } = useAuthStore();
   const lessonContext = useLessonContext();
-  const missionContext = useGameSelector((s) => s.missionContext);
-  const { fetchSongProgress } = useMissionStore();
 
-  const [xpInfo, setXpInfo] = useState<{
-    gained: number;
-    total: number;
-    level: number;
-    remainder: number;
-    next: number;
-    levelUp: boolean;
-    detailed?: XPDetailed;
-  } | null>(null);
-  
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
-  const [missionRequirementSuccess, setMissionRequirementSuccess] = useState<boolean | null>(null);
   const [clearStats, setClearStats] = useState<{current: number; goal: number} | null>(null);
-
-  // XP計算・加算（一度だけ実行）
-  const [xpProcessed, setXpProcessed] = useState(false);
-  
-  // 基本XPをランクから取得する関数を追加
-  const getBaseXpFromRank = (rank: string): number => {
-    switch (rank) {
-      case 'S': return 1000;
-      case 'A': return 800;
-      case 'B': return 600;
-      case 'C': return 400;
-      case 'D': return 200;
-      default: return 100;
-    }
-  };
+  const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
-    if (resultModalOpen && currentSong && profile && !xpProcessed) {
-      setXpProcessed(true);
-      
+    if (resultModalOpen && currentSong && profile && !processed) {
+      setProcessed(true);
+
       (async () => {
         try {
-          // 会員ランクを正規化（standard_global -> standard）
-        const normalizeMembershipRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
-          if (rank === 'premium') return 'premium';
-          if (rank === 'platinum' || rank === 'black') return 'platinum';
-          if (rank === 'standard' || rank === 'standard_global') return 'standard';
-          return 'free';
-        };
-
-          // ローカルで詳細計算
-          const detailed = calculateXPDetailed({
-            membershipRank: normalizeMembershipRank(profile.rank as any),
-            scoreRank: score.rank as any,
-            playbackSpeed: settings.playbackSpeed,
-            transposed: settings.transpose !== 0,
-            lessonBonusMultiplier: 1,
-            missionBonusMultiplier: 1,
-            challengeBonusMultiplier: 1,
-            seasonMultiplier: profile.next_season_xp_multiplier ?? 1,
-          });
-
-          // デバッグ用: ランクボーナスの確認
-          log.info('XP計算詳細:', {
-            membershipRank: profile.rank,
-            membershipMultiplier: detailed.multipliers.membership,
-            base: detailed.base,
-            total: detailed.total,
-          });
-
-          // 正しい基本XPを計算（最低100を保証）
-          const baseXpRaw = getBaseXpFromRank(score.rank);
-          const baseXp = Math.max(100, baseXpRaw || 0);
-
-          const res = await addXp({
-            songId: currentSong.id,
-            baseXp: baseXp,
-            speedMultiplier: settings.playbackSpeed,
-            rankMultiplier: 1,
-            transposeMultiplier: settings.transpose !== 0 ? 1.3 : 1,
-            membershipMultiplier: profile.rank === 'premium' ? 1.5 : (profile.rank === 'platinum' || profile.rank === 'black') ? 2 : 1,
-            missionMultiplier: 1,
-            reason: lessonContext ? 'lesson_clear' : missionContext ? 'mission_clear' : 'song_clear',
-          });
-
-          const levelDetail = calcLevel(res.totalXp);
-
-          setXpInfo({
-            gained: res.gainedXp ?? Math.max(0, detailed.total),
-            total: res.totalXp,
-            level: res.level,
-            remainder: levelDetail.remainder,
-            next: levelDetail.nextLevelXp,
-            levelUp: res.level > profile.level,
-            detailed
-          });
-
           await fetchProfile({ forceRefresh: true });
-          
-          // レッスンモードの場合、課題条件の成否を判定
+
           if (lessonContext) {
-            // 課題条件を満たしているかチェック
             let success = true;
-            
-            // ランク条件
+
             if (lessonContext.clearConditions.rank) {
               const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
               const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
@@ -137,125 +47,47 @@ const ResultModal: React.FC = () => {
                 success = false;
               }
             }
-            
-            // 速度条件
+
             if (lessonContext.clearConditions.speed && settings.playbackSpeed < lessonContext.clearConditions.speed) {
               success = false;
             }
-            
-            // キー条件
+
             if (lessonContext.clearConditions.key !== undefined && settings.transpose !== lessonContext.clearConditions.key) {
               success = false;
             }
-            
+
             setLessonRequirementSuccess(success);
-            
-            // 成功した場合、実習課題の進捗を更新
+
             if (success && currentSong) {
               try {
-                await updateLessonRequirementProgress(
+                const result = await updateLessonRequirementProgress(
                   lessonContext.lessonId,
                   currentSong.id,
                   score.rank,
                   lessonContext.clearConditions
                 );
+                const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
+                setClearStats({
+                  current: newCount,
+                  goal: lessonContext.clearConditions.count || 1
+                });
               } catch (error) {
                 log.error('実習課題の進捗更新に失敗:', error);
               }
             }
           }
-          
-          // ミッションモードの場合、進捗を更新
-          if (missionContext && currentSong) {
-            try {
-              // ミッションの曲条件を取得（実際の条件を使用）
-              const missionSong = await fetchMissionSongConditions(missionContext.missionId, currentSong.id);
-              
-              // 課題条件を満たしているかチェック
-              let success = true;
-              
-              // ランク条件
-              if (missionSong.min_rank) {
-                const requiredRankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
-                const currentRankOrder = requiredRankOrder[score.rank as keyof typeof requiredRankOrder];
-                const requiredOrder = requiredRankOrder[missionSong.min_rank as keyof typeof requiredRankOrder];
-                if (currentRankOrder < requiredOrder) {
-                  success = false;
-                }
-              }
-              
-              // 速度条件
-              if (missionSong.min_speed && settings.playbackSpeed < missionSong.min_speed) {
-                success = false;
-              }
-              
-              // キー条件
-              if (missionSong.key_offset !== undefined && settings.transpose !== missionSong.key_offset) {
-                success = false;
-              }
-              
-              setMissionRequirementSuccess(success);
-              
-              // 成功した場合、ミッション進捗を更新
-              if (success) {
-                await updateMissionSongProgress(
-                  missionContext.missionId,
-                  currentSong.id,
-                  score.rank,
-                  {
-                    min_rank: missionSong.min_rank || 'B',
-                    min_speed: missionSong.min_speed || 1.0
-                  }
-                );
-                
-                // ミッション進捗キャッシュを強制更新
-                await fetchSongProgress(missionContext.missionId, true);
-                
-                // クリア回数統計を設定（fetchSongProgressはvoidを返すため、統計は後で取得）
-                const newCount = 0; // TODO: ミッション進捗から取得
-                setClearStats({ 
-                  current: newCount, 
-                  goal: missionSong.clears_required || 1 
-                });
-              }
-            } catch (error) {
-              log.error('ミッション進捗の更新に失敗:', error);
-            }
-          }
-          
-          // レッスンモードの場合、クリア回数統計を設定
-          if (lessonContext && currentSong) {
-            try {
-              const result = await updateLessonRequirementProgress(
-                lessonContext.lessonId,
-                currentSong.id,
-                score.rank,
-                lessonContext.clearConditions
-              );
-              const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
-              setClearStats({ 
-                current: newCount, 
-                goal: lessonContext.clearConditions.count || 1 
-              });
-            } catch (error) {
-              log.error('レッスン進捗の更新に失敗:', error);
-            }
-          }
-          
-          // 通常曲の場合、クリア回数統計を設定と更新
-          if (!lessonContext && !missionContext && currentSong) {
+
+          if (!lessonContext && currentSong) {
             try {
               const { getCurrentUserIdCached, getSupabaseClient } = await import('@/platform/supabaseClient');
               const supabase = getSupabaseClient();
               const userId = await getCurrentUserIdCached();
-              
+
               if (userId) {
-                // B-rank以上かどうかを判定
                 const rankOrder = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
                 const currentRankOrder = rankOrder[score.rank as keyof typeof rankOrder];
-                const isBRankPlus = currentRankOrder >= 2; // B-rank以上 (B=2, A=3, S=4)
-                
-                // クリア回数を更新（B-rank以上の場合のみ）
+                const isBRankPlus = currentRankOrder >= 2;
+
                 if (isBRankPlus) {
                   const { data: updateResult } = await supabase.rpc('update_song_clear_progress', {
                     _user_id: userId,
@@ -264,25 +96,24 @@ const ResultModal: React.FC = () => {
                     _is_b_rank_plus: true,
                     _transpose: settings.transpose
                   });
-                  
+
                   if (updateResult) {
-                    setClearStats({ 
-                      current: updateResult.b_rank_plus_count || 0, 
-                      goal: 50 
+                    setClearStats({
+                      current: updateResult.b_rank_plus_count || 0,
+                      goal: 50
                     });
                   }
                 } else {
-                  // B-rank未満の場合は更新せずに現在の値を取得
                   const { data: stats } = await supabase
                     .from('user_song_stats')
                     .select('b_rank_plus_count')
                     .eq('user_id', userId)
                     .eq('song_id', currentSong.id)
                     .single();
-                  
-                  setClearStats({ 
-                    current: stats?.b_rank_plus_count || 0, 
-                    goal: 50 
+
+                  setClearStats({
+                    current: stats?.b_rank_plus_count || 0,
+                    goal: 50
                   });
                 }
               }
@@ -292,75 +123,16 @@ const ResultModal: React.FC = () => {
           }
         } catch (error) {
           log.error('結果画面の処理でエラーが発生しました:', error);
-          
-          // エラーの詳細情報をログ出力
-          if (error instanceof Error) {
-            log.error('エラーメッセージ:', error.message);
-            log.error('エラースタック:', error.stack);
-          }
-          
-          // エラーが発生してもXP情報だけでも表示できるようにする
-          if (!xpInfo) {
-            // 最小限のXP情報を設定
-            setXpInfo({
-              gained: 0,
-              total: profile?.xp || 0,
-              level: profile?.level || 1,
-              remainder: 0,
-              next: 1000,
-              levelUp: false
-            });
-          }
         }
       })().catch(error => {
         log.error('ResultModal async処理でキャッチされなかったエラー:', error);
-        
-        // Promise rejectionを防ぐため、最小限の状態を設定
-        if (!xpInfo) {
-          setXpInfo({
-            gained: 0,
-            total: profile?.xp || 0,
-            level: profile?.level || 1,
-            remainder: 0,
-            next: 1000,
-            levelUp: false
-          });
-        }
       });
     } else if (!resultModalOpen) {
-      setXpInfo(null);
       setLessonRequirementSuccess(null);
-      setMissionRequirementSuccess(null);
       setClearStats(null);
-      setXpProcessed(false);
+      setProcessed(false);
     }
-  }, [resultModalOpen, lessonContext, missionContext, currentSong, profile, xpProcessed]);
-
-  // ミッションの曲条件を取得するヘルパー関数
-  const fetchMissionSongConditions = async (missionId: string, songId: string) => {
-    const { getSupabaseClient } = await import('@/platform/supabaseClient');
-    const supabase = getSupabaseClient();
-    
-    const { data, error } = await supabase
-      .from('challenge_tracks')
-      .select('min_rank, min_speed, key_offset, notation_setting, clears_required')
-      .eq('challenge_id', missionId)
-      .eq('song_id', songId)
-      .single();
-    
-    if (error) {
-      log.error('ミッション曲条件の取得に失敗:', error);
-      return {
-        min_rank: 'B',
-        min_speed: 1.0,
-        key_offset: 0,
-        notation_setting: 'both',
-        clears_required: 1
-      };
-    }
-    
-    return data;
-  };
+  }, [resultModalOpen, lessonContext, currentSong, profile, processed]);
 
   if (!resultModalOpen || !currentSong) return null;
 
@@ -368,18 +140,16 @@ const ResultModal: React.FC = () => {
     resetScore();
     seek(0);
     closeResultModal();
-    setXpProcessed(false);
+    setProcessed(false);
   };
 
   const handleChooseSong = () => {
     resetScore();
     seek(0);
     closeResultModal();
-    // 曲選択に戻る際はレッスン・ミッションコンテキストをクリア
     clearLessonContext();
-    clearMissionContext();
     setCurrentTab('songs');
-    setXpProcessed(false);
+    setProcessed(false);
   };
 
   // ランクによる色とグロー効果
@@ -465,37 +235,6 @@ const ResultModal: React.FC = () => {
           </div>
         )}
 
-        {/* ミッション課題条件の成否表示 */}
-        {missionContext && missionRequirementSuccess !== null && (
-          <div className="px-4 sm:px-6 py-4">
-            <div className={`text-center p-4 rounded-lg ${
-              missionRequirementSuccess 
-                ? 'bg-emerald-900/30 border-2 border-emerald-500' 
-                : 'bg-red-900/30 border-2 border-red-500'
-            }`}>
-              <div className="text-lg font-bold mb-2 flex items-center justify-center gap-2">
-                {missionRequirementSuccess ? (
-                  <>
-                    <FaCheckCircle className="text-emerald-400" />
-                    ミッション条件クリア！
-                  </>
-                ) : (
-                  <>
-                    <FaTimesCircle className="text-red-400" />
-                    ミッション条件未達成
-                  </>
-                )}
-              </div>
-              <div className="text-sm text-gray-300">
-                <div>ミッション課題条件:</div>
-                <div className="mt-1 text-xs">
-                  ランク: B以上 / 速度: 1.0倍以上 / キー: 0
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-
         {clearStats && (
           <div className="px-4 sm:px-6 py-2">
             <div className="text-center p-3 rounded-lg bg-slate-800/50 border border-slate-600">
@@ -551,61 +290,6 @@ const ResultModal: React.FC = () => {
             </div>
           </div>
 
-          {/* 獲得XP & レベル進捗 */}
-          {xpInfo && (
-            <div className="bg-gradient-to-r from-yellow-900/30 to-orange-900/30 rounded-lg p-4 mb-6 border border-yellow-500/30">
-              <div className="text-center mb-3">
-                <div className="text-2xl font-bold text-yellow-400">
-                  +{xpInfo.gained.toLocaleString()} XP
-                </div>
-                <div className="text-sm text-gray-300">
-                  レベル {xpInfo.level} ({xpInfo.remainder.toLocaleString()} / {xpInfo.next.toLocaleString()} XP)
-                </div>
-              </div>
-              
-              {xpInfo.levelUp && (
-                <div className="text-center py-2 bg-yellow-500/20 rounded-lg mb-3">
-                  <div className="text-lg font-bold text-yellow-400 flex items-center justify-center gap-2">
-                    <FaAward className="text-yellow-400" />
-                    レベルアップ！
-                  </div>
-                  <div className="text-sm text-yellow-300">レベル {profile?.level || 1} → {xpInfo.level}</div>
-                </div>
-              )}
-              
-              <div className="text-xs text-gray-400 space-y-1">
-                <div className="flex justify-between">
-                  <span>基本XP:</span>
-                  <span>{xpInfo.detailed?.base || 0}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>ランクボーナス:</span>
-                  <span>{profile?.rank === 'free' ? 'フリー' : 
-                         profile?.rank === 'standard' || profile?.rank === 'standard_global' ? 'スタンダード' : 
-                         profile?.rank === 'premium' ? 'プレミアム' : 
-                         profile?.rank === 'platinum' ? 'プラチナ' : 
-                         profile?.rank === 'black' ? 'ブラック' : 'フリー'} x{xpInfo.detailed?.multipliers?.membership || 1}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>レッスンボーナス:</span>
-                  <span>x{xpInfo.detailed?.multipliers?.lesson || 1}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>ミッションボーナス:</span>
-                  <span>x{xpInfo.detailed?.multipliers?.mission || 1}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>速度ボーナス:</span>
-                  <span>x{xpInfo.detailed?.multipliers?.speed || 1}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>移調ボーナス:</span>
-                  <span>x{xpInfo.detailed?.multipliers?.transpose || 1}</span>
-                </div>
-              </div>
-            </div>
-          )}
-
           {/* 設定情報 */}
           <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-6">
             <div className="flex justify-between">
@@ -632,39 +316,19 @@ const ResultModal: React.FC = () => {
             >
               <span>曲選択</span>
             </button>
-            {/* レッスンに戻るボタン（レッスンコンテキストがある場合のみ表示） */}
             {lessonContext && (
               <button 
                 onClick={() => {
-                  // レッスン詳細ページに戻る
                   resetScore();
                   seek(0);
                   closeResultModal();
-                  setXpProcessed(false);
+                  setProcessed(false);
                   window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
                 }}
                 className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
               >
                 <FaArrowLeft />
                 <span>レッスンに戻る</span>
-              </button>
-            )}
-            
-            {/* ミッションに戻るボタン（ミッションコンテキストがある場合のみ表示） */}
-            {missionContext && (
-              <button 
-                onClick={() => {
-                  // ミッション一覧に戻る
-                  resetScore();
-                  seek(0);
-                  closeResultModal();
-                  setXpProcessed(false);
-                  window.location.hash = '#missions';
-                }}
-                className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
-              >
-                <FaArrowLeft />
-                <span>ミッションに戻る</span>
               </button>
             )}
           </div>

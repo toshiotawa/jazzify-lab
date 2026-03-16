@@ -16,7 +16,6 @@ import { LessonContext, FantasyRank } from '@/types';
 import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
-import { currentLevelXP, xpToNextLevel, levelAfterGain } from '@/utils/xpCalculator';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -160,16 +159,9 @@ const FantasyMain: React.FC = () => {
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
-  const baseXpLabel = isEnglishCopy ? 'Base XP:' : '基本XP:';
-  const rankBonusLabel = isEnglishCopy ? 'Membership bonus:' : 'ランクボーナス:';
-  const earnedXpLabel = isEnglishCopy ? 'Earned:' : '獲得:';
-  const levelingUpLabel = isEnglishCopy ? 'Level up!' : 'レベルアップ！';
-  const currentLevelLabel = isEnglishCopy ? 'Current level' : '現在のレベル';
-  const xpToNextLabel = isEnglishCopy ? 'XP to next level' : '次のレベルまで';
   const nextStageButtonLabel = isEnglishCopy ? 'Next stage' : '次のステージへ';
   const retryButtonLabel = isEnglishCopy ? 'Retry' : '再挑戦';
   const backToSelectLabel = isEnglishCopy ? 'Stage select' : 'ステージ選択に戻る';
-  const xpCalculatingText = isEnglishCopy ? 'Calculating XP...' : 'XP計算中...';
   const rankLabel = isEnglishCopy ? 'Rank' : 'ランク';
   const nextStageUnlockLabel = isEnglishCopy ? 'Next stage unlock' : '次ステージ開放まで';
   const clearsRemainingLabel = isEnglishCopy ? 'clears remaining' : '回クリア';
@@ -201,19 +193,6 @@ const FantasyMain: React.FC = () => {
   // 再挑戦時の速度倍率（progressionモード用）
   const [pendingSpeedMultiplier, setPendingSpeedMultiplier] = useState<number>(1.0);
   // ▲▲▲ ここまで ▲▲▲
-  
-  // 経験値情報を保存するための state を追加
-  const [xpInfo, setXpInfo] = useState<{
-    gained: number;
-    total: number;
-    level: number;
-    previousLevel: number;
-    nextLevelXp: number;
-    currentLevelXp: number;
-    leveledUp: boolean;
-    base: number;
-    multipliers: { membership: number };
-  } | null>(null);
   
   // フリープラン・ゲストユーザーかどうかの確認
   const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
@@ -612,91 +591,6 @@ const FantasyMain: React.FC = () => {
       }
     }
 
-    // 経験値付与（addXp関数を使用）
-    const xpGain = result === 'clear' ? 1000 : 200;
-    const resultLabel = result === 'clear' ? (isEnglishCopy ? 'Clear' : 'クリア') : (isEnglishCopy ? 'Challenge' : 'チャレンジ');
-    const reason = `Fantasy Mode ${currentStage?.stageNumber} ${resultLabel}`;
-
-    // 事前にローカル計算結果を用意して、UIを即時更新（ゲストでも表示されるように）
-    const normalizeRank = (rank: string | undefined): 'free' | 'standard' | 'premium' | 'platinum' => {
-      if (rank === 'premium') return 'premium';
-      if (rank === 'platinum' || rank === 'black') return 'platinum';
-      if (rank === 'standard' || rank === 'standard_global') return 'standard';
-      return 'free';
-    };
-
-    const membershipMultiplier = (() => {
-      const r = normalizeRank(profile?.rank);
-      if (r === 'premium') return 1.5;
-      if (r === 'platinum') return 2;
-      return 1;
-    })();
-
-    const seasonMultiplier = Math.max(0, Number(profile?.next_season_xp_multiplier ?? 1)) || 1;
-    const localGained = Math.round(xpGain * membershipMultiplier * seasonMultiplier);
-
-    // ローカル進捗（見た目）を即時反映
-    const prevLevelLocal = profile?.level || 1;
-    const prevRemainderLocal = currentLevelXP(prevLevelLocal, profile?.xp || 0);
-    const levelAfter = levelAfterGain(prevLevelLocal, prevRemainderLocal, localGained);
-    setXpInfo({
-      gained: localGained,
-      total: (profile?.xp || 0) + localGained,
-      level: levelAfter.level,
-      previousLevel: prevLevelLocal,
-      nextLevelXp: xpToNextLevel(levelAfter.level),
-      currentLevelXp: levelAfter.remainingXP,
-      leveledUp: levelAfter.leveledUp,
-      base: xpGain,
-      multipliers: { membership: membershipMultiplier },
-    });
-
-    // ログインユーザーであればDBに反映（失敗してもUIは維持）
-    if (profile?.id && !isGuest) {
-      try {
-        const { addXp } = await import('@/platform/supabaseXp');
-        const xpResult = await addXp({
-          songId: null,
-          baseXp: xpGain,
-          speedMultiplier: 1,
-          rankMultiplier: 1,
-          transposeMultiplier: 1,
-          membershipMultiplier,
-          missionMultiplier: 1,
-          reason,
-        });
-
-        const previousLevel = profile?.level || 1;
-        const leveledUp = xpResult.level > previousLevel;
-        const currentLvXp = currentLevelXP(xpResult.level, xpResult.totalXp);
-        const nextLvXp = xpToNextLevel(xpResult.level);
-        setXpInfo({
-          gained: xpResult.gainedXp,
-          total: xpResult.totalXp,
-          level: xpResult.level,
-          previousLevel,
-          nextLevelXp: nextLvXp,
-          currentLevelXp: currentLvXp,
-          leveledUp,
-          base: xpGain,
-          multipliers: { membership: membershipMultiplier },
-        });
-          if (leveledUp) {
-            toast.success(`${levelingUpLabel} Lv.${previousLevel} → Lv.${xpResult.level}`, {
-              duration: 5000,
-              title: isEnglishCopy ? 'Congratulations!' : 'おめでとうございます！',
-            });
-        }
-        // サーバー反映後にプロフィールを強制リフレッシュ
-        try {
-          const { useAuthStore } = await import('@/stores/authStore');
-          await useAuthStore.getState().fetchProfile({ forceRefresh: true });
-        } catch {}
-      } catch (xpError) {
-        // DB書き込み失敗時は、ローカル表示のまま（ログのみ）
-        console.error('ファンタジーモードXP付与エラー:', xpError);
-      }
-    }
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
   // ステージ選択に戻る
@@ -893,51 +787,6 @@ const FantasyMain: React.FC = () => {
               </div>
             )}
             
-            {/* 経験値獲得 */}
-            <div className="mt-4 pt-4 border-t border-gray-600 font-sans">
-                {xpInfo ? (
-                  <>
-                    <div className="text-sm text-gray-300 space-y-1">
-                      <div className="flex justify-between">
-                        <span>{baseXpLabel}</span>
-                        <span>{xpInfo.base}</span>
-                      </div>
-                      <div className="flex justify-between">
-                        <span>{rankBonusLabel}</span>
-                        <span>x{xpInfo.multipliers.membership}</span>
-                      </div>
-                    </div>
-                    <div className="text-green-300 font-bold text-xl mt-2">
-                      {earnedXpLabel} +{xpInfo.gained} XP
-                    </div>
-                  </>
-                ) : (
-                  <div className="text-sm text-gray-300">{xpCalculatingText}</div>
-                )}
-
-              {/* 次レベルまでの経験値表示 */}
-              {xpInfo && (
-                <div className="mt-3 pt-3 border-t border-gray-600">
-                    {xpInfo.leveledUp && (
-                      <div className="text-yellow-400 font-bold mb-2">
-                        {levelingUpLabel} Lv.{xpInfo.previousLevel} → Lv.{xpInfo.level}
-                      </div>
-                    )}
-                    <div className="text-sm text-gray-300">
-                      {currentLevelLabel}: Lv.{xpInfo.level}
-                    </div>
-                    <div className="text-sm text-gray-300">
-                      {xpToNextLabel}: {xpInfo.currentLevelXp.toLocaleString()} / {xpInfo.nextLevelXp.toLocaleString()} XP
-                    </div>
-                  <div className="mt-2 bg-gray-700 rounded-full h-2 overflow-hidden">
-                    <div 
-                      className="bg-gradient-to-r from-blue-400 to-purple-400 h-full transition-all duration-500"
-                      style={{ width: `${Math.min(100, (xpInfo.currentLevelXp / xpInfo.nextLevelXp) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-            </div>
           </div>
           
           {/* アクションボタン */}
@@ -989,8 +838,6 @@ const FantasyMain: React.FC = () => {
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
                 <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
-              ) : isMissionMode ? (
-                <button onClick={() => { window.location.hash = '#missions'; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to missions' : 'ミッションに戻る'}</button>
               ) : (
                 <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">{backToSelectLabel}</button>
               )}

@@ -246,7 +246,7 @@ const LandingPage: React.FC = () => {
                 </h2>
                 <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
                   <div className="pricing-card premium rounded-2xl p-8 text-center">
-                    <div className="lp-btn-gold text-xs px-3 py-1 rounded-full inline-block mb-4">Standard</div>
+                    <div className="lp-btn-gold text-xs px-3 py-1 rounded-full inline-block mb-4">Premium</div>
                     <h3 className="text-2xl font-bold mb-4 lp-display" style={{ color: 'var(--lp-gold-light)' }}>Monthly Plan</h3>
                     <div className="text-4xl font-bold mb-6 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/month</span></div>
                     <ul className="space-y-3 text-sm mb-6" style={{ color: 'var(--lp-cream-muted)' }}>
@@ -453,40 +453,22 @@ const LandingPage: React.FC = () => {
                       <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>フリー</div>
                       <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥0</div>
                     </th>
-                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
-                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>スタンダード</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥2,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
-                    </th>
                     <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)', borderTop: '2px solid var(--lp-gold)' }}>
                       <span className="lp-btn-gold inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2">おすすめ</span>
                       <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プレミアム</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥8,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
-                    </th>
-                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
-                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プラチナ</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥14,800<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
-                    </th>
-                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'linear-gradient(160deg, rgba(13,19,33,0.9), rgba(7,11,20,0.95))', border: '1px solid rgba(200,162,77,0.08)' }}>
-                      <span className="inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2" style={{ background: 'rgba(200,162,77,0.15)', color: 'var(--lp-gold-light)' }}>最上位</span>
-                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>ブラック</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥19,800<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
                       <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
                     </th>
                   </tr>
                 </thead>
                 <tbody>
                   {([
-                    { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○', '○', '○', '○'] },
-                    { label: 'ミッション', values: ['×', '○', '○', '○', '○'] },
-                    { label: 'ファンタジー', values: ['×', '○', '○', '○', '○'] },
-                    { label: 'レジェンド', values: ['×', '5曲', '無制限', '無制限', '無制限'] },
-                    { label: 'サバイバル', values: ['×', '1キャラ', '無制限', '無制限', '無制限'] },
-                    { label: 'レッスン', values: ['×', '1コースのみ', '無制限', '無制限', '無制限'] },
-                    { label: 'レッスンブロックの\n手動解放', values: ['×', '×', '×', '月10ブロック', '月10ブロック'] },
-                    { label: 'LINEでの上達サポート', values: ['×', '×', '×', '×', '○'] },
+                    { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○'] },
+                    { label: 'ミッション', values: ['×', '○'] },
+                    { label: 'ファンタジー', values: ['×', '○'] },
+                    { label: 'レジェンド', values: ['×', '無制限'] },
+                    { label: 'サバイバル', values: ['×', '無制限'] },
+                    { label: 'レッスン', values: ['×', '無制限'] },
                   ] as { label: string; values: string[] }[]).map((row, idx) => (
                     <tr key={idx} style={{ background: idx % 2 === 0 ? 'rgba(7,11,20,0.4)' : 'rgba(13,19,33,0.3)' }}>
                       <td className="p-3 text-sm font-medium whitespace-pre-line" style={{ border: '1px solid rgba(200,162,77,0.06)', color: 'var(--lp-cream-muted)' }}>{row.label}</td>

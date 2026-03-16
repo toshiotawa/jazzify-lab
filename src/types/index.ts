@@ -737,6 +737,7 @@ export interface Profile {
   email?: string; // text
   twitter_handle?: string;
   next_season_xp_multiplier?: number;
+  preferred_locale?: 'ja' | 'en' | null;
   // Stripe subscription fields
   stripe_customer_id?: string;
   rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
