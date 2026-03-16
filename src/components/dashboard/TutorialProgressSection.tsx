@@ -15,9 +15,12 @@ const TutorialProgressSection: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
-  const isStandardGlobal = profile?.rank === 'standard_global';
-  const audience: 'global' | 'japan' = isStandardGlobal ? 'global' : 'japan';
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const audience: 'global' | 'japan' = isEnglishCopy ? 'global' : 'japan';
 
   useEffect(() => {
     let cancelled = false;
@@ -106,7 +109,7 @@ const TutorialProgressSection: React.FC = () => {
               <button
                 onClick={handlePlay}
                 className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors w-full sm:w-auto"
-                aria-label={`${nextLesson.title} を開始`}
+                aria-label={isEnglishCopy ? `Start ${nextLesson.title}` : `${nextLesson.title} を開始`}
               >
                 <FaPlay className="text-xs ml-0.5" />
                 <span className="whitespace-nowrap">{startButtonText}</span>

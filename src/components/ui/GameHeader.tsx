@@ -34,6 +34,7 @@ const GameHeader: React.FC = () => {
           </button>
 
             {!isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
+            {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
         </div>
 
           {/* 右側のコントロール */}

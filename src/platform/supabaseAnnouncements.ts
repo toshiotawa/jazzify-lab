@@ -7,8 +7,13 @@ export interface Announcement {
   content: string;
   link_url?: string | null;
   link_text?: string | null;
+  title_en?: string | null;
+  content_en?: string | null;
+  link_text_en?: string | null;
+  publish_ja: boolean;
+  publish_en: boolean;
   is_active: boolean;
-  priority: number; // 表示優先度 (小さいほど上位)
+  priority: number;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -20,6 +25,11 @@ export interface CreateAnnouncementData {
   content: string;
   link_url?: string;
   link_text?: string;
+  title_en?: string | null;
+  content_en?: string | null;
+  link_text_en?: string | null;
+  publish_ja?: boolean;
+  publish_en?: boolean;
   is_active?: boolean;
   priority?: number;
   target_audience?: 'default' | 'global';
@@ -30,6 +40,11 @@ export interface UpdateAnnouncementData {
   content?: string;
   link_url?: string | null;
   link_text?: string | null;
+  title_en?: string | null;
+  content_en?: string | null;
+  link_text_en?: string | null;
+  publish_ja?: boolean;
+  publish_en?: boolean;
   is_active?: boolean;
   priority?: number;
   target_audience?: 'default' | 'global';
@@ -54,22 +69,24 @@ export async function fetchAllAnnouncements(): Promise<Announcement[]> {
 }
 
 /**
- * アクティブなお知らせのみ取得（ユーザー向け）
+ * アクティブなお知らせを言語ベースで取得（ユーザー向け）
+ * @param locale 'ja' | 'en' - ユーザーの言語設定
  */
-export async function fetchActiveAnnouncements(audience: 'default' | 'global' = 'default'): Promise<Announcement[]> {
-  const cacheKey = `announcements:active:${audience}`;
+export async function fetchActiveAnnouncements(locale: 'ja' | 'en' = 'ja'): Promise<Announcement[]> {
+  const publishCol = locale === 'en' ? 'publish_en' : 'publish_ja';
+  const cacheKey = `announcements:active:${locale}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => await getSupabaseClient()
       .from('announcements')
       .select('*')
-      .eq('target_audience', audience)
+      .eq(publishCol, true)
       .order('priority', { ascending: true })
       .order('created_at', { ascending: false }),
-    1000 * 60 * 5 // 最適化: 5分キャッシュ（短いTTLで最新情報を確保）
+    1000 * 60 * 5,
   );
 
-  if (error) throw new Error(`お知らせの取得に失敗しました: ${error.message}`);
+  if (error) throw new Error(`Failed to fetch announcements: ${error.message}`);
   return data || [];
 }
 
@@ -87,6 +104,8 @@ export async function createAnnouncement(data: CreateAnnouncementData): Promise<
       created_by: userId,
       is_active: data.is_active ?? true,
       priority: data.priority ?? 1,
+      publish_ja: data.publish_ja ?? true,
+      publish_en: data.publish_en ?? false,
       target_audience: data.target_audience ?? 'default',
     });
 

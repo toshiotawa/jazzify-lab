@@ -19,11 +19,12 @@ const InformationPage: React.FC = () => {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
-  const isStandardGlobal = profile?.rank === 'standard_global';
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
-    geoCountryHint: geoCountry,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
   });
+  const locale = isEnglishCopy ? 'en' : 'ja';
   const toast = useToast();
 
   useEffect(() => {
@@ -45,7 +46,7 @@ const InformationPage: React.FC = () => {
   const loadAnnouncements = async () => {
     setLoading(true);
     try {
-      const data = await fetchActiveAnnouncements(isStandardGlobal ? 'global' : 'default');
+      const data = await fetchActiveAnnouncements(locale);
       setAnnouncements(data);
     } catch (e: unknown) {
       toast.error(isEnglishCopy ? 'Failed to load updates' : 'お知らせの読み込みに失敗しました');
@@ -139,13 +140,14 @@ const InformationPage: React.FC = () => {
                       onClick={() => toggleExpanded(announcement.id)}
                     >
                       <div className="flex-1 min-w-0">
-                        <h2 className="text-lg font-semibold mb-1 truncate pr-4">{announcement.title}</h2>
+                        <h2 className="text-lg font-semibold mb-1 truncate pr-4">
+                          {(isEnglishCopy && announcement.title_en) ? announcement.title_en : announcement.title}
+                        </h2>
                         <div className="text-sm text-gray-500">
-                          {new Date(announcement.created_at).toLocaleDateString('ja-JP', {
-                            year: 'numeric',
-                            month: 'long',
-                            day: 'numeric'
-                          })}
+                          {new Date(announcement.created_at).toLocaleDateString(
+                            isEnglishCopy ? 'en-US' : 'ja-JP',
+                            { year: 'numeric', month: 'long', day: 'numeric' },
+                          )}
                         </div>
                       </div>
                       <FaChevronDown 
@@ -155,12 +157,15 @@ const InformationPage: React.FC = () => {
                       />
                     </button>
 
-                    {/* 詳細（展開時のみ表示） */}
                     {isExpanded && (
                       <div className="p-6 border-t border-slate-700">
                         <div 
                           className="text-gray-300 mb-4 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
-                          dangerouslySetInnerHTML={{ __html: mdToHtml(announcement.content) }}
+                          dangerouslySetInnerHTML={{
+                            __html: mdToHtml(
+                              (isEnglishCopy && announcement.content_en) ? announcement.content_en : announcement.content,
+                            ),
+                          }}
                         />
                         
                         {announcement.link_url && (
@@ -171,7 +176,11 @@ const InformationPage: React.FC = () => {
                             className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 transition-colors underline"
                           >
                             <FaExternalLinkAlt className="w-4 h-4" />
-                            <span>{announcement.link_text || (isEnglishCopy ? 'View Details' : '詳細を見る')}</span>
+                            <span>
+                              {(isEnglishCopy && announcement.link_text_en)
+                                ? announcement.link_text_en
+                                : announcement.link_text || (isEnglishCopy ? 'View Details' : '詳細を見る')}
+                            </span>
                           </a>
                         )}
                       </div>

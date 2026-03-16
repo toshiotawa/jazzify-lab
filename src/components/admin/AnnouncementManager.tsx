@@ -40,7 +40,8 @@ const AnnouncementManager: React.FC = () => {
     defaultValues: {
       priority: 1,
       is_active: true,
-      target_audience: 'default'
+      publish_ja: true,
+      publish_en: false,
     }
   });
   
@@ -117,9 +118,13 @@ const AnnouncementManager: React.FC = () => {
     setValue('content', announcement.content);
     setValue('link_url', announcement.link_url || '');
     setValue('link_text', announcement.link_text || '');
+    setValue('title_en', announcement.title_en || '');
+    setValue('content_en', announcement.content_en || '');
+    setValue('link_text_en', announcement.link_text_en || '');
+    setValue('publish_ja', announcement.publish_ja ?? true);
+    setValue('publish_en', announcement.publish_en ?? false);
     setValue('is_active', announcement.is_active);
     setValue('priority', announcement.priority || 1);
-    setValue('target_audience', announcement.target_audience || 'default');
     setShowForm(true);
   };
 
@@ -199,50 +204,92 @@ const AnnouncementManager: React.FC = () => {
           </h4>
           
           <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium mb-1">タイトル *</label>
-              <input
-                {...register('title', { 
-                  required: 'タイトルは必須です',
-                  maxLength: { value: 100, message: '100文字以内' }
-                })}
-                className="input input-bordered w-full text-white"
-                placeholder="お知らせのタイトルを入力"
-              />
-              {errors.title && (
-                <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
-              )}
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium mb-1">内容 *</label>
-              <div className="relative">
-                <textarea
-                  {...contentRegisterRest}
-                  ref={(e) => {
-                    contentRegisterRef(e);
-                    contentRef.current = e;
-                  }}
-                  className="textarea textarea-bordered w-full text-white pr-12"
-                  rows={4}
-                  placeholder="お知らせの内容を入力（Markdown記法でリンクが使用できます）"
+            {/* 日本語フィールド */}
+            <fieldset className="border border-slate-600 rounded-lg p-4 space-y-3">
+              <legend className="text-sm font-semibold px-2">🇯🇵 日本語</legend>
+              <div>
+                <label className="block text-sm font-medium mb-1">タイトル *</label>
+                <input
+                  {...register('title', {
+                    required: 'タイトルは必須です',
+                    maxLength: { value: 100, message: '100文字以内' },
+                  })}
+                  className="input input-bordered w-full text-white"
+                  placeholder="お知らせのタイトルを入力"
                 />
-                <button
-                  type="button"
-                  onClick={insertLink}
-                  className="absolute right-2 top-2 btn btn-xs btn-outline"
-                  title="リンクを挿入"
-                >
-                  <FaLink />
-                </button>
+                {errors.title && (
+                  <p className="text-red-400 text-xs mt-1">{errors.title.message}</p>
+                )}
               </div>
-              {errors.content && (
-                <p className="text-red-400 text-xs mt-1">{errors.content.message}</p>
-              )}
-            </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">内容 *</label>
+                <div className="relative">
+                  <textarea
+                    {...contentRegisterRest}
+                    ref={(e) => {
+                      contentRegisterRef(e);
+                      contentRef.current = e;
+                    }}
+                    className="textarea textarea-bordered w-full text-white pr-12"
+                    rows={4}
+                    placeholder="お知らせの内容を入力（Markdown記法対応）"
+                  />
+                  <button
+                    type="button"
+                    onClick={insertLink}
+                    className="absolute right-2 top-2 btn btn-xs btn-outline"
+                    title="リンクを挿入"
+                  >
+                    <FaLink />
+                  </button>
+                </div>
+                {errors.content && (
+                  <p className="text-red-400 text-xs mt-1">{errors.content.message}</p>
+                )}
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">リンクテキスト</label>
+                <input
+                  {...register('link_text')}
+                  className="input input-bordered w-full text-white"
+                  placeholder="詳細はこちら"
+                />
+              </div>
+            </fieldset>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="md:col-span-1">
+            {/* 英語フィールド */}
+            <fieldset className="border border-slate-600 rounded-lg p-4 space-y-3">
+              <legend className="text-sm font-semibold px-2">🇺🇸 English</legend>
+              <div>
+                <label className="block text-sm font-medium mb-1">Title</label>
+                <input
+                  {...register('title_en', { maxLength: { value: 100, message: 'Max 100 characters' } })}
+                  className="input input-bordered w-full text-white"
+                  placeholder="English title (optional, falls back to Japanese)"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Content</label>
+                <textarea
+                  {...register('content_en', { maxLength: { value: 1000, message: 'Max 1000 characters' } })}
+                  className="textarea textarea-bordered w-full text-white"
+                  rows={4}
+                  placeholder="English content (optional, Markdown supported)"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-1">Link Text</label>
+                <input
+                  {...register('link_text_en')}
+                  className="input input-bordered w-full text-white"
+                  placeholder="View details"
+                />
+              </div>
+            </fieldset>
+
+            {/* 共通フィールド */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
                 <label className="block text-sm font-medium mb-1">リンクURL</label>
                 <input
                   {...register('link_url')}
@@ -251,35 +298,12 @@ const AnnouncementManager: React.FC = () => {
                   placeholder="https://example.com"
                 />
               </div>
-
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium mb-1">リンクテキスト</label>
-                <input
-                  {...register('link_text')}
-                  className="input input-bordered w-full text-white"
-                  placeholder="詳細はこちら"
-                />
-              </div>
-
-              <div className="md:col-span-1">
-                <label className="block text-sm font-medium mb-1">対象</label>
-                <select
-                  {...register('target_audience')}
-                  className="select select-bordered w-full text-white bg-slate-700 border-slate-600"
-                >
-                  <option value="default">通常（日本ユーザー等）</option>
-                  <option value="global">Standard(Global)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div>
                 <label className="block text-sm font-medium mb-1">優先度</label>
                 <input
-                  {...register('priority', { 
+                  {...register('priority', {
                     valueAsNumber: true,
-                    min: { value: 1, message: '優先度は1以上を入力してください' }
+                    min: { value: 1, message: '優先度は1以上' },
                   })}
                   type="number"
                   min="1"
@@ -288,17 +312,21 @@ const AnnouncementManager: React.FC = () => {
                 />
                 <p className="text-xs text-gray-400 mt-1">小さいほど上位表示</p>
               </div>
+            </div>
 
-              <div className="flex items-center">
-                <label className="flex items-center space-x-2 cursor-pointer">
-                  <input
-                    {...register('is_active')}
-                    type="checkbox"
-                    className="checkbox"
-                  />
-                  <span>公開する</span>
-                </label>
-              </div>
+            <div className="flex flex-wrap items-center gap-6">
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input {...register('is_active')} type="checkbox" className="checkbox" />
+                <span>公開する</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input {...register('publish_ja')} type="checkbox" className="checkbox" />
+                <span>🇯🇵 日本語で公開</span>
+              </label>
+              <label className="flex items-center space-x-2 cursor-pointer">
+                <input {...register('publish_en')} type="checkbox" className="checkbox" />
+                <span>🇺🇸 英語で公開</span>
+              </label>
             </div>
 
             <div className="flex justify-end space-x-3">
@@ -349,11 +377,20 @@ const AnnouncementManager: React.FC = () => {
                       }`}>
                         {announcement.is_active ? '公開中' : '非公開'}
                       </span>
+                      {announcement.publish_ja && (
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-blue-900/50 text-blue-300 border border-blue-700/50">🇯🇵 JA</span>
+                      )}
+                      {announcement.publish_en && (
+                        <span className="px-1.5 py-0.5 text-[10px] rounded bg-red-900/50 text-red-300 border border-red-700/50">🇺🇸 EN</span>
+                      )}
                       <span className="text-xs text-gray-400 whitespace-nowrap">
                         優先度: {announcement.priority}
                       </span>
                     </div>
                     
+                    {announcement.title_en && (
+                      <p className="text-xs text-gray-400 mb-1">EN: {announcement.title_en}</p>
+                    )}
                     <p className="text-sm text-gray-300 mb-2 line-clamp-2 break-all">
                       {announcement.content}
                     </p>

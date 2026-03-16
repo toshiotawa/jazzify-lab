@@ -4,6 +4,9 @@ import type { FantasyStage as EngineFantasyStage } from '@/components/fantasy/Fa
 import { useToast } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, FantasyStage } from '@/types';
 import { createDailyChallengeRecord, fetchDailyChallengeRecordsSince, fetchDailyChallengeStage } from '@/platform/supabaseDailyChallenge';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 type PlayMode = 'challenge' | 'practice';
 
@@ -31,7 +34,7 @@ const parseDifficulty = (hash: string): DailyChallengeDifficulty | null => {
   return null;
 };
 
-const DIFFICULTY_LABELS: Record<DailyChallengeDifficulty, string> = {
+const DIFFICULTY_LABELS_JA: Record<DailyChallengeDifficulty, string> = {
   super_beginner: '超初級',
   beginner: '初級',
   intermediate: '中級',
@@ -39,7 +42,13 @@ const DIFFICULTY_LABELS: Record<DailyChallengeDifficulty, string> = {
   super_advanced: '超上級',
 };
 
-const difficultyLabel = (d: DailyChallengeDifficulty): string => DIFFICULTY_LABELS[d];
+const DIFFICULTY_LABELS_EN: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: 'Super Beginner',
+  beginner: 'Beginner',
+  intermediate: 'Intermediate',
+  advanced: 'Advanced',
+  super_advanced: 'Super Advanced',
+};
 
 const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
   const bgmUrl = dbStage.bgm_url || dbStage.mp3_url || undefined;
@@ -73,6 +82,15 @@ const DailyChallengeMain: React.FC = () => {
   const toast = useToast();
   const today = useMemo(() => toLocalDateString(new Date()), []);
   const [view, setView] = useState<ViewState>({ type: 'loading' });
+  const profile = useAuthStore(s => s.profile);
+  const geoCountry = useGeoStore(s => s.country);
+  const isEn = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const difficultyLabel = (d: DailyChallengeDifficulty): string =>
+    isEn ? DIFFICULTY_LABELS_EN[d] : DIFFICULTY_LABELS_JA[d];
 
   useEffect(() => {
     const run = async () => {
@@ -108,7 +126,7 @@ const DailyChallengeMain: React.FC = () => {
   if (view.type === 'loading') {
     return (
       <div className="w-full h-full flex items-center justify-center text-white">
-        <div className="text-sm text-gray-300">読み込み中...</div>
+        <div className="text-sm text-gray-300">{isEn ? 'Loading...' : '読み込み中...'}</div>
       </div>
     );
   }
@@ -116,15 +134,15 @@ const DailyChallengeMain: React.FC = () => {
   if (view.type === 'blocked') {
     const message =
       view.reason === 'already_played'
-        ? '本日はこの難易度をプレイ済みです。'
+        ? (isEn ? 'You have already played this difficulty today.' : '本日はこの難易度をプレイ済みです。')
         : view.reason === 'missing_stage'
-          ? 'デイリーチャレンジのステージ設定が見つかりません。管理画面で設定してください。'
-          : 'デイリーチャレンジの起動に失敗しました。';
+          ? (isEn ? 'Daily challenge stage not found. Please configure it in the admin panel.' : 'デイリーチャレンジのステージ設定が見つかりません。管理画面で設定してください。')
+          : (isEn ? 'Failed to start daily challenge.' : 'デイリーチャレンジの起動に失敗しました。');
 
     return (
       <div className="w-full h-full flex items-center justify-center p-6 text-white">
         <div className="max-w-md w-full bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
-          <div className="text-lg font-bold">デイリーチャレンジ</div>
+          <div className="text-lg font-bold">{isEn ? 'Daily Challenge' : 'デイリーチャレンジ'}</div>
           <div className="text-sm text-gray-200">{message}</div>
           <button
             className="btn btn-primary w-full"
@@ -132,7 +150,7 @@ const DailyChallengeMain: React.FC = () => {
               window.location.hash = '#dashboard';
             }}
           >
-            ダッシュボードに戻る
+            {isEn ? 'Back to Dashboard' : 'ダッシュボードに戻る'}
           </button>
         </div>
       </div>
@@ -143,11 +161,11 @@ const DailyChallengeMain: React.FC = () => {
     return (
       <div className="min-h-[var(--dvh,100dvh)] bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center p-4">
         <div className="text-white text-center max-w-md w-full">
-          <h2 className="text-3xl font-bold mb-6 font-sans">リザルト</h2>
+          <h2 className="text-3xl font-bold mb-6 font-sans">{isEn ? 'Results' : 'リザルト'}</h2>
           <div className="bg-black/30 rounded-lg p-6 mb-6 space-y-2">
-            <div className="text-sm text-gray-200">難易度</div>
+            <div className="text-sm text-gray-200">{isEn ? 'Difficulty' : '難易度'}</div>
             <div className="text-xl font-bold">{difficultyLabel(view.difficulty)}</div>
-            <div className="mt-4 text-sm text-gray-200">スコア</div>
+            <div className="mt-4 text-sm text-gray-200">{isEn ? 'Score' : 'スコア'}</div>
             <div className="text-4xl font-bold text-yellow-300">{view.score}</div>
           </div>
           <button
@@ -156,7 +174,7 @@ const DailyChallengeMain: React.FC = () => {
               window.location.hash = '#dashboard';
             }}
           >
-            トップに戻る
+            {isEn ? 'Back to Top' : 'トップに戻る'}
           </button>
         </div>
       </div>
@@ -198,10 +216,10 @@ const DailyChallengeMain: React.FC = () => {
             score,
           });
           if (res.status === 'already_played') {
-            toast.info('本日はプレイ済みです');
+            toast.info(isEn ? 'Already played today' : '本日はプレイ済みです');
           }
         } catch {
-          toast.error('記録の保存に失敗しました');
+          toast.error(isEn ? 'Failed to save record' : '記録の保存に失敗しました');
         } finally {
           setView({ type: 'result', difficulty: view.difficulty, score });
         }

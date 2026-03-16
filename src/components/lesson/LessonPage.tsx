@@ -1,361 +1,112 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { Course, Lesson } from '@/types';
+import { Course } from '@/types';
 import { fetchCoursesWithDetails, fetchUserCompletedCourses, canAccessCourse } from '@/platform/supabaseCourses';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
-import { fetchUserLessonProgress, unlockLesson, LessonProgress, fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
-import { subscribeRealtime } from '@/platform/supabaseClient';
+import { fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { 
-  FaLock, 
-  FaCheck, 
-  FaStar, 
-  FaGraduationCap,
-} from 'react-icons/fa';
+import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
-import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
-import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 
-/**
- * レッスン学習画面
- * Hash: #lessons で表示
- */
 const LessonPage: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [courses, setCourses] = useState<Course[]>([]);
-  const [selectedCourse, setSelectedCourse] = useState<Course | null>(null);
-  const [lessons, setLessons] = useState<Lesson[]>([]);
-  const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
-  const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
   const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [allCoursesProgress, setAllCoursesProgress] = useState<Record<string, number>>({});
+  const [lessonCounts, setLessonCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const { profile, isGuest } = useAuthStore();
   const toast = useToast();
   const geoCountry = useGeoStore(s => s.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry });
-  const mainAreaRef = useRef<HTMLDivElement>(null);
-  const lessonScrollRef = useRef<HTMLDivElement>(null);
-  const shouldScrollToIncomplete = useRef(false);
-  const [scrollTrigger, setScrollTrigger] = useState(0);
-
-  const lessonAccessGraph = useMemo<LessonAccessGraph>(() => {
-    if (lessons.length === 0) {
-      return { lessonStates: {}, blockStates: {} };
-    }
-    return buildLessonAccessGraph({
-      lessons,
-      progressMap: progress as Record<string, LessonProgress | undefined>,
-      userRank: profile?.rank,
-    });
-  }, [lessons, progress, profile?.rank]);
-
-  useEffect(() => {
-    if (scrollTrigger === 0 || lessons.length === 0) return;
-
-    const sortedLessons = [...lessons].sort((a, b) => {
-      const blockA = a.block_number || 1;
-      const blockB = b.block_number || 1;
-      if (blockA !== blockB) return blockA - blockB;
-      return a.order_index - b.order_index;
-    });
-
-    const firstIncomplete = sortedLessons.find(lesson => {
-      const state = lessonAccessGraph.lessonStates[lesson.id];
-      return !(state?.isCompleted ?? false);
-    });
-
-    if (firstIncomplete && lessonScrollRef.current) {
-      requestAnimationFrame(() => {
-        const el = lessonScrollRef.current?.querySelector(`[data-lesson-id="${firstIncomplete.id}"]`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-    }
-  }, [scrollTrigger]);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
 
   useEffect(() => {
     const checkHash = () => {
-      const isLessonsPage = window.location.hash === '#lessons';
-      const wasOpen = open;
-      setOpen(isLessonsPage);
-      
-      if (isLessonsPage && !wasOpen && profile && selectedCourse) {
-        clearNavigationCacheForCourse(selectedCourse.id);
-        loadLessons(selectedCourse.id);
-      }
+      setOpen(window.location.hash === '#lessons');
     };
-
     checkHash();
     window.addEventListener('hashchange', checkHash);
     return () => window.removeEventListener('hashchange', checkHash);
-  }, [open, profile, selectedCourse]);
+  }, []);
 
   useEffect(() => {
-    if (selectedCourse?.id) {
-      loadLessons(selectedCourse.id);
-    }
-  }, [selectedCourse?.id]);
+    if (!open || !profile) return;
+    let cancelled = false;
 
-  useEffect(() => {
-    if (!open || !selectedCourse) return;
+    const loadData = async () => {
+      setLoading(true);
+      try {
+        const [coursesData, completedCourses] = await Promise.all([
+          fetchCoursesWithDetails(),
+          fetchUserCompletedCourses(profile.id),
+        ]);
 
-    const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
-    if (!shouldMonitor) return;
+        const audienceFilter = isEnglishCopy ? 'global' : 'japan';
+        const sorted = coursesData
+          .filter(c => {
+            const a = c.audience || 'both';
+            return a === 'both' || a === audienceFilter;
+          })
+          .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
 
-    const unsubscribeLessons = subscribeRealtime(
-      'lesson-changes',
-      'lessons',
-      '*',
-      (_payload: unknown) => {
-        if (selectedCourse) {
-          loadLessons(selectedCourse.id);
-        }
-      },
-      { clearCache: false }
-    );
+        if (cancelled) return;
+        setCourses(sorted);
+        setCompletedCourseIds(completedCourses);
 
-    const unsubscribeLessonSongs = subscribeRealtime(
-      'lesson-songs-changes',
-      'lesson_songs',
-      '*',
-      (_payload: unknown) => {
-        if (selectedCourse) {
-          loadLessons(selectedCourse.id);
-        }
-      },
-      { clearCache: false }
-    );
+        const [allProgress, lessonsByCourse] = await Promise.all([
+          fetchUserLessonProgressAll(),
+          Promise.all(sorted.map(c => fetchLessonsByCourse(c.id))),
+        ]);
 
-    const unsubscribeReqs = subscribeRealtime(
-      'lesson-reqs-progress',
-      'user_lesson_requirements_progress',
-      '*',
-      async (_payload: unknown) => {
-        try {
-          const { clearCacheByPattern } = await import('@/platform/supabaseClient');
-          if (selectedCourse) {
-            clearCacheByPattern(/lesson_req_progress:/);
-            const lessons = await fetchLessonsByCourse(selectedCourse.id);
-            const lessonIds = lessons.map(l => l.id);
-            const map = await fetchAggregatedRequirementsProgress(lessonIds, { forceRefresh: true });
-            setLessonRequirementsProgress(map);
-          }
-        } catch {}
-      },
-      { clearCache: false }
-    );
+        if (cancelled) return;
 
-    return () => {
-      unsubscribeLessons();
-      unsubscribeLessonSongs();
-      unsubscribeReqs();
+        const counts: Record<string, number> = {};
+        const completedCountByCourse: Record<string, number> = {};
+
+        sorted.forEach((c, idx) => {
+          counts[c.id] = lessonsByCourse[idx].length;
+        });
+
+        allProgress.forEach(p => {
+          if (!completedCountByCourse[p.course_id]) completedCountByCourse[p.course_id] = 0;
+          if (p.completed) completedCountByCourse[p.course_id]++;
+        });
+
+        const progressMap: Record<string, number> = {};
+        sorted.forEach(c => {
+          const total = counts[c.id] || 0;
+          const completed = completedCountByCourse[c.id] || 0;
+          progressMap[c.id] = total > 0 ? Math.round((completed / total) * 100) : 0;
+        });
+
+        setLessonCounts(counts);
+        setAllCoursesProgress(progressMap);
+      } catch {
+        toast.error(isEnglishCopy ? 'Failed to load courses' : 'コースの読み込みに失敗しました');
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     };
-  }, [open, selectedCourse, profile?.isAdmin, profile?.rank]);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [coursesData, completedCourses] = await Promise.all([
-        fetchCoursesWithDetails(),
-        profile ? fetchUserCompletedCourses(profile.id) : Promise.resolve([]),
-      ]);
-      
-      const sortedCourses = coursesData
-        .filter(c => {
-          const a = c.audience || 'both';
-          return a === 'both' || a === 'japan';
-        })
-        .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
-      setCourses(sortedCourses);
-      setCompletedCourseIds(completedCourses);
-      
-      if (profile) {
-        try {
-          const [allProgress, lessonsByCourse] = await Promise.all([
-            fetchUserLessonProgressAll(),
-            Promise.all(sortedCourses.map(c => fetchLessonsByCourse(c.id)))
-          ]);
+    void loadData();
+    return () => { cancelled = true; };
+  }, [open, profile?.id]);
 
-          const lessonsCountByCourse: Record<string, number> = {};
-          sortedCourses.forEach((c, idx) => {
-            lessonsCountByCourse[c.id] = lessonsByCourse[idx].length;
-          });
-
-          const completedCountByCourse: Record<string, number> = {};
-          allProgress.forEach(p => {
-            if (!completedCountByCourse[p.course_id]) completedCountByCourse[p.course_id] = 0;
-            if (p.completed) completedCountByCourse[p.course_id]++;
-          });
-
-          const progressMap: Record<string, number> = {};
-          sortedCourses.forEach(c => {
-            const total = lessonsCountByCourse[c.id] || 0;
-            const completed = completedCountByCourse[c.id] || 0;
-            progressMap[c.id] = total > 0 ? Math.round((completed / total) * 100) : 0;
-          });
-
-          setAllCoursesProgress(progressMap);
-        } catch (error) {
-          console.error('Error loading course progress data:', error);
-        }
-      }
-
-      const firstAccessibleCourse = sortedCourses.find(course => {
-        const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourses);
-        return accessResult.canAccess;
-      });
-      if (firstAccessibleCourse) {
-        shouldScrollToIncomplete.current = true;
-        setSelectedCourse(firstAccessibleCourse);
-      }
-    } catch (e: any) {
-      toast.error('コースの読み込みに失敗しました');
-      console.error('Error loading courses:', e);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    if (open && profile) {
-      loadData();
-    }
-  }, [open, profile]);
-
-  const loadLessons = async (courseId: string) => {
-    try {
-      const [lessonsData, progressData, requirementsMap] = await Promise.all([
-        fetchLessonsByCourse(courseId),
-        fetchUserLessonProgress(courseId),
-        fetchLessonsByCourse(courseId).then(lessonList => {
-          const lessonIds = lessonList.map(lesson => lesson.id);
-          return fetchAggregatedRequirementsProgress(lessonIds);
-        }),
-      ]);
-
-      setLessonRequirementsProgress(requirementsMap);
-      setLessons(lessonsData);
-
-      if (lessonsData.length === 0 && lessons.length > 0) {
-        const { clearSupabaseCache } = await import('@/platform/supabaseClient');
-        clearSupabaseCache();
-
-        setTimeout(async () => {
-          try {
-            const retryLessonsData = await fetchLessonsByCourse(courseId);
-            const retryLessonIds = retryLessonsData.map(lesson => lesson.id);
-            const retryRequirementsMap = await fetchAggregatedRequirementsProgress(retryLessonIds, { forceRefresh: true });
-
-            setLessons(retryLessonsData);
-            setLessonRequirementsProgress(retryRequirementsMap);
-
-            const retryProgressData = await fetchUserLessonProgress(courseId);
-            const retryProgressMap: Record<string, LessonProgress> = {};
-            retryProgressData.forEach((p: LessonProgress) => {
-              retryProgressMap[p.lesson_id] = p;
-            });
-            setProgress(retryProgressMap);
-          } catch (retryError) {
-            console.error('Retry loading failed:', retryError);
-          }
-        }, 100);
-        return;
-      }
-
-      const progressMap: Record<string, LessonProgress> = {};
-      progressData.forEach((p: LessonProgress) => {
-        progressMap[p.lesson_id] = p;
-      });
-
-      const block1Lessons = lessonsData.filter(lesson => (lesson.block_number || 1) === 1);
-
-      for (const lesson of block1Lessons) {
-        if (!progressMap[lesson.id]) {
-          try {
-            await unlockLesson(lesson.id, courseId);
-          } catch (e) {
-            console.error('Failed to auto-unlock block 1 lesson:', e);
-          }
-        }
-      }
-
-      const updatedProgressData = await fetchUserLessonProgress(courseId);
-      const updatedProgressMap: Record<string, LessonProgress> = {};
-      updatedProgressData.forEach((p: LessonProgress) => {
-        updatedProgressMap[p.lesson_id] = p;
-      });
-
-      setProgress(updatedProgressMap);
-
-      if (lessonsData.length > 0) {
-        const completedCount = updatedProgressData.filter(p => p.completed).length;
-        const completionRate = Math.round((completedCount / lessonsData.length) * 100);
-        setAllCoursesProgress(prev => ({
-          ...prev,
-          [courseId]: completionRate,
-        }));
-      }
-      if (shouldScrollToIncomplete.current) {
-        shouldScrollToIncomplete.current = false;
-        setScrollTrigger(prev => prev + 1);
-      }
-    } catch (e: any) {
-      toast.error('レッスンデータの読み込みに失敗しました');
-      console.error('Error loading lessons:', e);
-    }
-  };
-
-  const getLessonCompletionRate = (lesson: Lesson): number => {
-    const requirements = lessonRequirementsProgress[lesson.id] || [];
-    if (requirements.length === 0) return 0;
-    
-    const completedCount = requirements.filter(req => req.is_completed).length;
-    return Math.round((completedCount / requirements.length) * 100);
-  };
-
-  const getCourseCompletionRate = (course: Course): number => {
-    if (allCoursesProgress[course.id] !== undefined) {
-      return allCoursesProgress[course.id];
-    }
-    
-    if (course.id === selectedCourse?.id && lessons.length > 0) {
-      const totalLessons = lessons.length;
-      const completedLessons = lessons.filter(lesson => progress[lesson.id]?.completed).length;
-      return Math.round((completedLessons / totalLessons) * 100);
-    }
-    
-    return 0;
-  };
-
-  const handleLessonClick = (lesson: Lesson) => {
-    const accessState = lessonAccessGraph.lessonStates[lesson.id];
-    if (!accessState?.isUnlocked) {
-      toast.warning('このレッスンはまだ解放されていません');
-      return;
-    }
-
-    window.location.hash = `#lesson-detail?id=${lesson.id}`;
-  };
-
-  const groupLessonsByBlock = (lessons: Lesson[]) => {
-    const blocks: { [key: number]: Lesson[] } = {};
-    const blockNames: { [key: number]: string } = {};
-    lessons.forEach(lesson => {
-      const blockNumber = lesson.block_number || 1;
-      if (!blocks[blockNumber]) {
-        blocks[blockNumber] = [];
-      }
-      blocks[blockNumber].push(lesson);
-      if (lesson.block_name && !blockNames[blockNumber]) {
-        blockNames[blockNumber] = lesson.block_name;
-      }
-    });
-    return { blocks, blockNames };
-  };
+  const tutorialCourses = useMemo(
+    () => courses.filter(c => c.is_tutorial),
+    [courses],
+  );
+  const regularCourses = useMemo(
+    () => courses.filter(c => !c.is_tutorial),
+    [courses],
+  );
 
   if (!open) return null;
 
@@ -363,284 +114,188 @@ const LessonPage: React.FC = () => {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">
-          <h4 className="text-lg font-bold text-center">レッスンはログインユーザー専用です</h4>
-          <p className="text-center text-gray-300">レッスン機能を利用するにはログインが必要です。</p>
+          <h4 className="text-lg font-bold text-center">
+            {isEnglishCopy ? 'Lessons require login' : 'レッスンはログインユーザー専用です'}
+          </h4>
+          <p className="text-center text-gray-300">
+            {isEnglishCopy ? 'Please log in to access lessons.' : 'レッスン機能を利用するにはログインが必要です。'}
+          </p>
           <div className="flex flex-col gap-3">
-            <button 
-              className="btn btn-sm btn-primary w-full" 
+            <button
+              className="btn btn-sm btn-primary w-full"
               onClick={() => { window.location.hash = '#login'; }}
             >
-              ログイン / 会員登録
+              {isEnglishCopy ? 'Log In / Sign Up' : 'ログイン / 会員登録'}
             </button>
-            <button 
-              className="btn btn-sm btn-outline w-full" 
+            <button
+              className="btn btn-sm btn-outline w-full"
               onClick={() => { window.location.href = '/main#dashboard'; }}
             >
-              ダッシュボードに戻る
+              {isEnglishCopy ? 'Back to Dashboard' : 'ダッシュボードに戻る'}
             </button>
           </div>
         </div>
       </div>,
-      document.body
+      document.body,
     );
   }
+
+  const renderCourseCard = (course: Course) => {
+    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
+    const accessible = accessResult.canAccess;
+    const progress = allCoursesProgress[course.id] ?? 0;
+    const count = lessonCounts[course.id] ?? 0;
+    const isCompleted = progress === 100;
+
+    return (
+      <button
+        key={course.id}
+        className={`group relative text-left w-full rounded-xl border-2 p-5 transition-all duration-200 ${
+          isCompleted
+            ? 'border-emerald-500/40 bg-emerald-900/10 hover:bg-emerald-900/20'
+            : accessible
+              ? 'border-slate-600/60 bg-slate-800/60 hover:bg-slate-700/60 hover:border-primary-500/50'
+              : 'border-slate-700/40 bg-slate-800/30 opacity-60 cursor-not-allowed'
+        }`}
+        onClick={() => {
+          if (accessible) {
+            window.location.hash = `#course?id=${course.id}`;
+          } else {
+            toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
+          }
+        }}
+      >
+        <div className="flex items-start justify-between gap-3 mb-3">
+          <div className="flex flex-wrap items-center gap-2">
+            {course.is_tutorial && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold tracking-wide border border-cyan-500/30">
+                Tutorial
+              </span>
+            )}
+            {course.premium_only && (
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
+                Premium
+              </span>
+            )}
+            {!accessible && <FaLock className="text-xs text-gray-500" />}
+            {isCompleted && <FaCheck className="text-sm text-emerald-400" />}
+          </div>
+          {accessible && (
+            <FaChevronRight className="text-gray-500 group-hover:text-primary-400 transition-colors shrink-0 mt-1" />
+          )}
+        </div>
+
+        <h3 className="font-semibold text-base mb-1.5 line-clamp-1">{course.title}</h3>
+
+        {course.description && (
+          <p className="text-xs text-gray-400 line-clamp-2 mb-3">{course.description}</p>
+        )}
+
+        {course.prerequisites && course.prerequisites.length > 0 && (
+          <div className="flex flex-wrap gap-1 mb-3">
+            {course.prerequisites.map(prereq => (
+              <span
+                key={prereq.prerequisite_course_id}
+                className={`text-[10px] px-2 py-0.5 rounded-full ${
+                  completedCourseIds.includes(prereq.prerequisite_course_id)
+                    ? 'bg-emerald-600/30 text-emerald-300 border border-emerald-600/40'
+                    : 'bg-orange-600/30 text-orange-300 border border-orange-600/40'
+                }`}
+              >
+                {prereq.prerequisite_course.title}
+              </span>
+            ))}
+          </div>
+        )}
+
+        {!accessible && accessResult.reason && (
+          <p className="text-[11px] text-orange-300/80 mb-3">{accessResult.reason}</p>
+        )}
+
+        <div className="mt-auto">
+          <div className="flex justify-between items-center text-xs text-gray-400 mb-1.5">
+            <span>
+              {count} {isEnglishCopy ? 'lessons' : 'レッスン'}
+            </span>
+            <span className={isCompleted ? 'text-emerald-400 font-medium' : ''}>
+              {progress}%
+            </span>
+          </div>
+          <div className="h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+            <div
+              className={`h-full rounded-full transition-all duration-500 ${
+                isCompleted ? 'bg-emerald-500' : 'bg-primary-500'
+              }`}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+        </div>
+      </button>
+    );
+  };
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
-      <div className="flex-1 p-4 overflow-y-auto md:overflow-hidden flex flex-col" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="flex-1 bg-slate-900 text-white flex flex-col md:min-h-0 md:overflow-hidden">
-
-          <div className="shrink-0 px-6 pb-4">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-4">
-              <div className="flex items-center space-x-2 mb-1">
-                <FaGraduationCap className="text-blue-400" />
-                <h3 className="text-sm font-semibold">レッスンで体系的に学びましょう</h3>
-              </div>
-              <p className="text-gray-300 text-xs sm:text-sm">
-                コースからレッスンを選び、動画と実習で基礎から応用まで段階的に学習できます。前のブロックをクリアすると次が解放されます。
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-6 space-y-8">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 rounded-xl bg-primary-600/20 border border-primary-500/30">
+              <FaGraduationCap className="text-xl text-primary-400" />
+            </div>
+            <div>
+              <h1 className="text-2xl font-bold">
+                {isEnglishCopy ? 'Lessons' : 'レッスン'}
+              </h1>
+              <p className="text-sm text-gray-400">
+                {isEnglishCopy
+                  ? 'Learn systematically from basics to advanced topics'
+                  : '基礎から応用まで体系的に学びましょう'}
               </p>
             </div>
           </div>
 
           {loading ? (
-            <div className="flex-1 flex items-center justify-center">
-              <p className="text-gray-400">読み込み中...</p>
+            <div className="flex items-center justify-center py-20">
+              <div className="flex flex-col items-center gap-3">
+                <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-gray-400">
+                  {isEnglishCopy ? 'Loading...' : '読み込み中...'}
+                </p>
+              </div>
             </div>
           ) : (
-            <div className="flex-1 flex flex-col md:flex-row md:min-h-0 md:overflow-hidden">
-              {/* コース一覧サイドバー */}
-              <div className="w-full md:w-80 bg-slate-800 border-r border-slate-700 flex flex-col md:min-h-0 md:overflow-hidden">
-                <div className="shrink-0 p-4 border-b border-slate-700">
-                  <h2 className="text-lg font-semibold">コース一覧</h2>
-                </div>
-                  <div className="flex-1 overflow-y-auto overflow-x-hidden p-4" style={{ WebkitOverflowScrolling: 'touch' }}>
-                    <div className="flex flex-row flex-wrap md:flex-col md:flex-nowrap gap-3 md:w-auto">
-                    {courses.map((course: Course) => {
-                      const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
-                      const accessible = accessResult.canAccess;
-
-                      return (
-                        <div
-                          key={course.id}
-                          className={`p-4 rounded-lg cursor-pointer transition-colors min-w-[220px] md:min-w-0 ${
-                            selectedCourse?.id === course.id
-                              ? 'bg-primary-600'
-                              : accessible
-                                ? 'bg-slate-700 hover:bg-slate-600'
-                                : 'bg-slate-800 opacity-75'
-                          }`}
-                          onClick={() => {
-                            if (accessible) {
-                              setSelectedCourse(course);
-                              shouldScrollToIncomplete.current = true;
-                              if (typeof window !== 'undefined' && window.innerWidth < 768) {
-                                setTimeout(() => {
-                                  mainAreaRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                                }, 50);
-                              }
-                            } else {
-                              toast.warning(accessResult.reason || 'このコースにはアクセスできません');
-                            }
-                          }}
-                        >
-                          {(course.premium_only || !accessible) && (
-                            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-                              {course.premium_only && (
-                                <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
-                                  Premium
-                                </span>
-                              )}
-                              {!accessible && <FaLock className="text-xs text-gray-400" />}
-                            </div>
-                          )}
-                          <h3 className="font-medium truncate mb-2">
-                            {course.title}
-                          </h3>
-
-                          {course.prerequisites && course.prerequisites.length > 0 && (
-                            <div className="mb-2">
-                              <p className="text-xs text-gray-400 mb-1">前提コース:</p>
-                              <div className="flex flex-wrap gap-1">
-                                {course.prerequisites.map((prereq) => (
-                                  <span
-                                    key={prereq.prerequisite_course_id}
-                                    className={`text-xs px-2 py-1 rounded ${
-                                      completedCourseIds.includes(prereq.prerequisite_course_id)
-                                        ? 'bg-emerald-600 text-white'
-                                        : 'bg-orange-600 text-white'
-                                    }`}
-                                  >
-                                    {prereq.prerequisite_course.title}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-                          )}
-
-                          {!accessible && (
-                            <div className="mb-2 p-2 rounded border bg-orange-900/30 border-orange-600">
-                              <p className="text-xs text-orange-300">
-                                {accessResult.reason || 'このコースには現在アクセスできません。'}
-                              </p>
-                            </div>
-                          )}
-
-                          <div className="mb-2">
-                            <div className="flex justify-between text-xs text-gray-400 mb-1">
-                              <span>進捗</span>
-                              <span>{getCourseCompletionRate(course)}%</span>
-                            </div>
-                            <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                              <div
-                                className="h-full bg-emerald-500 transition-all duration-300"
-                                style={{ width: `${getCourseCompletionRate(course)}%` }}
-                              />
-                            </div>
-                          </div>
-
-                          {course.description && (
-                            <p className="text-xs text-gray-400 line-clamp-4">
-                              {course.description}
-                            </p>
-                          )}
-                        </div>
-                      );
-                    })}
-                    </div>
-                </div>
-              </div>
-
-              {/* レッスン一覧メインエリア */}
-              <div ref={mainAreaRef} className="flex-1 flex flex-col md:overflow-hidden md:min-h-0">
-                {selectedCourse ? (
-                  <>
-                    <div className="shrink-0 p-6 border-b border-slate-700">
-                      <h2 className="text-2xl font-bold mb-2 flex items-center gap-3">
-                        {selectedCourse.title}
-                        {selectedCourse.premium_only && (
-                          <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
-                            Premium
-                          </span>
-                        )}
-                      </h2>
-                      {selectedCourse.description && (
-                        <p className="text-gray-400">{selectedCourse.description}</p>
-                      )}
-                    </div>
-                    
-                    <div ref={lessonScrollRef} className="flex-1 overflow-y-auto p-6" style={{ WebkitOverflowScrolling: 'touch' }}>
-                        <div className="space-y-6">
-                          {(() => {
-                            const { blocks, blockNames } = groupLessonsByBlock(lessons);
-                            return Object.entries(blocks).map(([blockNumber, blockLessons]) => {
-                            const blockNum = parseInt(blockNumber);
-                            const blockState = lessonAccessGraph.blockStates[blockNum];
-                            const isBlockUnlocked = blockState?.isUnlocked ?? false;
-                            const isBlockCompleted = blockState?.isCompleted ?? false;
-
-                            return (
-                              <div key={blockNum} className="bg-slate-800 rounded-lg p-4 relative">
-                                <div className="flex items-center justify-between mb-4">
-                                  <h4 className="text-lg font-semibold text-white">
-                                    {blockNames[blockNum] || `ブロック ${blockNum}`}
-                                  </h4>
-                                  <div className="flex items-center gap-3 text-sm">
-                                    {isBlockCompleted ? (
-                                      <span className="flex items-center text-emerald-500">
-                                        <FaCheck className="mr-1" /> 完了
-                                      </span>
-                                    ) : isBlockUnlocked ? (
-                                      <span className="text-blue-500">解放中</span>
-                                    ) : (
-                                      <span className="flex items-center text-gray-400">
-                                        <FaLock className="mr-1" /> 未解放 - 前のブロックを完了してください
-                                      </span>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="space-y-4">
-                                  {blockLessons.sort((a, b) => a.order_index - b.order_index).map((lesson) => {
-                                    const accessState = lessonAccessGraph.lessonStates[lesson.id];
-                                    const unlocked = accessState?.isUnlocked ?? false;
-                                    const completed = accessState?.isCompleted ?? (progress[lesson.id]?.completed || false);
-                                    const completionRate = getLessonCompletionRate(lesson);
-
-                                    return (
-                                      <div
-                                        key={lesson.id}
-                                        data-lesson-id={lesson.id}
-                                        className={`p-3 sm:p-4 rounded-lg border-2 transition-all ${
-                                          unlocked
-                                            ? completed
-                                              ? 'border-emerald-500 bg-emerald-900/20 hover:bg-emerald-900/30 cursor-pointer'
-                                              : 'border-blue-500 bg-blue-900/20 hover:bg-blue-900/30 cursor-pointer'
-                                            : 'border-gray-600 bg-gray-800/20'
-                                        }`}
-                                        onClick={() => handleLessonClick(lesson)}
-                                      >
-                                        <div className="flex flex-col gap-3 sm:gap-4">
-                                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                            <h3
-                                              className={`text-base sm:text-lg font-semibold ${
-                                                unlocked ? 'text-white' : 'text-gray-400'
-                                              }`}
-                                            >
-                                              {lesson.title}
-                                            </h3>
-                                            <div className="flex items-center gap-2 text-sm">
-                                              <span className="inline-flex items-center rounded px-3 py-1 bg-slate-700/60 text-gray-200">
-                                                レッスン {lesson.order_index + 1}
-                                              </span>
-                                              {completed ? (
-                                                <span className="inline-flex items-center gap-1 text-emerald-400">
-                                                  <FaStar className="w-4 h-4" />
-                                                  <span className="text-sm font-medium">完了</span>
-                                                </span>
-                                              ) : (
-                                                !unlocked && (
-                                                  <span className="inline-flex items-center gap-1 text-gray-400">
-                                                    <FaLock className="w-3 h-3" />
-                                                    ロック中
-                                                  </span>
-                                                )
-                                              )}
-                                            </div>
-                                          </div>
-
-                                          {unlocked && (
-                                            <div>
-                                              <div className="flex justify-between text-xs text-gray-400 mb-1">
-                                                <span>進捗</span>
-                                                <span>{completionRate}%</span>
-                                              </div>
-                                              <div className="h-2 bg-slate-600 rounded-full overflow-hidden">
-                                                <div
-                                                  className="h-full bg-blue-500 transition-all duration-300"
-                                                  style={{ width: `${completionRate}%` }}
-                                                />
-                                              </div>
-                                            </div>
-                                          )}
-                                        </div>
-                                      </div>
-                                    );
-                                  })}
-                                </div>
-                              </div>
-                            );
-                          });
-                          })()}
-                        </div>
-                    </div>
-                  </>
-                ) : (
-                  <div className="flex-1 flex items-center justify-center">
-                    <p className="text-gray-400">コースを選択してください</p>
+            <>
+              {tutorialCourses.length > 0 && (
+                <section>
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span className="w-1 h-5 bg-cyan-500 rounded-full" />
+                    {isEnglishCopy ? 'Getting Started' : 'はじめに'}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {tutorialCourses.map(renderCourseCard)}
                   </div>
-                )}
-              </div>
-            </div>
+                </section>
+              )}
+
+              {regularCourses.length > 0 && (
+                <section>
+                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <span className="w-1 h-5 bg-primary-500 rounded-full" />
+                    {isEnglishCopy ? 'Courses' : 'コース'}
+                  </h2>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {regularCourses.map(renderCourseCard)}
+                  </div>
+                </section>
+              )}
+
+              {courses.length === 0 && (
+                <div className="text-center py-20 text-gray-400">
+                  <p>{isEnglishCopy ? 'No courses available.' : '利用可能なコースがありません。'}</p>
+                </div>
+              )}
+            </>
           )}
         </div>
       </div>

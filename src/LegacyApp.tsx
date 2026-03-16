@@ -15,6 +15,7 @@ const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard')
 const AccountPage = React.lazy(() => import('@/components/ui/AccountModal'));
 const MypagePage = React.lazy(() => import('@/components/ui/MypageModal'));
 const LessonPage = React.lazy(() => import('@/components/lesson/LessonPage'));
+const CoursePage = React.lazy(() => import('@/components/lesson/CoursePage'));
 const LessonDetailPage = React.lazy(() => import('@/components/lesson/LessonDetailPage'));
 const InformationPage = React.lazy(() => import('@/components/information/InformationPage'));
 const AdminDashboard = React.lazy(() => import('@/components/admin/AdminDashboard'));
@@ -195,6 +196,9 @@ const App: React.FC = () => {
       break;
     case '#lessons':
       MainContent = isFree ? <Dashboard /> : <LessonPage />;
+      break;
+    case '#course':
+      MainContent = isFree ? <Dashboard /> : <CoursePage />;
       break;
     case '#lesson-detail':
       MainContent = isFree ? <Dashboard /> : <LessonDetailPage />;

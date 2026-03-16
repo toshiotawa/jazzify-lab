@@ -76,7 +76,7 @@ const Dashboard: React.FC = () => {
       // お知らせのロード（ゲスト以外）
       if (!isGuest) {
         promises.push(
-          fetchActiveAnnouncements('default').then(announcementsData => {
+          fetchActiveAnnouncements(isEnglishCopy ? 'en' : 'ja').then(announcementsData => {
             // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
             const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
               // まず優先度で比較
@@ -259,10 +259,16 @@ const Dashboard: React.FC = () => {
                       </p>
                   ) : (
                     <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
-                      <h4 className="font-semibold mb-2">{latestAnnouncement.title}</h4>
+                      <h4 className="font-semibold mb-2">
+                        {(isEnglishCopy && latestAnnouncement.title_en) ? latestAnnouncement.title_en : latestAnnouncement.title}
+                      </h4>
                       <div 
                         className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
-                        dangerouslySetInnerHTML={{ __html: mdToHtml(latestAnnouncement.content) }}
+                        dangerouslySetInnerHTML={{
+                          __html: mdToHtml(
+                            (isEnglishCopy && latestAnnouncement.content_en) ? latestAnnouncement.content_en : latestAnnouncement.content,
+                          ),
+                        }}
                       />
                       
                       {latestAnnouncement.link_url && (
@@ -273,12 +279,16 @@ const Dashboard: React.FC = () => {
                           className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm underline transition-colors"
                         >
                           <FaExternalLinkAlt className="w-3 h-3" />
-                            <span>{latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}</span>
+                            <span>
+                              {(isEnglishCopy && latestAnnouncement.link_text_en)
+                                ? latestAnnouncement.link_text_en
+                                : latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}
+                            </span>
                         </a>
                       )}
                       
                       <div className="text-xs text-gray-500 mt-2">
-                        {new Date(latestAnnouncement.created_at).toLocaleDateString()}
+                        {new Date(latestAnnouncement.created_at).toLocaleDateString(isEnglishCopy ? 'en-US' : 'ja-JP')}
                       </div>
 
                       <div className="mt-3">

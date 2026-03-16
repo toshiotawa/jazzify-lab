@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { useToastStore } from '@/stores/toastStore';
@@ -15,6 +15,7 @@ const AccountPage: React.FC = () => {
     profile,
     logout,
     updateEmail,
+    updateNickname,
     emailChangeStatus,
     clearEmailChangeStatus,
     session,
@@ -28,6 +29,9 @@ const AccountPage: React.FC = () => {
     () => profile?.preferred_locale ?? resolveAudienceLocale(),
   );
   const [localeSaving, setLocaleSaving] = useState(false);
+  const [nicknameEditing, setNicknameEditing] = useState(false);
+  const [nicknameValue, setNicknameValue] = useState('');
+  const [nicknameSaving, setNicknameSaving] = useState(false);
   const geoCountry = useGeoStore(s => s.country);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -38,6 +42,23 @@ const AccountPage: React.FC = () => {
   const localeCode = isEnglishCopy ? 'en' : 'ja';
   const planLabel = getMembershipLabel(profile?.rank, localeCode);
   const isPremiumMember = isPremiumTier(profile?.rank);
+  const handleNicknameSave = useCallback(async () => {
+    const trimmed = nicknameValue.trim();
+    if (!trimmed || trimmed === profile?.nickname) {
+      setNicknameEditing(false);
+      return;
+    }
+    setNicknameSaving(true);
+    const result = await updateNickname(trimmed);
+    setNicknameSaving(false);
+    if (result.success) {
+      pushToast(isEnglishCopy ? 'Nickname updated' : 'ニックネームを更新しました', 'success');
+      setNicknameEditing(false);
+    } else {
+      pushToast(result.message, 'error');
+    }
+  }, [nicknameValue, profile?.nickname, updateNickname, pushToast, isEnglishCopy]);
+
   useEffect(() => {
     const syncFromHash = () => {
       setOpen(window.location.hash.startsWith('#account'));
@@ -116,6 +137,48 @@ const AccountPage: React.FC = () => {
           
           {profile ? (
             <div className="space-y-4">
+                  {/* ニックネーム */}
+                  <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50">
+                    <label className="text-xs text-gray-400">{isEnglishCopy ? 'Nickname' : 'ニックネーム'}</label>
+                    {nicknameEditing ? (
+                      <div className="flex gap-2 mt-1">
+                        <input
+                          type="text"
+                          className="flex-1 p-2 rounded-lg bg-slate-700 text-sm focus:outline-none focus:ring-1 focus:ring-primary-400"
+                          value={nicknameValue}
+                          onChange={e => setNicknameValue(e.target.value)}
+                          maxLength={20}
+                          disabled={nicknameSaving}
+                          onKeyDown={e => { if (e.key === 'Enter') void handleNicknameSave(); }}
+                        />
+                        <button
+                          className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-500 text-xs text-white transition-colors disabled:opacity-50 whitespace-nowrap"
+                          disabled={nicknameSaving || !nicknameValue.trim() || nicknameValue.trim() === profile?.nickname}
+                          onClick={() => void handleNicknameSave()}
+                        >
+                          {nicknameSaving ? '...' : (isEnglishCopy ? 'Save' : '保存')}
+                        </button>
+                        <button
+                          className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors whitespace-nowrap"
+                          onClick={() => setNicknameEditing(false)}
+                          disabled={nicknameSaving}
+                        >
+                          {isEnglishCopy ? 'Cancel' : 'キャンセル'}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="flex justify-between items-center mt-1">
+                        <span className="font-medium text-sm">{profile?.nickname}</span>
+                        <button
+                          className="px-3 py-1.5 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors"
+                          onClick={() => { setNicknameValue(profile?.nickname ?? ''); setNicknameEditing(true); }}
+                        >
+                          {isEnglishCopy ? 'Edit' : '編集'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
                   {/* 言語設定 */}
                   <div className="bg-slate-800/80 rounded-xl p-4 border border-slate-700/50 space-y-3">
                     <div className="space-y-2">

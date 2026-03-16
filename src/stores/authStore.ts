@@ -60,6 +60,7 @@ interface AuthActions {
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
+  updateNickname: (nickname: string) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
   setOptimisticAvatarUrl: (url: string | null) => void;
 }
@@ -713,9 +714,37 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       }
     },
 
-    /**
-     * メールアドレス変更ステータスをクリア
-     */
+    updateNickname: async (nickname: string) => {
+      const supabase = getSupabaseClient();
+      const { user, profile } = get();
+      if (!user || !profile) {
+        return { success: false, message: 'ログインが必要です' };
+      }
+      const trimmed = nickname.trim();
+      if (!trimmed || trimmed.length < 1 || trimmed.length > 20) {
+        return { success: false, message: 'ニックネームは1〜20文字で入力してください' };
+      }
+      try {
+        const { error } = await supabase
+          .from('profiles')
+          .update({ nickname: trimmed })
+          .eq('id', user.id);
+        if (error) throw error;
+        clearCacheByKey(`profile:${user.id}`);
+        set(state => {
+          if (state.profile) {
+            state.profile.nickname = trimmed;
+          }
+        });
+        return { success: true, message: 'ニックネームを更新しました' };
+      } catch (err) {
+        return {
+          success: false,
+          message: err instanceof Error ? err.message : 'ニックネームの更新に失敗しました',
+        };
+      }
+    },
+
     clearEmailChangeStatus: () => {
       set(state => {
         state.emailChangeStatus = null;
