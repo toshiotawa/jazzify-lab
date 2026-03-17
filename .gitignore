@@ -18,6 +18,9 @@ build/
 .env.production.local
 .env.r2
 
+# iOS secrets (contains Supabase keys)
+ios/Secrets.xcconfig
+
 # IDE files
 .vscode/
 .idea/

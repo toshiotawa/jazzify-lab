@@ -127,7 +127,8 @@ final class MIDIManager: ObservableObject {
                     }
                 }
             }
-            withUnsafePointer(to: &packet) { ptr in
+            var next = packet
+            withUnsafePointer(to: &next) { ptr in
                 packet = MIDIEventPacketNext(ptr).pointee
             }
         }

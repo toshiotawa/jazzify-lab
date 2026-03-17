@@ -1,5 +1,6 @@
 import Foundation
 
+@MainActor
 final class MIDIBridge {
     private let midiManager: MIDIManager
     private weak var coordinator: WebViewCoordinator?

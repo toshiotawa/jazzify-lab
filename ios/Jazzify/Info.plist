@@ -63,10 +63,10 @@
 		<string>en</string>
 	</array>
 	<key>SUPABASE_URL</key>
-	<string>$(SUPABASE_URL)</string>
+	<string>https://$(SUPABASE_HOST)</string>
 	<key>SUPABASE_ANON_KEY</key>
 	<string>$(SUPABASE_ANON_KEY)</string>
 	<key>WEB_APP_BASE_URL</key>
-	<string>$(WEB_APP_BASE_URL)</string>
+	<string>https://$(WEB_APP_HOST)</string>
 </dict>
 </plist>
