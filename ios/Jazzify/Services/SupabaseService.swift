@@ -9,7 +9,12 @@ final class SupabaseService: Sendable {
     private init() {
         client = SupabaseClient(
             supabaseURL: Config.supabaseURL,
-            supabaseKey: Config.supabaseAnonKey
+            supabaseKey: Config.supabaseAnonKey,
+            options: .init(
+                auth: .init(
+                    emitLocalSessionAsInitialSession: true
+                )
+            )
         )
     }
 
@@ -120,6 +125,103 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    func fetchLessonDetail(lessonId: UUID) async throws -> LessonDetail {
+        try await client
+            .from("lessons")
+            .select("""
+            *,
+            lesson_songs (
+                id,
+                lesson_id,
+                song_id,
+                fantasy_stage_id,
+                is_fantasy,
+                is_survival,
+                survival_stage_number,
+                clear_conditions,
+                order_index,
+                title,
+                songs (id, title, artist),
+                fantasyStage:fantasy_stages (
+                    id,
+                    stage_number,
+                    name,
+                    name_en,
+                    description,
+                    description_en,
+                    stage_tier
+                )
+            )
+            """)
+            .eq("id", value: lessonId.uuidString)
+            .single()
+            .execute()
+            .value
+    }
+
+    func fetchLessonVideos(lessonId: UUID) async throws -> [LessonVideoResource] {
+        try await client
+            .from("lesson_videos")
+            .select()
+            .eq("lesson_id", value: lessonId.uuidString)
+            .order("order_index")
+            .execute()
+            .value
+    }
+
+    func fetchLessonAttachments(lessonId: UUID) async throws -> [LessonAttachmentResource] {
+        try await client
+            .from("lesson_attachments")
+            .select()
+            .eq("lesson_id", value: lessonId.uuidString)
+            .order("order_index")
+            .execute()
+            .value
+    }
+
+    func fetchLessonRequirementProgress(lessonId: UUID, userId: UUID) async throws -> [LessonRequirementProgressRow] {
+        try await client
+            .from("user_lesson_requirements_progress")
+            .select()
+            .eq("lesson_id", value: lessonId.uuidString)
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+            .value
+    }
+
+    func updateLessonProgress(
+        lessonId: UUID,
+        courseId: UUID,
+        userId: UUID,
+        completed: Bool
+    ) async throws {
+        struct Payload: Encodable {
+            let user_id: UUID
+            let lesson_id: UUID
+            let course_id: UUID
+            let completed: Bool
+            let completion_date: String?
+            let updated_at: String
+        }
+
+        let timestamp = ISO8601DateFormatter().string(from: Date())
+
+        try await client
+            .from("user_lesson_progress")
+            .upsert(
+                Payload(
+                    user_id: userId,
+                    lesson_id: lessonId,
+                    course_id: courseId,
+                    completed: completed,
+                    completion_date: completed ? timestamp : nil,
+                    updated_at: timestamp
+                ),
+                onConflict: "user_id,lesson_id"
+            )
+            .execute()
+    }
+
     // MARK: - Announcements
 
     func fetchActiveAnnouncements(locale: AppLocale) async throws -> [AnnouncementRow] {
@@ -196,8 +298,8 @@ final class SupabaseService: Sendable {
     func fetchFantasyStages() async throws -> [FantasyStage] {
         try await client
             .from("fantasy_stages")
-            .select()
-            .order("sort_order")
+            .select("id, stage_number, name, name_en, description, description_en, stage_tier")
+            .order("stage_number")
             .execute()
             .value
     }
