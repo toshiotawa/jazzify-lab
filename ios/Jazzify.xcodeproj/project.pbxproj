@@ -31,6 +31,14 @@
 		EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 342682E586DCCE6032CF9125 /* GameWebView.swift */; };
 		EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */; };
 		F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44BB606E44E08242A371BE80 /* BillingService.swift */; };
+		BB11CC22DD33EE44FF55AA01 /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF01 /* Announcement.swift */; };
+		BB11CC22DD33EE44FF55AA02 /* UserStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF02 /* UserStats.swift */; };
+		BB11CC22DD33EE44FF55AA03 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF03 /* LessonProgress.swift */; };
+		BB11CC22DD33EE44FF55AA04 /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF04 /* SurvivalModels.swift */; };
+		BB11CC22DD33EE44FF55AA05 /* SurvivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* SurvivalView.swift */; };
+		CC11DD22EE33FF44AA55BB06 /* AnnouncementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */; };
+		CC11DD22EE33FF44AA55BB07 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC07 /* ContactView.swift */; };
+		DD22EE33FF44AA55BB66CC08 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -61,6 +69,14 @@
 		F5FB42EB0BEA73D79132F739 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		F831419566658890CA84E9E6 /* LessonListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonListView.swift; sourceTree = "<group>"; };
 		F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JazzifyApp.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF01 /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF02 /* UserStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStats.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF03 /* LessonProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonProgress.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF04 /* SurvivalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalModels.swift; sourceTree = "<group>"; };
+		AA11BB22CC33DD44EE55FF05 /* SurvivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalView.swift; sourceTree = "<group>"; };
+		DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementListView.swift; sourceTree = "<group>"; };
+		DD11EE22FF33AA44BB55CC07 /* ContactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactView.swift; sourceTree = "<group>"; };
+		EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -105,10 +121,15 @@
 		16963DFD05E194E9B5451257 /* Models */ = {
 			isa = PBXGroup;
 			children = (
+				AA11BB22CC33DD44EE55FF01 /* Announcement.swift */,
+				EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */,
 				12AAB7776B432313249D043C /* FantasyStage.swift */,
 				58FE7F0D800E5DA8E1F04443 /* Lesson.swift */,
+				AA11BB22CC33DD44EE55FF03 /* LessonProgress.swift */,
 				59EA909F7A24426B48949D2C /* Profile.swift */,
 				ECDEDC88537A018A2B1C9EB2 /* Subscription.swift */,
+				AA11BB22CC33DD44EE55FF04 /* SurvivalModels.swift */,
+				AA11BB22CC33DD44EE55FF02 /* UserStats.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -178,10 +199,13 @@
 		EB97940E4507B8A74845B41F /* Main */ = {
 			isa = PBXGroup;
 			children = (
+				DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */,
+				DD11EE22FF33AA44BB55CC07 /* ContactView.swift */,
 				8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */,
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
 				F5FB42EB0BEA73D79132F739 /* SettingsView.swift */,
+				AA11BB22CC33DD44EE55FF05 /* SurvivalView.swift */,
 				F034080E04C73977D21BFCEC /* TopView.swift */,
 			);
 			path = Main;
@@ -267,14 +291,19 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				BB11CC22DD33EE44FF55AA01 /* Announcement.swift in Sources */,
+				CC11DD22EE33FF44AA55BB06 /* AnnouncementListView.swift in Sources */,
 				0001DB9D114F5FDE7277099C /* AppState.swift in Sources */,
 				F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */,
 				9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */,
+				CC11DD22EE33FF44AA55BB07 /* ContactView.swift in Sources */,
+				DD22EE33FF44AA55BB66CC08 /* DailyChallengeRecord.swift in Sources */,
 				24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */,
 				E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */,
 				EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */,
 				A4310767E5C4471375C5F9C7 /* JazzifyApp.swift in Sources */,
 				503403BE5DE2BF26F4357330 /* Lesson.swift in Sources */,
+				BB11CC22DD33EE44FF55AA03 /* LessonProgress.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,
@@ -287,7 +316,10 @@
 				A8EEA36FE49B8BB6C7C499C2 /* Subscription.swift in Sources */,
 				6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */,
 				07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */,
+				BB11CC22DD33EE44FF55AA04 /* SurvivalModels.swift in Sources */,
+				BB11CC22DD33EE44FF55AA05 /* SurvivalView.swift in Sources */,
 				56798F7B79D567C225C5CB37 /* TopView.swift in Sources */,
+				BB11CC22DD33EE44FF55AA02 /* UserStats.swift in Sources */,
 				0112323F2749D7DCC77C03C1 /* WebViewCoordinator.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;

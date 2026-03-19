@@ -5,6 +5,7 @@ import { getSupabaseClient, fetchWithCache, clearCacheByKey } from '@/platform/s
 import { useUserStatsStore } from './userStatsStore';
 import { persistPreferredLocale, resolveAudienceLocale, detectBrowserLocale, getStoredPreferredLocale } from '@/utils/globalAudience';
 import { normalizeMembershipTier } from '@/utils/membership';
+import { isIOSWebView, getNativeAuthToken } from '@/utils/iosbridge';
 
 interface AuthState {
   user: User | null;
@@ -93,15 +94,25 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.loading = true;
       });
       
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      console.log('🔑 セッション取得結果:', {
-        hasSession: !!session,
-        userId: session?.user?.id,
-        userEmail: session?.user?.email,
-        sessionCreated: session ? '存在します' : 'なし',
-        sessionExpires: session ? '存在します' : 'なし'
-      });
+      let session: Session | null = null;
+
+      if (isIOSWebView()) {
+        const nativeToken = getNativeAuthToken();
+        if (nativeToken) {
+          const { data, error: setErr } = await supabase.auth.setSession({
+            access_token: nativeToken,
+            refresh_token: nativeToken,
+          });
+          if (!setErr && data.session) {
+            session = data.session;
+          }
+        }
+      }
+
+      if (!session) {
+        const { data } = await supabase.auth.getSession();
+        session = data.session ?? null;
+      }
       
       set(state => {
         state.session = session ?? null;

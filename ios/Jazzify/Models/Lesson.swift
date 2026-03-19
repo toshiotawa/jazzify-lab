@@ -6,15 +6,18 @@ struct Course: Codable, Identifiable, Sendable {
     let titleEn: String?
     let description: String?
     let descriptionEn: String?
-    let sortOrder: Int
-    let isPublished: Bool
+    let orderIndex: Int
+    let premiumOnly: Bool?
+    let isTutorial: Bool?
+    let audience: String?
 
     enum CodingKeys: String, CodingKey {
-        case id, title, description
+        case id, title, description, audience
         case titleEn = "title_en"
         case descriptionEn = "description_en"
-        case sortOrder = "sort_order"
-        case isPublished = "is_published"
+        case orderIndex = "order_index"
+        case premiumOnly = "premium_only"
+        case isTutorial = "is_tutorial"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -33,18 +36,22 @@ struct Lesson: Codable, Identifiable, Sendable {
     let titleEn: String?
     let description: String?
     let descriptionEn: String?
-    let sortOrder: Int
-    let isPublished: Bool
-    let requiredRank: String?
+    let orderIndex: Int
+    let premiumOnly: Bool?
+    let blockNumber: Int?
+    let blockName: String?
+    let blockNameEn: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description
         case courseId = "course_id"
         case titleEn = "title_en"
         case descriptionEn = "description_en"
-        case sortOrder = "sort_order"
-        case isPublished = "is_published"
-        case requiredRank = "required_rank"
+        case orderIndex = "order_index"
+        case premiumOnly = "premium_only"
+        case blockNumber = "block_number"
+        case blockName = "block_name"
+        case blockNameEn = "block_name_en"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {

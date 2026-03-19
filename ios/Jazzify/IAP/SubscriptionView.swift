@@ -20,10 +20,10 @@ struct SubscriptionView: View {
                 ScrollView {
                     VStack(spacing: 24) {
                         headerSection
-                        if appState.isPremium {
-                            activeSubscriptionSection
-                        } else if !appState.canShowIAP {
+                        if !appState.canShowIAP {
                             lemonActiveSection
+                        } else if appState.isPremium {
+                            activeSubscriptionSection
                         } else {
                             purchaseSection
                         }
@@ -124,14 +124,21 @@ struct SubscriptionView: View {
 
     private var lemonActiveSection: some View {
         VStack(spacing: 12) {
-            HStack {
-                Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(.orange)
+            VStack(spacing: 8) {
+                HStack {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(locale == .ja ? "Web版で手続き済み" : "Subscribed via Web")
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    Spacer()
+                }
+
                 Text(locale == .ja
-                     ? "Web版で課金中のため、アプリ内購入はご利用いただけません。"
-                     : "In-app purchase is unavailable because you have an active subscription via the web.")
-                    .font(.subheadline)
-                    .foregroundStyle(.white)
+                     ? "Web版でサブスクリプションの手続き済みのため、アプリ内購入はご利用いただけません。サブスクリプションの管理はWeb版から行ってください。"
+                     : "Your subscription was purchased on the web. In-app purchase is not available. Please manage your subscription from the web version.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
             }
             .padding()
             .background(Color.orange.opacity(0.1))

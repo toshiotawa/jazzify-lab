@@ -5,9 +5,13 @@ enum GameMode {
     case demoLP
     case demoFantasy
     case fantasy(stageNumber: String)
+    case survival(difficulty: String, characterId: String)
+    case survivalStage(stageNumber: Int, characterId: String)
     case lesson(lessonId: UUID)
     case song(songId: String)
     case practice(songId: String)
+    case webPage(hash: String)
+    case dailyChallenge(difficulty: String)
 
     var queryParameters: String {
         var params = "platform=ios"
@@ -18,14 +22,30 @@ enum GameMode {
             params += "&mode=demo-fantasy&stage=1-1"
         case .fantasy(let stageNumber):
             params += "&mode=fantasy&stage=\(stageNumber)"
+        case .survival(let difficulty, let characterId):
+            params += "&mode=survival&difficulty=\(difficulty)&characterId=\(characterId)"
+        case .survivalStage(let stageNumber, let characterId):
+            params += "&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
         case .lesson(let lessonId):
             params += "&mode=play-lesson&lessonId=\(lessonId.uuidString)"
         case .song(let songId):
             params += "&mode=songs&songId=\(songId)"
         case .practice(let songId):
             params += "&mode=practice&songId=\(songId)"
+        case .webPage:
+            params += "&mode=web-page"
+        case .dailyChallenge(let difficulty):
+            params += "&mode=daily-challenge&difficulty=\(difficulty)"
         }
         return params
+    }
+
+    var hashFragment: String? {
+        switch self {
+        case .webPage(let hash): return hash
+        case .dailyChallenge(let difficulty): return "daily-challenge?difficulty=\(difficulty)"
+        default: return nil
+        }
     }
 }
 
@@ -36,24 +56,38 @@ struct GameWebView: View {
 
     let mode: GameMode
     let locale: AppLocale
-    var authToken: String?
+    @State private var resolvedToken: String?
+    @State private var tokenReady = false
+
+    private var isDemoMode: Bool {
+        switch mode {
+        case .demoLP, .demoFantasy: return true
+        default: return false
+        }
+    }
 
     init(mode: GameMode, locale: AppLocale, authToken: String? = nil) {
         self.mode = mode
         self.locale = locale
-        self.authToken = authToken
+        self._resolvedToken = State(initialValue: authToken)
+        self._tokenReady = State(initialValue: authToken != nil)
     }
 
     var body: some View {
         ZStack {
             Color.black.ignoresSafeArea()
 
-            WebViewRepresentable(
-                url: buildURL(),
-                coordinator: coordinator,
-                authToken: authToken
-            )
-            .ignoresSafeArea()
+            if tokenReady || isDemoMode {
+                WebViewRepresentable(
+                    url: buildURL(),
+                    coordinator: coordinator,
+                    authToken: resolvedToken
+                )
+                .ignoresSafeArea()
+            } else {
+                ProgressView()
+                    .tint(.purple)
+            }
 
             VStack {
                 HStack {
@@ -70,11 +104,15 @@ struct GameWebView: View {
                 Spacer()
             }
         }
+        .task {
+            if !isDemoMode && resolvedToken == nil {
+                resolvedToken = try? await SupabaseService.shared.accessToken()
+            }
+            tokenReady = true
+        }
         .onAppear {
             coordinator.onGameEnd = { dismiss() }
-            coordinator.onScoreReport = { score in
-                // future: handle score reports from game
-            }
+            coordinator.onScoreReport = { _score in }
             coordinator.midiManager = MIDIManager.shared
         }
         .statusBarHidden()
@@ -85,6 +123,9 @@ struct GameWebView: View {
         var components = URLComponents(url: base.appendingPathComponent("main"), resolvingAgainstBaseURL: false)!
         let queryString = mode.queryParameters + "&lang=\(locale.rawValue)"
         components.query = queryString
+        if let hash = mode.hashFragment {
+            components.fragment = hash
+        }
         return components.url ?? base
     }
 }

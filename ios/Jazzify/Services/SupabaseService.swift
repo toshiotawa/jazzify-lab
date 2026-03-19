@@ -105,8 +105,7 @@ final class SupabaseService: Sendable {
         try await client
             .from("courses")
             .select()
-            .eq("is_published", value: true)
-            .order("sort_order")
+            .order("order_index")
             .execute()
             .value
     }
@@ -116,8 +115,78 @@ final class SupabaseService: Sendable {
             .from("lessons")
             .select()
             .eq("course_id", value: courseId.uuidString)
-            .eq("is_published", value: true)
-            .order("sort_order")
+            .order("order_index")
+            .execute()
+            .value
+    }
+
+    // MARK: - Announcements
+
+    func fetchActiveAnnouncements(locale: AppLocale) async throws -> [AnnouncementRow] {
+        let publishColumn = locale == .ja ? "publish_ja" : "publish_en"
+        let rows: [AnnouncementRow] = try await client
+            .from("announcements")
+            .select()
+            .eq("is_active", value: true)
+            .eq(publishColumn, value: true)
+            .order("priority")
+            .order("created_at", ascending: false)
+            .limit(5)
+            .execute()
+            .value
+        return rows
+    }
+
+    func fetchAllActiveAnnouncements(locale: AppLocale) async throws -> [AnnouncementRow] {
+        let publishColumn = locale == .ja ? "publish_ja" : "publish_en"
+        let rows: [AnnouncementRow] = try await client
+            .from("announcements")
+            .select()
+            .eq("is_active", value: true)
+            .eq(publishColumn, value: true)
+            .order("priority")
+            .order("created_at", ascending: false)
+            .execute()
+            .value
+        return rows
+    }
+
+    // MARK: - User Stats
+
+    func fetchUserStats(userId: UUID) async throws -> UserStats {
+        let lessonCount: Int = try await {
+            let response = try await client
+                .from("user_lesson_progress")
+                .select("id", head: false, count: .exact)
+                .eq("user_id", value: userId.uuidString)
+                .eq("completed", value: true)
+                .execute()
+            return response.count ?? 0
+        }()
+
+        let challengeDays: Int = try await {
+            let response = try await client
+                .from("daily_challenge_records")
+                .select("played_on", head: false, count: .exact)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            return response.count ?? 0
+        }()
+
+        return UserStats(
+            lessonCompletedCount: lessonCount,
+            dailyChallengeParticipationDays: challengeDays
+        )
+    }
+
+    // MARK: - Lesson Progress
+
+    func fetchLessonProgress(courseId: UUID, userId: UUID) async throws -> [LessonProgressRow] {
+        try await client
+            .from("user_lesson_progress")
+            .select()
+            .eq("course_id", value: courseId.uuidString)
+            .eq("user_id", value: userId.uuidString)
             .execute()
             .value
     }
@@ -129,6 +198,51 @@ final class SupabaseService: Sendable {
             .from("fantasy_stages")
             .select()
             .order("sort_order")
+            .execute()
+            .value
+    }
+
+    // MARK: - Survival
+
+    func fetchSurvivalCharacters() async throws -> [SurvivalCharacterRow] {
+        try await client
+            .from("survival_characters")
+            .select("id, name, name_en, avatar_url, sort_order, description, description_en")
+            .order("sort_order")
+            .execute()
+            .value
+    }
+
+    func fetchSurvivalDifficulties() async throws -> [SurvivalDifficultyRow] {
+        try await client
+            .from("survival_difficulty_settings")
+            .select("id, difficulty, display_name, description, description_en")
+            .order("difficulty")
+            .execute()
+            .value
+    }
+
+    // MARK: - Survival Stage Clears
+
+    func fetchSurvivalStageClears(userId: UUID) async throws -> [SurvivalStageClearRow] {
+        try await client
+            .from("survival_stage_clears")
+            .select("stage_number, character_id, cleared_at")
+            .eq("user_id", value: userId.uuidString)
+            .execute()
+            .value
+    }
+
+    // MARK: - Daily Challenge Records
+
+    func fetchDailyChallengeRecords(userId: UUID, difficulty: String, since: String) async throws -> [DailyChallengeRecordRow] {
+        try await client
+            .from("daily_challenge_records")
+            .select("played_on, score, difficulty")
+            .eq("user_id", value: userId.uuidString)
+            .eq("difficulty", value: difficulty)
+            .gte("played_on", value: since)
+            .order("played_on")
             .execute()
             .value
     }

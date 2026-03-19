@@ -117,13 +117,18 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   if (billingProvider === 'apple') {
     return (
       <div className="w-full h-full flex items-center justify-center p-8">
-        <div className="text-center">
+        <div className="text-center max-w-md">
           <div className="text-orange-400 text-lg font-bold mb-4">
             {isEnglishCopy
-              ? 'You have an active subscription via the iOS app.'
-              : 'iOSアプリ経由でサブスクリプションが有効です。'}
+              ? 'Subscribed via iOS app'
+              : 'iOS版で手続き済み'}
           </div>
-          <p className="text-gray-400">
+          <p className="text-gray-400 mb-2">
+            {isEnglishCopy
+              ? 'Your subscription was purchased through the iOS app. Web billing is not available.'
+              : 'iOS版でサブスクリプションの手続き済みのため、Web版での決済はご利用いただけません。'}
+          </p>
+          <p className="text-gray-500 text-sm">
             {isEnglishCopy
               ? 'To manage your subscription, please use the iOS app settings.'
               : 'サブスクリプションの管理はiOSアプリの設定から行ってください。'}

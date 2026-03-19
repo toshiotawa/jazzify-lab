@@ -155,15 +155,13 @@ const App: React.FC = () => {
     );
   }
 
-  if (authLoading && !isIOSWebView()) return <LoadingScreen />;
-
   const iosMode = getIOSMode();
-  if (isIOSWebView() && iosMode) {
-    const iosShowHeader = false;
-    if (iosShowHeader !== useGameStore.getState().settings.showHeader) {
+  if (isIOSWebView()) {
+    if (useGameStore.getState().settings.showHeader) {
       updateGameSettings({ showHeader: false });
     }
-
+  }
+  if (isIOSWebView() && iosMode && iosMode !== 'web-page') {
     let IOSContent: React.ReactNode;
     switch (iosMode) {
       case 'demo-lp':
@@ -189,10 +187,31 @@ const App: React.FC = () => {
         );
         break;
       }
+      case 'survival':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazySurvivalMain />
+          </React.Suspense>
+        );
+        break;
       case 'play-lesson':
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
             <LazyGameScreen />
+          </React.Suspense>
+        );
+        break;
+      case 'daily-challenge':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LazyDailyChallengeMain />
+          </React.Suspense>
+        );
+        break;
+      case 'lesson-detail':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            <LessonDetailPage />
           </React.Suspense>
         );
         break;
@@ -221,6 +240,8 @@ const App: React.FC = () => {
       </ErrorBoundary>
     );
   }
+
+  if (authLoading) return <LoadingScreen />;
 
   if (!user && !isGuest || forceLogin) {
     return (

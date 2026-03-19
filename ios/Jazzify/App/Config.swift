@@ -27,6 +27,8 @@ enum Config {
         return url
     }()
 
+    static let cdnBaseURL = URL(string: "https://jazzify-cdn.com")!
+
     static let reviewEmail = "toshiotawa@me.com"
 
     static let iapProductID = "jp.jazzify.premium.monthly"

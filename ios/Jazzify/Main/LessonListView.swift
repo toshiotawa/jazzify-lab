@@ -5,9 +5,10 @@ struct LessonListView: View {
     @State private var courses: [Course] = []
     @State private var expandedCourseId: UUID?
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
+    @State private var progressMap: [UUID: Set<UUID>] = [:]
     @State private var isLoading = true
     @State private var showGame = false
-    @State private var selectedLessonId: UUID?
+    @State private var selectedLessonHash: String?
 
     private var locale: AppLocale { appState.locale }
 
@@ -43,16 +44,17 @@ struct LessonListView: View {
             .toolbarColorScheme(.dark, for: .navigationBar)
             .task { await loadCourses() }
             .fullScreenCover(isPresented: $showGame) {
-                if let lessonId = selectedLessonId {
+                if let hash = selectedLessonHash {
                     GameWebView(
-                        mode: .lesson(lessonId: lessonId),
-                        locale: locale,
-                        authToken: nil
+                        mode: .webPage(hash: hash),
+                        locale: locale
                     )
                 }
             }
         }
     }
+
+    // MARK: - Course Row
 
     private func courseRow(_ course: Course) -> some View {
         VStack(spacing: 0) {
@@ -84,6 +86,18 @@ struct LessonListView: View {
 
                     Spacer()
 
+                    if let lessons = lessonsMap[course.id],
+                       let completed = progressMap[course.id] {
+                        let total = lessons.count
+                        let done = completed.count
+                        if total > 0 {
+                            Text("\(done)/\(total)")
+                                .font(.caption.bold())
+                                .foregroundStyle(done == total ? .green : .gray)
+                                .padding(.trailing, 4)
+                        }
+                    }
+
                     Image(systemName: expandedCourseId == course.id ? "chevron.up" : "chevron.down")
                         .foregroundStyle(.gray)
                 }
@@ -92,11 +106,7 @@ struct LessonListView: View {
 
             if expandedCourseId == course.id {
                 if let lessons = lessonsMap[course.id] {
-                    VStack(spacing: 0) {
-                        ForEach(lessons) { lesson in
-                            lessonRow(lesson)
-                        }
-                    }
+                    blockGroupedLessons(lessons, courseId: course.id)
                 } else {
                     ProgressView()
                         .tint(.purple)
@@ -108,17 +118,80 @@ struct LessonListView: View {
         .cornerRadius(12)
     }
 
-    private func lessonRow(_ lesson: Lesson) -> some View {
-        let isLocked = !appState.isPremium && lesson.requiredRank != nil && lesson.requiredRank != "free"
+    // MARK: - Block Grouped Lessons
+
+    private func blockGroupedLessons(_ lessons: [Lesson], courseId: UUID) -> some View {
+        let grouped = groupByBlock(lessons)
+
+        return VStack(spacing: 0) {
+            ForEach(grouped, id: \.blockNumber) { block in
+                if let name = block.blockName, !name.isEmpty {
+                    HStack {
+                        Text(name)
+                            .font(.caption.bold())
+                            .foregroundStyle(.purple)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 10)
+                    .padding(.bottom, 4)
+                }
+
+                ForEach(block.lessons) { lesson in
+                    lessonRow(lesson, courseId: courseId)
+                }
+            }
+        }
+    }
+
+    private struct BlockGroup {
+        let blockNumber: Int
+        let blockName: String?
+        var lessons: [Lesson]
+    }
+
+    private func groupByBlock(_ lessons: [Lesson]) -> [BlockGroup] {
+        var map: [Int: BlockGroup] = [:]
+        var order: [Int] = []
+
+        for lesson in lessons {
+            let bn = lesson.blockNumber ?? 1
+            if map[bn] == nil {
+                let name: String? = {
+                    if locale == .en, let en = lesson.blockNameEn, !en.isEmpty { return en }
+                    return lesson.blockName
+                }()
+                map[bn] = BlockGroup(blockNumber: bn, blockName: name, lessons: [])
+                order.append(bn)
+            }
+            map[bn]?.lessons.append(lesson)
+        }
+
+        return order.compactMap { map[$0] }
+    }
+
+    // MARK: - Lesson Row
+
+    private func lessonRow(_ lesson: Lesson, courseId: UUID) -> some View {
+        let isLocked = !appState.isPremium && (lesson.premiumOnly ?? false)
+        let isCompleted = progressMap[courseId]?.contains(lesson.id) ?? false
 
         return Button {
             guard !isLocked else { return }
-            selectedLessonId = lesson.id
+            selectedLessonHash = "lesson-detail?id=\(lesson.id.uuidString)"
             showGame = true
         } label: {
             HStack {
-                Image(systemName: isLocked ? "lock.fill" : "play.circle.fill")
-                    .foregroundStyle(isLocked ? .gray : .purple)
+                if isCompleted {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                } else if isLocked {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.gray)
+                } else {
+                    Image(systemName: "play.circle.fill")
+                        .foregroundStyle(.purple)
+                }
 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(lesson.localizedTitle(locale))
@@ -143,6 +216,14 @@ struct LessonListView: View {
                         .padding(.vertical, 2)
                         .background(Color.purple.opacity(0.2))
                         .cornerRadius(4)
+                } else if isCompleted {
+                    Text(locale == .ja ? "完了" : "Done")
+                        .font(.caption2)
+                        .foregroundStyle(.green)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 2)
+                        .background(Color.green.opacity(0.2))
+                        .cornerRadius(4)
                 }
             }
             .padding(.horizontal, 16)
@@ -151,10 +232,17 @@ struct LessonListView: View {
         .disabled(isLocked)
     }
 
+    // MARK: - Data
+
     private func loadCourses() async {
         isLoading = true
         do {
-            courses = try await SupabaseService.shared.fetchCourses()
+            let allCourses = try await SupabaseService.shared.fetchCourses()
+            let audienceFilter = locale == .en ? "global" : "japan"
+            courses = allCourses.filter { course in
+                let a = course.audience ?? "both"
+                return a == "both" || a == audienceFilter
+            }
         } catch {
             courses = []
         }
@@ -165,6 +253,12 @@ struct LessonListView: View {
         do {
             let lessons = try await SupabaseService.shared.fetchLessons(courseId: courseId)
             lessonsMap[courseId] = lessons
+
+            if let userId = appState.profile?.id {
+                let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
+                let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
+                progressMap[courseId] = completedIds
+            }
         } catch {
             lessonsMap[courseId] = []
         }

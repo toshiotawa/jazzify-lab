@@ -26,14 +26,14 @@ struct MainTabView: View {
                 }
                 .tag(Tab.lessons)
 
-            FantasyStageView()
+            SurvivalView()
                 .tabItem {
                     Label(
-                        locale == .ja ? "ファンタジー" : "Fantasy",
-                        systemImage: "gamecontroller.fill"
+                        locale == .ja ? "サバイバル" : "Survival",
+                        systemImage: "flame.fill"
                     )
                 }
-                .tag(Tab.fantasy)
+                .tag(Tab.survival)
 
             SettingsView()
                 .tabItem {
@@ -51,6 +51,6 @@ struct MainTabView: View {
 enum Tab: Hashable {
     case top
     case lessons
-    case fantasy
+    case survival
     case settings
 }

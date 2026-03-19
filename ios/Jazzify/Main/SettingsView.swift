@@ -21,6 +21,7 @@ struct SettingsView: View {
                     languageSection
                     midiSection
                     subscriptionSection
+                    supportSection
                     dangerSection
                 }
                 .scrollContentBackground(.hidden)
@@ -71,14 +72,6 @@ struct SettingsView: View {
                     Text(profile.email)
                         .foregroundStyle(.white)
                         .lineLimit(1)
-                }
-
-                HStack {
-                    Text(locale == .ja ? "レベル" : "Level")
-                        .foregroundStyle(.gray)
-                    Spacer()
-                    Text("Lv. \(profile.level)")
-                        .foregroundStyle(.white)
                 }
 
                 HStack {
@@ -177,13 +170,31 @@ struct SettingsView: View {
         .listRowBackground(Color(hex: "1e293b"))
     }
 
+    private var supportSection: some View {
+        Section {
+            NavigationLink(destination: ContactView()) {
+                HStack {
+                    Label(
+                        locale == .ja ? "お問い合わせ" : "Contact Us",
+                        systemImage: "envelope.fill"
+                    )
+                    .foregroundStyle(.white)
+                    Spacer()
+                }
+            }
+        } header: {
+            Text(locale == .ja ? "サポート" : "Support")
+        }
+        .listRowBackground(Color(hex: "1e293b"))
+    }
+
     private var dangerSection: some View {
         Section {
             Button {
                 if !appState.canDeleteAccount {
                     deleteError = locale == .ja
-                        ? "有効なサブスクリプションが残っているため、退会できません。先にサブスクリプションを解約し、利用期間終了後に再度お試しください。"
-                        : "You cannot delete your account while an active subscription exists. Please cancel your subscription first and try again after the period ends."
+                        ? "まだサブスクリプションの利用期間が残っています。期間終了後に退会手続きが可能になります。先にサブスクリプションを解約してください。"
+                        : "Your subscription period has not ended yet. You can delete your account after the period expires. Please cancel your subscription first."
                 } else {
                     showDeleteConfirm = true
                 }
@@ -224,8 +235,8 @@ struct SettingsView: View {
             VStack(alignment: .leading, spacing: 4) {
                 if !appState.canDeleteAccount {
                     Text(locale == .ja
-                         ? "サブスクリプション有効中はアカウント削除できません"
-                         : "Account deletion is disabled while a subscription is active")
+                         ? "まだ利用期間が残っているため、アカウント削除できません"
+                         : "Account deletion is unavailable while your subscription period is active")
                         .foregroundStyle(.orange)
                 }
 

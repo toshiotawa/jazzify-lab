@@ -17,6 +17,7 @@ import { fetchSurvivalCharacters, fetchSurvivalDifficultySettings, SurvivalChara
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
+import { isIOSWebView, getIOSParam } from '@/utils/iosbridge';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -101,6 +102,61 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [activeHintMode, setActiveHintMode] = useState(false);
   const [lessonContext, setLessonContext] = useState<LessonContext | null>(null);
   const [lessonInitialized, setLessonInitialized] = useState(false);
+
+  const [iosInitialized, setIosInitialized] = useState(false);
+
+  useEffect(() => {
+    if (demoMode || lessonMode || iosInitialized) return;
+    if (!isIOSWebView()) return;
+
+    const iosCharId = getIOSParam('characterId');
+    const iosStageNumber = getIOSParam('stageNumber');
+    const iosDifficulty = getIOSParam('difficulty');
+
+    if (!iosCharId) return;
+    if (!iosStageNumber && !iosDifficulty) return;
+
+    const initIOS = async () => {
+      try {
+        await FantasySoundManager.unlock();
+        await initializeAudioSystem();
+      } catch { /* ignore */ }
+
+      let targetChar: SurvivalCharacter | undefined;
+      try {
+        const rows = await fetchSurvivalCharacters();
+        const chars = rows.map(convertToSurvivalCharacter);
+        targetChar = chars.find(c => c.id === iosCharId) ?? chars[0];
+      } catch { /* ignore */ }
+
+      let targetStage: StageDefinition;
+      if (iosStageNumber) {
+        const stageNum = parseInt(iosStageNumber, 10);
+        targetStage = ALL_STAGES.find(s => s.stageNumber === stageNum) ?? ALL_STAGES[0];
+      } else {
+        targetStage = ALL_STAGES.find(s => s.difficulty === iosDifficulty) ?? ALL_STAGES[0];
+      }
+
+      const dbConfigs = await fetchDbDifficultyConfigs();
+      const baseConfig = dbConfigs.find(c => c.difficulty === targetStage.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === targetStage.difficulty)
+        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
+
+      const config: DifficultyConfig = {
+        ...baseConfig,
+        allowedChords: targetStage.allowedChords,
+      };
+
+      setSelectedDifficulty(targetStage.difficulty);
+      setSelectedConfig(config);
+      setSelectedCharacter(targetChar);
+      setActiveStageDefinition(targetStage);
+      setScreen('game');
+      setIosInitialized(true);
+    };
+
+    initIOS();
+  }, [demoMode, lessonMode, iosInitialized]);
 
   const lessonParams = useMemo(() => {
     if (!lessonMode) return null;

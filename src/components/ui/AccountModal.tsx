@@ -28,6 +28,7 @@ const AccountPage: React.FC = () => {
   const [preferredLocale, setPreferredLocale] = useState<'ja' | 'en'>(
     () => profile?.preferred_locale ?? resolveAudienceLocale(),
   );
+  const [billingProvider, setBillingProvider] = useState<string | null>(null);
   const [localeSaving, setLocaleSaving] = useState(false);
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameValue, setNicknameValue] = useState('');
@@ -67,6 +68,24 @@ const AccountPage: React.FC = () => {
     window.addEventListener('hashchange', syncFromHash);
     return () => window.removeEventListener('hashchange', syncFromHash);
   }, []);
+
+  useEffect(() => {
+    const checkBilling = async () => {
+      try {
+        const token = session?.access_token;
+        if (!token) return;
+        const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+        const res = await fetch(`${supabaseUrl}/functions/v1/billing-status`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          setBillingProvider(data.provider ?? null);
+        }
+      } catch { /* ignore */ }
+    };
+    if (open) checkBilling();
+  }, [open, session?.access_token]);
 
   // Stripe Checkout など外部遷移から戻った際に最新プロフィールを取得（即時反映）
   useEffect(() => {
@@ -304,17 +323,30 @@ const AccountPage: React.FC = () => {
                         </span>
                       </div>
 
-                      {/* オープンβ期間中の案内 */}
-                      <div className="bg-yellow-900/20 rounded-lg p-3 border border-yellow-700/30 mt-2">
-                        <p className="text-sm text-yellow-200 mb-1">
-                          {isEnglishCopy ? 'Open Beta — all features are free until March 15.' : 'オープンβテスト中 — 3/15まで全機能を無料でご利用いただけます。'}
-                        </p>
-                        <p className="text-xs text-gray-400">
-                          {isEnglishCopy
-                            ? 'Subscription management will be available after the official launch on March 19.'
-                            : 'サブスクリプション管理は3/19の正式リリース後にご利用いただけます。'}
-                        </p>
-                      </div>
+                      {billingProvider === 'apple' && (
+                        <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-700/30 mt-2">
+                          <p className="text-sm text-orange-200 font-semibold mb-1">
+                            {isEnglishCopy ? 'Subscribed via iOS app' : 'iOS版で手続き済み'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {isEnglishCopy
+                              ? 'Your subscription was purchased through the iOS app. To manage it, please use the iOS app settings.'
+                              : 'iOS版でサブスクリプションの手続き済みです。管理はiOSアプリの設定から行ってください。'}
+                          </p>
+                        </div>
+                      )}
+                      {billingProvider === 'lemon' && (
+                        <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2">
+                          <p className="text-sm text-blue-200 font-semibold mb-1">
+                            {isEnglishCopy ? 'Subscribed via Web' : 'Web版で手続き済み'}
+                          </p>
+                          <p className="text-xs text-gray-400">
+                            {isEnglishCopy
+                              ? 'Manage your subscription from the billing portal below.'
+                              : '下の請求ポータルからサブスクリプションを管理できます。'}
+                          </p>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -323,8 +355,8 @@ const AccountPage: React.FC = () => {
                     <h3 className="text-lg font-semibold text-red-400">{isEnglishCopy ? 'Delete Account' : '退会（アカウント削除）'}</h3>
                     <p className="text-xs text-gray-400">
                       {isEnglishCopy 
-                        ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account. If not, please cancel your subscription via Customer Portal first.'
-                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。退会にはFreeプランである必要があります。Freeでない場合、下のボタンからCustomer Portalで解約してください。'}
+                        ? 'Deleting your account will prevent you from logging in. Public data will be anonymized as "Deleted User". You must be on the Free plan to delete your account.'
+                        : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。'}
                     </p>
                     <div className="flex gap-2">
                       {isPremiumMember && (
@@ -387,7 +419,7 @@ const AccountPage: React.FC = () => {
                             alert(isEnglishCopy ? 'An error occurred while deleting account' : '退会処理中にエラーが発生しました');
                           }
                         }}
-                        title={isPremiumMember ? (isEnglishCopy ? 'Only Free plan users can delete their account' : 'Freeプランのみ退会できます') : ''}
+                        title={isPremiumMember ? (isEnglishCopy ? 'Your subscription period has not ended yet. Please cancel first.' : 'まだサブスクリプションの利用期間が残っています。先に解約してください。') : ''}
                       >
                         {isEnglishCopy ? 'Delete Account' : '退会する'}
                       </button>
@@ -398,7 +430,13 @@ const AccountPage: React.FC = () => {
             <p className="text-center text-sm">{isEnglishCopy ? 'Could not retrieve profile information.' : 'プロフィール情報が取得できませんでした。'}</p>
           )}
         </div>
-        <div className="mt-8 w-full max-w-md">
+        <div className="mt-8 w-full max-w-md space-y-3">
+          <a
+            href="/contact"
+            className="btn btn-sm btn-outline w-full block text-center"
+          >
+            {isEnglishCopy ? 'Contact Us' : 'お問い合わせ'}
+          </a>
           <button
             className="btn btn-sm btn-outline w-full"
             onClick={async () => {

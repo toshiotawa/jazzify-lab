@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LoginView: View {
     @EnvironmentObject var appState: AppState
+    @StateObject private var midiManager = MIDIManager.shared
     @State private var email = ""
     @State private var password = ""
     @State private var showPasswordField = false
@@ -51,6 +52,8 @@ struct LoginView: View {
                                 .foregroundStyle(.red)
                                 .padding(.horizontal)
                         }
+
+                        midiSection
 
                         demoButtons
 
@@ -166,6 +169,68 @@ struct LoginView: View {
         .cornerRadius(12)
     }
 
+    // MARK: - MIDI
+
+    private var midiSection: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Image(systemName: "pianokeys")
+                    .foregroundStyle(.purple)
+                Text(locale == .ja ? "MIDI デバイス" : "MIDI Device")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Spacer()
+                Button {
+                    midiManager.refreshDevices()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+            }
+
+            if midiManager.availableDevices.isEmpty {
+                Text(locale == .ja
+                     ? "MIDI キーボードを接続してください"
+                     : "Connect a MIDI keyboard")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+            } else {
+                ForEach(midiManager.availableDevices) { device in
+                    Button {
+                        midiManager.selectDevice(uniqueID: device.uniqueID)
+                    } label: {
+                        HStack {
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(device.displayName)
+                                    .font(.caption)
+                                    .foregroundStyle(.white)
+                                if !device.manufacturer.isEmpty {
+                                    Text(device.manufacturer)
+                                        .font(.caption2)
+                                        .foregroundStyle(.gray)
+                                }
+                            }
+                            Spacer()
+                            if midiManager.selectedDeviceID == device.uniqueID {
+                                Image(systemName: "checkmark.circle.fill")
+                                    .foregroundStyle(.purple)
+                            }
+                        }
+                        .padding(.vertical, 6)
+                    }
+                }
+            }
+        }
+        .padding(16)
+        .background(Color(hex: "1e293b"))
+        .cornerRadius(12)
+    }
+
+    // MARK: - Demo
+
     private var demoButtons: some View {
         VStack(spacing: 12) {
             Text(locale == .ja ? "アカウントなしで体験" : "Try without an account")
@@ -177,8 +242,8 @@ struct LoginView: View {
                     showDemoLP = true
                 } label: {
                     Label(
-                        locale == .ja ? "デモプレイ" : "Demo Play",
-                        systemImage: "play.circle"
+                        locale == .ja ? "サバイバル" : "Survival",
+                        systemImage: "flame.fill"
                     )
                     .frame(maxWidth: .infinity)
                     .frame(height: 44)
@@ -190,7 +255,7 @@ struct LoginView: View {
                     showDemoFantasy = true
                 } label: {
                     Label(
-                        locale == .ja ? "ステージ1-1" : "Stage 1-1",
+                        locale == .ja ? "ファンタジー" : "Fantasy",
                         systemImage: "gamecontroller"
                     )
                     .frame(maxWidth: .infinity)

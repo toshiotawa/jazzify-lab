@@ -5,6 +5,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView, getIOSMode } from '@/utils/iosbridge';
 
 interface AuthGateProps {
   children: React.ReactNode;
@@ -36,6 +37,15 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   const retryText = isEnglishCopy ? 'Retry' : '再試行';
   const accountRegistrationHeading = isEnglishCopy ? 'Account Registration' : 'アカウント登録';
   const profileConfirmedHeading = isEnglishCopy ? 'Profile Confirmation' : 'プロフィール確認';
+
+  const isIOSDemoMode = (() => {
+    const mode = getIOSMode() ?? '';
+    return isIOSWebView() && mode.startsWith('demo-');
+  })();
+
+  if (isIOSDemoMode) {
+    return <>{children}</>;
+  }
 
   // ローディング中
   if (loading) {
