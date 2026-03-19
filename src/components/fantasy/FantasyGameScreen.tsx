@@ -32,6 +32,7 @@ import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasy
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -2101,7 +2102,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             
             {/* 戻るボタン */}
             <button
-              onClick={onBackToStageSelect}
+              onClick={() => {
+                if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                onBackToStageSelect();
+              }}
               className="w-full px-8 py-3 mt-2 text-gray-300 font-bold text-lg rounded-lg shadow-lg transform transition-all border border-gray-600 bg-gray-800 hover:bg-gray-700 hover:scale-105"
             >
               {isEnglishCopy ? 'Back' : '戻る'}
@@ -2157,7 +2161,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               ⚙️
             </button>
             <button
-              onClick={onBackToStageSelect}
+              onClick={() => {
+                if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                onBackToStageSelect();
+              }}
               className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
             >
               {isEnglishCopy ? 'Back' : '戻る'}
@@ -2204,7 +2211,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 </button>
               )}
               <button
-                onClick={onBackToStageSelect}
+                onClick={() => {
+                  if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                  onBackToStageSelect();
+                }}
                 className="px-2 py-1 bg-gray-700 hover:bg-gray-600 rounded text-xs font-medium transition-colors"
               >
                 {isEnglishCopy ? 'Back to Select' : 'ステージ選択に戻る'}

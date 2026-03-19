@@ -81,7 +81,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 // ===== バーチャルスティック =====
 interface VirtualStickProps {
@@ -3246,7 +3246,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     ⚙️ {isEnglishCopy ? 'Settings' : '設定'}
                   </button>
                   <button
-                    onClick={onBackToSelect}
+                    onClick={() => {
+                      if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                      onBackToSelect();
+                    }}
                     className="px-6 py-3 bg-gray-600 hover:bg-gray-500 rounded-lg font-sans text-white"
                   >
                     {isEnglishCopy ? 'Quit' : 'やめる'}

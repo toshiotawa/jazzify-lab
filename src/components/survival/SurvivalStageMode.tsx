@@ -27,7 +27,7 @@ import {
 import { FaTrophy, FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
   veryeasy: 'text-emerald-300',
@@ -255,7 +255,10 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
             </div>
             <div className="flex gap-2">
               <button
-                onClick={onBackToModeSelect}
+                onClick={() => {
+                  if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                  onBackToModeSelect?.();
+                }}
                 className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base font-sans"
               >
                 {isEnglishCopy ? 'Back' : '戻る'}

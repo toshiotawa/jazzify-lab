@@ -25,6 +25,7 @@ import {
   getRemainingClearsForNextStage,
   isNextStageUnlocked 
 } from '@/utils/fantasyRankCalculator';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 // ===== 型定義 =====
 
@@ -693,7 +694,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
               {isEnglishCopy ? 'Reload' : '再読み込み'}
             </button>
             <button
-              onClick={onBackToMenu}
+              onClick={() => {
+                if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                onBackToMenu();
+              }}
               className="px-4 sm:px-6 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base"
             >
               {isEnglishCopy ? 'Back' : '戻る'}
@@ -748,7 +752,10 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
                 </button>
               )}
               <button
-                onClick={onBackToMenu}
+                onClick={() => {
+                  if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                  onBackToMenu();
+                }}
                 className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base whitespace-nowrap"
               >
                 {backButtonLabel}

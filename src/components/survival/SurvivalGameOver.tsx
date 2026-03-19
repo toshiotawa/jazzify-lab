@@ -12,6 +12,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
 import { StageDefinition, TOTAL_STAGES, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 interface SurvivalGameOverProps {
   result: SurvivalGameResult;
@@ -63,6 +64,16 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isStageMode = !!stageDefinition;
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
+
+  const handleBackToSelect = () => {
+    if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+    onBackToSelect();
+  };
+
+  const handleBackToMenu = () => {
+    if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+    onBackToMenu();
+  };
 
   useEffect(() => {
     const saveResults = async () => {
@@ -368,7 +379,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     {isEnglishCopy ? 'NEXT STAGE' : '次のステージに進む'}
                   </button>
                   <button
-                    onClick={onBackToSelect}
+                    onClick={handleBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
                     {isLessonMode
@@ -378,7 +389,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                 </>
               ) : isStageClear && !onNextStage ? (
                 <button
-                  onClick={onBackToSelect}
+                  onClick={handleBackToSelect}
                   className="w-full py-2.5 rounded-lg font-bold text-base font-sans transition-colors bg-green-600 hover:bg-green-500"
                 >
                   {isLessonMode
@@ -394,7 +405,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     {isEnglishCopy ? 'TRY WITHOUT HINTS' : 'ヒントなしで挑戦'}
                   </button>
                   <button
-                    onClick={onBackToSelect}
+                    onClick={handleBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
                     {isLessonMode
@@ -417,7 +428,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     {isEnglishCopy ? 'RETRY WITH HINTS' : 'ヒントありで再挑戦'}
                   </button>
                   <button
-                    onClick={onBackToSelect}
+                    onClick={handleBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
                     {isLessonMode
@@ -434,7 +445,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                     {isEnglishCopy ? 'RETRY' : 'リトライ'}
                   </button>
                   <button
-                    onClick={onBackToSelect}
+                    onClick={handleBackToSelect}
                     className="w-full py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                   >
                     {isLessonMode
@@ -457,13 +468,13 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               </button>
               <div className="grid grid-cols-2 gap-2">
                 <button
-                  onClick={onBackToSelect}
+                  onClick={handleBackToSelect}
                   className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                 >
                   {isEnglishCopy ? 'Stage Select' : '難易度選択'}
                 </button>
                 <button
-                  onClick={onBackToMenu}
+                  onClick={handleBackToMenu}
                   className="py-2 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium font-sans transition-colors"
                 >
                   {isEnglishCopy ? 'Back to Menu' : 'メニューへ'}

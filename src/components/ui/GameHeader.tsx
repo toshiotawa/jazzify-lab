@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaUserCircle } from 'react-icons/fa';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -27,6 +28,7 @@ const GameHeader: React.FC = () => {
           <button
             className="text-white hover:text-primary-400 font-bold px-2"
             onClick={() => {
+              if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
               window.location.href = '/main#dashboard';
             }}
           >

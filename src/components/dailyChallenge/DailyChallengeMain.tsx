@@ -222,7 +222,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
         const score = correctAnswers;
         // 練習モードの場合はスコアを保存しない、スタートボタン画面に戻す
         if (isPracticeMode) {
-          // リロードして選択画面に戻す
+          if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
           window.location.reload();
           return;
         }
