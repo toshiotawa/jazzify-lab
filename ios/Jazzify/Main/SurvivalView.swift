@@ -145,6 +145,13 @@ struct SurvivalView: View {
                         mode: .survivalStage(stageNumber: stage.stageNumber, characterId: charId),
                         locale: locale
                     )
+                } else {
+                    ZStack {
+                        Color.black.ignoresSafeArea()
+                        ProgressView()
+                            .tint(.purple)
+                    }
+                    .onAppear { showGame = false }
                 }
             }
         }

@@ -88,12 +88,18 @@ const DEMO_CDE_NOTES = ['C', 'D', 'E'];
 const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/5b49b467-c54b-4fa8-ba36-bae3cfce424e.mp3';
 const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/b4249680-5471-4e4d-abba-af856ff33310.mp3';
 
+const hasIOSParams = (): boolean => {
+  if (!isIOSWebView()) return false;
+  return !!(getIOSParam('stageNumber') || getIOSParam('difficulty') || getIOSParam('characterId'));
+};
+
 const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => {
-  const { profile } = useAuthStore();
+  const { profile, loading: authLoading } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
-  const [screen, setScreen] = useState<Screen>((lessonMode || demoMode) ? 'game' : 'select');
+  const [isIOSSurvival] = useState(() => !lessonMode && !demoMode && hasIOSParams());
+  const [screen, setScreen] = useState<Screen>((lessonMode || demoMode || isIOSSurvival) ? 'game' : 'select');
   const [selectedDifficulty, setSelectedDifficulty] = useState<SurvivalDifficulty | null>(null);
   const [selectedConfig, setSelectedConfig] = useState<DifficultyConfig | null>(null);
   const [debugSettings, setDebugSettings] = useState<DebugSettings | undefined>(undefined);
@@ -104,6 +110,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonInitialized, setLessonInitialized] = useState(false);
 
   const [iosInitialized, setIosInitialized] = useState(false);
+  const [iosInitError, setIosInitError] = useState(false);
   const [demoInitialized, setDemoInitialized] = useState(false);
 
   useEffect(() => {
@@ -133,6 +140,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   useEffect(() => {
     if (demoMode || lessonMode || iosInitialized) return;
     if (!isIOSWebView()) return;
+    if (authLoading) return;
 
     const iosCharId = getIOSParam('characterId');
     const iosStageNumber = getIOSParam('stageNumber');
@@ -141,50 +149,55 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     if (!iosStageNumber && !iosDifficulty && !iosCharId) return;
 
     const initIOS = async () => {
-      let targetStage: StageDefinition;
-      if (iosStageNumber) {
-        const stageNum = parseInt(iosStageNumber, 10);
-        targetStage = ALL_STAGES.find(s => s.stageNumber === stageNum) ?? ALL_STAGES[0];
-      } else {
-        targetStage = ALL_STAGES.find(s => s.difficulty === iosDifficulty) ?? ALL_STAGES[0];
-      }
-
-      let targetChar: SurvivalCharacter | undefined;
       try {
-        const rows = await fetchSurvivalCharacters();
-        const chars = rows.map(convertToSurvivalCharacter);
-        if (iosCharId) {
-          const normalizedCharId = iosCharId.toLowerCase();
-          targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
+        let targetStage: StageDefinition;
+        if (iosStageNumber) {
+          const stageNum = parseInt(iosStageNumber, 10);
+          targetStage = ALL_STAGES.find(s => s.stageNumber === stageNum) ?? ALL_STAGES[0];
         } else {
-          targetChar = chars.find(c => c.name === 'ファイ' || c.id.toLowerCase() === 'fai') ?? chars[0];
+          targetStage = ALL_STAGES.find(s => s.difficulty === iosDifficulty) ?? ALL_STAGES[0];
         }
-      } catch { /* ignore */ }
 
-      let dbConfigs: DifficultyConfig[] = [];
-      try {
-        dbConfigs = await fetchDbDifficultyConfigs();
-      } catch { /* ignore */ }
+        let targetChar: SurvivalCharacter | undefined;
+        try {
+          const rows = await fetchSurvivalCharacters();
+          const chars = rows.map(convertToSurvivalCharacter);
+          if (iosCharId) {
+            const normalizedCharId = iosCharId.toLowerCase();
+            targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
+          } else {
+            targetChar = chars.find(c => c.name === 'ファイ' || c.id.toLowerCase() === 'fai') ?? chars[0];
+          }
+        } catch { /* ignore */ }
 
-      const baseConfig = dbConfigs.find(c => c.difficulty === targetStage.difficulty)
-        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === targetStage.difficulty)
-        ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
+        let dbConfigs: DifficultyConfig[] = [];
+        try {
+          dbConfigs = await fetchDbDifficultyConfigs();
+        } catch { /* ignore */ }
 
-      const config: DifficultyConfig = {
-        ...baseConfig,
-        allowedChords: targetStage.allowedChords,
-      };
+        const baseConfig = dbConfigs.find(c => c.difficulty === targetStage.difficulty)
+          ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === targetStage.difficulty)
+          ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
 
-      setSelectedDifficulty(targetStage.difficulty);
-      setSelectedConfig(config);
-      if (targetChar) setSelectedCharacter(targetChar);
-      setActiveStageDefinition(targetStage);
-      setScreen('game');
-      setIosInitialized(true);
+        const config: DifficultyConfig = {
+          ...baseConfig,
+          allowedChords: targetStage.allowedChords,
+        };
+
+        setSelectedDifficulty(targetStage.difficulty);
+        setSelectedConfig(config);
+        if (targetChar) setSelectedCharacter(targetChar);
+        setActiveStageDefinition(targetStage);
+        setIosInitError(false);
+        setScreen('game');
+        setIosInitialized(true);
+      } catch {
+        setIosInitError(true);
+      }
     };
 
     initIOS();
-  }, [demoMode, lessonMode, iosInitialized]);
+  }, [demoMode, lessonMode, iosInitialized, authLoading]);
 
   const lessonParams = useMemo(() => {
     if (!lessonMode) return null;
@@ -331,6 +344,31 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     }
     window.location.hash = '#dashboard';
   }, [lessonMode, lessonContext]);
+
+  if (isIOSSurvival && !iosInitialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
+        <div className="text-white text-center">
+          {iosInitError ? (
+            <>
+              <p className="text-lg mb-4">{isEnglishCopy ? 'Loading failed' : '読み込みに失敗しました'}</p>
+              <button
+                onClick={() => { setIosInitError(false); setIosInitialized(false); }}
+                className="px-6 py-3 bg-purple-600 hover:bg-purple-500 rounded-lg font-medium transition-colors font-sans"
+              >
+                {isEnglishCopy ? 'Retry' : '再試行'}
+              </button>
+            </>
+          ) : (
+            <>
+              <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4" />
+              <p className="text-lg">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</p>
+            </>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   if (lessonMode && !lessonInitialized) {
     return (
