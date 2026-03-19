@@ -27,6 +27,7 @@ import {
 import { FaTrophy, FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
+import { isIOSWebView } from '@/utils/iosbridge';
 
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
   veryeasy: 'text-emerald-300',
@@ -200,15 +201,17 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
     if (!selectedStage) return;
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
 
-    try {
-      await Promise.race([
-        (async () => {
-          await FantasySoundManager.unlock();
-          await initializeAudioSystem();
-        })(),
-        new Promise(resolve => setTimeout(resolve, 3000)),
-      ]);
-    } catch { /* ignore */ }
+    if (!isIOSWebView()) {
+      try {
+        await Promise.race([
+          (async () => {
+            await FantasySoundManager.unlock();
+            await initializeAudioSystem();
+          })(),
+          new Promise(resolve => setTimeout(resolve, 3000)),
+        ]);
+      } catch { /* ignore */ }
+    }
 
     const baseConfig = getConfig(selectedStage.difficulty);
     const stageConfig: DifficultyConfig = {

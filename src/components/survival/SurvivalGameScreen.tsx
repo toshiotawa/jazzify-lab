@@ -81,6 +81,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView } from '@/utils/iosbridge';
 
 // ===== バーチャルスティック =====
 interface VirtualStickProps {
@@ -621,12 +622,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // レジェンドモードと同一順序: オーディオ先 → MIDI後（タイムアウト付き）
       const initPromise = (async () => {
         try {
+          if (isIOSWebView()) {
+            setIsMidiInitialized(true);
+            return;
+          }
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
-          // 1. オーディオ + サウンドを先に並列初期化（5秒タイムアウト）
           await Promise.race([
             Promise.all([
               initializeAudioSystem().then(() => {
@@ -638,7 +641,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             ]),
             new Promise(resolve => setTimeout(resolve, 5000)),
           ]);
-          // 2. オーディオ準備完了後にMIDI初期化
           await controller.initialize();
           
           // MIDIControllerにキーハイライト機能を設定（初期化後に設定）

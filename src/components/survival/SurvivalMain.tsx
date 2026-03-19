@@ -142,15 +142,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     if (!iosStageNumber && !iosDifficulty) return;
 
     const initIOS = async () => {
-      try {
-        await Promise.race([
-          (async () => {
-            await FantasySoundManager.unlock();
-            await initializeAudioSystem();
-          })(),
-          new Promise(resolve => setTimeout(resolve, 3000)),
-        ]);
-      } catch { /* ignore */ }
 
       let targetChar: SurvivalCharacter | undefined;
       try {
