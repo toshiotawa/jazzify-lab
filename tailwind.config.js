@@ -90,6 +90,9 @@ export default {
   		fontFamily: {
   			sans: [
   				'Kaisei Opti',
+  				'Apple Color Emoji',
+  				'Segoe UI Emoji',
+  				'Noto Color Emoji',
   				'serif'
   			],
   			mono: [

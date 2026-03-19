@@ -132,6 +132,8 @@ const LIGHTNING_SCREEN_PADDING = 120;
 // ===== 弾丸アイコン =====
 const PROJECTILE_ICON = '✨';
 
+const EMOJI_FONT_FALLBACK = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
 // ===== 魔法エフェクトアイコン =====
 const MAGIC_ICONS: Record<string, string> = {
   thunder: '⚡',
@@ -304,7 +306,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.fill();
       
       // アイコン
-      ctx.font = '16px sans-serif';
+      ctx.font = `16px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -381,7 +383,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         ctx.arc(screenX, screenY, size + 8, 0, Math.PI * 2);
         ctx.fill();
         // 氷アイコンをオーバーレイ
-        ctx.font = '14px sans-serif';
+        ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('❄️', screenX + size / 2 + 8, screenY - size / 2);
@@ -392,7 +394,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         ctx.arc(screenX, screenY, size + 8, 0, Math.PI * 2);
         ctx.fill();
         // 炎アイコンをオーバーレイ
-        ctx.font = '14px sans-serif';
+        ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText('🔥', screenX - size / 2 - 8, screenY - size / 2);
@@ -400,14 +402,14 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // 敵本体（アイコンで描画）
       const enemyIcon = ENEMY_ICONS[enemy.type] || '👾';
-      ctx.font = `${fontSize}px sans-serif`;
+      ctx.font = `${fontSize}px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(enemyIcon, screenX, screenY);
       
       // ボスの場合は王冠を表示
       if (enemy.isBoss) {
-        ctx.font = '16px sans-serif';
+        ctx.font = `16px ${EMOJI_FONT_FALLBACK}`;
         ctx.fillText('👑', screenX, screenY - size / 2 - 12);
       }
       
@@ -426,7 +428,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       // ステータスアイコン
       const activeEffects = enemy.statusEffects.filter(e => e.duration > 0);
       if (activeEffects.length > 0) {
-        ctx.font = '12px sans-serif';
+        ctx.font = `12px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         activeEffects.forEach((effect, i) => {
           const icon = STATUS_ICONS[effect.type] || '?';
@@ -482,7 +484,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -20 || screenX > logicalWidth + 20 ||
           screenY < -20 || screenY > logicalHeight + 20) return;
       
-      ctx.font = '10px sans-serif';
+      ctx.font = `10px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.shadowColor = '#ff4444';
@@ -502,7 +504,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.arc(playerScreenX, playerScreenY, 50, 0, Math.PI * 2);
       ctx.fill();
       // 炎エフェクトのアイコン
-      ctx.font = '20px sans-serif';
+      ctx.font = `20px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (let i = 0; i < 4; i++) {
@@ -535,7 +537,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       ctx.restore();
     } else {
       // フォールバック: 絵文字で描画
-      ctx.font = '32px sans-serif';
+      ctx.font = `32px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('🧙', playerScreenX, playerScreenY);
@@ -562,7 +564,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     ctx.save();
     ctx.translate(arrowX, arrowY);
     ctx.rotate(angle);
-    ctx.font = '14px sans-serif';
+    ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
@@ -584,7 +586,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     // プレイヤーステータスアイコン
     const playerEffects = player.statusEffects.filter(e => e.duration > 0);
     if (playerEffects.length > 0) {
-      ctx.font = '14px sans-serif';
+      ctx.font = `14px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       playerEffects.forEach((effect, i) => {
         const icon = STATUS_ICONS[effect.type] || '?';
@@ -619,7 +621,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // 衝撃波アイコン（軽量化のため2個のみ）
       ctx.globalAlpha = alpha;
-      ctx.font = '16px sans-serif';
+      ctx.font = `16px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       for (let i = 0; i < 2; i++) {
@@ -724,7 +726,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       
       // 雷アイコン
       ctx.globalAlpha = alpha;
-      ctx.font = '18px sans-serif';
+      ctx.font = `18px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText('⚡', screenX, screenY);

@@ -75,6 +75,8 @@ const ANGER_EMOJI = '💢';
 // 攻撃成功時の吹き出しアイコン（ゴキゲンな感じに）
 const HIT_EMOJI = '🎵';
 
+const EMOJI_FONT_FALLBACK = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
+
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -477,7 +479,7 @@ export class FantasyPIXIInstance {
       
       // 怒りアイコン（💢）を表示
       if (isEnraged) {
-        ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
+        ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         // アニメーション（パルス）
@@ -491,7 +493,7 @@ export class FantasyPIXIInstance {
       
       // ヒット時の音符エフェクト（🎵×2）
       if (monster.flashUntil > now) {
-        ctx.font = `${Math.floor(monsterSize * 0.3)}px sans-serif`;
+        ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         const hitProgress = (monster.flashUntil - now) / 450; // 450msに延長
