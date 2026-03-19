@@ -104,6 +104,31 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [lessonInitialized, setLessonInitialized] = useState(false);
 
   const [iosInitialized, setIosInitialized] = useState(false);
+  const [demoInitialized, setDemoInitialized] = useState(false);
+
+  useEffect(() => {
+    if (!demoMode || demoInitialized) return;
+    const stage1 = ALL_STAGES[0];
+    const demoConfig: DifficultyConfig = {
+      difficulty: stage1.difficulty,
+      displayName: stage1.name,
+      description: stage1.name,
+      descriptionEn: stage1.nameEn,
+      allowedChords: DEMO_CDE_NOTES,
+      enemySpawnRate: 1,
+      enemySpawnCount: 1,
+      enemyStatMultiplier: 1,
+      expMultiplier: 1,
+      itemDropRate: 1,
+      bgmOddWaveUrl: DEMO_BGM_ODD,
+      bgmEvenWaveUrl: DEMO_BGM_EVEN,
+    };
+    setSelectedDifficulty(stage1.difficulty);
+    setSelectedConfig(demoConfig);
+    setActiveStageDefinition(stage1);
+    setScreen('game');
+    setDemoInitialized(true);
+  }, [demoMode, demoInitialized]);
 
   useEffect(() => {
     if (demoMode || lessonMode || iosInitialized) return;

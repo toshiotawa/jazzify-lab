@@ -1082,7 +1082,9 @@ struct LessonDetailView: View {
 
     private func buildHash(base: String, params: [String: String]) -> String {
         var components = URLComponents()
-        components.queryItems = params.map { URLQueryItem(name: $0.key, value: $0.value) }
+        var items = [URLQueryItem(name: "platform", value: "ios")]
+        items.append(contentsOf: params.map { URLQueryItem(name: $0.key, value: $0.value) })
+        components.queryItems = items
         let query = components.percentEncodedQuery ?? ""
         return query.isEmpty ? base : "\(base)?\(query)"
     }

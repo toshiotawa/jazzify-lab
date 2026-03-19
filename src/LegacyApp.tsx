@@ -163,11 +163,7 @@ const App: React.FC = () => {
     if (useGameStore.getState().settings.showHeader) {
       updateGameSettings({ showHeader: false });
     }
-  }
-  if (isIOSWebView() && iosMode) {
-    let IOSContent: React.ReactNode;
-
-    const resolveWebPageMode = (): React.ReactNode => {
+    const resolveHashRoute = (): React.ReactNode => {
       const hashBase = window.location.hash.split('?')[0].replace('#', '');
       switch (hashBase) {
         case 'survival-lesson':
@@ -179,12 +175,17 @@ const App: React.FC = () => {
         case 'play-lesson':
         case 'play-mission':
           return <LazyGameScreen />;
+        case 'survival':
+          return <LazySurvivalMain />;
         default:
           return <LazyGameScreen />;
       }
     };
 
-    switch (iosMode) {
+    const effectiveMode = iosMode ?? 'web-page';
+    let IOSContent: React.ReactNode;
+
+    switch (effectiveMode) {
       case 'demo-lp':
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
@@ -239,7 +240,7 @@ const App: React.FC = () => {
       case 'web-page':
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
-            {resolveWebPageMode()}
+            {resolveHashRoute()}
           </React.Suspense>
         );
         break;

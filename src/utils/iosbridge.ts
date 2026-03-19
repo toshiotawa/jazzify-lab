@@ -22,7 +22,11 @@ export const isIOSWebView = (): boolean => {
   if (typeof window === 'undefined') return false;
   const searchParams = new URLSearchParams(window.location.search);
   if (searchParams.get('platform') === 'ios') return true;
-  return getHashParams().get('platform') === 'ios';
+  if (getHashParams().get('platform') === 'ios') return true;
+  try {
+    if (window.webkit?.messageHandlers?.gameCallback) return true;
+  } catch { /* ignore */ }
+  return false;
 };
 
 export const getIOSMode = (): string | null => {
