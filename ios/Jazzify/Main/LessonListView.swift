@@ -1043,16 +1043,16 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "ファンタジーステージ設定がありません。" : "Missing fantasy stage setting."
                 return
             }
+            var fantasyParams: [String: String] = [
+                "lessonId": lesson.id.uuidString,
+                "lessonSongId": requirement.id.uuidString,
+                "stageId": stageId.uuidString,
+            ]
+            if let cc = encodeClearConditions(requirement.clearConditions) {
+                fantasyParams["clearConditions"] = cc
+            }
             launchDestination = LessonLaunchDestination(
-                hash: buildHash(
-                    base: "fantasy",
-                    params: [
-                        "lessonId": lesson.id.uuidString,
-                        "lessonSongId": requirement.id.uuidString,
-                        "stageId": stageId.uuidString,
-                        "clearConditions": encodeClearConditions(requirement.clearConditions) ?? ""
-                    ]
-                )
+                hash: buildHash(base: "fantasy", params: fantasyParams)
             )
             return
         }

@@ -621,19 +621,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // レジェンドモードと同一順序: オーディオ先 → MIDI後
+      // レジェンドモードと同一順序: オーディオ先 → MIDI後（タイムアウト付き）
       const initPromise = (async () => {
         try {
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
-          // 1. オーディオ + サウンドを先に並列初期化
-          await Promise.all([
-            initializeAudioSystem().then(() => {
-              updateGlobalVolume(settings.midiVolume ?? 0.8);
-            }),
-            FantasySoundManager.init(seVol, rootVol, true).then(() => {
-              FantasySoundManager.enableRootSound(true);
-            })
+          // 1. オーディオ + サウンドを先に並列初期化（5秒タイムアウト）
+          await Promise.race([
+            Promise.all([
+              initializeAudioSystem().then(() => {
+                updateGlobalVolume(settings.midiVolume ?? 0.8);
+              }),
+              FantasySoundManager.init(seVol, rootVol, true).then(() => {
+                FantasySoundManager.enableRootSound(true);
+              })
+            ]),
+            new Promise(resolve => setTimeout(resolve, 5000)),
           ]);
           // 2. オーディオ準備完了後にMIDI初期化
           await controller.initialize();

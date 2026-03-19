@@ -201,8 +201,13 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
 
     try {
-      await FantasySoundManager.unlock();
-      await initializeAudioSystem();
+      await Promise.race([
+        (async () => {
+          await FantasySoundManager.unlock();
+          await initializeAudioSystem();
+        })(),
+        new Promise(resolve => setTimeout(resolve, 3000)),
+      ]);
     } catch { /* ignore */ }
 
     const baseConfig = getConfig(selectedStage.difficulty);

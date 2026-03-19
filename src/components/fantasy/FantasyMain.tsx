@@ -344,11 +344,11 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       fullHash: window.location.hash
     });
     
-    if (lessonId && lessonSongId && stageId && clearConditionsStr) {
-      // レッスンモード
+    if (lessonId && lessonSongId && stageId) {
+      // レッスンモード（clearConditionsはnull許容）
       setIsLessonMode(true);
       try {
-        const clearConditions = JSON.parse(clearConditionsStr);
+        const clearConditions = clearConditionsStr ? JSON.parse(clearConditionsStr) : {};
         setLessonContext({
           lessonId,
           lessonSongId,
