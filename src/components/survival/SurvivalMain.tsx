@@ -17,7 +17,7 @@ import { fetchSurvivalCharacters, fetchSurvivalDifficultySettings, SurvivalChara
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
-import { isIOSWebView, getIOSParam } from '@/utils/iosbridge';
+import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -324,6 +324,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   }, [activeStageDefinition, selectedConfig]);
 
   const handleBackToSelect = useCallback(() => {
+    if (isIOSWebView()) {
+      sendGameCallback('gameEnd');
+      return;
+    }
     if (lessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
@@ -338,6 +342,10 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   }, [activeStageDefinition, lessonMode, lessonContext]);
 
   const handleBackToMenu = useCallback(() => {
+    if (isIOSWebView()) {
+      sendGameCallback('gameEnd');
+      return;
+    }
     if (lessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;

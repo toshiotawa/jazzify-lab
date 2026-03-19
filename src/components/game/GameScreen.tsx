@@ -16,6 +16,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import KeyClearsModal from '@/components/ui/KeyClearsModal';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 /**
  * メインゲーム画面コンポーネント
@@ -1167,7 +1168,7 @@ const LessonBackButton: React.FC = () => {
     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
       <button
         onClick={() => {
-          // レッスン詳細ページに戻る
+          if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
           window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
         }}
         className="
@@ -1208,7 +1209,7 @@ const MissionBackButton: React.FC = () => {
     <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
       <button
         onClick={() => {
-          // ミッション一覧に戻る
+          if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
           window.location.hash = '#missions';
         }}
         className="

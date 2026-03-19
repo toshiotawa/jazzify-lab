@@ -535,7 +535,8 @@ struct LessonDetailView: View {
         .fullScreenCover(item: $launchDestination) { destination in
             GameWebView(
                 mode: .webPage(hash: destination.hash),
-                locale: locale
+                locale: locale,
+                onClose: { launchDestination = nil }
             )
         }
         .alert(

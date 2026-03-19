@@ -11,6 +11,7 @@ import {
   FaExpandAlt,
   FaMusic
 } from 'react-icons/fa';
+import { isIOSWebView } from '@/utils/iosbridge';
 import { 
   MdLoop,
   MdReplay
@@ -421,15 +422,15 @@ const ControlBar: React.FC = () => {
             <FaMusic />
           </button>
           
-          {/* ヘッダー表示/非表示ボタン */}
-          <button
-            onClick={toggleHeader}
-            className="control-btn control-btn-xxs control-btn-secondary"
-            title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
-          >
-            {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
-
-          </button>
+          {!isIOSWebView() && (
+            <button
+              onClick={toggleHeader}
+              className="control-btn control-btn-xxs control-btn-secondary"
+              title={settings.showHeader ? 'ヘッダーを隠す' : 'ヘッダーを表示'}
+            >
+              {settings.showHeader ? <FaCompressAlt /> : <FaExpandAlt />}
+            </button>
+          )}
         </div>
       </div>
     </div>

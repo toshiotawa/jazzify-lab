@@ -7,6 +7,7 @@ import { createDailyChallengeRecord, fetchDailyChallengeRecordsSince, fetchDaily
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 type PlayMode = 'challenge' | 'practice';
 
@@ -160,6 +161,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
           <button
             className="btn btn-primary w-full"
             onClick={() => {
+              if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
               window.location.hash = '#dashboard';
             }}
           >
@@ -184,6 +186,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
           <button
             className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans"
             onClick={() => {
+              if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
               window.location.hash = '#dashboard';
             }}
           >
@@ -212,6 +215,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
       uiMode="daily_challenge"
       timeLimitSeconds={isPracticeMode ? Infinity : 120}
       onBackToStageSelect={() => {
+        if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
         window.location.hash = '#dashboard';
       }}
       onGameComplete={async (_result, _score, correctAnswers) => {

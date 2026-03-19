@@ -48,8 +48,14 @@ struct TopView: View {
             .fullScreenCover(isPresented: $showDailyChallenge) {
                 GameWebView(
                     mode: .dailyChallenge(difficulty: selectedDifficulty),
-                    locale: locale
+                    locale: locale,
+                    onClose: { showDailyChallenge = false }
                 )
+            }
+            .onChange(of: showDailyChallenge) { isPresented in
+                if !isPresented {
+                    Task { await loadData() }
+                }
             }
         }
     }

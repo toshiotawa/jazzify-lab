@@ -50,8 +50,13 @@ struct FantasyStageView: View {
                     GameWebView(
                         mode: .fantasy(stageNumber: stage.stageNumber ?? ""),
                         locale: locale,
-                        authToken: nil
+                        onClose: { showGame = false }
                     )
+                }
+            }
+            .onChange(of: showGame) { isPresented in
+                if !isPresented {
+                    Task { await loadStages() }
                 }
             }
         }

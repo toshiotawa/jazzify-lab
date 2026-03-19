@@ -83,6 +83,7 @@ struct GameWebView: View {
 
     let mode: GameMode
     let locale: AppLocale
+    var onClose: (() -> Void)?
     @State private var resolvedToken: String?
     @State private var tokenReady = false
 
@@ -93,9 +94,10 @@ struct GameWebView: View {
         }
     }
 
-    init(mode: GameMode, locale: AppLocale, authToken: String? = nil) {
+    init(mode: GameMode, locale: AppLocale, authToken: String? = nil, onClose: (() -> Void)? = nil) {
         self.mode = mode
         self.locale = locale
+        self.onClose = onClose
         self._resolvedToken = State(initialValue: authToken)
         self._tokenReady = State(initialValue: authToken != nil)
     }
@@ -116,20 +118,6 @@ struct GameWebView: View {
                     .tint(.purple)
             }
 
-            VStack {
-                HStack {
-                    Spacer()
-                    Button {
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.title2)
-                            .foregroundStyle(.white.opacity(0.7))
-                            .padding(12)
-                    }
-                }
-                Spacer()
-            }
         }
         .task {
             if !isDemoMode && resolvedToken == nil {
@@ -138,9 +126,14 @@ struct GameWebView: View {
             tokenReady = true
         }
         .onAppear {
-            coordinator.onGameEnd = { dismiss() }
             coordinator.onScoreReport = { _score in }
             coordinator.midiManager = MIDIManager.shared
+        }
+        .onChange(of: coordinator.shouldDismiss) { shouldDismiss in
+            if shouldDismiss {
+                onClose?()
+                dismiss()
+            }
         }
         .statusBarHidden()
     }

@@ -66,10 +66,10 @@ struct LoginView: View {
                 OTPVerifyView(email: email, authMode: authMode)
             }
             .fullScreenCover(isPresented: $showDemoLP) {
-                GameWebView(mode: .demoLP, locale: locale)
+                GameWebView(mode: .demoLP, locale: locale, onClose: { showDemoLP = false })
             }
             .fullScreenCover(isPresented: $showDemoFantasy) {
-                GameWebView(mode: .demoFantasy, locale: locale)
+                GameWebView(mode: .demoFantasy, locale: locale, onClose: { showDemoFantasy = false })
             }
         }
     }

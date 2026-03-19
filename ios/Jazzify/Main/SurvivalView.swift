@@ -143,7 +143,8 @@ struct SurvivalView: View {
                 if let stage = selectedStage, let charId = faiCharacterId {
                     GameWebView(
                         mode: .survivalStage(stageNumber: stage.stageNumber, characterId: charId),
-                        locale: locale
+                        locale: locale,
+                        onClose: { showGame = false }
                     )
                 } else {
                     ZStack {
@@ -152,6 +153,11 @@ struct SurvivalView: View {
                             .tint(.purple)
                     }
                     .onAppear { showGame = false }
+                }
+            }
+            .onChange(of: showGame) { isPresented in
+                if !isPresented {
+                    Task { await loadData() }
                 }
             }
         }

@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import { 
   calculateFantasyRank, 
   getRankClearCredit, 
@@ -658,8 +659,11 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
   }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
-  // ステージ選択に戻る
   const handleBackToStageSelect = useCallback(() => {
+    if (isIOSWebView()) {
+      sendGameCallback('gameEnd');
+      return;
+    }
     if (isLessonMode && lessonContext) {
       window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
@@ -777,8 +781,11 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     }
   }, [currentStage, isFreeOrGuest, handleBackToStageSelect]);
   
-  // メニューに戻る
   const handleBackToMenu = useCallback(() => {
+    if (isIOSWebView()) {
+      sendGameCallback('gameEnd');
+      return;
+    }
     window.location.hash = isMissionMode ? '#missions' : '#dashboard';
   }, [isMissionMode]);
   
@@ -902,7 +909,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
               )}
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
-                <button onClick={() => { window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
+                <button onClick={() => { if (isIOSWebView()) { sendGameCallback('gameEnd'); return; } window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
               ) : (
                 <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">{backToSelectLabel}</button>
               )}

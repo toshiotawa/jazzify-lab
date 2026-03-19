@@ -4,7 +4,7 @@ import WebKit
 final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate {
     weak var webView: WKWebView?
     var midiManager: MIDIManager?
-    var onGameEnd: (() -> Void)?
+    @Published var shouldDismiss = false
     var onScoreReport: ((Int) -> Void)?
 
     // MARK: - WKScriptMessageHandler
@@ -31,7 +31,7 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
         switch action {
         case "gameEnd":
             DispatchQueue.main.async { [weak self] in
-                self?.onGameEnd?()
+                self?.shouldDismiss = true
             }
         case "scoreReport":
             if let score = body["score"] as? Int {
