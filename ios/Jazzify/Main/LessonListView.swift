@@ -10,6 +10,7 @@ struct LessonListView: View {
     @State private var progressMap: [UUID: Set<UUID>] = [:]
     @State private var selectedLesson: Lesson?
     @State private var isLoading = true
+    @State private var showLessonInfo = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -71,6 +72,27 @@ struct LessonListView: View {
                 if isNil {
                     Task { await reloadAllProgress() }
                 }
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showLessonInfo = true } label: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.gray)
+                    }
+                }
+            }
+            .sheet(isPresented: $showLessonInfo) {
+                FeatureInfoModal(
+                    icon: "book.fill",
+                    iconColor: .purple,
+                    title: locale == .ja ? "レッスン" : "Lessons",
+                    description: locale == .ja
+                        ? "コース形式のレッスンで体系的にジャズを学べます。各レッスンには動画解説と実習課題があり、課題をクリアすると次のレッスンがアンロックされます。ブロックごとに進捗を管理し、段階的にスキルアップできます。"
+                        : "Learn jazz systematically through structured course lessons. Each lesson includes video explanations and practice tasks. Complete tasks to unlock the next lesson. Progress is tracked by blocks, allowing you to level up step by step.",
+                    locale: locale
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -590,7 +612,7 @@ struct LessonDetailView: View {
                     if let description = detail.localizedDescription(locale), !description.isEmpty {
                         Text(description)
                             .font(.subheadline)
-                            .foregroundStyle(.gray)
+                            .foregroundStyle(Color(hex: "d1d5db"))
                     }
                 }
 
@@ -635,7 +657,7 @@ struct LessonDetailView: View {
                 .foregroundStyle(.white)
             Text(assignment)
                 .font(.subheadline)
-                .foregroundStyle(.gray)
+                .foregroundStyle(Color(hex: "d1d5db"))
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(18)

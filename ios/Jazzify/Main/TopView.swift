@@ -14,6 +14,11 @@ struct TopView: View {
     @State private var weekChoice: WeekChoice = .thisWeek
     @State private var selectedYearMonth: String?
 
+    @State private var tutorialProgress: SupabaseService.TutorialProgressResult?
+    @State private var showTutorialLesson = false
+    @State private var tutorialLessonToOpen: Lesson?
+    @State private var showDCInfo = false
+
     private enum DCPeriod { case week, month }
     private enum WeekChoice { case thisWeek, lastWeek }
 
@@ -39,6 +44,7 @@ struct TopView: View {
                         if !appState.isPremium {
                             membershipBanner
                         }
+                        tutorialCard
                         statsCard
                         dailyChallengeCard
                         announcementCard
@@ -64,6 +70,34 @@ struct TopView: View {
                 if !isPresented {
                     Task { await loadData() }
                 }
+            }
+            .navigationDestination(
+                isPresented: Binding(
+                    get: { tutorialLessonToOpen != nil },
+                    set: { if !$0 { tutorialLessonToOpen = nil } }
+                )
+            ) {
+                if let lesson = tutorialLessonToOpen {
+                    LessonDetailView(lesson: lesson)
+                }
+            }
+            .onChange(of: tutorialLessonToOpen == nil) { isNil in
+                if isNil {
+                    Task { await loadData() }
+                }
+            }
+            .sheet(isPresented: $showDCInfo) {
+                FeatureInfoModal(
+                    icon: "flame.circle.fill",
+                    iconColor: .orange,
+                    title: locale == .ja ? "デイリーチャレンジ" : "Daily Challenge",
+                    description: locale == .ja
+                        ? "毎日1回、難易度別のチャレンジに挑戦できます。ランダムに出題されるコード進行を演奏し、スコアを競いましょう。記録はカレンダーに残り、継続的な成長を確認できます。"
+                        : "Challenge yourself once a day with difficulty-based chord progressions. Play randomly generated sequences and compete for high scores. Your records are tracked on a calendar to monitor your progress.",
+                    locale: locale
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
         }
     }
@@ -153,6 +187,76 @@ struct TopView: View {
         )
     }
 
+    // MARK: - Tutorial
+
+    @ViewBuilder
+    private var tutorialCard: some View {
+        if let progress = tutorialProgress,
+           progress.completedLessons < progress.totalLessons,
+           let nextLesson = progress.nextLesson {
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "graduationcap.fill")
+                        .foregroundStyle(.cyan)
+                    Text(locale == .ja ? "チュートリアル" : "Tutorial")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                }
+
+                HStack(spacing: 16) {
+                    ZStack {
+                        Circle()
+                            .stroke(Color(hex: "334155"), lineWidth: 5)
+                            .frame(width: 56, height: 56)
+                        Circle()
+                            .trim(
+                                from: 0,
+                                to: progress.totalLessons > 0
+                                    ? CGFloat(progress.completedLessons) / CGFloat(progress.totalLessons)
+                                    : 0
+                            )
+                            .stroke(.cyan, style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                            .frame(width: 56, height: 56)
+                            .rotationEffect(.degrees(-90))
+                        Text("\(progress.completedLessons)/\(progress.totalLessons)")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                    }
+
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(locale == .ja
+                             ? "レッスン\(nextLesson.orderIndex + 1)：\(nextLesson.localizedTitle(locale))"
+                             : "Lesson \(nextLesson.orderIndex + 1): \(nextLesson.localizedTitle(locale))")
+                            .font(.subheadline)
+                            .foregroundStyle(.cyan)
+                            .lineLimit(2)
+
+                        Button {
+                            tutorialLessonToOpen = nextLesson
+                        } label: {
+                            HStack(spacing: 6) {
+                                Image(systemName: "play.fill")
+                                    .font(.caption2)
+                                Text(locale == .ja ? "レッスンを始める" : "Start Lesson")
+                                    .font(.subheadline.bold())
+                            }
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 16)
+                            .padding(.vertical, 8)
+                            .background(.cyan.opacity(0.8))
+                            .cornerRadius(20)
+                        }
+                    }
+
+                    Spacer()
+                }
+            }
+            .padding(16)
+            .background(Color(hex: "1e293b"))
+            .cornerRadius(12)
+        }
+    }
+
     // MARK: - Stats
 
     private var statsCard: some View {
@@ -201,6 +305,10 @@ struct TopView: View {
                 Text(locale == .ja ? "デイリーチャレンジ" : "Daily Challenge")
                     .font(.headline)
                     .foregroundStyle(.white)
+                Button { showDCInfo = true } label: {
+                    Image(systemName: "info.circle")
+                        .foregroundStyle(.gray)
+                }
                 Spacer()
                 playButton
             }
@@ -545,9 +653,17 @@ struct TopView: View {
             }
         }()
 
+        async let tutorialTask: () = {
+            do {
+                self.tutorialProgress = try await SupabaseService.shared.fetchTutorialProgress(userId: userId, locale: locale)
+            } catch {
+                self.tutorialProgress = nil
+            }
+        }()
+
         async let dcTask: () = loadDailyChallengeRecords()
 
-        _ = await (announcementsTask, statsTask, dcTask)
+        _ = await (announcementsTask, statsTask, tutorialTask, dcTask)
     }
 
     private func loadDailyChallengeRecords() async {

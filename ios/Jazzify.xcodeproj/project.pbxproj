@@ -39,6 +39,8 @@
 		CC11DD22EE33FF44AA55BB06 /* AnnouncementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */; };
 		CC11DD22EE33FF44AA55BB07 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC07 /* ContactView.swift */; };
 		DD22EE33FF44AA55BB66CC08 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */; };
+		AA22BB33CC44DD55EE66FF09 /* OrientationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB33CC44DD55EE66FF77AA09 /* OrientationManager.swift */; };
+		AA22BB33CC44DD55EE66FF10 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB33CC44DD55EE66FF77AA10 /* AppDelegate.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -77,6 +79,8 @@
 		DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementListView.swift; sourceTree = "<group>"; };
 		DD11EE22FF33AA44BB55CC07 /* ContactView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContactView.swift; sourceTree = "<group>"; };
 		EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
+		BB33CC44DD55EE66FF77AA09 /* OrientationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationManager.swift; sourceTree = "<group>"; };
+		BB33CC44DD55EE66FF77AA10 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -164,9 +168,11 @@
 		A1F15DC348C430F50580B7CE /* App */ = {
 			isa = PBXGroup;
 			children = (
+				BB33CC44DD55EE66FF77AA10 /* AppDelegate.swift */,
 				611CAFDFC9C51C7A54B21C68 /* AppState.swift */,
 				6F8BFE37B198C035761B13AD /* Config.swift */,
 				F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */,
+				BB33CC44DD55EE66FF77AA09 /* OrientationManager.swift */,
 			);
 			path = App;
 			sourceTree = "<group>";
@@ -293,6 +299,7 @@
 			files = (
 				BB11CC22DD33EE44FF55AA01 /* Announcement.swift in Sources */,
 				CC11DD22EE33FF44AA55BB06 /* AnnouncementListView.swift in Sources */,
+				AA22BB33CC44DD55EE66FF10 /* AppDelegate.swift in Sources */,
 				0001DB9D114F5FDE7277099C /* AppState.swift in Sources */,
 				F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */,
 				9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */,
@@ -310,6 +317,7 @@
 				42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */,
 				D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */,
 				1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */,
+				AA22BB33CC44DD55EE66FF09 /* OrientationManager.swift in Sources */,
 				E748C5310C577DFFCB883B8F /* Profile.swift in Sources */,
 				2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */,
 				E09259FB92854762EA40D533 /* StoreManager.swift in Sources */,

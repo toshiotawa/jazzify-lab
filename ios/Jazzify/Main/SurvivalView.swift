@@ -113,6 +113,7 @@ struct SurvivalView: View {
     @State private var showHintModal = false
     @State private var pendingStage: SurvivalStage?
     @State private var selectedHintMode = false
+    @State private var showSurvivalInfo = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -169,6 +170,27 @@ struct SurvivalView: View {
                 hintModalContent
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
+            }
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSurvivalInfo = true } label: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.gray)
+                    }
+                }
+            }
+            .sheet(isPresented: $showSurvivalInfo) {
+                FeatureInfoModal(
+                    icon: "flame.fill",
+                    iconColor: .orange,
+                    title: locale == .ja ? "サバイバル" : "Survival",
+                    description: locale == .ja
+                        ? "コードの構成音を制限時間内に演奏するモードです。全100ステージあり、難易度別（Easy / Normal / Hard / Extreme）に分かれています。ステージをクリアすると次が解放されます。ヒントモードを使うと構成音が表示されますが、クリア扱いにはなりません。"
+                        : "Play chord tones within a time limit. There are 100 stages divided by difficulty (Easy / Normal / Hard / Extreme). Clear a stage to unlock the next. Hint mode shows chord tones but clears won't count as official.",
+                    locale: locale
+                )
+                .presentationDetents([.medium])
+                .presentationDragIndicator(.visible)
             }
         }
     }

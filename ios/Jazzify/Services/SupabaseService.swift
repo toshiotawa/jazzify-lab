@@ -222,6 +222,57 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    // MARK: - Tutorial Progress
+
+    struct TutorialProgressResult: Sendable {
+        let courseId: UUID
+        let totalLessons: Int
+        let completedLessons: Int
+        let nextLesson: Lesson?
+    }
+
+    func fetchTutorialProgress(userId: UUID, locale: AppLocale) async throws -> TutorialProgressResult? {
+        let audienceFilter = locale == .en ? "global" : "japan"
+
+        let courses: [Course] = try await client
+            .from("courses")
+            .select()
+            .eq("is_tutorial", value: true)
+            .eq("audience", value: audienceFilter)
+            .limit(1)
+            .execute()
+            .value
+
+        guard let course = courses.first else { return nil }
+
+        let lessons: [Lesson] = try await client
+            .from("lessons")
+            .select()
+            .eq("course_id", value: course.id.uuidString)
+            .order("order_index")
+            .execute()
+            .value
+
+        let progressRows: [LessonProgressRow] = try await client
+            .from("user_lesson_progress")
+            .select()
+            .eq("user_id", value: userId.uuidString)
+            .eq("course_id", value: course.id.uuidString)
+            .eq("completed", value: true)
+            .execute()
+            .value
+
+        let completedIds = Set(progressRows.map(\.lessonId))
+        let nextLesson = lessons.first { !completedIds.contains($0.id) }
+
+        return TutorialProgressResult(
+            courseId: course.id,
+            totalLessons: lessons.count,
+            completedLessons: completedIds.count,
+            nextLesson: nextLesson
+        )
+    }
+
     // MARK: - Announcements
 
     func fetchActiveAnnouncements(locale: AppLocale) async throws -> [AnnouncementRow] {

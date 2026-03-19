@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import WebKit
 
 enum GameMode {
@@ -12,6 +13,17 @@ enum GameMode {
     case practice(songId: String)
     case webPage(hash: String)
     case dailyChallenge(difficulty: String)
+
+    var preferredOrientations: UIInterfaceOrientationMask {
+        switch self {
+        case .fantasy, .demoFantasy:
+            return .landscape
+        case .survival, .survivalStage:
+            return .portrait
+        default:
+            return .allButUpsideDown
+        }
+    }
 
     var queryItems: [URLQueryItem] {
         var items = [URLQueryItem(name: "platform", value: "ios")]
@@ -132,9 +144,14 @@ struct GameWebView: View {
         .onAppear {
             coordinator.onScoreReport = { _score in }
             coordinator.midiManager = MIDIManager.shared
+            OrientationManager.shared.lock(mode.preferredOrientations)
+        }
+        .onDisappear {
+            OrientationManager.shared.unlock()
         }
         .onChange(of: coordinator.shouldDismiss) { shouldDismiss in
             if shouldDismiss {
+                OrientationManager.shared.unlock()
                 onClose?()
                 dismiss()
             }

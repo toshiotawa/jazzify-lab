@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct JazzifyApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
 
     var body: some Scene {
@@ -54,6 +55,51 @@ struct LaunchScreenView: View {
                     .tint(.purple)
             }
         }
+    }
+}
+
+struct FeatureInfoModal: View {
+    @Environment(\.dismiss) private var dismiss
+
+    let icon: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    let locale: AppLocale
+
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: icon)
+                .font(.system(size: 44))
+                .foregroundStyle(iconColor)
+
+            Text(title)
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+
+            Text(description)
+                .font(.body)
+                .foregroundStyle(Color(hex: "d1d5db"))
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Spacer()
+
+            Button {
+                dismiss()
+            } label: {
+                Text(locale == .ja ? "閉じる" : "Close")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(hex: "334155"))
+                    .cornerRadius(12)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "0f172a"))
     }
 }
 
