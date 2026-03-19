@@ -55,7 +55,7 @@ struct LessonListView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadCourses() }
             .navigationDestination(
                 isPresented: Binding(
@@ -552,7 +552,7 @@ struct LessonDetailView: View {
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
         .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+        .toolbarBackground(.visible, for: .navigationBar)
         .task { await loadLessonDetail() }
         .fullScreenCover(item: $launchDestination) { destination in
             GameWebView(

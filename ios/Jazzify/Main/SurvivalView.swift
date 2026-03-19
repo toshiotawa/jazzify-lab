@@ -141,7 +141,7 @@ struct SurvivalView: View {
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
-            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
+            .toolbarBackground(.visible, for: .navigationBar)
             .task { await loadData() }
             .refreshable { await loadData() }
             .fullScreenCover(isPresented: $showGame) {
