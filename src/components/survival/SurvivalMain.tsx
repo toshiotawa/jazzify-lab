@@ -118,16 +118,24 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
     const initIOS = async () => {
       try {
-        await FantasySoundManager.unlock();
-        await initializeAudioSystem();
+        await Promise.race([
+          (async () => {
+            await FantasySoundManager.unlock();
+            await initializeAudioSystem();
+          })(),
+          new Promise(resolve => setTimeout(resolve, 3000)),
+        ]);
       } catch { /* ignore */ }
 
       let targetChar: SurvivalCharacter | undefined;
       try {
         const rows = await fetchSurvivalCharacters();
         const chars = rows.map(convertToSurvivalCharacter);
-        targetChar = chars.find(c => c.id === iosCharId) ?? chars[0];
+        const normalizedCharId = iosCharId.toLowerCase();
+        targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
       } catch { /* ignore */ }
+
+      if (!targetChar) return;
 
       let targetStage: StageDefinition;
       if (iosStageNumber) {

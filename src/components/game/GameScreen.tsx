@@ -55,8 +55,9 @@ const GameScreen: React.FC = () => {
       if (songId) {
         try {
           // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
-          const songs = await fetchSongs(); // すべての曲を取得
-          const song = songs.find(s => s.id === songId);
+          const songs = await fetchSongs();
+          const normalizedSongId = songId.toLowerCase();
+          const song = songs.find(s => s.id === normalizedSongId || s.id.toLowerCase() === normalizedSongId);
           
           if (!song) {
             console.error('曲が見つかりません:', songId);
@@ -306,7 +307,8 @@ const GameScreen: React.FC = () => {
           
             // 曲データを取得
           const songs = await fetchSongs();
-          const song = songs.find(s => s.id === songId);
+          const normalizedMissionSongId = songId.toLowerCase();
+          const song = songs.find(s => s.id === normalizedMissionSongId || s.id.toLowerCase() === normalizedMissionSongId);
           
           if (!song) {
             console.error('❌ 曲が見つかりません:', {

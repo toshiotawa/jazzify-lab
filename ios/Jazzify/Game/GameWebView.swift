@@ -13,38 +13,65 @@ enum GameMode {
     case webPage(hash: String)
     case dailyChallenge(difficulty: String)
 
-    var queryParameters: String {
-        var params = "platform=ios"
+    var queryItems: [URLQueryItem] {
+        var items = [URLQueryItem(name: "platform", value: "ios")]
         switch self {
         case .demoLP:
-            params += "&mode=demo-lp"
+            items.append(URLQueryItem(name: "mode", value: "demo-lp"))
         case .demoFantasy:
-            params += "&mode=demo-fantasy&stage=1-1"
+            items.append(URLQueryItem(name: "mode", value: "demo-fantasy"))
+            items.append(URLQueryItem(name: "stage", value: "1-1"))
         case .fantasy(let stageNumber):
-            params += "&mode=fantasy&stage=\(stageNumber)"
+            items.append(URLQueryItem(name: "mode", value: "fantasy"))
+            items.append(URLQueryItem(name: "stage", value: stageNumber))
         case .survival(let difficulty, let characterId):
-            params += "&mode=survival&difficulty=\(difficulty)&characterId=\(characterId)"
+            items.append(URLQueryItem(name: "mode", value: "survival"))
+            items.append(URLQueryItem(name: "difficulty", value: difficulty))
+            items.append(URLQueryItem(name: "characterId", value: characterId))
         case .survivalStage(let stageNumber, let characterId):
-            params += "&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
+            items.append(URLQueryItem(name: "mode", value: "survival"))
+            items.append(URLQueryItem(name: "stageNumber", value: String(stageNumber)))
+            items.append(URLQueryItem(name: "characterId", value: characterId))
         case .lesson(let lessonId):
-            params += "&mode=play-lesson&lessonId=\(lessonId.uuidString)"
+            items.append(URLQueryItem(name: "mode", value: "play-lesson"))
+            items.append(URLQueryItem(name: "lessonId", value: lessonId.uuidString))
         case .song(let songId):
-            params += "&mode=songs&songId=\(songId)"
+            items.append(URLQueryItem(name: "mode", value: "songs"))
+            items.append(URLQueryItem(name: "songId", value: songId))
         case .practice(let songId):
-            params += "&mode=practice&songId=\(songId)"
+            items.append(URLQueryItem(name: "mode", value: "practice"))
+            items.append(URLQueryItem(name: "songId", value: songId))
         case .webPage:
-            params += "&mode=web-page"
+            items.append(URLQueryItem(name: "mode", value: "web-page"))
         case .dailyChallenge(let difficulty):
-            params += "&mode=daily-challenge&difficulty=\(difficulty)"
+            items.append(URLQueryItem(name: "mode", value: "daily-challenge"))
+            items.append(URLQueryItem(name: "difficulty", value: difficulty))
         }
-        return params
+        return items
     }
 
     var hashFragment: String? {
         switch self {
-        case .webPage(let hash): return hash
-        case .dailyChallenge(let difficulty): return "daily-challenge?difficulty=\(difficulty)"
-        default: return nil
+        case .demoLP:
+            return "ios?platform=ios&mode=demo-lp"
+        case .demoFantasy:
+            return "ios?platform=ios&mode=demo-fantasy&stage=1-1"
+        case .fantasy(let stageNumber):
+            return "ios?platform=ios&mode=fantasy&stage=\(stageNumber)"
+        case .survival(let difficulty, let characterId):
+            return "ios?platform=ios&mode=survival&difficulty=\(difficulty)&characterId=\(characterId)"
+        case .survivalStage(let stageNumber, let characterId):
+            return "ios?platform=ios&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
+        case .lesson(let lessonId):
+            return "ios?platform=ios&mode=play-lesson&lessonId=\(lessonId.uuidString)"
+        case .song(let songId):
+            return "ios?platform=ios&mode=songs&songId=\(songId)"
+        case .practice(let songId):
+            return "ios?platform=ios&mode=practice&songId=\(songId)"
+        case .webPage(let hash):
+            return hash
+        case .dailyChallenge(let difficulty):
+            return "ios?platform=ios&mode=daily-challenge&difficulty=\(difficulty)"
         }
     }
 }
@@ -121,10 +148,11 @@ struct GameWebView: View {
     private func buildURL() -> URL {
         let base = Config.webAppBaseURL
         var components = URLComponents(url: base.appendingPathComponent("main"), resolvingAgainstBaseURL: false)!
-        let queryString = mode.queryParameters + "&lang=\(locale.rawValue)"
-        components.query = queryString
+        var items = mode.queryItems
+        items.append(URLQueryItem(name: "lang", value: locale.rawValue))
+        components.queryItems = items
         if let hash = mode.hashFragment {
-            components.fragment = hash
+            components.percentEncodedFragment = hash
         }
         return components.url ?? base
     }

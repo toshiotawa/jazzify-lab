@@ -13,7 +13,7 @@ import { useGameStore } from '@/stores/gameStore';
 import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext, FantasyRank } from '@/types';
-import { fetchFantasyStageById } from '@/platform/supabaseFantasyStages';
+import { fetchFantasyStageById, fetchFantasyStageByNumber } from '@/platform/supabaseFantasyStages';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { useToast } from '@/stores/toastStore';
@@ -265,6 +265,66 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       });
     }).catch(() => {});
   }, [currentStage?.id]);
+
+  // iOS initialStage/demoStage による自動ステージ読み込み
+  useEffect(() => {
+    const stageNumber = initialStage || demoStage;
+    if (!stageNumber || currentStage) return;
+    const hash = window.location.hash;
+    if (hash.includes('lessonId=') || hash.includes('missionId=')) return;
+
+    fetchFantasyStageByNumber(stageNumber).then(dbStage => {
+      if (!dbStage) return;
+      const fantasyStage: FantasyStage = {
+        id: dbStage.id,
+        stageNumber: dbStage.stage_number,
+        name: dbStage.name,
+        name_en: (dbStage as Record<string, unknown>).name_en as string | undefined,
+        description: dbStage.description,
+        description_en: (dbStage as Record<string, unknown>).description_en as string | undefined,
+        maxHp: dbStage.max_hp,
+        enemyGaugeSeconds: dbStage.enemy_gauge_seconds,
+        enemyCount: dbStage.enemy_count,
+        enemyHp: dbStage.enemy_hp,
+        minDamage: dbStage.min_damage,
+        maxDamage: dbStage.max_damage,
+        mode: (['single','single_order','progression_order','progression_random','progression_timing','timing_combining'] as const)
+          .includes(dbStage.mode as never) ? (dbStage.mode as FantasyStage['mode']) : 'progression',
+        allowedChords: dbStage.allowed_chords,
+        chordProgression: dbStage.chord_progression,
+        chordProgressionData: (dbStage as Record<string, unknown>).chord_progression_data as FantasyStage['chordProgressionData'],
+        showSheetMusic: false,
+        showGuide: dbStage.show_guide,
+        simultaneousMonsterCount: dbStage.simultaneous_monster_count || 1,
+        monsterIcon: 'dragon',
+        bpm: ((dbStage as Record<string, unknown>).bpm as number) || 120,
+        bgmUrl: dbStage.bgm_url || (dbStage as Record<string, unknown>).mp3_url as string | undefined,
+        measureCount: (dbStage as Record<string, unknown>).measure_count as number | undefined,
+        countInMeasures: (dbStage as Record<string, unknown>).count_in_measures as number | undefined,
+        timeSignature: (dbStage as Record<string, unknown>).time_signature as string | undefined,
+        noteIntervalBeats: (dbStage as Record<string, unknown>).note_interval_beats as number | undefined,
+        playRootOnCorrect: (dbStage as Record<string, unknown>).play_root_on_correct as boolean ?? true,
+        isSheetMusicMode: !!(dbStage as Record<string, unknown>).is_sheet_music_mode,
+        sheetMusicClef: ((dbStage as Record<string, unknown>).sheet_music_clef as string) || 'treble',
+        required_clears_for_next: ((dbStage as Record<string, unknown>).required_clears_for_next as number) ?? 5,
+        musicXml: (dbStage as Record<string, unknown>).music_xml as string | undefined,
+        combinedStageIds: (dbStage as Record<string, unknown>).combined_stage_ids as string[] | undefined,
+        combinedSectionRepeats: (dbStage as Record<string, unknown>).combined_section_repeats as number[] | undefined,
+        combinedSectionMeasureLimits: (dbStage as Record<string, unknown>).combined_section_measure_limits as number[] | undefined,
+        callResponseEnabled: !!(dbStage as Record<string, unknown>).call_response_enabled,
+        callResponseMode: (dbStage as Record<string, unknown>).call_response_mode as string | undefined,
+        callResponseListenBars: (dbStage as Record<string, unknown>).call_response_listen_bars as number | undefined,
+        callResponsePlayBars: (dbStage as Record<string, unknown>).call_response_play_bars as number | undefined,
+        combinedSectionListenBars: (dbStage as Record<string, unknown>).combined_section_listen_bars as number[] | undefined,
+        combinedSectionPlayBars: (dbStage as Record<string, unknown>).combined_section_play_bars as number[] | undefined,
+        combinedSectionCrModes: (dbStage as Record<string, unknown>).combined_section_cr_modes as string[] | undefined,
+        useRhythmNotation: !!(dbStage as Record<string, unknown>).use_rhythm_notation,
+        productionRepeatTranspositionMode: (dbStage as Record<string, unknown>).production_repeat_transposition_mode as string | undefined,
+        productionStartKey: (dbStage as Record<string, unknown>).production_start_key as number | undefined,
+      };
+      setCurrentStage(fantasyStage);
+    }).catch(() => {});
+  }, [initialStage, demoStage]);
 
   // URLパラメータからレッスン/ミッションコンテキストを取得
   useEffect(() => {

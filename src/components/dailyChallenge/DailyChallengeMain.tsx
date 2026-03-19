@@ -78,7 +78,11 @@ const toEngineStage = (dbStage: FantasyStage): EngineFantasyStage => {
   };
 };
 
-const DailyChallengeMain: React.FC = () => {
+interface DailyChallengeMainProps {
+  iosDifficulty?: string;
+}
+
+const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }) => {
   const toast = useToast();
   const today = useMemo(() => toLocalDateString(new Date()), []);
   const [view, setView] = useState<ViewState>({ type: 'loading' });
@@ -94,7 +98,16 @@ const DailyChallengeMain: React.FC = () => {
 
   useEffect(() => {
     const run = async () => {
-      const difficulty = parseDifficulty(window.location.hash);
+      let difficulty = parseDifficulty(window.location.hash);
+      if (!difficulty && iosDifficulty && VALID_DIFFICULTIES.includes(iosDifficulty as DailyChallengeDifficulty)) {
+        difficulty = iosDifficulty as DailyChallengeDifficulty;
+      }
+      if (!difficulty) {
+        const searchDifficulty = new URLSearchParams(window.location.search).get('difficulty');
+        if (searchDifficulty && VALID_DIFFICULTIES.includes(searchDifficulty as DailyChallengeDifficulty)) {
+          difficulty = searchDifficulty as DailyChallengeDifficulty;
+        }
+      }
       if (!difficulty) {
         setView({ type: 'blocked', reason: 'invalid' });
         return;

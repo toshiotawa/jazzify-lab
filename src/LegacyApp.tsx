@@ -55,8 +55,9 @@ const App: React.FC = () => {
   },[]);
   const forceLogin = hash === '#login';
   
-  // ルートアクセス時にダッシュボードへリダイレクト
+  // ルートアクセス時にダッシュボードへリダイレクト（iOS WebViewでは不要）
   useEffect(() => {
+    if (isIOSWebView()) return;
     if (window.location.hash === '' || window.location.hash === '#') {
       window.location.hash = '#dashboard';
     }
@@ -95,6 +96,7 @@ const App: React.FC = () => {
   }, []);
   
   useEffect(() => {
+    if (isIOSWebView()) return;
     const baseHash = window.location.hash.split('?')[0];
     if (isGuest) {
       if (baseHash !== '#dashboard' && baseHash !== '#account') {
@@ -105,6 +107,7 @@ const App: React.FC = () => {
 
   // フリープランはダッシュボード/アカウント/料金プランのみ
   useEffect(() => {
+    if (isIOSWebView()) return;
     const baseHash = window.location.hash.split('?')[0];
     if (isFree && !isAdmin) {
       if (baseHash !== '#dashboard' && baseHash !== '#account' && baseHash !== '#pricing') {
@@ -161,8 +164,26 @@ const App: React.FC = () => {
       updateGameSettings({ showHeader: false });
     }
   }
-  if (isIOSWebView() && iosMode && iosMode !== 'web-page') {
+  if (isIOSWebView() && iosMode) {
     let IOSContent: React.ReactNode;
+
+    const resolveWebPageMode = (): React.ReactNode => {
+      const hashBase = window.location.hash.split('?')[0].replace('#', '');
+      switch (hashBase) {
+        case 'survival-lesson':
+          return <LazySurvivalMain lessonMode />;
+        case 'fantasy':
+          return <LazyFantasyMain />;
+        case 'daily-challenge':
+          return <LazyDailyChallengeMain />;
+        case 'play-lesson':
+        case 'play-mission':
+          return <LazyGameScreen />;
+        default:
+          return <LazyGameScreen />;
+      }
+    };
+
     switch (iosMode) {
       case 'demo-lp':
         IOSContent = (
@@ -204,7 +225,7 @@ const App: React.FC = () => {
       case 'daily-challenge':
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
-            <LazyDailyChallengeMain />
+            <LazyDailyChallengeMain iosDifficulty={getIOSParam('difficulty') ?? undefined} />
           </React.Suspense>
         );
         break;
@@ -212,6 +233,13 @@ const App: React.FC = () => {
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
             <LessonDetailPage />
+          </React.Suspense>
+        );
+        break;
+      case 'web-page':
+        IOSContent = (
+          <React.Suspense fallback={<LoadingScreen />}>
+            {resolveWebPageMode()}
           </React.Suspense>
         );
         break;

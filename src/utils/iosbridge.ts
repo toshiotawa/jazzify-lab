@@ -12,30 +12,33 @@ declare global {
   }
 }
 
+const getHashParams = (): URLSearchParams => {
+  const hash = window.location.hash;
+  if (!hash.includes('?')) return new URLSearchParams();
+  return new URLSearchParams(hash.slice(hash.indexOf('?')));
+};
+
 export const isIOSWebView = (): boolean => {
   if (typeof window === 'undefined') return false;
-  const params = new URLSearchParams(window.location.search);
-  return params.get('platform') === 'ios';
+  const searchParams = new URLSearchParams(window.location.search);
+  if (searchParams.get('platform') === 'ios') return true;
+  return getHashParams().get('platform') === 'ios';
 };
 
 export const getIOSMode = (): string | null => {
   if (typeof window === 'undefined') return null;
-  const search = window.location.search || '';
-  const hashQuery = window.location.hash.includes('?')
-    ? window.location.hash.slice(window.location.hash.indexOf('?'))
-    : '';
-  const params = new URLSearchParams(search || hashQuery);
-  return params.get('mode');
+  const searchParams = new URLSearchParams(window.location.search);
+  const searchMode = searchParams.get('mode');
+  if (searchMode) return searchMode;
+  return getHashParams().get('mode');
 };
 
 export const getIOSParam = (key: string): string | null => {
   if (typeof window === 'undefined') return null;
-  const search = window.location.search || '';
-  const hashQuery = window.location.hash.includes('?')
-    ? window.location.hash.slice(window.location.hash.indexOf('?'))
-    : '';
-  const params = new URLSearchParams(search || hashQuery);
-  return params.get(key);
+  const searchParams = new URLSearchParams(window.location.search);
+  const searchVal = searchParams.get(key);
+  if (searchVal) return searchVal;
+  return getHashParams().get(key);
 };
 
 export const getNativeAuthToken = (): string | null => {
