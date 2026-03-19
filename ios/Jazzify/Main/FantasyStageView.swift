@@ -48,7 +48,7 @@ struct FantasyStageView: View {
             .fullScreenCover(isPresented: $showGame) {
                 if let stage = selectedStage {
                     GameWebView(
-                        mode: .fantasy(stageNumber: stage.stageNumber),
+                        mode: .fantasy(stageNumber: stage.stageNumber ?? ""),
                         locale: locale,
                         authToken: nil
                     )
@@ -81,13 +81,15 @@ struct FantasyStageView: View {
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {
-                    Text(stage.stageNumber)
-                        .font(.caption.bold())
-                        .foregroundStyle(.purple)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 2)
-                        .background(Color.purple.opacity(0.2))
-                        .cornerRadius(4)
+                    if let stageNumber = stage.stageNumber {
+                        Text(stageNumber)
+                            .font(.caption.bold())
+                            .foregroundStyle(.purple)
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 2)
+                            .background(Color.purple.opacity(0.2))
+                            .cornerRadius(4)
+                    }
 
                     Spacer()
 
