@@ -96,6 +96,7 @@ export class FantasySoundManager {
   private gmMixBalance = 0.4;  // アコースティック60% + エレクトリック40%
   // アクティブなノート（停止用に追跡）
   private activeGMNotes: Map<number, { acoustic?: any; electric?: any; gainNode?: GainNode }> = new Map();
+  private gmPendingStops: Set<number> = new Set();
   private gmMasterGain: GainNode | null = null;
   private gmDryGain: GainNode | null = null;
   private gmWetGain: GainNode | null = null;
@@ -514,8 +515,16 @@ export class FantasySoundManager {
     }
     
     try {
+      this.gmPendingStops.delete(midiNote);
+
       if (this.gmAudioContext.state === 'suspended') {
         await this.gmAudioContext.resume();
+      }
+
+      // resume 待ちの間に stop が呼ばれた場合は再生しない
+      if (this.gmPendingStops.has(midiNote)) {
+        this.gmPendingStops.delete(midiNote);
+        return;
       }
       
       this._stopGMNote(midiNote);
@@ -550,6 +559,12 @@ export class FantasySoundManager {
       }
       
       this.activeGMNotes.set(midiNote, activeNodes);
+
+      // play 後に stop が呼ばれていた場合は即座に停止
+      if (this.gmPendingStops.has(midiNote)) {
+        this.gmPendingStops.delete(midiNote);
+        this._stopGMNote(midiNote);
+      }
     } catch {
       // GM note playback error - ignore
     }
@@ -558,7 +573,11 @@ export class FantasySoundManager {
   // GM音源のノートを即時停止
   private _stopGMNote(midiNote: number) {
     const activeNodes = this.activeGMNotes.get(midiNote);
-    if (!activeNodes) return;
+    if (!activeNodes) {
+      // _playGMNote がまだ resume() を待っている場合に備え、ペンディング登録
+      this.gmPendingStops.add(midiNote);
+      return;
+    }
     this.activeGMNotes.delete(midiNote);
 
     try {

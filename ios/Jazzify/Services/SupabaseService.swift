@@ -275,9 +275,19 @@ final class SupabaseService: Sendable {
             return response.count ?? 0
         }()
 
+        let survivalClears: Int = try await {
+            let response = try await client
+                .from("survival_stage_clears")
+                .select("stage_number", head: false, count: .exact)
+                .eq("user_id", value: userId.uuidString)
+                .execute()
+            return response.count ?? 0
+        }()
+
         return UserStats(
             lessonCompletedCount: lessonCount,
-            dailyChallengeParticipationDays: challengeDays
+            dailyChallengeParticipationDays: challengeDays,
+            survivalClearCount: survivalClears
         )
     }
 

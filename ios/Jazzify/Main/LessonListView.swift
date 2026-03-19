@@ -54,6 +54,8 @@ struct LessonListView: View {
             .navigationTitle(locale == .ja ? "レッスン" : "Lessons")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .task { await loadCourses() }
             .navigationDestination(
                 isPresented: Binding(
@@ -549,6 +551,8 @@ struct LessonDetailView: View {
         .navigationTitle(lesson.localizedTitle(locale))
         .navigationBarTitleDisplayMode(.inline)
         .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+        .toolbarBackgroundVisibility(.visible, for: .navigationBar)
         .task { await loadLessonDetail() }
         .fullScreenCover(item: $launchDestination) { destination in
             GameWebView(
@@ -702,6 +706,8 @@ struct LessonDetailView: View {
                 }
             }
 
+            clearConditionsGrid(requirement)
+
             Button {
                 launchRequirement(requirement)
             } label: {
@@ -728,6 +734,65 @@ struct LessonDetailView: View {
                 .stroke(isCompleted ? Color.green.opacity(0.5) : Color.clear, lineWidth: 1)
         )
         .cornerRadius(14)
+    }
+
+    @ViewBuilder
+    private func clearConditionsGrid(_ requirement: LessonSong) -> some View {
+        if let cc = requirement.clearConditions {
+            let isFantasy = requirement.isFantasy
+            let isSurvival = requirement.isSurvival ?? false
+            let requiresDays = cc.requiresDays ?? false
+            let count = cc.count ?? 1
+
+            VStack(alignment: .leading, spacing: 6) {
+                Text(locale == .ja ? "クリア条件" : "Clear Conditions")
+                    .font(.caption2.bold())
+                    .foregroundStyle(.gray)
+
+                let columns = [GridItem(.flexible()), GridItem(.flexible())]
+                LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
+                    if !isFantasy && !isSurvival {
+                        conditionItem(
+                            locale == .ja ? "キー" : "Key",
+                            value: {
+                                let k = cc.key ?? 0
+                                return k > 0 ? "+\(k)" : "\(k)"
+                            }()
+                        )
+                        conditionItem(
+                            locale == .ja ? "速度" : "Speed",
+                            value: "\(cc.speed ?? 1.0)x"
+                        )
+                    }
+                    if !isSurvival {
+                        conditionItem(
+                            locale == .ja ? "ランク" : "Rank",
+                            value: "\(cc.rank ?? "B")\(locale == .ja ? "以上" : "+")"
+                        )
+                    }
+                    conditionItem(
+                        locale == .ja ? "回数" : "Count",
+                        value: requiresDays
+                            ? "\(count)\(locale == .ja ? "日間" : " days")"
+                            : "\(count)\(locale == .ja ? "回" : "x")"
+                    )
+                }
+            }
+            .padding(10)
+            .background(Color(hex: "0f172a").opacity(0.5))
+            .cornerRadius(8)
+        }
+    }
+
+    private func conditionItem(_ label: String, value: String) -> some View {
+        HStack(spacing: 4) {
+            Text(label + ":")
+                .font(.caption2)
+                .foregroundStyle(.gray)
+            Text(value)
+                .font(.caption2.bold())
+                .foregroundStyle(.white)
+        }
     }
 
     private var videosCard: some View {

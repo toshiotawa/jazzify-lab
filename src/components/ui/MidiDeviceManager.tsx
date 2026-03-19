@@ -12,6 +12,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { isIOSWebView } from '@/utils/iosbridge';
 
 // requestMIDIAccess は1回だけ呼び、結果を永続キャッシュする
 let cachedMidiAccess: MIDIAccess | null = null;
@@ -211,7 +212,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
           )}
         </div>
         
-        {error && (
+        {error && !isIOSWebView() && (
           <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
             {(() => {
               const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
@@ -610,7 +611,7 @@ export const AudioOutputDeviceSelector: React.FC<AudioOutputDeviceSelectorProps>
           )}
         </div>
 
-        {!isSupported && (
+        {!isSupported && !isIOSWebView() && (
           <div className="text-yellow-400 text-xs mt-2 p-2 bg-yellow-900 bg-opacity-30 rounded">
             {en
               ? 'Output device selection is not available in this browser (iOS Safari may not be supported).'

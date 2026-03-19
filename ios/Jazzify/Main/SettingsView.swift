@@ -30,6 +30,8 @@ struct SettingsView: View {
             .navigationTitle(locale == .ja ? "設定" : "Settings")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .sheet(isPresented: $showSubscription) {
                 SubscriptionView()
             }

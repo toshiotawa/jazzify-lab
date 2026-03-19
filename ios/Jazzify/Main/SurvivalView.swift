@@ -140,6 +140,8 @@ struct SurvivalView: View {
             .navigationTitle(locale == .ja ? "サバイバル" : "Survival")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .task { await loadData() }
             .refreshable { await loadData() }
             .fullScreenCover(isPresented: $showGame) {

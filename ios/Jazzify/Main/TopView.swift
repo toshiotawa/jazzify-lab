@@ -7,9 +7,15 @@ struct TopView: View {
     @State private var isLoading = true
 
     @State private var selectedDifficulty = "beginner"
-    @State private var weeklyRecords: [DailyChallengeRecordRow] = []
+    @State private var dcRecords: [DailyChallengeRecordRow] = []
     @State private var isDCLoading = false
     @State private var showDailyChallenge = false
+    @State private var dcPeriod: DCPeriod = .week
+    @State private var weekChoice: WeekChoice = .thisWeek
+    @State private var selectedYearMonth: String?
+
+    private enum DCPeriod { case week, month }
+    private enum WeekChoice { case thisWeek, lastWeek }
 
     private var locale: AppLocale { appState.locale }
     private var profile: Profile? { appState.profile }
@@ -43,6 +49,8 @@ struct TopView: View {
             .navigationTitle("Jazzify")
             .navigationBarTitleDisplayMode(.large)
             .toolbarColorScheme(.dark, for: .navigationBar)
+            .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+            .toolbarBackgroundVisibility(.visible, for: .navigationBar)
             .task { await loadData() }
             .refreshable { await loadData() }
             .fullScreenCover(isPresented: $showDailyChallenge) {
@@ -163,6 +171,12 @@ struct TopView: View {
                             color: .green
                         )
                         StatItem(
+                            icon: "flame.fill",
+                            value: "\(stats.survivalClearCount)",
+                            label: locale == .ja ? "サバイバルクリア" : "Survival cleared",
+                            color: .orange
+                        )
+                        StatItem(
                             icon: "calendar.badge.checkmark",
                             value: "\(stats.dailyChallengeParticipationDays)",
                             label: locale == .ja ? "チャレンジ日数" : "Challenge days",
@@ -187,22 +201,51 @@ struct TopView: View {
                 Text(locale == .ja ? "デイリーチャレンジ" : "Daily Challenge")
                     .font(.headline)
                     .foregroundStyle(.white)
+                Spacer()
+                playButton
             }
 
-            difficultyPicker
+            HStack(spacing: 8) {
+                dcPeriodPicker
+                Spacer()
+                difficultyPicker
+            }
 
-            weeklyBarChart
+            dcSubControls
 
-            playButton
+            dcBarChart
+
+            dcPlayedStatus
         }
         .padding(16)
         .background(Color(hex: "1e293b"))
         .cornerRadius(12)
     }
 
+    private var dcPeriodPicker: some View {
+        HStack(spacing: 0) {
+            dcPeriodButton(locale == .ja ? "週" : "Week", period: .week)
+            dcPeriodButton(locale == .ja ? "月" : "Month", period: .month)
+        }
+        .cornerRadius(6)
+    }
+
+    private func dcPeriodButton(_ title: String, period: DCPeriod) -> some View {
+        Button {
+            dcPeriod = period
+        } label: {
+            Text(title)
+                .font(.caption.bold())
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                .background(dcPeriod == period ? Color.orange.opacity(0.3) : Color(hex: "334155"))
+                .foregroundStyle(dcPeriod == period ? .orange : .gray)
+        }
+    }
+
     private var difficultyPicker: some View {
         ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 8) {
+            HStack(spacing: 4) {
                 ForEach(Self.difficulties, id: \.key) { diff in
                     let isSelected = selectedDifficulty == diff.key
                     Button {
@@ -210,53 +253,104 @@ struct TopView: View {
                         Task { await loadDailyChallengeRecords() }
                     } label: {
                         Text(locale == .ja ? diff.ja : diff.en)
-                            .font(.caption)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 6)
+                            .font(.system(size: 10))
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 4)
                             .background(isSelected ? Color.orange.opacity(0.3) : Color(hex: "334155"))
                             .foregroundStyle(isSelected ? .orange : .gray)
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(isSelected ? Color.orange.opacity(0.6) : Color.clear, lineWidth: 1)
-                            )
+                            .cornerRadius(6)
                     }
                 }
             }
         }
     }
 
-    private var weeklyBarChart: some View {
-        let days = weekDayLabels()
-        let scores = weekDayScores(days: days)
-        let maxScore = max(scores.max() ?? 1, 1)
-
-        return VStack(spacing: 4) {
-            HStack(alignment: .bottom, spacing: 6) {
-                ForEach(0..<7, id: \.self) { index in
-                    let score = scores[index]
-                    let height = score > 0 ? CGFloat(score) / CGFloat(maxScore) * 80 : 0
-
-                    VStack(spacing: 4) {
-                        if score > 0 {
-                            Text("\(score)")
-                                .font(.system(size: 8))
-                                .foregroundStyle(.orange)
-                        }
-
-                        RoundedRectangle(cornerRadius: 3)
-                            .fill(score > 0 ? Color.orange : Color(hex: "334155"))
-                            .frame(height: max(height, 4))
-
-                        Text(days[index].label)
-                            .font(.system(size: 9))
-                            .foregroundStyle(.gray)
+    private var dcSubControls: some View {
+        HStack {
+            if dcPeriod == .week {
+                Menu {
+                    Button(locale == .ja ? "今週" : "This Week") { weekChoice = .thisWeek }
+                    Button(locale == .ja ? "先週" : "Last Week") { weekChoice = .lastWeek }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(weekChoice == .thisWeek
+                             ? (locale == .ja ? "今週" : "This Week")
+                             : (locale == .ja ? "先週" : "Last Week"))
+                            .font(.caption)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
                     }
-                    .frame(maxWidth: .infinity)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "334155"))
+                    .foregroundStyle(.white)
+                    .cornerRadius(6)
+                }
+            } else {
+                Menu {
+                    ForEach(monthsWithRecords.reversed(), id: \.self) { ym in
+                        Button(formatYearMonth(ym)) {
+                            selectedYearMonth = ym
+                        }
+                    }
+                } label: {
+                    HStack(spacing: 4) {
+                        Text(selectedYearMonth.map { formatYearMonth($0) } ?? "—")
+                            .font(.caption)
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 8))
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(Color(hex: "334155"))
+                    .foregroundStyle(.white)
+                    .cornerRadius(6)
                 }
             }
-            .frame(height: 110)
+            Spacer()
         }
+    }
+
+    private var dcBarChart: some View {
+        let data = chartData()
+        let maxScore = max(data.map(\.score).max() ?? 1, 1)
+
+        return Group {
+            if dcPeriod == .month {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    barChartContent(data: data, maxScore: maxScore)
+                        .frame(minWidth: CGFloat(data.count) * 16)
+                }
+            } else {
+                barChartContent(data: data, maxScore: maxScore)
+            }
+        }
+    }
+
+    private func barChartContent(data: [(label: String, score: Int)], maxScore: Int) -> some View {
+        HStack(alignment: .bottom, spacing: dcPeriod == .month ? 2 : 6) {
+            ForEach(Array(data.enumerated()), id: \.offset) { _, item in
+                let height = item.score > 0 ? CGFloat(item.score) / CGFloat(maxScore) * 80 : 0
+
+                VStack(spacing: 2) {
+                    if item.score > 0 {
+                        Text("\(item.score)")
+                            .font(.system(size: dcPeriod == .month ? 6 : 8))
+                            .foregroundStyle(.orange)
+                    }
+
+                    RoundedRectangle(cornerRadius: 2)
+                        .fill(item.score > 0 ? Color.orange : Color(hex: "334155"))
+                        .frame(height: max(height, 3))
+
+                    Text(item.label)
+                        .font(.system(size: dcPeriod == .month ? 6 : 9))
+                        .foregroundStyle(.gray)
+                }
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .frame(height: 110)
         .padding(.vertical, 4)
     }
 
@@ -266,55 +360,114 @@ struct TopView: View {
         return Button {
             showDailyChallenge = true
         } label: {
-            HStack {
-                Image(systemName: alreadyPlayed ? "checkmark.circle" : "play.fill")
-                Text(alreadyPlayed
-                     ? (locale == .ja ? "本日プレイ済み" : "Already played today")
-                     : (locale == .ja ? "プレイする" : "Play"))
-                    .font(.subheadline.bold())
-            }
-            .frame(maxWidth: .infinity)
-            .frame(height: 40)
+            Text(locale == .ja ? "プレイ" : "Play")
+                .font(.caption.bold())
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
         }
         .buttonStyle(.borderedProminent)
         .tint(alreadyPlayed ? .gray : .orange)
         .disabled(alreadyPlayed)
     }
 
-    // MARK: - Chart Helpers
-
-    private struct DayLabel: Equatable {
-        let dateString: String
-        let label: String
-    }
-
-    private func weekDayLabels() -> [DayLabel] {
-        let cal = Calendar.current
-        let today = Date()
-        let weekdayJa = ["日", "月", "火", "水", "木", "金", "土"]
-        let weekdayEn = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-
-        return (0..<7).reversed().map { offset -> DayLabel in
-            let date = cal.date(byAdding: .day, value: -offset, to: today)!
-            let wd = cal.component(.weekday, from: date) - 1
-            let label = locale == .ja ? weekdayJa[wd] : weekdayEn[wd]
-            return DayLabel(dateString: formatter.string(from: date), label: label)
+    private var dcPlayedStatus: some View {
+        let alreadyPlayed = hasPlayedToday()
+        return HStack {
+            Spacer()
+            Text(alreadyPlayed
+                 ? (locale == .ja ? "本日はプレイ済み" : "Already played today")
+                 : (locale == .ja ? "本日は未プレイ" : "Not played today"))
+                .font(.caption2)
+                .foregroundStyle(alreadyPlayed ? .green : .gray)
         }
     }
 
-    private func weekDayScores(days: [DayLabel]) -> [Int] {
-        let scoreMap = Dictionary(grouping: weeklyRecords, by: \.playedOn)
-            .mapValues { rows in rows.map(\.score).max() ?? 0 }
-        return days.map { scoreMap[$0.dateString] ?? 0 }
+    // MARK: - Chart Helpers
+
+    private var scoreByDate: [String: Int] {
+        var map: [String: Int] = [:]
+        for r in dcRecords {
+            if let existing = map[r.playedOn] {
+                map[r.playedOn] = max(existing, r.score)
+            } else {
+                map[r.playedOn] = r.score
+            }
+        }
+        return map
+    }
+
+    private var monthsWithRecords: [String] {
+        let months = Set(dcRecords.map { String($0.playedOn.prefix(7)) })
+        return months.sorted()
+    }
+
+    private func formatYearMonth(_ ym: String) -> String {
+        let parts = ym.split(separator: "-")
+        guard parts.count == 2, let m = Int(parts[1]) else { return ym }
+        if locale == .ja {
+            return "\(parts[0])年\(m)月"
+        }
+        let monthNames = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+        let idx = m - 1
+        return idx >= 0 && idx < 12 ? "\(monthNames[idx]) \(parts[0])" : ym
+    }
+
+    private func chartData() -> [(label: String, score: Int)] {
+        let scores = scoreByDate
+        if dcPeriod == .week {
+            return weekChartData(scores: scores)
+        } else {
+            return monthChartData(scores: scores)
+        }
+    }
+
+    private func weekChartData(scores: [String: Int]) -> [(label: String, score: Int)] {
+        let cal = Calendar.current
+        let today = Date()
+        let dayOfWeek = (cal.component(.weekday, from: today) + 5) % 7 // Mon=0 ... Sun=6
+        let monday = cal.date(byAdding: .day, value: -dayOfWeek, to: today)!
+        let baseMonday = weekChoice == .thisWeek ? monday : cal.date(byAdding: .day, value: -7, to: monday)!
+        let dayLabelsJa = ["月", "火", "水", "木", "金", "土", "日"]
+        let dayLabelsEn = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"]
+        let labels = locale == .ja ? dayLabelsJa : dayLabelsEn
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+
+        return (0..<7).map { offset in
+            let date = cal.date(byAdding: .day, value: offset, to: baseMonday)!
+            let dateStr = formatter.string(from: date)
+            return (label: labels[offset], score: scores[dateStr] ?? 0)
+        }
+    }
+
+    private func monthChartData(scores: [String: Int]) -> [(label: String, score: Int)] {
+        guard let ym = effectiveYearMonth else { return [] }
+        let parts = ym.split(separator: "-")
+        guard parts.count == 2, let y = Int(parts[0]), let m = Int(parts[1]) else { return [] }
+        var comps = DateComponents()
+        comps.year = y
+        comps.month = m + 1
+        comps.day = 0
+        let daysInMonth = Calendar.current.date(from: comps).map { Calendar.current.component(.day, from: $0) } ?? 30
+
+        return (1...daysInMonth).map { day in
+            let dateStr = String(format: "%04d-%02d-%02d", y, m, day)
+            return (label: "\(day)", score: scores[dateStr] ?? 0)
+        }
+    }
+
+    private var effectiveYearMonth: String? {
+        if let sel = selectedYearMonth, monthsWithRecords.contains(sel) {
+            return sel
+        }
+        return monthsWithRecords.last
     }
 
     private func hasPlayedToday() -> Bool {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
         let today = formatter.string(from: Date())
-        return weeklyRecords.contains(where: { $0.playedOn == today })
+        return dcRecords.contains(where: { $0.playedOn == today })
     }
 
     // MARK: - Announcements
@@ -405,16 +558,19 @@ struct TopView: View {
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let since = formatter.string(from: Calendar.current.date(byAdding: .day, value: -6, to: Date())!)
+        let since = formatter.string(from: Calendar.current.date(byAdding: .day, value: -365, to: Date())!)
 
         do {
-            weeklyRecords = try await SupabaseService.shared.fetchDailyChallengeRecords(
+            dcRecords = try await SupabaseService.shared.fetchDailyChallengeRecords(
                 userId: userId,
                 difficulty: selectedDifficulty,
                 since: since
             )
+            if selectedYearMonth == nil, let latest = monthsWithRecords.last {
+                selectedYearMonth = latest
+            }
         } catch {
-            weeklyRecords = []
+            dcRecords = []
         }
     }
 }
