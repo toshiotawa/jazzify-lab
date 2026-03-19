@@ -65,6 +65,11 @@ struct LessonListView: View {
                     LessonDetailView(lesson: selectedLesson)
                 }
             }
+            .onChange(of: selectedLesson == nil) { isNil in
+                if isNil {
+                    Task { await reloadAllProgress() }
+                }
+            }
         }
     }
 
@@ -400,6 +405,19 @@ struct LessonListView: View {
         isLoading = false
     }
 
+    private func reloadAllProgress() async {
+        guard let userId = appState.profile?.id else { return }
+        for courseId in lessonsMap.keys {
+            do {
+                let progress = try await SupabaseService.shared.fetchLessonProgress(courseId: courseId, userId: userId)
+                let completedIds = Set(progress.filter(\.completed).map(\.lessonId))
+                progressMap[courseId] = completedIds
+            } catch {
+                // keep existing progress on failure
+            }
+        }
+    }
+
     private func loadLessons(for courseId: UUID) async {
         do {
             let lessons = try await SupabaseService.shared.fetchLessons(courseId: courseId)
@@ -538,6 +556,11 @@ struct LessonDetailView: View {
                 locale: locale,
                 onClose: { launchDestination = nil }
             )
+        }
+        .onChange(of: launchDestination == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
         }
         .alert(
             locale == .ja ? "お知らせ" : "Notice",

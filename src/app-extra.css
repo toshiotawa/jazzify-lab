@@ -921,19 +921,19 @@
     @apply bg-background text-foreground;
   }
 
-/* ファンタジーモード用フォント - Kaisei Opti */
+/* ファンタジーモード用フォント - Kaisei Opti + 絵文字フォールバック */
 .fantasy-pixel-font {
-  font-family: 'Kaisei Opti', serif;
+  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
   font-weight: normal;
 }
 
 .fantasy-game-screen {
-  font-family: 'Kaisei Opti', serif;
+  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
   font-weight: normal;
 }
 
 .fantasy-game-screen * {
-  font-family: 'Kaisei Opti', serif !important;
+  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif !important;
   font-weight: normal !important;
 } 
 

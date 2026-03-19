@@ -84,7 +84,7 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
   return [];
 }
 
-const DEMO_CDE_NOTES = ['C', 'D', 'E'];
+const DEMO_CDE_NOTES = ['C_note', 'D_note', 'E_note'];
 const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/5b49b467-c54b-4fa8-ba36-bae3cfce424e.mp3';
 const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/b4249680-5471-4e4d-abba-af856ff33310.mp3';
 
@@ -133,6 +133,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedDifficulty(stage1.difficulty);
     setSelectedConfig(demoConfig);
     setActiveStageDefinition(stage1);
+    setActiveHintMode(true);
     setScreen('game');
     setDemoInitialized(true);
   }, [demoMode, demoInitialized]);
@@ -184,10 +185,13 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           allowedChords: targetStage.allowedChords,
         };
 
+        const iosHintMode = getIOSParam('hintMode') === 'true';
+
         setSelectedDifficulty(targetStage.difficulty);
         setSelectedConfig(config);
         if (targetChar) setSelectedCharacter(targetChar);
         setActiveStageDefinition(targetStage);
+        setActiveHintMode(iosHintMode);
         setIosInitError(false);
         setScreen('game');
         setIosInitialized(true);

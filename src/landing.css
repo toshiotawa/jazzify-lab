@@ -1,6 +1,6 @@
 /* LP specific styles (LandingPage) */
 .lp-root {
-  font-family: 'Kaisei Opti', serif;
+  font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
   --lp-gold: #c8a24d;
   --lp-gold-light: #e4c570;
   --lp-gold-dim: #a07c30;
@@ -31,12 +31,12 @@
 }
 
 .lp-display {
-  font-family: 'Fraunces', 'Kaisei Opti', serif;
+  font-family: 'Fraunces', 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
   font-variation-settings: 'opsz' 72, 'SOFT' 0, 'WONK' 1;
 }
 
 .lp-display-hero {
-  font-family: 'Fraunces', 'Kaisei Opti', serif;
+  font-family: 'Fraunces', 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
   font-variation-settings: 'opsz' 144, 'SOFT' 0, 'WONK' 1;
   letter-spacing: -0.03em;
   line-height: 0.92;

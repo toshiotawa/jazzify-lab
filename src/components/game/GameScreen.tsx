@@ -1083,12 +1083,44 @@ const GamePlayScreen: React.FC = () => {
         
         {/* ミッションに戻るボタン - 画面中央左に配置（ミッションコンテキストがある場合のみ） */}
         <MissionBackButton />
+
+        {/* iOS: 設定・楽譜ボタンをゲーム部分にフローティング表示 */}
+        {isIOSWebView() && <IOSGameOverlayButtons />}
       </div>
 
       {/* コントロールバー - フレックスボックス内の通常要素として配置 */}
       <div className="flex-shrink-0 bg-gray-900 border-t border-gray-700">
         <ControlBar />
       </div>
+    </div>
+  );
+};
+
+/**
+ * iOS: ゲーム画面上の設定・楽譜フローティングボタン
+ */
+const IOSGameOverlayButtons: React.FC = () => {
+  const { settings } = useGameSelector((s) => ({ settings: s.settings }));
+  const gameActions = useGameActions();
+
+  return (
+    <div className="absolute left-2 bottom-2 z-20 flex flex-col gap-2">
+      <button
+        onClick={() => gameActions.toggleSettings()}
+        className="w-10 h-10 flex items-center justify-center bg-gray-800/80 hover:bg-gray-700 rounded-lg text-white shadow-lg backdrop-blur-sm"
+        aria-label="Settings"
+      >
+        <span className="text-base">⚙</span>
+      </button>
+      <button
+        onClick={() => gameActions.updateSettings({ showSheetMusic: !settings.showSheetMusic })}
+        className={`w-10 h-10 flex items-center justify-center rounded-lg text-white shadow-lg backdrop-blur-sm ${
+          settings.showSheetMusic ? 'bg-blue-600/80' : 'bg-gray-800/80 hover:bg-gray-700'
+        }`}
+        aria-label="Toggle Sheet Music"
+      >
+        <FaMusic className="text-sm" />
+      </button>
     </div>
   );
 };

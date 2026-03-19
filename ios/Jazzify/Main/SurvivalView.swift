@@ -110,6 +110,9 @@ struct SurvivalView: View {
     @State private var selectedStage: SurvivalStage?
     @State private var isLoading = true
     @State private var showGame = false
+    @State private var showHintModal = false
+    @State private var pendingStage: SurvivalStage?
+    @State private var selectedHintMode = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -142,7 +145,7 @@ struct SurvivalView: View {
             .fullScreenCover(isPresented: $showGame) {
                 if let stage = selectedStage, let charId = faiCharacterId {
                     GameWebView(
-                        mode: .survivalStage(stageNumber: stage.stageNumber, characterId: charId),
+                        mode: .survivalStage(stageNumber: stage.stageNumber, characterId: charId, hintMode: selectedHintMode),
                         locale: locale,
                         onClose: { showGame = false }
                     )
@@ -160,7 +163,95 @@ struct SurvivalView: View {
                     Task { await loadData() }
                 }
             }
+            .sheet(isPresented: $showHintModal) {
+                hintModalContent
+                    .presentationDetents([.medium])
+                    .presentationDragIndicator(.visible)
+            }
         }
+    }
+
+    // MARK: - Hint Modal
+
+    private var hintModalContent: some View {
+        VStack(spacing: 20) {
+            Text(locale == .ja ? "ヒントモードの選択" : "Hint Mode")
+                .font(.title2.bold())
+                .foregroundStyle(.white)
+
+            if let stage = pendingStage {
+                Text(locale == .en ? stage.chordDisplayEn : stage.chordDisplayJa)
+                    .font(.headline)
+                    .foregroundStyle(.purple)
+
+                Text("Stage \(stage.stageNumber)")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            }
+
+            VStack(spacing: 12) {
+                Button {
+                    selectedHintMode = false
+                    confirmStageStart()
+                } label: {
+                    HStack {
+                        Image(systemName: "play.fill")
+                        Text(locale == .ja ? "ヒントなしでプレイ" : "Play without hints")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color.purple)
+                    .cornerRadius(12)
+                }
+
+                Button {
+                    selectedHintMode = true
+                    confirmStageStart()
+                } label: {
+                    HStack {
+                        Image(systemName: "lightbulb.fill")
+                        Text(locale == .ja ? "ヒントありでプレイ" : "Play with hints")
+                    }
+                    .font(.headline)
+                    .foregroundStyle(.yellow)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(Color(hex: "1e293b"))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 12)
+                            .stroke(Color.yellow.opacity(0.5), lineWidth: 1)
+                    )
+                    .cornerRadius(12)
+                }
+
+                Text(locale == .ja
+                     ? "※ ヒントありの場合、クリア扱いになりません"
+                     : "* Hint mode clears do not count as official")
+                    .font(.caption)
+                    .foregroundStyle(.orange)
+                    .multilineTextAlignment(.center)
+            }
+
+            Button {
+                showHintModal = false
+                pendingStage = nil
+            } label: {
+                Text(locale == .ja ? "キャンセル" : "Cancel")
+                    .foregroundStyle(.gray)
+            }
+        }
+        .padding(24)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(hex: "0f172a"))
+    }
+
+    private func confirmStageStart() {
+        showHintModal = false
+        selectedStage = pendingStage
+        pendingStage = nil
+        showGame = true
     }
 
     // MARK: - Locked
@@ -251,19 +342,26 @@ struct SurvivalView: View {
         let chordText = locale == .en ? stage.chordDisplayEn : stage.chordDisplayJa
         let rootText = locale == .en ? stage.rootPatternEn : stage.rootPatternJa
 
+        let isUnlocked = stage.stageNumber == 1 || clearedStages.contains(stage.stageNumber - 1)
+
         return Button {
-            selectedStage = stage
-            showGame = true
+            pendingStage = stage
+            selectedHintMode = false
+            showHintModal = true
         } label: {
             VStack(spacing: 4) {
                 HStack(spacing: 4) {
                     Text("\(stage.stageNumber)")
                         .font(.caption2.bold())
-                        .foregroundStyle(stage.difficulty.color)
+                        .foregroundStyle(isUnlocked ? stage.difficulty.color : .gray)
                     if isCleared {
                         Image(systemName: "checkmark.circle.fill")
                             .font(.caption2)
                             .foregroundStyle(.green)
+                    } else if !isUnlocked {
+                        Image(systemName: "lock.fill")
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
                     }
                 }
 
@@ -289,7 +387,8 @@ struct SurvivalView: View {
                     .stroke(isCleared ? stage.difficulty.color.opacity(0.5) : Color.clear, lineWidth: 1)
             )
         }
-        .disabled(faiCharacterId == nil)
+        .disabled(faiCharacterId == nil || !isUnlocked)
+        .opacity(isUnlocked ? 1 : 0.4)
     }
 
     // MARK: - Data

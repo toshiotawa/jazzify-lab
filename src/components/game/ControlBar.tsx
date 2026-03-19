@@ -404,23 +404,27 @@ const ControlBar: React.FC = () => {
         <div className="flex items-center space-x-2 flex-shrink-0 ml-4">
 
           
-          {/* 設定ボタン */}
-          <button
-            onClick={toggleSettings}
-            className="control-btn control-btn-xxs control-btn-secondary"
-            title="設定"
-          >
-            ⚙️
-          </button>
-          
-          {/* 楽譜表示切り替えボタン */}
-          <button
-            onClick={toggleSheetMusic}
-            className={`control-btn control-btn-xxs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
-            title={settings.showSheetMusic ? '楽譜を隠す' : '楽譜を表示'}
-          >
-            <FaMusic />
-          </button>
+          {!isIOSWebView() && (
+            <>
+              {/* 設定ボタン */}
+              <button
+                onClick={toggleSettings}
+                className="control-btn control-btn-xxs control-btn-secondary"
+                title="設定"
+              >
+                ⚙️
+              </button>
+              
+              {/* 楽譜表示切り替えボタン */}
+              <button
+                onClick={toggleSheetMusic}
+                className={`control-btn control-btn-xxs ${settings.showSheetMusic ? 'control-btn-primary' : 'control-btn-secondary'}`}
+                title={settings.showSheetMusic ? '楽譜を隠す' : '楽譜を表示'}
+              >
+                <FaMusic />
+              </button>
+            </>
+          )}
           
           {!isIOSWebView() && (
             <button

@@ -6,7 +6,7 @@ enum GameMode {
     case demoFantasy
     case fantasy(stageNumber: String)
     case survival(difficulty: String, characterId: String)
-    case survivalStage(stageNumber: Int, characterId: String)
+    case survivalStage(stageNumber: Int, characterId: String, hintMode: Bool = false)
     case lesson(lessonId: UUID)
     case song(songId: String)
     case practice(songId: String)
@@ -28,10 +28,13 @@ enum GameMode {
             items.append(URLQueryItem(name: "mode", value: "survival"))
             items.append(URLQueryItem(name: "difficulty", value: difficulty))
             items.append(URLQueryItem(name: "characterId", value: characterId))
-        case .survivalStage(let stageNumber, let characterId):
+        case .survivalStage(let stageNumber, let characterId, let hintMode):
             items.append(URLQueryItem(name: "mode", value: "survival"))
             items.append(URLQueryItem(name: "stageNumber", value: String(stageNumber)))
             items.append(URLQueryItem(name: "characterId", value: characterId))
+            if hintMode {
+                items.append(URLQueryItem(name: "hintMode", value: "true"))
+            }
         case .lesson(let lessonId):
             items.append(URLQueryItem(name: "mode", value: "play-lesson"))
             items.append(URLQueryItem(name: "lessonId", value: lessonId.uuidString))
@@ -60,8 +63,9 @@ enum GameMode {
             return "ios?platform=ios&mode=fantasy&stage=\(stageNumber)"
         case .survival(let difficulty, let characterId):
             return "ios?platform=ios&mode=survival&difficulty=\(difficulty)&characterId=\(characterId)"
-        case .survivalStage(let stageNumber, let characterId):
-            return "ios?platform=ios&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
+        case .survivalStage(let stageNumber, let characterId, let hintMode):
+            let base = "ios?platform=ios&mode=survival&stageNumber=\(stageNumber)&characterId=\(characterId)"
+            return hintMode ? "\(base)&hintMode=true" : base
         case .lesson(let lessonId):
             return "ios?platform=ios&mode=play-lesson&lessonId=\(lessonId.uuidString)"
         case .song(let songId):
@@ -177,6 +181,7 @@ struct WebViewRepresentable: UIViewRepresentable {
         if let token = authToken {
             injectAuthToken(webView: webView, token: token)
         }
+        injectViewportHeight(webView: webView)
 
         webView.load(URLRequest(url: url))
         return webView
@@ -188,6 +193,28 @@ struct WebViewRepresentable: UIViewRepresentable {
         let script = WKUserScript(
             source: "window.__NATIVE_AUTH_TOKEN__ = '\(token)';",
             injectionTime: .atDocumentStart,
+            forMainFrameOnly: true
+        )
+        webView.configuration.userContentController.addUserScript(script)
+    }
+
+    private func injectViewportHeight(webView: WKWebView) {
+        let source = """
+        (function(){
+          function setDvh(){
+            var h = window.innerHeight || document.documentElement.clientHeight;
+            document.documentElement.style.setProperty('--dvh', h + 'px');
+          }
+          setDvh();
+          window.addEventListener('resize', setDvh);
+          if(window.visualViewport){
+            window.visualViewport.addEventListener('resize', setDvh);
+          }
+        })();
+        """
+        let script = WKUserScript(
+            source: source,
+            injectionTime: .atDocumentEnd,
             forMainFrameOnly: true
         )
         webView.configuration.userContentController.addUserScript(script)

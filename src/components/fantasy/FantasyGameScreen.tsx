@@ -2133,7 +2133,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       `${fitAllKeys ? 'h-full' : 'min-h-[var(--dvh,100dvh)]'} bg-black text-white relative overflow-hidden select-none flex flex-col fantasy-game-screen`
     )}>
       {/* ===== ヘッダー ===== */}
-      <div className="relative z-30 p-1 pt-[max(4px,env(safe-area-inset-top))] text-white flex-shrink-0" style={{ minHeight: '40px' }}>
+      <div className="relative z-30 p-1 text-white flex-shrink-0" style={{ minHeight: '40px', paddingTop: isIOSWebView() ? 'max(48px, env(safe-area-inset-top, 48px))' : 'max(4px, env(safe-area-inset-top))' }}>
         {isDailyChallenge ? (
           <div className="flex items-center justify-between px-1">
             <div className="text-sm font-sans text-white">
