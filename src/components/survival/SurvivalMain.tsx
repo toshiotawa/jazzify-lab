@@ -138,10 +138,16 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     const iosStageNumber = getIOSParam('stageNumber');
     const iosDifficulty = getIOSParam('difficulty');
 
-    if (!iosCharId) return;
-    if (!iosStageNumber && !iosDifficulty) return;
+    if (!iosStageNumber && !iosDifficulty && !iosCharId) return;
 
     const initIOS = async () => {
+      let targetStage: StageDefinition;
+      if (iosStageNumber) {
+        const stageNum = parseInt(iosStageNumber, 10);
+        targetStage = ALL_STAGES.find(s => s.stageNumber === stageNum) ?? ALL_STAGES[0];
+      } else {
+        targetStage = ALL_STAGES.find(s => s.difficulty === iosDifficulty) ?? ALL_STAGES[0];
+      }
 
       let targetChar: SurvivalCharacter | undefined;
       try {
@@ -151,17 +157,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
         targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
       } catch { /* ignore */ }
 
-      if (!targetChar) return;
+      let dbConfigs: DifficultyConfig[] = [];
+      try {
+        dbConfigs = await fetchDbDifficultyConfigs();
+      } catch { /* ignore */ }
 
-      let targetStage: StageDefinition;
-      if (iosStageNumber) {
-        const stageNum = parseInt(iosStageNumber, 10);
-        targetStage = ALL_STAGES.find(s => s.stageNumber === stageNum) ?? ALL_STAGES[0];
-      } else {
-        targetStage = ALL_STAGES.find(s => s.difficulty === iosDifficulty) ?? ALL_STAGES[0];
-      }
-
-      const dbConfigs = await fetchDbDifficultyConfigs();
       const baseConfig = dbConfigs.find(c => c.difficulty === targetStage.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === targetStage.difficulty)
         ?? DIFFICULTY_CONFIGS.find(c => c.difficulty === 'easy')!;
@@ -173,7 +173,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
       setSelectedDifficulty(targetStage.difficulty);
       setSelectedConfig(config);
-      setSelectedCharacter(targetChar);
+      if (targetChar) setSelectedCharacter(targetChar);
       setActiveStageDefinition(targetStage);
       setScreen('game');
       setIosInitialized(true);
