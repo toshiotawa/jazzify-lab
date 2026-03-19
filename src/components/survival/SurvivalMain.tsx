@@ -153,8 +153,12 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       try {
         const rows = await fetchSurvivalCharacters();
         const chars = rows.map(convertToSurvivalCharacter);
-        const normalizedCharId = iosCharId.toLowerCase();
-        targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
+        if (iosCharId) {
+          const normalizedCharId = iosCharId.toLowerCase();
+          targetChar = chars.find(c => c.id === normalizedCharId || c.id.toLowerCase() === normalizedCharId) ?? chars[0];
+        } else {
+          targetChar = chars.find(c => c.name === 'ファイ' || c.id.toLowerCase() === 'fai') ?? chars[0];
+        }
       } catch { /* ignore */ }
 
       let dbConfigs: DifficultyConfig[] = [];
