@@ -52,10 +52,14 @@ const LandingPage: React.FC = () => {
     return () => observer.disconnect();
   }, [shouldRenderFantasyDemo]);
 
-  // data-animate 要素に is-inview を付与して本文を表示（スクロール連動アニメーション）
+  // data-animate 要素に is-inview を付与（スクロール連動アニメーション）
+  // LPFantasyDemo は lazy + Suspense のため、初回 effect 時点では DOM に無いことがある。
+  // MutationObserver で後から挿入された [data-animate] も登録しないと opacity:0 のまま残る。
   useEffect(() => {
     const scrollRoot = scrollRef.current;
     if (!scrollRoot) return;
+
+    const observed = new WeakSet<Element>();
 
     const animateObserver = new IntersectionObserver(
       (entries) => {
@@ -68,10 +72,26 @@ const LandingPage: React.FC = () => {
       { root: scrollRoot, threshold: 0.05, rootMargin: '0px 0px -5% 0px' }
     );
 
-    const animateElements = scrollRoot.querySelectorAll('[data-animate]');
-    animateElements.forEach((el) => animateObserver.observe(el));
+    const scanAndObserve = () => {
+      scrollRoot.querySelectorAll('[data-animate]').forEach((el) => {
+        if (!observed.has(el)) {
+          observed.add(el);
+          animateObserver.observe(el);
+        }
+      });
+    };
 
-    return () => animateObserver.disconnect();
+    scanAndObserve();
+
+    const mutationObserver = new MutationObserver(() => {
+      scanAndObserve();
+    });
+    mutationObserver.observe(scrollRoot, { childList: true, subtree: true });
+
+    return () => {
+      mutationObserver.disconnect();
+      animateObserver.disconnect();
+    };
   }, [shouldRenderFantasyDemo]);
 
   const [openFaqId, setOpenFaqId] = useState<number | null>(null);
