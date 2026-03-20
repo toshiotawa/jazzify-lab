@@ -400,21 +400,22 @@ export interface TutorialProgress {
   courseTitle: string;
   totalLessons: number;
   completedLessons: number;
-  nextLesson: { id: string; title: string; order_index: number } | null;
+  nextLesson: { id: string; title: string; title_en: string | null; order_index: number } | null;
 }
 
-export async function fetchTutorialProgress(audience: 'global' | 'japan' = 'japan'): Promise<TutorialProgress | null> {
+/** チュートリアルは audience によらず1コース（is_tutorial=true） */
+export async function fetchTutorialProgress(): Promise<TutorialProgress | null> {
   const supabase = getSupabaseClient();
 
   const { data: courseData, error: courseError } = await fetchWithCache(
-    `tutorial_course_${audience}`,
+    'tutorial_course',
     async () => await supabase
       .from('courses')
       .select('id, title')
       .eq('is_tutorial', true)
-      .eq('audience', audience)
+      .order('order_index', { ascending: true })
       .limit(1)
-      .single(),
+      .maybeSingle(),
     60 * 60 * 1000
   );
 
@@ -424,7 +425,7 @@ export async function fetchTutorialProgress(audience: 'global' | 'japan' = 'japa
     `tutorial_lessons_${courseData.id}`,
     async () => await supabase
       .from('lessons')
-      .select('id, title, order_index, block_number')
+      .select('id, title, title_en, order_index, block_number')
       .eq('course_id', courseData.id)
       .order('order_index', { ascending: true }),
     60 * 60 * 1000
@@ -455,7 +456,14 @@ export async function fetchTutorialProgress(audience: 'global' | 'japan' = 'japa
     courseTitle: courseData.title,
     totalLessons: lessons.length,
     completedLessons,
-    nextLesson: nextLesson ? { id: nextLesson.id, title: nextLesson.title, order_index: nextLesson.order_index } : null,
+    nextLesson: nextLesson
+      ? {
+          id: nextLesson.id,
+          title: nextLesson.title,
+          title_en: nextLesson.title_en ?? null,
+          order_index: nextLesson.order_index,
+        }
+      : null,
   };
 }
 

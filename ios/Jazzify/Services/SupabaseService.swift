@@ -231,14 +231,12 @@ final class SupabaseService: Sendable {
         let nextLesson: Lesson?
     }
 
-    func fetchTutorialProgress(userId: UUID, locale: AppLocale) async throws -> TutorialProgressResult? {
-        let audienceFilter = locale == .en ? "global" : "japan"
-
+    func fetchTutorialProgress(userId: UUID) async throws -> TutorialProgressResult? {
         let courses: [Course] = try await client
             .from("courses")
             .select()
             .eq("is_tutorial", value: true)
-            .eq("audience", value: audienceFilter)
+            .order("order_index")
             .limit(1)
             .execute()
             .value

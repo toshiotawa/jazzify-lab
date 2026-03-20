@@ -20,13 +20,12 @@ const TutorialProgressSection: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
-  const audience: 'global' | 'japan' = isEnglishCopy ? 'global' : 'japan';
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const data = await fetchTutorialProgress(audience);
+        const data = await fetchTutorialProgress();
         if (!cancelled) setProgress(data);
       } catch {
         // ignore
@@ -35,11 +34,17 @@ const TutorialProgressSection: React.FC = () => {
       }
     })();
     return () => { cancelled = true; };
-  }, [audience]);
+  }, []);
 
   if (loading || !progress) return null;
 
   const { totalLessons, completedLessons, nextLesson } = progress;
+  const nextLessonDisplayTitle =
+    nextLesson == null
+      ? ''
+      : isEnglishCopy
+        ? (nextLesson.title_en ?? nextLesson.title)
+        : nextLesson.title;
   const ratio = totalLessons > 0 ? completedLessons / totalLessons : 0;
   const offset = CIRCUMFERENCE * (1 - ratio);
   const allCompleted = completedLessons >= totalLessons;
@@ -100,16 +105,16 @@ const TutorialProgressSection: React.FC = () => {
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-300 truncate sm:whitespace-normal">
                   {isEnglishCopy ? (
-                    <>Complete <span className="text-cyan-400 font-semibold">Lesson {nextLesson.order_index + 1}: {nextLesson.title}</span></>
+                    <>Complete <span className="text-cyan-400 font-semibold">Lesson {nextLesson.order_index + 1}: {nextLessonDisplayTitle}</span></>
                   ) : (
-                    <><span className="text-cyan-400 font-semibold">レッスン{nextLesson.order_index + 1}：{nextLesson.title}</span>を完了しましょう</>
+                    <><span className="text-cyan-400 font-semibold">レッスン{nextLesson.order_index + 1}：{nextLessonDisplayTitle}</span>を完了しましょう</>
                   )}
                 </p>
               </div>
               <button
                 onClick={handlePlay}
                 className="shrink-0 inline-flex items-center justify-center gap-2 px-4 py-2 rounded-full bg-cyan-600 hover:bg-cyan-500 text-white text-sm font-medium transition-colors w-full sm:w-auto"
-                aria-label={isEnglishCopy ? `Start ${nextLesson.title}` : `${nextLesson.title} を開始`}
+                aria-label={isEnglishCopy ? `Start ${nextLessonDisplayTitle}` : `${nextLessonDisplayTitle} を開始`}
               >
                 <FaPlay className="text-xs ml-0.5" />
                 <span className="whitespace-nowrap">{startButtonText}</span>

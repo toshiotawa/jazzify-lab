@@ -663,7 +663,7 @@ struct TopView: View {
 
         async let tutorialTask: () = {
             do {
-                self.tutorialProgress = try await SupabaseService.shared.fetchTutorialProgress(userId: userId, locale: locale)
+                self.tutorialProgress = try await SupabaseService.shared.fetchTutorialProgress(userId: userId)
             } catch {
                 self.tutorialProgress = nil
             }
