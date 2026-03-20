@@ -33,6 +33,10 @@
 // 追加 import
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
+import {
+  ROOT_CORRECT_NOISE_LOOP_SAMPLES,
+  fillRootCorrectNoiseLoop,
+} from '@/utils/rootCorrectFamicomNoise';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
 
@@ -436,6 +440,17 @@ export class FantasySoundManager {
         this.activeRootOscillator.stop(now + 0.035);
       } catch { /* 既に停止済み */ }
     }
+
+    if (this.activeRootNoise) {
+      const prevNoise = this.activeRootNoise;
+      try {
+        prevNoise.gain.gain.cancelScheduledValues(now);
+        prevNoise.gain.gain.setValueAtTime(prevNoise.gain.gain.value, now);
+        prevNoise.gain.gain.linearRampToValueAtTime(0, now + 0.03);
+        prevNoise.source.stop(now + 0.035);
+      } catch { /* 既に停止済み */ }
+      this.activeRootNoise = null;
+    }
     
     try {
       // 新しいオシレーターを作成
@@ -469,8 +484,56 @@ export class FantasySoundManager {
       
       this.activeRootOscillator = osc;
       this.activeRootGain = gainNode;
+
+      // ファミコン風ノイズ（ルートより控えめ・短いループ1本＋都度ノード数個のみ）
+      const noiseBuf = this._ensureRootNoiseBuffer(ctx);
+      const noiseSrc = ctx.createBufferSource();
+      noiseSrc.buffer = noiseBuf;
+      noiseSrc.loop = true;
+
+      const noiseFilter = ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      const rootHue = ((n.midi % 12) + 12) % 12;
+      noiseFilter.frequency.setValueAtTime(2400 + rootHue * 55, now);
+      noiseFilter.Q.setValueAtTime(0.9, now);
+
+      const noiseGain = ctx.createGain();
+      noiseGain.gain.value = 0;
+
+      noiseSrc.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(this.rootMasterGain);
+
+      const noisePeak = 0.14;
+      noiseGain.gain.linearRampToValueAtTime(noisePeak, now + 0.006);
+      noiseGain.gain.linearRampToValueAtTime(noisePeak * 0.38, now + 0.11);
+      noiseGain.gain.linearRampToValueAtTime(0, now + totalDuration);
+
+      noiseSrc.start(now);
+      noiseSrc.stop(now + totalDuration + 0.01);
+
+      noiseSrc.onended = () => {
+        try {
+          noiseSrc.disconnect();
+          noiseFilter.disconnect();
+          noiseGain.disconnect();
+        } catch { /* ignore */ }
+      };
+
+      this.activeRootNoise = { source: noiseSrc, filter: noiseFilter, gain: noiseGain };
       
     } catch { /* ignore */ }
+  }
+
+  /** ルート正解ノイズ用ループPCM（同一 AudioContext で1本だけ保持） */
+  private _ensureRootNoiseBuffer(ctx: AudioContext): AudioBuffer {
+    if (this.rootNoiseBuffer !== null && this.rootNoiseBuffer.sampleRate === ctx.sampleRate) {
+      return this.rootNoiseBuffer;
+    }
+    const buffer = ctx.createBuffer(1, ROOT_CORRECT_NOISE_LOOP_SAMPLES, ctx.sampleRate);
+    fillRootCorrectNoiseLoop(buffer.getChannelData(0));
+    this.rootNoiseBuffer = buffer;
+    return buffer;
   }
   
   // 🎸 ルート音用 Web Audio API リソース
@@ -478,6 +541,12 @@ export class FantasySoundManager {
   private rootMasterGain: GainNode | null = null;
   private activeRootOscillator: OscillatorNode | null = null;
   private activeRootGain: GainNode | null = null;
+  private rootNoiseBuffer: AudioBuffer | null = null;
+  private activeRootNoise: {
+    source: AudioBufferSourceNode;
+    filter: BiquadFilterNode;
+    gain: GainNode;
+  } | null = null;
   
   // ルート音ベースの音量を同期
   private _syncRootBassVolume(): void {
