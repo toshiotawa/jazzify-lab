@@ -7,6 +7,7 @@ import { fetchUserLessonProgressAll } from '@/platform/supabaseLessonProgress';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -141,11 +142,12 @@ const LessonPage: React.FC = () => {
   }
 
   const renderCourseCard = (course: Course) => {
-    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds);
+    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, isEnglishCopy);
     const accessible = accessResult.canAccess;
     const progress = allCoursesProgress[course.id] ?? 0;
     const count = lessonCounts[course.id] ?? 0;
     const isCompleted = progress === 100;
+    const courseDesc = courseDisplayDescription(course, isEnglishCopy);
 
     return (
       <button
@@ -185,10 +187,12 @@ const LessonPage: React.FC = () => {
           )}
         </div>
 
-        <h3 className="font-semibold text-base mb-1.5 line-clamp-1">{course.title}</h3>
+        <h3 className="font-semibold text-base mb-1.5 line-clamp-1">
+          {courseDisplayTitle(course, isEnglishCopy)}
+        </h3>
 
-        {course.description && (
-          <p className="text-xs text-gray-400 line-clamp-2 mb-3">{course.description}</p>
+        {courseDesc && (
+          <p className="text-xs text-gray-400 line-clamp-2 mb-3">{courseDesc}</p>
         )}
 
         {course.prerequisites && course.prerequisites.length > 0 && (
@@ -202,7 +206,7 @@ const LessonPage: React.FC = () => {
                     : 'bg-orange-600/30 text-orange-300 border border-orange-600/40'
                 }`}
               >
-                {prereq.prerequisite_course.title}
+                {courseDisplayTitle(prereq.prerequisite_course, isEnglishCopy)}
               </span>
             ))}
           </div>

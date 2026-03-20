@@ -1,4 +1,5 @@
 import { Course, Lesson, LessonProgress, Profile } from '@/types';
+import { courseDisplayTitle } from '@/utils/courseCopy';
 
 export type MembershipRank = Profile['rank'] | 'free';
 
@@ -28,6 +29,8 @@ export interface CourseAccessOptions {
   course: Course;
   userRank?: MembershipRank | null;
   completedCourseIds: string[];
+  /** true のとき reason 文言と前提コース名を英語優先で組み立てる */
+  isEnglishCopy?: boolean;
 }
 
 export interface CourseAccessResult {
@@ -62,6 +65,7 @@ export const resolveCourseAccess = ({
   course,
   userRank,
   completedCourseIds,
+  isEnglishCopy = false,
 }: CourseAccessOptions): CourseAccessResult => {
   const rank = normalizeRank(userRank);
   const prerequisitesMet = checkCoursePrerequisites(course, completedCourseIds);
@@ -70,7 +74,9 @@ export const resolveCourseAccess = ({
   if (!rankAllows) {
     return {
       canAccess: false,
-      reason: 'プレミアムプラン以上が必要です',
+      reason: isEnglishCopy
+        ? 'Premium membership is required.'
+        : 'プレミアムプラン以上が必要です',
       prerequisitesMet,
       rankAllows,
       requiresPremium,
@@ -86,11 +92,19 @@ export const resolveCourseAccess = ({
     };
   }
 
-  const prerequisiteNames = course.prerequisites?.map((p) => p.prerequisite_course.title).join(', ');
+  const prerequisiteNames = course.prerequisites
+    ?.map((p) => courseDisplayTitle(p.prerequisite_course, isEnglishCopy))
+    .join(', ');
 
   return {
     canAccess: false,
-    reason: prerequisiteNames ? `前提コース（${prerequisiteNames}）を完了してください` : '前提コースを完了してください',
+    reason: prerequisiteNames
+      ? isEnglishCopy
+        ? `Complete the prerequisite course(s): ${prerequisiteNames}.`
+        : `前提コース（${prerequisiteNames}）を完了してください`
+      : isEnglishCopy
+        ? 'Complete the prerequisite course(s).'
+        : '前提コースを完了してください',
     prerequisitesMet: false,
     rankAllows,
     requiresPremium,

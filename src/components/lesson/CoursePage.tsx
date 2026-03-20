@@ -8,6 +8,8 @@ import { subscribeRealtime } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
+import { lessonDisplayTitle } from '@/utils/lessonCopy';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaLock, FaCheck, FaStar, FaChevronRight, FaArrowLeft } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -72,7 +74,7 @@ const CoursePage: React.FC = () => {
           return;
         }
 
-        const accessResult = canAccessCourse(courseData, profile.rank, completedCourses);
+        const accessResult = canAccessCourse(courseData, profile.rank, completedCourses, isEnglishCopy);
         if (!accessResult.canAccess) {
           toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
           window.location.hash = '#lessons';
@@ -128,7 +130,7 @@ const CoursePage: React.FC = () => {
 
     void loadCourseData();
     return () => { cancelled = true; };
-  }, [open, courseId, profile?.id]);
+  }, [open, courseId, profile?.id, isEnglishCopy]);
 
   useEffect(() => {
     if (!open || !courseId) return;
@@ -205,7 +207,14 @@ const CoursePage: React.FC = () => {
       const bn = lesson.block_number || 1;
       if (!blocks[bn]) blocks[bn] = [];
       blocks[bn].push(lesson);
-      if (lesson.block_name && !blockNames[bn]) blockNames[bn] = lesson.block_name;
+      if (!blockNames[bn]) {
+        if (isEnglishCopy) {
+          if (lesson.block_name_en) blockNames[bn] = lesson.block_name_en;
+          else if (lesson.block_name) blockNames[bn] = lesson.block_name;
+        } else if (lesson.block_name) {
+          blockNames[bn] = lesson.block_name;
+        }
+      }
     });
     return { blocks, blockNames };
   };
@@ -249,6 +258,7 @@ const CoursePage: React.FC = () => {
   const completedLessons = Object.values(progress).filter(p => p.completed).length;
   const totalLessons = lessons.length;
   const courseProgress = totalLessons > 0 ? Math.round((completedLessons / totalLessons) * 100) : 0;
+  const courseDesc = course ? courseDisplayDescription(course, isEnglishCopy) : undefined;
 
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
@@ -265,7 +275,9 @@ const CoursePage: React.FC = () => {
               {isEnglishCopy ? 'Lessons' : 'レッスン'}
             </button>
             <span>/</span>
-            <span className="text-white truncate">{course?.title ?? '...'}</span>
+            <span className="text-white truncate">
+              {course ? courseDisplayTitle(course, isEnglishCopy) : '...'}
+            </span>
           </nav>
 
           {loading ? (
@@ -295,7 +307,7 @@ const CoursePage: React.FC = () => {
                         </span>
                       )}
                     </div>
-                    <h1 className="text-xl font-bold">{course.title}</h1>
+                    <h1 className="text-xl font-bold">{courseDisplayTitle(course, isEnglishCopy)}</h1>
                   </div>
                   <div className="text-right shrink-0">
                     <span className="text-2xl font-bold text-primary-400">{courseProgress}%</span>
@@ -304,8 +316,8 @@ const CoursePage: React.FC = () => {
                     </p>
                   </div>
                 </div>
-                {course.description && (
-                  <p className="text-sm text-gray-400">{course.description}</p>
+                {courseDesc && (
+                  <p className="text-sm text-gray-400">{courseDesc}</p>
                 )}
                 <div className="mt-3 h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
                   <div
@@ -384,7 +396,7 @@ const CoursePage: React.FC = () => {
                                     <div className="flex-1 min-w-0">
                                       <div className="flex items-center gap-2">
                                         <span className={`font-medium text-sm truncate ${unlocked ? 'text-white' : 'text-gray-500'}`}>
-                                          {lesson.title}
+                                          {lessonDisplayTitle(lesson, isEnglishCopy)}
                                         </span>
                                         {completed && <FaStar className="text-xs text-yellow-400 shrink-0" />}
                                       </div>

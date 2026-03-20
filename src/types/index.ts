@@ -677,11 +677,14 @@ export interface Lesson {
   id: string;
   course_id: string;
   title: string;
+  title_en?: string | null;
   description: string;
+  description_en?: string | null;
   assignment_description?: string;
   order_index: number;
   block_number?: number;
   block_name?: string | null;
+  block_name_en?: string | null;
   nav_links?: NavLinkKey[];
   created_at: string;
   updated_at: string;
@@ -708,7 +711,9 @@ export type CourseAudience = 'global' | 'japan' | 'both';
 export interface Course {
   id: string;
   title: string;
+  title_en?: string | null;
   description?: string;
+  description_en?: string | null;
   created_at: string;
   updated_at: string;
   lessons: Lesson[];

@@ -88,6 +88,47 @@ describe('resolveCourseAccess', () => {
     expect(result.prerequisitesMet).toBe(false);
     expect(result.reason).toContain('前提コース');
   });
+
+  it('isEnglishCopy 時は前提未達メッセージが英語になる', () => {
+    const prerequisiteCourse = createCourse({
+      id: 'course-pre',
+      title: 'プレコース',
+      title_en: 'Prerequisite EN',
+    });
+    const targetCourse = createCourse({
+      prerequisites: [
+        {
+          prerequisite_course_id: prerequisiteCourse.id,
+          prerequisite_course: prerequisiteCourse,
+        },
+      ],
+    });
+
+    const result = resolveCourseAccess({
+      course: targetCourse,
+      userRank: 'premium',
+      completedCourseIds: [],
+      isEnglishCopy: true,
+    });
+
+    expect(result.canAccess).toBe(false);
+    expect(result.reason).toContain('Prerequisite EN');
+    expect(result.reason).toContain('prerequisite');
+  });
+
+  it('isEnglishCopy 時はプレミアム未加入メッセージが英語になる', () => {
+    const targetCourse = createCourse({ premium_only: true });
+
+    const result = resolveCourseAccess({
+      course: targetCourse,
+      userRank: 'free',
+      completedCourseIds: [],
+      isEnglishCopy: true,
+    });
+
+    expect(result.canAccess).toBe(false);
+    expect(result.reason).toBe('Premium membership is required.');
+  });
 });
 
 describe('buildLessonAccessGraph', () => {

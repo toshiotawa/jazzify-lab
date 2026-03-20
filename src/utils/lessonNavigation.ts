@@ -1,4 +1,5 @@
 import { Lesson } from '@/types';
+import { lessonDisplayBlockName } from '@/utils/lessonCopy';
 import { fetchLessonsByCourse } from '@/platform/supabaseLessons';
 import { fetchUserLessonProgress } from '@/platform/supabaseLessonProgress';
 import { clearCacheByPattern } from '@/platform/supabaseClient';
@@ -177,25 +178,38 @@ export async function getLessonNavigationInfo(
  */
 export function getNavigationErrorMessage(
   direction: 'previous' | 'next',
-  navigationInfo: LessonNavigationInfo
+  navigationInfo: LessonNavigationInfo,
+  isEnglishCopy = false,
 ): string {
   if (direction === 'previous') {
     if (!navigationInfo.previousLesson) {
-      return 'これがコースの最初のレッスンです。';
+      return isEnglishCopy
+        ? 'This is the first lesson in the course.'
+        : 'これがコースの最初のレッスンです。';
     }
     if (!navigationInfo.course.hasAccessToPrevious) {
-      return '前のレッスンにアクセスできません。レッスンが解放されていない可能性があります。';
+      return isEnglishCopy
+        ? 'You cannot open the previous lesson. It may still be locked.'
+        : '前のレッスンにアクセスできません。レッスンが解放されていない可能性があります。';
     }
   } else {
     if (!navigationInfo.nextLesson) {
-      return 'これがコースの最後のレッスンです。すべてのレッスンを完了されました！';
+      return isEnglishCopy
+        ? 'This is the last lesson. You have finished the course!'
+        : 'これがコースの最後のレッスンです。すべてのレッスンを完了されました！';
     }
     if (!navigationInfo.course.hasAccessToNext) {
-      const blockInfo = navigationInfo.nextLesson ? getLessonBlockInfo(navigationInfo.nextLesson) : null;
+      const blockInfo = navigationInfo.nextLesson
+        ? getLessonBlockInfo(navigationInfo.nextLesson, { isEnglishCopy })
+        : null;
       if (blockInfo) {
-        return `次のレッスン（${blockInfo.displayText}）はまだ解放されていません。前のブロックの全レッスンを完了してください。`;
+        return isEnglishCopy
+          ? `The next lesson (${blockInfo.displayText}) is still locked. Complete every lesson in the previous block first.`
+          : `次のレッスン（${blockInfo.displayText}）はまだ解放されていません。前のブロックの全レッスンを完了してください。`;
       }
-      return '次のレッスンはまだ解放されていません。現在のブロックの全レッスンを完了してください。';
+      return isEnglishCopy
+        ? 'The next lesson is still locked. Complete every lesson in the current block first.'
+        : '次のレッスンはまだ解放されていません。現在のブロックの全レッスンを完了してください。';
     }
   }
   return '';
@@ -206,14 +220,18 @@ export function getNavigationErrorMessage(
  */
 export function validateNavigation(
   direction: 'previous' | 'next',
-  navigationInfo: LessonNavigationInfo | null
+  navigationInfo: LessonNavigationInfo | null,
+  isEnglishCopy = false,
 ): { canNavigate: boolean; errorMessage: string } {
   if (!navigationInfo) {
-    return { canNavigate: false, errorMessage: 'ナビゲーション情報を読み込み中です...' };
+    return {
+      canNavigate: false,
+      errorMessage: isEnglishCopy ? 'Loading navigation…' : 'ナビゲーション情報を読み込み中です...',
+    };
   }
 
   const canNavigate = direction === 'previous' ? navigationInfo.canGoPrevious : navigationInfo.canGoNext;
-  const errorMessage = canNavigate ? '' : getNavigationErrorMessage(direction, navigationInfo);
+  const errorMessage = canNavigate ? '' : getNavigationErrorMessage(direction, navigationInfo, isEnglishCopy);
 
   return { canNavigate, errorMessage };
 }
@@ -221,21 +239,25 @@ export function validateNavigation(
 /**
  * レッスンが属するブロック情報を取得
  */
-export function getLessonBlockInfo(lesson: Lesson): {
+export function getLessonBlockInfo(
+  lesson: Lesson,
+  options?: { isEnglishCopy?: boolean },
+): {
   blockNumber: number;
   blockName: string;
   lessonNumber: number;
   displayText: string;
   lessonDisplayText: string;
 } {
+  const isEnglishCopy = Boolean(options?.isEnglishCopy);
   const blockNumber = lesson.block_number || 1;
-  const blockName = lesson.block_name || `ブロック ${blockNumber}`;
+  const blockName = lessonDisplayBlockName(lesson, isEnglishCopy);
   const lessonNumber = (lesson.order_index ?? 0) + 1;
   return {
     blockNumber,
     blockName,
     lessonNumber,
     displayText: blockName,
-    lessonDisplayText: `レッスン ${lessonNumber}`
+    lessonDisplayText: isEnglishCopy ? `Lesson ${lessonNumber}` : `レッスン ${lessonNumber}`,
   };
 } 

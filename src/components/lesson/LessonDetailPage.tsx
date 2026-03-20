@@ -12,6 +12,9 @@ import {
 import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { lessonDisplayDescription, lessonDisplayTitle } from '@/utils/lessonCopy';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { isPremiumTier } from '@/utils/membership';
 import { Lesson, LessonSong } from '@/types';
@@ -82,6 +85,12 @@ const LessonDetailPage: React.FC = () => {
 
   const { profile } = useAuthStore();
   const toast = useToast();
+  const geoCountry = useGeoStore(s => s.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
   const { fetchStats } = useUserStatsStore();
 
   const isPlatinumMember = isPremiumTier(profile?.rank);
@@ -188,9 +197,12 @@ const LessonDetailPage: React.FC = () => {
         ]);
         if (course) {
           setShouldHideVideos(false);
-          const access = canAccessCourse(course, profile.rank, completedCourses);
+          const access = canAccessCourse(course, profile.rank, completedCourses, isEnglishCopy);
           if (!access.canAccess) {
-            toast.warning(access.reason || 'このコースにはアクセスできません');
+            toast.warning(
+              access.reason
+                || (isEnglishCopy ? 'You cannot access this course.' : 'このコースにはアクセスできません'),
+            );
             window.location.hash = '#lessons';
             return;
           }
@@ -298,11 +310,13 @@ const LessonDetailPage: React.FC = () => {
 
   const handleNavigateToPrevious = () => {
     if (isNavigating) {
-      toast.warning('ナビゲーション処理中です。しばらくお待ちください。');
+      toast.warning(
+        isEnglishCopy ? 'Navigation in progress. Please wait.' : 'ナビゲーション処理中です。しばらくお待ちください。',
+      );
       return;
     }
     
-    const validation = validateNavigation('previous', navigationInfo);
+    const validation = validateNavigation('previous', navigationInfo, isEnglishCopy);
     
     if (!validation.canNavigate) {
       toast.warning(validation.errorMessage);
@@ -323,11 +337,13 @@ const LessonDetailPage: React.FC = () => {
 
   const handleNavigateToNext = () => {
     if (isNavigating) {
-      toast.warning('ナビゲーション処理中です。しばらくお待ちください。');
+      toast.warning(
+        isEnglishCopy ? 'Navigation in progress. Please wait.' : 'ナビゲーション処理中です。しばらくお待ちください。',
+      );
       return;
     }
     
-    const validation = validateNavigation('next', navigationInfo);
+    const validation = validateNavigation('next', navigationInfo, isEnglishCopy);
     
     if (!validation.canNavigate) {
       toast.warning(validation.errorMessage);
@@ -408,18 +424,28 @@ const LessonDetailPage: React.FC = () => {
                       ? 'bg-blue-600 hover:bg-blue-700 text-white'
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
-                  title={isNavigating ? '処理中...' : (navigationInfo.previousLesson?.title || '前のレッスンはありません')}
+                  title={
+                    isNavigating
+                      ? (isEnglishCopy ? 'Working…' : '処理中...')
+                      : (navigationInfo.previousLesson
+                        ? lessonDisplayTitle(navigationInfo.previousLesson, isEnglishCopy)
+                        : (isEnglishCopy ? 'No previous lesson' : '前のレッスンはありません'))
+                  }
                 >
                   <FaChevronLeft className="w-4 h-4" />
-                  <span className="hidden sm:inline">{isNavigating ? '処理中...' : '手前のレッスンに戻る'}</span>
-                  <span className="sm:hidden">{isNavigating ? '処理中' : '前へ'}</span>
+                  <span className="hidden sm:inline">
+                    {isNavigating
+                      ? (isEnglishCopy ? 'Working…' : '処理中...')
+                      : (isEnglishCopy ? 'Previous lesson' : '手前のレッスンに戻る')}
+                  </span>
+                  <span className="sm:hidden">{isNavigating ? (isEnglishCopy ? 'Wait' : '処理中') : (isEnglishCopy ? 'Back' : '前へ')}</span>
                 </button>
 
                   <button
                     onClick={handleBackToCourse}
                     className="flex items-center justify-center px-4 py-2 bg-slate-600 hover:bg-slate-700 text-white rounded-lg transition-colors"
-                    title="レッスン一覧に戻る"
-                    aria-label="コースに戻る"
+                    title={isEnglishCopy ? 'Back to lesson list' : 'レッスン一覧に戻る'}
+                    aria-label={isEnglishCopy ? 'Back to lessons' : 'コースに戻る'}
                   >
                     <FaHome className="w-5 h-5 text-slate-100" aria-hidden="true" />
                   </button>
@@ -432,10 +458,20 @@ const LessonDetailPage: React.FC = () => {
                       ? 'bg-green-600 hover:bg-green-700 text-white'
                       : 'bg-gray-600 text-gray-400 cursor-not-allowed'
                   }`}
-                  title={isNavigating ? '処理中...' : (navigationInfo.nextLesson?.title || '次のレッスンはありません')}
+                  title={
+                    isNavigating
+                      ? (isEnglishCopy ? 'Working…' : '処理中...')
+                      : (navigationInfo.nextLesson
+                        ? lessonDisplayTitle(navigationInfo.nextLesson, isEnglishCopy)
+                        : (isEnglishCopy ? 'No next lesson' : '次のレッスンはありません'))
+                  }
                 >
-                  <span className="hidden sm:inline">{isNavigating ? '処理中...' : '次のレッスンに進む'}</span>
-                  <span className="sm:hidden">{isNavigating ? '処理中' : '次へ'}</span>
+                  <span className="hidden sm:inline">
+                    {isNavigating
+                      ? (isEnglishCopy ? 'Working…' : '処理中...')
+                      : (isEnglishCopy ? 'Next lesson' : '次のレッスンに進む')}
+                  </span>
+                  <span className="sm:hidden">{isNavigating ? (isEnglishCopy ? 'Wait' : '処理中') : (isEnglishCopy ? 'Next' : '次へ')}</span>
                   <FaChevronRight className="w-4 h-4" />
                 </button>
               </div>
@@ -445,15 +481,17 @@ const LessonDetailPage: React.FC = () => {
             <div className="bg-slate-800 rounded-lg p-6">
               <div className="flex items-center justify-between mb-2">
                 <h1 className="text-2xl font-bold">
-                  {lesson && `${getLessonBlockInfo(lesson).lessonDisplayText}: ${lesson.title}`}
+                  {lesson && `${getLessonBlockInfo(lesson, { isEnglishCopy }).lessonDisplayText}: ${lessonDisplayTitle(lesson, isEnglishCopy)}`}
                 </h1>
                 {lesson && (
                   <div className="text-sm text-gray-400">
-                    {getLessonBlockInfo(lesson).displayText}
+                    {getLessonBlockInfo(lesson, { isEnglishCopy }).displayText}
                   </div>
                 )}
               </div>
-              <p className="text-gray-200 whitespace-pre-line leading-relaxed">{lesson?.description}</p>
+              <p className="text-gray-200 whitespace-pre-line leading-relaxed">
+                {lesson ? lessonDisplayDescription(lesson, isEnglishCopy) : ''}
+              </p>
             </div>
 
             {/* 動画セクション（globalプランユーザーはglobal/bothコースで非表示） */}

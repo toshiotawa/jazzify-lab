@@ -31,7 +31,8 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
           prerequisite_course_id,
           prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
             id,
-            title
+            title,
+            title_en
           )
         )
       `)
@@ -65,7 +66,8 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
             prerequisite_course_id,
             prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
               id,
-              title
+              title,
+              title_en
             )
           )
         `)
@@ -222,9 +224,10 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
  * ユーザーがコースにアクセス可能かどうかを判定します（前提条件とランク制限）
  */
 export function canAccessCourse(
-  course: Course, 
-  userRank: MembershipRank, 
+  course: Course,
+  userRank: MembershipRank,
   completedCourseIds: string[] = [],
+  isEnglishCopy = false,
 ): {
   canAccess: boolean;
   reason?: string;
@@ -236,6 +239,7 @@ export function canAccessCourse(
     course,
     userRank,
     completedCourseIds,
+    isEnglishCopy,
   });
 
   return {
@@ -261,7 +265,8 @@ export async function fetchCourseById(id: string): Promise<Course | null> {
         prerequisite_course_id,
         prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
           id,
-          title
+          title,
+          title_en
         )
       )
     `)
