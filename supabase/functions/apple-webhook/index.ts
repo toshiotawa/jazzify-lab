@@ -23,6 +23,14 @@ function decodeJWSPayload(jws: string): Record<string, unknown> {
   return JSON.parse(payload);
 }
 
+const UUID_RE =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function normalizeUuidString(value: string): string | null {
+  const lower = value.trim().toLowerCase();
+  return UUID_RE.test(lower) ? lower : null;
+}
+
 function mapAppleStatusToSubscription(
   notificationType: string,
   subtype?: string,
@@ -87,6 +95,18 @@ Deno.serve(async (req: Request) => {
         });
       }
 
+      const tokenFromBody =
+        typeof body.appAccountToken === "string"
+          ? normalizeUuidString(body.appAccountToken)
+          : null;
+      const authUserId = normalizeUuidString(user.id);
+      if (!tokenFromBody || !authUserId || tokenFromBody !== authUserId) {
+        return new Response(JSON.stringify({ error: "appAccountToken mismatch" }), {
+          status: 403,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       await supabase.from("subscriptions").upsert({
         user_id: user.id,
         provider: "apple",
@@ -121,12 +141,15 @@ Deno.serve(async (req: Request) => {
       transactionInfo = decodeJWSPayload(data.signedTransactionInfo);
     }
 
-    const appAccountToken = transactionInfo.appAccountToken as string | undefined;
+    const appAccountTokenRaw = transactionInfo.appAccountToken as string | undefined;
+    const appAccountToken = appAccountTokenRaw
+      ? normalizeUuidString(appAccountTokenRaw)
+      : null;
     const originalTransactionId = transactionInfo.originalTransactionId as string | undefined;
     const expiresDate = transactionInfo.expiresDate as number | undefined;
 
     await supabase.from("subscription_events").insert({
-      user_id: appAccountToken || null,
+      user_id: appAccountToken,
       provider: "apple",
       event_type: notificationType + (subtype ? `:${subtype}` : ""),
       provider_event_id: originalTransactionId ?? null,

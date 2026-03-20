@@ -36,6 +36,7 @@ final class AppState: ObservableObject {
 
             self.authState = .authenticated(userId)
 
+            store.setCurrentUserId(userId)
             await refreshBillingStatus()
             await store.listenForTransactions()
         } catch {
@@ -53,6 +54,7 @@ final class AppState: ObservableObject {
 
     func signOut() async {
         try? await supabase.client.auth.signOut()
+        store.setCurrentUserId(nil)
         self.profile = nil
         self.billingStatus = nil
         self.authState = .unauthenticated

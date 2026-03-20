@@ -1,9 +1,11 @@
 import SwiftUI
+import StoreKit
 
 struct SubscriptionView: View {
     @EnvironmentObject var appState: AppState
     @StateObject private var store = StoreManager.shared
     @Environment(\.dismiss) private var dismiss
+    @State private var eligibleForIntroOffer = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -44,6 +46,13 @@ struct SubscriptionView: View {
             }
             .task {
                 await store.loadProduct()
+            }
+            .task(id: store.product?.id) {
+                guard let product = store.product, let sub = product.subscription else {
+                    eligibleForIntroOffer = false
+                    return
+                }
+                eligibleForIntroOffer = await sub.isEligibleForIntroOffer
             }
         }
     }
@@ -153,6 +162,10 @@ struct SubscriptionView: View {
 
     private var purchaseSection: some View {
         VStack(spacing: 16) {
+            if store.subscriptionBelongsToOtherAccount {
+                appleLinkedToOtherAccountSection
+            }
+
             if let product = store.product {
                 VStack(spacing: 8) {
                     Text(product.displayPrice)
@@ -162,10 +175,10 @@ struct SubscriptionView: View {
                         .font(.subheadline)
                         .foregroundStyle(.gray)
 
-                    if let introOffer = product.subscription?.introductoryOffer {
+                    if eligibleForIntroOffer, let introOffer = product.subscription?.introductoryOffer {
                         Text(locale == .ja
-                             ? "最初の\(introOffer.period.value)日間は無料"
-                             : "Free for the first \(introOffer.period.value) days")
+                             ? introTrialLabelJa(introOffer)
+                             : introTrialLabelEn(introOffer))
                             .font(.subheadline.bold())
                             .foregroundStyle(.green)
                     }
@@ -251,5 +264,64 @@ struct SubscriptionView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    private var appleLinkedToOtherAccountSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Image(systemName: "person.crop.circle.badge.exclamationmark")
+                    .foregroundStyle(.orange)
+                Text(locale == .ja ? "別の会員に紐づいた購読" : "Subscription linked to another account")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(.white)
+                Spacer()
+            }
+            Text(locale == .ja
+                 ? "この Apple ID のサブスクリプションは、別の Jazzify アカウントで購入されています。購入時にログインしていたアカウントでログインするか、必要に応じて「購入を復元」をお試しください。"
+                 : "This Apple ID’s subscription was purchased with a different Jazzify account. Sign in with that account, or try Restore Purchases if needed.")
+                .font(.caption)
+                .foregroundStyle(.gray)
+        }
+        .padding()
+        .background(Color.orange.opacity(0.12))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.orange.opacity(0.35), lineWidth: 1)
+        )
+    }
+
+    private func introTrialLabelJa(_ offer: Product.SubscriptionOffer) -> String {
+        let unit = offer.period.unit
+        let value = offer.period.value
+        switch unit {
+        case .day:
+            return "最初の\(value)日間は無料"
+        case .week:
+            return "最初の\(value)週間は無料"
+        case .month:
+            return "最初の\(value)か月は無料"
+        case .year:
+            return "最初の\(value)年は無料"
+        @unknown default:
+            return "無料トライアルあり"
+        }
+    }
+
+    private func introTrialLabelEn(_ offer: Product.SubscriptionOffer) -> String {
+        let unit = offer.period.unit
+        let value = offer.period.value
+        switch unit {
+        case .day:
+            return value == 1 ? "Free for the first day" : "Free for the first \(value) days"
+        case .week:
+            return value == 1 ? "Free for the first week" : "Free for the first \(value) weeks"
+        case .month:
+            return value == 1 ? "Free for the first month" : "Free for the first \(value) months"
+        case .year:
+            return value == 1 ? "Free for the first year" : "Free for the first \(value) years"
+        @unknown default:
+            return "Includes a free trial"
+        }
     }
 }
