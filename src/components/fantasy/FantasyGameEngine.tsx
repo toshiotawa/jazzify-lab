@@ -491,6 +491,20 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
   };
 };
 
+/**
+ * 楽譜モード: chordTarget と一致するテクスチャキー（monster.icon / プリロードと同期）
+ */
+const getSheetMusicIconKey = (chord: ChordDefinition, clef: 'treble' | 'bass'): string => {
+  if (chord.id === 'placeholder') {
+    return `sheet_music_${clef}_C4`;
+  }
+  const chordId = chord.id;
+  if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
+    return `sheet_music_${chordId}`;
+  }
+  return `sheet_music_${clef}_${chordId}`;
+};
+
 // ===== 敵リスト定義 =====
 
 const ENEMY_LIST = [
@@ -545,17 +559,7 @@ const createMonsterFromQueue = (
   // 楽譜モードの場合、コード名（実際には音名）から楽譜画像のキーを生成
   let iconKey: string;
   if (sheetMusicMode?.enabled && effectiveChord.id !== 'placeholder') {
-    // 楽譜モード: 音名形式は "treble_C4" または "bass_C3" など
-    // effectiveChord.id が既に "treble_C4" 形式の場合はそのまま使用
-    // 旧形式（"C4"のみ）の場合は clef を付加
-    const chordId = effectiveChord.id;
-    if (chordId.startsWith('treble_') || chordId.startsWith('bass_')) {
-      // 新形式: そのまま使用
-      iconKey = `sheet_music_${chordId}`;
-    } else {
-      // 旧形式: clef を付加（後方互換性）
-      iconKey = `sheet_music_${sheetMusicMode.clef}_${chordId}`;
-    }
+    iconKey = getSheetMusicIconKey(effectiveChord, sheetMusicMode.clef);
   } else if (stageMonsterIds && stageMonsterIds[monsterIndex]) {
     // stageMonsterIdsが提供されている場合は、それを使用
     iconKey = stageMonsterIds[monsterIndex];
@@ -3370,7 +3374,12 @@ export const useFantasyGameEngine = ({
                 displayOpts
               );
             }
-            return { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
+            const st = stateAfterAttack.currentStage;
+            const nextMonster: MonsterState = { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
+            if (st?.isSheetMusicMode && nextChord.id !== 'placeholder') {
+              nextMonster.icon = getSheetMusicIconKey(nextChord, st.sheetMusicClef || 'treble');
+            }
+            return nextMonster;
           }
           // SPアタックの場合は全ての敵のゲージをリセット
           if (isSpecialAttack) {
@@ -3463,12 +3472,19 @@ export const useFantasyGameEngine = ({
       }
 
       // アクティブなモンスターの情報も更新
-      const updatedMonsters = prevState.activeMonsters.map(monster => ({
-        ...monster,
-        chordTarget: nextChord!,
-        correctNotes: [],
-        gauge: 0
-      }));
+      const st = prevState.currentStage;
+      const updatedMonsters = prevState.activeMonsters.map(monster => {
+        const base: MonsterState = {
+          ...monster,
+          chordTarget: nextChord!,
+          correctNotes: [],
+          gauge: 0,
+        };
+        if (st?.isSheetMusicMode && nextChord!.id !== 'placeholder') {
+          base.icon = getSheetMusicIconKey(nextChord!, st.sheetMusicClef || 'treble');
+        }
+        return base;
+      });
 
       nextState = {
         ...nextState,
