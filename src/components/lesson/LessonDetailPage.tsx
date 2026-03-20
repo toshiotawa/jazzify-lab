@@ -29,6 +29,7 @@ import {
     FaChevronRight,
     FaDragon,
     FaDownload,
+    FaExternalLinkAlt,
     FaHome,
     FaBullseye,
     FaTrophy,
@@ -827,36 +828,50 @@ const LessonDetailPage: React.FC = () => {
               {/* 添付ファイルセクション */}
               {shouldDisplayAttachmentsSection && (
                 <div className="bg-slate-800 rounded-lg p-6">
-                  <h3 className="text-lg font-semibold mb-4">添付ファイル</h3>
+                  <h3 className="text-lg font-semibold mb-4">
+                    {isEnglishCopy ? 'Attachments' : '添付ファイル'}
+                  </h3>
                   {visibleAttachments.length > 0 ? (
                     <ul className="space-y-2">
                       {visibleAttachments.map(att => (
                         <li key={att.id} className="bg-slate-700 p-3 rounded">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                              <a href={att.url} target="_blank" rel="noreferrer" className="underline">
-                                {att.file_name}
-                              </a>
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3 min-w-0">
+                              <span className="font-medium text-gray-100 break-all">{att.file_name}</span>
                               {att.platinum_only && (
-                                <span className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-                                  プラチナ以上限定
+                                <span className="inline-flex items-center shrink-0 rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                                  {isEnglishCopy ? 'Platinum+' : 'プラチナ以上限定'}
                                 </span>
                               )}
-                            </div>
-                            <div className="flex items-center gap-3">
                               <span className="text-xs text-gray-400">
                                 {att.content_type || ''}
                                 {att.size ? ` · ${(att.size / (1024 * 1024)).toFixed(1)}MB` : ''}
                               </span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 shrink-0">
+                              <a
+                                href={att.url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="btn btn-xs btn-outline flex items-center gap-1"
+                                aria-label={
+                                  isEnglishCopy
+                                    ? `Open ${att.file_name} in a new tab`
+                                    : `${att.file_name} を新しいタブで開く`
+                                }
+                              >
+                                <FaExternalLinkAlt className="text-[10px]" aria-hidden />
+                                <span>{isEnglishCopy ? 'Open' : '開く'}</span>
+                              </a>
                               <button
-                                className={`btn btn-xs ${downloadingId === att.id ? 'btn-disabled' : 'btn-primary'} flex items-center gap-1`}
+                                type="button"
+                                className={`btn btn-xs btn-primary flex items-center gap-1 ${downloadingId === att.id ? 'btn-disabled' : ''}`}
                                 disabled={downloadingId === att.id}
                                 onClick={async () => {
                                   setDownloadingId(att.id);
                                   try {
                                     const response = await fetch(att.url, { mode: 'cors' });
                                     if (!response.ok) {
-                                      // フォールバック: 新規タブで開く
                                       window.open(att.url, '_blank', 'noreferrer');
                                       return;
                                     }
@@ -869,17 +884,28 @@ const LessonDetailPage: React.FC = () => {
                                     anchor.click();
                                     anchor.remove();
                                     URL.revokeObjectURL(blobUrl);
-                                  } catch (_e) {
-                                    // フォールバック: 新規タブで開く
+                                  } catch {
                                     window.open(att.url, '_blank', 'noreferrer');
                                   } finally {
                                     setDownloadingId(null);
                                   }
                                 }}
-                                aria-label={`${att.file_name} をダウンロード`}
+                                aria-label={
+                                  isEnglishCopy
+                                    ? `Save ${att.file_name} to your device`
+                                    : `${att.file_name} を保存`
+                                }
                               >
                                 <FaDownload />
-                                <span>{downloadingId === att.id ? '準備中...' : 'ダウンロード'}</span>
+                                <span>
+                                  {downloadingId === att.id
+                                    ? isEnglishCopy
+                                      ? 'Preparing…'
+                                      : '準備中…'
+                                    : isEnglishCopy
+                                      ? 'Save'
+                                      : '保存'}
+                                </span>
                               </button>
                             </div>
                           </div>
@@ -887,11 +913,17 @@ const LessonDetailPage: React.FC = () => {
                       ))}
                     </ul>
                   ) : (
-                    <p className="text-sm text-gray-400">現在アクセス可能な添付ファイルはありません。</p>
+                    <p className="text-sm text-gray-400">
+                      {isEnglishCopy
+                        ? 'There are no attachments available for your current access.'
+                        : '現在アクセス可能な添付ファイルはありません。'}
+                    </p>
                   )}
                   {showPlatinumNotice && (
                     <p className="mt-4 rounded bg-purple-900/40 px-3 py-2 text-xs text-purple-200">
-                      プラチナ/ブラック会員限定の添付ファイルが {platinumOnlyCount} 件あります。アップグレードするとダウンロードできます。
+                      {isEnglishCopy
+                        ? `${platinumOnlyCount} attachment(s) are for Platinum or Black members. Upgrade to open or save them.`
+                        : `プラチナ/ブラック会員限定の添付ファイルが ${platinumOnlyCount} 件あります。アップグレードすると開く・保存ができます。`}
                     </p>
                   )}
                 </div>

@@ -38,6 +38,7 @@
 		BB11CC22DD33EE44FF55AA05 /* SurvivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11BB22CC33DD44EE55FF05 /* SurvivalView.swift */; };
 		CC11DD22EE33FF44AA55BB06 /* AnnouncementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC06 /* AnnouncementListView.swift */; };
 		CC11DD22EE33FF44AA55BB07 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD11EE22FF33AA44BB55CC07 /* ContactView.swift */; };
+		CC22DD33EE44FF55AA66BB21 /* LessonAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = CC22DD33EE44FF55AA66BB20 /* LessonAttachmentPreview.swift */; };
 		DD22EE33FF44AA55BB66CC08 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = EE33FF44AA55BB66CC77DD08 /* DailyChallengeRecord.swift */; };
 		AA22BB33CC44DD55EE66FF09 /* OrientationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB33CC44DD55EE66FF77AA09 /* OrientationManager.swift */; };
 		AA22BB33CC44DD55EE66FF10 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = BB33CC44DD55EE66FF77AA10 /* AppDelegate.swift */; };
@@ -58,6 +59,7 @@
 		611CAFDFC9C51C7A54B21C68 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		6E48683B3B737009938D6CE8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
 		6F8BFE37B198C035761B13AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
+		CC22DD33EE44FF55AA66BB20 /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
 		8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerifyView.swift; sourceTree = "<group>"; };
 		8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FantasyStageView.swift; sourceTree = "<group>"; };
@@ -100,6 +102,7 @@
 			children = (
 				A1F15DC348C430F50580B7CE /* App */,
 				C5E2C6C7C1C475F5411AD908 /* Auth */,
+				EE22FF33AA55BB66CC77DD20 /* Components */,
 				6F6BEDF557724C85BE5C4F61 /* Game */,
 				FBA62A509B0AC904D26688AB /* IAP */,
 				EB97940E4507B8A74845B41F /* Main */,
@@ -192,6 +195,14 @@
 				8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */,
 			);
 			path = Auth;
+			sourceTree = "<group>";
+		};
+		EE22FF33AA55BB66CC77DD20 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				CC22DD33EE44FF55AA66BB20 /* LessonAttachmentPreview.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 		D3C90A55DC4CE468656D6ABD /* Products */ = {
@@ -311,6 +322,7 @@
 				A4310767E5C4471375C5F9C7 /* JazzifyApp.swift in Sources */,
 				503403BE5DE2BF26F4357330 /* Lesson.swift in Sources */,
 				BB11CC22DD33EE44FF55AA03 /* LessonProgress.swift in Sources */,
+				CC22DD33EE44FF55AA66BB21 /* LessonAttachmentPreview.swift in Sources */,
 				16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */,
 				E8D6D6D521C2DBFB350A0088 /* LoginView.swift in Sources */,
 				EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */,

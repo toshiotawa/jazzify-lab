@@ -485,6 +485,17 @@ private struct LessonLaunchDestination: Identifiable {
 }
 
 struct LessonDetailView: View {
+    private struct QuickLookDocument: Identifiable {
+        let id = UUID()
+        let fileURL: URL
+        let title: String
+    }
+
+    private struct AttachmentSharePayload: Identifiable {
+        let id = UUID()
+        let fileURL: URL
+    }
+
     @EnvironmentObject var appState: AppState
 
     let lesson: Lesson
@@ -499,6 +510,9 @@ struct LessonDetailView: View {
     @State private var currentVideoIndex = 0
     @State private var alertMessage: String?
     @State private var launchDestination: LessonLaunchDestination?
+    @State private var quickLookDocument: QuickLookDocument?
+    @State private var attachmentSharePayload: AttachmentSharePayload?
+    @State private var attachmentActionBusyId: UUID?
 
     private var locale: AppLocale { appState.locale }
     private var isPlatinumTier: Bool {
@@ -614,6 +628,80 @@ struct LessonDetailView: View {
             Button("OK", role: .cancel) {}
         } message: {
             Text(alertMessage ?? "")
+        }
+        .fullScreenCover(item: $quickLookDocument) { doc in
+            ZStack(alignment: .topTrailing) {
+                LessonAttachmentQuickLookView(fileURL: doc.fileURL, title: doc.title)
+                    .ignoresSafeArea()
+                Button {
+                    quickLookDocument = nil
+                } label: {
+                    Text(locale == .ja ? "閉じる" : "Close")
+                        .font(.subheadline.weight(.semibold))
+                        .foregroundStyle(.primary)
+                        .padding(.horizontal, 14)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .padding()
+            }
+            .background(Color.black)
+            .onDisappear {
+                removeTempAttachmentFile(at: doc.fileURL)
+            }
+        }
+        .sheet(item: $attachmentSharePayload) { payload in
+            LessonAttachmentShareSheet(items: [payload.fileURL])
+                .presentationDetents([.medium, .large])
+                .onDisappear {
+                    removeTempAttachmentFile(at: payload.fileURL)
+                }
+        }
+    }
+
+    private func removeTempAttachmentFile(at url: URL) {
+        if FileManager.default.fileExists(atPath: url.path) {
+            try? FileManager.default.removeItem(at: url)
+        }
+    }
+
+    private func openAttachmentInQuickLook(_ attachment: LessonAttachmentResource, remoteURL: URL) async {
+        await MainActor.run { attachmentActionBusyId = attachment.id }
+        do {
+            let local = try await LessonAttachmentDownload.copyToTemporaryFile(
+                from: remoteURL,
+                suggestedFileName: attachment.fileName
+            )
+            await MainActor.run {
+                attachmentActionBusyId = nil
+                quickLookDocument = QuickLookDocument(fileURL: local, title: attachment.fileName)
+            }
+        } catch {
+            await MainActor.run {
+                attachmentActionBusyId = nil
+                alertMessage = locale == .ja ? "ファイルを開けませんでした。" : "Could not open the file."
+            }
+        }
+    }
+
+    private func prepareAttachmentForSharing(_ attachment: LessonAttachmentResource, remoteURL: URL) async {
+        await MainActor.run { attachmentActionBusyId = attachment.id }
+        do {
+            let local = try await LessonAttachmentDownload.copyToTemporaryFile(
+                from: remoteURL,
+                suggestedFileName: attachment.fileName
+            )
+            await MainActor.run {
+                attachmentActionBusyId = nil
+                attachmentSharePayload = AttachmentSharePayload(fileURL: local)
+            }
+        } catch {
+            await MainActor.run {
+                attachmentActionBusyId = nil
+                alertMessage = locale == .ja
+                    ? "ファイルを読み込めませんでした。"
+                    : "Could not prepare the file to save or share."
+            }
         }
     }
 
@@ -833,6 +921,62 @@ struct LessonDetailView: View {
         }
     }
 
+    @ViewBuilder
+    private func attachmentActionsRow(_ attachment: LessonAttachmentResource, remoteURL: URL) -> some View {
+        let busy = attachmentActionBusyId == attachment.id
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .top, spacing: 10) {
+                Image(systemName: "paperclip.circle.fill")
+                    .foregroundStyle(.purple)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(attachment.fileName)
+                        .foregroundStyle(.white)
+                    if let contentType = attachment.contentType {
+                        Text(contentType)
+                            .font(.caption2)
+                            .foregroundStyle(.gray)
+                    }
+                }
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: 10) {
+                Button {
+                    Task { await openAttachmentInQuickLook(attachment, remoteURL: remoteURL) }
+                } label: {
+                    Label(
+                        locale == .ja ? "開く" : "Open",
+                        systemImage: "doc.text.magnifyingglass"
+                    )
+                    .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.bordered)
+                .tint(.purple)
+                .disabled(busy)
+
+                Button {
+                    Task { await prepareAttachmentForSharing(attachment, remoteURL: remoteURL) }
+                } label: {
+                    Label(
+                        locale == .ja ? "保存・共有" : "Save / Share",
+                        systemImage: "square.and.arrow.up"
+                    )
+                    .font(.subheadline.weight(.medium))
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.blue)
+                .disabled(busy)
+
+                if busy {
+                    ProgressView()
+                        .tint(.white)
+                }
+            }
+        }
+        .padding(14)
+        .background(Color(hex: "334155"))
+        .cornerRadius(12)
+    }
+
     private var videosCard: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text(locale == .ja ? "動画" : "Videos")
@@ -893,28 +1037,8 @@ struct LessonDetailView: View {
                 .foregroundStyle(.white)
 
             ForEach(visibleAttachments) { attachment in
-                if let url = URL(string: attachment.url) {
-                    Link(destination: url) {
-                        HStack {
-                            Image(systemName: "paperclip.circle.fill")
-                                .foregroundStyle(.purple)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(attachment.fileName)
-                                    .foregroundStyle(.white)
-                                if let contentType = attachment.contentType {
-                                    Text(contentType)
-                                        .font(.caption2)
-                                        .foregroundStyle(.gray)
-                                }
-                            }
-                            Spacer()
-                            Image(systemName: "arrow.down.circle")
-                                .foregroundStyle(.gray)
-                        }
-                        .padding(14)
-                        .background(Color(hex: "334155"))
-                        .cornerRadius(12)
-                    }
+                if let remoteURL = URL(string: attachment.url) {
+                    attachmentActionsRow(attachment, remoteURL: remoteURL)
                 }
             }
 
