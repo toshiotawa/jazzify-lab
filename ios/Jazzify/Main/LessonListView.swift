@@ -11,6 +11,7 @@ struct LessonListView: View {
     @State private var selectedLesson: Lesson?
     @State private var isLoading = true
     @State private var showLessonInfo = false
+    @State private var showSubscription = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -81,6 +82,9 @@ struct LessonListView: View {
                     }
                 }
             }
+            .sheet(isPresented: $showSubscription) {
+                SubscriptionView()
+            }
             .sheet(isPresented: $showLessonInfo) {
                 FeatureInfoModal(
                     icon: "book.fill",
@@ -102,6 +106,10 @@ struct LessonListView: View {
     private func courseRow(_ course: Course) -> some View {
         VStack(spacing: 0) {
             Button {
+                if !appState.isPremium && course.premiumOnly == true {
+                    showSubscription = true
+                    return
+                }
                 withAnimation(.easeInOut(duration: 0.2)) {
                     if expandedCourseId == course.id {
                         expandedCourseId = nil
@@ -141,8 +149,13 @@ struct LessonListView: View {
                         }
                     }
 
-                    Image(systemName: expandedCourseId == course.id ? "chevron.up" : "chevron.down")
-                        .foregroundStyle(.gray)
+                    if !appState.isPremium && course.premiumOnly == true {
+                        Image(systemName: "lock.fill")
+                            .foregroundStyle(.purple)
+                    } else {
+                        Image(systemName: expandedCourseId == course.id ? "chevron.up" : "chevron.down")
+                            .foregroundStyle(.gray)
+                    }
                 }
                 .padding(16)
             }

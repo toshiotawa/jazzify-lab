@@ -114,6 +114,7 @@ struct SurvivalView: View {
     @State private var pendingStage: SurvivalStage?
     @State private var selectedHintMode = false
     @State private var showSurvivalInfo = false
+    @State private var showSubscription = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -178,6 +179,9 @@ struct SurvivalView: View {
                             .foregroundStyle(.gray)
                     }
                 }
+            }
+            .sheet(isPresented: $showSubscription) {
+                SubscriptionView()
             }
             .sheet(isPresented: $showSurvivalInfo) {
                 FeatureInfoModal(
@@ -290,6 +294,23 @@ struct SurvivalView: View {
                  : "Survival mode is available with the Premium plan")
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
+
+            Button {
+                showSubscription = true
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "crown.fill")
+                    Text(locale == .ja ? "プレミアムに登録" : "Subscribe to Premium")
+                }
+                .font(.headline)
+                .foregroundStyle(.white)
+                .padding(.horizontal, 24)
+                .padding(.vertical, 14)
+                .background(
+                    LinearGradient(colors: [.purple, .pink], startPoint: .leading, endPoint: .trailing)
+                )
+                .cornerRadius(12)
+            }
         }
         .padding()
     }

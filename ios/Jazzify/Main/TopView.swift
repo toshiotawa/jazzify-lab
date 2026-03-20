@@ -18,6 +18,7 @@ struct TopView: View {
     @State private var showTutorialLesson = false
     @State private var tutorialLessonToOpen: Lesson?
     @State private var showDCInfo = false
+    @State private var showSubscription = false
 
     private enum DCPeriod { case week, month }
     private enum WeekChoice { case thisWeek, lastWeek }
@@ -85,6 +86,9 @@ struct TopView: View {
                 if isNil {
                     Task { await loadData() }
                 }
+            }
+            .sheet(isPresented: $showSubscription) {
+                SubscriptionView()
             }
             .sheet(isPresented: $showDCInfo) {
                 FeatureInfoModal(
@@ -466,7 +470,11 @@ struct TopView: View {
         let alreadyPlayed = hasPlayedToday()
 
         return Button {
-            showDailyChallenge = true
+            if !appState.isPremium && selectedDifficulty != "super_beginner" {
+                showSubscription = true
+            } else {
+                showDailyChallenge = true
+            }
         } label: {
             Text(locale == .ja ? "プレイ" : "Play")
                 .font(.caption.bold())
