@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
@@ -138,22 +138,16 @@ const LessonDetailPage: React.FC = () => {
     };
   }, [lessonId, lesson?.course_id]);
 
-  useEffect(() => {
-    if (open && lessonId) {
-      loadLessonData(lessonId);
-    }
-  }, [open, lessonId]);
-
-  const loadLessonData = async (targetLessonId: string) => {
+  const loadLessonData = useCallback(async (targetLessonId: string) => {
     setLoading(true);
     
     try {
       // レッスン情報、動画、進捗を並行取得
       const [lessonData, videosData, progressData, attachmentsData] = await Promise.all([
         fetchLessonById(targetLessonId),
-        fetchLessonVideos(targetLessonId),
+        fetchLessonVideos(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy }),
         fetchDetailedRequirementsProgress(targetLessonId),
-        fetchLessonAttachments(targetLessonId)
+        fetchLessonAttachments(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy })
       ]);
 
       setLesson(lessonData);
@@ -232,7 +226,13 @@ const LessonDetailPage: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [isEnglishCopy, profile?.id, profile?.rank, toast]);
+
+  useEffect(() => {
+    if (open && lessonId) {
+      void loadLessonData(lessonId);
+    }
+  }, [open, lessonId, loadLessonData]);
 
   const [showNextLessonPrompt, setShowNextLessonPrompt] = useState(false);
 

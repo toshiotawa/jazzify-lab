@@ -1,4 +1,8 @@
 import { getSupabaseClient, fetchWithCache } from '@/platform/supabaseClient';
+import type { LessonMediaLocaleScope } from '@/types';
+import { getLessonMediaLocaleOrFilter, type FetchLessonMediaOptions } from '@/utils/lessonMediaLocale';
+
+export type { FetchLessonMediaOptions } from '@/utils/lessonMediaLocale';
 
 export interface LessonVideo {
   id: string;
@@ -8,6 +12,7 @@ export interface LessonVideo {
   video_url?: string;
   r2_key?: string;
   content_type?: string;
+  locale_scope?: LessonMediaLocaleScope;
   created_at?: string;
   updated_at?: string;
 }
@@ -36,20 +41,31 @@ export interface LessonAttachment {
   size?: number;
   order_index: number;
   platinum_only: boolean;
+  locale_scope?: LessonMediaLocaleScope;
 }
 
 /**
  * レッスンの動画一覧を取得
+ * @param options.audience `user` のとき表示言語に応じて locale_scope で絞り込み（既定は `all`＝管理画面互換）
  */
-export async function fetchLessonVideos(lessonId: string): Promise<LessonVideo[]> {
-  const cacheKey = `lesson_videos:${lessonId}`;
+export async function fetchLessonVideos(lessonId: string, options?: FetchLessonMediaOptions): Promise<LessonVideo[]> {
+  const audience = options?.audience ?? 'all';
+  const useEnglishUi = options?.useEnglishUi ?? false;
+  const localeKey = audience === 'all' ? 'all' : useEnglishUi ? 'en' : 'ja';
+  const cacheKey = `lesson_videos:${lessonId}:${localeKey}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
-    async () => await getSupabaseClient()
-      .from('lesson_videos')
-      .select('*')
-      .eq('lesson_id', lessonId)
-      .order('order_index', { ascending: true }),
+    async () => {
+      let q = getSupabaseClient()
+        .from('lesson_videos')
+        .select('*')
+        .eq('lesson_id', lessonId)
+        .order('order_index', { ascending: true });
+      if (audience === 'user') {
+        q = q.or(getLessonMediaLocaleOrFilter(useEnglishUi));
+      }
+      return await q;
+    },
     1000 * 60 * 10 // 10分キャッシュ
   );
 
@@ -110,7 +126,7 @@ export async function addLessonRequirement(requirement: LessonRequirement): Prom
  */
 export async function updateLessonVideo(
   videoId: string,
-  updates: Partial<{ vimeo_url: string; order_index: number }>
+  updates: Partial<{ vimeo_url: string; order_index: number; locale_scope: LessonMediaLocaleScope }>
 ): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_videos')
@@ -145,15 +161,24 @@ export async function deleteLessonRequirement(lessonId: string, songId: string):
   if (error) throw new Error(`課題の削除に失敗しました: ${error.message}`);
 }
 
-export async function fetchLessonAttachments(lessonId: string): Promise<LessonAttachment[]> {
-  const cacheKey = `lesson_attachments:${lessonId}`;
+export async function fetchLessonAttachments(lessonId: string, options?: FetchLessonMediaOptions): Promise<LessonAttachment[]> {
+  const audience = options?.audience ?? 'all';
+  const useEnglishUi = options?.useEnglishUi ?? false;
+  const localeKey = audience === 'all' ? 'all' : useEnglishUi ? 'en' : 'ja';
+  const cacheKey = `lesson_attachments:${lessonId}:${localeKey}`;
   const { data, error } = await fetchWithCache(
     cacheKey,
-    async () => await getSupabaseClient()
-      .from('lesson_attachments')
-      .select('*')
-      .eq('lesson_id', lessonId)
-      .order('order_index', { ascending: true }),
+    async () => {
+      let q = getSupabaseClient()
+        .from('lesson_attachments')
+        .select('*')
+        .eq('lesson_id', lessonId)
+        .order('order_index', { ascending: true });
+      if (audience === 'user') {
+        q = q.or(getLessonMediaLocaleOrFilter(useEnglishUi));
+      }
+      return await q;
+    },
     1000 * 60 * 10
   );
   if (error) {
@@ -177,12 +202,14 @@ export interface AddLessonAttachmentParams {
   size?: number;
   order_index?: number;
   platinum_only?: boolean;
+  locale_scope?: LessonMediaLocaleScope;
 }
 
 export interface UpdateLessonAttachmentParams {
   platinum_only?: boolean;
   order_index?: number;
   file_name?: string;
+  locale_scope?: LessonMediaLocaleScope;
 }
 
 export async function addLessonAttachment(params: AddLessonAttachmentParams): Promise<void> {
@@ -197,6 +224,7 @@ export async function addLessonAttachment(params: AddLessonAttachmentParams): Pr
       size: params.size,
       order_index: params.order_index ?? 0,
       platinum_only: params.platinum_only ?? false,
+      locale_scope: params.locale_scope ?? 'both',
     });
   if (error) throw new Error(`添付ファイルの登録に失敗しました: ${error.message}`);
 }
@@ -221,6 +249,9 @@ export async function updateLessonAttachment(id: string, params: UpdateLessonAtt
   if (typeof params.file_name === 'string') {
     payload.file_name = params.file_name;
   }
+  if (params.locale_scope !== undefined) {
+    payload.locale_scope = params.locale_scope;
+  }
 
   if (Object.keys(payload).length === 0) {
     return;
@@ -236,7 +267,13 @@ export async function updateLessonAttachment(id: string, params: UpdateLessonAtt
 
 export async function addLessonVideoR2(
   lessonId: string,
-  payload: { url: string; r2_key: string; content_type: string; order_index?: number }
+  payload: {
+    url: string;
+    r2_key: string;
+    content_type: string;
+    order_index?: number;
+    locale_scope?: LessonMediaLocaleScope;
+  }
 ): Promise<void> {
   const { error } = await getSupabaseClient()
     .from('lesson_videos')
@@ -248,6 +285,7 @@ export async function addLessonVideoR2(
       video_url: payload.url,
       r2_key: payload.r2_key,
       content_type: payload.content_type,
+      locale_scope: payload.locale_scope ?? 'both',
     });
   if (error) throw new Error(`動画の登録に失敗しました: ${error.message}`);
 }

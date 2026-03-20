@@ -693,6 +693,9 @@ export interface Lesson {
   lesson_songs?: LessonSong[];
 }
 
+/** レッスン動画・添付の表示言語（アカウント表示言語との組み合わせでフィルタ） */
+export type LessonMediaLocaleScope = 'ja_only' | 'en_only' | 'both';
+
 export interface LessonVideo {
   id: string;
   lesson_id: string;
@@ -702,6 +705,7 @@ export interface LessonVideo {
   video_url?: string;
   r2_key?: string;
   content_type?: string;
+  locale_scope?: LessonMediaLocaleScope;
   created_at?: string;
   updated_at?: string;
 }

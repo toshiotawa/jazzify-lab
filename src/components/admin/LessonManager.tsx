@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey } from '@/types';
+import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, type LessonMediaLocaleScope } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
@@ -20,6 +20,7 @@ import {
   updateLessonAttachment,
   fetchLessonVideos,
   deleteLessonVideoRecord,
+  updateLessonVideo,
   LessonVideo,
   LessonAttachment,
 } from '@/platform/supabaseLessonContent';
@@ -40,6 +41,12 @@ type ContentFormData = {
   override_start_key?: number | null;
 };
 
+const LOCALE_SCOPE_OPTIONS: { value: LessonMediaLocaleScope; label: string }[] = [
+  { value: 'both', label: '日英共通' },
+  { value: 'ja_only', label: '日本語のみ' },
+  { value: 'en_only', label: '英語のみ' },
+];
+
 export const LessonManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
   const [selectedCourseId, setSelectedCourseId] = useState<string>('');
@@ -57,6 +64,9 @@ export const LessonManager: React.FC = () => {
   const [attachmentPlatinumOnlyByLesson, setAttachmentPlatinumOnlyByLesson] = useState<Record<string, boolean>>({});
   const [updatingAttachmentIds, setUpdatingAttachmentIds] = useState<Set<string>>(new Set());
   const [videosByLesson, setVideosByLesson] = useState<Record<string, LessonVideo[]>>({});
+  const [attachmentLocaleScopeByLesson, setAttachmentLocaleScopeByLesson] = useState<Record<string, LessonMediaLocaleScope>>({});
+  const [videoLocaleScopeByLesson, setVideoLocaleScopeByLesson] = useState<Record<string, LessonMediaLocaleScope>>({});
+  const [updatingVideoIds, setUpdatingVideoIds] = useState<Set<string>>(new Set());
   const videoInputRef = useRef<HTMLInputElement>(null);
   const attachmentInputRef = useRef<HTMLInputElement>(null);
   const [editNavLinks, setEditNavLinks] = useState<NavLinkKey[]>([]);
@@ -150,12 +160,64 @@ export const LessonManager: React.FC = () => {
 
   const loadLessonExtras = async (lessonId: string) => {
     try {
-      const attachments = await fetchLessonAttachments(lessonId);
+      const attachments = await fetchLessonAttachments(lessonId, { audience: 'all' });
       setAttachmentsByLesson(prev => ({ ...prev, [lessonId]: attachments }));
-      const videos = await fetchLessonVideos(lessonId);
+      const videos = await fetchLessonVideos(lessonId, { audience: 'all' });
       setVideosByLesson(prev => ({ ...prev, [lessonId]: videos }));
     } catch (e) {
       console.error('Failed to load attachments:', e);
+    }
+  };
+
+  const setVideoUpdating = (videoId: string, isUpdating: boolean) => {
+    setUpdatingVideoIds(prev => {
+      const next = new Set(prev);
+      if (isUpdating) {
+        next.add(videoId);
+      } else {
+        next.delete(videoId);
+      }
+      return next;
+    });
+  };
+
+  const handleAttachmentLocaleScopeChange = async (
+    lessonId: string,
+    attachmentId: string,
+    locale_scope: LessonMediaLocaleScope
+  ) => {
+    setAttachmentsByLesson(prev => ({
+      ...prev,
+      [lessonId]: (prev[lessonId] ?? []).map(att =>
+        att.id === attachmentId ? { ...att, locale_scope } : att
+      ),
+    }));
+    setAttachmentUpdating(attachmentId, true);
+    try {
+      await updateLessonAttachment(attachmentId, { locale_scope });
+      toast.success('添付の表示言語を更新しました');
+    } catch {
+      toast.error('添付の表示言語の更新に失敗しました');
+      await loadLessonExtras(lessonId);
+    } finally {
+      setAttachmentUpdating(attachmentId, false);
+    }
+  };
+
+  const handleVideoLocaleScopeChange = async (lessonId: string, videoId: string, locale_scope: LessonMediaLocaleScope) => {
+    setVideosByLesson(prev => ({
+      ...prev,
+      [lessonId]: (prev[lessonId] ?? []).map(v => (v.id === videoId ? { ...v, locale_scope } : v)),
+    }));
+    setVideoUpdating(videoId, true);
+    try {
+      await updateLessonVideo(videoId, { locale_scope });
+      toast.success('動画の表示言語を更新しました');
+    } catch {
+      toast.error('動画の表示言語の更新に失敗しました');
+      await loadLessonExtras(lessonId);
+    } finally {
+      setVideoUpdating(videoId, false);
     }
   };
 
@@ -769,7 +831,25 @@ export const LessonManager: React.FC = () => {
                         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
                           <div>
                             <h5 className="font-semibold mb-2">動画</h5>
-                            <div className="flex items-center gap-2 mb-3">
+                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center">
+                              <label className="flex items-center gap-2 text-xs text-gray-300">
+                                <span>表示言語</span>
+                                <select
+                                  className="select select-bordered select-xs max-w-[9rem]"
+                                  value={videoLocaleScopeByLesson[lesson.id] ?? 'both'}
+                                  onChange={event => {
+                                    const value = event.target.value as LessonMediaLocaleScope;
+                                    setVideoLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
+                                  }}
+                                  aria-label="新規動画の表示言語"
+                                >
+                                  {LOCALE_SCOPE_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                               <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" className="file-input file-input-bordered file-input-sm" />
                               <button
                                 className="btn btn-primary btn-sm"
@@ -778,7 +858,13 @@ export const LessonManager: React.FC = () => {
                                   if (!file) return;
                                   try {
                                     const uploaded = await uploadLessonVideo(file, lesson.id);
-                                    await addLessonVideoR2(lesson.id, { url: uploaded.url, r2_key: uploaded.key, content_type: uploaded.contentType });
+                                    const scope = videoLocaleScopeByLesson[lesson.id] ?? 'both';
+                                    await addLessonVideoR2(lesson.id, {
+                                      url: uploaded.url,
+                                      r2_key: uploaded.key,
+                                      content_type: uploaded.contentType,
+                                      locale_scope: scope,
+                                    });
                                     toast.success('動画をアップロードしました');
                                     invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
                                     await loadLessonExtras(lesson.id);
@@ -794,7 +880,7 @@ export const LessonManager: React.FC = () => {
                             <p className="text-xs text-gray-400">対応: mp4 / mov / webm / m4v, 最大200MB</p>
                             <div className="mt-3 space-y-2">
                               {(videosByLesson[lesson.id] || []).map(v => (
-                                <div key={v.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                <div key={v.id} className="flex flex-col gap-2 bg-slate-700 p-2 rounded sm:flex-row sm:items-center sm:justify-between">
                                   <div className="text-sm">
                                     { (v as any).video_url ? (
                                       <a href={(v as any).video_url} target="_blank" rel="noreferrer" className="underline">R2動画</a>
@@ -803,23 +889,42 @@ export const LessonManager: React.FC = () => {
                                     )}
                                     <span className="text-xs text-gray-400 ml-2">順序: {v.order_index ?? 0}</span>
                                   </div>
-                                  <button
-                                    className="btn btn-ghost btn-xs text-red-500"
-                                    onClick={async () => {
-                                      if (!window.confirm('この動画を削除しますか？（R2にある場合はファイルも削除）')) return;
-                                      try {
-                                        await deleteLessonVideoRecord(v.id);
-                                        if ((v as any).r2_key) {
-                                          try { await deleteLessonVideoByKey((v as any).r2_key); } catch {}
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <select
+                                      className="select select-bordered select-xs max-w-[9rem]"
+                                      value={v.locale_scope ?? 'both'}
+                                      onChange={event => {
+                                        const scope = event.target.value as LessonMediaLocaleScope;
+                                        void handleVideoLocaleScopeChange(lesson.id, v.id, scope);
+                                      }}
+                                      disabled={updatingVideoIds.has(v.id)}
+                                      aria-label="動画の表示言語"
+                                    >
+                                      {LOCALE_SCOPE_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={async () => {
+                                        if (!window.confirm('この動画を削除しますか？（R2にある場合はファイルも削除）')) return;
+                                        try {
+                                          await deleteLessonVideoRecord(v.id);
+                                          if ((v as any).r2_key) {
+                                            try { await deleteLessonVideoByKey((v as any).r2_key); } catch {}
+                                          }
+                                          toast.success('動画を削除しました');
+                                          await loadLessonExtras(lesson.id);
+                                        } catch (e) {
+                                          toast.error('動画の削除に失敗しました');
+                                          console.error(e);
                                         }
-                                        toast.success('動画を削除しました');
-                                        await loadLessonExtras(lesson.id);
-                                      } catch (e) {
-                                        toast.error('動画の削除に失敗しました');
-                                        console.error(e);
-                                      }
-                                    }}
-                                  >削除</button>
+                                      }}
+                                      disabled={updatingVideoIds.has(v.id)}
+                                    >削除</button>
+                                  </div>
                                 </div>
                               ))}
                               <button className="btn btn-ghost btn-xs" onClick={() => loadLessonExtras(lesson.id)}>再読み込み</button>
@@ -828,7 +933,25 @@ export const LessonManager: React.FC = () => {
 
                           <div>
                             <h5 className="font-semibold mb-2">添付ファイル</h5>
-                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:items-center sm:gap-3">
+                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+                              <label className="flex items-center gap-2 text-xs text-gray-300">
+                                <span>表示言語</span>
+                                <select
+                                  className="select select-bordered select-xs max-w-[9rem]"
+                                  value={attachmentLocaleScopeByLesson[lesson.id] ?? 'both'}
+                                  onChange={event => {
+                                    const value = event.target.value as LessonMediaLocaleScope;
+                                    setAttachmentLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
+                                  }}
+                                  aria-label="新規添付の表示言語"
+                                >
+                                  {LOCALE_SCOPE_OPTIONS.map(opt => (
+                                    <option key={opt.value} value={opt.value}>
+                                      {opt.label}
+                                    </option>
+                                  ))}
+                                </select>
+                              </label>
                               <div className="flex items-center gap-2">
                                 <input
                                   ref={attachmentInputRef}
@@ -844,6 +967,7 @@ export const LessonManager: React.FC = () => {
                                     if (!files || files.length === 0) return;
                                     const platinumOnly = attachmentPlatinumOnlyByLesson[lesson.id] ?? false;
                                     const existingCount = attachmentsByLesson[lesson.id]?.length ?? 0;
+                                    const attachScope = attachmentLocaleScopeByLesson[lesson.id] ?? 'both';
 
                                     try {
                                       const uploadedFiles = Array.from(files);
@@ -858,6 +982,7 @@ export const LessonManager: React.FC = () => {
                                           size: uploaded.size,
                                           order_index: existingCount + index,
                                           platinum_only: platinumOnly,
+                                          locale_scope: attachScope,
                                         });
                                       }
                                       toast.success('添付ファイルを追加しました');
@@ -895,7 +1020,23 @@ export const LessonManager: React.FC = () => {
                                       </span>
                                     )}
                                   </div>
-                                  <div className="flex items-center gap-2">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <select
+                                      className="select select-bordered select-xs max-w-[9rem]"
+                                      value={att.locale_scope ?? 'both'}
+                                      onChange={event => {
+                                        const scope = event.target.value as LessonMediaLocaleScope;
+                                        void handleAttachmentLocaleScopeChange(lesson.id, att.id, scope);
+                                      }}
+                                      disabled={updatingAttachmentIds.has(att.id)}
+                                      aria-label="添付の表示言語"
+                                    >
+                                      {LOCALE_SCOPE_OPTIONS.map(opt => (
+                                        <option key={opt.value} value={opt.value}>
+                                          {opt.label}
+                                        </option>
+                                      ))}
+                                    </select>
                                     <label className="flex items-center gap-1 text-xs text-gray-200">
                                       <input
                                         type="checkbox"

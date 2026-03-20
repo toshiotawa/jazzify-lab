@@ -127,6 +127,23 @@ struct LessonSongReferenceSong: Codable, Sendable {
     let artist: String?
 }
 
+enum LessonMediaLocaleScope: String, Codable, Sendable {
+    case jaOnly = "ja_only"
+    case enOnly = "en_only"
+    case both = "both"
+
+    func isVisible(for appLocale: AppLocale) -> Bool {
+        switch self {
+        case .both:
+            return true
+        case .jaOnly:
+            return appLocale == .ja
+        case .enOnly:
+            return appLocale == .en
+        }
+    }
+}
+
 struct LessonClearConditions: Codable, Sendable {
     let key: Int?
     let speed: Double?
@@ -152,6 +169,7 @@ struct LessonVideoResource: Codable, Identifiable, Sendable {
     let videoUrl: String?
     let r2Key: String?
     let contentType: String?
+    let localeScope: LessonMediaLocaleScope?
 
     enum CodingKeys: String, CodingKey {
         case id
@@ -161,6 +179,11 @@ struct LessonVideoResource: Codable, Identifiable, Sendable {
         case videoUrl = "video_url"
         case r2Key = "r2_key"
         case contentType = "content_type"
+        case localeScope = "locale_scope"
+    }
+
+    func isVisible(for appLocale: AppLocale) -> Bool {
+        (localeScope ?? .both).isVisible(for: appLocale)
     }
 }
 
@@ -174,6 +197,7 @@ struct LessonAttachmentResource: Codable, Identifiable, Sendable {
     let size: Int?
     let orderIndex: Int
     let platinumOnly: Bool
+    let localeScope: LessonMediaLocaleScope?
 
     enum CodingKeys: String, CodingKey {
         case id, url, size
@@ -183,6 +207,11 @@ struct LessonAttachmentResource: Codable, Identifiable, Sendable {
         case contentType = "content_type"
         case orderIndex = "order_index"
         case platinumOnly = "platinum_only"
+        case localeScope = "locale_scope"
+    }
+
+    func isVisible(for appLocale: AppLocale) -> Bool {
+        (localeScope ?? .both).isVisible(for: appLocale)
     }
 }
 

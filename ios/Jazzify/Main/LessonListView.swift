@@ -589,6 +589,9 @@ struct LessonDetailView: View {
         .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
         .toolbarBackground(.visible, for: .navigationBar)
         .task { await loadLessonDetail() }
+        .onChange(of: appState.locale) { _ in
+            Task { await loadLessonDetail() }
+        }
         .fullScreenCover(item: $launchDestination) { destination in
             GameWebView(
                 mode: .webPage(hash: destination.hash),
@@ -987,8 +990,10 @@ struct LessonDetailView: View {
 
             let fetchedDetail = try await detailTask
             detail = fetchedDetail
-            videos = await videosTask
-            attachments = await attachmentsTask
+            let rawVideos = await videosTask
+            let rawAttachments = await attachmentsTask
+            videos = rawVideos.filter { $0.isVisible(for: appState.locale) }
+            attachments = rawAttachments.filter { $0.isVisible(for: appState.locale) }
             currentVideoIndex = 0
 
             if let userId = appState.profile?.id {

@@ -1043,8 +1043,10 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_videos" (
     "r2_key" "text",
     "content_type" "text",
     "order_index" integer DEFAULT 0 NOT NULL,
+    "locale_scope" "text" DEFAULT 'both'::"text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "lesson_videos_locale_scope_check" CHECK (("locale_scope" = ANY (ARRAY['ja_only'::"text", 'en_only'::"text", 'both'::"text"])))
 );
 
 
@@ -1061,8 +1063,10 @@ CREATE TABLE IF NOT EXISTS "public"."lesson_attachments" (
     "size" bigint,
     "order_index" integer DEFAULT 0 NOT NULL,
     "platinum_only" boolean DEFAULT false NOT NULL,
+    "locale_scope" "text" DEFAULT 'both'::"text" NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
-    "updated_at" timestamp with time zone DEFAULT "now"()
+    "updated_at" timestamp with time zone DEFAULT "now"(),
+    CONSTRAINT "lesson_attachments_locale_scope_check" CHECK (("locale_scope" = ANY (ARRAY['ja_only'::"text", 'en_only'::"text", 'both'::"text"])))
 );
 
 
