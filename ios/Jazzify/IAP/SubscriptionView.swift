@@ -64,9 +64,8 @@ struct SubscriptionView: View {
 
             VStack(spacing: 4) {
                 featureRow(icon: "music.note.list", text: locale == .ja ? "全レッスンにアクセス" : "Access all lessons")
-                featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全ファンタジーステージ" : "All Fantasy stages")
+                featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
-                featureRow(icon: "pianokeys", text: locale == .ja ? "全楽曲でプレイ" : "Play all songs")
             }
         }
         .padding(.top, 20)
