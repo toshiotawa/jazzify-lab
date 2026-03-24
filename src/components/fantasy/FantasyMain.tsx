@@ -3,7 +3,7 @@
  * ルーティング管理とゲーム状態管理
  */
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import FantasyStageSelect from './FantasyStageSelect';
 import FantasyGameScreen from './FantasyGameScreen';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
@@ -20,6 +20,7 @@ import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
+import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import { 
   calculateFantasyRank, 
@@ -47,6 +48,16 @@ async function resolveMusicXml(stage: FantasyStage): Promise<FantasyStage> {
     devLog.error('MusicXML fetch failed:', raw, e);
     return stage;
   }
+}
+
+/** レッスン/ミッションからの直リンク（ステージ選択を挟まない）か */
+function isEmbeddedFantasyUrlHash(hash: string): boolean {
+  const params = new URLSearchParams(hash.split('?')[1] || '');
+  const stageId = params.get('stageId');
+  if (!stageId) return false;
+  const hasLesson = !!(params.get('lessonId') && params.get('lessonSongId'));
+  const hasMission = !!params.get('missionId');
+  return hasLesson || hasMission;
 }
 
 // 結果画面用の練習設定コンポーネント
@@ -202,6 +213,14 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   const [isMissionMode, setIsMissionMode] = useState(false);
   const [lastPlayedTier, setLastPlayedTier] = useState<'basic' | 'advanced' | 'phrases' | null>(null);
   const [lastPlayedRank, setLastPlayedRank] = useState<string | null>(null);
+  const embeddedFantasyUrlOnMount = useMemo(() => {
+    try {
+      return isEmbeddedFantasyUrlHash(getWindow().location.hash);
+    } catch {
+      return false;
+    }
+  }, []);
+  const [embeddedStageLoadFailed, setEmbeddedStageLoadFailed] = useState(false);
   
   // 次ステージ開放情報
   const [nextStageUnlockInfo, setNextStageUnlockInfo] = useState<{
@@ -428,9 +447,11 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
           setCurrentStage(await resolveMusicXml(fantasyStage));
         }).catch(err => {
           console.error('Failed to load fantasy stage:', err);
+          setEmbeddedStageLoadFailed(true);
         });
       } catch (e) {
         console.error('Failed to parse clear conditions:', e);
+        setEmbeddedStageLoadFailed(true);
       }
       return;
     }
@@ -489,7 +510,10 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
           productionStartKey: (stage as any).production_start_key ?? undefined,
         };
         resolveMusicXml(fantasyStage).then(setCurrentStage);
-      }).catch(err => console.error('Failed to load fantasy stage:', err));
+      }).catch(err => {
+        console.error('Failed to load fantasy stage:', err);
+        setEmbeddedStageLoadFailed(true);
+      });
       return;
     }
   }, []);
@@ -809,8 +833,20 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     window.location.hash = isMissionMode ? '#missions' : '#dashboard';
   }, [isMissionMode]);
   
-  // ステージ選択画面
+  // ステージ選択画面（レッスン/ミッション直リンク時は取得完了まで出さない）
   if (!currentStage && !gameResult) {
+    if (embeddedFantasyUrlOnMount && !embeddedStageLoadFailed) {
+      return (
+        <div className="min-h-screen bg-gradient-to-b from-indigo-900 via-purple-900 to-pink-900 flex items-center justify-center fantasy-game-screen">
+          <div className="text-white text-center">
+            <div className="animate-spin rounded-full h-24 w-24 sm:h-32 sm:w-32 border-b-2 border-white mx-auto mb-4"></div>
+            <h2 className="text-xl sm:text-2xl font-bold">
+              {isEnglishCopy ? 'Loading Fantasy Mode...' : 'ファンタジーモード読み込み中...'}
+            </h2>
+          </div>
+        </div>
+      );
+    }
     return (
       <FantasyStageSelect
         onStageSelect={handleStageSelect}
