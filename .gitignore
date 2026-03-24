@@ -18,9 +18,6 @@ build/
 .env.production.local
 .env.r2
 
-# iOS secrets (contains Supabase keys)
-ios/Secrets.xcconfig
-
 # IDE files
 .vscode/
 .idea/
@@ -131,6 +128,8 @@ node_modules/.vite/
 stats.json
 
 # Game specific
+# Prepend-count-in script backups (do not commit)
+*.mp3.bak
 # Large audio files (keep small demo files)
 # *.mp3
 # *.wav
