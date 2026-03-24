@@ -15,6 +15,7 @@
 | マイグレーション生成 | `scripts/generate-ii-v-i-migration.mjs` |
 | 分割 SQL（手動適用用） | `supabase/migrations/20260324140000_ii_v_i_lesson_course_part1.sql` ～ `part3.sql` |
 | `order_index` 修正（1 始まり→0 始まり） | `supabase/migrations/20260325120000_fix_ii_v_i_lesson_order_index_zero_based.sql` |
+| 正解時ルート音オフ | `supabase/migrations/20260325140000_ii_v_i_play_root_on_correct_false.sql` |
 | 繰り返し記号の MusicXML 展開 | `src/utils/musicXmlRepeatExpand.ts`（`musicXmlToProgression` から利用） |
 | 音源・楽譜（ローカル） | `public/II-V-I_1-50/` |
 
@@ -72,6 +73,7 @@ node scripts/prepend-count-in-to-ii-v-i-mp3.mjs --in-place
 | プレイヤーHP (`max_hp`) | **30** | 全ステージ固定 |
 | ダメージ (`min_damage` / `max_damage`) | **50 / 100** | 正解ごとにランダムで 50〜100 ダメージ |
 | 敵HP (`enemy_hp`) | **`question_count × 150`** | `question_count × 2周 × 平均ダメージ75` |
+| 正解時ルート音 (`play_root_on_correct`) | **`false`** | 全ステージでオフ（正解時にルート音を鳴らさない） |
 
 設計意図: 全問正解で **約2周分** 演奏するとゲームクリアになるバランス。ダメージに幅（50〜100）を持たせることで演出にメリハリを出す。
 
