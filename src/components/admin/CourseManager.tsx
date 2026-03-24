@@ -1,10 +1,16 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, CourseAudience } from '@/types';
+import { Course, CourseAudience, CourseDifficultyTier } from '@/types';
 import { fetchCoursesWithDetails, addCourse, updateCourse, deleteCourse } from '@/platform/supabaseCourses';
 import { clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaArrowUp, FaArrowDown, FaGripVertical } from 'react-icons/fa';
+import {
+  COURSE_DIFFICULTY_LABELS,
+  COURSE_DIFFICULTY_TIER_ORDER,
+  normalizeCourseDifficultyTier,
+  sortCoursesByDifficultyThenOrder,
+} from '@/utils/courseDifficulty';
 
 const AUDIENCE_OPTIONS: { value: CourseAudience; label: string }[] = [
   { value: 'both', label: '日本＋グローバル' },
@@ -12,7 +18,13 @@ const AUDIENCE_OPTIONS: { value: CourseAudience; label: string }[] = [
   { value: 'global', label: 'グローバル専用' },
 ];
 
-type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only'> & { audience: CourseAudience };
+const DIFFICULTY_OPTIONS: { value: CourseDifficultyTier; label: string }[] = COURSE_DIFFICULTY_TIER_ORDER.map(
+  value => ({ value, label: `${COURSE_DIFFICULTY_LABELS[value].ja} (${COURSE_DIFFICULTY_LABELS[value].en})` }),
+);
+
+type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only' | 'difficulty_tier'> & {
+  audience: CourseAudience;
+};
 
 export const CourseManager: React.FC = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -24,7 +36,15 @@ export const CourseManager: React.FC = () => {
   const [isSorting, setIsSorting] = useState(false);
 
   const toast = useToast();
-  const { register, handleSubmit, reset, setValue } = useForm<CourseFormData>();
+  const { register, handleSubmit, reset, setValue } = useForm<CourseFormData>({
+    defaultValues: {
+      title: '',
+      description: '',
+      premium_only: true,
+      audience: 'both',
+      difficulty_tier: 'beginner',
+    },
+  });
   const dialogRef = useRef<HTMLDialogElement>(null);
 
   useEffect(() => {
@@ -54,9 +74,16 @@ export const CourseManager: React.FC = () => {
       setValue('description', course.description || '');
       setValue('premium_only', course.premium_only ?? true);
       setValue('audience', course.audience ?? 'both');
+      setValue('difficulty_tier', normalizeCourseDifficultyTier(course.difficulty_tier));
     } else {
       setSelectedCourse(null);
-      reset({ title: '', description: '', premium_only: true, audience: 'both' });
+      reset({
+        title: '',
+        description: '',
+        premium_only: true,
+        audience: 'both',
+        difficulty_tier: 'beginner',
+      });
     }
     dialogRef.current?.showModal();
   };
@@ -69,15 +96,22 @@ export const CourseManager: React.FC = () => {
     setIsSubmitting(true);
     try {
       if (selectedCourse) {
-        await updateCourse(selectedCourse.id, formData);
+        await updateCourse(selectedCourse.id, {
+          ...formData,
+          difficulty_tier: formData.difficulty_tier,
+        });
         toast.success('コースを更新しました。');
       } else {
-        const newOrderIndex = courses.length > 0 ? Math.max(...courses.map(c => c.order_index)) + 10 : 0;
+        const tier = normalizeCourseDifficultyTier(formData.difficulty_tier);
+        const sameTier = courses.filter(c => normalizeCourseDifficultyTier(c.difficulty_tier) === tier);
+        const newOrderIndex =
+          sameTier.length > 0 ? Math.max(...sameTier.map(c => c.order_index)) + 10 : 0;
         await addCourse({
           title: formData.title,
           description: formData.description,
           premium_only: formData.premium_only,
           audience: formData.audience,
+          difficulty_tier: tier,
           order_index: newOrderIndex,
         });
         toast.success('新しいコースを追加しました。');
@@ -105,25 +139,25 @@ export const CourseManager: React.FC = () => {
     }
   };
 
-  const handleMoveUp = async (index: number) => {
-    if (index === 0 || isSorting) return;
-    
+  const handleMoveUpInTier = async (course: Course) => {
+    const tier = normalizeCourseDifficultyTier(course.difficulty_tier);
+    const group = sortCoursesByDifficultyThenOrder(courses).filter(
+      c => normalizeCourseDifficultyTier(c.difficulty_tier) === tier,
+    );
+    const idx = group.findIndex(c => c.id === course.id);
+    if (idx <= 0 || isSorting) return;
+
     setIsSorting(true);
-    const newCourses = [...sortedCourses];
-    const temp = newCourses[index];
-    newCourses[index] = newCourses[index - 1];
-    newCourses[index - 1] = temp;
-    
-    // 並び順を更新
+    const prev = group[idx - 1];
+    const cur = group[idx];
     try {
-      await Promise.all(
-        newCourses.map((course, idx) => 
-          updateCourse(course.id, { order_index: idx * 10 })
-        )
-      );
+      await Promise.all([
+        updateCourse(cur.id, { order_index: prev.order_index }),
+        updateCourse(prev.id, { order_index: cur.order_index }),
+      ]);
       await loadCourses();
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error('並び順の更新に失敗しました。');
       console.error(error);
     } finally {
@@ -131,25 +165,25 @@ export const CourseManager: React.FC = () => {
     }
   };
 
-  const handleMoveDown = async (index: number) => {
-    if (index === sortedCourses.length - 1 || isSorting) return;
-    
+  const handleMoveDownInTier = async (course: Course) => {
+    const tier = normalizeCourseDifficultyTier(course.difficulty_tier);
+    const group = sortCoursesByDifficultyThenOrder(courses).filter(
+      c => normalizeCourseDifficultyTier(c.difficulty_tier) === tier,
+    );
+    const idx = group.findIndex(c => c.id === course.id);
+    if (idx < 0 || idx >= group.length - 1 || isSorting) return;
+
     setIsSorting(true);
-    const newCourses = [...sortedCourses];
-    const temp = newCourses[index];
-    newCourses[index] = newCourses[index + 1];
-    newCourses[index + 1] = temp;
-    
-    // 並び順を更新
+    const next = group[idx + 1];
+    const cur = group[idx];
     try {
-      await Promise.all(
-        newCourses.map((course, idx) => 
-          updateCourse(course.id, { order_index: idx * 10 })
-        )
-      );
+      await Promise.all([
+        updateCourse(cur.id, { order_index: next.order_index }),
+        updateCourse(next.id, { order_index: cur.order_index }),
+      ]);
       await loadCourses();
       toast.success('並び順を更新しました。');
-    } catch (error: any) {
+    } catch (error: unknown) {
       toast.error('並び順の更新に失敗しました。');
       console.error(error);
     } finally {
@@ -169,9 +203,23 @@ export const CourseManager: React.FC = () => {
     });
   };
   
-  const sortedCourses = useMemo(() => 
-    [...courses].sort((a, b) => a.order_index - b.order_index),
-  [courses]);
+  const sortedCourses = useMemo(() => sortCoursesByDifficultyThenOrder(courses), [courses]);
+
+  const tierGroupedRows = useMemo(() => {
+    const rows: (
+      | { kind: 'header'; tier: CourseDifficultyTier }
+      | { kind: 'course'; course: Course; indexInTier: number; tierSize: number }
+    )[] = [];
+    for (const tier of COURSE_DIFFICULTY_TIER_ORDER) {
+      const inTier = sortedCourses.filter(c => normalizeCourseDifficultyTier(c.difficulty_tier) === tier);
+      if (inTier.length === 0) continue;
+      rows.push({ kind: 'header', tier });
+      inTier.forEach((course, indexInTier) => {
+        rows.push({ kind: 'course', course, indexInTier, tierSize: inTier.length });
+      });
+    }
+    return rows;
+  }, [sortedCourses]);
 
   const handleClearCache = async () => {
     clearSupabaseCache();
@@ -199,6 +247,7 @@ export const CourseManager: React.FC = () => {
             <tr>
               <th className="w-[50px]"></th>
               <th className="w-[100px]">並び順</th>
+              <th className="min-w-[200px]">難易度</th>
               <th>コースタイトル</th>
               <th>レッスン数</th>
               <th>対象地域</th>
@@ -209,11 +258,11 @@ export const CourseManager: React.FC = () => {
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={7} className="text-center">読み込み中...</td>
+                <td colSpan={8} className="text-center">読み込み中...</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={7} className="text-center text-red-500">
+                <td colSpan={8} className="text-center text-red-500">
                   <div className="py-4">
                     <p className="mb-2">エラー: {error}</p>
                     <button className="btn btn-sm btn-primary" onClick={loadCourses}>
@@ -224,11 +273,22 @@ export const CourseManager: React.FC = () => {
               </tr>
             ) : courses.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center text-gray-400">
+                <td colSpan={8} className="text-center text-gray-400">
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
-            ) : sortedCourses.map((course, index) => (
+            ) : tierGroupedRows.map(row => {
+              if (row.kind === 'header') {
+                return (
+                  <tr key={`h-${row.tier}`} className="bg-slate-800/80">
+                    <td colSpan={8} className="font-semibold text-sm py-2">
+                      {COURSE_DIFFICULTY_LABELS[row.tier].ja}（{COURSE_DIFFICULTY_LABELS[row.tier].en}）
+                    </td>
+                  </tr>
+                );
+              }
+              const { course, indexInTier, tierSize } = row;
+              return (
               <React.Fragment key={course.id}>
                 <tr>
                   <td>
@@ -241,21 +301,24 @@ export const CourseManager: React.FC = () => {
                       <FaGripVertical className="text-gray-400" />
                       <button 
                         className="btn btn-ghost btn-xs"
-                        onClick={() => handleMoveUp(index)}
-                        disabled={index === 0 || isSorting}
-                        aria-label="上に移動"
+                        onClick={() => handleMoveUpInTier(course)}
+                        disabled={indexInTier === 0 || isSorting}
+                        aria-label="上に移動（同一難易度内）"
                       >
                         <FaArrowUp />
                       </button>
                       <button 
                         className="btn btn-ghost btn-xs"
-                        onClick={() => handleMoveDown(index)}
-                        disabled={index === sortedCourses.length - 1 || isSorting}
-                        aria-label="下に移動"
+                        onClick={() => handleMoveDownInTier(course)}
+                        disabled={indexInTier >= tierSize - 1 || isSorting}
+                        aria-label="下に移動（同一難易度内）"
                       >
                         <FaArrowDown />
                       </button>
                     </div>
+                  </td>
+                  <td className="text-sm text-gray-300">
+                    {COURSE_DIFFICULTY_LABELS[normalizeCourseDifficultyTier(course.difficulty_tier)].ja}
                   </td>
                   <td className="font-medium">{course.title}</td>
                   <td>{course.lessons?.length || 0}</td>
@@ -280,7 +343,7 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={7} className="p-0">
+                    <td colSpan={8} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
@@ -299,7 +362,8 @@ export const CourseManager: React.FC = () => {
                   </tr>
                 )}
               </React.Fragment>
-            ))}
+            );
+            })}
           </tbody>
         </table>
       </div>
@@ -327,6 +391,20 @@ export const CourseManager: React.FC = () => {
               </label>
               <select id="audience" {...register('audience')} className="select select-bordered w-full">
                 {AUDIENCE_OPTIONS.map(opt => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label htmlFor="difficulty_tier" className="label">
+                <span className="label-text">難易度（一覧のセクション）</span>
+              </label>
+              <select
+                id="difficulty_tier"
+                {...register('difficulty_tier')}
+                className="select select-bordered w-full"
+              >
+                {DIFFICULTY_OPTIONS.map(opt => (
                   <option key={opt.value} value={opt.value}>{opt.label}</option>
                 ))}
               </select>

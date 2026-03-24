@@ -13,6 +13,12 @@ import { FantasyStageSelector } from './FantasyStageSelector';
 import { ALL_STAGES, STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from '@/components/survival/SurvivalStageDefinitions';
 import { uploadLessonVideo, uploadLessonAttachment, deleteLessonAttachmentByKey, deleteLessonVideoByKey } from '@/platform/r2Storage';
 import {
+  COURSE_DIFFICULTY_LABELS,
+  COURSE_DIFFICULTY_TIER_ORDER,
+  normalizeCourseDifficultyTier,
+  sortCoursesByDifficultyThenOrder,
+} from '@/utils/courseDifficulty';
+import {
   addLessonVideoR2,
   fetchLessonAttachments,
   addLessonAttachment as insertLessonAttachment,
@@ -86,6 +92,11 @@ export const LessonManager: React.FC = () => {
 
   const toast = useToast();
 
+  const coursesSortedForSelect = useMemo(
+    () => sortCoursesByDifficultyThenOrder(courses),
+    [courses],
+  );
+
   const setAttachmentUpdating = (attachmentId: string, isUpdating: boolean) => {
     setUpdatingAttachmentIds(prev => {
       const next = new Set(prev);
@@ -117,9 +128,9 @@ export const LessonManager: React.FC = () => {
       setAvailableSongs(songsData);
       setAvailableFantasyStages(fantasyStagesData);
 
+      const sortedPick = sortCoursesByDifficultyThenOrder(coursesData);
       if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
-        const firstCourseId = coursesData[0]?.id || '';
-        setSelectedCourseId(firstCourseId);
+        setSelectedCourseId(sortedPick[0]?.id || '');
       }
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'データの読み込みに失敗しました。';
@@ -642,9 +653,19 @@ export const LessonManager: React.FC = () => {
           onChange={(e) => setSelectedCourseId(e.target.value)}
           disabled={loading}
         >
-          {courses.map(course => (
-            <option key={course.id} value={course.id}>{course.title}</option>
-          ))}
+          {COURSE_DIFFICULTY_TIER_ORDER.map(tier => {
+            const inTier = coursesSortedForSelect.filter(
+              c => normalizeCourseDifficultyTier(c.difficulty_tier) === tier,
+            );
+            if (inTier.length === 0) return null;
+            return (
+              <optgroup key={tier} label={COURSE_DIFFICULTY_LABELS[tier].ja}>
+                {inTier.map(course => (
+                  <option key={course.id} value={course.id}>{course.title}</option>
+                ))}
+              </optgroup>
+            );
+          })}
         </select>
       </div>
 

@@ -712,6 +712,8 @@ export interface LessonVideo {
 
 export type CourseAudience = 'global' | 'japan' | 'both';
 
+export type CourseDifficultyTier = 'tutorial' | 'beginner' | 'intermediate' | 'advanced';
+
 export interface Course {
   id: string;
   title: string;
@@ -724,6 +726,8 @@ export interface Course {
   order_index: number;
   premium_only?: boolean;
   is_tutorial?: boolean;
+  /** レッスン一覧の難易度セクション（DB: difficulty_tier） */
+  difficulty_tier?: CourseDifficultyTier | null;
   min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   audience?: CourseAudience;
   prerequisites?: CoursePrerequisite[];

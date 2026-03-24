@@ -1,5 +1,44 @@
 import Foundation
 
+enum CourseDifficultyTier: String, CaseIterable, Codable, Sendable {
+    case tutorial
+    case beginner
+    case intermediate
+    case advanced
+
+    static let displayOrder: [CourseDifficultyTier] = [.tutorial, .beginner, .intermediate, .advanced]
+
+    init(dbValue: String?) {
+        if let raw = dbValue, let t = CourseDifficultyTier(rawValue: raw) {
+            self = t
+        } else {
+            self = .beginner
+        }
+    }
+
+    func sectionTitle(locale: AppLocale) -> String {
+        switch self {
+        case .tutorial:
+            return locale == .ja ? "チュートリアル" : "Tutorial"
+        case .beginner:
+            return locale == .ja ? "初級" : "Beginner"
+        case .intermediate:
+            return locale == .ja ? "中級" : "Intermediate"
+        case .advanced:
+            return locale == .ja ? "上級" : "Advanced"
+        }
+    }
+
+    var sortIndex: Int {
+        switch self {
+        case .tutorial: return 0
+        case .beginner: return 1
+        case .intermediate: return 2
+        case .advanced: return 3
+        }
+    }
+}
+
 struct Course: Codable, Identifiable, Sendable {
     let id: UUID
     let title: String
@@ -10,6 +49,7 @@ struct Course: Codable, Identifiable, Sendable {
     let premiumOnly: Bool?
     let isTutorial: Bool?
     let audience: String?
+    let difficultyTier: String?
 
     enum CodingKeys: String, CodingKey {
         case id, title, description, audience
@@ -18,6 +58,7 @@ struct Course: Codable, Identifiable, Sendable {
         case orderIndex = "order_index"
         case premiumOnly = "premium_only"
         case isTutorial = "is_tutorial"
+        case difficultyTier = "difficulty_tier"
     }
 
     func localizedTitle(_ locale: AppLocale) -> String {
@@ -26,6 +67,10 @@ struct Course: Codable, Identifiable, Sendable {
 
     func localizedDescription(_ locale: AppLocale) -> String? {
         locale == .en ? (descriptionEn ?? description) : description
+    }
+
+    var resolvedDifficultyTier: CourseDifficultyTier {
+        CourseDifficultyTier(dbValue: difficultyTier)
     }
 }
 

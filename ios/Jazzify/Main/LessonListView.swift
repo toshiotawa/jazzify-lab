@@ -45,8 +45,19 @@ struct LessonListView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
-                            ForEach(courses) { course in
-                                courseRow(course)
+                            ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
+                                let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
+                                if !tierCourses.isEmpty {
+                                    Text(tier.sectionTitle(locale: locale))
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(Color.purple.opacity(0.9))
+                                        .frame(maxWidth: .infinity, alignment: .leading)
+                                        .padding(.horizontal, 4)
+                                        .padding(.top, 4)
+                                    ForEach(tierCourses) { course in
+                                        courseRow(course)
+                                    }
+                                }
                             }
                         }
                         .padding()
@@ -432,9 +443,15 @@ struct LessonListView: View {
         do {
             let allCourses = try await SupabaseService.shared.fetchCourses()
             let audienceFilter = locale == .en ? "global" : "japan"
-            courses = allCourses.filter { course in
+            let filtered = allCourses.filter { course in
                 let a = course.audience ?? "both"
                 return a == "both" || a == audienceFilter
+            }
+            courses = filtered.sorted { a, b in
+                let ta = a.resolvedDifficultyTier.sortIndex
+                let tb = b.resolvedDifficultyTier.sortIndex
+                if ta != tb { return ta < tb }
+                return a.orderIndex < b.orderIndex
             }
         } catch {
             courses = []

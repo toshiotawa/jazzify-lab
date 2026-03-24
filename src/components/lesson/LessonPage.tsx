@@ -8,6 +8,13 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
+import {
+  COURSE_DIFFICULTY_TIER_ORDER,
+  difficultyTierLabel,
+  normalizeCourseDifficultyTier,
+  sortCoursesByDifficultyThenOrder,
+} from '@/utils/courseDifficulty';
+import type { CourseDifficultyTier } from '@/types';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -50,12 +57,12 @@ const LessonPage: React.FC = () => {
         ]);
 
         const audienceFilter = isEnglishCopy ? 'global' : 'japan';
-        const sorted = coursesData
-          .filter(c => {
+        const sorted = sortCoursesByDifficultyThenOrder(
+          coursesData.filter(c => {
             const a = c.audience || 'both';
             return a === 'both' || a === audienceFilter;
-          })
-          .sort((a, b) => (a.order_index || 0) - (b.order_index || 0));
+          }),
+        );
 
         if (cancelled) return;
         setCourses(sorted);
@@ -100,14 +107,18 @@ const LessonPage: React.FC = () => {
     return () => { cancelled = true; };
   }, [open, profile?.id]);
 
-  const tutorialCourses = useMemo(
-    () => courses.filter(c => c.is_tutorial),
-    [courses],
-  );
-  const regularCourses = useMemo(
-    () => courses.filter(c => !c.is_tutorial),
-    [courses],
-  );
+  const coursesByTier = useMemo(() => {
+    const sorted = sortCoursesByDifficultyThenOrder(courses);
+    const m = new Map<CourseDifficultyTier, Course[]>();
+    for (const t of COURSE_DIFFICULTY_TIER_ORDER) {
+      m.set(t, []);
+    }
+    for (const c of sorted) {
+      const tier = normalizeCourseDifficultyTier(c.difficulty_tier);
+      m.get(tier)!.push(c);
+    }
+    return m;
+  }, [courses]);
 
   if (!open) return null;
 
@@ -169,11 +180,19 @@ const LessonPage: React.FC = () => {
       >
         <div className="flex items-start justify-between gap-3 mb-3">
           <div className="flex flex-wrap items-center gap-2">
-            {course.is_tutorial && (
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold tracking-wide border border-cyan-500/30">
-                Tutorial
-              </span>
-            )}
+            <span
+              className={`text-[10px] px-2 py-0.5 rounded-full font-bold tracking-wide border ${
+                normalizeCourseDifficultyTier(course.difficulty_tier) === 'tutorial'
+                  ? 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
+                  : normalizeCourseDifficultyTier(course.difficulty_tier) === 'beginner'
+                    ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/25'
+                    : normalizeCourseDifficultyTier(course.difficulty_tier) === 'intermediate'
+                      ? 'bg-amber-500/15 text-amber-200 border-amber-500/25'
+                      : 'bg-rose-500/15 text-rose-200 border-rose-500/25'
+              }`}
+            >
+              {difficultyTierLabel(normalizeCourseDifficultyTier(course.difficulty_tier), isEnglishCopy)}
+            </span>
             {course.premium_only && (
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold tracking-wide">
                 Premium
@@ -270,29 +289,29 @@ const LessonPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {tutorialCourses.length > 0 && (
-                <section>
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-cyan-500 rounded-full" />
-                    {isEnglishCopy ? 'Getting Started' : 'はじめに'}
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {tutorialCourses.map(renderCourseCard)}
-                  </div>
-                </section>
-              )}
-
-              {regularCourses.length > 0 && (
-                <section>
-                  <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-                    <span className="w-1 h-5 bg-primary-500 rounded-full" />
-                    {isEnglishCopy ? 'Courses' : 'コース'}
-                  </h2>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                    {regularCourses.map(renderCourseCard)}
-                  </div>
-                </section>
-              )}
+              {COURSE_DIFFICULTY_TIER_ORDER.map(tier => {
+                const list = coursesByTier.get(tier) ?? [];
+                if (list.length === 0) return null;
+                const barClass =
+                  tier === 'tutorial'
+                    ? 'bg-cyan-500'
+                    : tier === 'beginner'
+                      ? 'bg-emerald-500'
+                      : tier === 'intermediate'
+                        ? 'bg-amber-500'
+                        : 'bg-rose-500';
+                return (
+                  <section key={tier}>
+                    <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <span className={`w-1 h-5 ${barClass} rounded-full`} />
+                      {difficultyTierLabel(tier, isEnglishCopy)}
+                    </h2>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {list.map(renderCourseCard)}
+                    </div>
+                  </section>
+                );
+              })}
 
               {courses.length === 0 && (
                 <div className="text-center py-20 text-gray-400">
