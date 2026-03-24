@@ -883,8 +883,8 @@ const SongSelectionScreen: React.FC = () => {
                     // 曲のロード後、少し遅延してからタブを切り替えることで
                     // 確実に画面遷移を行う
                     setTimeout(() => {
-                      gameActions.setCurrentTab('practice');
-                      window.location.hash = '#practice';
+                      gameActions.setCurrentTab('performance');
+                      window.location.hash = '#performance';
                     }, 50);
                   } catch (err) {
                     console.error('曲読み込みエラー:', err);
