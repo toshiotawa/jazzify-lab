@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { fetchLessonById } from '@/platform/supabaseLessons';
 import { fetchLessonVideos, fetchLessonRequirements, LessonVideo, LessonRequirement, fetchLessonAttachments, LessonAttachment } from '@/platform/supabaseLessonContent';
@@ -11,7 +11,7 @@ import {
 } from '@/platform/supabaseLessonRequirements';
 import { clearSupabaseCache, clearCacheByKey } from '@/platform/supabaseClient';
 import { useAuthStore } from '@/stores/authStore';
-import { useToast } from '@/stores/toastStore';
+import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { lessonDisplayDescription, lessonDisplayTitle } from '@/utils/lessonCopy';
@@ -86,6 +86,7 @@ const LessonDetailPage: React.FC = () => {
 
   const { profile } = useAuthStore();
   const toast = useToast();
+  const lessonLoadGenerationRef = useRef(0);
   const geoCountry = useGeoStore(s => s.country);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -140,8 +141,11 @@ const LessonDetailPage: React.FC = () => {
   }, [lessonId, lesson?.course_id]);
 
   const loadLessonData = useCallback(async (targetLessonId: string) => {
+    const loadGen = ++lessonLoadGenerationRef.current;
+    const isStale = () => loadGen !== lessonLoadGenerationRef.current;
+    const pushToast = useToastStore.getState().push;
     setLoading(true);
-    
+
     try {
       // レッスン情報、動画、進捗を並行取得
       const [lessonData, videosData, progressData, attachmentsData] = await Promise.all([
@@ -151,13 +155,16 @@ const LessonDetailPage: React.FC = () => {
         fetchLessonAttachments(targetLessonId, { audience: 'user', useEnglishUi: isEnglishCopy })
       ]);
 
+      if (isStale()) {
+        return;
+      }
+
       setLesson(lessonData);
       setVideos(videosData);
       setAttachments(attachmentsData || []);
       
       // lesson_songsをrequirementsとして設定（後方互換性のため）
       if (lessonData?.lesson_songs) {
-        console.log('レッスン楽曲データ:', lessonData.lesson_songs);
         const requirementsFromLessonSongs = lessonData.lesson_songs.map(ls => ({
           lesson_id: ls.lesson_id,
           song_id: ls.song_id,
@@ -180,6 +187,9 @@ const LessonDetailPage: React.FC = () => {
       // レッスンの完了状態を取得
       if (lessonData?.course_id) {
         const userProgress = await fetchUserLessonProgress(lessonData.course_id);
+        if (isStale()) {
+          return;
+        }
         const thisLessonProgress = userProgress.find(p => p.lesson_id === targetLessonId);
         setLessonProgress(thisLessonProgress || null);
       }
@@ -190,13 +200,17 @@ const LessonDetailPage: React.FC = () => {
           fetchCourseById(lessonData.course_id),
           fetchUserCompletedCourses(profile.id)
         ]);
+        if (isStale()) {
+          return;
+        }
         if (course) {
           setShouldHideVideos(false);
           const access = canAccessCourse(course, profile.rank, completedCourses, isEnglishCopy);
           if (!access.canAccess) {
-            toast.warning(
+            pushToast(
               access.reason
                 || (isEnglishCopy ? 'You cannot access this course.' : 'このコースにはアクセスできません'),
+              'warning',
             );
             window.location.hash = '#lessons';
             return;
@@ -214,20 +228,26 @@ const LessonDetailPage: React.FC = () => {
       if (lessonData?.course_id) {
           try {
             const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, profile?.rank);
-          setNavigationInfo(navInfo);
+            if (!isStale()) {
+              setNavigationInfo(navInfo);
+            }
         } catch (navError) {
           console.error('Navigation info loading error:', navError);
           // ナビゲーション情報の取得失敗は致命的ではないので、エラーログのみ
         }
       }
       
-    } catch (e: any) {
-      toast.error('レッスンデータの読み込みに失敗しました');
+    } catch (e: unknown) {
+      if (!isStale()) {
+        pushToast('レッスンデータの読み込みに失敗しました', 'error');
+      }
       console.error('Error loading lesson data:', e);
     } finally {
-      setLoading(false);
+      if (loadGen === lessonLoadGenerationRef.current) {
+        setLoading(false);
+      }
     }
-  }, [isEnglishCopy, profile?.id, profile?.rank, toast]);
+  }, [isEnglishCopy, profile?.id, profile?.rank]);
 
   useEffect(() => {
     if (open && lessonId) {

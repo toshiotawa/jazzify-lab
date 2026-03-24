@@ -1,3 +1,4 @@
+import { useMemo } from 'react';
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
 
@@ -67,15 +68,19 @@ export function useToast() {
   const push = useToastStore((s) => s.push);
   const remove = useToastStore((s) => s.remove);
   const clear = useToastStore((s) => s.clear);
-  
-  return {
-    success: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'success', options),
-    error: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'error', options),
-    info: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'info', options),
-    warning: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'warning', options),
-    remove,
-    clear,
-  };
+
+  // 毎レンダー新しいオブジェクトを返すと useCallback(..., [toast]) が毎回無効化されるため参照を安定させる
+  return useMemo(
+    () => ({
+      success: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'success', options),
+      error: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'error', options),
+      info: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'info', options),
+      warning: (msg: string, options?: Parameters<typeof push>[2]) => push(msg, 'warning', options),
+      remove,
+      clear,
+    }),
+    [push, remove, clear],
+  );
 }
 
 // バリデーションメッセージ統一関数
