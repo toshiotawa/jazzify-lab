@@ -8,6 +8,7 @@
 
 1. [ファイルの準備](#1-ファイルの準備)
 2. [管理画面でBGMアップロード（R2 + カウントイン付与）](#2-管理画面でbgmアップロードr2--カウントイン付与)
+   - [2.1 II-V-I レッスンコース: BGM 一括アップロード（CLI）](#21-ii-v-i-レッスンコース-bgm-一括アップロードcli)
 3. [ステージのDB設定（マイグレーション）](#3-ステージのdb設定マイグレーション)
 4. [MusicXMLのSupabase一括格納](#4-musicxmlのsupabase一括格納)
 5. [ステージとBGMの紐付け](#5-ステージとbgmの紐付け)
@@ -92,6 +93,35 @@ VITE_R2_PUBLIC_URL=https://your-cdn.com
 
 - **カウント追加は不要**（`countin0` = カウントインなし）
 - ステージ設定で `is_auftakt = true` にすることで、2回目以降のループでピックアップ小節のノーツが除外される
+
+### 2.1 II-V-I レッスンコース: BGM 一括アップロード（CLI）
+
+12 調 × 10 セグメント（計 120 本）の MP3 を、DB の `bgm_url` と同じキー名で R2 に置く場合は **スクリプト**を使う（管理画面から 120 回アップロードする必要がない）。
+
+| 項目 | 内容 |
+|---|---|
+| スクリプト | リポジトリルートで `node scripts/upload-ii-v-i-mp3-to-r2.mjs` |
+| 音源元 | `public/II-V-I_1-50/II-V-I_{範囲}_{キーsuffix}.mp3` |
+| R2 キー | `fantasy-bgm/ii-v-i-{範囲}-{slug}.mp3`（例: `ii-v-i-1-5-c.mp3`） |
+| 公開 URL 例 | `https://jazzify-cdn.com/fantasy-bgm/ii-v-i-1-5-c.mp3`（CDN は `VITE_R2_PUBLIC_URL` に合わせる） |
+
+**認証（推奨: Wrangler）**
+
+1. プロジェクトルートに **`.env.r2`**（`.gitignore` 済み）を置き、少なくとも次を設定する:
+   - `CF_ACCOUNT_ID` … Cloudflare アカウント ID（Wrangler の `CLOUDFLARE_ACCOUNT_ID` に渡る）
+   - `R2_BUCKET` … バケット名（未設定時はスクリプト既定 `jazzify-assets`）
+2. 一度だけ: `npx wrangler login`（ブラウザで OAuth）
+3. `npm install`（`devDependencies` の `wrangler` で CLI を解決。Windows では `node` 直起動で **npx ENOENT** を避ける）
+4. `node scripts/upload-ii-v-i-mp3-to-r2.mjs`  
+   - 確認のみ: `--dry-run`  
+   - **S3 互換 API トークン**で上げる場合: `--s3`（`.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` が必要）
+
+**キーローテーション（R2 API トークン）**
+
+- Cloudflare ダッシュボードで新トークン発行 → 古いトークンを失効 → `.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` を差し替え（`--s3` 利用時のみ。Wrangler ログイン方式では未使用）
+- 管理画面からのブラウザアップロード用は `.env.local` の `VITE_CLOUDFLARE_*` も同様に揃える
+
+コース全体（DB・マイグレーション・`order_index` の注意など）は [II_V_I_LESSON_COURSE_SETUP.md](./II_V_I_LESSON_COURSE_SETUP.md) を参照。
 
 ---
 
@@ -329,8 +359,8 @@ WHERE stage_number = '1-10' AND stage_tier = 'phrases';
 ```
 [MP3/MusicXMLファイルを準備]
         │
-        ├── MP3 ──→ [管理画面: FantasyBgmManager]
-        │              ├── カウントイン自動付与（オプション）
+        ├── MP3 ──→ [管理画面: FantasyBgmManager] または [CLI: upload-ii-v-i-mp3-to-r2.mjs]
+        │              ├── カウントイン自動付与（オプション・管理画面のみ）
         │              ├── MP3変換（オプション）
         │              └── R2にアップロード → bgm_url を取得
         │
@@ -356,6 +386,8 @@ WHERE stage_number = '1-10' AND stage_tier = 'phrases';
 | `VITE_CLOUDFLARE_SECRET_ACCESS_KEY` | R2 シークレットキー |
 | `VITE_R2_BUCKET_NAME` | R2 バケット名 |
 | `VITE_R2_PUBLIC_URL` | R2 公開URL（CDN） |
+| `.env.r2` の `CF_ACCOUNT_ID` | II-V-I BGM 一括アップロード（Wrangler）用。Git に含めない |
+| `.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` | 一括アップロード `--s3` モード用（キーローテーション時に更新） |
 
 ---
 
@@ -364,5 +396,5 @@ WHERE stage_number = '1-10' AND stage_tier = 'phrases';
 - **SECURITY DEFINER 関数は作業後に必ず削除する**（セキュリティリスク）
 - MusicXMLファイルは DB 格納後 `public/` から削除してよい（バックアップを別途保持）
 - Supabase 無料枠: ストレージ 500MB、月間通信 5GB。MusicXMLはテキストデータなので十分余裕あり
-- R2 への直接アップロードは MCP/CLI 非対応。管理画面（ブラウザ）経由で行う
+- R2 への通常アップロードは管理画面（ブラウザ）経由。大量ファイル（例: II-V-I 120 本）は `scripts/upload-ii-v-i-mp3-to-r2.mjs`（[2.1](#21-ii-v-i-レッスンコース-bgm-一括アップロードcli)）
 - カウントイン付与はブラウザ上の Web Audio API で処理されるため、ローカル環境での実行が必要

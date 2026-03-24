@@ -7,6 +7,7 @@ import {
   collectGraceNotesBefore,
   expandGraceNotes,
 } from './musicXmlOrnamentExpander';
+import { expandMusicXmlRepeats } from './musicXmlRepeatExpand';
 
 /**
  * MusicXML文字列から progression_timing 用の JSON 配列へ変換
@@ -26,8 +27,9 @@ export function convertMusicXmlToProgressionData(
   xmlText: string, 
   options?: { groupSimultaneousNotes?: boolean; skipHarmony?: boolean }
 ): ChordProgressionDataItem[] {
+  const expandedXml = expandMusicXmlRepeats(xmlText);
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xmlText, 'application/xml');
+  const doc = parser.parseFromString(expandedXml, 'application/xml');
   const measures = Array.from(doc.querySelectorAll('measure'));
 
   const result: ChordProgressionDataItem[] = [];
