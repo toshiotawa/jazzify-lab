@@ -9,6 +9,9 @@
  * wrangler 利用時: .env.r2 に CF_ACCOUNT_ID（= CLOUDFLARE_ACCOUNT_ID）が必要。
  *   プロジェクト直下に wrangler.toml が無いと R2 コマンドはアカウント ID 未設定で失敗しやすい。
  *
+ * count_in_measures と音源の整合: DB が 1 のときは MP3 先頭に 1 小節分のカウントイン区間が必要。
+ *   無音プリペンド: `node scripts/prepend-count-in-to-ii-v-i-mp3.mjs`（docs/II_V_I_LESSON_COURSE_SETUP.md 参照）
+ *
  * Usage:
  *   npx wrangler login
  *   # .env.r2 に CF_ACCOUNT_ID=... と R2_BUCKET=...（任意）
