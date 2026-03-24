@@ -31,6 +31,7 @@
  */
 
 // 追加 import
+import { getWindow } from '@/platform';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
 
@@ -101,6 +102,8 @@ export class FantasySoundManager {
   private gmDryGain: GainNode | null = null;
   private gmWetGain: GainNode | null = null;
   private gmConvolver: ConvolverNode | null = null;
+  /** GM ノートオフ時のゲインリリース（即 disconnect によるクリック／グリッサンドのプチ音を抑える） */
+  private static readonly GM_NOTE_RELEASE_SEC = 0.038;
   private bassVolume = 0.5; // デフォルト50%
   private bassEnabled = true;
   private lastRootStart = 0; // Tone.js例外対策用
@@ -641,7 +644,7 @@ export class FantasySoundManager {
     }
   }
 
-  // GM音源のノートを即時停止
+  // GM音源のノートを停止（ゲインを短くランプしてから stop／切断でクリックノイズを低減）
   private _stopGMNote(midiNote: number) {
     const activeNodes = this.activeGMNotes.get(midiNote);
     if (!activeNodes) {
@@ -651,11 +654,35 @@ export class FantasySoundManager {
     }
     this.activeGMNotes.delete(midiNote);
 
+    const ctx = this.gmAudioContext;
+    const gainNode = activeNodes.gainNode;
+    const releaseSec = FantasySoundManager.GM_NOTE_RELEASE_SEC;
+
+    if (!ctx || !gainNode) {
+      try {
+        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
+        if (activeNodes.electric?.stop) activeNodes.electric.stop();
+        gainNode?.disconnect();
+      } catch { /* ignore */ }
+      return;
+    }
+
     try {
-      if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
-      if (activeNodes.electric?.stop) activeNodes.electric.stop();
-      if (activeNodes.gainNode) activeNodes.gainNode.disconnect();
+      const now = ctx.currentTime;
+      const g = gainNode.gain;
+      g.cancelScheduledValues(now);
+      g.setValueAtTime(g.value, now);
+      g.linearRampToValueAtTime(0, now + releaseSec);
     } catch { /* ignore */ }
+
+    const cleanupMs = Math.ceil(releaseSec * 1000) + 24;
+    getWindow().setTimeout(() => {
+      try {
+        if (activeNodes.acoustic?.stop) activeNodes.acoustic.stop();
+        if (activeNodes.electric?.stop) activeNodes.electric.stop();
+        gainNode.disconnect();
+      } catch { /* ignore */ }
+    }, cleanupMs);
   }
 
   // BGM用: 指定durationで再生し自然にフェードアウト（手動stop不要）
