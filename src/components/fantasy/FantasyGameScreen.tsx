@@ -220,8 +220,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // 変更があった場合のみ状態を更新（関数形式で比較）
       setCurrentBeat(prev => prev !== newBeat ? newBeat : prev);
       setCurrentMeasure(prev => prev !== newMeasure ? newMeasure : prev);
-      // Ready状態は「2秒経過 AND 画像プリロード完了」で解除
-      const timeElapsed = readyStartTimeRef.current > 0 && performance.now() - readyStartTimeRef.current > 2000;
+      // Ready状態は「1秒経過 AND 画像プリロード完了」で解除
+      const timeElapsed = readyStartTimeRef.current > 0 && performance.now() - readyStartTimeRef.current > 1000;
       if (isReady && timeElapsed && isGameReady) {
         setIsReady(false);
       }
@@ -332,7 +332,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             // 1. オーディオ + サウンドを先に並列初期化
             await Promise.all([
               initializeAudioSystem().then(() => {
-                updateGlobalVolume(0.8);
+                updateGlobalVolume(settings.midiVolume ?? 0.8);
               }),
               FantasySoundManager.init(
                 settings.soundEffectVolume ?? 0.8,
@@ -347,7 +347,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           };
           await Promise.race([
             initWork(),
-            new Promise<void>((resolve) => setTimeout(resolve, 5000))
+            new Promise<void>((resolve) => setTimeout(resolve, 3000))
           ]);
           setIsInitialized(true);
         } catch (error) {
@@ -976,6 +976,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     bgmManager.ensureContextRunning();
     await bgmManager.ensureContextRunningAsync();
     FantasySoundManager.unlock().catch(() => {});
+    FantasySoundManager.ensureContextsRunning();
 
     // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {

@@ -341,17 +341,7 @@ class BGMManager {
     if (!url) return
     if (this.preloadedWaBuffers.has(url)) return
     await this._preloadWaBuffer(url)
-    if (!this.preloadedBuffers.has(url)) {
-      try {
-        const Tone = await import('tone')
-        await new Promise<void>((resolve) => {
-          const buf = new Tone.ToneAudioBuffer(toProxyUrl(url), () => {
-            this.preloadedBuffers.set(url, buf)
-            resolve()
-          }, () => resolve())
-        })
-      } catch {}
-    }
+    // Tone バッファは再生時にオンデマンドで作成（二重デコード回避）
   }
 
   private async _preloadWaBuffer(url: string) {

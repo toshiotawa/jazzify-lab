@@ -37,6 +37,17 @@ import { note as parseNote } from 'tonal';
 // モジュールレベル画像キャッシュ: ステージ間で永続化しiOS再ロードを回避（FantasyMainのステージ選択時プリロード用にexport）
 export const globalImageCache = new Map<string, HTMLImageElement>();
 
+// MusicXML パース結果キャッシュ: 同一XMLの再パースを回避
+const musicXmlParseCache = new Map<string, ChordProgressionDataItem[]>();
+const cachedConvertMusicXml = (xml: string): ChordProgressionDataItem[] | null => {
+  const key = xml.length + ':' + xml.slice(0, 128);
+  const cached = musicXmlParseCache.get(key);
+  if (cached) return cached;
+  const result = convertMusicXmlToProgressionData(xml, { groupSimultaneousNotes: true });
+  if (result) musicXmlParseCache.set(key, result);
+  return result;
+};
+
 // 🚀 パフォーマンス最適化: 直接PNGをロード（WebPフォールバック不要）
 const loadImageAsset = (src: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -1834,10 +1845,7 @@ export const useFantasyGameEngine = ({
               
               let progressionData: ChordProgressionDataItem[] | null = null;
               if (childStage.musicXml) {
-                progressionData = convertMusicXmlToProgressionData(
-                  childStage.musicXml,
-                  { groupSimultaneousNotes: true }
-                );
+                progressionData = cachedConvertMusicXml(childStage.musicXml);
               } else if (childStage.chordProgressionData) {
                 if (typeof childStage.chordProgressionData === 'string') {
                   progressionData = parseSimpleProgressionText(childStage.chordProgressionData);
@@ -1940,13 +1948,8 @@ export const useFantasyGameEngine = ({
         case 'progression_timing': {
           let progressionData: ChordProgressionDataItem[] | null = null;
 
-          // musicXml がある場合は常にランタイムで再パースする
-          // （タイ処理など変換ロジックの修正を既存DBデータにも即座に反映するため）
           if (stage.musicXml) {
-            progressionData = convertMusicXmlToProgressionData(
-              stage.musicXml,
-              { groupSimultaneousNotes: true }
-            );
+            progressionData = cachedConvertMusicXml(stage.musicXml);
           } else if (stage.chordProgressionData) {
             if (typeof stage.chordProgressionData === 'string') {
               progressionData = parseSimpleProgressionText(stage.chordProgressionData);

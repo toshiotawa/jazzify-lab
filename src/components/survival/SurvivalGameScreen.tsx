@@ -648,6 +648,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             pixiRendererRef.current?.highlightKey(note, active);
           });
           
+          FantasySoundManager.ensureContextsRunning();
+
           // 初期化完了を記録
           setIsMidiInitialized(true);
           setInitError(null);

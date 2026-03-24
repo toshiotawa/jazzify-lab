@@ -944,6 +944,7 @@ useEffect(() => {
           initializeAudioSystem(),
           FantasySoundManager.init(0.8, 0.5, true),
         ]);
+        FantasySoundManager.ensureContextsRunning();
         log.info('✅ 共通音声システム初期化完了');
         
         if (!midiControllerRef.current) {

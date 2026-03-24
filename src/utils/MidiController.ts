@@ -187,6 +187,13 @@ export const playNote = async (note: number, velocity: number = 127): Promise<vo
     // フォールバック: Tone.js Sampler
     // 音声システム初期化チェック
     if (!audioSystemInitialized || !globalSampler) {
+      // FM合成音が使えるなら即時発音（CDN不要フォールバック）
+      if (FantasySoundManager.isFMSynthReady()) {
+        FantasySoundManager.playFMNote(note, normalizedVelocity);
+        activeNotes.add(note.toString());
+        initializeAudioSystem().catch(() => {});
+        return;
+      }
       await initializeAudioSystem();
     }
 
@@ -232,9 +239,11 @@ export const stopNote = (note: number): void => {
       return;
     }
 
+    // FM合成音のノートも停止
+    FantasySoundManager.stopFMNote(note);
+
     // フォールバック: Tone.js Sampler
     if (!globalSampler) {
-      console.warn('⚠️ Audio system not initialized');
       return;
     }
 

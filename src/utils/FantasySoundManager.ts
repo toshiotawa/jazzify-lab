@@ -140,6 +140,26 @@ export class FantasySoundManager {
   public static isGMReady(): boolean {
     return this.instance.gmPianoReady && this.instance.gmAcousticPiano !== null;
   }
+
+  // FM合成音フォールバックが利用可能かどうか（CDN不要・即時利用可）
+  public static isFMSynthReady(): boolean {
+    return this.instance.bassInitialized && this.instance.bassSynth !== null;
+  }
+
+  // FM合成音でMIDIノートを即時再生（GM/Sampler未準備時のフォールバック）
+  public static playFMNote(midiNote: number, velocity: number = 1.0) {
+    return this.instance._playFMNote(midiNote, velocity);
+  }
+
+  // FM合成音のノートを停止
+  public static stopFMNote(midiNote: number) {
+    return this.instance._stopFMNote(midiNote);
+  }
+
+  // 全AudioContextを resume（ゲーム開始前に呼ぶ）
+  public static ensureContextsRunning(): void {
+    return this.instance._ensureContextsRunning();
+  }
   
   // GM音源のピアノ音量を設定（0-1）
   public static setGMPianoVolume(volume: number) {
@@ -479,6 +499,57 @@ export class FantasySoundManager {
   private activeRootOscillator: OscillatorNode | null = null;
   private activeRootGain: GainNode | null = null;
   
+  // FM合成音でMIDIノートを即時再生（フォールバック用）
+  private _playFMNote(midiNote: number, velocity: number = 1.0) {
+    if (!this.bassInitialized || !this.bassSynth) return;
+    try {
+      const Tone = (window as any).Tone;
+      if (!Tone) return;
+      if (Tone.context?.state !== 'running') {
+        Tone.start?.().catch(() => {});
+      }
+      const noteName = Tone.Frequency(midiNote, 'midi').toNote();
+      const dbValue = velocity === 0 ? -Infinity : Math.log10(velocity) * 20;
+      const effectiveDb = dbValue + Math.log10(Math.max(this.gmPianoVolume, 0.01)) * 20;
+      (this.bassSynth.volume as any).value = effectiveDb;
+      this.bassSynth.triggerAttack(noteName, undefined, velocity);
+      this.activeFMNotes.add(midiNote);
+    } catch { /* ignore */ }
+  }
+
+  private _stopFMNote(midiNote: number) {
+    if (!this.bassInitialized || !this.bassSynth) return;
+    if (!this.activeFMNotes.has(midiNote)) return;
+    try {
+      const Tone = (window as any).Tone;
+      if (!Tone) return;
+      const noteName = Tone.Frequency(midiNote, 'midi').toNote();
+      this.bassSynth.triggerRelease(noteName);
+      this.activeFMNotes.delete(midiNote);
+    } catch { /* ignore */ }
+  }
+
+  private activeFMNotes: Set<number> = new Set();
+
+  // 全AudioContextをresume（ゲーム開始前の呼び出し推奨）
+  private _ensureContextsRunning(): void {
+    try {
+      if (this.gmAudioContext?.state === 'suspended') {
+        this.gmAudioContext.resume().catch(() => {});
+      }
+      if (this.rootAudioContext?.state === 'suspended') {
+        this.rootAudioContext.resume().catch(() => {});
+      }
+      if (this.seAudioContext?.state === 'suspended') {
+        this.seAudioContext.resume().catch(() => {});
+      }
+      const Tone = (window as any).Tone;
+      if (Tone?.context?.state !== 'running') {
+        Tone?.start?.().catch(() => {});
+      }
+    } catch { /* ignore */ }
+  }
+
   // ルート音ベースの音量を同期
   private _syncRootBassVolume(): void {
     if (this.rootMasterGain && this.rootAudioContext) {
