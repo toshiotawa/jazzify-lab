@@ -1,6 +1,6 @@
 import { getSupabaseClient, fetchWithCache } from '@/platform/supabaseClient';
 import type { LessonMediaLocaleScope } from '@/types';
-import { getLessonMediaLocaleOrFilter, type FetchLessonMediaOptions } from '@/utils/lessonMediaLocale';
+import { filterLessonMediaByLocale, type FetchLessonMediaOptions } from '@/utils/lessonMediaLocale';
 
 export type { FetchLessonMediaOptions } from '@/utils/lessonMediaLocale';
 
@@ -56,21 +56,22 @@ export async function fetchLessonVideos(lessonId: string, options?: FetchLessonM
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => {
-      let q = getSupabaseClient()
+      const q = getSupabaseClient()
         .from('lesson_videos')
         .select('*')
         .eq('lesson_id', lessonId)
         .order('order_index', { ascending: true });
-      if (audience === 'user') {
-        q = q.or(getLessonMediaLocaleOrFilter(useEnglishUi));
-      }
       return await q;
     },
     1000 * 60 * 10 // 10分キャッシュ
   );
 
   if (error) throw new Error(`動画データの取得に失敗しました: ${error.message}`);
-  return data || [];
+  const rows = data || [];
+  if (audience === 'user') {
+    return filterLessonMediaByLocale(rows, useEnglishUi);
+  }
+  return rows;
 }
 
 /**
@@ -169,14 +170,11 @@ export async function fetchLessonAttachments(lessonId: string, options?: FetchLe
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => {
-      let q = getSupabaseClient()
+      const q = getSupabaseClient()
         .from('lesson_attachments')
         .select('*')
         .eq('lesson_id', lessonId)
         .order('order_index', { ascending: true });
-      if (audience === 'user') {
-        q = q.or(getLessonMediaLocaleOrFilter(useEnglishUi));
-      }
       return await q;
     },
     1000 * 60 * 10
@@ -190,7 +188,11 @@ export async function fetchLessonAttachments(lessonId: string, options?: FetchLe
     }
     throw new Error(`添付ファイルの取得に失敗しました: ${error.message}`);
   }
-  return data || [];
+  const rows = data || [];
+  if (audience === 'user') {
+    return filterLessonMediaByLocale(rows, useEnglishUi);
+  }
+  return rows;
 }
 
 export interface AddLessonAttachmentParams {
