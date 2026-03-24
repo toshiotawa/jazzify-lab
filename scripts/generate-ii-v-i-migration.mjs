@@ -4,22 +4,29 @@
  * 全件: node scripts/generate-ii-v-i-migration.mjs > full.sql
  * チャンク: node scripts/generate-ii-v-i-migration.mjs 1 40 > part1.sql
  *   1-based inclusive lesson indices (全120レッスン)
+ *
+ * --with-xml  MusicXML ファイルを読み込み music_xml カラムに挿入（要 public/II-V-I_1-50/）
  */
+import { readFileSync } from 'fs';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 const NS = 'a0000000-0000-4000-8000-000000000001';
 
 const KEYS = [
-  { ja: 'C', slug: 'c', suffix: 'C' },
-  { ja: 'F', slug: 'f', suffix: '+5st_F' },
-  { ja: 'B♭', slug: 'bb', suffix: '-2st_Bb' },
-  { ja: 'E♭', slug: 'eb', suffix: '+3st_Eb' },
-  { ja: 'A♭', slug: 'ab', suffix: '-4st_Ab' },
-  { ja: 'D♭', slug: 'db', suffix: '+1st_Db' },
-  { ja: 'G♭', slug: 'gb', suffix: '+6st_Gb' },
-  { ja: 'B', slug: 'b', suffix: '-1st_B' },
-  { ja: 'E', slug: 'e', suffix: '+4st_E' },
-  { ja: 'A', slug: 'a', suffix: '-3st_A' },
-  { ja: 'D', slug: 'd', suffix: '+2st_D' },
-  { ja: 'G', slug: 'g', suffix: '-5st_G' },
+  { ja: 'C', slug: 'c', suffix: 'C', semitones: 0 },
+  { ja: 'F', slug: 'f', suffix: '+5st_F', semitones: 5 },
+  { ja: 'B♭', slug: 'bb', suffix: '-2st_Bb', semitones: -2 },
+  { ja: 'E♭', slug: 'eb', suffix: '+3st_Eb', semitones: 3 },
+  { ja: 'A♭', slug: 'ab', suffix: '-4st_Ab', semitones: -4 },
+  { ja: 'D♭', slug: 'db', suffix: '+1st_Db', semitones: 1 },
+  { ja: 'G♭', slug: 'gb', suffix: '+6st_Gb', semitones: 6 },
+  { ja: 'B', slug: 'b', suffix: '-1st_B', semitones: -1 },
+  { ja: 'E', slug: 'e', suffix: '+4st_E', semitones: 4 },
+  { ja: 'A', slug: 'a', suffix: '-3st_A', semitones: -3 },
+  { ja: 'D', slug: 'd', suffix: '+2st_D', semitones: 2 },
+  { ja: 'G', slug: 'g', suffix: '-5st_G', semitones: -5 },
 ];
 
 /** enemyHp = 2周分のノーツ数。maxHp ≒ 期待ミス(25/75) + 余裕 */
@@ -47,11 +54,29 @@ const courseDescJa = `定番のII–V–I進行を、短いフレーズ単位で
 const courseDescEn = `Practice essential II–V–I lines across 12 keys and 50 short phrases. Each lesson uses one backing track covering five phrases (each phrase played twice) at 160 BPM. Clear the Fantasy rhythm/custom stage (sheet + timing) with any successful clear rank (C or better).`;
 
 const args = process.argv.slice(2);
+const withXml = args.includes('--with-xml');
+const numArgs = args.filter(a => !a.startsWith('--'));
 let fromIdx = 1;
 let toIdx = KEYS.length * RANGES.length;
-if (args.length >= 2) {
-  fromIdx = Math.max(1, parseInt(args[0], 10) || 1);
-  toIdx = Math.min(KEYS.length * RANGES.length, parseInt(args[1], 10) || toIdx);
+if (numArgs.length >= 2) {
+  fromIdx = Math.max(1, parseInt(numArgs[0], 10) || 1);
+  toIdx = Math.min(KEYS.length * RANGES.length, parseInt(numArgs[1], 10) || toIdx);
+}
+
+const xmlCache = new Map();
+function getMusicXml(fileXml) {
+  if (!withXml) return null;
+  if (xmlCache.has(fileXml)) return xmlCache.get(fileXml);
+  const p = resolve(__dirname, '..', 'public', 'II-V-I_1-50', `II-V 50 - ${fileXml}.musicxml`);
+  try {
+    const content = readFileSync(p, 'utf8');
+    xmlCache.set(fileXml, content);
+    return content;
+  } catch {
+    console.error(`-- WARNING: MusicXML not found: ${p}`);
+    xmlCache.set(fileXml, null);
+    return null;
+  }
 }
 
 const includeCourse = fromIdx === 1;
@@ -106,6 +131,10 @@ for (let bi = 0; bi < KEYS.length; bi++) {
 
     const bgmPath = `https://jazzify-cdn.com/fantasy-bgm/ii-v-i-${r.fileMp3}-${k.slug}.mp3`;
 
+    const xml = getMusicXml(r.fileXml);
+    const xmlCols = xml ? ',\n  music_xml' : '';
+    const xmlVals = xml ? `,\n  $musicxml$${xml}$musicxml$` : '';
+
     lines.push(`-- ${stageKey} (lesson #${lessonOrder})`);
     lines.push(`INSERT INTO public.fantasy_stages (
   id, stage_number, name, name_en, description, description_en,
@@ -116,7 +145,7 @@ for (let bi = 0; bi < KEYS.length; bi++) {
   bpm, time_signature, measure_count, count_in_measures,
   usage_type, is_sheet_music_mode, is_auftakt,
   production_repeat_transposition_mode, production_start_key,
-  bgm_url, mp3_url
+  bgm_url, mp3_url${xmlCols}
 ) VALUES (
   uuid_generate_v5('${NS}'::uuid, ${sqlStr(stageKey)}),
   NULL,
@@ -146,9 +175,9 @@ for (let bi = 0; bi < KEYS.length; bi++) {
   false,
   false,
   'off',
-  0,
+  ${k.semitones},
   ${sqlStr(bgmPath)},
-  ${sqlStr(bgmPath)}
+  ${sqlStr(bgmPath)}${xmlVals}
 );`);
     lines.push('');
     lines.push(`INSERT INTO public.lessons (

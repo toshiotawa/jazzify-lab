@@ -15,11 +15,14 @@
  *   node scripts/upload-ii-v-i-mp3-to-r2.mjs
  *   node scripts/upload-ii-v-i-mp3-to-r2.mjs --dry-run
  *   node scripts/upload-ii-v-i-mp3-to-r2.mjs --s3   # .env.r2 必須
+ *   II_V_I_UPLOAD_RETRIES=5 node ...   # wrangler 失敗時の再試行回数（既定 4）
+ *   node ... --no-retry               # 再試行しない
  */
 import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
+import { setTimeout as delay } from 'node:timers/promises';
 
 function loadEnvFile(filePath) {
   if (!existsSync(filePath)) return {};
@@ -40,6 +43,10 @@ const envR2 = loadEnvFile(envR2Path);
 
 const useS3 = process.argv.includes('--s3');
 const dryRun = process.argv.includes('--dry-run');
+const noRetry = process.argv.includes('--no-retry');
+const wranglerRetries = noRetry
+  ? 1
+  : Math.max(1, Number.parseInt(process.env.II_V_I_UPLOAD_RETRIES || '4', 10) || 4);
 
 const BUCKET =
   process.env.R2_BUCKET ||
@@ -130,6 +137,28 @@ function putWithWrangler(localPath, objectPath) {
   return { ok: r.status === 0 && !r.error, errText, spawnError: r.error };
 }
 
+/**
+ * R2 API が 500 を返すことがある（一時障害）。指数バックオフで再試行する。
+ * @param {string} localPath
+ * @param {string} objectPath
+ */
+async function putWithWranglerRetry(localPath, objectPath) {
+  let last = /** @type {{ ok: boolean; errText: string; spawnError?: Error }} */ ({
+    ok: false,
+    errText: '',
+  });
+  for (let attempt = 0; attempt < wranglerRetries; attempt++) {
+    if (attempt > 0) {
+      const ms = 1000 * 2 ** (attempt - 1);
+      console.log(`  …再試行 ${attempt + 1}/${wranglerRetries}（${ms}ms 待機）`);
+      await delay(ms);
+    }
+    last = putWithWrangler(localPath, objectPath);
+    if (last.ok) return last;
+  }
+  return last;
+}
+
 let uploaded = 0;
 let skipped = 0;
 let errors = 0;
@@ -144,66 +173,77 @@ if (!useS3 && !dryRun) {
     process.exit(1);
   }
   console.log(
-    `R2 バケット: ${BUCKET} / アカウント: ${CLOUDFLARE_ACCOUNT_ID.slice(0, 8)}…（先に npx wrangler login）\n`,
+    `R2 バケット: ${BUCKET} / アカウント: ${CLOUDFLARE_ACCOUNT_ID.slice(0, 8)}…（先に npx wrangler login）`,
   );
+  if (!noRetry) {
+    console.log(`wrangler 失敗時の再試行: 最大 ${wranglerRetries} 回（--no-retry で無効）\n`);
+  } else {
+    console.log('');
+  }
 }
 
-for (const range of RANGES) {
-  for (const key of KEYS) {
-    const localName = `II-V-I_${range}_${key.suffix}.mp3`;
-    const localPath = join(SRC_DIR, localName);
-    const r2Key = `fantasy-bgm/ii-v-i-${range}-${key.slug}.mp3`;
-    const objectPath = `${BUCKET}/${r2Key}`;
+async function main() {
+  for (const range of RANGES) {
+    for (const key of KEYS) {
+      const localName = `II-V-I_${range}_${key.suffix}.mp3`;
+      const localPath = join(SRC_DIR, localName);
+      const r2Key = `fantasy-bgm/ii-v-i-${range}-${key.slug}.mp3`;
+      const objectPath = `${BUCKET}/${r2Key}`;
 
-    if (!existsSync(localPath)) {
-      console.warn(`SKIP (not found): ${localName}`);
-      skipped++;
-      continue;
-    }
-
-    if (dryRun) {
-      console.log(`[dry-run] ${localName} -> ${objectPath}`);
-      uploaded++;
-      continue;
-    }
-
-    if (useS3) {
-      try {
-        const body = readFileSync(localPath);
-        await s3.send(
-          new PutObjectCommand({
-            Bucket: BUCKET,
-            Key: r2Key,
-            Body: body,
-            ContentType: 'audio/mpeg',
-            CacheControl: 'public, max-age=31536000',
-          }),
-        );
-        uploaded++;
-        console.log(`OK  ${localName} -> ${r2Key}  (${(body.length / 1024).toFixed(0)} KB)`);
-      } catch (err) {
-        errors++;
-        console.error(`ERR ${localName}: ${err.message}`);
+      if (!existsSync(localPath)) {
+        console.warn(`SKIP (not found): ${localName}`);
+        skipped++;
+        continue;
       }
-    } else {
-      const { ok, errText, spawnError } = putWithWrangler(localPath, objectPath);
-      if (ok) {
+
+      if (dryRun) {
+        console.log(`[dry-run] ${localName} -> ${objectPath}`);
         uploaded++;
-        const st = readFileSync(localPath);
-        console.log(`OK  ${localName} -> ${r2Key}  (${(st.length / 1024).toFixed(0)} KB)`);
+        continue;
+      }
+
+      if (useS3) {
+        try {
+          const body = readFileSync(localPath);
+          await s3.send(
+            new PutObjectCommand({
+              Bucket: BUCKET,
+              Key: r2Key,
+              Body: body,
+              ContentType: 'audio/mpeg',
+              CacheControl: 'public, max-age=31536000',
+            }),
+          );
+          uploaded++;
+          console.log(`OK  ${localName} -> ${r2Key}  (${(body.length / 1024).toFixed(0)} KB)`);
+        } catch (err) {
+          errors++;
+          console.error(`ERR ${localName}: ${err.message}`);
+        }
       } else {
-        errors++;
-        const detail = spawnError
-          ? spawnError.message
-          : errText || '（出力なし。npx wrangler login / バケット名 / R2 権限を確認）';
-        console.error(`ERR ${localName}:\n${detail}\n`);
-        if (errors === 1 && detail) {
-          console.error('--- 以降は同じ原因で失敗する可能性があります。上記を修正してから再実行してください。 ---\n');
+        const { ok, errText, spawnError } = await putWithWranglerRetry(localPath, objectPath);
+        if (ok) {
+          uploaded++;
+          const st = readFileSync(localPath);
+          console.log(`OK  ${localName} -> ${r2Key}  (${(st.length / 1024).toFixed(0)} KB)`);
+        } else {
+          errors++;
+          const detail = spawnError
+            ? spawnError.message
+            : errText || '（出力なし。npx wrangler login / バケット名 / R2 権限を確認）';
+          console.error(`ERR ${localName}:\n${detail}\n`);
+          if (errors === 1 && detail) {
+            console.error(
+              '--- 500 / 一時障害の場合はそのまま再実行で通ることがあります。Wrangler を v4 に上げると安定することがあります（npm i -D wrangler@4）。 ---\n',
+            );
+          }
         }
       }
     }
   }
+
+  console.log(`\nDone. uploaded=${uploaded}  skipped=${skipped}  errors=${errors}`);
+  if (errors > 0) process.exit(1);
 }
 
-console.log(`\nDone. uploaded=${uploaded}  skipped=${skipped}  errors=${errors}`);
-if (errors > 0) process.exit(1);
+await main();

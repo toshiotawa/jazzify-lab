@@ -2057,20 +2057,25 @@ export const useFantasyGameEngine = ({
     // - 本番モード: stage.productionRepeatTranspositionMode と stage.productionStartKey を使用（ステージ設定）
     let transposeSettings: TransposeSettings | null = null;
     if (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') {
+      const productionStartKey = stage.productionStartKey ?? 0;
+      const productionMode = stage.productionRepeatTranspositionMode || 'off';
+
       if (playMode === 'practice' && stage.transposeSettings) {
-        // 練習モード: プレイヤーの設定を使用
         transposeSettings = stage.transposeSettings;
       } else if (playMode === 'challenge') {
-        // 本番モード: ステージの本番用設定を使用
-        const productionMode = stage.productionRepeatTranspositionMode || 'off';
-        const productionStartKey = stage.productionStartKey ?? 0;
-        // 本番モードでも転調設定がある場合のみ適用
         if (productionMode !== 'off' || productionStartKey !== 0) {
           transposeSettings = {
             keyOffset: productionStartKey,
             repeatKeyChange: productionMode as RepeatKeyChange
           };
         }
+      }
+
+      if (!transposeSettings && productionStartKey !== 0) {
+        transposeSettings = {
+          keyOffset: productionStartKey,
+          repeatKeyChange: 'off' as RepeatKeyChange
+        };
       }
     }
     
@@ -2204,15 +2209,16 @@ export const useFantasyGameEngine = ({
             const allowedForOrder = (prevState.currentStage.allowedChords && prevState.currentStage.allowedChords.length > 0) ? prevState.currentStage.allowedChords : [];
             nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
           } else {
-            // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            if (progression.length > 0) {
+              const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+              nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            }
           }
           
           return {
             ...monster,
-            chordTarget: nextChord!,
+            chordTarget: nextChord ?? monster.chordTarget,
             correctNotes: []
           };
         });
@@ -2221,7 +2227,6 @@ export const useFantasyGameEngine = ({
           ...prevState,
           currentQuestionIndex: (prevState.currentQuestionIndex + 1) % (prevState.currentStage?.chordProgression?.length || 1),
           activeMonsters: updatedMonsters,
-          // 互換性維持
           currentChordTarget: updatedMonsters[0]?.chordTarget || prevState.currentChordTarget,
           enemyGauge: 0,
           correctNotes: []
@@ -2346,16 +2351,16 @@ export const useFantasyGameEngine = ({
               return nextState;
             }
             
-            // 次の問題（ループ対応）- progressionモードのみ
-            // コード進行モード：ループさせる
             const progression = prevState.currentStage?.chordProgression || [];
-            const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-            const nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            let nextChord: ChordDefinition | null = null;
+            if (progression.length > 0) {
+              const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+              nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+            }
             
-            // アクティブなモンスターの情報も更新（ガイド表示に使用されるため重要）
             const updatedMonsters = prevState.activeMonsters.map(monster => ({
               ...monster,
-              chordTarget: nextChord!,
+              chordTarget: nextChord ?? monster.chordTarget,
               correctNotes: [],
               gauge: 0
             }));
@@ -3297,6 +3302,7 @@ export const useFantasyGameEngine = ({
 
       // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
+        if (!monster.chordTarget) return monster;
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
         
         // 撃破済みモンスターや、既に完成しているモンスター、入力音と関係ないモンスターはスキップ
@@ -3361,23 +3367,27 @@ export const useFantasyGameEngine = ({
           }
           // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
           if (completedMonsters.some(cm => cm.id === monster.id)) {
-            let nextChord;
+            let nextChord: ChordDefinition | null = null;
             if (stateAfterAttack.currentStage?.mode === 'single_order') {
               const allowedForOrder = stateAfterAttack.currentStage.allowedChords?.length
                 ? stateAfterAttack.currentStage.allowedChords : [];
               nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
             } else {
-              nextChord = selectRandomChordWithBag(
-                bagSelectorRef.current,
-                stateAfterAttack.currentStage!.allowedChords,
-                monster.chordTarget.id,
-                displayOpts
-              );
+              const pool = stateAfterAttack.currentStage?.allowedChords ?? [];
+              if (pool.length > 0) {
+                nextChord = selectRandomChordWithBag(
+                  bagSelectorRef.current,
+                  pool,
+                  monster.chordTarget?.id,
+                  displayOpts
+                );
+              }
             }
+            const effective = nextChord ?? monster.chordTarget;
             const st = stateAfterAttack.currentStage;
-            const nextMonster: MonsterState = { ...monster, chordTarget: nextChord!, correctNotes: [], gauge: 0 };
-            if (st?.isSheetMusicMode && nextChord.id !== 'placeholder') {
-              nextMonster.icon = getSheetMusicIconKey(nextChord, st.sheetMusicClef || 'treble');
+            const nextMonster: MonsterState = { ...monster, chordTarget: effective, correctNotes: [], gauge: 0 };
+            if (st?.isSheetMusicMode && effective?.id !== 'placeholder') {
+              nextMonster.icon = getSheetMusicIconKey(effective, st.sheetMusicClef || 'treble');
             }
             return nextMonster;
           }
@@ -3453,8 +3463,7 @@ export const useFantasyGameEngine = ({
         isWaitingForNextMonster: false,      // 待機状態を解除
       };
 
-      // ★追加：次の問題もここで準備する
-      let nextChord;
+      let nextChord: ChordDefinition | null = null;
       if (prevState.currentStage?.mode === 'single') {
         nextChord = selectRandomChordWithBag(
           bagSelectorRef.current,
@@ -3467,21 +3476,23 @@ export const useFantasyGameEngine = ({
         nextChord = selectOrderedChord(allowedForOrder, singleOrderIndexRef, displayOpts);
       } else {
         const progression = prevState.currentStage?.chordProgression || [];
-        const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
-        nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+        if (progression.length > 0) {
+          const nextIndex = (prevState.currentQuestionIndex + 1) % progression.length;
+          nextChord = getProgressionChord(progression, nextIndex, displayOpts);
+        }
       }
 
-      // アクティブなモンスターの情報も更新
       const st = prevState.currentStage;
       const updatedMonsters = prevState.activeMonsters.map(monster => {
+        const effective = nextChord ?? monster.chordTarget;
         const base: MonsterState = {
           ...monster,
-          chordTarget: nextChord!,
+          chordTarget: effective,
           correctNotes: [],
           gauge: 0,
         };
-        if (st?.isSheetMusicMode && nextChord!.id !== 'placeholder') {
-          base.icon = getSheetMusicIconKey(nextChord!, st.sheetMusicClef || 'treble');
+        if (st?.isSheetMusicMode && effective?.id !== 'placeholder') {
+          base.icon = getSheetMusicIconKey(effective, st.sheetMusicClef || 'treble');
         }
         return base;
       });
@@ -3489,7 +3500,7 @@ export const useFantasyGameEngine = ({
       nextState = {
         ...nextState,
         currentQuestionIndex: prevState.currentQuestionIndex + 1,
-        currentChordTarget: nextChord,
+        currentChordTarget: nextChord ?? prevState.currentChordTarget,
         enemyGauge: 0,
         activeMonsters: updatedMonsters
       };

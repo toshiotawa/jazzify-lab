@@ -114,7 +114,8 @@ VITE_R2_PUBLIC_URL=https://your-cdn.com
 3. `npm install`（`devDependencies` の `wrangler` で CLI を解決。Windows では `node` 直起動で **npx ENOENT** を避ける）
 4. `node scripts/upload-ii-v-i-mp3-to-r2.mjs`  
    - 確認のみ: `--dry-run`  
-   - **S3 互換 API トークン**で上げる場合: `--s3`（`.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` が必要）
+   - **S3 互換 API トークン**で上げる場合: `--s3`（`.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` が必要）  
+   - R2 API が **500** を返すことがある（一時障害）。スクリプトは **自動リトライ**（既定 4 回、`II_V_I_UPLOAD_RETRIES` で変更、`--no-retry` でオフ）。欠けた分だけ **同じコマンドを再実行**しても上書きでよい
 
 **キーローテーション（R2 API トークン）**
 

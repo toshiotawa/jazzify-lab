@@ -29,6 +29,26 @@ import {
   getRemainingClearsForNextStage 
 } from '@/utils/fantasyRankCalculator';
 
+const musicXmlCache = new Map<string, string>();
+async function resolveMusicXml(stage: FantasyStage): Promise<FantasyStage> {
+  const raw = stage.musicXml;
+  if (!raw || (!raw.startsWith('/') && !raw.startsWith('http'))) return stage;
+
+  if (musicXmlCache.has(raw)) {
+    return { ...stage, musicXml: musicXmlCache.get(raw) };
+  }
+  try {
+    const res = await fetch(raw);
+    if (!res.ok) throw new Error(`${res.status}`);
+    const xml = await res.text();
+    musicXmlCache.set(raw, xml);
+    return { ...stage, musicXml: xml };
+  } catch (e) {
+    devLog.error('MusicXML fetch failed:', raw, e);
+    return stage;
+  }
+}
+
 // 結果画面用の練習設定コンポーネント
 interface ResultPracticeSettingsProps {
   currentStage: FantasyStage;
@@ -323,7 +343,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
         productionRepeatTranspositionMode: (dbStage as Record<string, unknown>).production_repeat_transposition_mode as string | undefined,
         productionStartKey: (dbStage as Record<string, unknown>).production_start_key as number | undefined,
       };
-      setCurrentStage(fantasyStage);
+      resolveMusicXml(fantasyStage).then(s => setCurrentStage(s));
     }).catch(() => {});
   }, [initialStage, demoStage]);
 
@@ -356,7 +376,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
           clearConditions,
           sourceType: 'fantasy'
         });
-        fetchFantasyStageById(stageId).then(stage => {
+        fetchFantasyStageById(stageId).then(async stage => {
           const fantasyStage: FantasyStage = {
             id: stage.id,
             stageNumber: stage.stage_number,
@@ -405,7 +425,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
             productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
             productionStartKey: (stage as any).production_start_key ?? undefined,
           };
-          setCurrentStage(fantasyStage);
+          setCurrentStage(await resolveMusicXml(fantasyStage));
         }).catch(err => {
           console.error('Failed to load fantasy stage:', err);
         });
@@ -468,7 +488,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
           productionRepeatTranspositionMode: (stage as any).production_repeat_transposition_mode ?? undefined,
           productionStartKey: (stage as any).production_start_key ?? undefined,
         };
-        setCurrentStage(fantasyStage);
+        resolveMusicXml(fantasyStage).then(setCurrentStage);
       }).catch(err => console.error('Failed to load fantasy stage:', err));
       return;
     }
@@ -476,7 +496,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
-    setCurrentStage(stage);
+    resolveMusicXml(stage).then(setCurrentStage);
     setGameResult(null);
     setShowResult(false);
     setPlayMode('challenge');
@@ -771,7 +791,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
       setGameResult(null);
       setShowResult(false);
-      setCurrentStage(convertedStage);   // ← 実データで待機画面
+      resolveMusicXml(convertedStage).then(s => setCurrentStage(s));   // MusicXML URL を解決
       setGameKey(k => k + 1);  // 強制リマウント
       
       devLog.debug('✅ 次のステージに遷移:', convertedStage);
