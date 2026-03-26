@@ -14,11 +14,7 @@ import { bgmManager } from '@/utils/BGMManager';
 import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode, combiningSync } from './FantasyGameEngine';
 import { 
   TaikoNote, 
-  ChordProgressionDataItem,
-  TransposeSettings,
-  RepeatKeyChange,
-  transposeTaikoNotes,
-  calculateTransposeOffset
+  ChordProgressionDataItem
 } from './TaikoNoteSystem';
 const LazyFantasySheetMusicDisplay = React.lazy(() => import('./FantasySheetMusicDisplay'));
 import { countMusicXmlStaves } from '@/utils/musicXmlMapper';
@@ -196,9 +192,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 低速練習モード用の状態（progressionモードでのみ使用）
   const [selectedSpeedMultiplier, setSelectedSpeedMultiplier] = useState<number>(1.0);
   
-  // 移調練習用の状態（progression_timingモードかつ練習モードでのみ使用）
-  const [transposeKeyOffset, setTransposeKeyOffset] = useState<number>(0); // -6 ~ +6
-  const [repeatKeyChange, setRepeatKeyChange] = useState<RepeatKeyChange>('off');
+  // 移調練習は廃止済み（移調済み譜面を別ステージで用意する方式に移行）
 
   // C&Rオーバーレイ状態
   const [crOverlay, setCrOverlay] = useState<string | null>(null);
@@ -677,8 +671,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
            !!currentSectionMusicXml;
   }, [stage.mode, gameState.isTaikoMode, gameState.taikoNotes.length, currentSectionMusicXml]);
   
-  // timing_combining: 次セクションの楽譜情報（右側に先読み表示 + 背景プリレンダリング用）
-  // 最終セクション→先頭セクション（ループ時の転調）もカバー
   const nextSectionSheetInfo = useMemo(() => {
     if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode) return null;
     const sections = gameState.combinedSections;
@@ -688,16 +680,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     const isLastSection = nextIdx >= sections.length;
     const ns = isLastSection ? sections[0] : sections[nextIdx];
     if (!ns?.musicXml) return null;
-    
-    // 転調オフセット: 最終セクション→先頭は次ループの転調を適用、それ以外は現在のオフセット
-    let nextTranspose = gameState.currentTransposeOffset || 0;
-    if (isLastSection && gameState.transposeSettings) {
-      nextTranspose = calculateTransposeOffset(
-        gameState.transposeSettings.keyOffset,
-        (gameState.combinedFullLoopCount ?? 0) + 1,
-        gameState.transposeSettings.repeatKeyChange
-      );
-    }
     
     let nextListenBars: [number, number] | undefined = ns.listenBars;
     if (ns.callResponseMode === 'alternating') {
@@ -709,11 +691,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       musicXml: ns.musicXml,
       bpm: ns.bpm,
       timeSignature: ns.timeSignature,
-      transposeOffset: nextTranspose,
       listenBars: nextListenBars,
       useRhythmNotation: useRhythmNotation,
     };
-  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.currentTransposeOffset, gameState.transposeSettings, gameState.combinedFullLoopCount, useRhythmNotation]);
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.combinedFullLoopCount, useRhythmNotation]);
 
   // timing_combining: 全セクションの楽譜を初期化時に一括プリレンダリング
   const combiningPreloadSections = useMemo(() => {
@@ -856,19 +837,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 低速練習モードの場合、選択した速度を適用
     const playbackRate = selectedSpeedMultiplier;
     
-    // 初回再生時のピッチシフト
-    // transposeSettingsから直接計算し、currentTransposeOffset状態値のフォールバックも用意
-    let initialPitchShift = gameState.transposeSettings
-      ? (gameState.transposeSettings.keyOffset || gameState.currentTransposeOffset || 0)
-      : (gameState.currentTransposeOffset || 0);
-    
-    // repeatKeyChangeが設定されている場合、Tone.jsを強制的に使用
-    // 初回は移調なし(0)でも、ループ後に移調が必要になるため
-    if (gameState.transposeSettings && gameState.transposeSettings.repeatKeyChange !== 'off') {
-      if (initialPitchShift === 0) {
-        initialPitchShift = 0.001;
-      }
-    }
+    const initialPitchShift = 0;
     
     // timing_combining: 最初のセクションのBGMをnoLoopで再生
     if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
@@ -944,23 +913,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [gameState]);
 
   const buildInitStage = useCallback((
-    speedMultiplier?: number,
-    transposeSettings?: TransposeSettings
+    speedMultiplier?: number
   ): FantasyStage => {
     const baseStage = {
       ...stage,
-      // 互換性：Supabaseのカラム note_interval_beats を noteIntervalBeats にマップ（存在する場合）
       noteIntervalBeats: (stage as any).note_interval_beats ?? stage.noteIntervalBeats,
     };
     
-    // 速度倍率を適用
     if (speedMultiplier !== undefined && speedMultiplier !== 1.0) {
       (baseStage as any).speedMultiplier = speedMultiplier;
-    }
-    
-    // 移調設定を適用（progression_timingまたはtiming_combiningモードの場合のみ）
-    if (transposeSettings && (stage.mode === 'progression_timing' || stage.mode === 'timing_combining')) {
-      (baseStage as any).transposeSettings = transposeSettings;
     }
     
     return baseStage;
@@ -968,38 +929,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
   const startGame = useCallback(async (
     mode: FantasyPlayMode, 
-    speedMultiplier: number = 1.0,
-    transposeOpts?: { keyOffset: number; repeatKeyChange: RepeatKeyChange }
+    speedMultiplier: number = 1.0
   ) => {
-    // iOS Safari: ユーザージェスチャーのコールスタック内でAudioContextをアンロック
-    // await で resume 完了を保証し、decodeAudioData のハングを防ぐ（楽譜モード single 等）
     bgmManager.ensureContextRunning();
     await bgmManager.ensureContextRunningAsync();
     FantasySoundManager.unlock().catch(() => {});
     FantasySoundManager.ensureContextsRunning();
 
-    // 初期化が完了していない場合は待機
     if (!isInitialized && initPromiseRef.current) {
       await initPromiseRef.current;
     }
     
-    // 速度を設定
     setSelectedSpeedMultiplier(speedMultiplier);
     
     onPlayModeChange(mode);
     readyStartTimeRef.current = performance.now();
     setIsReady(true);
-    setIsGameReady(false); // リセット
+    setIsGameReady(false);
     
-    // 移調設定を構築（練習モードかつprogression_timingまたはtiming_combiningの場合のみ）
-    const transposeSettings: TransposeSettings | undefined = 
-      (mode === 'practice' && (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && transposeOpts)
-        ? { keyOffset: transposeOpts.keyOffset, repeatKeyChange: transposeOpts.repeatKeyChange }
-        : undefined;
-    
-    // 🚀 画像プリロードを含むゲーム初期化を待機
-    // Ready画面表示中にロードが完了する
-    const stageWithSettings = buildInitStage(speedMultiplier, transposeSettings);
+    const stageWithSettings = buildInitStage(speedMultiplier);
     
     // timing_combining: 子ステージデータをDBからロードしてstageに注入
     if (stageWithSettings.mode === 'timing_combining' && stageWithSettings.combinedStageIds && stageWithSettings.combinedStageIds.length > 0) {
@@ -1292,36 +1240,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, stage?.isSheetMusicMode]);
   
-  // 🚀 パフォーマンス最適化: 太鼓ノーツ更新用のrefを追加（useEffectの依存配列から除外するため）
   const taikoNotesRef = useRef(gameState.taikoNotes);
   const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
   const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
-  // 移調設定用のref
-  const transposeSettingsRef = useRef(gameState.transposeSettings);
-  // timing_combining 用のref
   const isCombiningModeRef = useRef(gameState.isCombiningMode);
   const combinedSectionsRef = useRef(gameState.combinedSections);
   const currentSectionIndexRef = useRef(gameState.currentSectionIndex);
-  const originalTaikoNotesRef = useRef(gameState.originalTaikoNotes);
-  const currentTransposeOffsetRef = useRef(gameState.currentTransposeOffset);
   const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
   const preHitNoteIndicesRef = useRef(gameState.preHitNoteIndices);
   
-  // taikoNotes/currentNoteIndex/awaitingLoopStart/移調設定が変更されたらrefを更新（アニメーションループはそのまま継続）
-  // useLayoutEffect: ペイント前に同期的にrefを更新し、セクション切り替え時の1-2フレーム遅延を排除
   useLayoutEffect(() => {
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
-    transposeSettingsRef.current = gameState.transposeSettings;
-    originalTaikoNotesRef.current = gameState.originalTaikoNotes;
-    currentTransposeOffsetRef.current = gameState.currentTransposeOffset;
     taikoLoopCycleRef.current = gameState.taikoLoopCycle;
     preHitNoteIndicesRef.current = gameState.preHitNoteIndices;
     isCombiningModeRef.current = gameState.isCombiningMode;
     combinedSectionsRef.current = gameState.combinedSections;
     currentSectionIndexRef.current = gameState.currentSectionIndex;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.transposeSettings, gameState.originalTaikoNotes, gameState.currentTransposeOffset, gameState.taikoLoopCycle, gameState.preHitNoteIndices, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.taikoLoopCycle, gameState.preHitNoteIndices, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
@@ -1653,25 +1590,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const shouldShowNextLoopPreview = !isProgressionOrder && (isAwaitingLoop || timeToLoop < lookAheadTime);
       
       if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
-        // 移調設定がある場合、次のリピートサイクルの移調オフセットを計算
-        const transposeSettings = transposeSettingsRef.current;
-        const originalNotes = originalTaikoNotesRef.current;
-        const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
-        
-        // 次のループで使用するノーツを決定
-        let nextLoopNotes = taikoNotes;
-        if (transposeSettings && originalNotes.length > 0) {
-          const nextLoopCycle = currentLoopCycle + 1;
-          const nextTransposeOffset = calculateTransposeOffset(
-            transposeSettings.keyOffset,
-            nextLoopCycle,
-            transposeSettings.repeatKeyChange
-          );
-          nextLoopNotes = transposeTaikoNotes(originalNotes, nextTransposeOffset);
-        }
-        
-        for (let i = 0; i < nextLoopNotes.length; i++) {
-          const note = nextLoopNotes[i];
+        for (let i = 0; i < taikoNotes.length; i++) {
+          const note = taikoNotes[i];
           const baseNote = taikoNotes[i];
 
           // すでに通常ノーツで表示しているものは重複させない
@@ -1947,9 +1867,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // ★ マウント時 autoStart なら即開始（速度倍率を考慮）
   useEffect(() => {
     if (autoStart) {
-      startGame(playMode, autoStartSpeedMultiplier, { keyOffset: transposeKeyOffset, repeatKeyChange });
+      startGame(playMode, autoStartSpeedMultiplier);
     }
-  }, [autoStart, playMode, autoStartSpeedMultiplier, startGame, transposeKeyOffset, repeatKeyChange]);
+  }, [autoStart, playMode, autoStartSpeedMultiplier, startGame]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
@@ -1999,49 +1919,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   {isEnglishCopy ? '🎹 Practice Mode' : '🎹 練習モード'}
                 </div>
                 
-                {/* 移調練習設定（progression_timingモードの場合のみ表示） */}
-                {(stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && (
-                  <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
-                    <div className="text-sm text-yellow-300 font-medium">
-                      🎹 {isEnglishCopy ? 'Transposition Practice' : '移調練習'}
-                    </div>
-                    
-                    {/* 移調量ドロップダウン */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-300 min-w-[80px]">
-                        {isEnglishCopy ? 'Transpose' : '移調'}:
-                      </label>
-                      <select
-                        value={transposeKeyOffset}
-                        onChange={(e) => setTransposeKeyOffset(parseInt(e.target.value, 10))}
-                        className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
-                      >
-                        {[-6, -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5, 6].map(offset => (
-                          <option key={offset} value={offset}>
-                            {offset > 0 ? `+${offset}` : offset === 0 ? '0' : String(offset)}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                    
-                    {/* リピートごとのキー変更 */}
-                    <div className="flex items-center gap-2">
-                      <label className="text-xs text-gray-300 min-w-[80px]">
-                        {isEnglishCopy ? 'On Repeat' : 'リピート時'}:
-                      </label>
-                      <select
-                        value={repeatKeyChange}
-                        onChange={(e) => setRepeatKeyChange(e.target.value as RepeatKeyChange)}
-                        className="flex-1 bg-gray-700 text-white text-sm rounded px-2 py-1 border border-gray-600"
-                      >
-                        <option value="off">OFF ({isEnglishCopy ? 'No change' : '変更なし'})</option>
-                        <option value="+1">+1 ({isEnglishCopy ? 'Half step up' : '半音ずつ上'})</option>
-                        <option value="+5">+5 ({isEnglishCopy ? 'Perfect 4th up' : '完全4度ずつ上'})</option>
-                      </select>
-                    </div>
-                  </div>
-                )}
-                
                 {/* 速度選択ドロップダウン + 練習開始ボタン */}
                 <div className="bg-gray-800/50 rounded-lg p-3 space-y-3 border border-gray-700">
                   <div className="flex items-center gap-2">
@@ -2067,7 +1944,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                   
                   <button
                     onClick={() => {
-                      startGame('practice', selectedSpeedMultiplier, { keyOffset: transposeKeyOffset, repeatKeyChange });
+                      startGame('practice', selectedSpeedMultiplier);
                     }}
                     disabled={!isInitialized}
                     className={cn(
@@ -2185,12 +2062,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 {selectedSpeedMultiplier < 1.0 && (
                   <span className="ml-2 px-2 py-0.5 bg-yellow-600 rounded text-xs">
                     {Math.round(selectedSpeedMultiplier * 100)}%
-                  </span>
-                )}
-                {/* 移調量表示（progression_timingモードかつ移調設定がある場合） */}
-                {gameState.transposeSettings && (
-                  <span className="ml-2 px-2 py-0.5 bg-purple-600 rounded text-xs">
-                    {gameState.currentTransposeOffset > 0 ? `+${gameState.currentTransposeOffset}` : gameState.currentTransposeOffset === 0 ? '0' : String(gameState.currentTransposeOffset)}
                   </span>
                 )}
               </div>
@@ -2535,24 +2406,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                     : 0)
                 : (stage.isAuftakt ? (stage.countInMeasures || 0) : 0)
             }
-            transposeOffset={gameState.currentTransposeOffset || 0}
-            nextTransposeOffset={
-              gameState.isCombiningMode
-                ? undefined
-                : gameState.transposeSettings
-                  ? calculateTransposeOffset(
-                      gameState.transposeSettings.keyOffset,
-                      (gameState.taikoLoopCycle ?? 0) + 1,
-                      gameState.transposeSettings.repeatKeyChange
-                    )
-                  : undefined
-            }
             disablePreview={gameState.isCombiningMode && !nextSectionSheetInfo}
             simpleMode={currentSimpleNoteName}
             nextMusicXml={nextSectionSheetInfo?.musicXml}
             nextBpm={nextSectionSheetInfo?.bpm}
             nextTimeSignature={nextSectionSheetInfo?.timeSignature}
-            nextSectionTransposeOffset={nextSectionSheetInfo?.transposeOffset}
             nextListenBars={nextSectionSheetInfo?.listenBars}
             nextUseRhythmNotation={nextSectionSheetInfo?.useRhythmNotation}
             listenBars={(() => {

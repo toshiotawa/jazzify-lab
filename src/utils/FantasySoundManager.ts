@@ -602,6 +602,7 @@ export class FantasySoundManager {
       }
       
       this._stopGMNote(midiNote);
+      this.gmPendingStops.delete(midiNote);
       
       const ctx = this.gmAudioContext;
       const currentTime = ctx.currentTime;
