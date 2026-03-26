@@ -674,12 +674,25 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // Progression_Timing用の楽譜表示フラグ
   // musicXmlが存在する場合のみOSMD楽譜を表示
   // timing_combining: 現在のセクションのmusicXmlを取得
-  const currentSectionMusicXml = useMemo(() => {
-    if (stage.mode === 'timing_combining' && gameState.isCombiningMode && gameState.combinedSections.length > 0) {
-      return gameState.combinedSections[gameState.currentSectionIndex]?.musicXml ?? null;
+  const currentSheetSection = useMemo(() => {
+    if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode || gameState.combinedSections.length === 0) {
+      return null;
     }
+    return gameState.combinedSections[gameState.currentSectionIndex] ?? null;
+  }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+
+  const currentSectionMusicXml = useMemo(() => {
+    if (currentSheetSection) return currentSheetSection.musicXml ?? null;
     return stage.musicXml ?? null;
-  }, [stage.mode, stage.musicXml, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+  }, [currentSheetSection, stage.musicXml]);
+
+  const currentSheetBpm = currentSheetSection?.bpm ?? (stage.bpm || 120);
+  const currentSheetTimeSignature = currentSheetSection?.timeSignature ?? (stage.timeSignature || 4);
+  const currentSheetMeasureCount = currentSheetSection?.measureCount ?? (stage.measureCount || 8);
+  const currentSheetCountInMeasures = currentSheetSection
+    ? (currentSheetSection.isAuftakt ? currentSheetSection.countInMeasures : 0)
+    : (stage.isAuftakt ? (stage.countInMeasures || 0) : 0);
+  const sheetDisplayWidth = monsterAreaWidth || window.innerWidth - 16;
 
   const showSheetMusicForTiming = useMemo(() => {
     return (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') && 
@@ -713,6 +726,32 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
   }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex, gameState.combinedFullLoopCount, useRhythmNotation]);
 
+  const sheetListenBars = useMemo<[number, number] | undefined>(() => {
+    if (gameState.isCombiningMode) {
+      if (!currentSheetSection) return undefined;
+      if (currentSheetSection.callResponseMode === 'alternating') {
+        const totalPlay = (gameState.combinedFullLoopCount ?? 0) * (currentSheetSection.sectionRepeatCount ?? 1) + (currentSheetSection.repeatIndex ?? 0);
+        return totalPlay % 2 === 0 ? [1, currentSheetSection.measureCount] : undefined;
+      }
+      return currentSheetSection.listenBars;
+    }
+
+    if (stage.callResponseEnabled && stage.callResponseMode === 'alternating') {
+      return (gameState.taikoLoopCycle % 2) === 0 ? [1, stage.measureCount ?? 8] : undefined;
+    }
+
+    return (stage.callResponseEnabled && stage.callResponseListenBars) ? stage.callResponseListenBars : undefined;
+  }, [
+    gameState.isCombiningMode,
+    gameState.combinedFullLoopCount,
+    gameState.taikoLoopCycle,
+    currentSheetSection,
+    stage.callResponseEnabled,
+    stage.callResponseMode,
+    stage.measureCount,
+    stage.callResponseListenBars,
+  ]);
+
   // timing_combining: 全セクションの楽譜を初期化時に一括プリレンダリング
   const combiningPreloadSections = useMemo(() => {
     if (stage.mode !== 'timing_combining' || !gameState.isCombiningMode) return undefined;
@@ -744,6 +783,54 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     return result.length > 0 ? result : undefined;
   }, [stage.mode, gameState.isCombiningMode, gameState.combinedSections, useRhythmNotation]);
+
+  const sheetMusicDisplay = useMemo(() => {
+    if (!showSheetMusicForTiming) return null;
+
+    return (
+      <React.Suspense fallback={
+        <div className="w-full h-full flex items-center justify-center bg-gray-800/50 text-gray-400 text-sm">
+          楽譜を読み込み中...
+        </div>
+      }>
+        <LazyFantasySheetMusicDisplay
+          width={sheetDisplayWidth}
+          height={sheetMusicHeight}
+          musicXml={currentSectionMusicXml || ''}
+          bpm={currentSheetBpm}
+          timeSignature={currentSheetTimeSignature}
+          measureCount={currentSheetMeasureCount}
+          countInMeasures={currentSheetCountInMeasures}
+          disablePreview={gameState.isCombiningMode && !nextSectionSheetInfo}
+          simpleMode={currentSimpleNoteName}
+          nextMusicXml={nextSectionSheetInfo?.musicXml}
+          nextBpm={nextSectionSheetInfo?.bpm}
+          nextTimeSignature={nextSectionSheetInfo?.timeSignature}
+          nextListenBars={nextSectionSheetInfo?.listenBars}
+          nextUseRhythmNotation={nextSectionSheetInfo?.useRhythmNotation}
+          listenBars={sheetListenBars}
+          useRhythmNotation={useRhythmNotation}
+          preloadSections={combiningPreloadSections}
+          className="w-full h-full"
+        />
+      </React.Suspense>
+    );
+  }, [
+    showSheetMusicForTiming,
+    sheetDisplayWidth,
+    sheetMusicHeight,
+    currentSectionMusicXml,
+    currentSheetBpm,
+    currentSheetTimeSignature,
+    currentSheetMeasureCount,
+    currentSheetCountInMeasures,
+    gameState.isCombiningMode,
+    nextSectionSheetInfo,
+    currentSimpleNoteName,
+    sheetListenBars,
+    useRhythmNotation,
+    combiningPreloadSections,
+  ]);
 
   // 楽譜の段数を判定（MusicXMLパート数から）
   const currentStaves = useMemo(() => {
@@ -2402,64 +2489,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           className="mx-2 mb-1 rounded-lg overflow-hidden flex-shrink-0"
           style={{ height: `${sheetMusicHeight}px` }}
         >
-          <React.Suspense fallback={
-            <div className="w-full h-full flex items-center justify-center bg-gray-800/50 text-gray-400 text-sm">
-              楽譜を読み込み中...
-            </div>
-          }>
-            <LazyFantasySheetMusicDisplay
-            width={monsterAreaWidth || window.innerWidth - 16}
-            height={sheetMusicHeight}
-            musicXml={currentSectionMusicXml || ''}
-            bpm={
-              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
-                ? gameState.combinedSections[gameState.currentSectionIndex].bpm
-                : (stage.bpm || 120)
-            }
-            timeSignature={
-              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
-                ? gameState.combinedSections[gameState.currentSectionIndex].timeSignature
-                : (stage.timeSignature || 4)
-            }
-            measureCount={
-              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
-                ? gameState.combinedSections[gameState.currentSectionIndex].measureCount
-                : (stage.measureCount || 8)
-            }
-            countInMeasures={
-              (gameState.isCombiningMode && gameState.combinedSections[gameState.currentSectionIndex])
-                ? (gameState.combinedSections[gameState.currentSectionIndex].isAuftakt
-                    ? gameState.combinedSections[gameState.currentSectionIndex].countInMeasures
-                    : 0)
-                : (stage.isAuftakt ? (stage.countInMeasures || 0) : 0)
-            }
-            disablePreview={gameState.isCombiningMode && !nextSectionSheetInfo}
-            simpleMode={currentSimpleNoteName}
-            nextMusicXml={nextSectionSheetInfo?.musicXml}
-            nextBpm={nextSectionSheetInfo?.bpm}
-            nextTimeSignature={nextSectionSheetInfo?.timeSignature}
-            nextListenBars={nextSectionSheetInfo?.listenBars}
-            nextUseRhythmNotation={nextSectionSheetInfo?.useRhythmNotation}
-            listenBars={(() => {
-              if (gameState.isCombiningMode) {
-                const sec = gameState.combinedSections[gameState.currentSectionIndex];
-                if (!sec) return undefined;
-                if (sec.callResponseMode === 'alternating') {
-                  const totalPlay = (gameState.combinedFullLoopCount ?? 0) * (sec.sectionRepeatCount ?? 1) + (sec.repeatIndex ?? 0);
-                  return totalPlay % 2 === 0 ? [1, sec.measureCount] as [number, number] : undefined;
-                }
-                return sec.listenBars;
-              }
-              if (stage.callResponseEnabled && stage.callResponseMode === 'alternating') {
-                return (gameState.taikoLoopCycle % 2) === 0 ? [1, stage.measureCount ?? 8] as [number, number] : undefined;
-              }
-              return (stage.callResponseEnabled && stage.callResponseListenBars) ? stage.callResponseListenBars : undefined;
-            })()}
-            useRhythmNotation={useRhythmNotation}
-            preloadSections={combiningPreloadSections}
-            className="w-full h-full"
-          />
-          </React.Suspense>
+          {sheetMusicDisplay}
         </div>
       )}
       

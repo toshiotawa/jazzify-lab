@@ -14,6 +14,16 @@ import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
 import { stripLyricsFromMusicXml, convertToRhythmNotation, convertMeasuresToRests } from '@/utils/musicXmlMapper';
 
+type MeasureRange = [number, number];
+
+interface SheetPreloadSection {
+  musicXml: string;
+  bpm: number;
+  timeSignature: number;
+  listenBars?: MeasureRange;
+  useRhythmNotation?: boolean;
+}
+
 interface FantasySheetMusicDisplayProps {
   width: number;
   height: number;
@@ -27,10 +37,10 @@ interface FantasySheetMusicDisplayProps {
   nextMusicXml?: string;
   nextBpm?: number;
   nextTimeSignature?: number;
-  nextListenBars?: [number, number];
+  nextListenBars?: MeasureRange;
   nextUseRhythmNotation?: boolean;
-  preloadSections?: Array<{ musicXml: string; bpm: number; timeSignature: number; listenBars?: [number, number]; useRhythmNotation?: boolean }>;
-  listenBars?: [number, number];
+  preloadSections?: SheetPreloadSection[];
+  listenBars?: MeasureRange;
   useRhythmNotation?: boolean;
   className?: string;
   /** @deprecated 移調機能廃止済み。互換性のため残すが無視される */
@@ -69,6 +79,60 @@ interface TimeMappingEntry {
   xPosition: number;
 }
 
+function areMeasureRangesEqual(a?: MeasureRange, b?: MeasureRange): boolean {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+  return a[0] === b[0] && a[1] === b[1];
+}
+
+function arePreloadSectionsEqual(prev?: SheetPreloadSection[], next?: SheetPreloadSection[]): boolean {
+  if (prev === next) return true;
+  if (!prev || !next) return !prev && !next;
+  if (prev.length !== next.length) return false;
+
+  for (let i = 0; i < prev.length; i++) {
+    const prevSection = prev[i];
+    const nextSection = next[i];
+    if (
+      prevSection.musicXml !== nextSection.musicXml ||
+      prevSection.bpm !== nextSection.bpm ||
+      prevSection.timeSignature !== nextSection.timeSignature ||
+      prevSection.useRhythmNotation !== nextSection.useRhythmNotation ||
+      !areMeasureRangesEqual(prevSection.listenBars, nextSection.listenBars)
+    ) {
+      return false;
+    }
+  }
+
+  return true;
+}
+
+function areFantasySheetMusicDisplayPropsEqual(
+  prev: FantasySheetMusicDisplayProps,
+  next: FantasySheetMusicDisplayProps
+): boolean {
+  return (
+    prev.width === next.width &&
+    prev.height === next.height &&
+    prev.musicXml === next.musicXml &&
+    prev.bpm === next.bpm &&
+    prev.timeSignature === next.timeSignature &&
+    prev.measureCount === next.measureCount &&
+    prev.countInMeasures === next.countInMeasures &&
+    prev.disablePreview === next.disablePreview &&
+    prev.simpleMode === next.simpleMode &&
+    prev.nextMusicXml === next.nextMusicXml &&
+    prev.nextBpm === next.nextBpm &&
+    prev.nextTimeSignature === next.nextTimeSignature &&
+    prev.nextUseRhythmNotation === next.nextUseRhythmNotation &&
+    prev.useRhythmNotation === next.useRhythmNotation &&
+    prev.className === next.className &&
+    areMeasureRangesEqual(prev.listenBars, next.listenBars) &&
+    areMeasureRangesEqual(prev.nextListenBars, next.nextListenBars) &&
+    arePreloadSectionsEqual(prev.preloadSections, next.preloadSections)
+  );
+}
+
 const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   width,
   height,
@@ -89,14 +153,11 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   useRhythmNotation = false,
   className
 }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
   const renderContainerRef = useRef<HTMLDivElement>(null);
   const preRenderContainerRef = useRef<HTMLDivElement>(null);
   const preloadContainerRef = useRef<HTMLDivElement>(null);
   const preRenderGenRef = useRef(0);
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
-  const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const lastScrollXRef = useRef(0);
   const animationFrameRef = useRef<number | null>(null);
@@ -104,7 +165,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [wrapperWidth, setWrapperWidth] = useState<number>(width * 3);
   
   const [sheetImage, setSheetImage] = useState<string | null>(null);
   const [sheetWidth, setSheetWidth] = useState<number>(0);
@@ -249,7 +309,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       timeMappingRef.current = cached.mapping;
       setSheetImage(cached.imageData);
       setSheetWidth(cached.sheetWidth);
-      setWrapperWidth(cached.sheetWidth * 2 + WRAPPER_SCROLL_PADDING_PX);
       setIsInitialized(true);
       setIsLoading(false);
       return;
@@ -269,7 +328,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         timeMappingRef.current = result.mapping;
         setSheetImage(result.imageData);
         setSheetWidth(result.sheetWidth);
-        setWrapperWidth(result.sheetWidth * 2 + WRAPPER_SCROLL_PADDING_PX);
         
         sheetRenderCache.set(cacheKey, result);
       }
@@ -435,9 +493,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   
   useEffect(() => {
     return () => {
-      if (osmdRef.current) {
-        osmdRef.current.clear();
-      }
       if (animationFrameRef.current !== null) {
         cancelAnimationFrame(animationFrameRef.current);
       }
@@ -466,7 +521,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       />
       
       <div 
-        ref={scrollContainerRef}
         className="h-full overflow-hidden"
       >
         {isLoading && (
@@ -490,7 +544,6 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           }}
         >
           <div 
-            ref={containerRef}
             className="h-full flex items-center fantasy-sheet-music flex-shrink-0"
             style={{
               display: isInitialized ? 'none' : 'flex',
@@ -578,4 +631,11 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   );
 };
 
-export default FantasySheetMusicDisplay;
+const MemoizedFantasySheetMusicDisplay = React.memo(
+  FantasySheetMusicDisplay,
+  areFantasySheetMusicDisplayPropsEqual
+);
+
+MemoizedFantasySheetMusicDisplay.displayName = 'FantasySheetMusicDisplay';
+
+export default MemoizedFantasySheetMusicDisplay;
