@@ -106,6 +106,8 @@ jspm_packages/
 # Temporary folders
 tmp/
 temp/
+# Local script scratch audio (do not commit)
+scripts/parker-audio-tmp/
 
 # Netlify
 .netlify/

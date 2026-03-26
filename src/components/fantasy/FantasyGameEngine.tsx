@@ -2064,9 +2064,20 @@ export const useFantasyGameEngine = ({
     // 移調設定の初期化
     // - 練習モード: stage.transposeSettings を使用（プレイヤー設定）
     // - 本番モード: stage.productionRepeatTranspositionMode と stage.productionStartKey を使用（ステージ設定）
+    //
+    // music_xml がステージの記谱通りに入っている場合、ノーツは convertMusicXmlToProgressionData で
+    // その実音から既に生成済み。production_start_key は「C の XML をステージ用に半音ずらす」旧前提用で、
+    // ここで再度かけると楽譜（生 XML）と二重移調でズレる（II-V-I 各調の埋め込み XML など）。
+    const pitchFromEmbeddedMusicXml =
+      (stage.mode === 'progression_timing' && !!stage.musicXml?.trim()) ||
+      (stage.mode === 'timing_combining' &&
+        !!stage.combinedStages?.length &&
+        stage.combinedStages.every((ch) => !!ch.musicXml?.trim()));
+
     let transposeSettings: TransposeSettings | null = null;
     if (stage.mode === 'progression_timing' || stage.mode === 'timing_combining') {
-      const productionStartKey = stage.productionStartKey ?? 0;
+      const productionStartKeyRaw = stage.productionStartKey ?? 0;
+      const productionStartKey = pitchFromEmbeddedMusicXml ? 0 : productionStartKeyRaw;
       const productionMode = stage.productionRepeatTranspositionMode || 'off';
 
       if (playMode === 'practice' && stage.transposeSettings) {

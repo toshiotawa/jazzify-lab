@@ -1,0 +1,1 @@
+UPDATE public.fantasy_stages SET music_xml = '' WHERE id = uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'st-ab-16-20');
