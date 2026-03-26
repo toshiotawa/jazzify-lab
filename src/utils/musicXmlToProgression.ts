@@ -42,22 +42,6 @@ export function convertMusicXmlToProgressionData(
     return step;
   };
 
-  /**
-   * 白鍵の異名同音を正規化（B#→C, E#→F, Cb→B, Fb→E）
-   * @returns { name, octaveAdjust } octaveAdjust: B#→C で +1, Cb→B で -1
-   */
-  const simplifyEnharmonic = (name: string, octave: number): { name: string; octave: number } => {
-    const map: Record<string, { name: string; octaveAdj: number }> = {
-      'B#': { name: 'C', octaveAdj: 1 },
-      'E#': { name: 'F', octaveAdj: 0 },
-      'Cb': { name: 'B', octaveAdj: -1 },
-      'Fb': { name: 'E', octaveAdj: 0 },
-    };
-    const entry = map[name];
-    if (entry) return { name: entry.name, octave: octave + entry.octaveAdj };
-    return { name, octave };
-  };
-
   const toBeats = (positionInDivs: number, divisionsPerQuarter: number): number => {
     // 1拍 = quarter 音符
     const beatOffset = divisionsPerQuarter > 0 ? positionInDivs / divisionsPerQuarter : 0;
@@ -196,10 +180,9 @@ export function convertMusicXmlToProgressionData(
             const alter = parseInt(p.querySelector('alter')?.textContent || '0', 10);
             const rawOctave = parseInt(p.querySelector('octave')?.textContent || '4', 10);
             const rawName = stepAlterToName(step, alter);
-            const { name, octave } = simplifyEnharmonic(rawName, rawOctave);
-            const tonal = parseNote(name.replace(/x/g, '##') + String(octave));
+            const tonal = parseNote(rawName.replace(/x/g, '##') + String(rawOctave));
             const midi = tonal && typeof tonal.midi === 'number' ? tonal.midi : null;
-            return midi !== null ? { step: name, octave, midi } : null;
+            return midi !== null ? { step: rawName, octave: rawOctave, midi } : null;
           })
           .filter((v): v is { step: string; octave: number; midi: number } => !!v)
           .sort((a, b) => a.midi - b.midi);

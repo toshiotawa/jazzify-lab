@@ -1299,7 +1299,8 @@ export const useFantasyGameEngine = ({
         nextLoopCycle,
         workingState.transposeSettings.repeatKeyChange
       );
-      nextLoopTransposedNotes = transposeTaikoNotes(workingState.originalTaikoNotes, nextTransposeOffset, true);
+      const simpleMode = displayOpts?.simple ?? true;
+      nextLoopTransposedNotes = transposeTaikoNotes(workingState.originalTaikoNotes, nextTransposeOffset, simpleMode);
     }
 
     let chosen: {
