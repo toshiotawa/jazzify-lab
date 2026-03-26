@@ -82,6 +82,11 @@ export class FantasySoundManager {
   private isInited = false;
   /** ロード完了を待つPromise */
   private loadedPromise: Promise<void> | null = null;
+  /** 初回ブートストラップ中に重複 _init した呼び出しへ同じ Promise を返す */
+  private bootstrapPromise: Promise<void> | null = null;
+  /** GM 再読込（タイムアウト後の init など）の多重実行を防ぐ */
+  private gmEnsurePromise: Promise<void> | null = null;
+  private static readonly GM_PIANO_LOAD_TIMEOUT_MS = 15000;
 
   // ─────────────────────────────────────────────
   // ベース音関連フィールド - GM音源 + 合成音フォールバック
@@ -192,9 +197,18 @@ export class FantasySoundManager {
   // private helpers
   private _init(defaultVolume: number, bassVol: number, bassEnabled: boolean): Promise<void> {
     if (this.isInited) {
-      // ボリューム値だけ同期する
       this._setVolume(defaultVolume);
+      this._setRootVolume(bassVol);
+      this._enableRootSound(bassEnabled);
+      // ステージ選択（FantasyMain）の先行 init で GM がタイムアウトしたまま isInited のみ true になり得る → 再試行
+      if (!this.gmPianoReady) {
+        return this._ensureGMPianoLoaded();
+      }
       return Promise.resolve();
+    }
+
+    if (this.bootstrapPromise) {
+      return this.bootstrapPromise;
     }
 
     this._volume = defaultVolume;
@@ -289,14 +303,15 @@ export class FantasySoundManager {
 
       // Phase 3: GM音源ピアノ（soundfont-player）を読み込み
       // CDNから必要な音だけオンデマンドで取得（軽量・高品質）
-      // 読み込み完了を待つ（最大8秒）
       try {
         await Promise.race([
           this._loadGMPiano(),
-          new Promise((_, reject) => setTimeout(() => reject(new Error('GM Piano load timeout')), 8000))
+          new Promise((_, reject) =>
+            setTimeout(() => reject(new Error('GM Piano load timeout')), FantasySoundManager.GM_PIANO_LOAD_TIMEOUT_MS)
+          )
         ]);
       } catch {
-        // GM Piano load skipped
+        // GM Piano load skipped（ゲーム画面の init で _ensureGMPianoLoaded により再試行）
       }
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
@@ -304,7 +319,36 @@ export class FantasySoundManager {
       this.isInited = true;
     });
 
-    return this.loadedPromise;
+    this.bootstrapPromise = this.loadedPromise.finally(() => {
+      this.bootstrapPromise = null;
+    });
+
+    return this.bootstrapPromise;
+  }
+
+  /** 初回ロード失敗後やゲーム入場時に GM を載せ直す */
+  private _ensureGMPianoLoaded(): Promise<void> {
+    if (this.gmPianoReady) {
+      return Promise.resolve();
+    }
+    if (this.gmEnsurePromise) {
+      return this.gmEnsurePromise;
+    }
+    this.gmEnsurePromise = (async () => {
+      try {
+        await Promise.race([
+          this._loadGMPiano(),
+          new Promise<void>((_, reject) =>
+            setTimeout(() => reject(new Error('GM Piano load timeout')), FantasySoundManager.GM_PIANO_LOAD_TIMEOUT_MS)
+          )
+        ]);
+      } catch {
+        // 再試行も失敗時はフォールバックのまま
+      }
+    })().finally(() => {
+      this.gmEnsurePromise = null;
+    });
+    return this.gmEnsurePromise;
   }
 
   private async _initializeAudioSystem(): Promise<void> {
@@ -762,10 +806,33 @@ export class FantasySoundManager {
 
   // GM音源（Acoustic + Electric Piano）の読み込み
   private async _loadGMPiano(): Promise<void> {
+    if (this.gmPianoReady && this.gmAcousticPiano) {
+      return;
+    }
     try {
       if (!this.gmAudioContext) {
         this.gmAudioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
       }
+
+      const disconnectQuiet = (node: AudioNode | null): void => {
+        if (!node) return;
+        try {
+          node.disconnect();
+        } catch {
+          // ignore
+        }
+      };
+      disconnectQuiet(this.gmMasterGain);
+      disconnectQuiet(this.gmDryGain);
+      disconnectQuiet(this.gmWetGain);
+      disconnectQuiet(this.gmConvolver);
+      this.gmMasterGain = null;
+      this.gmDryGain = null;
+      this.gmWetGain = null;
+      this.gmConvolver = null;
+      this.gmAcousticPiano = null;
+      this.gmElectricPiano = null;
+      this.gmPianoReady = false;
 
       this.gmMasterGain = this.gmAudioContext.createGain();
       this.gmDryGain = this.gmAudioContext.createGain();
