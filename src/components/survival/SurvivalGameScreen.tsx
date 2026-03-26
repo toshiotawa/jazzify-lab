@@ -630,16 +630,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
           const seVol = settings.soundEffectVolume ?? 0.8;
           const rootVol = settings.rootSoundVolume ?? 0.7;
-          await Promise.race([
-            Promise.all([
-              initializeAudioSystem().then(() => {
-                updateGlobalVolume(settings.midiVolume ?? 0.8);
-              }),
-              FantasySoundManager.init(seVol, rootVol, true).then(() => {
-                FantasySoundManager.enableRootSound(true);
-              })
-            ]),
-            new Promise(resolve => setTimeout(resolve, 5000)),
+          // ファンタジー／レジェンドと同様、GMピアノ読み込みまで待つ（数秒で打ち切ると低品質フォールバックになる）
+          await Promise.all([
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(settings.midiVolume ?? 0.8);
+            }),
+            FantasySoundManager.init(seVol, rootVol, true).then(() => {
+              FantasySoundManager.enableRootSound(true);
+            }),
           ]);
           await controller.initialize();
           

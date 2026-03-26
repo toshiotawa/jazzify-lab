@@ -339,10 +339,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             // 2. オーディオ準備完了後にMIDI初期化
             await controller.initialize();
           };
-          await Promise.race([
-            initWork(),
-            new Promise<void>((resolve) => setTimeout(resolve, 3000))
-          ]);
+          // レジェンドモードと同様、GM音源込みで init が完了するまで待つ（短い race で打ち切ると FM/軽量Sampler に落ちて音がチープになる）
+          await initWork();
           setIsInitialized(true);
         } catch (error) {
           console.error('Audio system initialization failed:', error);
