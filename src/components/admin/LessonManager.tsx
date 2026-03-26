@@ -120,7 +120,7 @@ export const LessonManager: React.FC = () => {
     setError(null);
     try {
       const [coursesData, songsData, fantasyStagesData] = await Promise.all([
-        fetchCoursesSimple(),
+        fetchCoursesSimple({ includeHidden: true }),
         fetchSongs('lesson'),
         fetchFantasyStages()
       ]);

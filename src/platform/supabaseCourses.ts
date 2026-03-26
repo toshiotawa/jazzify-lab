@@ -5,18 +5,27 @@ import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
 // コースキャッシュキー生成関数
 export const COURSES_CACHE_KEY = () => 'courses';
 
+export type FetchCoursesOptions = {
+  forceRefresh?: boolean;
+  /** true のとき非表示コースも含む（管理画面用） */
+  includeHidden?: boolean;
+};
+
 /**
  * すべてのコースをレッスンと関連曲を含めて取得します。
  * @param {Object} options オプション
  * @param {boolean} options.forceRefresh キャッシュを無視して最新データを取得
+ * @param {boolean} options.includeHidden 非表示コースを含める（管理画面）
  * @returns {Promise<Course[]>}
  */
-export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Promise<Course[]> {
-  const cacheKey = COURSES_CACHE_KEY();
+export async function fetchCoursesWithDetails({
+  forceRefresh = false,
+  includeHidden = false,
+}: FetchCoursesOptions = {}): Promise<Course[]> {
+  const cacheKey = includeHidden ? 'courses-include-hidden' : COURSES_CACHE_KEY();
 
-  if (forceRefresh) {
-    // キャッシュをバイパスして直接取得
-    const { data, error } = await getSupabaseClient()
+  const buildCoursesQuery = () => {
+    let q = getSupabaseClient()
       .from('courses')
       .select(`
         *,
@@ -37,6 +46,15 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
         )
       `)
       .order('created_at', { ascending: true });
+    if (!includeHidden) {
+      q = q.eq('is_visible', true);
+    }
+    return q;
+  };
+
+  if (forceRefresh) {
+    // キャッシュをバイパスして直接取得
+    const { data, error } = await buildCoursesQuery();
 
     if (error) {
       console.error('Error fetching courses with details:', error);
@@ -51,27 +69,7 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
 
   const { data, error } = await fetchWithCache(
     cacheKey,
-    async () => await getSupabaseClient()
-        .from('courses')
-        .select(`
-          *,
-          lessons (
-            *,
-            lesson_songs (
-              *,
-              songs (id, title, artist)
-            )
-          ),
-          prerequisites:course_prerequisites!course_prerequisites_course_id_fkey (
-            prerequisite_course_id,
-            prerequisite_course:courses!course_prerequisites_prerequisite_course_id_fkey (
-              id,
-              title,
-              title_en
-            )
-          )
-        `)
-        .order('created_at', { ascending: true }),
+    async () => await buildCoursesQuery(),
     60 * 60 * 1000 // 1時間キャッシュ
   );
 
@@ -84,15 +82,24 @@ export async function fetchCoursesWithDetails({ forceRefresh = false } = {}): Pr
 
 /**
  * コース一覧を取得します（レッスン詳細なし・軽量版）
- * @returns {Promise<Course[]>}
+ * @param options.includeHidden 非表示コースを含める（管理画面）
  */
-export async function fetchCoursesSimple(): Promise<Course[]> {
+export async function fetchCoursesSimple({
+  includeHidden = false,
+}: { includeHidden?: boolean } = {}): Promise<Course[]> {
+  const cacheKey = includeHidden ? 'courses-simple-include-hidden' : 'courses-simple';
   const { data, error } = await fetchWithCache(
-    'courses-simple',
-    async () => await getSupabaseClient()
+    cacheKey,
+    async () => {
+      let q = getSupabaseClient()
         .from('courses')
         .select('*')
-        .order('order_index', { ascending: true }),
+        .order('order_index', { ascending: true });
+      if (!includeHidden) {
+        q = q.eq('is_visible', true);
+      }
+      return q;
+    },
     60 * 60 * 1000 // 1時間キャッシュ
   );
 
@@ -178,7 +185,7 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
   try {
     // 全コースとユーザーのレッスン進捗を取得
     const [coursesData, progressData] = await Promise.all([
-      fetchCoursesWithDetails(),
+      fetchCoursesWithDetails({ includeHidden: true }),
       getSupabaseClient()
         .from('user_lesson_progress')
         .select('course_id, lesson_id, completed')
@@ -251,13 +258,22 @@ export function canAccessCourse(
   };
 }
 
+export type FetchCourseByIdOptions = {
+  /** true のとき非表示コースも取得（管理画面） */
+  includeHidden?: boolean;
+};
+
 /**
  * 単一のコースを取得します（前提コースの最小情報を含む）
  * @param {string} id
- * @returns {Promise<Course | null>}
+ * @param options.includeHidden 非表示コースを取得する（既定は一覧と同様に非表示は除外）
  */
-export async function fetchCourseById(id: string): Promise<Course | null> {
-  const { data, error } = await getSupabaseClient()
+export async function fetchCourseById(
+  id: string,
+  options: FetchCourseByIdOptions = {},
+): Promise<Course | null> {
+  const includeHidden = options.includeHidden ?? false;
+  let q = getSupabaseClient()
     .from('courses')
     .select(`
       *,
@@ -270,8 +286,11 @@ export async function fetchCourseById(id: string): Promise<Course | null> {
         )
       )
     `)
-    .eq('id', id)
-    .single();
+    .eq('id', id);
+  if (!includeHidden) {
+    q = q.eq('is_visible', true);
+  }
+  const { data, error } = await q.maybeSingle();
 
   if (error) {
     console.error('Error fetching course by id:', error);
@@ -413,6 +432,7 @@ export async function fetchTutorialProgress(): Promise<TutorialProgress | null> 
       .from('courses')
       .select('id, title')
       .eq('is_tutorial', true)
+      .eq('is_visible', true)
       .order('order_index', { ascending: true })
       .limit(1)
       .maybeSingle(),

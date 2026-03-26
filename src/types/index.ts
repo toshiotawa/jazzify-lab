@@ -730,6 +730,8 @@ export interface Course {
   difficulty_tier?: CourseDifficultyTier | null;
   min_rank?: 'free' | 'standard' | 'standard_global' | 'premium' | 'platinum' | 'black';
   audience?: CourseAudience;
+  /** レッスン一覧に表示するか（DB 既定 true。未設定は表示扱い） */
+  is_visible?: boolean;
   prerequisites?: CoursePrerequisite[];
 }
 

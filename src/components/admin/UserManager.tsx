@@ -31,7 +31,7 @@ const UserManager: React.FC = () => {
     try {
       const [usersData, coursesData] = await Promise.all([
         fetchAllUsers({ forceRefresh }),
-        fetchCoursesWithDetails({ forceRefresh })
+        fetchCoursesWithDetails({ forceRefresh, includeHidden: true })
       ]);
       setUsers(usersData);
       setCourses(coursesData);

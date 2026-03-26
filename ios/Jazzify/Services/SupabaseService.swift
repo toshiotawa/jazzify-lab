@@ -110,6 +110,7 @@ final class SupabaseService: Sendable {
         try await client
             .from("courses")
             .select()
+            .eq("is_visible", value: true)
             .order("order_index")
             .execute()
             .value
@@ -236,6 +237,7 @@ final class SupabaseService: Sendable {
             .from("courses")
             .select()
             .eq("is_tutorial", value: true)
+            .eq("is_visible", value: true)
             .order("order_index")
             .limit(1)
             .execute()
