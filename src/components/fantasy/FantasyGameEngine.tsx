@@ -311,6 +311,8 @@ export interface FantasyGameState {
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
+  /** 太鼓モード: 入力処理の setState 内で即座に呼び、RAF 表示ループが React コミット前でも最新ノーツ状態を参照できるようにする */
+  onTaikoVisualSync?: (state: FantasyGameState) => void;
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を追加
   onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => void;
@@ -816,6 +818,7 @@ const getCurrentEnemy = (enemyIndex: number) => {
 export const useFantasyGameEngine = ({
   stage,
   onGameStateChange,
+  onTaikoVisualSync,
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
@@ -836,7 +839,9 @@ export const useFantasyGameEngine = ({
   const singleOrderIndexRef = useRef<number>(0);
   // lastNormalizedTime: ループ/セクション境界検出用（refに移動し不要なReact再レンダーを回避）
   const lastNormalizedTimeRef = useRef<number>(-1);
-  
+  const onTaikoVisualSyncRef = useRef(onTaikoVisualSync);
+  onTaikoVisualSyncRef.current = onTaikoVisualSync;
+
   const [gameState, setGameState] = useState<FantasyGameState>({
     currentStage: null,
     playMode: 'challenge',
@@ -3297,7 +3302,9 @@ export const useFantasyGameEngine = ({
 
       // 太鼓の達人モードの場合は専用の処理を行う
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        return handleTaikoModeInput(prevState, note, capturedInputMusicTime);
+        const nextTaikoState = handleTaikoModeInput(prevState, note, capturedInputMusicTime);
+        onTaikoVisualSyncRef.current?.(nextTaikoState);
+        return nextTaikoState;
       }
 
       const noteMod12 = note % 12;

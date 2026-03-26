@@ -629,6 +629,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       );
     }, 2000);                             // 2 秒待ってから結果画面へ
   }, [onGameComplete, stage.maxHp]);
+
+  // 太鼓ノーツ表示ループ用 ref（エンジンより前に確保）
+  const taikoNotesRef = useRef<TaikoNote[]>([]);
+  const currentNoteIndexRef = useRef(0);
+  const awaitingLoopStartRef = useRef(false);
+  const taikoLoopCycleRef = useRef(0);
+  const preHitNoteIndicesRef = useRef<number[]>([]);
+  const isCombiningModeRef = useRef(false);
+  const combinedSectionsRef = useRef<CombinedSection[]>([]);
+  const currentSectionIndexRef = useRef(0);
+
+  const handleTaikoVisualSync = useCallback((s: FantasyGameState) => {
+    taikoNotesRef.current = s.taikoNotes;
+    currentNoteIndexRef.current = s.currentNoteIndex;
+    awaitingLoopStartRef.current = s.awaitingLoopStart;
+    taikoLoopCycleRef.current = s.taikoLoopCycle;
+    preHitNoteIndicesRef.current = s.preHitNoteIndices;
+    isCombiningModeRef.current = s.isCombiningMode;
+    combinedSectionsRef.current = s.combinedSections;
+    currentSectionIndexRef.current = s.currentSectionIndex;
+  }, []);
   
   // ★【最重要修正】 ゲームエンジンには、UIの状態を含まない初期stageを一度だけ渡す
   // これでガイドをON/OFFしてもゲームはリセットされなくなる
@@ -644,6 +665,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
+    onTaikoVisualSync: handleTaikoVisualSync,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
@@ -1238,15 +1260,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, stage?.isSheetMusicMode]);
   
-  const taikoNotesRef = useRef(gameState.taikoNotes);
-  const currentNoteIndexRef = useRef(gameState.currentNoteIndex);
-  const awaitingLoopStartRef = useRef(gameState.awaitingLoopStart);
-  const isCombiningModeRef = useRef(gameState.isCombiningMode);
-  const combinedSectionsRef = useRef(gameState.combinedSections);
-  const currentSectionIndexRef = useRef(gameState.currentSectionIndex);
-  const taikoLoopCycleRef = useRef(gameState.taikoLoopCycle);
-  const preHitNoteIndicesRef = useRef(gameState.preHitNoteIndices);
-  
   useLayoutEffect(() => {
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
@@ -1265,8 +1278,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 初期化時にノーツがない場合もループは開始（後からノーツが追加される可能性があるため）
     
     let animationId: number;
-    let lastUpdateTime = 0;
-    const updateInterval = 1000 / 60; // 60fps
     
     // ループ情報を事前計算
     const stageData = gameState.currentStage;
@@ -1345,14 +1356,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     let wrapAtLoopCycle = -1;
     let lastKnownLoopCycle = -1;
     
-    const updateTaikoNotes = (timestamp: number) => {
-      // フレームレート制御
-      if (timestamp - lastUpdateTime < updateInterval) {
-        animationId = requestAnimationFrame(updateTaikoNotes);
-        return;
-      }
-      lastUpdateTime = timestamp;
-      
+    const updateTaikoNotes = (_timestamp: number) => {
+      // 毎 RAF で座標を更新（60fps 間引きは残りノーツの流れをカクつかせるため行わない）
       // 🚀 パフォーマンス最適化: refから最新の値を取得（useEffectの再起動なしに最新値を参照）
       const taikoNotes = taikoNotesRef.current;
       const stateNoteIndex = currentNoteIndexRef.current;
