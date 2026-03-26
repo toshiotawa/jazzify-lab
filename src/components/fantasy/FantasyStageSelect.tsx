@@ -91,7 +91,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   initialTier,
   initialRank
 }) => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const fantasyHeaderTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
@@ -109,7 +109,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
   const initialRankApplied = useRef(!!initialRank);
   
   // フリープラン・ゲストユーザーかどうかの確認
-  const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
+  const isFreeOrGuest = profile?.rank === 'free';
   
   // データ読み込み
   const loadFantasyData = useCallback(async () => {
@@ -124,8 +124,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       const authState = useAuthStore.getState();
       const userId = authState.profile?.id || authState.user?.id || null;
       
-      // ゲストユーザーの場合、またはユーザーが存在しない場合は、ステージデータのみ読み込む
-      if (!userId || isGuest) {
+      // プロフィール未確定時はステージマスタのみ読み込む
+      if (!userId) {
         // ステージマスタデータの読み込み（ファンタジーモード用のみ）
         const timeoutMs = 7000;
         const stagesQuery = supabase
@@ -371,7 +371,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
     } finally {
       setLoading(false);
       }
-    }, [isGuest, isEnglishCopy]);
+    }, [isEnglishCopy]);
   
   // 初期読み込み
   useEffect(() => {
@@ -785,9 +785,8 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
       {isFreeOrGuest && (
           <div className="mx-4 sm:mx-6 mb-4 p-3 sm:p-4 bg-yellow-900/30 border border-yellow-600/50 rounded-lg">
             <p className="text-yellow-200 text-center text-sm sm:text-base">
-              {isGuest ? (isEnglishCopy ? 'You are playing as a guest.' : 'ゲストプレイ中です。') : (isEnglishCopy ? 'You are using the free plan.' : 'フリープランでご利用中です。')}
+              {isEnglishCopy ? 'You are using the free plan.' : 'フリープランでご利用中です。'}
               &nbsp;{limitedAccessMessage}
-              {isGuest && (isEnglishCopy ? 'Progress is not saved in guest mode.' : 'クリア記録は保存されません。')}
             </p>
           </div>
       )}

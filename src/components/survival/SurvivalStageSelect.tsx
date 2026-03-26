@@ -264,7 +264,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
   onBackToMenu,
   embedded,
 }) => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const isDomesticStandard = profile?.rank === 'standard';
@@ -321,7 +321,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
       }
 
       // ハイスコアを取得（Supabaseのみ）
-      if (profile && !isGuest) {
+      if (profile) {
         try {
           const scores = await fetchUserSurvivalHighScores(profile.id);
           const scoreMap: CharacterScopedHighScores = {};
@@ -343,7 +343,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [profile, isGuest]);
+  }, [profile]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

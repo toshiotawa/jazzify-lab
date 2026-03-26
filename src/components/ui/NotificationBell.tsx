@@ -8,7 +8,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { isPremiumTier } from '@/utils/membership';
 
 const NotificationBell: React.FC = () => {
-  const { user, isGuest, profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const { items, unread, open, fetch, setOpen, loading, markRead } = useNotificationStore();
   const containerRef = useRef<HTMLDivElement | null>(null);
   const geoCountry = useGeoStore(state => state.country);
@@ -19,7 +19,7 @@ const NotificationBell: React.FC = () => {
   });
 
   const allowedRank = isPremiumTier(profile?.rank);
-  const canShow = !!user && !isGuest && allowedRank;
+  const canShow = !!user && allowedRank;
 
   // 翻訳テキスト
   const notificationTitle = isEnglishCopy ? 'Notifications' : '通知';

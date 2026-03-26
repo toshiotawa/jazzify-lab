@@ -16,7 +16,7 @@ const LevelRanking: React.FC = () => {
   const [loadingMore, setLoadingMore] = useState(false);
   const [hasMore, setHasMore] = useState(true);
   const [sortKey, setSortKey] = useState<SortKey>('lessons');
-  const { user, isGuest, profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const PAGE_SIZE = 50;
@@ -84,10 +84,10 @@ const LevelRanking: React.FC = () => {
   };
 
   useEffect(() => {
-    if (open && user && !isGuest) {
+    if (open && user) {
       resetAndLoad();
     }
-  }, [open, user, isGuest]);
+  }, [open, user]);
 
   // ソートキー変更時は再フェッチせず再ソートのみ
   useEffect(() => {
@@ -142,7 +142,7 @@ const LevelRanking: React.FC = () => {
   };
 
   // ゲストユーザーの場合
-  if (!user || isGuest) {
+  if (!user) {
     return (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

@@ -12,7 +12,7 @@ interface AuthLandingProps {
 const REVIEW_EMAIL = 'toshiotawa@me.com';
 
 const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
-  const { sendOtp, signInWithPassword, enterGuestMode, loading, error, user, isGuest, profile } = useAuthStore();
+  const { sendOtp, signInWithPassword, loading, error, user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const toast = useToast();
   const [email, setEmail] = useState('');
@@ -30,7 +30,6 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
   const emailLabel = isEnglishCopy ? 'Email address' : 'メールアドレス';
   const submitButtonLabel = isEnglishCopy ? 'Send verification code' : '認証コードを送信';
   const verificationNote = isEnglishCopy ? 'A 6-digit verification code will be sent to your email.' : '認証コードは6桁の数字で送信されます';
-  const guestButtonLabel = isEnglishCopy ? 'Play Demo' : 'おためしプレイ';
   const backButtonLabel = isEnglishCopy ? 'Back to top page' : 'トップに戻る';
   const signupDisabledTitle = isEnglishCopy ? '⚠️ Sign-ups disabled' : '⚠️ サインアップ無効';
   const signupDisabledBody = isEnglishCopy
@@ -48,10 +47,10 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
 
   // ログイン画面にいるときは、既にログイン済みならダッシュボードへ即リダイレクト
   useEffect(() => {
-    if (mode === 'login' && user && !isGuest) {
+    if (mode === 'login' && user) {
       navigate('/main#dashboard', { replace: true });
     }
-  }, [mode, user, isGuest, navigate]);
+  }, [mode, user, navigate]);
 
   // 地理情報の事前取得や国のローカル保存は行わない
 
@@ -105,12 +104,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     }
   };
 
-  const handleGuest = () => {
-    enterGuestMode();
-    navigate('/main#dashboard');
-  };
-
-  if (user && !isGuest) {
+  if (user) {
     // モードがloginであれば上のuseEffectでリダイレクト済み。signupの場合のみ表示。
       if (mode === 'signup') {
         return (
@@ -227,8 +221,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
           </div>
 
           <div className="flex items-center justify-center gap-3">
-              <button className="btn btn-secondary" onClick={handleGuest}>{guestButtonLabel}</button>
-              <button className="btn btn-ghost" onClick={() => navigate('/')}>{backButtonLabel}</button>
+              <button type="button" className="btn btn-ghost" onClick={() => navigate('/')}>{backButtonLabel}</button>
           </div>
         </div>
       </div>

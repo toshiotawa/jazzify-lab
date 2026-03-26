@@ -148,8 +148,8 @@ const ResultModal: React.FC = () => {
     seek(0);
     closeResultModal();
     clearLessonContext();
-    setCurrentTab('songs');
     setProcessed(false);
+    window.location.hash = '#dashboard';
   };
 
   // ランクによる色とグロー効果

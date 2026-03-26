@@ -29,7 +29,7 @@ const CoursePage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement>(null);
   const shouldScrollToIncomplete = useRef(true);
 
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const toast = useToast();
   const geoCountry = useGeoStore(s => s.country);
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -236,7 +236,7 @@ const CoursePage: React.FC = () => {
 
   if (!open) return null;
 
-  if (!profile || isGuest) {
+  if (!profile) {
     return createPortal(
       <div className="fixed inset-0 z-50 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

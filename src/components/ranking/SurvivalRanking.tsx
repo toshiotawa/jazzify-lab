@@ -39,7 +39,7 @@ const SurvivalRanking: React.FC = () => {
   const [selectedCharacterId, setSelectedCharacterId] = useState<string | null>(null);
   const [characters, setCharacters] = useState<SurvivalCharacterRow[]>([]);
 
-  const { user, isGuest, profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
@@ -74,13 +74,13 @@ const SurvivalRanking: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (open && user && !isGuest) {
+    if (open && user) {
       setEntries([]);
       setPageOffset(0);
       setHasMore(true);
       loadData(difficulty, selectedCharacterId, 0, false);
     }
-  }, [open, user, isGuest, difficulty, selectedCharacterId, loadData]);
+  }, [open, user, difficulty, selectedCharacterId, loadData]);
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
@@ -141,7 +141,7 @@ const SurvivalRanking: React.FC = () => {
     window.location.hash = '#ranking';
   };
 
-  if (!user || isGuest) {
+  if (!user) {
     return (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

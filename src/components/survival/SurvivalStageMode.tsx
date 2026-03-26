@@ -100,7 +100,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   onBackToModeSelect,
   embedded,
 }) => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const isDomesticStandard = profile?.rank === 'standard';
@@ -158,7 +158,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
         }
       } catch { /* ignore */ }
 
-      if (profile && !isGuest) {
+      if (profile) {
         try {
           const progress = await fetchSurvivalStageProgress(profile.id);
           setCurrentStageNumber(progress.currentStageNumber);
@@ -173,7 +173,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
     } finally {
       setLoading(false);
     }
-  }, [profile, isGuest]);
+  }, [profile]);
 
   useEffect(() => { loadData(); }, [loadData]);
 

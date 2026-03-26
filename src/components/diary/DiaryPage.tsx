@@ -47,7 +47,7 @@ const DiaryPage: React.FC = () => {
   const [userStats, setUserStats] = useState<UserStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const { user, isGuest, profile: authProfile, optimisticAvatarUrl } = useAuthStore();
+  const { user, profile: authProfile, optimisticAvatarUrl } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
   const isStandardGlobal = authProfile?.rank === 'standard_global';
   const isEnglishCopy = shouldUseEnglishCopy({
@@ -121,7 +121,7 @@ const DiaryPage: React.FC = () => {
 
   if (!userId) {
     // Standard(Global) とゲストユーザーはコミュニティにアクセス不可
-    if (!user || isGuest || isStandardGlobal) {
+    if (!user || isStandardGlobal) {
       return (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
           <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

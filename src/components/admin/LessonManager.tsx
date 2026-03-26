@@ -80,7 +80,7 @@ export const LessonManager: React.FC = () => {
 
   const NAV_LINK_OPTIONS: { key: NavLinkKey; label: string }[] = [
     { key: 'dashboard',   label: 'ダッシュボード' },
-    { key: 'legend',      label: 'レジェンド' },
+    { key: 'legend',      label: 'ダッシュボード（旧レジェンド）' },
     { key: 'lesson',      label: 'レッスン' },
     { key: 'fantasy',     label: 'ファンタジー' },
     { key: 'survival',    label: 'サバイバル' },

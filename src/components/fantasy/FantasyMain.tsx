@@ -194,7 +194,7 @@ interface FantasyMainProps {
 }
 
 const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const { settings } = useGameStore();
   const toast = useToast();
@@ -246,7 +246,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   // ▲▲▲ ここまで ▲▲▲
   
   // フリープラン・ゲストユーザーかどうかの確認
-  const isFreeOrGuest = isGuest || (profile && profile.rank === 'free');
+  const isFreeOrGuest = profile?.rank === 'free';
   const canProceedToNextStage =
     gameResult?.result === 'clear' &&
     !isLessonMode &&
@@ -722,7 +722,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       }
     }
 
-  }, [isGuest, profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
+  }, [profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
   const handleBackToStageSelect = useCallback(() => {
     if (isIOSWebView()) {
@@ -757,7 +757,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
       if (isFreeOrGuest && nextStageNumber >= '1-4') {
         toast.error(
           isEnglishCopy
-            ? 'Free plan and guest players can play up to stage 1-3.'
+            ? 'Free plan players can play up to stage 1-3.'
             : 'フリープラン・ゲストプレイでは、ステージ1-3までプレイ可能です。',
           {
             duration: 5000,

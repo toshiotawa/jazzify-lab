@@ -18,7 +18,7 @@ const Avatar: React.FC<{ url?: string }> = ({ url }) => (
 
 const DiaryFeed: React.FC = () => {
   const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update, loadMore, hasMore, loadingMore } = useDiaryStore();
-  const { user, isGuest, profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
@@ -131,7 +131,7 @@ const DiaryFeed: React.FC = () => {
     }
   }, [openComments, diaries]);
 
-  if (!user || isGuest) return (
+  if (!user) return (
     <div className="p-4 text-center text-gray-400">
       {isEnglishCopy ? 'Community features are for logged-in users only.' : 'コミュニティ機能はログインユーザー専用です。'}<br />
       <button className="btn btn-sm btn-primary mt-4" onClick={()=>{window.location.hash='#login';}}>

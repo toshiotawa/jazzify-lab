@@ -36,7 +36,7 @@ const App: React.FC = () => {
   const [initProgress, setInitProgress] = useState(0);
   
   // 認証ストアの状態
-  const { profile, loading:authLoading, isGuest, user } = useAuthStore();
+  const { profile, loading:authLoading, user } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
   const isFree = profile?.rank === 'free';
   const isAdmin = Boolean(profile?.isAdmin);
@@ -95,15 +95,13 @@ const App: React.FC = () => {
     return () => clearTimeout(timeoutId);
   }, []);
   
+  // レジェンドモードの曲選択（#songs）は非表示のためダッシュボードへ
   useEffect(() => {
-    if (isIOSWebView()) return;
-    const baseHash = window.location.hash.split('?')[0];
-    if (isGuest) {
-      if (baseHash !== '#dashboard' && baseHash !== '#account') {
-        window.location.hash = '#dashboard';
-      }
-    }
-  }, [isGuest]);
+    const baseHash = hash.split('?')[0];
+    if (baseHash !== '#songs') return;
+    const next = `${window.location.pathname}${window.location.search}#dashboard`;
+    window.location.replace(next);
+  }, [hash]);
 
   // フリープランはダッシュボード/アカウント/料金プランのみ
   useEffect(() => {
@@ -272,7 +270,7 @@ const App: React.FC = () => {
 
   if (authLoading) return <LoadingScreen />;
 
-  if (!user && !isGuest || forceLogin) {
+  if (!user || forceLogin) {
     return (
       <React.Suspense fallback={<LoadingScreen />}>
         <AuthLanding mode="login" />
@@ -377,7 +375,6 @@ const App: React.FC = () => {
         </React.Suspense>
       );
       break;
-    case '#songs':
     case '#practice':
     case '#performance':
     case '#play-lesson':
@@ -387,12 +384,11 @@ const App: React.FC = () => {
         </React.Suspense>
       );
       break;
+    case '#songs':
+      MainContent = <Dashboard />;
+      break;
     default:
-      MainContent = isFree ? <Dashboard /> : (
-        <React.Suspense fallback={<LoadingScreen />}>
-          <LazyGameScreen />
-        </React.Suspense>
-      );
+      MainContent = <Dashboard />;
       break;
   }
 
@@ -407,7 +403,7 @@ const App: React.FC = () => {
             'font-sans antialiased'
           )}
         >
-          {user && !isGuest && <ProfileWizard />}
+          {user && <ProfileWizard />}
           {MainContent}
           <ToastContainer />
         </div>

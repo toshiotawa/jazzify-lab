@@ -58,7 +58,6 @@ interface AuthActions {
   verifyOtp: (email: string, token: string) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
-  enterGuestMode: () => void;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
   updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
@@ -119,13 +118,14 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.user = session?.user ?? null;
         state.loading = false;
         try {
-          const storedGuestId = typeof localStorage !== 'undefined' ? localStorage.getItem('guest_id') : null;
-          state.isGuest = !session?.user && !!storedGuestId;
-          state.guestId = !session?.user && storedGuestId ? storedGuestId : null;
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('guest_id');
+          }
         } catch {
-          state.isGuest = false;
-          state.guestId = null;
+          /* ignore */
         }
+        state.isGuest = false;
+        state.guestId = null;
       });
 
       // セッションがある場合はプロフィールも取得（非ブロッキングで開始）
@@ -207,11 +207,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         set(state => {
           state.session = session ?? null;
           state.user = session?.user ?? null;
-          // ログイン状態になったらゲストフラグを必ず解除
-          if (session?.user) {
-            state.isGuest = false;
+          state.isGuest = false;
+          state.guestId = null;
+          try {
+            if (!session?.user && typeof localStorage !== 'undefined') {
+              localStorage.removeItem('guest_id');
+            }
+          } catch {
+            /* ignore */
           }
-          // エラーをクリア
           if (session) {
             state.error = null;
           }
@@ -494,6 +498,13 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     logout: async () => {
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
+      try {
+        if (typeof localStorage !== 'undefined') {
+          localStorage.removeItem('guest_id');
+        }
+      } catch {
+        /* ignore */
+      }
       set(state => {
         state.user = null;
         state.session = null;
@@ -501,24 +512,6 @@ export const useAuthStore = create<AuthState & AuthActions>()(
         state.guestId = null;
         state.hasProfile = false;
         state.profile = null;
-      });
-    },
-
-    /**
-     * ゲストモードに入る
-     */
-    enterGuestMode: () => {
-      set(state => {
-        state.isGuest = true;
-        state.user = null;
-        state.session = null;
-        // 既に guestId がある場合は再利用
-        const stored = localStorage.getItem('guest_id');
-        const id = stored ?? crypto.randomUUID();
-        state.guestId = id;
-        if (!stored) {
-          localStorage.setItem('guest_id', id);
-        }
       });
     },
 

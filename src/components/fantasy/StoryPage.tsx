@@ -50,7 +50,7 @@ const EpisodeItem: React.FC<EpisodeItemProps> = ({ index, unlocked, active, requ
 };
 
 const StoryPage: React.FC = () => {
-  const { profile, isGuest } = useAuthStore();
+  const { profile } = useAuthStore();
   const [selected, setSelected] = useState<number>(1);
   const [unlockedCount, setUnlockedCount] = useState<number>(1);
   const [content, setContent] = useState<string>('');
@@ -63,7 +63,7 @@ const StoryPage: React.FC = () => {
     let mounted = true;
     const loadClears = async () => {
       try {
-        if (!profile || isGuest) {
+        if (!profile) {
           if (mounted) setUnlockedCount(1);
           return;
         }
@@ -85,7 +85,7 @@ const StoryPage: React.FC = () => {
     };
     loadClears();
     return () => { mounted = false; };
-  }, [profile, isGuest]);
+  }, [profile]);
 
   const fetchEpisodeContent = useCallback(async (episodeIndex: number) => {
     setLoading(true);

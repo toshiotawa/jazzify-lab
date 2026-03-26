@@ -32,7 +32,7 @@ const DailyChallengeRanking: React.FC = () => {
 
   const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('super_beginner');
 
-  const { user, isGuest, profile } = useAuthStore();
+  const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
@@ -61,13 +61,13 @@ const DailyChallengeRanking: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (open && user && !isGuest) {
+    if (open && user) {
       setEntries([]);
       setPageOffset(0);
       setHasMore(true);
       loadData(difficulty, 0, false);
     }
-  }, [open, user, isGuest, difficulty, loadData]);
+  }, [open, user, difficulty, loadData]);
 
   const handleLoadMore = () => {
     if (loadingMore || !hasMore) return;
@@ -104,7 +104,7 @@ const DailyChallengeRanking: React.FC = () => {
 
   const handleClose = () => { window.location.hash = '#ranking'; };
 
-  if (!user || isGuest) {
+  if (!user) {
     return (
       <div className="fixed inset-0 z-40 flex items-center justify-center bg-gradient-game">
         <div className="bg-slate-900 p-6 rounded-lg text-white space-y-4 max-w-md border border-slate-700 shadow-2xl">

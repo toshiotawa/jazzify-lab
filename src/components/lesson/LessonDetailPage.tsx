@@ -54,7 +54,7 @@ import { getStageByNumber, STAGE_KILL_QUOTA, STAGE_TIME_LIMIT_SECONDS } from '@/
 
 const NAV_LINK_CONFIG: Record<NavLinkKey, { label: string; hash: string; icon: React.ReactNode; color: string }> = {
   dashboard:   { label: 'ダッシュボード', hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
-  legend:      { label: 'レジェンド',     hash: '#songs',        icon: <FaMusic className="text-sm" />,      color: 'bg-green-700 hover:bg-green-600' },
+  legend:      { label: 'ダッシュボード', hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
   lesson:      { label: 'レッスン',       hash: '#lessons',      icon: <FaTrophy className="text-sm" />,     color: 'bg-purple-700 hover:bg-purple-600' },
   fantasy:     { label: 'ファンタジー',   hash: '#fantasy',      icon: <FaMagic className="text-sm" />,      color: 'bg-pink-700 hover:bg-pink-600' },
   survival:    { label: 'サバイバル',     hash: '#survival',     icon: <FaSkull className="text-sm" />,      color: 'bg-red-700 hover:bg-red-600' },

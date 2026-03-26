@@ -39,6 +39,7 @@ export interface Song {
   audio_end_time?: number | null;
   audio_padding_measures?: number | null;
   audio_padding_seconds?: number | null;
+  hand_filter?: 'right' | 'left' | null;
 }
 
 export interface SongFiles {

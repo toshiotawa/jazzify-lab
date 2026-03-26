@@ -15,10 +15,9 @@ interface AuthGateProps {
  * ログインが必要な領域をラップするゲート。
  * - ローディング中はスピナー
  * - 未ログインなら /login へリダイレクト（/login 系は素通り）
- * - ゲストプレイボタンも提供
  */
 export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
-  const { user, loading, error, isGuest, hasProfile, createProfile, fetchProfile, profile: authProfile } = useAuthStore();
+  const { user, loading, error, hasProfile, createProfile, fetchProfile, profile: authProfile } = useAuthStore();
   const location = useLocation();
   const geoCountry = useGeoStore(state => state.country);
   const inAuthFlow =
@@ -75,7 +74,6 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
   // デバッグ情報を出力
   console.log('🔍 AuthGate: 状態確認', {
     user: !!user,
-    isGuest,
     hasProfile,
     loading,
     error,
@@ -83,8 +81,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     userEmail: user?.email,
   });
 
-  // ログイン済みでプロフィールがある、またはゲストモード
-  if (isGuest || (user && hasProfile)) {
+  if (user && hasProfile) {
     console.log('✅ AuthGate: 正常アクセス許可');
     return <>{children}</>;
   }

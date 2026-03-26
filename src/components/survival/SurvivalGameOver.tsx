@@ -55,7 +55,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   onRetryWithoutHint,
   onNextStage,
 }) => {
-  const { profile, isGuest, fetchProfile } = useAuthStore();
+  const { profile, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const [isNewHighScore, setIsNewHighScore] = useState(false);
@@ -79,7 +79,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     const saveResults = async () => {
       const survivalTime = Math.floor(result.survivalTime);
 
-      if (!profile || isGuest) return;
+      if (!profile) return;
 
       if (isStageClear && !stageSaved && !isLessonMode) {
         try {
@@ -119,7 +119,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
     };
 
     saveResults();
-  }, [profile, isGuest, difficulty, result, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
+  }, [profile, difficulty, result, fetchProfile, characterId, isStageClear, stageDefinition, stageSaved]);
 
   const formatTime = (seconds: number): string => {
     const hours = Math.floor(seconds / 3600);

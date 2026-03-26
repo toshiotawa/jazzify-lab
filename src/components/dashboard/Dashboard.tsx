@@ -27,7 +27,7 @@ const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
   const [loading, setLoading] = useState(true);
-    const { profile, isGuest, logout, optimisticAvatarUrl } = useAuthStore();
+    const { profile, optimisticAvatarUrl } = useAuthStore();
     const geoCountry = useGeoStore(state => state.country);
     const isEnglishCopy = shouldUseEnglishCopy({
       rank: profile?.rank,
@@ -38,12 +38,6 @@ const Dashboard: React.FC = () => {
   const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
   const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';
   const statsLoadingText = isEnglishCopy ? 'Loading stats...' : '統計を読み込み中...';
-  const guestHeading = isEnglishCopy ? 'Guest mode' : 'ゲストプレイ中';
-  const guestBodyLine1 = isEnglishCopy ? 'You are currently playing as a guest.' : '現在ゲストとしてプレイしています。';
-  const guestBodyLine2 = isEnglishCopy ? 'Sign in to unlock more features.' : 'ログインすると、より多くの機能をご利用いただけます。';
-  const guestFantasyButton = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
-  const guestLoginButton = isEnglishCopy ? 'Log in / Sign up' : 'ログイン / 会員登録';
-  const guestLogoutButton = isEnglishCopy ? 'Log out' : 'ログアウト';
   const { stats: userStats, fetchStats, loading: statsLoading } = useUserStatsStore();
   const toast = useToast();
 
@@ -62,7 +56,7 @@ const Dashboard: React.FC = () => {
     if (open) {
       loadDashboardData();
     }
-  }, [open, isGuest]);
+  }, [open, profile?.id]);
 
     const loadDashboardData = async () => {
     setLoading(true);
@@ -73,9 +67,7 @@ const Dashboard: React.FC = () => {
       
       // ミッション情報のフェッチは行わない（カードは説明のみ表示）
 
-      // お知らせのロード（ゲスト以外）
-      if (!isGuest) {
-        promises.push(
+      promises.push(
           fetchActiveAnnouncements(isEnglishCopy ? 'en' : 'ja').then(announcementsData => {
             // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
             const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
@@ -117,10 +109,8 @@ const Dashboard: React.FC = () => {
               );
           })
         );
-      }
 
-      // ユーザー統計のロード（ゲスト以外）- 他のデータと完全に並行実行
-      if (!isGuest && profile) {
+      if (profile) {
         promises.push(
           fetchStats(profile.id).catch((statsError: any) => {
             console.error('User stats loading error:', statsError);
@@ -158,7 +148,7 @@ const Dashboard: React.FC = () => {
   if (!open) return null;
 
   // フリープランの場合はプラン変更UIのみ表示
-  if (profile?.rank === 'free' && !isGuest) {
+  if (profile?.rank === 'free') {
     return (
       <div className="w-full h-full flex flex-col bg-gradient-game text-white">
         <GameHeader />
@@ -180,8 +170,7 @@ const Dashboard: React.FC = () => {
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
           {/* オープンβ通知 */}
-          {!isGuest && (
-            <div className="bg-gradient-to-r from-yellow-900/30 to-amber-900/20 rounded-lg p-5 border border-yellow-700/40">
+          <div className="bg-gradient-to-r from-yellow-900/30 to-amber-900/20 rounded-lg p-5 border border-yellow-700/40">
               <div className="flex items-center gap-2 mb-2">
                 <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-600/30 text-yellow-300 border border-yellow-600/40">
                   {isEnglishCopy ? 'OPEN BETA' : 'オープンβ'}
@@ -198,11 +187,8 @@ const Dashboard: React.FC = () => {
                   : 'オープンβテスト終了後、アカウントは全て削除されます。正式リリース後に再度ご登録ください。'}
               </p>
             </div>
-          )}
-          {/* オープンベータ: プラン変更 UI */}
-          {!isGuest && <OpenBetaPlanSwitcher />}
-          {/* チュートリアル進捗 */}
-          {!isGuest && <TutorialProgressSection />}
+          <OpenBetaPlanSwitcher />
+          <TutorialProgressSection />
           {/* ユーザー情報カード */}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
@@ -242,10 +228,7 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* ゲストプレイ時はお知らせとクイックアクションを表示しない */}
-          {!isGuest && (
-            <>
-              {/* お知らせセクション */}
+          {/* お知らせセクション */}
                 <div className="bg-slate-800 rounded-lg border border-slate-700">
                   <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
                     <FaBell className="w-5 h-5 text-yellow-400" />
@@ -306,47 +289,6 @@ const Dashboard: React.FC = () => {
 
               {/* 記録（デイリーチャレンジ） */}
               <DailyChallengeRecordsSection />
-            </>
-          )}
-
-          {/* ゲストプレイ時の専用メッセージ */}
-            {isGuest && (
-              <div className="bg-slate-800 rounded-lg p-8 border border-slate-700 text-center">
-                <div className="mb-4">
-                  <img src="/stage_icons/6.png" alt="Stage Icon" className="w-24 h-24 mx-auto" />
-                </div>
-                <h3 className="text-xl font-semibold mb-4">{guestHeading}</h3>
-                <p className="text-gray-300 mb-6">
-                  {guestBodyLine1}<br />
-                  {guestBodyLine2}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-4 justify-center">
-                  <button
-                    onClick={() => { window.location.hash = '#fantasy'; }}
-                    className="btn btn-primary"
-                  >
-                    {guestFantasyButton}
-                  </button>
-                  <button
-                    onClick={() => { window.location.hash = '#login'; }}
-                    className="btn btn-secondary"
-                  >
-                    {guestLoginButton}
-                  </button>
-                  <button
-                    onClick={async () => {
-                      await logout();
-                      try { localStorage.removeItem('guest_id'); } catch {}
-                      window.location.href = 'https://jazzify.jp/';
-                      toast.info(isEnglishCopy ? 'Logged out' : 'ログアウトしました');
-                    }}
-                    className="btn btn-ghost"
-                  >
-                    {guestLogoutButton}
-                  </button>
-                </div>
-              </div>
-            )}
         </div>
       </div>
     </div>

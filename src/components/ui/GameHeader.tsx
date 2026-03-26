@@ -10,7 +10,7 @@ import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
  * GameScreen だけでなくマイページやアカウントページでも再利用する。
  */
 const GameHeader: React.FC = () => {
-      const { isGuest, profile } = useAuthStore();
+      const { profile } = useAuthStore();
       const geoCountry = useGeoStore(state => state.country);
       const isEnglishCopy = shouldUseEnglishCopy({
         rank: profile?.rank,
@@ -35,8 +35,8 @@ const GameHeader: React.FC = () => {
               {isEnglishCopy ? 'Home' : 'トップ'}
           </button>
 
-            {!isFree && <HashButton hash="#lessons" disabled={isGuest}>{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
-            {!isFree && <HashButton hash="#survival" disabled={isGuest}>{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
+            {!isFree && <HashButton hash="#lessons">{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>}
+            {!isFree && <HashButton hash="#survival">{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>}
         </div>
 
           {/* 右側のコントロール */}
@@ -86,13 +86,12 @@ interface HeaderRightControlsProps {
 }
 
 const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy }) => {
-    const { user, isGuest, logout } = useAuthStore();
+    const { user } = useAuthStore();
 
   return (
     <div className="flex items-center space-x-2 sm:space-x-4 flex-shrink-0 whitespace-nowrap">
-      {user && !isGuest ? (
+      {user ? (
         <>
-          {/* モバイル: アイコンのみ */}
           <a 
             href="#account" 
             className="sm:hidden p-2 text-white hover:text-primary-400 transition-colors"
@@ -100,26 +99,11 @@ const HeaderRightControls: React.FC<HeaderRightControlsProps> = ({ isEnglishCopy
           >
             <FaUserCircle size={24} />
           </a>
-          {/* デスクトップ: テキストボタン */}
           <a href="#account" className="hidden sm:inline-flex btn btn-sm btn-primary">
             {isEnglishCopy ? 'Account' : 'アカウント'}
           </a>
         </>
-      ) : isGuest ? (
-        <>
-          <button 
-            className="btn btn-sm btn-primary text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2 whitespace-nowrap" 
-            onClick={() => {
-              logout();
-              window.location.href = 'https://jazzify.jp/';
-            }}
-          >
-              {isEnglishCopy ? 'Sign Up' : '会員登録'}
-          </button>
-        </>
-      ) : (
-          <button className="btn btn-sm btn-outline text-xs px-2 py-1 sm:text-base sm:px-4 sm:py-2" onClick={async ()=>{ await logout(); window.location.href = 'https://jazzify.jp/'; }}>{isEnglishCopy ? 'Log out' : 'ログアウト'}</button>
-      )}
+      ) : null}
     </div>
   );
 };

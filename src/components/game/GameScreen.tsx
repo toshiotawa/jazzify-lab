@@ -9,11 +9,10 @@ import ResizeHandle from '@/components/ui/ResizeHandle';
 import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
-import { fetchSongs, fetchGlobalAvailableSongs, MembershipRank, rankAllowed } from '@/platform/supabaseSongs';
+import { fetchSongs } from '@/platform/supabaseSongs';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
-import { FaArrowLeft, FaAward, FaLock, FaMusic } from 'react-icons/fa';
+import { FaArrowLeft, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import KeyClearsModal from '@/components/ui/KeyClearsModal';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
@@ -64,7 +63,7 @@ const GameScreen: React.FC = () => {
             console.error('曲が見つかりません:', songId);
             // エラー時は曲選択画面に戻る
             setIsLoadingLessonSong(false);
-            window.location.hash = '#songs';
+            window.location.hash = '#dashboard';
             return;
           }
           
@@ -262,7 +261,7 @@ const GameScreen: React.FC = () => {
           }, 100);
           
           setIsLoadingLessonSong(false);
-          window.location.hash = '#songs';
+          window.location.hash = '#dashboard';
         }
       } else {
         console.warn('⚠️ songIdが不足:', { songId });
@@ -519,10 +518,9 @@ const GameScreen: React.FC = () => {
     const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';
     if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
       if (isStandardGlobal) {
-        // 権限制御: standard_global は曲選択タブへ飛ばさない
         return;
       }
-      gameActions.setCurrentTab('songs');
+      window.location.hash = '#dashboard';
     }
   }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);
 
@@ -556,415 +554,12 @@ const GameScreen: React.FC = () => {
 
       {/* メインコンテンツエリア */}
       <main className="flex-1 flex flex-col overflow-hidden min-h-0">
-        {currentTab === 'songs' ? (
-          <SongSelectionScreen />
-        ) : (
-          <GamePlayScreen />
-        )}
+        <GamePlayScreen />
       </main>
 
       {isSettingsOpen && <SettingsPanel />}
 
       <ResultModal />
-    </div>
-  );
-};
-
-/**
- * タブボタンコンポーネント
- */
-interface TabButtonProps {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}
-
-const TabButton: React.FC<TabButtonProps> = ({ active, onClick, children }) => {
-  return (
-    <button
-      onClick={onClick}
-      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
-    >
-      {children}
-    </button>
-  );
-};
-
-interface HashButtonProps { hash: string; children: React.ReactNode; }
-const HashButton: React.FC<HashButtonProps> = ({ hash, children }) => {
-  const [currentHash, setCurrentHash] = useState(window.location.hash);
-
-  useEffect(() => {
-    const handler = () => setCurrentHash(window.location.hash);
-    window.addEventListener('hashchange', handler);
-    return () => window.removeEventListener('hashchange', handler);
-  }, []);
-
-  const active = currentHash === hash;
-
-  return (
-    <button
-      onClick={() => {
-        window.location.hash = hash;
-      }}
-      className={`tab-xs ${active ? 'tab-active' : 'tab-inactive'}`}
-    >
-      {children}
-    </button>
-  );
-};
-
-/**
- * 楽曲選択画面
- */
-const SongSelectionScreen: React.FC = () => {
-  const gameActions = useGameActions();
-  const { profile, user } = useAuthStore();
-  const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
-  const [dbSongs, setDbSongs] = React.useState<any[]>([]);
-  const [songStats, setSongStats] = React.useState<Record<string, {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>}>>({});
-  const [lockedSong, setLockedSong] = React.useState<{title:string;min_rank:string}|null>(null);
-  const [activeTab, setActiveTab] = React.useState<'bach' | 'parker'>('bach');
-  
-  const isStandardGlobal = profile?.rank === 'standard_global';
-
-  React.useEffect(() => {
-    (async () => {
-      try {
-        const allSongs = isStandardGlobal
-          ? await fetchGlobalAvailableSongs('general')
-          : await fetchSongs('general');
-        setDbSongs(allSongs);
-        
-      if (user) {
-        const { fetchUserSongStatsMap } = await import('@/platform/unifiedSongProgress');
-        const statsMap = await fetchUserSongStatsMap(user.id);
-        setSongStats(statsMap);
-      }
-      } catch (e) {
-        console.error('曲一覧取得失敗', e);
-      }
-    })();
-  }, [profile, user, isStandardGlobal]);
-
-  const filteredSongs = React.useMemo(() => {
-    const filtered = dbSongs.filter(song => {
-      const artist = (song.artist || '').trim().toLowerCase();
-      if (activeTab === 'bach') return artist.includes('bach');
-      return artist === 'charlie parker';
-    });
-    filtered.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0));
-    return filtered;
-  }, [dbSongs, activeTab]);
-
-  return (
-    <div className="flex-1 p-3 sm:p-6 overflow-auto">
-      <div className="max-w-6xl mx-auto">
-        <div className="flex items-center justify-between mb-4 sm:mb-6">
-          <h2 className="text-xl sm:text-2xl font-bold text-white">{isEnglishCopy ? 'Legend Mode' : 'レジェンドモード'}</h2>
-          <div className="text-sm text-gray-400">
-            {dbSongs.length} {isEnglishCopy ? 'songs' : '曲'}
-          </div>
-        </div>
-
-        <div className="mb-6 p-4 bg-slate-800 rounded-lg border border-slate-700">
-          <div className="flex items-center space-x-2 mb-1">
-            <FaMusic className="text-green-400" />
-            <h3 className="text-sm font-semibold">{isEnglishCopy ? 'Choose a song to practice' : '楽曲を選んで練習しましょう'}</h3>
-          </div>
-          <p className="text-gray-300 text-xs sm:text-sm">
-            {isEnglishCopy
-              ? 'Select a song to start practicing at your own pace. Play along with the original recording.'
-              : '楽曲を選択すると練習画面に移動します。原曲の音源に合わせて演奏を楽しみましょう。'}
-          </p>
-        </div>
-
-        {/* アーティストタブ */}
-        <div className="flex gap-2 mb-6">
-          <button
-            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-              activeTab === 'bach'
-                ? 'bg-amber-600 text-white shadow-lg shadow-amber-600/30'
-                : 'bg-slate-800 text-gray-400 hover:bg-slate-700 hover:text-gray-200 border border-slate-700'
-            }`}
-            onClick={() => setActiveTab('bach')}
-          >
-            Bach
-          </button>
-          <button
-            className={`px-5 py-2.5 rounded-lg text-sm font-semibold transition-colors ${
-              activeTab === 'parker'
-                ? 'bg-teal-600 text-white shadow-lg shadow-teal-600/30'
-                : 'bg-slate-800 text-gray-400 hover:bg-slate-700 hover:text-gray-200 border border-slate-700'
-            }`}
-            onClick={() => setActiveTab('parker')}
-          >
-            Charlie Parker
-          </button>
-        </div>
-        
-        {/* 楽曲リスト */}
-        <div className="space-y-2">
-          {filteredSongs.map((song) => {
-            const accessible = rankAllowed((profile?.rank ?? 'free') as MembershipRank, song.min_rank as MembershipRank);
-            const songStat = songStats[song.id];
-            return (
-              <SongListItem 
-                key={song.id} 
-                song={song} 
-                accessible={accessible} 
-                stats={songStat}
-                onSelect={async () => {
-                  if (!accessible) {
-                    setLockedSong({title:song.title,min_rank:song.min_rank});
-                    return;
-                  }
-                  
-                  // 通常曲選択時はレッスンコンテキストとミッションコンテキストをクリア
-                  gameActions.clearLessonContext();
-                  gameActions.clearMissionContext();
-                  
-                  // 明示的リセット: 前の曲の再生・状態を完全停止/初期化
-                  gameActions.stop();
-                  gameActions.clearSong();
-                  
-                  try {
-                    let mapped: any[];
-
-                    // JSONデータの取得（json_urlがある場合はそちらを優先）
-                    const hasJson = !!(song.json_url || song.json_data);
-
-                    if (hasJson) {
-                      // ---- 既存フロー: JSON からノーツを取得 ----
-                      let notesData: any;
-                      if (song.json_url) {
-                        const response = await fetch(song.json_url);
-                        if (!response.ok) {
-                          throw new Error(`JSONデータの読み込みに失敗: ${response.status} ${response.statusText}`);
-                        }
-                        const responseText = await response.text();
-                        if (responseText.trim().startsWith('<')) {
-                          throw new Error('JSONデータの代わりにHTMLが返されました。ファイルパスまたはサーバー設定を確認してください。');
-                        }
-                        try {
-                          notesData = JSON.parse(responseText);
-                        } catch (parseError) {
-                          throw new Error(`JSONデータの解析に失敗しました: ${parseError instanceof Error ? parseError.message : 'Unknown parse error'}`);
-                        }
-                      } else {
-                        notesData = song.json_data;
-                      }
-                      const notes = Array.isArray(notesData) ? notesData : notesData.notes;
-                      if (!notes || !Array.isArray(notes)) {
-                        throw new Error('ノーツデータの形式が不正です');
-                      }
-                      mapped = notes.map((n: any, idx: number) => ({
-                        id: `${song.id}-${idx}`,
-                        time: n.time,
-                        pitch: n.pitch,
-                      }));
-
-                    } else if (song.xml_url) {
-                      const { parseMusicXmlToNoteData, overrideMusicXmlTempo } = await import('@/utils/musicXmlToNotes');
-                      const xmlResponse = await fetch(song.xml_url);
-                      if (!xmlResponse.ok) {
-                        throw new Error(`MusicXMLの読み込みに失敗: ${xmlResponse.status}`);
-                      }
-                      let xmlText = await xmlResponse.text();
-                      if (xmlText.trim().startsWith('<html') || xmlText.trim().startsWith('<!DOCTYPE html')) {
-                        throw new Error('MusicXMLファイルの代わりにHTMLが返されました');
-                      }
-                      if (song.bpm && song.bpm > 0) {
-                        xmlText = overrideMusicXmlTempo(xmlText, song.bpm);
-                      }
-                      mapped = parseMusicXmlToNoteData(xmlText, song.id);
-
-                    } else {
-                      throw new Error('曲のノーツデータがありません（JSONまたはMusicXMLが必要です）');
-                    }
-
-                    // 範囲複製曲のフィルタリング処理
-                    let rangeAudioStartTime: number | undefined;
-                    let rangeAudioEndTime: number | undefined;
-                    if (song.source_song_id && song.range_type) {
-                      const { filterNotesByTimeRange, filterNotesByMeasureRange } = await import('@/utils/songRangeFilter');
-                      if (song.range_type === 'time' && song.range_start_time != null && song.range_end_time != null) {
-                        const result = filterNotesByTimeRange(
-                          mapped,
-                          song.range_start_time,
-                          song.range_end_time,
-                          song.audio_start_time,
-                          song.audio_end_time,
-                          song.audio_padding_seconds ?? 2
-                        );
-                        mapped = result.notes;
-                        rangeAudioStartTime = result.audioStartTime;
-                        rangeAudioEndTime = result.audioEndTime;
-                      } else if (song.range_type === 'measure' && song.range_start_measure != null && song.range_end_measure != null && song.xml_url) {
-                        const xmlResp = await fetch(song.xml_url);
-                        if (xmlResp.ok) {
-                          let xmlTxt = await xmlResp.text();
-                          if (song.bpm && song.bpm > 0) {
-                            const { overrideMusicXmlTempo: ovr } = await import('@/utils/musicXmlToNotes');
-                            xmlTxt = ovr(xmlTxt, song.bpm);
-                          }
-                          const result = await filterNotesByMeasureRange(
-                            mapped,
-                            xmlTxt,
-                            song.range_start_measure,
-                            song.range_end_measure,
-                            song.audio_padding_measures ?? 1,
-                            song.audio_padding_seconds
-                          );
-                          mapped = result.notes;
-                          rangeAudioStartTime = result.audioStartTime;
-                          rangeAudioEndTime = result.audioEndTime;
-                        }
-                      }
-                    }
-                    
-                    // 音声ファイルの長さを取得（audio_urlがある場合）
-                    let duration = 60; // デフォルト値
-                    if (rangeAudioStartTime != null && rangeAudioEndTime != null) {
-                      duration = rangeAudioEndTime - rangeAudioStartTime;
-                    } else if (song.audio_url) {
-                      try {
-                        const audio = new Audio(song.audio_url);
-                        audio.crossOrigin = 'anonymous';
-                        await new Promise((resolve) => {
-                            const loadedHandler = () => {
-                              duration = Math.floor(audio.duration) || 60;
-                              resolve(void 0);
-                            };
-                          const errorHandler = () => {
-                            resolve(void 0);
-                          };
-                          audio.addEventListener('loadedmetadata', loadedHandler);
-                          audio.addEventListener('error', errorHandler);
-                          setTimeout(() => resolve(void 0), 3000);
-                          audio.load();
-                        });
-                      } catch {
-                        // 音声ファイルの処理エラーは無視
-                      }
-                    } else if (!hasJson && song.xml_url) {
-                      const lastNote = mapped[mapped.length - 1];
-                      if (lastNote) {
-                        duration = Math.ceil(lastNote.time + 4);
-                      }
-                    }
-                    
-                    // SongMetadata形式に変換
-                    const songMetadata: any = {
-                      id: song.id,
-                      title: song.title,
-                      artist: song.artist || '',
-                      bpm: song.bpm ?? undefined,
-                      duration: duration,
-                      audioFile: song.audio_url || '',
-                      notesFile: song.json_url || '',
-                      musicXmlFile: song.xml_url || '',
-                      genreCategory: 'database',
-                      hide_sheet_music: song.hide_sheet_music ?? false,
-                      use_rhythm_notation: song.use_rhythm_notation ?? false,
-                      source_song_id: song.source_song_id || null,
-                      range_type: song.range_type || null,
-                      hand_filter: song.hand_filter ?? null,
-                      range_start_measure: song.range_start_measure ?? null,
-                      range_end_measure: song.range_end_measure ?? null,
-                      audio_start_time: rangeAudioStartTime ?? song.audio_start_time ?? null,
-                      audio_end_time: rangeAudioEndTime ?? song.audio_end_time ?? null,
-                    };
-                    
-                    // 曲をロード（非同期処理）
-                    await gameActions.loadSong(songMetadata, mapped);
-                    
-                    // 曲のロード後、少し遅延してからタブを切り替えることで
-                    // 確実に画面遷移を行う
-                    setTimeout(() => {
-                      gameActions.setCurrentTab('performance');
-                      window.location.hash = '#performance';
-                    }, 50);
-                  } catch (err) {
-                    console.error('曲読み込みエラー:', err);
-                    
-                    // エラーの詳細情報をログ出力
-                    if (err instanceof Error) {
-                      console.error('エラーメッセージ:', err.message);
-                      console.error('エラースタック:', err.stack);
-                    }
-                    
-                    // ユーザーフレンドリーなエラーメッセージ
-                    let userMessage = '楽曲の読み込みに失敗しました';
-                    if (err instanceof Error) {
-                      if (err.message.includes('HTMLが返されました')) {
-                        userMessage = 'ファイルが見つかりません。曲データの設定を確認してください';
-                      } else if (err.message.includes('JSON') || err.message.includes('Unexpected token')) {
-                        userMessage = '楽曲ファイルの形式が正しくありません';
-                      } else {
-                        userMessage += `: ${err.message}`;
-                      }
-                    }
-                    
-                    alert(userMessage);
-                  }
-                }} 
-              />
-            );
-          })}
-          
-          {/* ハードコードされたDemo-1は削除（データベースに移行） */}
-        </div>
-
-        {lockedSong && (
-          <div
-            className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/70"
-            onClick={() => setLockedSong(null)}
-          >
-            <div
-              className="bg-slate-900 border border-slate-600 rounded-xl p-6 max-w-md w-full mx-4 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center gap-3 mb-4">
-                <div className="w-10 h-10 rounded-full bg-blue-600/20 flex items-center justify-center">
-                  <FaLock className="text-blue-400 text-lg" />
-                </div>
-                <h3 className="text-lg font-bold text-white">
-                  {isEnglishCopy ? 'Song Locked' : 'この曲はプレイできません'}
-                </h3>
-              </div>
-              <p className="text-gray-300 text-sm mb-2">
-                {isEnglishCopy
-                  ? `${lockedSong.title} requires ${lockedSong.min_rank.toUpperCase()} plan or higher.`
-                  : `${lockedSong.title} は ${lockedSong.min_rank.toUpperCase()} プラン以上でプレイ可能です。`}
-              </p>
-              <p className="text-gray-400 text-sm mb-6">
-                {isEnglishCopy
-                  ? 'Upgrade your plan to unlock this song.'
-                  : 'プランのアップグレードでこの曲を解放できます。'}
-              </p>
-              <div className="flex gap-3 justify-end">
-                <button
-                  className="px-4 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-gray-300 text-sm transition-colors"
-                  onClick={() => setLockedSong(null)}
-                >
-                  {isEnglishCopy ? 'Cancel' : 'キャンセル'}
-                </button>
-                <button
-                  className="px-4 py-2 rounded-lg bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold transition-colors"
-                  onClick={() => {
-                    setLockedSong(null);
-                    window.location.hash = '#account?tab=subscription';
-                  }}
-                >
-                  {isEnglishCopy ? 'Upgrade Plan' : 'プランのアップグレード'}
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 };
@@ -1014,10 +609,13 @@ const GamePlayScreen: React.FC = () => {
           <h3 className="text-xl text-gray-300 mb-4">{isEnglishCopy ? 'Select a song' : '楽曲を選択してください'}</h3>
             <div className="flex flex-col sm:flex-row gap-3 justify-center">
               <button
-                onClick={() => gameActions.setCurrentTab('songs')}
+                type="button"
+                onClick={() => {
+                  window.location.hash = '#dashboard';
+                }}
                 className="btn btn-primary"
               >
-                {isEnglishCopy ? 'Go to Song Selection' : '楽曲選択に移動'}
+                {isEnglishCopy ? 'Back to dashboard' : 'ダッシュボードに戻る'}
               </button>
               <button
                 onClick={async () => {
@@ -1258,202 +856,6 @@ const MissionBackButton: React.FC = () => {
         <FaArrowLeft className="w-3 h-3" />
         <span>{isEnglishCopy ? 'Back to Missions' : 'ミッションに戻る'}</span>
       </button>
-    </div>
-  );
-};
-
-/**
- * 楽曲リスト項目コンポーネント（軽量化レイアウト）
- */
-interface SongListItemProps {
-  song: any;
-  accessible: boolean;
-  stats?: {clear_count: number; b_rank_plus_count?: number; best_score?: number; best_rank?: string; key_clears?: Record<string, number>};
-  onSelect: () => void;
-}
-
-const SongListItem: React.FC<SongListItemProps> = ({ song, accessible, stats, onSelect }) => {
-  const [isLoading, setIsLoading] = React.useState(false);
-  const [showKeyClearsModal, setShowKeyClearsModal] = React.useState(false);
-  const { profile: slProfile } = useAuthStore();
-  const slGeoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: slProfile?.rank, country: slProfile?.country ?? slGeoCountry, preferredLocale: slProfile?.preferred_locale });
-
-
-
-  const getRankColor = (rank: string) => {
-    switch (rank) {
-      case 'free':
-        return 'bg-green-100 text-green-800';
-      case 'standard':
-      case 'standard_global':
-        return 'bg-blue-100 text-blue-800';
-      case 'premium':
-        return 'bg-purple-100 text-purple-800';
-      case 'platinum':
-        return 'bg-yellow-100 text-yellow-800';
-      case 'black':
-        return 'bg-slate-900 text-slate-100';
-      default:
-        return 'bg-gray-100 text-gray-800';
-    }
-  };
-
-  const getDifficultyLabel = (value?: number) => {
-    if (value === 1) return 'Very Easy';
-    if (value === 2) return 'Easy';
-    if (value === 3) return 'Normal';
-    if (value === 4) return 'Hard';
-    if (value === 5) return 'Very Hard';
-    return '';
-  };
-
-  const getDifficultyBadgeClass = (value?: number) => {
-    if (value === 1) return 'bg-emerald-500/15 text-emerald-300 border border-emerald-400/40';
-    if (value === 2) return 'bg-cyan-500/15 text-cyan-300 border border-cyan-400/40';
-    if (value === 3) return 'bg-violet-500/15 text-violet-300 border border-violet-400/40';
-    if (value === 4) return 'bg-orange-500/15 text-orange-300 border border-orange-400/40';
-    if (value === 5) return 'bg-rose-500/15 text-rose-300 border border-rose-400/40';
-    return 'bg-slate-600/20 text-slate-300 border border-slate-500/40';
-  };
-
-  const handleClick = async () => {
-    if (isLoading) return;
-    if (!accessible) {
-      onSelect();
-      return;
-    }
-    
-    setIsLoading(true);
-    try {
-      await onSelect();
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
-  return (
-    <div 
-      className={`flex items-center justify-between p-3 bg-slate-800 rounded-lg border border-slate-700 
-        hover:border-primary-500 hover:bg-slate-700 transition-colors cursor-pointer
-        ${!accessible ? 'opacity-50' : ''} ${isLoading ? 'opacity-75 pointer-events-none' : ''}`}
-      onClick={handleClick}
-    >
-      <div className="flex items-center space-x-4 flex-1 min-w-0">
-        {/* 楽曲情報 */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center space-x-2 mb-1">
-            <h3 className="font-semibold text-white truncate">{song.title}</h3>
-            {song.difficulty != null && song.difficulty > 0 && (
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-semibold ${getDifficultyBadgeClass(song.difficulty)}`}>
-                {getDifficultyLabel(song.difficulty)}
-              </span>
-            )}
-            {!accessible && (
-              <span className="text-xs text-red-400">🔒</span>
-            )}
-            {isLoading && (
-              <span className="text-xs text-blue-400">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</span>
-            )}
-          </div>
-          <div className="flex items-center gap-1.5 flex-wrap">
-            <p className="text-gray-400 text-sm truncate">{song.artist || (isEnglishCopy ? 'Unknown' : '不明')}</p>
-            {song.phrase && <span className="text-xs bg-pink-600/20 text-pink-400 px-1.5 py-0.5 rounded">Phrase</span>}
-            {song.jazz_piano && <span className="text-xs bg-amber-600/20 text-amber-400 px-1.5 py-0.5 rounded">Jazz Piano</span>}
-            {song.classic_piano && <span className="text-xs bg-indigo-600/20 text-indigo-400 px-1.5 py-0.5 rounded">Classic Piano</span>}
-            {song.solo_transcription && <span className="text-xs bg-teal-600/20 text-teal-400 px-1.5 py-0.5 rounded">Solo Transcription</span>}
-          </div>
-        </div>
-
-                  {/* 楽曲詳細情報 */}
-          <div className="flex items-center space-x-3 text-xs">
-            {/* BPM */}
-            {song.bpm && (
-              <div className="flex items-center space-x-1">
-                <span className="text-gray-500">BPM:</span>
-                <span className="font-mono text-blue-400">{song.bpm}</span>
-              </div>
-            )}
-
-            {/* 会員ランク */}
-            <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRankColor(song.min_rank)}`}>
-              {song.min_rank?.toUpperCase() || 'FREE'}
-            </span>
-          </div>
-        
-        {/* ユーザー統計情報 */}
-        {(() => {
-          const s = stats ?? { clear_count: 0, b_rank_plus_count: 0, best_score: undefined, best_rank: undefined, key_clears: {} };
-          return (
-          <div className="space-y-2 text-xs mt-2">
-            <div className="flex items-center space-x-4">
-              <button
-                className="flex items-center space-x-1 hover:bg-slate-600 rounded px-1 py-0.5 transition-colors cursor-pointer"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setShowKeyClearsModal(true);
-                }}
-                title={isEnglishCopy ? 'Show clears by key' : 'キー別クリア回数を表示'}
-              >
-                <span className="text-gray-500">{isEnglishCopy ? 'Clears:' : 'クリア回数:'}</span>
-                <span className="font-mono text-green-400 underline decoration-dotted underline-offset-2">{s.clear_count}{isEnglishCopy ? '' : '回'}</span>
-              </button>
-              {s.best_rank && (
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">{isEnglishCopy ? 'Best Rank:' : '最高ランク:'}</span>
-                  <span className="font-mono text-yellow-400">{s.best_rank}</span>
-                </div>
-              )}
-              {s.best_score && (
-                <div className="flex items-center space-x-1">
-                  <span className="text-gray-500">{isEnglishCopy ? 'High Score:' : 'ハイスコア:'}</span>
-                  <span className="font-mono text-blue-400">{s.best_score.toLocaleString()}</span>
-                </div>
-              )}
-            </div>
-            
-            {/* B-rank+ clear count progress */}
-            <div className="space-y-1">
-              <div className="flex items-center justify-between">
-                <span className="text-gray-500">{isEnglishCopy ? 'B-rank+ Clears:' : 'Bランク以上クリア:'}</span>
-                <span className="font-mono text-blue-400">{s.b_rank_plus_count || 0}/50</span>
-              </div>
-              <div className="w-full bg-gray-700 rounded-full h-2.5">
-                <div 
-                  className="bg-blue-400 h-2.5 rounded-full transition-all duration-300"
-                  style={{ width: `${Math.min(100, ((s.b_rank_plus_count || 0) / 50) * 100)}%` }}
-                />
-              </div>
-              {(s.b_rank_plus_count || 0) >= 50 && (
-                <div className="text-emerald-400 text-xs font-semibold flex items-center gap-1">
-                  <FaAward className="text-emerald-400" />
-                  {isEnglishCopy ? 'Goal Achieved!' : '目標達成！'}
-                </div>
-              )}
-            </div>
-          </div>
-          );
-        })()}
-      </div>
-
-      {/* 再生ボタン - クリックイベントを削除してdivのクリックに統一 */}
-      <div className="flex items-center ml-4">
-        <button
-          className={`btn btn-sm ${accessible ? 'btn-primary' : 'btn-outline'} flex items-center space-x-1 pointer-events-none`}
-          tabIndex={-1}
-        >
-          <span>▶</span>
-          <span className="hidden sm:inline">{isEnglishCopy ? 'Play' : 'プレイ'}</span>
-        </button>
-      </div>
-
-      {/* キー別クリア回数モーダル */}
-      <KeyClearsModal
-        isOpen={showKeyClearsModal}
-        onClose={() => setShowKeyClearsModal(false)}
-        songTitle={song.title || (isEnglishCopy ? 'Unknown Song' : '不明な曲')}
-        keyClears={stats?.key_clears || {}}
-      />
     </div>
   );
 };
