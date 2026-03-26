@@ -41,6 +41,26 @@ const activeNotes = new Set<string>();
 let sustainOn = false;
 const sustainedNotes = new Set<string>();
 
+/** `detectUserInteraction` 待ちを解除するための参照（ステージ選択のクリックがマウントより先に終わる場合に使用） */
+let pendingInteractionResolve: (() => void) | null = null;
+let pendingInteractionCleanup: (() => void) | null = null;
+
+/**
+ * ステージ選択など、音声初期化より前に発生したユーザー操作を記録する。
+ * `FantasyGameScreen` マウント前に発火したクリックは `detectUserInteraction` のリスナーに届かないため、ここで明示的に完了させる。
+ */
+export const markAudioUserInteraction = (): void => {
+  if (userInteracted) {
+    return;
+  }
+  userInteracted = true;
+  pendingInteractionCleanup?.();
+  pendingInteractionCleanup = null;
+  const r = pendingInteractionResolve;
+  pendingInteractionResolve = null;
+  r?.();
+};
+
 /**
  * ユーザーインタラクションの検出
  */
@@ -70,14 +90,25 @@ const detectUserInteraction = (): Promise<void> => {
         return;
       }
     } catch {}
-    
+
+    pendingInteractionResolve = resolve;
+
     const handleUserInteraction = () => {
       userInteracted = true;
+      pendingInteractionCleanup?.();
+      pendingInteractionCleanup = null;
+      const r = pendingInteractionResolve;
+      pendingInteractionResolve = null;
+      r?.();
+    };
+
+    const cleanupListeners = () => {
       document.removeEventListener('click', handleUserInteraction);
       document.removeEventListener('touchstart', handleUserInteraction);
       document.removeEventListener('keydown', handleUserInteraction);
-      resolve();
     };
+
+    pendingInteractionCleanup = cleanupListeners;
 
     document.addEventListener('click', handleUserInteraction);
     document.addEventListener('touchstart', handleUserInteraction);

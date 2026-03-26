@@ -22,6 +22,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import { markAudioUserInteraction } from '@/utils/MidiController';
 import { 
   calculateFantasyRank, 
   getRankClearCredit, 
@@ -541,6 +542,8 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
+    // 選択クリックは FantasyGameScreen マウントより前に終わるため、initializeAudioSystem の待ちを先に解除する
+    markAudioUserInteraction();
     resolveMusicXml(stage).then(setCurrentStage);
     setGameResult(null);
     setShowResult(false);
@@ -747,7 +750,9 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   // ★ 追加: 次のステージに待機画面で遷移
   const gotoNextStageWaiting = useCallback(async () => {
     if (!currentStage) return;
-    
+
+    markAudioUserInteraction();
+
     // レッスン専用ステージ（stageNumberがnull）の場合は次ステージ遷移しない
     if (!currentStage.stageNumber) return;
     
