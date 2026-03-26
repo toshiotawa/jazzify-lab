@@ -84,8 +84,8 @@ export class FantasySoundManager {
   private loadedPromise: Promise<void> | null = null;
   /** 初回ブートストラップ中に重複 _init した呼び出しへ同じ Promise を返す */
   private bootstrapPromise: Promise<void> | null = null;
-  /** GM 再読込（タイムアウト後の init など）の多重実行を防ぐ */
-  private gmEnsurePromise: Promise<void> | null = null;
+  /** GM音源の読込 Promise（先行読込とゲーム画面で共有） */
+  private gmLoadPromise: Promise<void> | null = null;
   private static readonly GM_PIANO_LOAD_TIMEOUT_MS = 15000;
 
   // ─────────────────────────────────────────────
@@ -189,6 +189,18 @@ export class FantasySoundManager {
     return this.instance._warmupRootSound();
   }
 
+  /** GM音源の先行読込を開始（init()の前でも呼べる） */
+  public static preloadGM(): Promise<void> {
+    return this.instance._startGMLoad();
+  }
+
+  /** GM音源の準備完了を待つ（既に読込中ならその完了を待つ） */
+  public static waitForGMReady(): Promise<void> {
+    if (this.instance.gmPianoReady) return Promise.resolve();
+    if (this.instance.gmLoadPromise) return this.instance.gmLoadPromise;
+    return this.instance._startGMLoad();
+  }
+
   // ─────────────────────────────────────────────
   // private constructor – outsider cannot new
   private constructor () {/* nop */}
@@ -202,7 +214,7 @@ export class FantasySoundManager {
       this._enableRootSound(bassEnabled);
       // ステージ選択（FantasyMain）の先行 init で GM がタイムアウトしたまま isInited のみ true になり得る → 再試行
       if (!this.gmPianoReady) {
-        return this._ensureGMPianoLoaded();
+        return this._startGMLoad();
       }
       return Promise.resolve();
     }
@@ -212,6 +224,9 @@ export class FantasySoundManager {
     }
 
     this._volume = defaultVolume;
+
+    // GM音源の読込を最優先で開始（SE読込と並列で進行）
+    const gmPromise = this._startGMLoad();
 
     // 事前ロード – ユーザー操作後の初回呼び出しが推奨（Autoplay 制限対策）
     const baseUrl = import.meta.env.BASE_URL || '/';
@@ -301,18 +316,8 @@ export class FantasySoundManager {
         });
       }
 
-      // Phase 3: GM音源ピアノ（soundfont-player）を読み込み
-      // CDNから必要な音だけオンデマンドで取得（軽量・高品質）
-      try {
-        await Promise.race([
-          this._loadGMPiano(),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error('GM Piano load timeout')), FantasySoundManager.GM_PIANO_LOAD_TIMEOUT_MS)
-          )
-        ]);
-      } catch {
-        // GM Piano load skipped（ゲーム画面の init で _ensureGMPianoLoaded により再試行）
-      }
+      // GM音源: _startGMLoad() で既に並列読込中 → 完了を待つ
+      await gmPromise;
       this._setRootVolume(bassVol);
       this._enableRootSound(bassEnabled);
 
@@ -326,15 +331,15 @@ export class FantasySoundManager {
     return this.bootstrapPromise;
   }
 
-  /** 初回ロード失敗後やゲーム入場時に GM を載せ直す */
-  private _ensureGMPianoLoaded(): Promise<void> {
+  /** GM音源の読込を開始（init()の前でも呼べる・多重呼び出し安全） */
+  private _startGMLoad(): Promise<void> {
     if (this.gmPianoReady) {
       return Promise.resolve();
     }
-    if (this.gmEnsurePromise) {
-      return this.gmEnsurePromise;
+    if (this.gmLoadPromise) {
+      return this.gmLoadPromise;
     }
-    this.gmEnsurePromise = (async () => {
+    this.gmLoadPromise = (async () => {
       try {
         await Promise.race([
           this._loadGMPiano(),
@@ -343,12 +348,12 @@ export class FantasySoundManager {
           )
         ]);
       } catch {
-        // 再試行も失敗時はフォールバックのまま
+        // GM load timed out or failed
       }
     })().finally(() => {
-      this.gmEnsurePromise = null;
+      this.gmLoadPromise = null;
     });
-    return this.gmEnsurePromise;
+    return this.gmLoadPromise;
   }
 
   private async _initializeAudioSystem(): Promise<void> {

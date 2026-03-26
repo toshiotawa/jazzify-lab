@@ -2443,6 +2443,7 @@ export const useFantasyGameEngine = ({
       
       // 太鼓の達人モードの場合は専用のミス判定を行う（single以外）
       if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
+        const taikoResult = (() => {
         const currentTime = bgmManager.getCurrentMusicTime();
         const stage = prevState.currentStage;
         
@@ -3213,6 +3214,11 @@ export const useFantasyGameEngine = ({
         
         lastNormalizedTimeRef.current = normalizedTime;
         return prevState;
+        })(); // end taikoResult IIFE
+        if (taikoResult !== prevState) {
+          onTaikoVisualSyncRef.current?.(taikoResult);
+        }
+        return taikoResult;
       }
       
       const incrementRate = 100 / (prevState.currentStage.enemyGaugeSeconds * 10); // 100ms間隔で更新

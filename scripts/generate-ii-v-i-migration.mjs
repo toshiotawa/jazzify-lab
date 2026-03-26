@@ -105,19 +105,20 @@ if (includeCourse) {
 }
 
 /** アプリは order_index を 0 始まりとし、表示で +1 する（CoursePage / lessonNavigation） */
+/** 並び: 同一フレーズ帯（例 1-5）を全キーで回してから次の帯（6-10）へ（C→F→B♭→…→G × 帯） */
 let lessonOrder = -1;
-for (let bi = 0; bi < KEYS.length; bi++) {
-  const k = KEYS[bi];
-  const blockNum = bi + 1;
-  const blockJa = `キー: ${k.ja}`;
-  const blockEn = `Key: ${k.ja.replace('♭', 'b').replace('♯', '#')}`;
+for (let ri = 0; ri < RANGES.length; ri++) {
+  const r = RANGES[ri];
+  const blockNum = ri + 1;
+  const blockJa = `フレーズ ${r.label}`;
+  const blockEn = `Phrases ${r.label}`;
 
-  for (let ri = 0; ri < RANGES.length; ri++) {
+  for (let bi = 0; bi < KEYS.length; bi++) {
+    const k = KEYS[bi];
     lessonOrder += 1;
     if (lessonOrder < fromIdx || lessonOrder > toIdx) {
       continue;
     }
-    const r = RANGES[ri];
     const stageKey = `st-${k.slug}-${r.label}`;
     const lessonKey = `lsn-${k.slug}-${r.label}`;
     const lsKey = `lsg-${k.slug}-${r.label}`;

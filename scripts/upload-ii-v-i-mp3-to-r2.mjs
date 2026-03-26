@@ -11,6 +11,7 @@
  *
  * count_in_measures と音源の整合: DB が 1 のときは MP3 先頭に 1 小節分のカウントイン区間が必要。
  *   無音プリペンド: `node scripts/prepend-count-in-to-ii-v-i-mp3.mjs`（docs/II_V_I_LESSON_COURSE_SETUP.md 参照）
+ * ローカルファイル: `II-V-I_{範囲}_{suffix}_ci.mp3` があれば優先し、無ければ `.mp3` を使う。
  *
  * Usage:
  *   npx wrangler login
@@ -188,8 +189,11 @@ if (!useS3 && !dryRun) {
 async function main() {
   for (const range of RANGES) {
     for (const key of KEYS) {
-      const localName = `II-V-I_${range}_${key.suffix}.mp3`;
-      const localPath = join(SRC_DIR, localName);
+      const baseName = `II-V-I_${range}_${key.suffix}`;
+      const ciPath = join(SRC_DIR, `${baseName}_ci.mp3`);
+      const plainPath = join(SRC_DIR, `${baseName}.mp3`);
+      const localPath = existsSync(ciPath) ? ciPath : plainPath;
+      const localName = existsSync(ciPath) ? `${baseName}_ci.mp3` : `${baseName}.mp3`;
       const r2Key = `fantasy-bgm/ii-v-i-${range}-${key.slug}.mp3`;
       const objectPath = `${BUCKET}/${r2Key}`;
 

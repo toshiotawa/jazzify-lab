@@ -319,29 +319,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       midiControllerRef.current = controller;
       
-      // レジェンドモードと同一順序: オーディオ先 → MIDI後
       const initPromise = (async () => {
         try {
-          const initWork = async () => {
-            // 1. オーディオ + サウンドを先に並列初期化
-            await Promise.all([
-              initializeAudioSystem().then(() => {
-                updateGlobalVolume(settings.midiVolume ?? 0.8);
-              }),
-              FantasySoundManager.init(
-                settings.soundEffectVolume ?? 0.8,
-                settings.rootSoundVolume ?? 0.5,
-                stage?.playRootOnCorrect !== false
-              ).then(() => {
-                FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
-              })
-            ]);
-            // 2. オーディオ準備完了後にMIDI初期化
-            await controller.initialize();
-          };
-          // レジェンドモードと同様、GM音源込みで init が完了するまで待つ（短い race で打ち切ると FM/軽量Sampler に落ちて音がチープになる）
-          await initWork();
+          // 1. ゲーム開始に必須な初期化のみブロッキング（オーディオ + GM音源）
+          await Promise.all([
+            initializeAudioSystem().then(() => {
+              updateGlobalVolume(settings.midiVolume ?? 0.8);
+            }),
+            FantasySoundManager.waitForGMReady()
+          ]);
           setIsInitialized(true);
+
+          // 2. SE/MIDI 等の残り初期化はバックグラウンド（ゲーム開始をブロックしない）
+          FantasySoundManager.init(
+            settings.soundEffectVolume ?? 0.8,
+            settings.rootSoundVolume ?? 0.5,
+            stage?.playRootOnCorrect !== false
+          ).then(() => {
+            FantasySoundManager.enableRootSound(stage?.playRootOnCorrect !== false);
+          }).catch(() => {});
+          controller.initialize().catch(() => {});
         } catch (error) {
           console.error('Audio system initialization failed:', error);
           setIsInitialized(true);
@@ -1260,7 +1257,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, stage?.isSheetMusicMode]);
   
+  // onTaikoVisualSync (updater内) が唯一の高速同期経路。
+  // useLayoutEffect での二重同期は削除し、初期化のみ同期する。
   useLayoutEffect(() => {
+    if (!gameState.isTaikoMode) return;
     taikoNotesRef.current = gameState.taikoNotes;
     currentNoteIndexRef.current = gameState.currentNoteIndex;
     awaitingLoopStartRef.current = gameState.awaitingLoopStart;
@@ -1269,7 +1269,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     isCombiningModeRef.current = gameState.isCombiningMode;
     combinedSectionsRef.current = gameState.combinedSections;
     currentSectionIndexRef.current = gameState.currentSectionIndex;
-  }, [gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart, gameState.taikoLoopCycle, gameState.preHitNoteIndices, gameState.isCombiningMode, gameState.combinedSections, gameState.currentSectionIndex]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gameState.isTaikoMode, gameState.currentStage]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
@@ -1349,42 +1350,94 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     // ★ シームレスループ: 表示ループ自身がオーディオのラップを検知し、
     // React state の更新を待たずに即座にノーツ表示を切り替える。
-    // これにより state 更新のレイテンシ（useEffect → ref 伝播）による
-    // 全ノーツの一瞬の点滅を根本排除する。
     let lastDisplayNorm = -1;
     let displayWrapPending = false;
     let wrapAtLoopCycle = -1;
     let lastKnownLoopCycle = -1;
+
+    // ワークバッファ: 毎フレームの配列割り当てを回避
+    const workBuffer: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+    // preHit フラグ用ビットセット（配列インデックスで参照、Set 生成を回避）
+    let preHitFlags = new Uint8Array(256);
+    let lastPreHitRef: number[] | null = null;
+    // 前フレームの表示状態を保持し、差分がなければ updateTaikoNotes をスキップ
+    let prevNoteCount = -1;
+    let prevFirstX = NaN;
+    let prevLastX = NaN;
+    let prevFirstId = '';
+    let prevLastId = '';
+    let lastSentEmpty = false;
+
+    const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
+    const lookAheadTime = 4;
+    const noteSpeed = 200;
+
+    const rebuildPreHitFlags = (indices: number[]) => {
+      if (indices.length === 0) {
+        if (lastPreHitRef && lastPreHitRef.length > 0) preHitFlags.fill(0);
+      } else {
+        const maxIdx = indices[indices.length - 1];
+        if (maxIdx >= preHitFlags.length) {
+          preHitFlags = new Uint8Array(Math.max(maxIdx + 64, preHitFlags.length * 2));
+        } else {
+          preHitFlags.fill(0);
+        }
+        for (let k = 0; k < indices.length; k++) preHitFlags[indices[k]] = 1;
+      }
+      lastPreHitRef = indices;
+    };
+
+    const shouldSendUpdate = (buf: typeof workBuffer): boolean => {
+      const count = buf.length;
+      if (count === 0) {
+        if (lastSentEmpty) return false;
+        lastSentEmpty = true;
+        prevNoteCount = 0;
+        return true;
+      }
+      lastSentEmpty = false;
+      const fId = buf[0].id;
+      const lId = buf[count - 1].id;
+      const fX = buf[0].x;
+      const lX = buf[count - 1].x;
+      if (count === prevNoteCount && fId === prevFirstId && lId === prevLastId &&
+          Math.abs(fX - prevFirstX) < 0.5 && Math.abs(lX - prevLastX) < 0.5) {
+        return false;
+      }
+      prevNoteCount = count;
+      prevFirstId = fId;
+      prevLastId = lId;
+      prevFirstX = fX;
+      prevLastX = lX;
+      return true;
+    };
     
     const updateTaikoNotes = (_timestamp: number) => {
-      // 毎 RAF で座標を更新（60fps 間引きは残りノーツの流れをカクつかせるため行わない）
-      // 🚀 パフォーマンス最適化: refから最新の値を取得（useEffectの再起動なしに最新値を参照）
       const taikoNotes = taikoNotesRef.current;
       const stateNoteIndex = currentNoteIndexRef.current;
       const stateAwaitingLoop = awaitingLoopStartRef.current;
       const preHitIndices = preHitNoteIndicesRef.current || [];
-      const preHitIndexSet = new Set<number>(preHitIndices);
+      if (preHitIndices !== lastPreHitRef) rebuildPreHitFlags(preHitIndices);
       
-      // ノーツがない場合は何も表示せずに次フレームへ
       if (taikoNotes.length === 0) {
-        fantasyPixiInstance.updateTaikoNotes([]);
+        if (!lastSentEmpty) {
+          fantasyPixiInstance.updateTaikoNotes([]);
+          lastSentEmpty = true;
+          prevNoteCount = 0;
+        }
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
       
       const currentTime = bgmManager.getCurrentMusicTime();
-      const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
-      const lookAheadTime = 4; // 4秒先まで表示
-      const noteSpeed = 200; // ピクセル/秒（視認性向上のため減速）
+      const jx = judgeLinePos.x;
       
-      // カウントイン中も本編と同じ lookAheadTime 基準でノーツを表示（制限なし）
-      // 閾値 -0.01: ループ境界の浮動小数点ノイズ(-1e-7程度)をカウントインと誤判定しない
+      // カウントイン中
       if (currentTime < -0.01) {
         lastDisplayNorm = -1;
         displayWrapPending = false;
-        const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+        workBuffer.length = 0;
         
-        // timing_combining: combiningSync経由で即座にセクション範囲を取得
         const isCombining = combiningSync.active;
         let startIdx = 0;
         let endIdx = taikoNotes.length;
@@ -1396,26 +1449,26 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         for (let i = startIdx; i < endIdx; i++) {
           const note = taikoNotes[i];
           if (!note) continue;
-          if (note.isHit || preHitIndexSet.has(i)) continue;
+          if (note.isHit || (i < preHitFlags.length && preHitFlags[i])) continue;
           const timeUntilHit = note.hitTime - currentTime;
           if (timeUntilHit > lookAheadTime) break;
           if (timeUntilHit >= -0.5) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({ 
+            workBuffer.push({ 
               id: note.id, 
               chord: note.chord.displayName, 
-              x,
+              x: jx + timeUntilHit * noteSpeed,
               noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
             });
           }
         }
-        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+        if (shouldSendUpdate(workBuffer)) {
+          fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
+        }
         animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
       
       // ===== timing_combining: ループなし・セクション単位で描画 =====
-      // combiningSync を直接参照することでReact状態更新の遅延を回避
       if (combiningSync.active) {
         const combinedSections = combinedSectionsRef.current;
         const currentSectionIdx = combiningSync.sectionIndex;
@@ -1423,10 +1476,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         if (section) {
           const currentNoteIndex = stateNoteIndex;
           const isAwaitingLoop = stateAwaitingLoop;
-          const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+          workBuffer.length = 0;
           
-          // 現在のセクション内のノーツを表示
-          // ★ isHit は即非表示、isMissed は画面内なら流し続ける
           if (!isAwaitingLoop) {
             for (let i = combiningSync.noteStartIndex; i < combiningSync.noteEndIndex; i++) {
               const note = taikoNotes[i];
@@ -1436,17 +1487,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               const timeUntilHit = note.hitTime - currentTime;
               if (timeUntilHit < -0.35) continue;
               if (timeUntilHit > lookAheadTime) break;
-              const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-              notesToDisplay.push({
+              workBuffer.push({
                 id: note.id,
                 chord: note.chord.displayName,
-                x,
+                x: jx + timeUntilHit * noteSpeed,
                 noteNames: (useRhythmNotation && section.callResponseMode) ? [] : getDisplayNoteNames(note)
               });
             }
           }
           
-          // セクション末尾: 次のセクションのノーツを先読み表示
           const sectionSecPerMeasure = (60 / section.bpm) * section.timeSignature;
           const sectionPlayDuration = section.measureCount * sectionSecPerMeasure;
           const timeToSectionEnd = sectionPlayDuration - currentTime;
@@ -1463,17 +1512,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               const virtualTime = timeToSectionEnd + nextCountInSec + note.hitTime;
               if (virtualTime > lookAheadTime) break;
               if (virtualTime < -0.35) continue;
-              const x = judgeLinePos.x + virtualTime * noteSpeed;
-              notesToDisplay.push({
+              workBuffer.push({
                 id: `next_${note.id}`,
                 chord: note.chord.displayName,
-                x,
+                x: jx + virtualTime * noteSpeed,
                 noteNames: (useRhythmNotation && nextSection.callResponseMode) ? [] : getDisplayNoteNames(note)
               });
             }
           }
           
-          fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+          if (shouldSendUpdate(workBuffer)) {
+            fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
+          }
 
           // C&R: timing_combining セクション別オーバーレイ
           if (section.callResponseMode === 'alternating') {
@@ -1512,13 +1562,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       // ===== ここまで timing_combining =====
       
-      // 現在の時間をループ内0..Tへ正規化
-      // currentTime が負(カウントインガード通過後の -0.01～0 区間)の場合は 0 にクランプ
       const normalizedTime = currentTime < 0 ? 0 : ((currentTime % loopDuration) + loopDuration) % loopDuration;
       
-      // ★ シームレスループ: オーディオのラップを表示ループ側で即時検知
-      // normalizedTime が大きく巻き戻ったらラップが発生した
-      // ラップ検出前にループサイクルを前フレーム値として記録
       const preCheckCycle = lastKnownLoopCycle;
       lastKnownLoopCycle = taikoLoopCycleRef.current ?? 0;
       
@@ -1528,96 +1573,78 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       }
       lastDisplayNorm = normalizedTime;
       
-      // state が追いついたらフラグをクリア
-      // 前フレームのサイクル値と比較することで、エンジンが先にループ処理した場合も正しくクリアする
       const currentLoopCycle = taikoLoopCycleRef.current ?? 0;
       if (displayWrapPending && currentLoopCycle > wrapAtLoopCycle) {
         displayWrapPending = false;
       }
       
-      // ★ 表示用の実効値: ラップ検知時は state の更新を待たず即座にループ先頭として表示
       const currentNoteIndex = displayWrapPending ? 0 : stateNoteIndex;
       const isAwaitingLoop = displayWrapPending ? false : stateAwaitingLoop;
       
-      // 表示するノーツを収集
-      const notesToDisplay: Array<{id: string, chord: string, x: number, noteNames?: string[]}> = [];
+      workBuffer.length = 0;
       
-      // 通常のノーツ（現在ループのみ表示）
-      // ★ isHit のノーツは即非表示（ヒット消化済み）
-      // ★ isMissed のノーツはミス後も画面内なら流し続ける（判定ライン奥まで自然に流れる）
-      // ★ それ以外は currentNoteIndex で制御
       if (!isAwaitingLoop) {
         const lowerBound = -0.35;
-        taikoNotes.forEach((note, index) => {
-          if (note.isHit) return;
+        const len = taikoNotes.length;
+        for (let index = 0; index < len; index++) {
+          const note = taikoNotes[index];
+          if (note.isHit) continue;
 
           if (note.isMissed) {
             const timeUntilHit = note.hitTime - normalizedTime;
             if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-              const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-              notesToDisplay.push({
+              workBuffer.push({
                 id: note.id,
                 chord: note.chord.displayName,
-                x,
+                x: jx + timeUntilHit * noteSpeed,
                 noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
               });
             }
-            return;
+            continue;
           }
 
-          if (index < currentNoteIndex) return;
+          if (index < currentNoteIndex) continue;
 
           const timeUntilHit = note.hitTime - normalizedTime;
           if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-            const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-            notesToDisplay.push({
+            workBuffer.push({
               id: note.id,
               chord: note.chord.displayName,
-              x,
+              x: jx + timeUntilHit * noteSpeed,
               noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
             });
           }
-        });
+        }
       }
       
-      // すでに通常ノーツで表示予定のベースID集合（プレビューと重複させない）
-      const displayedBaseIds = new Set(notesToDisplay.map(n => n.id));
-      
-      // 次ループのプレビュー表示
+      // 次ループプレビュー: 重複チェック用に通常ノーツのID集合を構築
+      // workBuffer は小さいためインライン検索で十分（Set 生成を回避）
       const timeToLoop = loopDuration - normalizedTime;
-      
-      // 次ループのノーツを先読み表示する条件:
-      // 1. awaitingLoopStart状態（現在ループの全ノーツ消化済み）
-      // 2. ループ境界が近い（lookAheadTime以内）
-      // ※ progression_orderはカウントイン付きループのため先読み不要
       const shouldShowNextLoopPreview = !isProgressionOrder && (isAwaitingLoop || timeToLoop < lookAheadTime);
       
       if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
+        const bufLen = workBuffer.length;
         for (let i = 0; i < taikoNotes.length; i++) {
           const note = taikoNotes[i];
-          const baseNote = taikoNotes[i];
 
-          // すでに通常ノーツで表示しているものは重複させない
-          if (baseNote && displayedBaseIds.has(baseNote.id)) continue;
-          // 次ループプレビュー: スキップするのは preHit（先読みで既に正解済み）のみ。
-          // baseNote.isHit は「現在ループでのヒット」のため、次ループプレビューでは参照しない。
-          if (preHitIndexSet.has(i)) continue;
+          // 重複チェック: workBuffer 内にベースIDが既にあるか（インライン検索）
+          let isDup = false;
+          for (let k = 0; k < bufLen; k++) {
+            if (workBuffer[k].id === note.id) { isDup = true; break; }
+          }
+          if (isDup) continue;
+          if (i < preHitFlags.length && preHitFlags[i]) continue;
 
-          // 次ループの仮想的なヒット時間を計算
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
 
-          // 現在より過去とみなせるものは描画しない
           if (timeUntilHit <= 0) continue;
-          // 次ループ開始時点から lookAheadTime 秒分のノーツを表示
-          // (timeToLoop は現在位置→ループ末尾の残り時間)
           if (timeUntilHit > timeToLoop + lookAheadTime) break;
 
-          const x = judgeLinePos.x + timeUntilHit * noteSpeed;
-          notesToDisplay.push({
+          workBuffer.push({
             id: `${note.id}_loop`,
             chord: note.chord.displayName,
-            x,
+            x: jx + timeUntilHit * noteSpeed,
             noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
           });
         }
@@ -1628,11 +1655,14 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const loopCycle = taikoLoopCycleRef.current ?? 0;
         const isListenCycle = loopCycle % 2 === 0;
         if (isListenCycle) {
-          fantasyPixiInstance.updateTaikoNotes([]);
-        } else {
-          fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+          if (!lastSentEmpty) {
+            fantasyPixiInstance.updateTaikoNotes([]);
+            lastSentEmpty = true;
+            prevNoteCount = 0;
+          }
+        } else if (shouldSendUpdate(workBuffer)) {
+          fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
         }
-        // ループサイクル変更時にオーバーレイ表示
         const altPhase = isListenCycle ? 'listen' : 'play';
         if (altPhase !== lastCrPhase) {
           const text = isListenCycle ? 'Listen...' : 'Your Turn!';
@@ -1641,9 +1671,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
           lastCrPhase = altPhase;
         }
-      } else {
-        // PIXIレンダラーに更新を送信
-        fantasyPixiInstance.updateTaikoNotes(notesToDisplay);
+      } else if (shouldSendUpdate(workBuffer)) {
+        fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
       }
 
       // C&R手動モード: リスニング/演奏フェーズの切り替えオーバーレイ
@@ -1667,8 +1696,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       // オーバーレイテキスト（Harmony由来の text を拍に紐付け、次の text まで持続）
       if (overlayMarkers.length > 0) {
         const t = normalizedTime;
-        // 現在の text を探索（wrap対応）
-        let label = overlayMarkers[overlayMarkers.length - 1].text; // デフォルトは最後（wrap）
+        let label = overlayMarkers[overlayMarkers.length - 1].text;
         for (let i = 0; i < overlayMarkers.length; i++) {
           const cur = overlayMarkers[i];
           const next = overlayMarkers[i + 1];
@@ -1677,7 +1705,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             break;
           }
           if (t < overlayMarkers[0].time) {
-            // ループ開始〜最初の text までは最後の text を継続
             label = overlayMarkers[overlayMarkers.length - 1].text;
           }
         }
@@ -1716,6 +1743,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [pixiRenderer, gameState.currentChordTarget, gameState.currentNoteIndex]);
 
   // ガイド用ハイライト更新（showGuideが有効かつ同時出現数=1のときのみ）
+  // taikoNotes は ref 経由で参照し、依存配列に入れない（配列差し替えで不要な再実行を防ぐ）
   useEffect(() => {
     if (!pixiRenderer) return;
     const canGuide = effectiveShowGuide && gameState.simultaneousMonsterCount === 1;
@@ -1723,26 +1751,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       (pixiRenderer as any).setGuideHighlightsByMidiNotes?.(midiNotes);
     };
     if (!canGuide) {
-      // ガイドだけ消す（演奏中オレンジは維持）
       setGuideMidi([]);
       return;
     }
     
-    // 太鼓モードの場合は taikoNotes[currentNoteIndex] から直接取得
-    // ただし、awaitingLoopStart状態では次のループの最初のコード（nextChord）を使用
     let chord;
-    if (gameState.isTaikoMode && gameState.taikoNotes.length > 0) {
-      // awaitingLoopStart状態では、nextChordを使用（次のループの最初のコード）
-      if (gameState.awaitingLoopStart) {
-        const targetMonster = gameState.activeMonsters?.[0];
-        // nextChordが設定されていればそれを使用、なければcurrentNoteIndexのコード
-        chord = targetMonster?.nextChord || gameState.taikoNotes[gameState.currentNoteIndex]?.chord;
-      } else {
-        const currentNote = gameState.taikoNotes[gameState.currentNoteIndex];
-        chord = currentNote?.chord;
+    if (gameState.isTaikoMode) {
+      const notes = taikoNotesRef.current;
+      if (notes.length > 0) {
+        if (gameState.awaitingLoopStart) {
+          const targetMonster = gameState.activeMonsters?.[0];
+          chord = targetMonster?.nextChord || notes[gameState.currentNoteIndex]?.chord;
+        } else {
+          chord = notes[gameState.currentNoteIndex]?.chord;
+        }
       }
     } else {
-      // 通常モード: activeMonsters または currentChordTarget を参照
       const targetMonster = gameState.activeMonsters?.[0];
       chord = targetMonster?.chordTarget || gameState.currentChordTarget;
     }
@@ -1751,9 +1775,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       setGuideMidi([]);
       return;
     }
-    // 差分適用のみ（オレンジは残る）
     setGuideMidi(chord.notes as number[]);
-  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.taikoNotes, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
   // ※モンスターが複数いる場合は非表示にする

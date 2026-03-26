@@ -88,6 +88,7 @@ export class FantasyPIXIInstance {
   private monsters: MonsterVisual[] = [];
   private taikoMode = false;
   private taikoNotes: TaikoDisplayNote[] = [];
+  private taikoNotesDirty = false;
   private effects: ParticleEffect[] = [];
   private damagePopups: DamagePopup[] = [];
   private overlayText: { value: string; until: number } | null = null;
@@ -216,7 +217,9 @@ export class FantasyPIXIInstance {
   }
 
   updateTaikoNotes(notes: TaikoDisplayNote[]): void {
+    // 呼び出し元(FantasyGameScreen)で差分フィルタ済みのため、常に更新する
     this.taikoNotes = notes;
+    this.taikoNotesDirty = true;
     this.requestRender();
   }
 
@@ -325,26 +328,17 @@ export class FantasyPIXIInstance {
   private renderLoop = (): void => {
     if (this.destroyed) return;
     
-    const now = performance.now();
-    
-    // 🚀 パフォーマンス最適化: アクティブなアニメーションがある場合のみ描画
     const hasActiveAnimations = 
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.overlayText !== null ||
-      this.taikoNotes.length > 0 || // 太鼓ノーツがある場合
-      this.monsters.length > 0 || // モンスター存在時は浮遊アニメーション用に描画継続
-      this.monsters.some(m => 
-        m.flashUntil > now || 
-        (m.defeated && m.defeatedAt && now - m.defeatedAt < 450) ||
-        Math.abs(m.x - m.targetX) > 1 || // 移動中
-        m.enraged // 怒り状態
-      );
+      this.taikoNotesDirty ||
+      this.monsters.length > 0;
     
-    // アニメーションがある場合のみ毎フレーム描画、そうでなければ必要な時のみ
     if (hasActiveAnimations || this.needsRender) {
       this.drawFrame();
       this.needsRender = false;
+      this.taikoNotesDirty = false;
     }
     
     this.startLoop();
@@ -614,8 +608,9 @@ export class FantasyPIXIInstance {
       ctx.drawImage(shadowImg, note.x + 2 - halfSize, judgePos.y + 2 - halfSize);
       ctx.drawImage(circleImg, note.x - halfSize, judgePos.y - halfSize);
 
-      // 音名表示
-      const displayNotes = note.noteNames || (note.chord ? note.chord.split(/\s+/).filter(n => n) : []);
+      const displayNotes = note.noteNames && note.noteNames.length > 0
+        ? note.noteNames
+        : (note.chord ? note.chord.split(/\s+/).filter(Boolean) : []);
       const noteCount = displayNotes.length;
       if (noteCount === 0) continue;
 

@@ -264,15 +264,17 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   // ステージ選択画面表示中にAudio/サウンド初期化を先行開始（ゲーム開始の高速化）
   // iOS: Tone.js・モンスター画像を早期プリロードし、BGM・敵アイコンの遅延を防止
   useEffect(() => {
-    import('@/utils/MidiController').then(({ initializeAudioSystem }) => {
-      initializeAudioSystem().catch(() => {});
-    }).catch(() => {});
     import('@/utils/FantasySoundManager').then(({ FantasySoundManager }) => {
+      // GM音源を最優先で先行読込開始（ゲーム画面の waitForGMReady と共有Promise）
+      FantasySoundManager.preloadGM();
       FantasySoundManager.init(
         settings.soundEffectVolume ?? 0.8,
         settings.rootSoundVolume ?? 0.5,
         true
       ).catch(() => {});
+    }).catch(() => {});
+    import('@/utils/MidiController').then(({ initializeAudioSystem }) => {
+      initializeAudioSystem().catch(() => {});
     }).catch(() => {});
     // Tone.js: main.tsxでロード済み。二重ロードを避けるためここではimportしない（BGMManager.ensureContextRunningAsyncが未ロード時は補完）
     // モンスター画像: 18体を先行プリロード（getStageMonsterIdsのシャッフルと重複しやすく、iOSで敵アイコン遅延を防止）
