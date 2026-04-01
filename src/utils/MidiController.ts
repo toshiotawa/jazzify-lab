@@ -12,6 +12,7 @@ import type {
   ToneStatic,
   MidiControllerOptions
 } from '@/types';
+import { isIOSWebView } from '@/utils/iosbridge';
 import { FantasySoundManager } from './FantasySoundManager';
 
 // ToneSamplerインターフェースを拡張
@@ -353,8 +354,8 @@ export class MIDIController {
 
   private setupNativeMIDIBridge(): void {
     if (typeof window === 'undefined') return;
-    const params = new URLSearchParams(window.location.search);
-    if (params.get('platform') !== 'ios') return;
+    // iOS ネイティブは query ではなく hash（#ios?platform=ios&...）にパラメータを載せる
+    if (!isIOSWebView()) return;
 
     const handler = (status: number, note: number, velocity: number) => {
       if (!this.isEnabled) return;

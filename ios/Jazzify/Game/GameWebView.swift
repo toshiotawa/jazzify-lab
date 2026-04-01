@@ -96,6 +96,8 @@ struct GameWebView: View {
     @EnvironmentObject var appState: AppState
     @Environment(\.dismiss) private var dismiss
     @StateObject private var coordinator = WebViewCoordinator()
+    /// `MIDIManager.onMIDIEvent` を `WebViewCoordinator` に渡す（`MIDIBridge` を保持しないとコールバックが切れる）
+    @State private var midiBridge: MIDIBridge?
 
     let mode: GameMode
     let locale: AppLocale
@@ -144,9 +146,12 @@ struct GameWebView: View {
         .onAppear {
             coordinator.onScoreReport = { _score in }
             coordinator.midiManager = MIDIManager.shared
+            midiBridge = MIDIBridge(midiManager: MIDIManager.shared, coordinator: coordinator)
             OrientationManager.shared.lock(mode.preferredOrientations)
         }
         .onDisappear {
+            midiBridge?.detach()
+            midiBridge = nil
             OrientationManager.shared.unlock()
         }
         .onChange(of: coordinator.shouldDismiss) { shouldDismiss in
@@ -190,6 +195,11 @@ struct WebViewRepresentable: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.isScrollEnabled = false
+        // Safe area 用の自動 content inset により下端に親ビュー色（黒）が露出するのを防ぐ
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.automaticallyAdjustsScrollIndicatorInsets = false
+        webView.scrollView.contentInset = .zero
+        webView.scrollView.scrollIndicatorInsets = .zero
         webView.scrollView.delaysContentTouches = false
         webView.scrollView.canCancelContentTouches = true
         webView.navigationDelegate = coordinator
