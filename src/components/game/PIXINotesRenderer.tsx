@@ -1379,7 +1379,7 @@ export const PIXINotesRenderer: React.FC<PIXINotesRendererProps> = ({
   return (
     <canvas
       ref={canvasRef}
-      className={cn('block touch-none select-none', className)}
+      className={cn('block touch-pan-x select-none', className)}
     />
   );
 };

@@ -2883,24 +2883,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // ピアノ幅計算（ファンタジーモードと同じロジック）
   const calculatePianoWidth = () => {
-    const gameAreaWidth = gameAreaRef.current?.clientWidth || window.innerWidth;
+    const rawWidth = gameAreaRef.current?.clientWidth ?? window.innerWidth;
+    const gameAreaWidth = Math.max(1, rawWidth);
     const adjustedThreshold = 1100;
     const VISIBLE_WHITE_KEYS = 14;
     const TOTAL_WHITE_KEYS = 52;
-    
-    if (gameAreaWidth >= adjustedThreshold) {
+    // iOS ネイティブでは画面が広くても全鍵を1画面に詰めると鍵が細すぎるため、横スクロールを優先する
+    const forceScrollOnIos = isIOSWebView() && gameAreaWidth < 1400;
+
+    if (gameAreaWidth >= adjustedThreshold && !forceScrollOnIos) {
       return { width: gameAreaWidth, needsScroll: false };
-    } else {
-      const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
-      return { width: Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth), needsScroll: true };
     }
+    const whiteKeyWidth = gameAreaWidth / VISIBLE_WHITE_KEYS;
+    return { width: Math.ceil(TOTAL_WHITE_KEYS * whiteKeyWidth), needsScroll: true };
   };
 
   return (
     <div
       className={cn(
         'bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen',
-        embeddedFullHeight ? 'flex-1 min-h-0 overflow-hidden' : 'min-h-[var(--dvh,100dvh)]'
+        embeddedFullHeight ? 'flex-1 min-h-0 overflow-hidden' : 'min-h-[var(--dvh,100dvh)]',
+        isIOSWebView() && 'overflow-x-hidden max-w-full'
       )}
     >
       {/* 初期化エラー表示（閉じられるトースト） */}

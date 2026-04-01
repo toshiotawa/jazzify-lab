@@ -2253,8 +2253,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             />
           </div>
           
-          {/* モンスターの UI オーバーレイ */}
-          <div className="mt-2">
+          {/* モンスターの UI オーバーレイ（HPバー等は見た目のまま、タッチは下の鍵盤へ通す） */}
+          <div className="mt-2 pointer-events-none">
             {gameState.activeMonsters && gameState.activeMonsters.length > 0 ? (
               // ★★★ 修正点: 絶対配置でPIXIレンダラーと同じx座標に配置 ★★★
               <div

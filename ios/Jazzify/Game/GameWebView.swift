@@ -190,6 +190,8 @@ struct WebViewRepresentable: UIViewRepresentable {
         webView.isOpaque = false
         webView.backgroundColor = .black
         webView.scrollView.isScrollEnabled = false
+        webView.scrollView.delaysContentTouches = false
+        webView.scrollView.canCancelContentTouches = true
         webView.navigationDelegate = coordinator
         webView.allowsBackForwardNavigationGestures = false
 
