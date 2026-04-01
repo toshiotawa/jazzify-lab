@@ -626,6 +626,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const initPromise = (async () => {
         try {
           if (isIOSWebView()) {
+            controller.setKeyHighlightCallback((note: number, active: boolean) => {
+              pixiRendererRef.current?.highlightKey(note, active);
+            });
             setIsMidiInitialized(true);
             return;
           }

@@ -34,9 +34,11 @@ struct LoginView: View {
                         Spacer().frame(height: 40)
 
                         VStack(spacing: 8) {
-                            Image(systemName: "music.note")
-                                .font(.system(size: 48))
-                                .foregroundStyle(.purple)
+                            Image("default-avater")
+                                .resizable()
+                                .scaledToFit()
+                                .frame(width: 64, height: 64)
+                                .clipShape(Circle())
                             Text("Jazzify")
                                 .font(.largeTitle.bold())
                                 .foregroundStyle(.white)

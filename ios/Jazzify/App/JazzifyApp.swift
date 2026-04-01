@@ -45,9 +45,11 @@ struct LaunchScreenView: View {
             .ignoresSafeArea()
 
             VStack(spacing: 16) {
-                Image(systemName: "music.note")
-                    .font(.system(size: 60))
-                    .foregroundStyle(.purple)
+                Image("default-avater")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 80, height: 80)
+                    .clipShape(Circle())
                 Text("Jazzify")
                     .font(.largeTitle.bold())
                     .foregroundStyle(.white)
