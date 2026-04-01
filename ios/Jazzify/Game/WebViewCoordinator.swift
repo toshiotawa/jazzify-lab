@@ -82,6 +82,14 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
         }
     }
 
+    func sendSelectedDeviceID() {
+        guard let manager = midiManager, let selectedID = manager.selectedDeviceID else { return }
+        let js = "window.onNativeMidiSelected && window.onNativeMidiSelected(\(selectedID));"
+        DispatchQueue.main.async { [weak self] in
+            self?.webView?.evaluateJavaScript(js)
+        }
+    }
+
     // MARK: - WKNavigationDelegate
 
     func webView(_ webView: WKWebView, decidePolicyFor navigationAction: WKNavigationAction) async -> WKNavigationActionPolicy {
@@ -91,5 +99,12 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
             return .allow
         }
         return .cancel
+    }
+
+    func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) { [weak self] in
+            self?.sendMIDIDeviceList()
+            self?.sendSelectedDeviceID()
+        }
     }
 }

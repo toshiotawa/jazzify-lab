@@ -9,6 +9,7 @@ declare global {
     __NATIVE_AUTH_TOKEN__?: string;
     onNativeMidiMessage?: (status: number, note: number, velocity: number) => void;
     onNativeMidiDevices?: (devices: Array<{ uniqueID: number; displayName: string; manufacturer: string }>) => void;
+    onNativeMidiSelected?: (uniqueID: number) => void;
   }
 }
 

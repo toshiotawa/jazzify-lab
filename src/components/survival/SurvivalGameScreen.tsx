@@ -465,6 +465,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const gameAreaRef = useRef<HTMLDivElement>(null);
   const canvasWrapperRef = useRef<HTMLDivElement>(null);
   const pianoScrollRef = useRef<HTMLDivElement | null>(null);
+  const pianoScrollInitializedRef = useRef(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [displaySettings, setDisplaySettings] = useState<SurvivalDisplaySettings>(loadSurvivalDisplaySettings);
   
@@ -3305,7 +3306,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 }}
                 ref={(el) => {
                   pianoScrollRef.current = el;
-                  if (el) {
+                  if (el && !pianoScrollInitializedRef.current) {
+                    pianoScrollInitializedRef.current = true;
                     requestAnimationFrame(() => {
                       requestAnimationFrame(centerPianoC4);
                     });

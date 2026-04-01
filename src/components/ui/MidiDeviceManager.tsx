@@ -12,7 +12,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
-import { isIOSWebView } from '@/utils/iosbridge';
+import { isIOSWebView, requestNativeMIDIDevices, selectNativeMIDIDevice } from '@/utils/iosbridge';
 
 // requestMIDIAccess は1回だけ呼び、結果を永続キャッシュする
 let cachedMidiAccess: MIDIAccess | null = null;
@@ -48,13 +48,20 @@ export const useMidiDevices = () => {
   const [currentDeviceId, setCurrentDeviceId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const iosNative = isIOSWebView();
 
-  // 手動再スキャン（再スキャンボタン等）: 同じMIDIAccessから再列挙
+  // 手動再スキャン（再スキャンボタン等）
   const refreshDevices = useCallback(async () => {
     setIsRefreshing(true);
     setError(null);
     
     try {
+      if (iosNative) {
+        requestNativeMIDIDevices();
+        setTimeout(() => setIsRefreshing(false), 500);
+        return;
+      }
+
       if (!navigator.requestMIDIAccess) {
         const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';
         const isIOS = /iPad|iPhone|iPod/.test(ua) || (/Macintosh/.test(ua) && (navigator as any).maxTouchPoints > 1);
@@ -76,12 +83,42 @@ export const useMidiDevices = () => {
       setError(errorMessage);
       setDevices([]);
     } finally {
-      setIsRefreshing(false);
+      if (!iosNative) setIsRefreshing(false);
     }
-  }, []);
+  }, [iosNative]);
 
-  // 初回取得 + 同一MIDIAccessからの再列挙ポーリング + onstatechange
+  // iOS WebView: ネイティブからのデバイスリスト・選択済みデバイス受信
   useEffect(() => {
+    if (!iosNative) return;
+
+    window.onNativeMidiDevices = (nativeDevices) => {
+      const deviceList: MidiDevice[] = nativeDevices.map((d) => ({
+        id: String(d.uniqueID),
+        name: d.displayName || `Unknown Device (${d.uniqueID})`,
+        manufacturer: d.manufacturer || '',
+        connected: true
+      }));
+      setDevices(deviceList);
+      setIsRefreshing(false);
+    };
+
+    window.onNativeMidiSelected = (uniqueID: number) => {
+      const id = String(uniqueID);
+      setCurrentDeviceId(id);
+      setIsConnected(true);
+    };
+
+    requestNativeMIDIDevices();
+
+    return () => {
+      window.onNativeMidiDevices = undefined;
+      window.onNativeMidiSelected = undefined;
+    };
+  }, [iosNative]);
+
+  // Web: 初回取得 + 同一MIDIAccessからの再列挙ポーリング + onstatechange
+  useEffect(() => {
+    if (iosNative) return;
     if (!navigator.requestMIDIAccess) return;
     let cancelled = false;
     let pollTimer: ReturnType<typeof setTimeout> | null = null;
@@ -91,15 +128,12 @@ export const useMidiDevices = () => {
         const midiAccess = await getMidiAccess();
         if (cancelled) return;
 
-        // onstatechange で接続変更を監視（MIDIAccessオブジェクトは使い回し）
         midiAccess.onstatechange = () => {
           if (!cancelled) {
             setDevices(enumerateMidiDevices(midiAccess));
           }
         };
 
-        // 同一MIDIAccessオブジェクトの inputs を再列挙するポーリング
-        // requestMIDIAccess() は再度呼ばない
         let attempt = 0;
         const reEnumerate = () => {
           if (cancelled) return;
@@ -121,9 +155,16 @@ export const useMidiDevices = () => {
     return () => {
       cancelled = true;
       if (pollTimer) clearTimeout(pollTimer);
-      // onstatechange はクリアしない（キャッシュされたMIDIAccessに残す）
     };
-  }, []);
+  }, [iosNative]);
+
+  // iOS WebView: デバイス選択時にネイティブへ通知
+  const selectNativeDevice = useCallback((deviceId: string | null) => {
+    if (!iosNative) return;
+    if (deviceId) {
+      selectNativeMIDIDevice(Number(deviceId));
+    }
+  }, [iosNative]);
 
   return {
     devices,
@@ -133,7 +174,9 @@ export const useMidiDevices = () => {
     error,
     refreshDevices,
     setCurrentDeviceId,
-    setIsConnected
+    setIsConnected,
+    selectNativeDevice,
+    iosNative
   };
 };
 
@@ -149,12 +192,13 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
   onChange,
   className = ''
 }) => {
-  const { devices, isRefreshing, error, refreshDevices } = useMidiDevices();
+  const { devices, isRefreshing, error, refreshDevices, selectNativeDevice, iosNative } = useMidiDevices();
   const profile = useAuthStore((s) => s.profile);
   const geoCountry = useGeoStore((s) => s.country);
   const en = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
 
   const handleDeviceChange = (newDeviceId: string | null) => {
+    selectNativeDevice(newDeviceId);
     if (newDeviceId && newDeviceId === value) {
       onChange(null);
       setTimeout(() => {
@@ -212,7 +256,7 @@ export const MidiDeviceSelector: React.FC<MidiDeviceSelectorProps> = ({
           )}
         </div>
         
-        {error && !isIOSWebView() && (
+        {error && !iosNative && (
           <div className="text-red-400 text-xs mt-2 p-2 bg-red-900 bg-opacity-30 rounded">
             {(() => {
               const ua = typeof navigator !== 'undefined' ? navigator.userAgent : '';

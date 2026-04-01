@@ -15,14 +15,7 @@ enum GameMode {
     case dailyChallenge(difficulty: String)
 
     var preferredOrientations: UIInterfaceOrientationMask {
-        switch self {
-        case .fantasy, .demoFantasy:
-            return .landscape
-        case .survival, .survivalStage:
-            return .portrait
-        default:
-            return .allButUpsideDown
-        }
+        return .portrait
     }
 
     var queryItems: [URLQueryItem] {
