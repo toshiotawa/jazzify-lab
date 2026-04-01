@@ -13,6 +13,9 @@ build/
 # Environment variables
 .env
 .env.local
+
+# iOS: ローカルの Supabase など（Secrets.example.xcconfig をコピーして作成）
+ios/Secrets.xcconfig
 .env.development.local
 .env.test.local
 .env.production.local

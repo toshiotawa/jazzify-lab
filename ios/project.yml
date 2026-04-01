@@ -22,6 +22,9 @@ targets:
   Jazzify:
     type: application
     platform: iOS
+    configFiles:
+      Debug: Secrets.xcconfig
+      Release: Secrets.xcconfig
     sources:
       - path: Jazzify
     resources:
