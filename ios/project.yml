@@ -24,6 +24,8 @@ targets:
     platform: iOS
     sources:
       - path: Jazzify
+    resources:
+      - path: Jazzify/Assets.xcassets
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app
