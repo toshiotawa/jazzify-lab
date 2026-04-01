@@ -39,8 +39,7 @@ targets:
     dependencies:
       - package: Supabase
         product: Supabase
+    # App Store Connect / Merchant ID 連携後に Apple Pay 用の
+    # com.apple.developer.in-app-payments を entitlements に戻す
     entitlements:
       path: Jazzify/Jazzify.entitlements
-      properties:
-        com.apple.developer.in-app-payments:
-          - merchant.jp.jazzify
