@@ -1508,20 +1508,25 @@ private struct FullScreenAVPlayerView: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
 
+    @MainActor
     class Coordinator: NSObject, AVPlayerViewControllerDelegate {
-        func playerViewController(
+        nonisolated func playerViewController(
             _ playerViewController: AVPlayerViewController,
             willBeginFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator
         ) {
-            OrientationManager.shared.lock(.allButUpsideDown)
+            Task { @MainActor in
+                OrientationManager.shared.lock(.allButUpsideDown)
+            }
         }
 
-        func playerViewController(
+        nonisolated func playerViewController(
             _ playerViewController: AVPlayerViewController,
             willEndFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator
         ) {
             coordinator.animate(alongsideTransition: nil) { _ in
-                OrientationManager.shared.lock(.portrait)
+                Task { @MainActor in
+                    OrientationManager.shared.lock(.portrait)
+                }
             }
         }
     }
