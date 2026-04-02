@@ -664,6 +664,7 @@ export interface LessonSong {
   clear_conditions?: ClearConditions;
   order_index?: number;
   title?: string | null;
+  title_en?: string | null;
   created_at: string;
   songs?: Pick<Song, 'id' | 'title' | 'artist'>;
   fantasy_stage?: FantasyStage;

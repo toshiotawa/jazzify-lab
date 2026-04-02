@@ -24,7 +24,7 @@ import FantasySettingsModal from './FantasySettingsModal';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
 import { note as parseNote } from 'tonal';
-import { shouldUseEnglishCopy, getLocalizedFantasyStageName, getLocalizedFantasyStageDescription } from '@/utils/globalAudience';
+import { shouldUseEnglishCopy, getLocalizedFantasyStageName } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
@@ -109,10 +109,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const localizedStageName = useMemo(
     () => getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }),
-    [stage, profile?.rank, geoCountry],
-  );
-  const localizedStageDescription = useMemo(
-    () => getLocalizedFantasyStageDescription(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) ?? '',
     [stage, profile?.rank, geoCountry],
   );
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
@@ -1997,9 +1993,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             <h2 className="text-3xl font-bold mb-4">
               {localizedStageName ?? (isEnglishCopy ? 'Title unavailable' : 'タイトル取得失敗')}
             </h2>
-            <p className="text-gray-200 mb-6">
-              {localizedStageDescription || (isEnglishCopy ? 'Description unavailable.' : '説明テキストを取得できませんでした')}
-            </p>
           <div className="flex flex-col items-center gap-3">
             {/* 初期化中のローディング表示 */}
             {!isInitialized && (

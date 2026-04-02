@@ -3,6 +3,7 @@ import {
   lessonDisplayBlockName,
   lessonDisplayDescription,
   lessonDisplayTitle,
+  lessonSongDisplayTitle,
 } from '@/utils/lessonCopy';
 
 const baseLesson = {
@@ -29,6 +30,22 @@ describe('lessonDisplayDescription', () => {
     expect(
       lessonDisplayDescription({ ...baseLesson, description_en: 'EN body' }, true),
     ).toBe('EN body');
+  });
+});
+
+describe('lessonSongDisplayTitle', () => {
+  it('英語で title_en を優先する', () => {
+    expect(
+      lessonSongDisplayTitle({ title: '日本語', title_en: 'English title' }, true),
+    ).toBe('English title');
+  });
+
+  it('英語でも title_en が無ければ title', () => {
+    expect(lessonSongDisplayTitle({ title: '日本語のみ' }, true)).toBe('日本語のみ');
+  });
+
+  it('title が null のときは空文字', () => {
+    expect(lessonSongDisplayTitle({ title: null }, false)).toBe('');
   });
 });
 

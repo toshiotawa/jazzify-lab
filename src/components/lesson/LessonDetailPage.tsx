@@ -14,7 +14,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { lessonDisplayDescription, lessonDisplayTitle } from '@/utils/lessonCopy';
+import { lessonDisplayDescription, lessonDisplayTitle, lessonSongDisplayTitle } from '@/utils/lessonCopy';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { isPremiumTier } from '@/utils/membership';
 import { Lesson, LessonSong } from '@/types';
@@ -93,6 +93,45 @@ const LessonDetailPage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+
+  const practiceCopy = useMemo(
+    () => ({
+      sectionTitle: isEnglishCopy ? 'Practice tasks' : '実習課題',
+      taskFallback: (n: number) => (isEnglishCopy ? `Task ${n}` : `課題 ${n}`),
+      tagSurvival: isEnglishCopy ? '[Survival]' : '[サバイバル]',
+      tagFantasy: isEnglishCopy ? '[Fantasy]' : '[ファンタジー]',
+      progressLabel: isEnglishCopy ? 'Progress' : '進捗',
+      dayLabel: (n: number) => (isEnglishCopy ? `Day ${n}` : `${n}日目`),
+      todayCleared: isEnglishCopy ? "Today's goal: Cleared" : '本日の課題: クリア済み',
+      todayProgress: (cur: number, req: number) =>
+        isEnglishCopy
+          ? `Today's progress: ${cur}/${req} clears`
+          : `本日の進捗: ${cur}/${req}回`,
+      remainingClears: (n: number) => (isEnglishCopy ? ` (${n} more)` : ` (あと${n}回)`),
+      keyLabel: isEnglishCopy ? 'Key:' : 'キー:',
+      speedLabel: isEnglishCopy ? 'Speed:' : '速度:',
+      rankLabel: isEnglishCopy ? 'Rank:' : 'ランク:',
+      rankOrHigher: isEnglishCopy ? 'or higher' : '以上',
+      timesLabel: isEnglishCopy ? 'Times:' : '回数:',
+      daysUnit: isEnglishCopy ? 'days' : '日間',
+      clearsUnit: isEnglishCopy ? 'clears' : '回',
+      bestRankLabel: isEnglishCopy ? 'Best rank:' : '最高ランク:',
+      startPractice: isEnglishCopy ? 'Start practice' : '練習開始',
+      retry: isEnglishCopy ? 'Retry' : '再挑戦',
+      noTasks: isEnglishCopy ? 'No practice tasks yet.' : '実習課題がありません',
+      daysProgressFmt: (a: number, b: number, perDay?: number) =>
+        perDay !== undefined
+          ? isEnglishCopy
+            ? `${a}/${b} days (${perDay}×/day)`
+            : `${a}/${b}日 (${perDay}回/日)`
+          : isEnglishCopy
+            ? `${a}/${b} days`
+            : `${a}/${b}日`,
+      countProgressFmt: (a: number, b: number) =>
+        isEnglishCopy ? `${a}/${b} clears` : `${a}/${b}回`,
+    }),
+    [isEnglishCopy],
+  );
   const { fetchStats } = useUserStatsStore();
 
   const isPlatinumMember = isPremiumTier(profile?.rank);
@@ -177,7 +216,8 @@ const LessonDetailPage: React.FC = () => {
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null }));
+          title_en: ls.title_en,
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -554,7 +594,7 @@ const LessonDetailPage: React.FC = () => {
 
             {/* 実習課題セクション */}
             <div className="bg-slate-800 rounded-lg p-6">
-              <h3 className="text-lg font-semibold mb-4">実習課題</h3>
+              <h3 className="text-lg font-semibold mb-4">{practiceCopy.sectionTitle}</h3>
               
               {requirements.length > 0 ? (
                 <div className="space-y-4">
@@ -565,6 +605,10 @@ const LessonDetailPage: React.FC = () => {
                       }
                       return p.song_id === req.song_id;
                     });
+                    const taskTitle = lessonSongDisplayTitle(
+                      { title: req.title ?? null, title_en: req.title_en ?? null },
+                      isEnglishCopy,
+                    );
                     const isCompleted = progress?.is_completed || false;
                     const clearCount = progress?.clear_count || 0;
                     const requiredCount = req.clear_conditions?.count || 1;
@@ -586,9 +630,11 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="flex items-center justify-between mb-3">
                           <h4 className="font-medium">
-                            {req.title ? `${index + 1}. ${req.title}` : `課題 ${index + 1}`}
-                            {isSurvival && <span className="ml-2 text-xs text-red-400">[サバイバル]</span>}
-                            {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">[ファンタジー]</span>}
+                            {taskTitle
+                              ? `${index + 1}. ${taskTitle}`
+                              : practiceCopy.taskFallback(index + 1)}
+                            {isSurvival && <span className="ml-2 text-xs text-red-400">{practiceCopy.tagSurvival}</span>}
+                            {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">{practiceCopy.tagFantasy}</span>}
                           </h4>
                           {isSurvival ? (
                             <FaSkull className="w-4 h-4 text-red-400" />
@@ -640,13 +686,17 @@ const LessonDetailPage: React.FC = () => {
                         {/* 進捗表示 */}
                         <div className="mb-3">
                           <div className="flex justify-between text-sm mb-1">
-                            <span className="text-gray-400">進捗</span>
+                            <span className="text-gray-400">{practiceCopy.progressLabel}</span>
                             <span className={isCompleted ? 'text-emerald-400' : 'text-gray-400'}>
-                              {requiresDays && req.clear_conditions?.daily_count 
-                                ? `${clearDates.length}/${requiredCount}日 (${req.clear_conditions.daily_count}回/日)`
-                                : requiresDays 
-                                  ? `${clearDates.length}/${requiredCount}日` 
-                                  : `${clearCount}/${requiredCount}回`}
+                              {requiresDays && req.clear_conditions?.daily_count
+                                ? practiceCopy.daysProgressFmt(
+                                    clearDates.length,
+                                    requiredCount,
+                                    req.clear_conditions.daily_count,
+                                  )
+                                : requiresDays
+                                  ? practiceCopy.daysProgressFmt(clearDates.length, requiredCount)
+                                  : practiceCopy.countProgressFmt(clearCount, requiredCount)}
                             </span>
                           </div>
                           
@@ -697,7 +747,7 @@ const LessonDetailPage: React.FC = () => {
 
                                         return (
                                           <div key={dayNumber} className="text-center">
-                                            <div className="text-xs mb-1 text-gray-400">{dayNumber}日目</div>
+                                            <div className="text-xs mb-1 text-gray-400">{practiceCopy.dayLabel(dayNumber)}</div>
                                             <div className="h-16 bg-slate-700 rounded relative overflow-hidden">
                                               {dayCompleted ? (
                                                 <div className="h-full bg-emerald-500 flex items-center justify-center">
@@ -731,11 +781,14 @@ const LessonDetailPage: React.FC = () => {
                                     {!isCompleted && (
                                       <div className="mt-2 text-sm">
                                         {todayDone ? (
-                                          <span className="text-emerald-400 font-medium">✅ 本日の課題: クリア済み</span>
+                                          <span className="text-emerald-400 font-medium">
+                                            ✅ {practiceCopy.todayCleared}
+                                          </span>
                                         ) : (
                                           <span className="text-yellow-300">
-                                            📅 本日の進捗: {todayCount}/{dailyRequired}回
-                                            {todayCount > 0 && ` (あと${dailyRequired - todayCount}回)`}
+                                            📅 {practiceCopy.todayProgress(todayCount, dailyRequired)}
+                                            {todayCount > 0 &&
+                                              practiceCopy.remainingClears(dailyRequired - todayCount)}
                                           </span>
                                         )}
                                       </div>
@@ -766,26 +819,32 @@ const LessonDetailPage: React.FC = () => {
                             {!isFantasy && !isSurvival && (
                               <>
                                 <div>
-                                  <span className="text-gray-400">キー:</span>
+                                  <span className="text-gray-400">{practiceCopy.keyLabel}</span>
                                   <span className="ml-2 font-mono">
                                     {(req.clear_conditions?.key || 0) > 0 ? `+${req.clear_conditions?.key}` : req.clear_conditions?.key || 0}
                                   </span>
                                 </div>
                                 <div>
-                                  <span className="text-gray-400">速度:</span>
+                                  <span className="text-gray-400">{practiceCopy.speedLabel}</span>
                                   <span className="ml-2 font-mono">{req.clear_conditions?.speed || 1.0}x</span>
                                 </div>
                               </>
                             )}
                             {!isSurvival && (
                               <div>
-                                <span className="text-gray-400">ランク:</span>
-                                <span className="ml-2 font-semibold">{req.clear_conditions?.rank || 'B'}以上</span>
+                                <span className="text-gray-400">{practiceCopy.rankLabel}</span>
+                                <span className="ml-2 font-semibold">
+                                  {req.clear_conditions?.rank || 'B'} {practiceCopy.rankOrHigher}
+                                </span>
                               </div>
                             )}
                             <div>
-                              <span className="text-gray-400">回数:</span>
-                              <span className="ml-2">{requiresDays ? `${requiredCount}日間` : `${requiredCount}回`}</span>
+                              <span className="text-gray-400">{practiceCopy.timesLabel}</span>
+                              <span className="ml-2">
+                                {requiresDays
+                                  ? `${requiredCount} ${practiceCopy.daysUnit}`
+                                  : `${requiredCount} ${practiceCopy.clearsUnit}`}
+                              </span>
                             </div>
                           </div>
                           
@@ -802,7 +861,7 @@ const LessonDetailPage: React.FC = () => {
                           {/* 最高ランク表示 */}
                           {progress?.best_rank && (
                             <div className="mt-2 pt-2 border-t border-slate-600">
-                              <span className="text-gray-400">最高ランク:</span>
+                              <span className="text-gray-400">{practiceCopy.bestRankLabel}</span>
                               <span className="ml-2 font-semibold text-yellow-400">{progress.best_rank}</span>
                             </div>
                           )}
@@ -844,7 +903,7 @@ const LessonDetailPage: React.FC = () => {
                             }
                           }}
                         >
-                          {isCompleted ? '再挑戦' : '練習開始'}
+                          {isCompleted ? practiceCopy.retry : practiceCopy.startPractice}
                         </button>
                       </div>
                     );
@@ -853,7 +912,7 @@ const LessonDetailPage: React.FC = () => {
               ) : (
                 <div className="text-center text-gray-400 py-8">
                   <FaMusic className="w-12 h-12 mx-auto mb-3 opacity-50" />
-                  <p>実習課題がありません</p>
+                  <p>{practiceCopy.noTasks}</p>
                 </div>
               )}
             </div>

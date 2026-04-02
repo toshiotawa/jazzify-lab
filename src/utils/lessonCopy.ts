@@ -6,6 +6,18 @@ type LessonLocalized = Pick<Lesson, 'title' | 'description' | 'block_number' | '
   block_name_en?: string | null;
 };
 
+type LessonSongTitleFields = {
+  title: string | null | undefined;
+  title_en?: string | null;
+};
+
+export const lessonSongDisplayTitle = (song: LessonSongTitleFields, isEnglish: boolean): string => {
+  if (isEnglish && song.title_en) {
+    return song.title_en;
+  }
+  return song.title ?? '';
+};
+
 export const lessonDisplayTitle = (lesson: LessonLocalized, isEnglish: boolean): string => {
   if (isEnglish && lesson.title_en) {
     return lesson.title_en;
