@@ -866,29 +866,43 @@ struct LessonDetailView: View {
                 let todayDone = todayProgress?.completed ?? false
 
                 if todayDone {
-                    HStack(spacing: 4) {
-                        Image(systemName: "checkmark.circle.fill")
-                            .foregroundStyle(.green)
-                            .font(.caption)
-                        Text(locale == .ja ? "本日の課題: クリア済み" : "Today: Complete")
-                            .font(.caption)
-                            .foregroundStyle(.green)
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "checkmark.circle.fill")
+                                .foregroundStyle(.green)
+                                .font(.caption)
+                            Text(locale == .ja ? "本日の課題: クリア済み" : "Today: Complete")
+                                .font(.caption)
+                                .foregroundStyle(.green)
+                        }
+                        TimelineView(.periodic(from: .now, by: 60)) { _ in
+                            Text(utcResetCountdownText())
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                        }
                     }
                     .padding(.vertical, 4)
                 } else {
-                    HStack(spacing: 4) {
-                        Image(systemName: "calendar")
-                            .foregroundStyle(.yellow)
-                            .font(.caption)
-                        Text(locale == .ja
-                             ? "本日の進捗: \(todayCount)/\(dailyCount)回"
-                             : "Today: \(todayCount)/\(dailyCount)")
-                            .font(.caption)
-                            .foregroundStyle(.yellow)
-                        if todayCount > 0 {
+                    VStack(alignment: .leading, spacing: 4) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "calendar")
+                                .foregroundStyle(.yellow)
+                                .font(.caption)
                             Text(locale == .ja
-                                 ? "(あと\(dailyCount - todayCount)回)"
-                                 : "(\(dailyCount - todayCount) left)")
+                                 ? "本日の進捗: \(todayCount)/\(dailyCount)回"
+                                 : "Today: \(todayCount)/\(dailyCount)")
+                                .font(.caption)
+                                .foregroundStyle(.yellow)
+                            if todayCount > 0 {
+                                Text(locale == .ja
+                                     ? "(あと\(dailyCount - todayCount)回)"
+                                     : "(\(dailyCount - todayCount) left)")
+                                    .font(.caption2)
+                                    .foregroundStyle(.gray)
+                            }
+                        }
+                        TimelineView(.periodic(from: .now, by: 60)) { _ in
+                            Text(utcResetCountdownText())
                                 .font(.caption2)
                                 .foregroundStyle(.gray)
                         }
@@ -1319,8 +1333,27 @@ struct LessonDetailView: View {
     private func todayDateString() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        formatter.timeZone = .current
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
         return formatter.string(from: Date())
+    }
+
+    private func utcResetCountdownText(from date: Date = Date()) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let startOfToday = calendar.startOfDay(for: date)
+        guard let nextReset = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
+            return locale == .ja ? "UTC日付リセットまであと0時間0分" : "UTC reset in 0h 0m"
+        }
+
+        let components = calendar.dateComponents([.hour, .minute], from: date, to: nextReset)
+        let hours = max(components.hour ?? 0, 0)
+        let minutes = max(components.minute ?? 0, 0)
+
+        if locale == .ja {
+            return "UTC日付リセットまであと\(hours)時間\(minutes)分"
+        }
+        return "UTC reset in \(hours)h \(minutes)m"
     }
 
     private func requirementSortKey(_ requirement: LessonSong) -> String {

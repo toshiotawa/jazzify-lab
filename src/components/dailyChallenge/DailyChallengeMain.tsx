@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import FantasyGameScreen from '@/components/fantasy/FantasyGameScreen';
 import type { FantasyStage as EngineFantasyStage } from '@/components/fantasy/FantasyGameEngine';
 import { useToast } from '@/stores/toastStore';
@@ -8,6 +8,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 
 type PlayMode = 'challenge' | 'practice';
 
@@ -16,13 +17,6 @@ type ViewState =
   | { type: 'blocked'; reason: 'invalid' | 'already_played' | 'missing_stage' }
   | { type: 'playing'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty; playMode: PlayMode }
   | { type: 'result'; difficulty: DailyChallengeDifficulty; score: number };
-
-const toLocalDateString = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
 
 const VALID_DIFFICULTIES: DailyChallengeDifficulty[] = [
   'super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced',
@@ -85,7 +79,6 @@ interface DailyChallengeMainProps {
 
 const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }) => {
   const toast = useToast();
-  const today = useMemo(() => toLocalDateString(new Date()), []);
   const [view, setView] = useState<ViewState>({ type: 'loading' });
   const profile = useAuthStore(s => s.profile);
   const geoCountry = useGeoStore(s => s.country);
@@ -94,6 +87,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { todayKey: today, resetLabel } = useUtcResetInfo(isEn);
   const difficultyLabel = (d: DailyChallengeDifficulty): string =>
     isEn ? DIFFICULTY_LABELS_EN[d] : DIFFICULTY_LABELS_JA[d];
 
@@ -158,6 +152,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
         <div className="max-w-md w-full bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
           <div className="text-lg font-bold">{isEn ? 'Daily Challenge' : 'デイリーチャレンジ'}</div>
           <div className="text-sm text-gray-200">{message}</div>
+          <div className="text-xs text-gray-400">⏳ {resetLabel}</div>
           <button
             className="btn btn-primary w-full"
             onClick={() => {
@@ -182,6 +177,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
             <div className="text-xl font-bold">{difficultyLabel(view.difficulty)}</div>
             <div className="mt-4 text-sm text-gray-200">{isEn ? 'Score' : 'スコア'}</div>
             <div className="text-4xl font-bold text-yellow-300">{view.score}</div>
+            <div className="pt-2 text-xs text-gray-300">⏳ {resetLabel}</div>
           </div>
           <button
             className="w-full px-6 py-3 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans"

@@ -302,36 +302,38 @@ struct TopView: View {
     // MARK: - Daily Challenge
 
     private var dailyChallengeCard: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            HStack {
-                Image(systemName: "flame.circle.fill")
-                    .foregroundStyle(.orange)
-                Text(locale == .ja ? "デイリーチャレンジ" : "Daily Challenge")
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                Button { showDCInfo = true } label: {
-                    Image(systemName: "info.circle")
-                        .foregroundStyle(.gray)
+        TimelineView(.periodic(from: .now, by: 60)) { _ in
+            VStack(alignment: .leading, spacing: 14) {
+                HStack {
+                    Image(systemName: "flame.circle.fill")
+                        .foregroundStyle(.orange)
+                    Text(locale == .ja ? "デイリーチャレンジ" : "Daily Challenge")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                    Button { showDCInfo = true } label: {
+                        Image(systemName: "info.circle")
+                            .foregroundStyle(.gray)
+                    }
+                    Spacer()
+                    playButton
                 }
-                Spacer()
-                playButton
+
+                HStack(spacing: 8) {
+                    dcPeriodPicker
+                    Spacer()
+                    difficultyPicker
+                }
+
+                dcSubControls
+
+                dcBarChart
+
+                dcPlayedStatus
             }
-
-            HStack(spacing: 8) {
-                dcPeriodPicker
-                Spacer()
-                difficultyPicker
-            }
-
-            dcSubControls
-
-            dcBarChart
-
-            dcPlayedStatus
+            .padding(16)
+            .background(Color(hex: "1e293b"))
+            .cornerRadius(12)
         }
-        .padding(16)
-        .background(Color(hex: "1e293b"))
-        .cornerRadius(12)
     }
 
     private var dcPeriodPicker: some View {
@@ -490,11 +492,16 @@ struct TopView: View {
         let alreadyPlayed = hasPlayedToday()
         return HStack {
             Spacer()
-            Text(alreadyPlayed
-                 ? (locale == .ja ? "本日はプレイ済み" : "Already played today")
-                 : (locale == .ja ? "本日は未プレイ" : "Not played today"))
-                .font(.caption2)
-                .foregroundStyle(alreadyPlayed ? .green : .gray)
+            VStack(alignment: .trailing, spacing: 4) {
+                Text(alreadyPlayed
+                     ? (locale == .ja ? "本日はプレイ済み" : "Already played today")
+                     : (locale == .ja ? "本日は未プレイ" : "Not played today"))
+                    .font(.caption2)
+                    .foregroundStyle(alreadyPlayed ? .green : .gray)
+                Text(utcResetCountdownText())
+                    .font(.caption2)
+                    .foregroundStyle(.gray)
+            }
         }
     }
 
@@ -538,7 +545,8 @@ struct TopView: View {
     }
 
     private func weekChartData(scores: [String: Int]) -> [(label: String, score: Int)] {
-        let cal = Calendar.current
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
         let today = Date()
         let dayOfWeek = (cal.component(.weekday, from: today) + 5) % 7 // Mon=0 ... Sun=6
         let monday = cal.date(byAdding: .day, value: -dayOfWeek, to: today)!
@@ -548,6 +556,7 @@ struct TopView: View {
         let labels = locale == .ja ? dayLabelsJa : dayLabelsEn
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
 
         return (0..<7).map { offset in
             let date = cal.date(byAdding: .day, value: offset, to: baseMonday)!
@@ -579,11 +588,35 @@ struct TopView: View {
         return monthsWithRecords.last
     }
 
-    private func hasPlayedToday() -> Bool {
+    private func hasPlayedToday(on date: Date = Date()) -> Bool {
+        let today = utcDateString(from: date)
+        return dcRecords.contains(where: { $0.playedOn == today })
+    }
+
+    private func utcDateString(from date: Date = Date()) -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let today = formatter.string(from: Date())
-        return dcRecords.contains(where: { $0.playedOn == today })
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        return formatter.string(from: date)
+    }
+
+    private func utcResetCountdownText(from date: Date = Date()) -> String {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+
+        let startOfToday = calendar.startOfDay(for: date)
+        guard let nextReset = calendar.date(byAdding: .day, value: 1, to: startOfToday) else {
+            return locale == .ja ? "UTC日付リセットまであと0時間0分" : "UTC reset in 0h 0m"
+        }
+
+        let components = calendar.dateComponents([.hour, .minute], from: date, to: nextReset)
+        let hours = max(components.hour ?? 0, 0)
+        let minutes = max(components.minute ?? 0, 0)
+
+        if locale == .ja {
+            return "UTC日付リセットまであと\(hours)時間\(minutes)分"
+        }
+        return "UTC reset in \(hours)h \(minutes)m"
     }
 
     // MARK: - Announcements
@@ -682,7 +715,10 @@ struct TopView: View {
 
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let since = formatter.string(from: Calendar.current.date(byAdding: .day, value: -365, to: Date())!)
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        var cal = Calendar(identifier: .gregorian)
+        cal.timeZone = TimeZone(secondsFromGMT: 0) ?? .gmt
+        let since = formatter.string(from: cal.date(byAdding: .day, value: -365, to: Date())!)
 
         do {
             dcRecords = try await SupabaseService.shared.fetchDailyChallengeRecords(

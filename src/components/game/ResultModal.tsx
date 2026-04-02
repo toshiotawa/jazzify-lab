@@ -5,6 +5,7 @@ import { updateLessonRequirementProgress, fetchLessonRequirementsProgress } from
 import { useAuthStore } from '@/stores/authStore';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
+import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -23,6 +24,7 @@ const ResultModal: React.FC = () => {
 
   const { profile, fetchProfile } = useAuthStore();
   const lessonContext = useLessonContext();
+  const { todayKey, resetLabel } = useUtcResetInfo(false);
 
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
   const [clearStats, setClearStats] = useState<{current: number; goal: number} | null>(null);
@@ -83,8 +85,7 @@ const ResultModal: React.FC = () => {
                     current: (thisProgress.clear_dates || []).length,
                     goal: requiredCount,
                   });
-                  const today = new Date().toISOString().split('T')[0];
-                  const todayProgress = thisProgress.daily_progress?.[today];
+                  const todayProgress = thisProgress.daily_progress?.[todayKey];
                   setDailyInfo({
                     todayCount: todayProgress?.count || 0,
                     dailyRequired: lessonContext.clearConditions.daily_count || 1,
@@ -276,12 +277,18 @@ const ResultModal: React.FC = () => {
               {dailyInfo && !dailyInfo.isCompleted && (
                 <div className="mt-1">
                   {dailyInfo.todayCompleted ? (
-                    <span className="text-xs text-emerald-400">✅ 本日の課題: クリア済み</span>
+                    <div className="space-y-1">
+                      <span className="block text-xs text-emerald-400">✅ 本日の課題: クリア済み</span>
+                      <span className="block text-xs text-gray-400">⏳ {resetLabel}</span>
+                    </div>
                   ) : (
-                    <span className="text-xs text-yellow-300">
-                      📅 本日: {dailyInfo.todayCount}/{dailyInfo.dailyRequired}回
-                      {dailyInfo.todayCount > 0 && ` (あと${dailyInfo.dailyRequired - dailyInfo.todayCount}回)`}
-                    </span>
+                    <div className="space-y-1">
+                      <span className="block text-xs text-yellow-300">
+                        📅 本日: {dailyInfo.todayCount}/{dailyInfo.dailyRequired}回
+                        {dailyInfo.todayCount > 0 && ` (あと${dailyInfo.dailyRequired - dailyInfo.todayCount}回)`}
+                      </span>
+                      <span className="block text-xs text-gray-400">⏳ {resetLabel}</span>
+                    </div>
                   )}
                 </div>
               )}

@@ -19,6 +19,7 @@ import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { incrementFantasyMissionProgressOnClear } from '@/platform/supabaseChallengeFantasy';
 import { getWindow } from '@/platform';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
@@ -200,6 +201,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   const { settings } = useGameStore();
   const toast = useToast();
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
   const stageClearText = isEnglishCopy ? 'Stage Clear!' : 'ステージクリア！';
   const gameOverText = isEnglishCopy ? 'Game Over' : 'ゲームオーバー';
   const correctAnswersLabel = isEnglishCopy ? 'Correct answers' : '正解数';
@@ -623,8 +625,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
         const requiredCount = lessonContext.clearConditions.count || 1;
 
         if (thisProgress && requiresDays) {
-          const today = new Date().toISOString().split('T')[0];
-          const todayProgress = thisProgress.daily_progress?.[today];
+          const todayProgress = thisProgress.daily_progress?.[todayKey];
           setLessonClearResult({
             success: true,
             requiresDays: true,
@@ -998,13 +999,23 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
                   {lessonClearResult.requiresDays && lessonClearResult.todayCount !== undefined && (
                     <div className="mt-1">
                       {lessonClearResult.todayCompleted ? (
-                        <span className="text-green-400 font-medium">
-                          ✅ {isEnglishCopy ? "Today's task: Complete" : '本日の課題: クリア済み'}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="block text-green-400 font-medium">
+                            ✅ {isEnglishCopy ? "Today's task: Complete" : '本日の課題: クリア済み'}
+                          </span>
+                          <span className="block text-xs text-gray-300">
+                            ⏳ {resetLabel}
+                          </span>
+                        </div>
                       ) : (
-                        <span className="text-yellow-300">
-                          📅 {isEnglishCopy ? 'Today' : '本日'}: {lessonClearResult.todayCount}/{lessonClearResult.dailyRequired}{isEnglishCopy ? 'x' : '回'}
-                        </span>
+                        <div className="space-y-1">
+                          <span className="block text-yellow-300">
+                            📅 {isEnglishCopy ? 'Today' : '本日'}: {lessonClearResult.todayCount}/{lessonClearResult.dailyRequired}{isEnglishCopy ? 'x' : '回'}
+                          </span>
+                          <span className="block text-xs text-gray-300">
+                            ⏳ {resetLabel}
+                          </span>
+                        </div>
                       )}
                     </div>
                   )}

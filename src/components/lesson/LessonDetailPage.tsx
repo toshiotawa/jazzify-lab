@@ -15,6 +15,7 @@ import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { lessonDisplayDescription, lessonDisplayTitle, lessonSongDisplayTitle } from '@/utils/lessonCopy';
+import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { isPremiumTier } from '@/utils/membership';
 import { Lesson, LessonSong } from '@/types';
@@ -93,6 +94,7 @@ const LessonDetailPage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
 
   const practiceCopy = useMemo(
     () => ({
@@ -731,11 +733,11 @@ const LessonDetailPage: React.FC = () => {
                               
                               {/* 各日の進捗 */}
                               {(() => {
-                                const today = new Date().toISOString().split('T')[0];
-                                const todayProgress = progress?.daily_progress?.[today];
+                                const todayProgress = progress?.daily_progress?.[todayKey];
                                 const dailyRequired = req.clear_conditions?.daily_count || 1;
                                 const todayCount = todayProgress?.count || 0;
                                 const todayDone = todayProgress?.completed || false;
+                                const todayAlreadyCounted = clearDates.includes(todayKey);
 
                                 return (
                                   <>
@@ -743,7 +745,7 @@ const LessonDetailPage: React.FC = () => {
                                       {Array.from({ length: requiredCount }, (_, dayIndex) => {
                                         const dayNumber = dayIndex + 1;
                                         const dayCompleted = dayIndex < clearDates.length;
-                                        const isActiveDaySlot = dayIndex === clearDates.length && !isCompleted;
+                                        const isActiveDaySlot = dayIndex === clearDates.length && !isCompleted && !todayAlreadyCounted;
 
                                         return (
                                           <div key={dayNumber} className="text-center">
@@ -781,15 +783,25 @@ const LessonDetailPage: React.FC = () => {
                                     {!isCompleted && (
                                       <div className="mt-2 text-sm">
                                         {todayDone ? (
-                                          <span className="text-emerald-400 font-medium">
-                                            ✅ {practiceCopy.todayCleared}
-                                          </span>
+                                          <div className="space-y-1">
+                                            <span className="block text-emerald-400 font-medium">
+                                              ✅ {practiceCopy.todayCleared}
+                                            </span>
+                                            <span className="block text-xs text-gray-400">
+                                              ⏳ {resetLabel}
+                                            </span>
+                                          </div>
                                         ) : (
-                                          <span className="text-yellow-300">
-                                            📅 {practiceCopy.todayProgress(todayCount, dailyRequired)}
-                                            {todayCount > 0 &&
-                                              practiceCopy.remainingClears(dailyRequired - todayCount)}
-                                          </span>
+                                          <div className="space-y-1">
+                                            <span className="block text-yellow-300">
+                                              📅 {practiceCopy.todayProgress(todayCount, dailyRequired)}
+                                              {todayCount > 0 &&
+                                                practiceCopy.remainingClears(dailyRequired - todayCount)}
+                                            </span>
+                                            <span className="block text-xs text-gray-400">
+                                              ⏳ {resetLabel}
+                                            </span>
+                                          </div>
                                         )}
                                       </div>
                                     )}

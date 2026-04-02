@@ -6,6 +6,8 @@ import { cn } from '@/utils/cn';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
+import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
+import { getUtcDateString } from '@/utils/utcDay';
 
 type Period = 'week' | 'month';
 type WeekChoice = 'this_week' | 'last_week';
@@ -29,26 +31,18 @@ const difficultyLabelEn: Record<DailyChallengeDifficulty, string> = {
 const dayLabelsJp = ['月', '火', '水', '木', '金', '土', '日'] as const;
 const dayLabelsEn = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'] as const;
 
-const toLocalDateString = (d: Date): string => {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-};
-
 const addDays = (d: Date, deltaDays: number): Date => {
   const next = new Date(d);
-  next.setDate(next.getDate() + deltaDays);
+  next.setUTCDate(next.getUTCDate() + deltaDays);
   return next;
 };
 
 const startOfWeekMonday = (d: Date): Date => {
   // JS: Sun=0 ... Sat=6 -> Monday start
-  const day = d.getDay();
+  const day = d.getUTCDay();
   const diffFromMonday = (day + 6) % 7; // Mon=0 ... Sun=6
-  const start = new Date(d);
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - diffFromMonday);
+  const start = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()));
+  start.setUTCDate(start.getUTCDate() - diffFromMonday);
   return start;
 };
 
@@ -72,10 +66,10 @@ const buildDate = (ym: string, day: number): string => `${ym}-${String(day).padS
 
 export const DailyChallengeRecordsSection: React.FC = () => {
   const pushToast = useToastStore((s) => s.push);
-  const today = useMemo(() => toLocalDateString(new Date()), []);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const { todayKey: today, resetLabel } = useUtcResetInfo(isEnglishCopy);
   
   const difficultyLabel = isEnglishCopy ? difficultyLabelEn : difficultyLabelJp;
   const dayLabels = isEnglishCopy ? dayLabelsEn : dayLabelsJp;
@@ -99,7 +93,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const [weekChoice, setWeekChoice] = useState<WeekChoice>('this_week');
   const [difficulty, setDifficulty] = useState<DailyChallengeDifficulty>('super_beginner');
 
-  const oneYearAgo = useMemo(() => toLocalDateString(addDays(new Date(), -365)), []);
+  const oneYearAgo = useMemo(() => getUtcDateString(addDays(new Date(), -365)), []);
   const [records, setRecords] = useState<DailyChallengeRecord[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -148,7 +142,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const weekDates = useMemo(() => {
     const baseStart = startOfWeekMonday(new Date());
     const start = weekChoice === 'this_week' ? baseStart : addDays(baseStart, -7);
-    return dayLabelsJp.map((_, idx) => toLocalDateString(addDays(start, idx)));
+    return dayLabelsJp.map((_, idx) => getUtcDateString(addDays(start, idx)));
   }, [weekChoice]);
 
   const graphData = useMemo(() => {
@@ -239,6 +233,9 @@ export const DailyChallengeRecordsSection: React.FC = () => {
               </details>
               <div className="text-xs text-gray-400">
                 {alreadyPlayedToday ? alreadyPlayedText : notPlayedText}
+              </div>
+              <div className="text-xs text-gray-500">
+                ⏳ {resetLabel}
               </div>
             </div>
           ) : (
