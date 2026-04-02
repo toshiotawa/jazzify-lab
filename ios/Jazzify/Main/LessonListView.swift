@@ -1465,7 +1465,7 @@ private struct LessonEmbeddedVideoPlayer: View {
     var body: some View {
         Group {
             if let directURL = directVideoURL {
-                VideoPlayer(player: AVPlayer(url: directURL))
+                FullScreenAVPlayerView(url: directURL)
                     .background(Color.black)
             } else if let embedURL = bunnyEmbedURL {
                 LessonVideoWebView(url: embedURL)
@@ -1488,6 +1488,42 @@ private struct LessonEmbeddedVideoPlayer: View {
     private var bunnyEmbedURL: URL? {
         guard !video.vimeoUrl.isEmpty else { return nil }
         return URL(string: "https://iframe.mediadelivery.net/embed/295659/\(video.vimeoUrl)?autoplay=false")
+    }
+}
+
+private struct FullScreenAVPlayerView: UIViewControllerRepresentable {
+    let url: URL
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
+    func makeUIViewController(context: Context) -> AVPlayerViewController {
+        let controller = AVPlayerViewController()
+        controller.player = AVPlayer(url: url)
+        controller.allowsPictureInPicturePlayback = true
+        controller.delegate = context.coordinator
+        return controller
+    }
+
+    func updateUIViewController(_ controller: AVPlayerViewController, context: Context) {}
+
+    class Coordinator: NSObject, AVPlayerViewControllerDelegate {
+        func playerViewController(
+            _ playerViewController: AVPlayerViewController,
+            willBeginFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator
+        ) {
+            OrientationManager.shared.lock(.allButUpsideDown)
+        }
+
+        func playerViewController(
+            _ playerViewController: AVPlayerViewController,
+            willEndFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator
+        ) {
+            coordinator.animate(alongsideTransition: nil) { _ in
+                OrientationManager.shared.lock(.portrait)
+            }
+        }
     }
 }
 

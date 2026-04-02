@@ -179,10 +179,31 @@ struct WebViewRepresentable: UIViewRepresentable {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        config.preferences.isElementFullscreenEnabled = true
 
         let userContent = config.userContentController
         userContent.add(coordinator, name: "gameCallback")
         userContent.add(coordinator, name: "midiRequest")
+        userContent.add(coordinator, name: "fullscreenChange")
+
+        let fullscreenScript = WKUserScript(
+            source: """
+            (function(){
+                function notify(fs){
+                    window.webkit.messageHandlers.fullscreenChange.postMessage(!!fs);
+                }
+                document.addEventListener('fullscreenchange', function(){
+                    notify(document.fullscreenElement);
+                });
+                document.addEventListener('webkitfullscreenchange', function(){
+                    notify(document.webkitFullscreenElement);
+                });
+            })();
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
+        userContent.addUserScript(fullscreenScript)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.isOpaque = false

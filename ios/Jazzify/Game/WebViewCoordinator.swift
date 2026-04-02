@@ -13,6 +13,11 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
         _ userContentController: WKUserContentController,
         didReceive message: WKScriptMessage
     ) {
+        if message.name == "fullscreenChange" {
+            handleFullscreenChange(message.body)
+            return
+        }
+
         guard let body = message.body as? [String: Any] else { return }
 
         switch message.name {
@@ -56,6 +61,19 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
             }
         default:
             break
+        }
+    }
+
+    // MARK: - Fullscreen
+
+    private func handleFullscreenChange(_ body: Any) {
+        guard let isFullscreen = body as? Bool else { return }
+        DispatchQueue.main.async {
+            if isFullscreen {
+                OrientationManager.shared.lock(.allButUpsideDown)
+            } else {
+                OrientationManager.shared.lock(.portrait)
+            }
         }
     }
 
