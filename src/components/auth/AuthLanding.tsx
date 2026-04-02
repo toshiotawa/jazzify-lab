@@ -80,7 +80,7 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
     setSignupDisabled(false);
 
     try {
-      await sendOtp(email, mode);
+      await sendOtp(email, mode, isEnglishCopy);
         toast.success(sendOtpSuccess, {
           title: sendOtpTitle,
           duration: 5000,
@@ -94,13 +94,20 @@ const AuthLanding: React.FC<AuthLandingProps> = ({ mode }) => {
       navigate(`/login/verify-otp?${params.toString()}`, { replace: true });
     } catch (err) {
       console.error('認証コード送信エラー:', err);
-      const errorMessage = err instanceof Error ? err.message : '認証コード送信に失敗しました';
+      const fallbackMessage = isEnglishCopy
+        ? 'Failed to send the verification code.'
+        : '認証コード送信に失敗しました。';
+      const errorMessage = err instanceof Error ? err.message : fallbackMessage;
+      const normalizedMessage = err instanceof Error ? err.message.toLowerCase() : '';
 
-      if (errorMessage.includes('Signups not allowed') || errorMessage.includes('signups not allowed')) {
+      if (mode === 'signup' && normalizedMessage.includes('signups not allowed')) {
         setSignupDisabled(true);
       }
 
-      toast.error(handleApiError(err, '認証コード送信'));
+      toast.error(
+        errorMessage,
+        { title: isEnglishCopy ? 'Failed to send verification code' : '認証コード送信エラー' },
+      );
     }
   };
 

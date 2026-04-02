@@ -54,7 +54,7 @@ interface AuthState {
 
 interface AuthActions {
   init: () => Promise<void>;
-  sendOtp: (email: string, mode?: 'signup' | 'login') => Promise<void>;
+  sendOtp: (email: string, mode?: 'signup' | 'login', isEnglishCopy?: boolean) => Promise<void>;
   verifyOtp: (email: string, token: string) => Promise<void>;
   signInWithPassword: (email: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -65,6 +65,40 @@ interface AuthActions {
   clearEmailChangeStatus: () => void;
   setOptimisticAvatarUrl: (url: string | null) => void;
 }
+
+const resolveOtpSendErrorMessage = (
+  errorMessage: string,
+  mode: 'signup' | 'login',
+  isEnglishCopy: boolean,
+): string => {
+  const normalizedMessage = errorMessage.toLowerCase();
+
+  if (normalizedMessage.includes('signups not allowed')) {
+    if (mode === 'login') {
+      return isEnglishCopy
+        ? 'No account was found for this email address. Please try Sign Up.'
+        : 'このメールアドレスのアカウントは見つかりません。会員登録をお試しください。';
+    }
+
+    return isEnglishCopy
+      ? 'New account sign-ups are currently unavailable.'
+      : '現在、新規アカウント登録を受け付けていません。';
+  }
+
+  if (normalizedMessage.includes('invalid email')) {
+    return isEnglishCopy
+      ? 'Please enter a valid email address.'
+      : 'メールアドレスの形式が正しくありません。';
+  }
+
+  if (normalizedMessage.includes('rate limit')) {
+    return isEnglishCopy
+      ? 'Too many attempts. Please wait a moment and try again.'
+      : '送信回数の上限に達しました。しばらく待ってから再試行してください。';
+  }
+
+  return errorMessage;
+};
 
 export const useAuthStore = create<AuthState & AuthActions>()(
   immer((set, get) => ({
@@ -331,7 +365,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     /**
      * OTP送信
      */
-    sendOtp: async (email: string, mode: 'signup' | 'login' = 'login') => {
+    sendOtp: async (
+      email: string,
+      mode: 'signup' | 'login' = 'login',
+      isEnglishCopy = false,
+    ) => {
       const supabase = getSupabaseClient();
       set(state => {
         state.loading = true;
@@ -380,21 +418,15 @@ export const useAuthStore = create<AuthState & AuthActions>()(
 
       } catch (error) {
         console.error('❌ OTP送信処理エラー:', error);
-        
-        let errorMessage = 'OTP送信に失敗しました';
-        
+
+        let errorMessage = isEnglishCopy
+          ? 'Failed to send the verification code.'
+          : '認証コード送信に失敗しました。';
+
         if (error instanceof Error) {
-          if (error.message.includes('Signups not allowed')) {
-            errorMessage = '現在サインアップが無効になっています。既存のアカウントでログインしてください。';
-          } else if (error.message.includes('Invalid email')) {
-            errorMessage = '無効なメールアドレスです。';
-          } else if (error.message.includes('rate limit')) {
-            errorMessage = '送信回数制限に達しました。しばらく待ってから再試行してください。';
-          } else {
-            errorMessage = error.message;
-          }
+          errorMessage = resolveOtpSendErrorMessage(error.message, mode, isEnglishCopy);
         }
-        
+
         set(state => {
           state.loading = false;
           state.error = errorMessage;

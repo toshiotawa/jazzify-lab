@@ -312,9 +312,7 @@ struct LoginView: View {
                 )
                 showOTPVerify = true
             } catch {
-                errorMessage = locale == .ja
-                    ? "認証コード送信に失敗しました: \(error.localizedDescription)"
-                    : "Failed to send code: \(error.localizedDescription)"
+                errorMessage = otpSendErrorMessage(for: error)
             }
             isLoading = false
         }
@@ -338,6 +336,37 @@ struct LoginView: View {
             }
             isLoading = false
         }
+    }
+
+    private func otpSendErrorMessage(for error: Error) -> String {
+        let message = error.localizedDescription.lowercased()
+
+        if message.contains("signups not allowed") {
+            if authMode == .login {
+                return locale == .ja
+                    ? "このメールアドレスのアカウントは見つかりません。会員登録をお試しください。"
+                    : "No account was found for this email address. Please try Sign Up."
+            }
+            return locale == .ja
+                ? "現在、新規アカウント登録を受け付けていません。"
+                : "New account sign-ups are currently unavailable."
+        }
+
+        if message.contains("invalid email") {
+            return locale == .ja
+                ? "メールアドレスの形式が正しくありません。"
+                : "Please enter a valid email address."
+        }
+
+        if message.contains("rate limit") {
+            return locale == .ja
+                ? "送信回数の上限に達しました。しばらく待ってから再試行してください。"
+                : "Too many attempts. Please wait a moment and try again."
+        }
+
+        return locale == .ja
+            ? "認証コード送信に失敗しました: \(error.localizedDescription)"
+            : "Failed to send the verification code: \(error.localizedDescription)"
     }
 }
 
