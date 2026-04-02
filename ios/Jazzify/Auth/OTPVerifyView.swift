@@ -2,15 +2,12 @@ import SwiftUI
 
 struct OTPVerifyView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.dismiss) private var dismiss
 
     let email: String
 
     @State private var otpCode = ""
     @State private var isLoading = false
     @State private var errorMessage: String?
-    /// 6 桁に達したときの自動検証が二重に走ると OTP は1回しか使えず 2 回目が「token invalid」になる
-    @State private var didFireAutoVerifyForLengthSix = false
     @FocusState private var isCodeFocused: Bool
 
     private var locale: AppLocale { appState.locale }
@@ -66,12 +63,6 @@ struct OTPVerifyView: View {
                                 otpCode = String(filtered.prefix(6))
                             } else if filtered != newValue {
                                 otpCode = filtered
-                            }
-                            if otpCode.count != 6 {
-                                didFireAutoVerifyForLengthSix = false
-                            } else if !didFireAutoVerifyForLengthSix {
-                                didFireAutoVerifyForLengthSix = true
-                                handleVerify()
                             }
                         }
 
@@ -134,7 +125,6 @@ struct OTPVerifyView: View {
                 )
                 await appState.bootstrap()
             } catch {
-                didFireAutoVerifyForLengthSix = false
                 errorMessage = locale == .ja
                     ? "認証に失敗しました: \(error.localizedDescription)"
                     : "Verification failed: \(error.localizedDescription)"
