@@ -1,236 +1,112 @@
 """Emit SQL updates for Japanese tutorial course lesson title_en / description_en."""
 from __future__ import annotations
 
-# (id, title_en, description_en) — body uses plain newlines; script wraps in dollar quotes
+# (id, title_en, description_en) — チュートリアルは5レッスン（20260402190000 と同期）
+# body uses plain newlines; script wraps in dollar quotes
 LESSONS: list[tuple[str, str, str]] = [
     (
         "dcabffbf-acbc-4cb2-9ba9-f856fbf72f01",
-        "Getting started with Jazzify",
+        "About Jazzify",
         """Welcome to Jazzify!
 
-This tutorial walks you through the app step by step. Finish it and you will know how every major feature fits together.
+Jazzify is a music learning app designed around the concept of "learning jazz while having fun." It helps you practice piano and guitar with a gamified approach.
 
-If you are unsure where to begin, do not worry—we guide you one screen at a time and help you find a jazz-learning path that suits you.
+There are three ways to input your performance:
 
-Scroll to the bottom of this page and tap “Complete lesson” to continue.""",
-    ),
-    (
-        "71ad6e11-5f98-4c0c-b955-be0352ad20ad",
-        "About the lesson feature",
-        """The page you are viewing is the Lessons area. You are currently in the Tutorial course.
+MIDI Keyboard
+Connect a CoreMIDI-compatible keyboard or controller to your iPhone. This method offers the lowest latency and most accurate input. Connection instructions are covered in the last step of this tutorial.
 
-Courses: Jazzify offers many courses (music theory, blues, solo piano, jazz piano foundations, voicings, improvisation, and more).
+Microphone Pitch Detection
+Uses your iPhone's microphone to detect pitch in real time. Ideal for acoustic instruments or vocal practice. Microphone permission will be requested on first use.
 
-Each course chains lesson tasks so you can study jazz in a structured way—pick courses that match your level and interests.
+On-Screen Piano Keys
+Tap the piano keys on screen to play without any external device. Convenient when you want to get started quickly.
 
-Plan limits:
-• Standard: Tutorial course only
-• Premium and above: all courses
+Your performance is scored in real time against the musical score, with timing and pitch accuracy shown as a score. The app is structured for learners at every level to set goals and track progress.
 
-Open the lesson list from the links below.""",
+This tutorial has five steps. Tap "Complete lesson" at the bottom of each page to continue.""",
     ),
     (
         "2027ff4d-5bc0-44fc-aeb0-50e28870ecb2",
-        "About blocks",
-        """Lessons are grouped into blocks by topic.
+        "Premium Plan",
+        """Jazzify offers a Premium subscription plan.
 
-How blocks work: clear every lesson inside a block to unlock the next block automatically.
+What's Included
+With Premium, you unlock:
+- All lesson courses beyond the Tutorial
+- Full access to Survival mode stages
+- All Daily Challenge difficulty levels
+- Detailed statistics and progress tracking
 
-Manual block unlock (Platinum / Black): you may unlock blocks without finishing prior lessons.
-• Each billing cycle grants points to unlock up to 10 blocks
-• Great if you want to jump ahead
+Free users can access only the Tutorial course and the lowest Daily Challenge difficulty.
 
-Downgrade note: if you move below Premium, manually unlocked blocks lock again. Re-upgrading to Platinum/Black restores those unlocks.
+7-Day Free Trial
+First-time users can enjoy a 7-day free trial. During the trial, all Premium features are available. Charges begin automatically after the trial ends.
 
-The next lesson explains subscription plans.""",
+Cancel Anytime
+Premium is a monthly auto-renewing subscription. You can cancel at any time\u2014just cancel at least 24 hours before the current period ends to avoid the next charge.
+
+To cancel: Settings \u2192 Apple ID \u2192 Subscriptions""",
     ),
     (
         "b7309196-3083-4f4e-b57e-1d5c2027b5ac",
-        "About plans",
-        """Jazzify has five plans.
+        "Survival Mode",
+        """Survival mode is an action-packed mode designed to help you learn chords in an engaging way.
 
-• Free: account-only “sleep” mode—no games or learning features
-• Standard: Tutorial, Fantasy mode, Survival (some characters), Legend (5 songs)
-• Premium: every course and mode
-• Platinum: Premium plus perks such as manual block unlock
-• Black: top tier with the largest perks plus lesson feedback/review
+Purpose \u2014 Learn Chords Through Practice
+In Survival mode, enemies approach and you must input the correct chord to trigger skills and defeat them. Through repeated play, you will naturally memorize chord voicings and structures. This mode aims to build practical chord knowledge that is hard to gain from study alone.
 
-Free still keeps your profile and history so you can return anytime.
+How to Play
+Enemies move toward your character on the field. A chord name is displayed on screen (e.g., Cmaj7, Dm7). Input the matching chord using a MIDI keyboard, microphone, or on-screen piano keys. Accurate input activates a skill that damages enemies.
 
-Compare plans: https://jazzify.jp/main#plan-comparison
-
-Billing renews monthly on your signup day (check Account for the next date).
-
-Plan changes: upgrades apply immediately; downgrades keep current features until the period ends.
-
-Change plans from your account page.""",
+Clear Conditions
+Survive for a set duration or achieve specific objectives to clear a stage. Getting hit by enemies reduces your health\u2014when it reaches zero, it is game over.""",
     ),
     (
-        "ebe15e56-182f-44f3-93e1-cd2edc467090",
-        "About the free trial",
-        """Jazzify includes a one-week free trial.
+        "71ad6e11-5f98-4c0c-b955-be0352ad20ad",
+        "How Lessons Work",
+        """The Lessons tab organizes learning materials into courses. Select a course and work through its lessons one by one.
 
-During the trial you can try every plan, switch between them freely, and use all features.
+Purpose
+Lessons provide a structured way to learn jazz theory and performance techniques. With real-time scoring feedback, you can gradually improve your timing and pitch accuracy.
 
-When the trial ends, billing starts for whichever plan you selected.
+Blocks and Assignments
+Lessons are grouped into "blocks" by topic. Complete all lessons in a block to unlock the next one.
 
-You may cancel during the trial. Enjoy exploring! The next lesson covers the XP system.""",
+Some lessons include "assignments." In assignments, you play along with scrolling notes and receive a performance score. It is most effective to study the lesson content before attempting the assignment.
+
+Course Overview
+Beyond the Tutorial, courses are available ranging from beginner-friendly to more advanced topics. After completing the Tutorial, you can access other courses with a Premium plan.
+
+New courses are added regularly. Check the Announcements page for the latest additions.""",
     ),
     (
-        "aee9aaa7-eb2d-4de9-823d-cf562fa61573",
-        "About experience points",
-        """Jazzify uses RPG-style experience points.
+        "a8d86a15-0a62-49cc-b894-07eb530eb91a",
+        "How to Connect a MIDI Keyboard",
+        """Connecting a MIDI keyboard (digital piano) to your iPhone enables a more authentic practice experience. Here is how to set it up.
 
-Earn XP by playing games (Fantasy, Legend, etc.), writing diary entries, and clearing missions.
+For iPhones with a Lightning Port
+A Lightning to USB Camera Adapter (Apple genuine) is required. Connect in this order:
 
-Level up as you earn XP—think of it as growing your character while you learn jazz.
+Summary: iPhone \u2014 Camera Adapter \u2014 Cable (Type-A \u2194 Type-B) \u2014 MIDI Keyboard
 
-Check levels on the Dashboard and ranking screens. Compete with friends for extra motivation.
+For iPhones or iPads with a USB Type-C Port
+With a Type-C iPhone, you may not need a camera adapter.
 
-Use the links below to open Dashboard or Rankings.""",
-    ),
-    (
-        "ea12a234-9c38-4bb8-9115-6ca4652313ba",
-        "About rankings",
-        """Compete in multiple ranking categories:
+Option 1 (Type-C to Type-B cable):
+iPhone \u2014 Cable (Type-C \u2194 Type-B) \u2014 MIDI Keyboard
 
-• Level: total XP—shows how much you have played overall
-• Lessons: completed lesson count (this tutorial counts!)
-• Missions: mission clears (details in a later lesson)
-• Fantasy: cleared Fantasy stages
-• Survival: best survival time across characters/difficulties
-• Daily Challenge: high scores per difficulty tier
+Option 2 (Type-A to Type-B cable):
+iPhone \u2014 Type-C Hub \u2014 Cable (Type-A \u2194 Type-B) \u2014 MIDI Keyboard
 
-Tap a username to view profiles and diaries. Aim for the top!
+Choose the cable that matches the port on your MIDI keyboard.
 
-Open Rankings from the link below.""",
-    ),
-    (
-        "4f7d86d7-7a9a-41cc-bf77-2bc9b97b2121",
-        "Diary",
-        """Write one diary entry per day, browse others’ posts, like and comment respectfully.
+Connection Tips
+- Make sure your MIDI keyboard is powered on.
+- The app will automatically detect the MIDI device once connected.
+- If the connection does not work, try reconnecting the cable or restarting the app.
 
-Try introducing yourself or sharing your Jazzify goals, then tap “Complete lesson.”
-
-Open Diary from the link below.""",
-    ),
-    (
-        "c33b8492-5545-4685-9023-b7c0adb6ec02",
-        "Missions",
-        """Weekly and monthly missions reward bonus XP for clearing specific tasks.
-
-Types include songs, Fantasy stages, diary posts, and more.
-
-If you already wrote a diary, check Missions for related rewards.
-
-Claim rewards, then tap “Complete lesson.” Open Missions from the link below.""",
-    ),
-    (
-        "15db73a4-03e4-4c8a-9116-08d547ef7941",
-        "Announcements",
-        """Read release notes, maintenance windows, events, and other important news.
-
-Highlights also appear on the Dashboard; the Announcements page lists the full history.
-
-Check back regularly via the link below.""",
-    ),
-    (
-        "3fb33a38-3efd-4ed2-8698-c6ad76aad9c4",
-        "About Fantasy mode",
-        """Fantasy mode is an RPG-style way to learn jazz.
-
-Three tracks:
-• BASIC: reading notes, solfège, fundamentals
-• ADVANCED: practical progressions and voicings
-• Phrases: classic jazz vocabulary
-
-Gameplay: reduce every monster’s “hostility” HP before yours hits zero by playing the shown notes or chords. Clearing a stage unlocks the next.
-
-Try BASIC 1-1, then tap “Complete lesson.”""",
-    ),
-    (
-        "22afd82f-4041-48da-a215-fe5020f1ed3b",
-        "Connecting a MIDI keyboard",
-        """Quit other MIDI apps (Logic, GarageBand, Dorico, MuseScore, etc.) before connecting.
-
-Steps:
-1. Open Fantasy BASIC 1-2 and choose Practice
-2. Tap the gear icon → MIDI devices
-3. Select your hardware
-4. Play keys—audio input confirms success
-
-Troubleshooting: set device to None, then re-select; restart the browser or device if needed.
-
-iOS: Safari/Chrome lack Web MIDI—use the “WEB MIDI Browser” app to open Jazzify.
-
-Try clearing BASIC 1-2 on MIDI, then tap “Complete lesson.”""",
-    ),
-    (
-        "94491b06-779e-416e-afb1-a68346de06f2",
-        "Fantasy stage types",
-        """Quiz type: answer chords/notes before the enemy attack gauge fills—speed and accuracy matter.
-
-Rhythm type: play in time with the BGM like a rhythm game—better timing deals more damage.
-
-BASIC 1-3 is rhythm type. Compare it with quiz stages, clear it, then continue.""",
-    ),
-    (
-        "c9e4f6c0-5b80-415d-9129-4a36a2568532",
-        "Fantasy (Phrases)",
-        """The Phrases track teaches real jazz vocabulary in short loops.
-
-Use Practice mode to slow playback, learn fingerings, then move to Challenge for clears.
-
-Open Fantasy → Phrases → 1-1, play, and tap “Complete lesson.”""",
-    ),
-    (
-        "adbe8a03-9b34-42b8-bde3-64b97895138b",
-        "Daily Challenge",
-        """Two-minute Fantasy quiz sprint—how many correct answers can you score?
-
-Five difficulties from ultra-beginner to pro.
-
-Scores log once per day per tier; review history on the Dashboard.
-
-Try Ultra Beginner, then tap “Complete lesson.” Check Rankings for your records.""",
-    ),
-    (
-        "92053bff-b980-49c0-b0fb-bdcb59d85a95",
-        "About titles",
-        """Earn display titles for milestones (level, missions, lessons, Fantasy progress).
-
-Set your title on the Account page; it appears on rankings and profiles.
-
-If you unlocked the 11-lesson completion title, try equipping it, then tap “Complete lesson.”""",
-    ),
-    (
-        "3009c97e-6f41-4dc6-8f58-a043f0dd7895",
-        "Legend mode",
-        """Legend mode is free play on your favorite songs.
-
-• Rehearsal: tempo, loops, keyboard highlights, autoplay, timing offset
-• Stage: full run-through with fixed tempo and scoring
-
-Try “Invention No.1 C Major” in rehearsal at 50% speed with keyboard highlight + autoplay. Adjust the timing slider if video/audio feels offset.
-
-Tap “Complete lesson” when done. The next lesson introduces Survival mode.""",
-    ),
-    (
-        "33833110-1c0e-4045-aa1b-430c92df6e05",
-        "Survival mode",
-        """Survival is an action mode: move on the field, defeat enemies, and survive as long as you can.
-
-Skill slots A–B–C–D show chords to play; correct input fires the matching skill.
-
-Gain XP from coins; survive wave events every minute; at level-up pick bonuses by playing the shown chords (or use Auto-Pick where available).
-
-Characters have unique traits; Premium+ unlocks beyond the default hero.
-
-Difficulty changes chord complexity and XP rewards.
-
-Rankings track best time per character and tier.
-
-Try Very Easy with Fai and survive two minutes, then tap “Complete lesson.” This is the final tutorial lesson—welcome to Jazzify!""",
+This concludes the tutorial! Tap "Complete lesson" to start learning jazz.""",
     ),
 ]
 

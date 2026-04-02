@@ -24,7 +24,7 @@ final class OrientationManager: ObservableObject {
     }
 
     private func rotateIfNeeded(_ mask: UIInterfaceOrientationMask) {
-        guard mask.contains(.portrait),
+        guard mask == .portrait,
               let windowScene = UIApplication.shared.connectedScenes
                 .compactMap({ $0 as? UIWindowScene })
                 .first else { return }

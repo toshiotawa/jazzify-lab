@@ -1494,10 +1494,37 @@ private struct LessonEmbeddedVideoPlayer: View {
 private struct LessonVideoWebView: UIViewRepresentable {
     let url: URL
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
         config.allowsInlineMediaPlayback = true
         config.mediaTypesRequiringUserActionForPlayback = []
+        config.preferences.isElementFullscreenEnabled = true
+
+        let userContent = config.userContentController
+        userContent.add(context.coordinator, name: "fullscreenChange")
+
+        let script = WKUserScript(
+            source: """
+            (function(){
+                function notify(fs){
+                    window.webkit.messageHandlers.fullscreenChange.postMessage(!!fs);
+                }
+                document.addEventListener('fullscreenchange', function(){
+                    notify(document.fullscreenElement);
+                });
+                document.addEventListener('webkitfullscreenchange', function(){
+                    notify(document.webkitFullscreenElement);
+                });
+            })();
+            """,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: false
+        )
+        userContent.addUserScript(script)
 
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.scrollView.isScrollEnabled = false
@@ -1510,6 +1537,23 @@ private struct LessonVideoWebView: UIViewRepresentable {
     func updateUIView(_ webView: WKWebView, context: Context) {
         if webView.url != url {
             webView.load(URLRequest(url: url))
+        }
+    }
+
+    class Coordinator: NSObject, WKScriptMessageHandler {
+        func userContentController(
+            _ userContentController: WKUserContentController,
+            didReceive message: WKScriptMessage
+        ) {
+            guard message.name == "fullscreenChange",
+                  let isFullscreen = message.body as? Bool else { return }
+            Task { @MainActor in
+                if isFullscreen {
+                    OrientationManager.shared.lock(.allButUpsideDown)
+                } else {
+                    OrientationManager.shared.lock(.portrait)
+                }
+            }
         }
     }
 }
