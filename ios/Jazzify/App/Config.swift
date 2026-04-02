@@ -15,6 +15,13 @@ enum Config {
               !key.isEmpty else {
             fatalError("SUPABASE_ANON_KEY is not set in Info.plist / build settings")
         }
+        let segments = key.split(separator: ".", omittingEmptySubsequences: false)
+        guard segments.count == 3 else {
+            fatalError(
+                "SUPABASE_ANON_KEY must be a single JWT (3 dot-separated segments). " +
+                    "Secrets.xcconfig に anon / service_role を連結して貼っていないか確認し、Dashboard の anon public key のみを設定してください。"
+            )
+        }
         return key
     }()
 

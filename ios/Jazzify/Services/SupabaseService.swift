@@ -423,6 +423,7 @@ final class SupabaseService: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue(Config.supabaseAnonKey, forHTTPHeaderField: "apikey")
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
 
         let (data, response) = try await URLSession.shared.data(for: request)

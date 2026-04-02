@@ -133,7 +133,8 @@ export const handler: Handler = async (event, _context) => {
 
     // 1. 全セッションを無効化（クライアントのトークンを無効にする）
     // これにより、リロードしてもログイン状態が保持されなくなる
-    const { error: signOutError } = await supabase.auth.admin.signOut(user.id, 'global');
+    // admin.signOut は user id ではなくログイン中ユーザーの JWT を要求する
+    const { error: signOutError } = await supabase.auth.admin.signOut(token, 'global');
     if (signOutError) {
       console.error('Failed to sign out user sessions:', signOutError.message);
       // 続行する - セッション無効化に失敗しても退会処理は完了させる

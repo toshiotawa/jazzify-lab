@@ -95,8 +95,11 @@ Deno.serve(async (req: Request) => {
       }
     }
 
-    // Proceed with deletion
-    await supabase.auth.admin.signOut(user.id, "global").catch(() => {});
+    // Proceed with deletion — admin.signOut expects the user's JWT, not user id (see Supabase JS reference)
+    const { error: signOutErr } = await supabase.auth.admin.signOut(token, "global");
+    if (signOutErr) {
+      console.error("delete-account: signOut failed:", signOutErr.message);
+    }
 
     await supabase.from("practice_diaries").delete().eq("user_id", user.id);
     await supabase.from("diary_comments").delete().eq("user_id", user.id);
@@ -139,7 +142,9 @@ Deno.serve(async (req: Request) => {
     }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
-  } catch (_err) {
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error("delete-account: unhandled error:", message);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
