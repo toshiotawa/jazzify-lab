@@ -15,8 +15,13 @@ struct LoginView: View {
 
     private var locale: AppLocale { appState.locale }
 
+    /// sendOTP / verify と同一の正規化（改行・全角スペース等の差で OTP が不一致にならないようにする）
+    private var normalizedEmail: String {
+        email.lowercased().trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var isReviewAccount: Bool {
-        email.lowercased().trimmingCharacters(in: .whitespaces) == Config.reviewEmail
+        normalizedEmail == Config.reviewEmail
     }
 
     var body: some View {
@@ -65,7 +70,7 @@ struct LoginView: View {
                 }
             }
             .navigationDestination(isPresented: $showOTPVerify) {
-                OTPVerifyView(email: email, authMode: authMode)
+                OTPVerifyView(email: normalizedEmail)
             }
             .fullScreenCover(isPresented: $showDemoLP) {
                 GameWebView(mode: .demoLP, locale: locale, onClose: { showDemoLP = false })
@@ -302,7 +307,7 @@ struct LoginView: View {
             do {
                 let shouldCreate = authMode == .signup
                 try await SupabaseService.shared.sendOTP(
-                    email: email.lowercased().trimmingCharacters(in: .whitespaces),
+                    email: normalizedEmail,
                     shouldCreateUser: shouldCreate
                 )
                 showOTPVerify = true
@@ -322,7 +327,7 @@ struct LoginView: View {
         Task {
             do {
                 try await SupabaseService.shared.signInWithPassword(
-                    email: email.lowercased().trimmingCharacters(in: .whitespaces),
+                    email: normalizedEmail,
                     password: password
                 )
                 await appState.bootstrap()

@@ -12,6 +12,7 @@ final class SupabaseService: Sendable {
             supabaseKey: Config.supabaseAnonKey,
             options: .init(
                 auth: .init(
+                    flowType: .pkce,
                     emitLocalSessionAsInitialSession: true
                 )
             )
