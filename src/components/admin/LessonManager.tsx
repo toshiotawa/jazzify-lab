@@ -73,8 +73,10 @@ export const LessonManager: React.FC = () => {
   const [attachmentLocaleScopeByLesson, setAttachmentLocaleScopeByLesson] = useState<Record<string, LessonMediaLocaleScope>>({});
   const [videoLocaleScopeByLesson, setVideoLocaleScopeByLesson] = useState<Record<string, LessonMediaLocaleScope>>({});
   const [updatingVideoIds, setUpdatingVideoIds] = useState<Set<string>>(new Set());
-  const videoInputRef = useRef<HTMLInputElement>(null);
-  const attachmentInputRef = useRef<HTMLInputElement>(null);
+  const [selectedVideoFileByLesson, setSelectedVideoFileByLesson] = useState<Record<string, File | null>>({});
+  const [selectedAttachmentFilesByLesson, setSelectedAttachmentFilesByLesson] = useState<Record<string, File[]>>({});
+  const [videoInputKeyByLesson, setVideoInputKeyByLesson] = useState<Record<string, number>>({});
+  const [attachmentInputKeyByLesson, setAttachmentInputKeyByLesson] = useState<Record<string, number>>({});
   const [editNavLinks, setEditNavLinks] = useState<NavLinkKey[]>([]);
   const [survivalStageNumber, setSurvivalStageNumber] = useState<number>(0);
 
@@ -236,6 +238,81 @@ export const LessonManager: React.FC = () => {
     setAttachmentPlatinumOnlyByLesson(prev => ({ ...prev, [lessonId]: nextValue }));
   };
 
+  const resetVideoSelection = (lessonId: string) => {
+    setSelectedVideoFileByLesson(prev => ({ ...prev, [lessonId]: null }));
+    setVideoInputKeyByLesson(prev => ({ ...prev, [lessonId]: (prev[lessonId] ?? 0) + 1 }));
+  };
+
+  const resetAttachmentSelection = (lessonId: string) => {
+    setSelectedAttachmentFilesByLesson(prev => ({ ...prev, [lessonId]: [] }));
+    setAttachmentInputKeyByLesson(prev => ({ ...prev, [lessonId]: (prev[lessonId] ?? 0) + 1 }));
+  };
+
+  const handleVideoFileChange = (lessonId: string, files: FileList | null) => {
+    setSelectedVideoFileByLesson(prev => ({ ...prev, [lessonId]: files?.[0] ?? null }));
+  };
+
+  const handleAttachmentFileChange = (lessonId: string, files: FileList | null) => {
+    setSelectedAttachmentFilesByLesson(prev => ({ ...prev, [lessonId]: files ? Array.from(files) : [] }));
+  };
+
+  const handleLessonVideoUpload = async (lessonId: string) => {
+    const file = selectedVideoFileByLesson[lessonId];
+    if (!file || !selectedCourseId) return;
+
+    try {
+      const uploaded = await uploadLessonVideo(file, lessonId);
+      const scope = videoLocaleScopeByLesson[lessonId] ?? 'both';
+      await addLessonVideoR2(lessonId, {
+        url: uploaded.url,
+        r2_key: uploaded.key,
+        content_type: uploaded.contentType,
+        locale_scope: scope,
+      });
+      toast.success('動画をアップロードしました');
+      invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
+      await loadLessonExtras(lessonId);
+    } catch (error) {
+      toast.error('動画のアップロードに失敗しました');
+      console.error(error);
+    } finally {
+      resetVideoSelection(lessonId);
+    }
+  };
+
+  const handleLessonAttachmentUpload = async (lessonId: string) => {
+    const files = selectedAttachmentFilesByLesson[lessonId] ?? [];
+    if (files.length === 0) return;
+
+    const platinumOnly = attachmentPlatinumOnlyByLesson[lessonId] ?? false;
+    const existingCount = attachmentsByLesson[lessonId]?.length ?? 0;
+    const attachScope = attachmentLocaleScopeByLesson[lessonId] ?? 'both';
+
+    try {
+      for (const [index, file] of files.entries()) {
+        const uploaded = await uploadLessonAttachment(file, lessonId);
+        await insertLessonAttachment({
+          lesson_id: lessonId,
+          file_name: uploaded.fileName,
+          url: uploaded.url,
+          r2_key: uploaded.key,
+          content_type: uploaded.contentType,
+          size: uploaded.size,
+          order_index: existingCount + index,
+          platinum_only: platinumOnly,
+          locale_scope: attachScope,
+        });
+      }
+      toast.success('添付ファイルを追加しました');
+      await loadLessonExtras(lessonId);
+    } catch (error) {
+      toast.error('添付ファイルの追加に失敗しました');
+      console.error(error);
+    } finally {
+      resetAttachmentSelection(lessonId);
+    }
+  };
+
   const handleAttachmentPlatinumToggle = async (lessonId: string, attachmentId: string, nextValue: boolean) => {
     const snapshot = (attachmentsByLesson[lessonId] ?? []).map(att => ({ ...att }));
     setAttachmentsByLesson(prev => {
@@ -270,6 +347,7 @@ export const LessonManager: React.FC = () => {
       setValue('block_number', lesson.block_number || 1);
       setValue('block_name', lesson.block_name || '');
       setEditNavLinks(lesson.nav_links || []);
+      void loadLessonExtras(lesson.id);
     } else {
       setSelectedLesson(null);
       const newOrder = currentLessons.length > 0 ? Math.max(...currentLessons.map(l => l.order_index)) + 1 : 0;
@@ -628,6 +706,235 @@ export const LessonManager: React.FC = () => {
     [...currentLessons].sort((a, b) => a.order_index - b.order_index),
   [currentLessons]);
 
+  const renderLessonMediaSection = (lesson: Lesson) => (
+    <div className="mt-6 grid grid-cols-1 gap-6 md:grid-cols-2">
+      <div>
+        <h5 className="font-semibold mb-2">動画</h5>
+        <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center">
+          <label className="flex items-center gap-2 text-xs text-gray-300">
+            <span>表示言語</span>
+            <select
+              className="select select-bordered select-xs max-w-[9rem]"
+              value={videoLocaleScopeByLesson[lesson.id] ?? 'both'}
+              onChange={event => {
+                const value = event.target.value as LessonMediaLocaleScope;
+                setVideoLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
+              }}
+              aria-label="新規動画の表示言語"
+            >
+              {LOCALE_SCOPE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <input
+            key={videoInputKeyByLesson[lesson.id] ?? 0}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm,video/x-m4v"
+            className="file-input file-input-bordered file-input-sm"
+            onChange={event => handleVideoFileChange(lesson.id, event.target.files)}
+          />
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            onClick={() => void handleLessonVideoUpload(lesson.id)}
+            disabled={!selectedVideoFileByLesson[lesson.id]}
+          >
+            アップロード
+          </button>
+        </div>
+        <p className="text-xs text-gray-400">対応: mp4 / mov / webm / m4v, 最大200MB</p>
+        {selectedVideoFileByLesson[lesson.id] && (
+          <p className="mt-1 text-xs text-gray-500">選択中: {selectedVideoFileByLesson[lesson.id]?.name}</p>
+        )}
+        <div className="mt-3 space-y-2">
+          {(videosByLesson[lesson.id] || []).map(v => (
+            <div key={v.id} className="flex flex-col gap-2 bg-slate-700 p-2 rounded sm:flex-row sm:items-center sm:justify-between">
+              <div className="text-sm">
+                {v.video_url ? (
+                  <a href={v.video_url} target="_blank" rel="noreferrer" className="underline">R2動画</a>
+                ) : (
+                  <span className="text-gray-300">Bunny/外部動画</span>
+                )}
+                <span className="text-xs text-gray-400 ml-2">順序: {v.order_index ?? 0}</span>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="select select-bordered select-xs max-w-[9rem]"
+                  value={v.locale_scope ?? 'both'}
+                  onChange={event => {
+                    const scope = event.target.value as LessonMediaLocaleScope;
+                    void handleVideoLocaleScopeChange(lesson.id, v.id, scope);
+                  }}
+                  disabled={updatingVideoIds.has(v.id)}
+                  aria-label="動画の表示言語"
+                >
+                  {LOCALE_SCOPE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs text-red-500"
+                  onClick={async () => {
+                    if (!window.confirm('この動画を削除しますか？（R2にある場合はファイルも削除）')) return;
+                    try {
+                      await deleteLessonVideoRecord(v.id);
+                      if (v.r2_key) {
+                        try {
+                          await deleteLessonVideoByKey(v.r2_key);
+                        } catch {}
+                      }
+                      toast.success('動画を削除しました');
+                      await loadLessonExtras(lesson.id);
+                    } catch (error) {
+                      toast.error('動画の削除に失敗しました');
+                      console.error(error);
+                    }
+                  }}
+                  disabled={updatingVideoIds.has(v.id)}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => void loadLessonExtras(lesson.id)}>
+            再読み込み
+          </button>
+        </div>
+      </div>
+
+      <div>
+        <h5 className="font-semibold mb-2">添付ファイル</h5>
+        <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
+          <label className="flex items-center gap-2 text-xs text-gray-300">
+            <span>表示言語</span>
+            <select
+              className="select select-bordered select-xs max-w-[9rem]"
+              value={attachmentLocaleScopeByLesson[lesson.id] ?? 'both'}
+              onChange={event => {
+                const value = event.target.value as LessonMediaLocaleScope;
+                setAttachmentLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
+              }}
+              aria-label="新規添付の表示言語"
+            >
+              {LOCALE_SCOPE_OPTIONS.map(opt => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <div className="flex items-center gap-2">
+            <input
+              key={attachmentInputKeyByLesson[lesson.id] ?? 0}
+              type="file"
+              multiple
+              accept="application/pdf,audio/mpeg,audio/wav,audio/mp4"
+              className="file-input file-input-bordered file-input-sm"
+              onChange={event => handleAttachmentFileChange(lesson.id, event.target.files)}
+            />
+            <button
+              type="button"
+              className="btn btn-primary btn-sm"
+              onClick={() => void handleLessonAttachmentUpload(lesson.id)}
+              disabled={(selectedAttachmentFilesByLesson[lesson.id] ?? []).length === 0}
+            >
+              追加
+            </button>
+          </div>
+          <label className="flex items-center gap-2 text-sm text-gray-200">
+            <input
+              type="checkbox"
+              className="checkbox checkbox-sm"
+              checked={attachmentPlatinumOnlyByLesson[lesson.id] ?? false}
+              onChange={event => handleAttachmentPlatinumSettingChange(lesson.id, event.target.checked)}
+            />
+            <span>プラチナ/ブラック会員限定で公開</span>
+          </label>
+        </div>
+        <p className="text-xs text-gray-400">例: PDF, MP3, WAV, M4A, 最大50MB</p>
+        {(selectedAttachmentFilesByLesson[lesson.id] ?? []).length > 0 && (
+          <p className="mt-1 text-xs text-gray-500">
+            選択中: {(selectedAttachmentFilesByLesson[lesson.id] ?? []).map(file => file.name).join(', ')}
+          </p>
+        )}
+        <div className="mt-3 space-y-2">
+          {(attachmentsByLesson[lesson.id] || []).map(att => (
+            <div key={att.id} className="bg-slate-700 p-3 rounded flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
+                <a href={att.url} target="_blank" rel="noreferrer" className="text-sm underline">
+                  {att.file_name}
+                </a>
+                {att.platinum_only && (
+                  <span className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
+                    プラチナ以上限定
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <select
+                  className="select select-bordered select-xs max-w-[9rem]"
+                  value={att.locale_scope ?? 'both'}
+                  onChange={event => {
+                    const scope = event.target.value as LessonMediaLocaleScope;
+                    void handleAttachmentLocaleScopeChange(lesson.id, att.id, scope);
+                  }}
+                  disabled={updatingAttachmentIds.has(att.id)}
+                  aria-label="添付の表示言語"
+                >
+                  {LOCALE_SCOPE_OPTIONS.map(opt => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+                <label className="flex items-center gap-1 text-xs text-gray-200">
+                  <input
+                    type="checkbox"
+                    className="checkbox checkbox-xs"
+                    checked={att.platinum_only}
+                    onChange={event => handleAttachmentPlatinumToggle(lesson.id, att.id, event.target.checked)}
+                    disabled={updatingAttachmentIds.has(att.id)}
+                    aria-label="プラチナ限定を切り替える"
+                  />
+                  プラチナ限定
+                </label>
+                <button
+                  type="button"
+                  className="btn btn-ghost btn-xs text-red-500"
+                  onClick={async () => {
+                    if (!window.confirm('この添付ファイルを削除しますか？')) return;
+                    try {
+                      await removeLessonAttachment(att.id);
+                      await deleteLessonAttachmentByKey(att.r2_key);
+                      toast.success('添付ファイルを削除しました');
+                      await loadLessonExtras(lesson.id);
+                    } catch (error) {
+                      toast.error('削除に失敗しました');
+                      console.error(error);
+                    }
+                  }}
+                  disabled={updatingAttachmentIds.has(att.id)}
+                >
+                  削除
+                </button>
+              </div>
+            </div>
+          ))}
+          <button type="button" className="btn btn-ghost btn-xs" onClick={() => void loadLessonExtras(lesson.id)}>
+            再読み込み
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+
   return (
     <div className="p-4">
       <div className="flex justify-between items-center mb-4">
@@ -849,252 +1156,7 @@ export const LessonManager: React.FC = () => {
                           <p className="text-sm text-gray-400">課題が登録されていません。</p>
                         )}
 
-                        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
-                          <div>
-                            <h5 className="font-semibold mb-2">動画</h5>
-                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center">
-                              <label className="flex items-center gap-2 text-xs text-gray-300">
-                                <span>表示言語</span>
-                                <select
-                                  className="select select-bordered select-xs max-w-[9rem]"
-                                  value={videoLocaleScopeByLesson[lesson.id] ?? 'both'}
-                                  onChange={event => {
-                                    const value = event.target.value as LessonMediaLocaleScope;
-                                    setVideoLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
-                                  }}
-                                  aria-label="新規動画の表示言語"
-                                >
-                                  {LOCALE_SCOPE_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <input ref={videoInputRef} type="file" accept="video/mp4,video/quicktime,video/webm,video/x-m4v" className="file-input file-input-bordered file-input-sm" />
-                              <button
-                                className="btn btn-primary btn-sm"
-                                onClick={async () => {
-                                  const file = videoInputRef.current?.files?.[0];
-                                  if (!file) return;
-                                  try {
-                                    const uploaded = await uploadLessonVideo(file, lesson.id);
-                                    const scope = videoLocaleScopeByLesson[lesson.id] ?? 'both';
-                                    await addLessonVideoR2(lesson.id, {
-                                      url: uploaded.url,
-                                      r2_key: uploaded.key,
-                                      content_type: uploaded.contentType,
-                                      locale_scope: scope,
-                                    });
-                                    toast.success('動画をアップロードしました');
-                                    invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
-                                    await loadLessonExtras(lesson.id);
-                                  } catch (e) {
-                                    toast.error('動画のアップロードに失敗しました');
-                                    console.error(e);
-                                  } finally {
-                                    if (videoInputRef.current) videoInputRef.current.value = '';
-                                  }
-                                }}
-                              >アップロード</button>
-                            </div>
-                            <p className="text-xs text-gray-400">対応: mp4 / mov / webm / m4v, 最大200MB</p>
-                            <div className="mt-3 space-y-2">
-                              {(videosByLesson[lesson.id] || []).map(v => (
-                                <div key={v.id} className="flex flex-col gap-2 bg-slate-700 p-2 rounded sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="text-sm">
-                                    { (v as any).video_url ? (
-                                      <a href={(v as any).video_url} target="_blank" rel="noreferrer" className="underline">R2動画</a>
-                                    ) : (
-                                      <span className="text-gray-300">Bunny/外部動画</span>
-                                    )}
-                                    <span className="text-xs text-gray-400 ml-2">順序: {v.order_index ?? 0}</span>
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <select
-                                      className="select select-bordered select-xs max-w-[9rem]"
-                                      value={v.locale_scope ?? 'both'}
-                                      onChange={event => {
-                                        const scope = event.target.value as LessonMediaLocaleScope;
-                                        void handleVideoLocaleScopeChange(lesson.id, v.id, scope);
-                                      }}
-                                      disabled={updatingVideoIds.has(v.id)}
-                                      aria-label="動画の表示言語"
-                                    >
-                                      {LOCALE_SCOPE_OPTIONS.map(opt => (
-                                        <option key={opt.value} value={opt.value}>
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <button
-                                      className="btn btn-ghost btn-xs text-red-500"
-                                      onClick={async () => {
-                                        if (!window.confirm('この動画を削除しますか？（R2にある場合はファイルも削除）')) return;
-                                        try {
-                                          await deleteLessonVideoRecord(v.id);
-                                          if ((v as any).r2_key) {
-                                            try { await deleteLessonVideoByKey((v as any).r2_key); } catch {}
-                                          }
-                                          toast.success('動画を削除しました');
-                                          await loadLessonExtras(lesson.id);
-                                        } catch (e) {
-                                          toast.error('動画の削除に失敗しました');
-                                          console.error(e);
-                                        }
-                                      }}
-                                      disabled={updatingVideoIds.has(v.id)}
-                                    >削除</button>
-                                  </div>
-                                </div>
-                              ))}
-                              <button className="btn btn-ghost btn-xs" onClick={() => loadLessonExtras(lesson.id)}>再読み込み</button>
-                            </div>
-                          </div>
-
-                          <div>
-                            <h5 className="font-semibold mb-2">添付ファイル</h5>
-                            <div className="flex flex-col gap-2 mb-3 sm:flex-row sm:flex-wrap sm:items-center sm:gap-3">
-                              <label className="flex items-center gap-2 text-xs text-gray-300">
-                                <span>表示言語</span>
-                                <select
-                                  className="select select-bordered select-xs max-w-[9rem]"
-                                  value={attachmentLocaleScopeByLesson[lesson.id] ?? 'both'}
-                                  onChange={event => {
-                                    const value = event.target.value as LessonMediaLocaleScope;
-                                    setAttachmentLocaleScopeByLesson(prev => ({ ...prev, [lesson.id]: value }));
-                                  }}
-                                  aria-label="新規添付の表示言語"
-                                >
-                                  {LOCALE_SCOPE_OPTIONS.map(opt => (
-                                    <option key={opt.value} value={opt.value}>
-                                      {opt.label}
-                                    </option>
-                                  ))}
-                                </select>
-                              </label>
-                              <div className="flex items-center gap-2">
-                                <input
-                                  ref={attachmentInputRef}
-                                  type="file"
-                                  multiple
-                                  accept="application/pdf,audio/mpeg,audio/wav,audio/mp4"
-                                  className="file-input file-input-bordered file-input-sm"
-                                />
-                                <button
-                                  className="btn btn-primary btn-sm"
-                                  onClick={async () => {
-                                    const files = attachmentInputRef.current?.files;
-                                    if (!files || files.length === 0) return;
-                                    const platinumOnly = attachmentPlatinumOnlyByLesson[lesson.id] ?? false;
-                                    const existingCount = attachmentsByLesson[lesson.id]?.length ?? 0;
-                                    const attachScope = attachmentLocaleScopeByLesson[lesson.id] ?? 'both';
-
-                                    try {
-                                      const uploadedFiles = Array.from(files);
-                                      for (const [index, file] of uploadedFiles.entries()) {
-                                        const uploaded = await uploadLessonAttachment(file, lesson.id);
-                                        await insertLessonAttachment({
-                                          lesson_id: lesson.id,
-                                          file_name: uploaded.fileName,
-                                          url: uploaded.url,
-                                          r2_key: uploaded.key,
-                                          content_type: uploaded.contentType,
-                                          size: uploaded.size,
-                                          order_index: existingCount + index,
-                                          platinum_only: platinumOnly,
-                                          locale_scope: attachScope,
-                                        });
-                                      }
-                                      toast.success('添付ファイルを追加しました');
-                                      await loadLessonExtras(lesson.id);
-                                    } catch (e) {
-                                      toast.error('添付ファイルの追加に失敗しました');
-                                      console.error(e);
-                                    } finally {
-                                      if (attachmentInputRef.current) attachmentInputRef.current.value = '';
-                                    }
-                                  }}
-                                >追加</button>
-                              </div>
-                              <label className="flex items-center gap-2 text-sm text-gray-200">
-                                <input
-                                  type="checkbox"
-                                  className="checkbox checkbox-sm"
-                                  checked={attachmentPlatinumOnlyByLesson[lesson.id] ?? false}
-                                  onChange={event => handleAttachmentPlatinumSettingChange(lesson.id, event.target.checked)}
-                                />
-                                <span>プラチナ/ブラック会員限定で公開</span>
-                              </label>
-                            </div>
-                            <p className="text-xs text-gray-400">例: PDF, MP3, WAV, M4A, 最大50MB</p>
-                            <div className="mt-3 space-y-2">
-                              {(attachmentsByLesson[lesson.id] || []).map(att => (
-                                <div key={att.id} className="bg-slate-700 p-3 rounded flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-3">
-                                    <a href={att.url} target="_blank" rel="noreferrer" className="text-sm underline">
-                                      {att.file_name}
-                                    </a>
-                                    {att.platinum_only && (
-                                      <span className="inline-flex items-center rounded-full bg-purple-600 px-2 py-0.5 text-[11px] font-semibold text-white">
-                                        プラチナ以上限定
-                                      </span>
-                                    )}
-                                  </div>
-                                  <div className="flex flex-wrap items-center gap-2">
-                                    <select
-                                      className="select select-bordered select-xs max-w-[9rem]"
-                                      value={att.locale_scope ?? 'both'}
-                                      onChange={event => {
-                                        const scope = event.target.value as LessonMediaLocaleScope;
-                                        void handleAttachmentLocaleScopeChange(lesson.id, att.id, scope);
-                                      }}
-                                      disabled={updatingAttachmentIds.has(att.id)}
-                                      aria-label="添付の表示言語"
-                                    >
-                                      {LOCALE_SCOPE_OPTIONS.map(opt => (
-                                        <option key={opt.value} value={opt.value}>
-                                          {opt.label}
-                                        </option>
-                                      ))}
-                                    </select>
-                                    <label className="flex items-center gap-1 text-xs text-gray-200">
-                                      <input
-                                        type="checkbox"
-                                        className="checkbox checkbox-xs"
-                                        checked={att.platinum_only}
-                                        onChange={event => handleAttachmentPlatinumToggle(lesson.id, att.id, event.target.checked)}
-                                        disabled={updatingAttachmentIds.has(att.id)}
-                                        aria-label="プラチナ限定を切り替える"
-                                      />
-                                      プラチナ限定
-                                    </label>
-                                    <button
-                                      className="btn btn-ghost btn-xs text-red-500"
-                                      onClick={async () => {
-                                        if (!window.confirm('この添付ファイルを削除しますか？')) return;
-                                        try {
-                                          await removeLessonAttachment(att.id);
-                                          await deleteLessonAttachmentByKey(att.r2_key);
-                                          toast.success('添付ファイルを削除しました');
-                                          await loadLessonExtras(lesson.id);
-                                        } catch (e) {
-                                          toast.error('削除に失敗しました');
-                                          console.error(e);
-                                        }
-                                      }}
-                                      disabled={updatingAttachmentIds.has(att.id)}
-                                    >削除</button>
-                                  </div>
-                                </div>
-                              ))}
-                              <button
-                                className="btn btn-ghost btn-xs"
-                                onClick={() => loadLessonExtras(lesson.id)}
-                              >再読み込み</button>
-                            </div>
-                          </div>
-                        </div>
+                        {renderLessonMediaSection(lesson)}
                       </div>
                     </td>
                   </tr>
@@ -1162,6 +1224,19 @@ export const LessonManager: React.FC = () => {
                 })}
               </div>
             </div>
+            {selectedLesson ? (
+              <div className="border-t border-slate-700 pt-4">
+                <div className="mb-2">
+                  <h4 className="font-semibold">動画・添付ファイル</h4>
+                  <p className="text-xs text-gray-400">R2 にアップロードされ、現在のレッスンに紐づきます。</p>
+                </div>
+                {renderLessonMediaSection(selectedLesson)}
+              </div>
+            ) : (
+              <div className="rounded border border-dashed border-slate-600 p-3 text-sm text-gray-400">
+                動画・添付ファイルは、レッスンを保存した後に編集画面から追加できます。
+              </div>
+            )}
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeDialog}>キャンセル</button>
               <button type="submit" className="btn btn-primary" disabled={isSubmitting}>
