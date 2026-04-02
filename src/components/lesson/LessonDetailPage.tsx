@@ -680,48 +680,69 @@ const LessonDetailPage: React.FC = () => {
                               </div>
                               
                               {/* 各日の進捗 */}
-                              <div className="grid grid-cols-5 gap-1 mt-2">
-                                {Array.from({ length: requiredCount }, (_, dayIndex) => {
-                                  const dayNumber = dayIndex + 1;
-                                  const isCompleted = dayIndex < clearDates.length;
-                                  const today = new Date().toISOString().split('T')[0];
-                                  const todayProgress = progress?.daily_progress?.[today];
-                                  const isToday = dayIndex === clearDates.length && !isCompleted;
-                                  const todayCount = isToday ? (todayProgress?.count || 0) : 0;
-                                  const dailyRequired = req.clear_conditions?.daily_count || 1;
-                                  
-                                  return (
-                                    <div key={dayNumber} className="text-center">
-                                      <div className="text-xs mb-1 text-gray-400">{dayNumber}日目</div>
-                                      <div className="h-16 bg-slate-700 rounded relative overflow-hidden">
-                                        {isCompleted ? (
-                                          <div className="h-full bg-emerald-500 flex items-center justify-center">
-                                            <FaCheck className="text-white" />
-                                          </div>
-                                        ) : isToday ? (
-                                          <>
-                                            <div 
-                                              className="absolute bottom-0 left-0 right-0 bg-blue-500 transition-all duration-300"
-                                              style={{ 
-                                                height: `${Math.min(100, (todayCount / dailyRequired) * 100)}%` 
-                                              }}
-                                            />
-                                            <div className="absolute inset-0 flex items-center justify-center">
-                                              <span className="text-xs font-semibold text-white drop-shadow">
-                                                {todayCount}/{dailyRequired}
-                                              </span>
+                              {(() => {
+                                const today = new Date().toISOString().split('T')[0];
+                                const todayProgress = progress?.daily_progress?.[today];
+                                const dailyRequired = req.clear_conditions?.daily_count || 1;
+                                const todayCount = todayProgress?.count || 0;
+                                const todayDone = todayProgress?.completed || false;
+
+                                return (
+                                  <>
+                                    <div className="grid grid-cols-5 gap-1 mt-2">
+                                      {Array.from({ length: requiredCount }, (_, dayIndex) => {
+                                        const dayNumber = dayIndex + 1;
+                                        const dayCompleted = dayIndex < clearDates.length;
+                                        const isActiveDaySlot = dayIndex === clearDates.length && !isCompleted;
+
+                                        return (
+                                          <div key={dayNumber} className="text-center">
+                                            <div className="text-xs mb-1 text-gray-400">{dayNumber}日目</div>
+                                            <div className="h-16 bg-slate-700 rounded relative overflow-hidden">
+                                              {dayCompleted ? (
+                                                <div className="h-full bg-emerald-500 flex items-center justify-center">
+                                                  <FaCheck className="text-white" />
+                                                </div>
+                                              ) : isActiveDaySlot ? (
+                                                <>
+                                                  <div
+                                                    className="absolute bottom-0 left-0 right-0 bg-blue-500 transition-all duration-300"
+                                                    style={{
+                                                      height: `${Math.min(100, (todayCount / dailyRequired) * 100)}%`
+                                                    }}
+                                                  />
+                                                  <div className="absolute inset-0 flex items-center justify-center">
+                                                    <span className="text-xs font-semibold text-white drop-shadow">
+                                                      {todayCount}/{dailyRequired}
+                                                    </span>
+                                                  </div>
+                                                </>
+                                              ) : (
+                                                <div className="h-full flex items-center justify-center">
+                                                  <span className="text-xs text-gray-500">0/{dailyRequired}</span>
+                                                </div>
+                                              )}
                                             </div>
-                                          </>
-                                        ) : (
-                                          <div className="h-full flex items-center justify-center">
-                                            <span className="text-xs text-gray-500">0/{dailyRequired || 1}</span>
                                           </div>
+                                        );
+                                      })}
+                                    </div>
+                                    {/* 本日の課題ステータス */}
+                                    {!isCompleted && (
+                                      <div className="mt-2 text-sm">
+                                        {todayDone ? (
+                                          <span className="text-emerald-400 font-medium">✅ 本日の課題: クリア済み</span>
+                                        ) : (
+                                          <span className="text-yellow-300">
+                                            📅 本日の進捗: {todayCount}/{dailyRequired}回
+                                            {todayCount > 0 && ` (あと${dailyRequired - todayCount}回)`}
+                                          </span>
                                         )}
                                       </div>
-                                    </div>
-                                  );
-                                })}
-                              </div>
+                                    )}
+                                  </>
+                                );
+                              })()}
                             </div>
                           )}
                           

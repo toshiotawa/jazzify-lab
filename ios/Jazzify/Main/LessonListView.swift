@@ -814,7 +814,12 @@ struct LessonDetailView: View {
         let displayProgress: String
 
         if requirement.clearConditions?.requiresDays == true {
-            displayProgress = "\(progressRow?.clearDates.count ?? 0)/\(requiredCount)\(locale == .ja ? "日" : " days")"
+            let dailyCount = requirement.clearConditions?.dailyCount ?? 1
+            if dailyCount > 1 {
+                displayProgress = "\(progressRow?.clearDates.count ?? 0)/\(requiredCount)\(locale == .ja ? "日" : " days") (\(dailyCount)\(locale == .ja ? "回/日" : "/day"))"
+            } else {
+                displayProgress = "\(progressRow?.clearDates.count ?? 0)/\(requiredCount)\(locale == .ja ? "日" : " days")"
+            }
         } else {
             displayProgress = "\(progressRow?.clearCount ?? 0)/\(requiredCount)"
         }
@@ -850,6 +855,47 @@ struct LessonDetailView: View {
             }
 
             clearConditionsGrid(requirement)
+
+            // 本日の進捗表示（日数課題の場合）
+            if !isCompleted,
+               requirement.clearConditions?.requiresDays == true,
+               let dailyCount = requirement.clearConditions?.dailyCount, dailyCount >= 1 {
+                let today = todayDateString()
+                let todayProgress = progressRow?.dailyProgress?[today]
+                let todayCount = todayProgress?.count ?? 0
+                let todayDone = todayProgress?.completed ?? false
+
+                if todayDone {
+                    HStack(spacing: 4) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundStyle(.green)
+                            .font(.caption)
+                        Text(locale == .ja ? "本日の課題: クリア済み" : "Today: Complete")
+                            .font(.caption)
+                            .foregroundStyle(.green)
+                    }
+                    .padding(.vertical, 4)
+                } else {
+                    HStack(spacing: 4) {
+                        Image(systemName: "calendar")
+                            .foregroundStyle(.yellow)
+                            .font(.caption)
+                        Text(locale == .ja
+                             ? "本日の進捗: \(todayCount)/\(dailyCount)回"
+                             : "Today: \(todayCount)/\(dailyCount)")
+                            .font(.caption)
+                            .foregroundStyle(.yellow)
+                        if todayCount > 0 {
+                            Text(locale == .ja
+                                 ? "(あと\(dailyCount - todayCount)回)"
+                                 : "(\(dailyCount - todayCount) left)")
+                                .font(.caption2)
+                                .foregroundStyle(.gray)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
+            }
 
             Button {
                 launchRequirement(requirement)
@@ -919,6 +965,12 @@ struct LessonDetailView: View {
                             ? "\(count)\(locale == .ja ? "日間" : " days")"
                             : "\(count)\(locale == .ja ? "回" : "x")"
                     )
+                    if requiresDays, let dailyCount = cc.dailyCount, dailyCount > 1 {
+                        conditionItem(
+                            locale == .ja ? "1日あたり" : "Per day",
+                            value: "\(dailyCount)\(locale == .ja ? "回" : "x")"
+                        )
+                    }
                 }
             }
             .padding(10)
@@ -1262,6 +1314,13 @@ struct LessonDetailView: View {
 
     private func videoTitle(_ video: LessonVideoResource) -> String {
         locale == .ja ? "動画 \(video.orderIndex + 1)" : "Video \(video.orderIndex + 1)"
+    }
+
+    private func todayDateString() -> String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        formatter.timeZone = .current
+        return formatter.string(from: Date())
     }
 
     private func requirementSortKey(_ requirement: LessonSong) -> String {

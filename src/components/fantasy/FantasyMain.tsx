@@ -14,7 +14,7 @@ import { devLog } from '@/utils/logger';
 import type { DisplayLang } from '@/utils/display-note';
 import { LessonContext, FantasyRank, type FantasyStage as FantasyStageDb } from '@/types';
 import { fetchFantasyStageById, fetchFantasyStageByNumber } from '@/platform/supabaseFantasyStages';
-import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { updateLessonRequirementProgress, fetchDetailedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { getWizardRankString } from '@/utils/fantasyRankConstants';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
@@ -220,6 +220,16 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   const [isMissionMode, setIsMissionMode] = useState(false);
   const [lastPlayedTier, setLastPlayedTier] = useState<'basic' | 'advanced' | 'phrases' | null>(null);
   const [lastPlayedRank, setLastPlayedRank] = useState<string | null>(null);
+  const [lessonClearResult, setLessonClearResult] = useState<{
+    success: boolean;
+    requiresDays?: boolean;
+    current?: number;
+    goal?: number;
+    todayCount?: number;
+    dailyRequired?: number;
+    todayCompleted?: boolean;
+    isCompleted?: boolean;
+  } | null>(null);
   const embeddedFantasyUrlOnMount = useMemo(() => {
     try {
       return isEmbeddedFantasyUrlHash(getWindow().location.hash);
@@ -542,7 +552,6 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
 
   // ステージ選択ハンドラ
   const handleStageSelect = useCallback((stage: FantasyStage) => {
-    // 選択クリックは FantasyGameScreen マウントより前に終わるため、initializeAudioSystem の待ちを先に解除する
     markAudioUserInteraction();
     resolveMusicXml(stage).then(setCurrentStage);
     setGameResult(null);
@@ -551,6 +560,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     setPendingAutoStart(false);
     setPendingSpeedMultiplier(1.0);
     setGameKey(prevKey => prevKey + 1);
+    setLessonClearResult(null);
     const tier = ((stage as any).tier as 'basic' | 'advanced' | 'phrases') || 'basic';
     setLastPlayedTier(tier);
     setLastPlayedRank(stage.stageNumber?.split('-')[0] || null);
@@ -578,21 +588,69 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     
     // レッスンモードの場合の処理
     if (isLessonMode && lessonContext) {
-      if (result === 'clear') {
-        try {
-          // レッスン用ファンタジーは計算したランクを使用
-          await updateLessonRequirementProgress(
-            lessonContext.lessonId,
-            lessonContext.lessonSongId,
-            rank, // 計算したランクを使用
-            lessonContext.clearConditions,
-            { sourceType: 'fantasy', lessonSongId: lessonContext.lessonSongId }
-          );
-        } catch (error) {
-          console.error('レッスン課題進捗更新エラー:', error);
-        }
+      if (result !== 'clear') {
+        setLessonClearResult({ success: false });
+        return;
       }
-      return; // レッスンモードはここで終了
+
+      let rankMeetsRequirement = true;
+      if (lessonContext.clearConditions.rank) {
+        const rankOrder: Record<string, number> = { 'S': 4, 'A': 3, 'B': 2, 'C': 1, 'D': 0 };
+        const current = rankOrder[rank] ?? 0;
+        const required = rankOrder[lessonContext.clearConditions.rank] ?? 2;
+        rankMeetsRequirement = current >= required;
+      }
+
+      if (!rankMeetsRequirement) {
+        setLessonClearResult({ success: false });
+        return;
+      }
+
+      try {
+        await updateLessonRequirementProgress(
+          lessonContext.lessonId,
+          lessonContext.lessonSongId,
+          rank,
+          lessonContext.clearConditions,
+          { sourceType: 'fantasy', lessonSongId: lessonContext.lessonSongId }
+        );
+
+        const progressData = await fetchDetailedRequirementsProgress(lessonContext.lessonId);
+        const thisProgress = progressData.progress.find(
+          p => p.lesson_song_id === lessonContext.lessonSongId
+        );
+        const requiresDays = !!lessonContext.clearConditions.requires_days;
+        const requiredCount = lessonContext.clearConditions.count || 1;
+
+        if (thisProgress && requiresDays) {
+          const today = new Date().toISOString().split('T')[0];
+          const todayProgress = thisProgress.daily_progress?.[today];
+          setLessonClearResult({
+            success: true,
+            requiresDays: true,
+            current: (thisProgress.clear_dates || []).length,
+            goal: requiredCount,
+            todayCount: todayProgress?.count || 0,
+            dailyRequired: lessonContext.clearConditions.daily_count || 1,
+            todayCompleted: todayProgress?.completed || false,
+            isCompleted: thisProgress.is_completed,
+          });
+        } else if (thisProgress) {
+          setLessonClearResult({
+            success: true,
+            requiresDays: false,
+            current: thisProgress.clear_count,
+            goal: requiredCount,
+            isCompleted: thisProgress.is_completed,
+          });
+        } else {
+          setLessonClearResult({ success: true });
+        }
+      } catch (error) {
+        devLog.error('レッスン課題進捗更新エラー:', error);
+        setLessonClearResult({ success: true });
+      }
+      return;
     }
 
     // ミッションモード：通常のファンタジークリア記録は更新しない
@@ -902,6 +960,64 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
             </div>
           </div>
           
+          {/* レッスン課題条件の成否 */}
+          {isLessonMode && lessonClearResult && (
+            <div className={`rounded-lg p-4 mb-6 border-2 ${
+              lessonClearResult.success
+                ? 'bg-green-900/30 border-green-500'
+                : 'bg-red-900/30 border-red-500'
+            }`}>
+              <div className="text-lg font-bold mb-2">
+                {lessonClearResult.success ? '✅ 課題条件クリア！' : '❌ 課題条件未達成'}
+              </div>
+              {lessonContext?.clearConditions.rank && (
+                <div className="text-sm text-gray-300">
+                  {isEnglishCopy ? 'Required rank' : '必要ランク'}: {lessonContext.clearConditions.rank}{isEnglishCopy ? '+' : '以上'}
+                  {!lessonClearResult.success && gameResult.result === 'clear' && (
+                    <span className="ml-2 text-red-300">
+                      ({isEnglishCopy ? 'Your rank' : '今回'}: {gameResult.rank})
+                    </span>
+                  )}
+                </div>
+              )}
+              {lessonClearResult.success && lessonClearResult.current !== undefined && (
+                <div className="mt-2 text-sm">
+                  <div className="text-gray-300">
+                    {isEnglishCopy ? 'Progress' : '進捗'}: {' '}
+                    <span className="font-bold text-blue-300">
+                      {lessonClearResult.requiresDays
+                        ? `${lessonClearResult.current}/${lessonClearResult.goal}${isEnglishCopy ? ' days' : '日'}`
+                        : `${lessonClearResult.current}/${lessonClearResult.goal}${isEnglishCopy ? 'x' : '回'}`}
+                    </span>
+                    {lessonClearResult.requiresDays && lessonClearResult.dailyRequired && (
+                      <span className="text-gray-400 ml-1">
+                        ({lessonClearResult.dailyRequired}{isEnglishCopy ? '/day' : '回/日'})
+                      </span>
+                    )}
+                  </div>
+                  {lessonClearResult.requiresDays && lessonClearResult.todayCount !== undefined && (
+                    <div className="mt-1">
+                      {lessonClearResult.todayCompleted ? (
+                        <span className="text-green-400 font-medium">
+                          ✅ {isEnglishCopy ? "Today's task: Complete" : '本日の課題: クリア済み'}
+                        </span>
+                      ) : (
+                        <span className="text-yellow-300">
+                          📅 {isEnglishCopy ? 'Today' : '本日'}: {lessonClearResult.todayCount}/{lessonClearResult.dailyRequired}{isEnglishCopy ? 'x' : '回'}
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {lessonClearResult.isCompleted && (
+                    <div className="mt-1 text-yellow-400 font-bold">
+                      🎉 {isEnglishCopy ? 'All requirements completed!' : '課題達成！全条件クリア！'}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
           {/* 結果表示 */}
           <div className="bg-black bg-opacity-30 rounded-lg p-6 mb-6">
               <div className="text-lg font-sans">

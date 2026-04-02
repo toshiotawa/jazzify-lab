@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
-import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
+import { updateLessonRequirementProgress, fetchLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
@@ -26,6 +26,12 @@ const ResultModal: React.FC = () => {
 
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
   const [clearStats, setClearStats] = useState<{current: number; goal: number} | null>(null);
+  const [dailyInfo, setDailyInfo] = useState<{
+    todayCount: number;
+    dailyRequired: number;
+    todayCompleted: boolean;
+    isCompleted: boolean;
+  } | null>(null);
   const [processed, setProcessed] = useState(false);
 
   useEffect(() => {
@@ -60,17 +66,37 @@ const ResultModal: React.FC = () => {
 
             if (success && currentSong) {
               try {
-                const result = await updateLessonRequirementProgress(
+                await updateLessonRequirementProgress(
                   lessonContext.lessonId,
                   currentSong.id,
                   score.rank,
                   lessonContext.clearConditions
                 );
-                const newCount = typeof result === 'object' && result !== null ? (result as any).clear_count || 0 : 0;
-                setClearStats({
-                  current: newCount,
-                  goal: lessonContext.clearConditions.count || 1
-                });
+
+                const progressRows = await fetchLessonRequirementsProgress(lessonContext.lessonId);
+                const thisProgress = progressRows.find(p => p.song_id === currentSong.id || p.lesson_song_id === currentSong.id);
+                const requiresDays = !!lessonContext.clearConditions.requires_days;
+                const requiredCount = lessonContext.clearConditions.count || 1;
+
+                if (thisProgress && requiresDays) {
+                  setClearStats({
+                    current: (thisProgress.clear_dates || []).length,
+                    goal: requiredCount,
+                  });
+                  const today = new Date().toISOString().split('T')[0];
+                  const todayProgress = thisProgress.daily_progress?.[today];
+                  setDailyInfo({
+                    todayCount: todayProgress?.count || 0,
+                    dailyRequired: lessonContext.clearConditions.daily_count || 1,
+                    todayCompleted: todayProgress?.completed || false,
+                    isCompleted: thisProgress.is_completed,
+                  });
+                } else if (thisProgress) {
+                  setClearStats({
+                    current: thisProgress.clear_count,
+                    goal: requiredCount,
+                  });
+                }
               } catch (error) {
                 log.error('実習課題の進捗更新に失敗:', error);
               }
@@ -130,6 +156,7 @@ const ResultModal: React.FC = () => {
     } else if (!resultModalOpen) {
       setLessonRequirementSuccess(null);
       setClearStats(null);
+      setDailyInfo(null);
       setProcessed(false);
     }
   }, [resultModalOpen, lessonContext, currentSong, profile, processed]);
@@ -226,7 +253,7 @@ const ResultModal: React.FC = () => {
                 {(lessonContext.clearConditions.count || 1) > 1 && (
                   <div className="mt-1 text-xs">
                     {lessonContext.clearConditions.requires_days 
-                      ? `${lessonContext.clearConditions.count}日間クリアが必要`
+                      ? `${lessonContext.clearConditions.count}日間クリアが必要${lessonContext.clearConditions.daily_count ? ` (${lessonContext.clearConditions.daily_count}回/日)` : ''}`
                       : `${lessonContext.clearConditions.count}回クリアが必要`}
                   </div>
                 )}
@@ -239,13 +266,27 @@ const ResultModal: React.FC = () => {
           <div className="px-4 sm:px-6 py-2">
             <div className="text-center p-3 rounded-lg bg-slate-800/50 border border-slate-600">
               <div className="text-sm font-medium text-gray-300 mb-1">
-                クリア回数
+                {lessonContext?.clearConditions.requires_days ? 'クリア日数' : 'クリア回数'}
+                {dailyInfo && ` (${dailyInfo.dailyRequired}回/日)`}
               </div>
               <div className="text-lg font-bold text-blue-400">
                 {clearStats.current} / {clearStats.goal}
+                {lessonContext?.clearConditions.requires_days ? '日' : '回'}
               </div>
-              {clearStats.current >= clearStats.goal && (
-                <div className="text-xs text-emerald-400 mt-1 flex items-center gap-1">
+              {dailyInfo && !dailyInfo.isCompleted && (
+                <div className="mt-1">
+                  {dailyInfo.todayCompleted ? (
+                    <span className="text-xs text-emerald-400">✅ 本日の課題: クリア済み</span>
+                  ) : (
+                    <span className="text-xs text-yellow-300">
+                      📅 本日: {dailyInfo.todayCount}/{dailyInfo.dailyRequired}回
+                      {dailyInfo.todayCount > 0 && ` (あと${dailyInfo.dailyRequired - dailyInfo.todayCount}回)`}
+                    </span>
+                  )}
+                </div>
+              )}
+              {(dailyInfo?.isCompleted || clearStats.current >= clearStats.goal) && (
+                <div className="text-xs text-emerald-400 mt-1 flex items-center justify-center gap-1">
                   <FaAward className="text-emerald-400" />
                   目標達成！
                 </div>
