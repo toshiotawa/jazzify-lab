@@ -173,6 +173,12 @@ export const LessonManager: React.FC = () => {
 
   const loadLessonExtras = async (lessonId: string) => {
     try {
+      invalidateCacheKey(`lesson_attachments:${lessonId}:all`);
+      invalidateCacheKey(`lesson_attachments:${lessonId}:ja`);
+      invalidateCacheKey(`lesson_attachments:${lessonId}:en`);
+      invalidateCacheKey(`lesson_videos:${lessonId}:all`);
+      invalidateCacheKey(`lesson_videos:${lessonId}:ja`);
+      invalidateCacheKey(`lesson_videos:${lessonId}:en`);
       const attachments = await fetchLessonAttachments(lessonId, { audience: 'all' });
       setAttachmentsByLesson(prev => ({ ...prev, [lessonId]: attachments }));
       const videos = await fetchLessonVideos(lessonId, { audience: 'all' });
