@@ -7,6 +7,7 @@ final class AppState: ObservableObject {
     @Published var authState: AuthState = .loading
     @Published var profile: Profile?
     @Published var billingStatus: BillingStatusResponse?
+    @Published var profileSetupError: String?
     @Published var locale: AppLocale
 
     private let supabase = SupabaseService.shared
@@ -26,21 +27,75 @@ final class AppState: ObservableObject {
         do {
             let session = try await supabase.client.auth.session
             let userId = session.user.id
-            let fetchedProfile = try await supabase.fetchProfile(userId: userId)
-            self.profile = fetchedProfile
+            let email = session.user.email ?? ""
 
-            if let prefLocale = fetchedProfile.preferredLocale,
-               let loc = AppLocale(rawValue: prefLocale) {
-                self.locale = loc
+            if let fetchedProfile = try await supabase.fetchProfileIfExists(userId: userId) {
+                await activateAuthenticatedState(userId: userId, profile: fetchedProfile)
+                return
             }
 
-            self.authState = .authenticated(userId)
-
             store.setCurrentUserId(userId)
-            await refreshBillingStatus()
-            await store.listenForTransactions()
+            self.profile = nil
+            self.billingStatus = nil
+            self.profileSetupError = nil
+            self.authState = .profileSetupRequired(userId, email)
         } catch {
+            store.setCurrentUserId(nil)
+            self.profile = nil
+            self.billingStatus = nil
+            self.profileSetupError = nil
             self.authState = .unauthenticated
+        }
+    }
+
+    func createProfile(nickname: String, agreed: Bool) async {
+        let trimmedNickname = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+
+        guard !trimmedNickname.isEmpty else {
+            self.profileSetupError = locale == .ja
+                ? "ニックネームを入力してください"
+                : "Please enter a nickname."
+            return
+        }
+
+        guard agreed else {
+            self.profileSetupError = locale == .ja
+                ? "利用規約とプライバシーポリシーに同意してください"
+                : "Please agree to the Terms of Service and Privacy Policy."
+            return
+        }
+
+        guard case let .profileSetupRequired(userId, email) = authState else { return }
+
+        self.profileSetupError = nil
+
+        do {
+            if let existingProfile = try await supabase.fetchProfileIfExists(userId: userId) {
+                await activateAuthenticatedState(userId: userId, profile: existingProfile)
+                return
+            }
+
+            try await supabase.createProfile(
+                userId: userId,
+                email: email,
+                nickname: trimmedNickname,
+                locale: locale
+            )
+
+            guard let createdProfile = try await supabase.fetchProfileIfExists(userId: userId) else {
+                throw ProfileSetupError.profileNotFoundAfterCreation
+            }
+
+            await activateAuthenticatedState(userId: userId, profile: createdProfile)
+        } catch {
+            if let existingProfile = try? await supabase.fetchProfileIfExists(userId: userId) {
+                await activateAuthenticatedState(userId: userId, profile: existingProfile)
+                return
+            }
+
+            self.profileSetupError = locale == .ja
+                ? "プロフィールの作成に失敗しました: \(error.localizedDescription)"
+                : "Failed to create profile: \(error.localizedDescription)"
         }
     }
 
@@ -57,7 +112,23 @@ final class AppState: ObservableObject {
         store.setCurrentUserId(nil)
         self.profile = nil
         self.billingStatus = nil
+        self.profileSetupError = nil
         self.authState = .unauthenticated
+    }
+
+    private func activateAuthenticatedState(userId: UUID, profile: Profile) async {
+        self.profile = profile
+        self.profileSetupError = nil
+
+        if let prefLocale = profile.preferredLocale,
+           let loc = AppLocale(rawValue: prefLocale) {
+            self.locale = loc
+        }
+
+        self.authState = .authenticated(userId)
+        store.setCurrentUserId(userId)
+        await refreshBillingStatus()
+        await store.listenForTransactions()
     }
 
     func updateLocale(_ newLocale: AppLocale) async {
@@ -108,4 +179,16 @@ enum AuthState: Equatable {
     case loading
     case unauthenticated
     case authenticated(UUID)
+    case profileSetupRequired(UUID, String)
+}
+
+private enum ProfileSetupError: LocalizedError {
+    case profileNotFoundAfterCreation
+
+    var errorDescription: String? {
+        switch self {
+        case .profileNotFoundAfterCreation:
+            return "Profile not found after creation"
+        }
+    }
 }

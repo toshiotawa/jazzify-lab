@@ -70,6 +70,17 @@ final class SupabaseService: Sendable {
         return response
     }
 
+    func fetchProfileIfExists(userId: UUID) async throws -> Profile? {
+        let response: [Profile] = try await client
+            .from("profiles")
+            .select()
+            .eq("id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return response.first
+    }
+
     func createProfile(userId: UUID, email: String, nickname: String, locale: AppLocale) async throws {
         struct NewProfile: Encodable {
             let id: UUID

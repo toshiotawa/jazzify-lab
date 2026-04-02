@@ -26,6 +26,8 @@ struct RootView: View {
                 LaunchScreenView()
             case .unauthenticated:
                 LoginView()
+            case .profileSetupRequired(_, let email):
+                ProfileSetupView(email: email)
             case .authenticated:
                 MainTabView()
             }
