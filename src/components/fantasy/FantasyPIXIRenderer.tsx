@@ -77,6 +77,12 @@ const HIT_EMOJI = '🎵';
 
 const EMOJI_FONT_FALLBACK = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
+const isLikelyWebKitRenderer = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /AppleWebKit/.test(ua) && !/Chrome\//.test(ua);
+};
+
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
@@ -99,7 +105,7 @@ export class FantasyPIXIInstance {
   private imageCache = new Map<string, HTMLImageElement>();
   private loadingImages = new Set<string>();
   private onMonsterDefeated?: () => void;
-  
+  private readonly isWebKit: boolean;
 
   // 怒り状態を購読するためのunsubscribe関数
   private unsubscribeEnraged: (() => void) | null = null;
@@ -131,7 +137,9 @@ export class FantasyPIXIInstance {
     this.ctx = context;
     this.width = width;
     this.height = height;
-    this.pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    this.isWebKit = isLikelyWebKitRenderer();
+    const rawDpr = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
+    this.pixelRatio = this.isWebKit ? Math.min(rawDpr, 1.25) : rawDpr;
     this.defaultMonsterIcon = '';
     this.imageTexturesRef = imageTexturesRef;
     this.onMonsterDefeated = onMonsterDefeated;
@@ -261,12 +269,16 @@ export class FantasyPIXIInstance {
   ): void {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
-      visual.flashUntil = performance.now() + 450;
-      visual.hitNoteOffsets = Array.from({ length: 2 }, () => {
-        const a = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
-        const d = 0.3 + Math.random() * 0.25;
-        return { x: Math.cos(a) * d, y: Math.sin(a) * d };
-      });
+      const ultraLight = this.isWebKit && this.taikoMode;
+
+      visual.flashUntil = performance.now() + (ultraLight ? 180 : 450);
+      visual.hitNoteOffsets = ultraLight
+        ? []
+        : Array.from({ length: 2 }, () => {
+            const a = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
+            const d = 0.3 + Math.random() * 0.25;
+            return { x: Math.cos(a) * d, y: Math.sin(a) * d };
+          });
       
       const randAngle = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
       const randDist = 30 + Math.random() * 40;
@@ -276,12 +288,15 @@ export class FantasyPIXIInstance {
         y: visual.y,
         value: damageDealt,
         start: performance.now(),
-        duration: this.isSheetMusicMode ? 100 : 1800,
+        duration: this.isSheetMusicMode
+          ? 100
+          : ultraLight
+            ? 320
+            : (this.taikoMode ? 900 : 1800),
         offsetX: Math.cos(randAngle) * randDist,
         offsetY: Math.sin(randAngle) * randDist,
       });
-      
-      
+
       if (defeated && !visual.defeated) {
         visual.defeated = true;
         visual.defeatedAt = performance.now();
@@ -289,6 +304,7 @@ export class FantasyPIXIInstance {
           this.onMonsterDefeated?.();
         }, 400);
       }
+      this.requestRender();
     }
   }
 
@@ -489,12 +505,13 @@ export class FantasyPIXIInstance {
       ctx.filter = 'none';
       ctx.globalAlpha = 1;
       
-      // 怒りアイコン（💢）を表示
-      if (isEnraged) {
+      const ultraLight = this.isWebKit && this.taikoMode;
+
+      // 怒りアイコン（💢）を表示（WebKit太鼓モードではスキップ）
+      if (isEnraged && !ultraLight) {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        // アニメーション（パルス）
         const pulse = 1 + Math.sin(now * 0.01) * 0.1;
         ctx.save();
         ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
@@ -503,12 +520,13 @@ export class FantasyPIXIInstance {
         ctx.restore();
       }
       
-      // ヒット時の音符エフェクト（🎵×2）
-      if (monster.flashUntil > now) {
+      // ヒット時の音符エフェクト（WebKit太鼓モードではスキップ）
+      if (monster.flashUntil > now && !ultraLight) {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const hitProgress = (monster.flashUntil - now) / 450; // 450msに延長
+        const flashDuration = 450;
+        const hitProgress = (monster.flashUntil - now) / flashDuration;
         ctx.globalAlpha = hitProgress;
         
         const offsets = monster.hitNoteOffsets.length >= 2
@@ -648,6 +666,7 @@ export class FantasyPIXIInstance {
 
   private drawDamagePopups(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
+    const ultraLight = this.isWebKit && this.taikoMode;
     
     this.damagePopups = this.damagePopups.filter(
       (popup) => now - popup.start < popup.duration
@@ -668,6 +687,12 @@ export class FantasyPIXIInstance {
         bounceScale = 1;
         ox = 0;
         oy = 0;
+      } else if (ultraLight) {
+        alpha = 1 - progress;
+        yOffset = -progress * 16;
+        bounceScale = 1;
+        ox = popup.offsetX * 0.15;
+        oy = popup.offsetY * 0.15;
       } else {
         alpha = progress < 0.7 ? 1 : 1 - ((progress - 0.7) / 0.3);
         yOffset = -progress * 50;
@@ -683,17 +708,18 @@ export class FantasyPIXIInstance {
       ctx.scale(bounceScale, bounceScale);
       ctx.globalAlpha = alpha;
       
-      const fontSize = 28;
+      const fontSize = ultraLight ? 22 : 28;
       ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      ctx.shadowColor = '#fbbf24';
-      ctx.shadowBlur = 16;
-      
-      ctx.strokeStyle = DAMAGE_STROKE;
-      ctx.lineWidth = 5;
-      ctx.strokeText(popup.value.toString(), 0, 0);
+      if (!ultraLight) {
+        ctx.shadowColor = '#fbbf24';
+        ctx.shadowBlur = 16;
+        ctx.strokeStyle = DAMAGE_STROKE;
+        ctx.lineWidth = 5;
+        ctx.strokeText(popup.value.toString(), 0, 0);
+      }
       
       ctx.fillStyle = DAMAGE_COLOR;
       ctx.fillText(popup.value.toString(), 0, 0);

@@ -911,14 +911,15 @@ export const useFantasyGameEngine = ({
   const setGameStateSync = useCallback((
     updaterOrValue: FantasyGameState | ((prev: FantasyGameState) => FantasyGameState)
   ) => {
-    if (typeof updaterOrValue === 'function') {
-      const next = updaterOrValue(gameStateRef.current);
-      gameStateRef.current = next;
-      setGameState(next);
-    } else {
-      gameStateRef.current = updaterOrValue;
-      setGameState(updaterOrValue);
-    }
+    const prev = gameStateRef.current;
+    const next = typeof updaterOrValue === 'function'
+      ? updaterOrValue(prev)
+      : updaterOrValue;
+
+    if (next === prev) return;
+
+    gameStateRef.current = next;
+    setGameState(next);
   }, []);
   
   const gaugeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -926,8 +927,16 @@ export const useFantasyGameEngine = ({
   const lastReactSyncRef = useRef(0);
   const REACT_SYNC_INTERVAL_MS = 33; // ~30Hz
 
+  const committedGameStateRef = useRef(gameState);
+  useEffect(() => { committedGameStateRef.current = gameState; }, [gameState]);
+
   const flushToReact = useCallback(() => {
     if (!reactDirtyRef.current) return;
+    const next = gameStateRef.current;
+    if (next === committedGameStateRef.current) {
+      reactDirtyRef.current = false;
+      return;
+    }
     const now = performance.now();
     if (now - lastReactSyncRef.current < REACT_SYNC_INTERVAL_MS) return;
     lastReactSyncRef.current = now;
@@ -2211,6 +2220,9 @@ export const useFantasyGameEngine = ({
     lastNormalizedTimeRef.current = -1;
 
     setGameStateSync(newState);
+    if (newState.isTaikoMode) {
+      onTaikoVisualSyncRef.current?.(newState);
+    }
     onGameStateChange(newState);
 
     /* ===== BGMManagerがタイミング管理を担当 ===== */
@@ -3336,6 +3348,10 @@ export const useFantasyGameEngine = ({
     if (currentState.isGameActive && !currentState.isWaitingForNextMonster &&
         currentState.isTaikoMode && currentState.taikoNotes.length > 0) {
       const nextTaikoState = handleTaikoModeInput(currentState, note, capturedInputMusicTime);
+
+      if (nextTaikoState === currentState) {
+        return;
+      }
 
       gameStateRef.current = nextTaikoState;
       onTaikoVisualSyncRef.current?.(nextTaikoState);

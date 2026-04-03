@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useLayoutEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -1340,20 +1340,19 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     }
   }, [fantasyPixiInstance, stage?.isSheetMusicMode]);
   
-  // onTaikoVisualSync (updater内) が唯一の高速同期経路。
-  // useLayoutEffect での二重同期は削除し、初期化のみ同期する。
-  useLayoutEffect(() => {
-    if (!gameState.isTaikoMode) return;
-    taikoNotesRef.current = gameState.taikoNotes;
-    currentNoteIndexRef.current = gameState.currentNoteIndex;
-    awaitingLoopStartRef.current = gameState.awaitingLoopStart;
-    taikoLoopCycleRef.current = gameState.taikoLoopCycle;
-    preHitNoteIndicesRef.current = gameState.preHitNoteIndices;
-    isCombiningModeRef.current = gameState.isCombiningMode;
-    combinedSectionsRef.current = gameState.combinedSections;
-    currentSectionIndexRef.current = gameState.currentSectionIndex;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [gameState.isTaikoMode, gameState.currentStage]);
+  // onTaikoVisualSync (engine内) が唯一の高速同期経路。
+  // React 側は太鼓モードOFF時のみ bridge をクリアする。
+  useEffect(() => {
+    if (gameState.isTaikoMode) return;
+    taikoNotesRef.current = [];
+    currentNoteIndexRef.current = 0;
+    awaitingLoopStartRef.current = false;
+    taikoLoopCycleRef.current = 0;
+    preHitNoteIndicesRef.current = [];
+    isCombiningModeRef.current = false;
+    combinedSectionsRef.current = [];
+    currentSectionIndexRef.current = 0;
+  }, [gameState.isTaikoMode]);
 
   // 太鼓の達人モードのノーツ表示更新（最適化版）
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
