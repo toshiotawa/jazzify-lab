@@ -14,8 +14,8 @@ struct ProfileSetupView: View {
     private var trimmedNickname: String {
         nickname.trimmingCharacters(in: .whitespacesAndNewlines)
     }
-    private var termsURL: URL { Config.webAppBaseURL.appendingPathComponent("terms") }
-    private var privacyURL: URL { Config.webAppBaseURL.appendingPathComponent("privacy") }
+    private var termsURL: URL { Config.termsIosURL }
+    private var privacyURL: URL { Config.privacyIosURL }
 
     var body: some View {
         NavigationStack {

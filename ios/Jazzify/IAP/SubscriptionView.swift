@@ -255,11 +255,11 @@ struct SubscriptionView: View {
 
             HStack(spacing: 16) {
                 Link(locale == .ja ? "利用規約" : "Terms of Service",
-                     destination: URL(string: "https://jazzify.jp/terms")!)
+                     destination: Config.termsIosURL)
                     .font(.caption2)
 
                 Link(locale == .ja ? "プライバシーポリシー" : "Privacy Policy",
-                     destination: URL(string: "https://jazzify.jp/privacy")!)
+                     destination: Config.privacyIosURL)
                     .font(.caption2)
             }
         }

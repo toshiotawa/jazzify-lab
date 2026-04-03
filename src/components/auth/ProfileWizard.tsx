@@ -17,7 +17,7 @@ const ProfileWizard: React.FC = () => {
     preferredLocale: profile?.preferred_locale ?? null,
   });
   const locale: TermsLocale = isEnglishCopy ? 'en' : 'ja';
-  const termsContent = getTermsContent(locale);
+  const termsContent = getTermsContent({ variant: 'web', locale });
   const modalTitle = isEnglishCopy ? 'Complete Your Profile' : 'プロフィール登録';
   const nicknamePlaceholder = isEnglishCopy ? 'Nickname' : 'ニックネーム';
   const nicknameRequiredToast = isEnglishCopy ? 'Please enter a nickname.' : 'ニックネームを入力してください';

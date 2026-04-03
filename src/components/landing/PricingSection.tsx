@@ -32,15 +32,16 @@ const EnglishPricing: React.FC = () => (
           <div className="bg-gradient-to-r from-purple-400 to-pink-400 text-black text-xs px-3 py-1 rounded-full inline-block mb-4">
             Premium
           </div>
-          <h3 className="text-2xl font-bold text-purple-300 mb-4">Monthly Plan</h3>
-          <div className="text-4xl font-bold text-white mb-6">
-            $19<span className="text-sm text-gray-400">/month</span>
+          <h3 className="text-2xl font-bold text-purple-300 mb-4">Premium Plan</h3>
+          <div className="text-4xl font-bold text-white mb-2">
+            ¥4,980 JPY<span className="text-sm text-gray-400"> / month (tax included)</span>
           </div>
+          <p className="text-xs text-green-400 mb-2">7-day free trial when eligible, then monthly billing.</p>
+          <p className="text-xs text-gray-500 mb-4">Billed via Lemon Squeezy. Checkout in JPY, USD equivalent processing.</p>
           <ul className="space-y-3 text-sm text-gray-400 mb-6">
-            <li><i className="fas fa-check text-green-400 mr-2" aria-hidden="true"></i>1 week free trial</li>
             <li><i className="fas fa-check text-green-400 mr-2" aria-hidden="true"></i>Fantasy Mode (unlimited)</li>
             <li><i className="fas fa-check text-green-400 mr-2" aria-hidden="true"></i>MIDI keyboard support</li>
-            <li><i className="fas fa-check text-green-400 mr-2" aria-hidden="true"></i>Cancel anytime</li>
+            <li><i className="fas fa-check text-green-400 mr-2" aria-hidden="true"></i>Cancel before next renewal (see Terms)</li>
           </ul>
         </div>
       </div>
@@ -61,8 +62,8 @@ const JapanesePricing: React.FC<{ plans: PricingPlan[]; features: PricingFeature
         <img src="/stage_icons/10.png" alt="料金プラン" className="w-16 h-16" loading="lazy" />
         料金プラン
       </h2>
-      <p className="text-center text-sm text-green-400 mb-10">
-        すべての有料プランに7日間（1週間）無料トライアル
+      <p className="text-center text-sm text-gray-400 mb-10">
+        有料プランはプレミアムのみ（月額4,980円・税込・初回7日間無料トライアル付与の場合あり）
       </p>
 
       <div className="overflow-x-auto" data-animate="alt-cards text-up">

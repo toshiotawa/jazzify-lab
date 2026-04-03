@@ -2,9 +2,11 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { CheckIcon } from '@/components/landing/LpPricingIcons';
 import '@/landing.css';
 
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
+const LpEnglishPremiumPricing = React.lazy(() => import('@/components/landing/LpEnglishPremiumPricing'));
 
 const HeroText: React.FC<{
   text: string;
@@ -14,10 +16,6 @@ const HeroText: React.FC<{
   <p className={className} data-animate={dataAnimate}>
     {text}
   </p>
-);
-
-const CheckIcon: React.FC = () => (
-  <span aria-hidden="true" className="mr-2 font-bold" style={{ color: 'var(--lp-gold)' }}>✓</span>
 );
 
 const ChevronIcon: React.FC<{ open: boolean }> = ({ open }) => (
@@ -115,15 +113,15 @@ const LandingPage: React.FC = () => {
 
   const heroTitleText = isEnglishLanding ? 'Turn practice into an adventure.' : '練習を冒険に。';
   const heroSubtitleText = isEnglishLanding ? 'Transform your playing with an RPG-inspired jazz journey.' : 'ゲーム感覚で、ジャズが弾けるようになる。';
-  const primaryCtaLabel = isEnglishLanding ? 'Start Free Trial' : '無料トライアルを始める';
-  const heroCtaAria = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
+  const primaryCtaLabel = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
+  const heroCtaAria = isEnglishLanding ? 'Start your 7-day free trial' : '1週間の無料トライアルを始める';
   const helmetDescription = isEnglishLanding
-    ? 'Start your jazz adventure in a fantasy realm. Practice with real-time feedback, unlock quests, and battle through Fantasy Mode. Try free trial now.'
-    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。コード進行の暗記、名演ソロの再現、ファンタジーモードでの冒険まで。無料トライアルで今すぐ始めよう。';
-  const finalHeadingText = isEnglishLanding ? 'Start your free trial now' : '今すぐ無料トライアルを始める';
+    ? 'Start your jazz adventure in a fantasy realm. New subscribers get a 7-day free trial (when eligible). Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
+    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。初回利用者には7日間の無料トライアル（対象者あり）で全機能をお試しいただけます。';
+  const finalHeadingText = isEnglishLanding ? 'Start your free trial' : '今すぐ無料トライアルを始める';
   const finalDescriptionText = isEnglishLanding
-    ? 'Registration takes just a few minutes. You can also try the demo first.'
-    : '登録は数分で完了。おためしプレイも可能です。';
+    ? 'Registration takes just a few minutes. Eligible users get a 7-day free trial before the first charge.'
+    : '登録は数分で完了。初回は7日間の無料トライアル（対象者あり）のあと月額課金となります。';
 
   const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -173,7 +171,7 @@ const LandingPage: React.FC = () => {
 
               <div className="flex items-center gap-2 sm:gap-3">
                 <Link to="/signup" className="lp-btn-gold px-3 py-1.5 sm:px-4 sm:py-2 rounded-full text-xs sm:text-sm whitespace-nowrap">
-                  {isEnglishLanding ? 'Sign In / Sign Up' : 'ログイン/無料トライアル'}
+                  {isEnglishLanding ? 'Sign In / Sign Up' : 'ログイン / 無料トライアル'}
                 </Link>
               </div>
             </div>
@@ -264,19 +262,9 @@ const LandingPage: React.FC = () => {
                 <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title" data-animate="from-behind heading-underline">
                   Pricing
                 </h2>
-                <div className="max-w-md mx-auto" data-animate="alt-cards text-up">
-                  <div className="pricing-card premium rounded-2xl p-8 text-center">
-                    <div className="lp-btn-gold text-xs px-3 py-1 rounded-full inline-block mb-4">Premium</div>
-                    <h3 className="text-2xl font-bold mb-4 lp-display" style={{ color: 'var(--lp-gold-light)' }}>Monthly Plan</h3>
-                    <div className="text-4xl font-bold mb-6 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/month</span></div>
-                    <ul className="space-y-3 text-sm mb-6" style={{ color: 'var(--lp-cream-muted)' }}>
-                      <li><CheckIcon />1 week free trial</li>
-                      <li><CheckIcon />Fantasy Mode (unlimited)</li>
-                      <li><CheckIcon />MIDI keyboard support</li>
-                      <li><CheckIcon />Cancel anytime</li>
-                    </ul>
-                  </div>
-                </div>
+                <React.Suspense fallback={<div className="py-8 text-center text-sm" style={{ color: 'var(--lp-cream-muted)' }}>Loading…</div>}>
+                  <LpEnglishPremiumPricing />
+                </React.Suspense>
               </div>
             </section>
 
@@ -326,7 +314,7 @@ const LandingPage: React.FC = () => {
                             {' '}from the App Store.
                           </span>
                         )}
-                        {id === 3 && '1 week free trial is included. You can cancel your subscription at any time.'}
+                        {id === 3 && 'Eligible subscribers get a 7-day free trial before the first charge. After the trial, Premium is billed monthly via Lemon Squeezy (checkout in JPY, processed in USD equivalent). Cancel before the next renewal as described in the Terms.'}
                       </div>
                     </div>
                   ))}
@@ -460,7 +448,7 @@ const LandingPage: React.FC = () => {
             <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-8 section-title" data-animate="from-behind heading-underline">
               料金プラン
             </h2>
-            <p className="text-center text-sm mb-10" style={{ color: 'var(--lp-gold)' }}>すべての有料プランに7日間（1週間）無料トライアル</p>
+            <p className="text-center text-sm mb-10" style={{ color: 'var(--lp-gold)' }}>有料プランはプレミアムのみ（月額4,980円・税込・初回7日間無料トライアル付与の場合あり）</p>
 
             <div className="overflow-x-auto" data-animate="alt-cards text-up">
               <table className="w-full border-collapse">
@@ -476,8 +464,8 @@ const LandingPage: React.FC = () => {
                     <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)', borderTop: '2px solid var(--lp-gold)' }}>
                       <span className="lp-btn-gold inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2">おすすめ</span>
                       <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プレミアム</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>$19<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}>/月</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>7日間無料トライアル</div>
+                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥4,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}> / 月（税込）</span></div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>初回7日間無料トライアル（対象者あり）</div>
                     </th>
                   </tr>
                 </thead>
@@ -533,7 +521,7 @@ const LandingPage: React.FC = () => {
                       {id === 1 && '楽器未経験者でも大丈夫ですか？'}
                       {id === 2 && 'どんな楽器に対応していますか？'}
                       {id === 3 && 'オフラインでも使用できますか？'}
-                      {id === 4 && 'プラン変更はいつでもできますか？'}
+                      {id === 4 && 'プレミアムプランについて教えてください'}
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
                       {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
                     </h3>
@@ -547,8 +535,8 @@ const LandingPage: React.FC = () => {
                     {id === 1 && 'はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。'}
                     {id === 2 && 'ピアノ、ギター、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。'}
                     {id === 3 && '一部のコンテンツはダウンロードしてオフラインでご利用いただけます。ただし、コミュニティ機能やランキング機能など、一部の機能はインターネット接続が必要です。'}
-                    {id === 4 && 'はい、プラン変更はいつでも可能です。アップグレードの場合は即座に新機能がご利用いただけ、ダウングレードの場合は次回請求日から新プランが適用されます。'}
-                    {id === 5 && '月額プランはいつでもキャンセル可能です。キャンセル後も現在の請求期間内はサービスをご利用いただけます。初回登録から7日以内であれば、返金対応も承っております。'}
+                    {id === 4 && '有料プランはプレミアムプランのみです。フリープランからプレミアムへのアップグレードは、マイページ等の案内に従いいつでもお申し込みいただけます。'}
+                    {id === 5 && '初回利用者には7日間の無料トライアルが付与される場合があります。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。'}
                     {id === 6 && (
                       <span>
                         iOS（Safari等）では Web MIDI API が利用できません。App Store の{' '}
@@ -708,7 +696,7 @@ const LandingPage: React.FC = () => {
                         </a>
                       </li>
                     ))}
-                    <li><Link to="/signup" className="transition-colors duration-200 hover:opacity-80">無料体験</Link></li>
+                    <li><Link to="/signup" className="transition-colors duration-200 hover:opacity-80">新規登録</Link></li>
                   </ul>
                 </div>
 

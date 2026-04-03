@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { cn } from '@/utils/cn';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getTermsContent, type TermsLocale } from '@/components/legal/termsContent';
+import { getTermsContent, type TermsCopy, type TermsLocale } from '@/components/legal/termsContent';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
@@ -30,7 +30,7 @@ export const AuthGate: React.FC<AuthGateProps> = ({ children }) => {
     preferredLocale: authProfile?.preferred_locale ?? null,
   });
   const locale: TermsLocale = isEnglishCopy ? 'en' : 'ja';
-  const termsContent = getTermsContent(locale);
+  const termsContent = getTermsContent({ variant: 'web', locale });
   const loadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
   const errorTitle = isEnglishCopy ? 'Authentication Error' : '認証エラー';
   const retryText = isEnglishCopy ? 'Retry' : '再試行';
@@ -117,7 +117,7 @@ interface AccountModalProps {
   error: string | null;
   onRetry: () => Promise<void>;
   isEnglishCopy: boolean;
-  termsContent: ReturnType<typeof getTermsContent>;
+  termsContent: TermsCopy;
 }
 
 const AccountRegistrationModal: React.FC<AccountModalProps> = ({ onSubmit, error, onRetry, isEnglishCopy, termsContent }) => {

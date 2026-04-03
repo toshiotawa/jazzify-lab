@@ -13,6 +13,7 @@ const ContactPage = React.lazy(() => import('@/components/contact/ContactPage'))
 const TermsPage = React.lazy(() => import('@/components/legal/TermsPage'));
 const PrivacyPage = React.lazy(() => import('@/components/legal/PrivacyPage'));
 const TokushohoPage = React.lazy(() => import('@/components/legal/TokushohoPage'));
+const TokushohoIosPage = React.lazy(() => import('@/components/legal/TokushohoIosPage'));
 const WithdrawalCompletePage = React.lazy(() => import('@/components/auth/WithdrawalCompletePage'));
 
 const PUBLIC_INFO_PATHS = new Set([
@@ -20,8 +21,11 @@ const PUBLIC_INFO_PATHS = new Set([
   '/help/ios-midi',
   '/contact',
   '/terms',
+  '/terms/ios',
   '/privacy',
+  '/privacy/ios',
   '/legal/tokushoho',
+  '/legal/tokushoho/ios',
   '/withdrawal-complete',
 ]);
 
@@ -103,9 +107,12 @@ const App: React.FC = () => {
           <Route path="/" element={<LandingPage />} />
           <Route path="/help/ios-midi" element={<HelpIosMidi />} />
           <Route path="/contact" element={<ContactPage />} />
-          <Route path="/terms" element={<TermsPage />} />
-          <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/terms" element={<TermsPage variant="web" />} />
+          <Route path="/terms/ios" element={<TermsPage variant="ios" />} />
+          <Route path="/privacy" element={<PrivacyPage variant="web" />} />
+          <Route path="/privacy/ios" element={<PrivacyPage variant="ios" />} />
           <Route path="/legal/tokushoho" element={<TokushohoPage />} />
+          <Route path="/legal/tokushoho/ios" element={<TokushohoIosPage />} />
           <Route path="/withdrawal-complete" element={<WithdrawalCompletePage />} />
           <Route path="/login" element={<AuthLanding mode="login" />} />
           <Route path="/signup" element={<AuthLanding mode="signup" />} />

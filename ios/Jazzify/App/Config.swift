@@ -34,6 +34,18 @@ enum Config {
         return url
     }()
 
+    /// Web app terms & privacy (browser / marketing).
+    static var termsWebURL: URL { webAppBaseURL.appendingPathComponent("terms") }
+    static var privacyWebURL: URL { webAppBaseURL.appendingPathComponent("privacy") }
+
+    /// iOS-specific legal pages (match App Store Connect privacy policy URL).
+    static var termsIosURL: URL {
+        webAppBaseURL.appendingPathComponent("terms").appendingPathComponent("ios")
+    }
+    static var privacyIosURL: URL {
+        webAppBaseURL.appendingPathComponent("privacy").appendingPathComponent("ios")
+    }
+
     static let cdnBaseURL = URL(string: "https://jazzify-cdn.com")!
 
     static let reviewEmail = "toshiotawa@me.com"

@@ -8,17 +8,16 @@ interface LegalEntry {
 }
 
 const legalEntries: LegalEntry[] = [
-  { label: '事業者', value: '合同会社Kindwords' },
+  { label: '事業者', value: '合同会社KindWords' },
   { label: '販売責任者', value: '永吉俊雄' },
   {
     label: '所在地',
-    value: '東京都板橋区南常盤台1丁目11-6',
+    value: '〒174-0072 東京都板橋区南常盤台1-11-6 レフア南常盤台101',
   },
   {
     label: '連絡先',
     value: (
       <div className="space-y-1">
-        <p>080-5421-4527</p>
         <p>
           <a href="mailto:toshiotawa@me.com" className="text-blue-300 underline">
             toshiotawa@me.com
@@ -40,10 +39,7 @@ const legalEntries: LegalEntry[] = [
     label: '販売価格',
     value: (
       <ul className="space-y-1 list-disc pl-5">
-        <li>スタンダードプラン: 2,980円（税込）</li>
-        <li>プレミアムプラン: 8,980円（税込）</li>
-        <li>プラチナプラン: 14,800円（税込）</li>
-        <li>ブラックプラン: 19,800円（税込）</li>
+        <li>プレミアムプラン: 月額4,980円（税込）</li>
       </ul>
     ),
   },
@@ -53,23 +49,26 @@ const legalEntries: LegalEntry[] = [
   },
   {
     label: '支払方法',
-    value: 'クレジットカード決済（Stripeを利用した自動継続課金）',
+    value: 'クレジットカード等による決済（Lemon Squeezyを利用した自動継続課金）',
   },
   {
     label: '支払時期',
-    value: '7日間のトライアル終了時に初回決済が行われ、その後は1か月ごとに自動で決済されます。',
+    value:
+      '当社所定の条件に該当する初回利用者には、7日間の無料トライアル期間が付与される場合があります。トライアル期間中に解約手続を完了した場合、料金は発生しません。トライアル終了日の翌日に初回の月額料金が課金され、その後は1か月ごとに自動で更新・決済されます。トライアルが付与されない場合は、お申込み完了後に所定の決済手続に基づき課金が開始され、その後1か月ごとに自動更新されます。',
   },
   {
     label: '引渡し時期',
-    value: '決済完了後、即時にアカウントへサービスを提供します（トライアル期間中も同様の機能を利用可能）。',
+    value: 'お申込み完了後、速やかにアカウントへサービスを提供します（トライアル期間中も同様の機能をご利用いただけます）。',
   },
   {
     label: '返品・キャンセル',
-    value: 'デジタルコンテンツの性質上、サービス提供後の返品および返金には応じられません。',
+    value:
+      'デジタルコンテンツの性質上、法令上必要な場合を除き、支払済み料金の返金には応じられません。詳細は利用規約および決済画面の表示に従います。',
   },
   {
     label: '中途解約・退会について',
-    value: 'マイページ内の解約手続きよりいつでも解約可能です。解約後も契約期間満了日まではサービスをご利用いただけます。',
+    value:
+      '次回更新日の前までに、当社所定の方法により解約のお手続きを完了してください。解約後も、既に支払済みの利用期間の満了まではサービスをご利用いただけます。アカウント退会は別途手続が必要となる場合があります。',
   },
   {
     label: '動作環境',
@@ -82,10 +81,6 @@ const legalEntries: LegalEntry[] = [
 ];
 
 const supplementalEntries: LegalEntry[] = [
-  {
-    label: 'トライアル期間',
-    value: '新規登録後7日間は無料で全機能をご利用いただけます。トライアル期間中に解約された場合、料金は発生しません。',
-  },
   {
     label: 'サポート体制',
     value: '原則としてメールサポートにて対応いたします。内容により回答までお時間をいただく場合があります。',
@@ -119,7 +114,8 @@ const TokushohoPage: React.FC = () => {
       <main className="flex-1">
         <div className="container mx-auto px-6 py-12 space-y-10">
           <section>
-            <h1 className="text-3xl font-bold mb-6">特定商取引法に基づく表記</h1>
+            <h1 className="text-3xl font-bold mb-2">特定商取引法に基づく表記（ウェブ版）</h1>
+            <p className="text-sm text-gray-400 mb-6">Lemon Squeezy を利用したウェブサイトからのお申込みに適用されます。</p>
             <dl className="space-y-6">
               {legalEntries.map(renderEntry)}
             </dl>

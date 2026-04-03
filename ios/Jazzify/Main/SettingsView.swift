@@ -244,9 +244,9 @@ struct SettingsView: View {
 
                 HStack(spacing: 16) {
                     Link(locale == .ja ? "利用規約" : "Terms",
-                         destination: URL(string: "https://jazzify.jp/terms")!)
+                         destination: Config.termsIosURL)
                     Link(locale == .ja ? "プライバシーポリシー" : "Privacy",
-                         destination: URL(string: "https://jazzify.jp/privacy")!)
+                         destination: Config.privacyIosURL)
                 }
                 .font(.caption)
             }
