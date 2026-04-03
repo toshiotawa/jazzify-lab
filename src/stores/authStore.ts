@@ -531,6 +531,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       const supabase = getSupabaseClient();
       await supabase.auth.signOut();
       try {
+        const { clearBillingStatusCache } = await import('@/utils/billingStatusClient');
+        clearBillingStatusCache();
+      } catch {
+        /* ignore */
+      }
+      try {
         if (typeof localStorage !== 'undefined') {
           localStorage.removeItem('guest_id');
         }

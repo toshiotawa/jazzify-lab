@@ -41,6 +41,9 @@ struct TopView: View {
 
                 ScrollView {
                     VStack(spacing: 20) {
+                        if let bannerKind = appState.paymentIssueBannerKind {
+                            PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                        }
                         profileCard
                         if !appState.isPremium {
                             Button { showSubscription = true } label: {

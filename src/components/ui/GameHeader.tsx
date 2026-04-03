@@ -4,6 +4,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { FaUserCircle } from 'react-icons/fa';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -20,6 +21,7 @@ const GameHeader: React.FC = () => {
   const isFree = profile?.rank === 'free';
 
   return (
+    <>
     <header className="flex-shrink-0 bg-game-surface border-b border-gray-700 px-3 py-1 z-[60]">
       <div className="flex justify-between items-center gap-2">
         {/* 左側ナビゲーション */}
@@ -43,6 +45,8 @@ const GameHeader: React.FC = () => {
           <HeaderRightControls isEnglishCopy={isEnglishCopy} />
       </div>
     </header>
+    <PaymentIssueBanner />
+    </>
   );
 };
 

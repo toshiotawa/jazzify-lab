@@ -145,13 +145,10 @@ final class AppState: ObservableObject {
 
     var isPremium: Bool {
         if let billing = billingStatus {
-            switch billing.status {
-            case .trial, .active, .grace, .billingRetry:
+            switch billing.entitlementState {
+            case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
                 return true
-            case .expired, .canceled:
-                if let endsAt = billing.currentPeriodEndsAt, endsAt > Date() {
-                    return true
-                }
+            case .paymentIssueNoAccess, .expired:
                 return false
             }
         }
@@ -160,22 +157,30 @@ final class AppState: ObservableObject {
 
     var canShowIAP: Bool {
         guard let billing = billingStatus else { return true }
-        return billing.provider != .lemon ||
-               billing.status == .expired ||
-               billing.status == .canceled
+        if billing.provider != .lemon { return true }
+        switch billing.entitlementState {
+        case .expired, .paymentIssueNoAccess:
+            return true
+        case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
+            return false
+        }
     }
 
     var canDeleteAccount: Bool {
         guard let billing = billingStatus else { return true }
-        switch billing.status {
-        case .trial, .active, .grace, .billingRetry:
-            return false
-        case .expired:
-            return true
-        case .canceled:
-            guard let endsAt = billing.currentPeriodEndsAt else { return true }
-            return endsAt <= Date()
+        return billing.entitlementState == .expired
+    }
+
+    /// 支払い問題バナー（Lemon: 利用可 / Apple: 停止）
+    var paymentIssueBannerKind: PaymentIssueBannerKind? {
+        guard let billing = billingStatus else { return nil }
+        if billing.provider == .lemon && billing.entitlementState == .paymentIssueWithAccess {
+            return .lemonWithAccess
         }
+        if billing.provider == .apple && billing.entitlementState == .paymentIssueNoAccess {
+            return .appleNoAccess
+        }
+        return nil
     }
 }
 

@@ -3,6 +3,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
+import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
 
 type PlanKey = 'free' | 'premium';
 
@@ -208,6 +209,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
 
   return (
     <div className="w-full h-full overflow-auto">
+      <PaymentIssueBanner />
       <div className="w-full max-w-7xl mx-auto p-6">
         <div className="text-center mb-8">
           <h2 className="text-3xl font-bold text-white mb-4">

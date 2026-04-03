@@ -55,12 +55,26 @@ Deno.serve(async (req: Request) => {
         .eq("id", user.id)
         .single();
 
-      const isLemonActive = profile?.lemon_subscription_status === "active" ||
-                            profile?.lemon_subscription_status === "on_trial";
+      const st = profile?.lemon_subscription_status;
+      if (st === "past_due") {
+        return new Response(JSON.stringify({
+          provider: "lemon",
+          status: "past_due",
+          entitlement_state: "payment_issue_with_access",
+          plan_code: "core_monthly",
+          trial_used: profile?.lemon_trial_used ?? false,
+          current_period_ends_at: null,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const isLemonActive = st === "active" || st === "on_trial";
 
       return new Response(JSON.stringify({
         provider: isLemonActive ? "lemon" : "none",
-        status: isLemonActive ? (profile?.lemon_subscription_status === "on_trial" ? "trial" : "active") : "expired",
+        status: isLemonActive ? (st === "on_trial" ? "trial" : "active") : "expired",
+        entitlement_state: isLemonActive ? "active" : "expired",
         plan_code: "core_monthly",
         trial_used: profile?.lemon_trial_used ?? false,
         current_period_ends_at: null,
@@ -72,6 +86,7 @@ Deno.serve(async (req: Request) => {
     return new Response(JSON.stringify({
       provider: subscription.provider,
       status: subscription.status,
+      entitlement_state: subscription.entitlement_state,
       plan_code: subscription.plan_code,
       trial_used: subscription.trial_used,
       current_period_ends_at: subscription.current_period_ends_at,

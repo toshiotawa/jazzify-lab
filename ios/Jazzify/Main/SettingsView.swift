@@ -17,6 +17,13 @@ struct SettingsView: View {
                 Color(hex: "0f172a").ignoresSafeArea()
 
                 List {
+                    if let bannerKind = appState.paymentIssueBannerKind {
+                        Section {
+                            PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                                .listRowBackground(Color.clear)
+                        }
+                        .listRowInsets(EdgeInsets(top: 8, leading: 16, bottom: 8, trailing: 16))
+                    }
                     accountSection
                     languageSection
                     midiSection

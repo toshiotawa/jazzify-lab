@@ -21,6 +21,10 @@ struct SubscriptionView: View {
 
                 ScrollView {
                     VStack(spacing: 24) {
+                        if let bannerKind = appState.paymentIssueBannerKind {
+                            PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                                .padding(.horizontal, 4)
+                        }
                         headerSection
                         if !appState.canShowIAP {
                             lemonActiveSection

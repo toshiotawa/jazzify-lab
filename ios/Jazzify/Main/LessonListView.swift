@@ -45,6 +45,9 @@ struct LessonListView: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 12) {
+                            if let bannerKind = appState.paymentIssueBannerKind {
+                                PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                            }
                             ForEach(CourseDifficultyTier.displayOrder, id: \.rawValue) { tier in
                                 let tierCourses = courses.filter { $0.resolvedDifficultyTier == tier }
                                 if !tierCourses.isEmpty {

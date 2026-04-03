@@ -286,6 +286,9 @@ struct SurvivalView: View {
 
     private var lockedView: some View {
         VStack(spacing: 16) {
+            if let bannerKind = appState.paymentIssueBannerKind {
+                PaymentIssueBannerView(kind: bannerKind, locale: locale)
+            }
             Image(systemName: "lock.fill")
                 .font(.system(size: 48))
                 .foregroundStyle(.gray)
@@ -320,6 +323,9 @@ struct SurvivalView: View {
     private var stageList: some View {
         ScrollView {
             VStack(spacing: 8) {
+                if let bannerKind = appState.paymentIssueBannerKind {
+                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                }
                 progressHeader
 
                 ForEach(stagesByDifficulty, id: \.0) { difficulty, stages in

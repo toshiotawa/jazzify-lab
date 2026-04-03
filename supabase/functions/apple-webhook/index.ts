@@ -7,6 +7,13 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
+type EntitlementState =
+  | "active"
+  | "payment_issue_with_access"
+  | "payment_issue_no_access"
+  | "cancelled_but_active_until_end"
+  | "expired";
+
 interface AppleNotification {
   notificationType: string;
   subtype?: string;
@@ -31,32 +38,55 @@ function normalizeUuidString(value: string): string | null {
   return UUID_RE.test(lower) ? lower : null;
 }
 
-function mapAppleStatusToSubscription(
+function rankForSubscription(provider: string, entitlementState: EntitlementState): string {
+  if (
+    entitlementState === "active" ||
+    entitlementState === "payment_issue_with_access" ||
+    entitlementState === "cancelled_but_active_until_end"
+  ) {
+    return provider === "lemon" ? "standard_global" : "standard";
+  }
+  return "free";
+}
+
+function mapAppleNotification(
   notificationType: string,
-  subtype?: string,
-): { status: string; trialUsed?: boolean } {
+  subtype: string | undefined,
+  expiresDateMs: number | undefined,
+): { status: string; entitlementState: EntitlementState; trialUsed?: boolean } {
+  const periodEndMs = expiresDateMs ?? 0;
+  const periodStillActive = expiresDateMs !== undefined && periodEndMs > Date.now();
+
   switch (notificationType) {
     case "SUBSCRIBED":
-      if (subtype === "INITIAL_BUY") return { status: "active" };
-      return { status: "active" };
+      if (subtype === "INITIAL_BUY") return { status: "active", entitlementState: "active" };
+      return { status: "active", entitlementState: "active" };
     case "DID_RENEW":
-      return { status: "active" };
+      return { status: "active", entitlementState: "active" };
     case "DID_FAIL_TO_RENEW":
-      return { status: "billing_retry" };
+      return { status: "billing_retry", entitlementState: "payment_issue_no_access" };
     case "GRACE_PERIOD_STARTED":
-      return { status: "grace" };
+      return { status: "grace", entitlementState: "active" };
     case "EXPIRED":
-      return { status: "expired" };
+      return { status: "expired", entitlementState: "expired" };
     case "DID_CHANGE_RENEWAL_STATUS":
-      if (subtype === "AUTO_RENEW_DISABLED") return { status: "canceled" };
-      return { status: "active" };
+      if (subtype === "AUTO_RENEW_DISABLED") {
+        if (expiresDateMs === undefined || periodStillActive) {
+          return { status: "canceled", entitlementState: "cancelled_but_active_until_end" };
+        }
+        return { status: "canceled", entitlementState: "expired" };
+      }
+      if (subtype === "AUTO_RENEW_ENABLED") {
+        return { status: "active", entitlementState: "active" };
+      }
+      return { status: "active", entitlementState: "active" };
     case "REVOKE":
     case "REFUND":
-      return { status: "expired" };
+      return { status: "expired", entitlementState: "expired" };
     case "OFFER_REDEEMED":
-      return { status: "trial", trialUsed: true };
+      return { status: "trial", entitlementState: "active", trialUsed: true };
     default:
-      return { status: "active" };
+      return { status: "active", entitlementState: "active" };
   }
 }
 
@@ -77,7 +107,6 @@ Deno.serve(async (req: Request) => {
 
     const body = await req.json();
 
-    // Client sync from iOS app
     if (body.action === "client_sync") {
       const authHeader = req.headers.get("Authorization");
       if (!authHeader) {
@@ -107,24 +136,44 @@ Deno.serve(async (req: Request) => {
         });
       }
 
-      await supabase.from("subscriptions").upsert({
+      const { data: existing } = await supabase
+        .from("subscriptions")
+        .select("user_id")
+        .eq("user_id", user.id)
+        .maybeSingle();
+
+      if (existing) {
+        return new Response(JSON.stringify({ received: true, skipped: "subscription_row_exists" }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      const { error: insertErr } = await supabase.from("subscriptions").insert({
         user_id: user.id,
         provider: "apple",
         provider_subscription_id: body.originalTransactionId,
         plan_code: "core_monthly",
         status: "active",
+        entitlement_state: "active",
         trial_used: false,
-        updated_at: new Date().toISOString(),
-      }, { onConflict: "user_id" });
+      });
 
-      await supabase.from("profiles").update({ rank: "standard" }).eq("id", user.id);
+      if (insertErr && insertErr.code !== "23505") {
+        return new Response(JSON.stringify({ error: "insert_failed", details: insertErr.message }), {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      if (!insertErr) {
+        await supabase.from("profiles").update({ rank: "standard" }).eq("id", user.id);
+      }
 
       return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Apple Server Notification V2
     const signedPayload = body.signedPayload;
     if (!signedPayload) {
       return new Response(JSON.stringify({ error: "Missing signedPayload" }), {
@@ -162,7 +211,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const mapped = mapAppleStatusToSubscription(notificationType, subtype);
+    const mapped = mapAppleNotification(notificationType, subtype, expiresDate);
 
     const upsertData: Record<string, unknown> = {
       user_id: appAccountToken,
@@ -170,6 +219,7 @@ Deno.serve(async (req: Request) => {
       provider_subscription_id: originalTransactionId,
       plan_code: "core_monthly",
       status: mapped.status,
+      entitlement_state: mapped.entitlementState,
       updated_at: new Date().toISOString(),
     };
 
@@ -183,7 +233,7 @@ Deno.serve(async (req: Request) => {
 
     await supabase.from("subscriptions").upsert(upsertData, { onConflict: "user_id" });
 
-    const rank = ["active", "trial", "grace", "billing_retry"].includes(mapped.status) ? "standard" : "free";
+    const rank = rankForSubscription("apple", mapped.entitlementState);
     await supabase.from("profiles").update({ rank }).eq("id", appAccountToken);
 
     return new Response(JSON.stringify({ received: true, status: mapped.status }), {
