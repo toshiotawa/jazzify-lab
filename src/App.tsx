@@ -1,5 +1,5 @@
 import React, { Suspense, useEffect, useMemo, useRef, useState } from 'react';
-import { Routes, Route, useLocation } from 'react-router-dom';
+import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
@@ -42,7 +42,10 @@ const App: React.FC = () => {
   const location = useLocation();
   const [authReady, setAuthReady] = useState(false);
   const authBootstrapStartedRef = useRef(false);
-  const pathname = location.pathname;
+  const rawPathname = location.pathname;
+  const pathname = rawPathname.length > 1 && rawPathname.endsWith('/')
+    ? rawPathname.slice(0, -1)
+    : rawPathname;
   const shouldBootstrapAuth = useMemo(
     () => !PUBLIC_INFO_PATHS.has(pathname),
     [pathname],
@@ -84,6 +87,10 @@ const App: React.FC = () => {
     }
     void import('@/app-extra.css');
   }, [pathname]);
+
+  if (rawPathname.length > 1 && rawPathname.endsWith('/')) {
+    return <Navigate to={rawPathname.slice(0, -1) + location.search + location.hash} replace />;
+  }
 
   return (
     <>

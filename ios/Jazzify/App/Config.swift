@@ -39,11 +39,12 @@ enum Config {
     static var privacyWebURL: URL { webAppBaseURL.appendingPathComponent("privacy") }
 
     /// iOS-specific legal pages (match App Store Connect privacy policy URL).
+    /// Uses explicit string concatenation to avoid trailing-slash issues with appendingPathComponent.
     static var termsIosURL: URL {
-        webAppBaseURL.appendingPathComponent("terms").appendingPathComponent("ios")
+        URL(string: webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/terms/ios")!
     }
     static var privacyIosURL: URL {
-        webAppBaseURL.appendingPathComponent("privacy").appendingPathComponent("ios")
+        URL(string: webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/")) + "/privacy/ios")!
     }
 
     static let cdnBaseURL = URL(string: "https://jazzify-cdn.com")!
@@ -54,7 +55,16 @@ enum Config {
 
     static var appLocale: AppLocale {
         let preferred = Locale.preferredLanguages.first ?? "ja"
-        return preferred.hasPrefix("ja") ? .ja : .en
+        if preferred.hasPrefix("ja") {
+            if #available(iOS 16, *) {
+                let currentLang = Locale.current.language.languageCode?.identifier ?? "ja"
+                if !currentLang.hasPrefix("ja") {
+                    return .en
+                }
+            }
+            return .ja
+        }
+        return .en
     }
 }
 
