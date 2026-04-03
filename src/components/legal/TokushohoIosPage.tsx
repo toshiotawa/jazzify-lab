@@ -38,7 +38,7 @@ const legalEntries: LegalEntry[] = [
   {
     label: '販売方法',
     value:
-      '本アプリの有料プラン（プレミアムプラン）は、Apple Inc.が運営するApp Storeを通じたアプリ内課金（In-App Purchase）により提供されます。表示価格、請求通貨、適用税制等は、お客様が利用される国・地域のApp Storeの表示に従います（日本のApp Storeにおける基準価格は月額4,980円（税込）を目安とします）。',
+      '本アプリの有料プラン（プレミアムプラン）は、Apple Inc.が運営するApp Storeを通じたアプリ内課金（In-App Purchase）により提供されます。表示価格、請求通貨、適用税制等は、お客様が利用される国・地域のApp Storeの表示に従います（日本のApp Storeを含め、金額は利用時点の表示が優先されます）。',
   },
   {
     label: '無料トライアル',

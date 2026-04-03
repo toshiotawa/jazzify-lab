@@ -365,7 +365,7 @@ const iosTermsJa: TermsArticle[] = [
     paragraphs: [
       '本アプリの有料プランはプレミアムプランのみです。',
       'プレミアムプランの利用料金は、App Store上で利用者に表示される金額とします。',
-      '日本のApp Storeにおける基準価格は、月額4,980円（税込）です。',
+      '日本のApp Storeを含め、実際に適用される金額は、利用時点のApp Store上の表示に従います（税込表示がある場合はその表示）。',
       '国又は地域、通貨、税制、Appleによる価格設定上の処理その他の事情により、利用者に表示される価格が異なる場合があります。',
       '当社所定の条件に該当する場合、Appleの定める方法により7日間の無料トライアル（又はこれに相当する無料お試し期間）が付与されることがあります。内容はApp Store上の表示に従います。',
     ],
@@ -427,6 +427,7 @@ const iosTermsJa: TermsArticle[] = [
     paragraphs: [
       '利用者は、当社所定の方法によりアカウント退会を申請することができます。',
       'なお、アカウント退会とApp Storeサブスクリプションの解約は別手続です。',
+      'アクティブなサブスクリプションが存続する場合、当社所定の退会手続を受け付けられないことがあります。その場合、利用者は、あらかじめApp Storeのサブスクリプション設定から解約した後に退会手続を行う必要があります。',
     ],
   },
   {
@@ -512,7 +513,7 @@ const iosTermsEn: TermsArticle[] = [
     paragraphs: [
       'The only paid plan in the App is the Premium Plan.',
       'The fee for the Premium Plan is the amount displayed to the user on the App Store.',
-      'The reference price on the Japan App Store is ¥4,980 per month (tax included).',
+      'The amount charged follows the App Store display at the time of purchase (including tax where shown).',
       'The price displayed may differ depending on country or region, currency, tax rules, Apple’s pricing, or other factors.',
       'Where eligible under the Company’s conditions, a seven-day free trial (or equivalent introductory offer) may be offered through Apple as shown on the App Store.',
     ],
@@ -574,6 +575,7 @@ const iosTermsEn: TermsArticle[] = [
     paragraphs: [
       'Users may request account deletion in the manner prescribed by the Company.',
       'Account deletion and cancellation of an App Store subscription are separate procedures.',
+      'If a subscription is still active, the Company may be unable to complete account deletion until the subscription is no longer active. In that case, cancel the subscription in Settings → Apple ID → Subscriptions (or the App Store subscription settings) first, then request account deletion.',
     ],
   },
   {
@@ -617,14 +619,14 @@ const webHighlightsEn: string[] = [
 
 const iosHighlightsJa: string[] = [
   '本アプリはジャズ学習支援を目的としたiOSアプリです。',
-  '有料プランはプレミアムのみで、価格はApp Storeの表示に従います（日本の基準価格は月額4,980円（税込））。所定の条件で7日間の無料トライアルが付与される場合があります。',
+  '有料プランはプレミアムのみで、価格は利用時点のApp Storeの表示に従います。所定の条件で7日間の無料トライアルが付与される場合があります。',
   '課金・解約・返金はAppleのIn-App PurchaseおよびApp Storeの設定に従います。アプリを削除しただけではサブスクリプションは解約されません。',
   '個人情報はiOS版プライバシーポリシーに従います。',
 ];
 
 const iosHighlightsEn: string[] = [
   'The App is an iOS application for jazz learning support.',
-  'The only paid plan is Premium; pricing follows the App Store (reference price in Japan: ¥4,980 per month, tax included). A seven-day free trial may be offered when eligible.',
+  'The only paid plan is Premium; pricing follows the App Store display at the time of purchase. A seven-day free trial may be offered when eligible.',
   'Billing, cancellation, and refunds follow Apple In-App Purchase and App Store settings. Deleting the App does not cancel the subscription.',
   'Personal information is handled under the iOS Privacy Policy.',
 ];
