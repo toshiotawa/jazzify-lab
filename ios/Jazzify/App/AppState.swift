@@ -9,6 +9,15 @@ final class AppState: ObservableObject {
     @Published var billingStatus: BillingStatusResponse?
     @Published var profileSetupError: String?
     @Published var locale: AppLocale
+    @Published private(set) var lastBillingCheckedAt: Date?
+
+    private(set) var billingFetchFailCount: Int = 0
+    private var periodEndTimer: Task<Void, Never>?
+
+    private static let staleTTL: TimeInterval = 300
+    private static let failGraceTTL: TimeInterval = 1800
+    private static let refreshThrottle: TimeInterval = 60
+    private static let maxFailOpenRetries: Int = 3
 
     private let supabase = SupabaseService.shared
     private let billing = BillingService.shared
@@ -37,12 +46,16 @@ final class AppState: ObservableObject {
             store.setCurrentUserId(userId)
             self.profile = nil
             self.billingStatus = nil
+            self.lastBillingCheckedAt = nil
+            self.billingFetchFailCount = 0
             self.profileSetupError = nil
             self.authState = .profileSetupRequired(userId, email)
         } catch {
             store.setCurrentUserId(nil)
             self.profile = nil
             self.billingStatus = nil
+            self.lastBillingCheckedAt = nil
+            self.billingFetchFailCount = 0
             self.profileSetupError = nil
             UserDefaults.standard.removeObject(forKey: "preferred_locale")
             self.locale = Config.appLocale
@@ -101,19 +114,65 @@ final class AppState: ObservableObject {
         }
     }
 
+    var isBillingStale: Bool {
+        guard let checkedAt = lastBillingCheckedAt else { return true }
+        return Date().timeIntervalSince(checkedAt) > Self.staleTTL
+    }
+
     func refreshBillingStatus() async {
         do {
-            self.billingStatus = try await billing.fetchBillingStatus()
+            let response = try await billing.fetchBillingStatus()
+            self.billingStatus = response
+            self.lastBillingCheckedAt = Date()
+            self.billingFetchFailCount = 0
+            schedulePeriodEndRefresh(response)
         } catch {
-            self.billingStatus = nil
+            self.lastBillingCheckedAt = Date()
+            self.billingFetchFailCount += 1
+            if billingFetchFailCount > Self.maxFailOpenRetries {
+                self.billingStatus = nil
+            }
+        }
+    }
+
+    /// フォアグラウンド復帰用: スロットルつき再取得
+    func refreshBillingIfNeeded() async {
+        guard case .authenticated = authState else { return }
+        if let checkedAt = lastBillingCheckedAt,
+           Date().timeIntervalSince(checkedAt) < Self.refreshThrottle {
+            return
+        }
+        await refreshBillingStatus()
+    }
+
+    /// プレミアム機能ゲート: stale なら再取得してから判定を返す
+    func ensureFreshBilling() async -> Bool {
+        if isBillingStale {
+            await refreshBillingStatus()
+        }
+        return isPremium
+    }
+
+    private func schedulePeriodEndRefresh(_ billing: BillingStatusResponse) {
+        periodEndTimer?.cancel()
+        guard let endsAt = billing.currentPeriodEndsAt else { return }
+        let remaining = endsAt.timeIntervalSinceNow
+        guard remaining > 0 else { return }
+        periodEndTimer = Task { [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(remaining * 1_000_000_000))
+            guard !Task.isCancelled else { return }
+            await self?.refreshBillingStatus()
         }
     }
 
     func signOut() async {
         try? await supabase.client.auth.signOut()
         store.setCurrentUserId(nil)
+        periodEndTimer?.cancel()
         self.profile = nil
         self.billingStatus = nil
+        self.lastBillingCheckedAt = nil
+        self.billingFetchFailCount = 0
         self.profileSetupError = nil
         UserDefaults.standard.removeObject(forKey: "preferred_locale")
         self.locale = Config.appLocale
@@ -145,6 +204,11 @@ final class AppState: ObservableObject {
 
     var isPremium: Bool {
         if let billing = billingStatus {
+            if let endsAt = billing.currentPeriodEndsAt,
+               endsAt <= Date(),
+               billing.entitlementState == .cancelledButActiveUntilEnd {
+                return false
+            }
             switch billing.entitlementState {
             case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
                 return true
@@ -152,7 +216,18 @@ final class AppState: ObservableObject {
                 return false
             }
         }
-        return profile?.rank.isPremium ?? false
+
+        guard lastBillingCheckedAt != nil else {
+            return profile?.rank.isPremium ?? false
+        }
+
+        if let checkedAt = lastBillingCheckedAt,
+           Date().timeIntervalSince(checkedAt) <= Self.failGraceTTL,
+           billingFetchFailCount <= Self.maxFailOpenRetries {
+            return profile?.rank.isPremium ?? false
+        }
+
+        return false
     }
 
     var canShowIAP: Bool {

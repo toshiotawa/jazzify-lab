@@ -120,8 +120,24 @@ struct LessonListView: View {
     private func courseRow(_ course: Course) -> some View {
         VStack(spacing: 0) {
             Button {
-                if !appState.isPremium && course.premiumOnly == true {
-                    showSubscription = true
+                if course.premiumOnly == true {
+                    Task {
+                        let premium = await appState.ensureFreshBilling()
+                        if !premium {
+                            showSubscription = true
+                            return
+                        }
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            if expandedCourseId == course.id {
+                                expandedCourseId = nil
+                            } else {
+                                expandedCourseId = course.id
+                                if lessonsMap[course.id] == nil {
+                                    Task { await loadLessons(for: course.id) }
+                                }
+                            }
+                        }
+                    }
                     return
                 }
                 withAnimation(.easeInOut(duration: 0.2)) {

@@ -64,6 +64,8 @@
 		<string>ja</string>
 		<string>en</string>
 	</array>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>ピッチ検出のため、マイクで演奏音を拾います。</string>
 	<key>SUPABASE_URL</key>
 	<string>https://$(SUPABASE_HOST)</string>
 	<key>SUPABASE_ANON_KEY</key>

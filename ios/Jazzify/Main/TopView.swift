@@ -477,8 +477,15 @@ struct TopView: View {
         let alreadyPlayed = hasPlayedToday()
 
         return Button {
-            if !appState.isPremium && selectedDifficulty != "super_beginner" {
-                showSubscription = true
+            if selectedDifficulty != "super_beginner" {
+                Task {
+                    let premium = await appState.ensureFreshBilling()
+                    if !premium {
+                        showSubscription = true
+                    } else {
+                        showDailyChallenge = true
+                    }
+                }
             } else {
                 showDailyChallenge = true
             }

@@ -4,6 +4,7 @@ import SwiftUI
 struct JazzifyApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var appState = AppState()
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some Scene {
         WindowGroup {
@@ -11,6 +12,10 @@ struct JazzifyApp: App {
                 .environmentObject(appState)
                 .task {
                     await appState.bootstrap()
+                }
+                .onChange(of: scenePhase) { phase in
+                    guard phase == .active else { return }
+                    Task { await appState.refreshBillingIfNeeded() }
                 }
         }
     }

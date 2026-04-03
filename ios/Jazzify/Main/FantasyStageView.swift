@@ -80,9 +80,17 @@ struct FantasyStageView: View {
         let isLocked = !appState.isPremium && !stage.isUnlockedForFree
 
         return Button {
-            guard !isLocked else { return }
-            selectedStage = stage
-            showGame = true
+            if !stage.isUnlockedForFree {
+                Task {
+                    let premium = await appState.ensureFreshBilling()
+                    guard premium else { return }
+                    selectedStage = stage
+                    showGame = true
+                }
+            } else {
+                selectedStage = stage
+                showGame = true
+            }
         } label: {
             VStack(alignment: .leading, spacing: 6) {
                 HStack {

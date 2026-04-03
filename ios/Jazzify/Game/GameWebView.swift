@@ -217,6 +217,7 @@ struct WebViewRepresentable: UIViewRepresentable {
         webView.scrollView.delaysContentTouches = false
         webView.scrollView.canCancelContentTouches = true
         webView.navigationDelegate = coordinator
+        webView.uiDelegate = coordinator
         webView.allowsBackForwardNavigationGestures = false
 
         coordinator.webView = webView

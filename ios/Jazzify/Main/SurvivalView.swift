@@ -277,9 +277,17 @@ struct SurvivalView: View {
 
     private func confirmStageStart() {
         showHintModal = false
-        selectedStage = pendingStage
-        pendingStage = nil
-        showGame = true
+        Task {
+            let premium = await appState.ensureFreshBilling()
+            guard premium else {
+                pendingStage = nil
+                showSubscription = true
+                return
+            }
+            selectedStage = pendingStage
+            pendingStage = nil
+            showGame = true
+        }
     }
 
     // MARK: - Locked

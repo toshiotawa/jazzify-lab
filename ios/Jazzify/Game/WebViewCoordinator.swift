@@ -1,7 +1,7 @@
 import Foundation
 import WebKit
 
-final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate {
+final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandler, WKNavigationDelegate, WKUIDelegate {
     weak var webView: WKWebView?
     var midiManager: MIDIManager?
     @Published var shouldDismiss = false
@@ -124,5 +124,19 @@ final class WebViewCoordinator: NSObject, ObservableObject, WKScriptMessageHandl
             self?.sendMIDIDeviceList()
             self?.sendSelectedDeviceID()
         }
+    }
+
+    // MARK: - WKUIDelegate（WKWebView 内の getUserMedia / マイク）
+
+    /// iOS 15+ で Web からマイク・カメラを要求する際、ホストアプリが許可を返す必要がある。
+    @available(iOS 15.0, *)
+    func webView(
+        _ webView: WKWebView,
+        requestMediaCapturePermissionFor origin: WKSecurityOrigin,
+        initiatedByFrame frame: WKFrameInfo,
+        type: WKMediaCaptureType,
+        decisionHandler: @escaping (WKPermissionDecision) -> Void
+    ) {
+        decisionHandler(.grant)
     }
 }
