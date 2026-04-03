@@ -89,6 +89,8 @@ export class FantasyPIXIInstance {
   private taikoMode = false;
   private taikoNotes: TaikoDisplayNote[] = [];
   private taikoNotesDirty = false;
+  /** GameScreen の太鼓ノーツ位置計算を描画ループと同一 RAF で実行し、二重 rAF の競合を防ぐ */
+  private taikoFrameCallback: (() => void) | null = null;
   private effects: ParticleEffect[] = [];
   private damagePopups: DamagePopup[] = [];
   private overlayText: { value: string; until: number } | null = null;
@@ -223,6 +225,11 @@ export class FantasyPIXIInstance {
     this.requestRender();
   }
 
+  setTaikoFrameCallback(cb: (() => void) | null): void {
+    this.taikoFrameCallback = cb;
+    this.requestRender();
+  }
+
   getJudgeLinePosition(): { x: number; y: number } {
     return {
       x: this.width * 0.15,
@@ -294,6 +301,7 @@ export class FantasyPIXIInstance {
 
   destroy(): void {
     this.destroyed = true;
+    this.taikoFrameCallback = null;
     if (this.unsubscribeEnraged) {
       this.unsubscribeEnraged();
     }
@@ -327,14 +335,19 @@ export class FantasyPIXIInstance {
 
   private renderLoop = (): void => {
     if (this.destroyed) return;
-    
-    const hasActiveAnimations = 
+
+    if (this.taikoMode && this.taikoFrameCallback) {
+      this.taikoFrameCallback();
+    }
+
+    const hasActiveAnimations =
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.overlayText !== null ||
       this.taikoNotesDirty ||
-      this.monsters.length > 0;
-    
+      this.monsters.length > 0 ||
+      (this.taikoMode && this.taikoFrameCallback !== null);
+
     if (hasActiveAnimations || this.needsRender) {
       this.drawFrame();
       this.needsRender = false;

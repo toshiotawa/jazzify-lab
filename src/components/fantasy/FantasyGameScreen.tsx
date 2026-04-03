@@ -1368,10 +1368,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   // 🚀 パフォーマンス最適化: ステート変更時にアニメーションループを再起動しない
   useEffect(() => {
     if (!fantasyPixiInstance || !gameState.isTaikoMode) return;
-    // 初期化時にノーツがない場合もループは開始（後からノーツが追加される可能性があるため）
-    
-    let animationId: number;
-    
+
     // ループ情報を事前計算
     const stageData = gameState.currentStage;
     if (!stageData) return;
@@ -1452,12 +1449,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // preHit フラグ用ビットセット（配列インデックスで参照、Set 生成を回避）
     let preHitFlags = new Uint8Array(256);
     let lastPreHitRef: number[] | null = null;
-    // 前フレームの表示状態を保持し、差分がなければ updateTaikoNotes をスキップ
-    let prevNoteCount = -1;
-    let prevFirstX = NaN;
-    let prevLastX = NaN;
-    let prevFirstId = '';
-    let prevLastId = '';
     let lastSentEmpty = false;
 
     const judgeLinePos = fantasyPixiInstance.getJudgeLinePosition();
@@ -1479,32 +1470,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       lastPreHitRef = indices;
     };
 
-    const shouldSendUpdate = (buf: typeof workBuffer): boolean => {
-      const count = buf.length;
-      if (count === 0) {
-        if (lastSentEmpty) return false;
-        lastSentEmpty = true;
-        prevNoteCount = 0;
-        return true;
-      }
-      lastSentEmpty = false;
-      const fId = buf[0].id;
-      const lId = buf[count - 1].id;
-      const fX = buf[0].x;
-      const lX = buf[count - 1].x;
-      if (count === prevNoteCount && fId === prevFirstId && lId === prevLastId &&
-          Math.abs(fX - prevFirstX) < 0.5 && Math.abs(lX - prevLastX) < 0.5) {
-        return false;
-      }
-      prevNoteCount = count;
-      prevFirstId = fId;
-      prevLastId = lId;
-      prevFirstX = fX;
-      prevLastX = lX;
-      return true;
-    };
-    
-    const updateTaikoNotes = (_timestamp: number) => {
+    const runTaikoFrame = () => {
       const taikoNotes = taikoNotesRef.current;
       const stateNoteIndex = currentNoteIndexRef.current;
       const stateAwaitingLoop = awaitingLoopStartRef.current;
@@ -1515,9 +1481,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         if (!lastSentEmpty) {
           fantasyPixiInstance.updateTaikoNotes([]);
           lastSentEmpty = true;
-          prevNoteCount = 0;
         }
-        animationId = requestAnimationFrame(updateTaikoNotes);
         return;
       }
       
@@ -1553,10 +1517,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             });
           }
         }
-        if (shouldSendUpdate(workBuffer)) {
-          fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
-        }
-        animationId = requestAnimationFrame(updateTaikoNotes);
+        fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
         return;
       }
       
@@ -1613,9 +1574,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
             }
           }
           
-          if (shouldSendUpdate(workBuffer)) {
-            fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
-          }
+          fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
 
           // C&R: timing_combining セクション別オーバーレイ
           if (section.callResponseMode === 'alternating') {
@@ -1648,7 +1607,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }
 
           fantasyPixiInstance.updateOverlayText(null);
-          animationId = requestAnimationFrame(updateTaikoNotes);
           return;
         }
       }
@@ -1750,9 +1708,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           if (!lastSentEmpty) {
             fantasyPixiInstance.updateTaikoNotes([]);
             lastSentEmpty = true;
-            prevNoteCount = 0;
           }
-        } else if (shouldSendUpdate(workBuffer)) {
+        } else {
+          lastSentEmpty = false;
           fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
         }
         const altPhase = isListenCycle ? 'listen' : 'play';
@@ -1763,7 +1721,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           crOverlayTimerRef.current = setTimeout(() => setCrOverlay(null), 1500);
           lastCrPhase = altPhase;
         }
-      } else if (shouldSendUpdate(workBuffer)) {
+      } else {
+        lastSentEmpty = false;
         fantasyPixiInstance.updateTaikoNotes(workBuffer.slice());
       }
 
@@ -1804,17 +1763,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       } else {
         fantasyPixiInstance.updateOverlayText(null);
       }
-      
-      animationId = requestAnimationFrame(updateTaikoNotes);
     };
-    
-    // 初回実行
-    animationId = requestAnimationFrame(updateTaikoNotes);
-    
+
+    fantasyPixiInstance.setTaikoFrameCallback(runTaikoFrame);
+
     return () => {
-      if (animationId) {
-        cancelAnimationFrame(animationId);
-      }
+      fantasyPixiInstance.setTaikoFrameCallback(null);
     };
     // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない

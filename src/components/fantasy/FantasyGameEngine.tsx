@@ -32,6 +32,20 @@ import {
 import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
+/** 太鼓ヒット時: 浅複製+1要素のみ差し替え（全要素 map よりメインスレッド負荷を抑える） */
+const copyTaikoNotesWithIndexHit = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] => {
+  const next = notes.slice();
+  next[chosenIndex] = { ...notes[chosenIndex], isHit: true };
+  return next;
+};
+
+const copyTaikoNotesAwaitingLoopResync = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] =>
+  notes.map((n, i) => ({
+    ...n,
+    isHit: i === chosenIndex,
+    isMissed: false
+  }));
+
 // ===== 型定義 =====
 
 // モジュールレベル画像キャッシュ: ステージ間で永続化しiOS再ロードを回避（FantasyMainのステージ選択時プリロード用にexport）
@@ -1442,15 +1456,13 @@ export const useFantasyGameEngine = ({
         const defPreHitIdxs = [...(workingState.preHitNoteIndices || [])];
         let defTaikoNotes;
         if (wasAwaitingLoop) {
-          defTaikoNotes = workingState.taikoNotes.map((n, i) => ({
-            ...n, isHit: i === chosenIndex, isMissed: false
-          }));
+          defTaikoNotes = copyTaikoNotesAwaitingLoopResync(workingState.taikoNotes, chosenIndex);
           if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
         } else if (defIsPreHit) {
-          defTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+          defTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
           if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
         } else {
-          defTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+          defTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
         }
         return {
           ...workingState,
@@ -1539,27 +1551,17 @@ export const useFantasyGameEngine = ({
       const updatedPreHitIndices = [...(workingState.preHitNoteIndices || [])];
       
       if (wasAwaitingLoop) {
-        // awaitingLoopStart状態からの先読みヒット
-        // 全ノーツをリセットしてから、ヒットしたノーツにフラグを立てる
-        updatedTaikoNotes = workingState.taikoNotes.map((n, i) => ({
-          ...n,
-          isHit: i === chosenIndex,
-          isMissed: false
-        }));
-        // preHitNoteIndicesに記録（ループ境界で維持するため）
+        updatedTaikoNotes = copyTaikoNotesAwaitingLoopResync(workingState.taikoNotes, chosenIndex);
         if (!updatedPreHitIndices.includes(chosenIndex)) {
           updatedPreHitIndices.push(chosenIndex);
         }
       } else if (isPreHit) {
-        // ループ境界付近での先読みヒット（awaitingLoopStartではない）
-        // 現在のノーツにフラグを立てつつ、preHitNoteIndicesにも記録
-        updatedTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+        updatedTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
         if (!updatedPreHitIndices.includes(chosenIndex)) {
           updatedPreHitIndices.push(chosenIndex);
         }
       } else {
-        // 通常時は選ばれたノーツのみにフラグを立てる
-        updatedTaikoNotes = workingState.taikoNotes.map((n, i) => (i === chosenIndex ? { ...n, isHit: true } : n));
+        updatedTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
       }
 
       // モンスター更新（次のターゲット/次次ターゲットは選ばれたノーツ基準）
