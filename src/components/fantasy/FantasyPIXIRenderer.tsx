@@ -328,28 +328,17 @@ export class FantasyPIXIInstance {
   private renderLoop = (): void => {
     if (this.destroyed) return;
     
-    const now = performance.now();
-    
-    const hasHighPriorityWork = 
+    const hasActiveAnimations = 
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
-      this.taikoNotesDirty ||
-      this.needsRender;
-    
-    const hasIdleAnimations =
       this.overlayText !== null ||
+      this.taikoNotesDirty ||
       this.monsters.length > 0;
     
-    // 高優先度: エフェクト・太鼓ノーツ・明示的な更新リクエストは即描画
-    // 低優先度: モンスター浮遊アニメは~30fpsにスロットルしてCPU負荷を軽減
-    const shouldRender = hasHighPriorityWork ||
-      (hasIdleAnimations && (now - this.lastRenderTime >= 33));
-    
-    if (shouldRender) {
+    if (hasActiveAnimations || this.needsRender) {
       this.drawFrame();
       this.needsRender = false;
       this.taikoNotesDirty = false;
-      this.lastRenderTime = now;
     }
     
     this.startLoop();

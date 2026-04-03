@@ -144,11 +144,9 @@ export const initializeAudioSystem = (): Promise<void> => {
 
 const doInitializeAudioSystem = async (): Promise<void> => {
   try {
-    // ユーザーインタラクション検出にも5秒タイムアウトを設定（Web版でのハング防止）
-    await Promise.race([
-      detectUserInteraction(),
-      new Promise<void>((resolve) => setTimeout(resolve, 5000))
-    ]);
+    console.log('🎹 Initializing optimized audio system...');
+    
+    await detectUserInteraction();
     
     if (typeof window === 'undefined' || !window.Tone) {
       console.warn('⚠️ Tone.js not available, attempting to load...');
@@ -198,16 +196,14 @@ const doInitializeAudioSystem = async (): Promise<void> => {
       (globalSampler as any).envelope.attack = 0.001;
     }
 
-    // CDNからのサンプル読込がハングしないよう8秒タイムアウトを設定
-    await Promise.race([
-      ToneLib.loaded(),
-      new Promise<void>((resolve) => setTimeout(resolve, 8000))
-    ]);
+    await ToneLib.loaded();
 
     audioSystemInitialized = true;
+    console.log('✅ Optimized audio system initialized successfully');
     
   } catch (error) {
     audioInitPromise = null;
+    console.error('❌ Audio system initialization failed:', error);
     throw error;
   }
 };

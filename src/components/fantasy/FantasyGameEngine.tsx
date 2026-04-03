@@ -3,7 +3,7 @@
  * ゲームロジックとステート管理を担当
  */
 
-import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo, startTransition } from 'react';
 import { devLog } from '@/utils/logger';
 import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
@@ -891,6 +891,21 @@ export const useFantasyGameEngine = ({
     combinedFullLoopCount: 0,
     combo: 0,
   });
+
+  const gameStateRef = useRef(gameState);
+
+  const setGameStateSync = useCallback((
+    updaterOrValue: FantasyGameState | ((prev: FantasyGameState) => FantasyGameState)
+  ) => {
+    if (typeof updaterOrValue === 'function') {
+      const next = updaterOrValue(gameStateRef.current);
+      gameStateRef.current = next;
+      setGameState(next);
+    } else {
+      gameStateRef.current = updaterOrValue;
+      setGameState(updaterOrValue);
+    }
+  }, []);
   
   const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
 
@@ -2179,7 +2194,7 @@ export const useFantasyGameEngine = ({
     combiningSync.active = stage.mode === 'timing_combining';
     lastNormalizedTimeRef.current = -1;
 
-    setGameState(newState);
+    setGameStateSync(newState);
     onGameStateChange(newState);
 
     /* ===== BGMManagerがタイミング管理を担当 ===== */
@@ -2197,7 +2212,7 @@ export const useFantasyGameEngine = ({
   
   // 次の問題への移行（マルチモンスター対応）
   const proceedToNextQuestion = useCallback(() => {
-    setGameState(prevState => {
+    setGameStateSync(prevState => {
       const isComplete = prevState.enemiesDefeated >= prevState.totalEnemies;
       
       if (isComplete) {
@@ -2279,7 +2294,7 @@ export const useFantasyGameEngine = ({
       timers.set(attackingMonsterId, t);
     }
     
-    setGameState(prevState => {
+    setGameStateSync(prevState => {
       if (prevState.playMode === 'practice') {
         return prevState;
       }
@@ -2443,7 +2458,7 @@ export const useFantasyGameEngine = ({
       return;
     }
     
-    setGameState(prevState => {
+    setGameStateSync(prevState => {
       // 練習モードでも太鼓モードなら動かす必要がある
       if (prevState.playMode === 'practice' && !prevState.isTaikoMode) {
         return prevState;
@@ -3307,33 +3322,39 @@ export const useFantasyGameEngine = ({
     const sampledMusicTime = bgmManager.getCurrentMusicTime();
     const inputDelaySec =
       typeof inputTimestampMs === 'number' ? Math.max(0, (nowMs - inputTimestampMs) / 1000) : 0;
-    // 入力イベント発生時刻の音楽時間に近づけ、setState遅延による判定ブレを抑える
     const capturedInputMusicTime = sampledMusicTime - inputDelaySec;
 
-    // updater関数の中でロジックを実行するように変更
-    setGameState(prevState => {
-      // ゲームがアクティブでない場合は何もしない
+    const currentState = gameStateRef.current;
+
+    // 太鼓モード: gameStateRefから同期読み取り→ヒット判定→レンダリングref即時更新
+    // startTransitionでReact再レンダリングを低優先度化し、RAFをブロックしない
+    if (currentState.isGameActive && !currentState.isWaitingForNextMonster &&
+        currentState.isTaikoMode && currentState.taikoNotes.length > 0) {
+      const nextTaikoState = handleTaikoModeInput(currentState, note, capturedInputMusicTime);
+
+      gameStateRef.current = nextTaikoState;
+      onTaikoVisualSyncRef.current?.(nextTaikoState);
+
+      startTransition(() => {
+        setGameState(() => gameStateRef.current);
+      });
+      return;
+    }
+
+    // 非太鼓モード: 従来のupdaterパターンを維持
+    setGameStateSync(prevState => {
       if (!prevState.isGameActive || prevState.isWaitingForNextMonster) {
         return prevState;
-      }
-
-      // 太鼓の達人モードの場合は専用の処理を行う
-      if (prevState.isTaikoMode && prevState.taikoNotes.length > 0) {
-        const nextTaikoState = handleTaikoModeInput(prevState, note, capturedInputMusicTime);
-        onTaikoVisualSyncRef.current?.(nextTaikoState);
-        return nextTaikoState;
       }
 
       const noteMod12 = note % 12;
       const completedMonsters: MonsterState[] = [];
       let hasAnyNoteChanged = false;
 
-      // 1. 今回の入力でどのモンスターが影響を受けるか判定し、新しい状態を作る
       const monstersAfterInput = prevState.activeMonsters.map(monster => {
         if (!monster.chordTarget) return monster;
         const targetNotes = [...new Set(monster.chordTarget.notes.map(n => n % 12))];
         
-        // 撃破済みモンスターや、既に完成しているモンスター、入力音と関係ないモンスターはスキップ
         if (monster.defeatedAt !== undefined || !targetNotes.includes(noteMod12) || monster.correctNotes.includes(noteMod12)) {
             return monster;
         }
@@ -3342,7 +3363,6 @@ export const useFantasyGameEngine = ({
         const newCorrectNotes = [...monster.correctNotes, noteMod12];
         const updatedMonster = { ...monster, correctNotes: newCorrectNotes };
 
-        // コードが完成したかチェック
         if (newCorrectNotes.length === targetNotes.length) {
             completedMonsters.push(updatedMonster);
         }
@@ -3350,19 +3370,15 @@ export const useFantasyGameEngine = ({
         return updatedMonster;
       });
       
-      // どのモンスターにもヒットしなかった場合
       if (!hasAnyNoteChanged) {
         return prevState;
       }
 
-      // 2. コードが完成した場合の処理
       if (completedMonsters.length > 0) {
-        // ★ 攻撃処理後の状態を計算する
         const stateAfterAttack = { ...prevState, activeMonsters: monstersAfterInput };
         
         const isSpecialAttack = stateAfterAttack.playerSp >= 5;
         
-        // 攻撃処理ループ
         completedMonsters.forEach(completed => {
           const monsterToUpdate = stateAfterAttack.activeMonsters.find(m => m.id === completed.id);
           if (!monsterToUpdate) return;
@@ -3375,25 +3391,19 @@ export const useFantasyGameEngine = ({
           monsterToUpdate.currentHp -= damageDealt;
         });
 
-        // プレイヤーの状態更新
         stateAfterAttack.playerSp = isSpecialAttack ? 0 : Math.min(stateAfterAttack.playerSp + completedMonsters.length, 5);
         stateAfterAttack.score += 1000 * completedMonsters.length;
         stateAfterAttack.correctAnswers += completedMonsters.length;
         stateAfterAttack.combo += completedMonsters.length;
         
-        // 倒されたモンスターを特定し、defeatedAtタイムスタンプを設定（HPバーが0になる演出のため）
         const defeatedMonstersThisTurn = stateAfterAttack.activeMonsters.filter(m => m.currentHp <= 0 && !m.defeatedAt);
         stateAfterAttack.enemiesDefeated += defeatedMonstersThisTurn.length;
 
-        // 撃破されたモンスターにdefeatedAtを設定（HP0の状態を200ms見せるため）
-        // 生き残ったモンスターは通常通り処理
         const now = Date.now();
         const updatedMonsters = stateAfterAttack.activeMonsters.map(monster => {
-          // 今回撃破されたモンスター → defeatedAtを設定してHP0の状態を見せる
           if (monster.currentHp <= 0 && !monster.defeatedAt) {
             return { ...monster, currentHp: 0, defeatedAt: now };
           }
-          // 生き残ったモンスターのうち、今回攻撃したモンスターは問題をリセット
           if (completedMonsters.some(cm => cm.id === monster.id)) {
             let nextChord: ChordDefinition | null = null;
             if (stateAfterAttack.currentStage?.mode === 'single_order') {
@@ -3419,24 +3429,17 @@ export const useFantasyGameEngine = ({
             }
             return nextMonster;
           }
-          // SPアタックの場合は全ての敵のゲージをリセット
           if (isSpecialAttack) {
             return { ...monster, gauge: 0 };
           }
           return monster;
         });
 
-        // 注: モンスターの補充は200ms後にuseEffectで行う（HPバーが0になる演出を見せるため）
-        // ここでは撃破済みモンスターも含めてactiveMonsters に残す
-        
-        // 最終的なモンスターリストを更新（キューは変更しない）
         stateAfterAttack.activeMonsters = updatedMonsters;
         
-        // 互換性のためのレガシーな状態も更新
         stateAfterAttack.correctNotes = [];
         stateAfterAttack.enemyGauge = 0;
 
-        // ゲームクリア判定
         if (stateAfterAttack.enemiesDefeated >= stateAfterAttack.totalEnemies) {
             const finalState = { ...stateAfterAttack, isGameActive: false, isGameOver: true, gameResult: 'clear' as const, activeMonsters: [] };
             onGameComplete('clear', finalState);
@@ -3447,22 +3450,17 @@ export const useFantasyGameEngine = ({
         return stateAfterAttack;
 
       } else {
-        // 3. 部分一致のみの場合は、ノートの状態だけ更新
         const newState = { ...prevState, activeMonsters: monstersAfterInput };
         onGameStateChange(newState);
         return newState;
       }
     });
-  // 注: handleTaikoModeInput を依存配列に含めない。
-  // displayOpts のオブジェクトリテラル再生成でコールバックが毎レンダー再作成され、
-  // 下流の handleNoteInputBridge まで連鎖的に再作成されてフレーム落ちの原因になる。
-  // handleTaikoModeInput は setGameState updater 内で呼ばれるため stale closure で問題ない。
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds]);
+  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds, setGameStateSync]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
-    setGameState(prevState => {
+    setGameStateSync(prevState => {
       if (!prevState.isWaitingForNextMonster) return prevState;
 
       const newEnemiesDefeated = prevState.enemiesDefeated + 1;
@@ -3544,7 +3542,7 @@ export const useFantasyGameEngine = ({
     combiningSync.sectionIndex = 0;
     combiningSync.noteStartIndex = 0;
     combiningSync.noteEndIndex = 0;
-    setGameState(prevState => ({
+    setGameStateSync(prevState => ({
       ...prevState,
       isGameActive: false
     }));
@@ -3574,7 +3572,7 @@ export const useFantasyGameEngine = ({
     // クリーンアップ関数を返す
     return () => {
       // タイマーのクリア
-      setGameState(prevState => {
+      setGameStateSync(prevState => {
         if (prevState.isGameActive) {
           // ゲームが進行中の場合は停止
           bgmManager.stop();
@@ -3638,7 +3636,7 @@ export const useFantasyGameEngine = ({
     const remainingTime = Math.max(0, DEFEAT_ANIMATION_DELAY - timeElapsed);
 
     const timer = setTimeout(() => {
-      setGameState(prevState => {
+      setGameStateSync(prevState => {
         // 200ms経過した撃破済みモンスターを削除
         const monstersToRemove = prevState.activeMonsters.filter(
           m => m.defeatedAt !== undefined && (Date.now() - m.defeatedAt) >= DEFEAT_ANIMATION_DELAY
