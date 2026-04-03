@@ -111,16 +111,17 @@ export class FantasyPIXIInstance {
   private unsubscribeEnraged: (() => void) | null = null;
   private enragedState: Record<string, boolean> = {};
 
-  // 🚀 パフォーマンス最適化: レンダリング頻度制御
-  private lastRenderTime = 0;
-  private readonly minRenderInterval = 16; // 16ms = 60FPS
   private needsRender = true; // 変更があった場合のみ true
   private isSheetMusicMode = false;
+
+  /** 毎フレーム createLinearGradient を避ける（リサイズまで再利用） */
+  private backgroundGradient: CanvasGradient | null = null;
 
   // 🚀 ノーツ描画最適化: プリレンダリングキャッシュ
   private noteCircleCache: HTMLCanvasElement | null = null;
   private noteShadowCache: HTMLCanvasElement | null = null;
-  private textCache = new Map<string, HTMLCanvasElement>();
+  /** 太鼓ノーツのコード／音名バッジを1枚にまとめたキャッシュ（drawImage 回数削減） */
+  private badgeStackCache = new Map<string, HTMLCanvasElement>();
 
   constructor(
     canvas: HTMLCanvasElement,
@@ -269,10 +270,11 @@ export class FantasyPIXIInstance {
   ): void {
     const visual = this.monsters.find((m) => m.id === monsterId);
     if (visual) {
-      const ultraLight = this.isWebKit && this.taikoMode;
+      // 太鼓モードは全ブラウザで軽量ビジュアル（レジェンド相当の滑らかさを優先）
+      const taikoLight = this.taikoMode;
 
-      visual.flashUntil = performance.now() + (ultraLight ? 180 : 450);
-      visual.hitNoteOffsets = ultraLight
+      visual.flashUntil = performance.now() + (taikoLight ? 180 : 450);
+      visual.hitNoteOffsets = taikoLight
         ? []
         : Array.from({ length: 2 }, () => {
             const a = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
@@ -290,9 +292,9 @@ export class FantasyPIXIInstance {
         start: performance.now(),
         duration: this.isSheetMusicMode
           ? 100
-          : ultraLight
+          : taikoLight
             ? 320
-            : (this.taikoMode ? 900 : 1800),
+            : 1800,
         offsetX: Math.cos(randAngle) * randDist,
         offsetY: Math.sin(randAngle) * randDist,
       });
@@ -335,10 +337,14 @@ export class FantasyPIXIInstance {
     }
     this.noteCircleCache = null;
     this.noteShadowCache = null;
-    this.textCache.clear();
+    this.badgeStackCache.clear();
+    this.backgroundGradient = null;
   }
 
   private configureCanvasSize(width: number, height: number): void {
+    if (this.width !== width || this.height !== height) {
+      this.backgroundGradient = null;
+    }
     this.canvas.style.width = `${width}px`;
     this.canvas.style.height = `${height}px`;
     this.canvas.width = Math.max(1, Math.floor(width * this.pixelRatio));
@@ -403,11 +409,13 @@ export class FantasyPIXIInstance {
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D): void {
-    // シンプルな暗い背景（透明度を上げてゲーム感を出す）
-    const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
-    gradient.addColorStop(0, 'rgba(10, 10, 20, 0.3)');
-    gradient.addColorStop(1, 'rgba(5, 5, 15, 0.3)');
-    ctx.fillStyle = gradient;
+    if (!this.backgroundGradient) {
+      const gradient = ctx.createLinearGradient(0, 0, 0, this.height);
+      gradient.addColorStop(0, 'rgba(10, 10, 20, 0.3)');
+      gradient.addColorStop(1, 'rgba(5, 5, 15, 0.3)');
+      this.backgroundGradient = gradient;
+    }
+    ctx.fillStyle = this.backgroundGradient;
     ctx.fillRect(0, 0, this.width, this.height);
   }
 
@@ -505,10 +513,10 @@ export class FantasyPIXIInstance {
       ctx.filter = 'none';
       ctx.globalAlpha = 1;
       
-      const ultraLight = this.isWebKit && this.taikoMode;
+      const taikoLight = this.taikoMode;
 
-      // 怒りアイコン（💢）を表示（WebKit太鼓モードではスキップ）
-      if (isEnraged && !ultraLight) {
+      // 怒りアイコン（💢）を表示（太鼓モードではスキップ）
+      if (isEnraged && !taikoLight) {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -520,8 +528,8 @@ export class FantasyPIXIInstance {
         ctx.restore();
       }
       
-      // ヒット時の音符エフェクト（WebKit太鼓モードではスキップ）
-      if (monster.flashUntil > now && !ultraLight) {
+      // ヒット時の音符エフェクト（太鼓モードではスキップ）
+      if (monster.flashUntil > now && !taikoLight) {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -589,22 +597,27 @@ export class FantasyPIXIInstance {
     this.noteCircleCache = circle;
   }
 
-  private getTextCache(key: string, fontSize: number): HTMLCanvasElement {
-    const cacheKey = `${key}_${fontSize}`;
-    let cached = this.textCache.get(cacheKey);
-    if (cached) return cached;
+  /** 複数行ラベルを1テクスチャにまとめ、ノーツ1個あたりの drawImage 回数を削減 */
+  private getBadgeStackCache(lines: string[], fontSize: number): HTMLCanvasElement {
+    const cacheKey = `${lines.join('\u0001')}_${fontSize}`;
+    const existing = this.badgeStackCache.get(cacheKey);
+    if (existing) return existing;
 
-    // テキストキャッシュが大きくなりすぎないよう制限
-    if (this.textCache.size > 200) {
-      this.textCache.clear();
+    if (this.badgeStackCache.size > 120) {
+      this.badgeStackCache.clear();
     }
 
-    const tmpCtx = this.ctx;
+    const lineHeight = fontSize + 4;
+    const padding = 8;
     const font = `bold ${fontSize}px "Inter", sans-serif`;
-    tmpCtx.font = font;
-    const metrics = tmpCtx.measureText(key);
-    const w = Math.ceil(metrics.width) + 6;
-    const h = fontSize + 6;
+    const measureCtx = this.ctx;
+    measureCtx.font = font;
+    let maxW = 0;
+    for (let li = 0; li < lines.length; li++) {
+      maxW = Math.max(maxW, measureCtx.measureText(lines[li]).width);
+    }
+    const w = Math.ceil(maxW) + padding * 2;
+    const h = lines.length * lineHeight + padding * 2;
 
     const c = document.createElement('canvas');
     c.width = w;
@@ -614,12 +627,15 @@ export class FantasyPIXIInstance {
     tCtx.textAlign = 'center';
     tCtx.textBaseline = 'middle';
     tCtx.lineWidth = 3;
-    tCtx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
-    tCtx.strokeText(key, w / 2, h / 2);
-    tCtx.fillStyle = '#ffffff';
-    tCtx.fillText(key, w / 2, h / 2);
+    for (let i = 0; i < lines.length; i++) {
+      const y = padding + (i + 0.5) * lineHeight;
+      tCtx.strokeStyle = 'rgba(0, 0, 0, 0.85)';
+      tCtx.strokeText(lines[i], w / 2, y);
+      tCtx.fillStyle = '#ffffff';
+      tCtx.fillText(lines[i], w / 2, y);
+    }
 
-    this.textCache.set(cacheKey, c);
+    this.badgeStackCache.set(cacheKey, c);
     return c;
   }
 
@@ -651,22 +667,15 @@ export class FantasyPIXIInstance {
       if (noteCount === 0) continue;
 
       const fontSize = noteCount > 3 ? 16 : noteCount > 2 ? 18 : 22;
-      const lineHeight = fontSize + 4;
-      const badgePadding = 8;
-      const badgeHeight = noteCount * lineHeight + badgePadding * 2;
-      const badgeY = judgePos.y - radius - badgeHeight - 8;
-
-      for (let i = 0; i < noteCount; i++) {
-        const textImg = this.getTextCache(displayNotes[i], fontSize);
-        const textY = badgeY + badgeHeight - badgePadding - (i + 0.5) * lineHeight;
-        ctx.drawImage(textImg, note.x - textImg.width / 2, textY - textImg.height / 2);
-      }
+      const badgeImg = this.getBadgeStackCache(displayNotes, fontSize);
+      const badgeY = judgePos.y - radius - badgeImg.height - 8;
+      ctx.drawImage(badgeImg, note.x - badgeImg.width / 2, badgeY);
     }
   }
 
   private drawDamagePopups(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
-    const ultraLight = this.isWebKit && this.taikoMode;
+    const taikoLight = this.taikoMode;
     
     this.damagePopups = this.damagePopups.filter(
       (popup) => now - popup.start < popup.duration
@@ -687,7 +696,7 @@ export class FantasyPIXIInstance {
         bounceScale = 1;
         ox = 0;
         oy = 0;
-      } else if (ultraLight) {
+      } else if (taikoLight) {
         alpha = 1 - progress;
         yOffset = -progress * 16;
         bounceScale = 1;
@@ -708,12 +717,12 @@ export class FantasyPIXIInstance {
       ctx.scale(bounceScale, bounceScale);
       ctx.globalAlpha = alpha;
       
-      const fontSize = ultraLight ? 22 : 28;
+      const fontSize = taikoLight ? 22 : 28;
       ctx.font = `bold ${fontSize}px "Inter", sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      if (!ultraLight) {
+      if (!taikoLight) {
         ctx.shadowColor = '#fbbf24';
         ctx.shadowBlur = 16;
         ctx.strokeStyle = DAMAGE_STROKE;
@@ -732,6 +741,7 @@ export class FantasyPIXIInstance {
   private drawEffects(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
     this.effects = this.effects.filter((effect) => now - effect.start < effect.duration);
+    const particleCap = this.taikoMode ? 0 : 6;
     
     this.effects.forEach((effect) => {
       const progress = (now - effect.start) / effect.duration;
@@ -745,10 +755,10 @@ export class FantasyPIXIInstance {
       ctx.arc(effect.x, effect.y, radius, 0, Math.PI * 2);
       ctx.stroke();
       
-      // 成功時は追加のパーティクル
-      if (effect.success) {
-        for (let i = 0; i < 6; i++) {
-          const angle = (i / 6) * Math.PI * 2 + progress * Math.PI;
+      // 成功時は追加のパーティクル（太鼓モードではリングのみ）
+      if (effect.success && particleCap > 0) {
+        for (let i = 0; i < particleCap; i++) {
+          const angle = (i / particleCap) * Math.PI * 2 + progress * Math.PI;
           const particleRadius = radius * 1.3;
           const px = effect.x + Math.cos(angle) * particleRadius;
           const py = effect.y + Math.sin(angle) * particleRadius;

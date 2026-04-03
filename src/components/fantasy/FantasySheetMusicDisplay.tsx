@@ -13,6 +13,10 @@ import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
 import { devLog } from '@/utils/logger';
 import { stripLyricsFromMusicXml, convertToRhythmNotation, convertMeasuresToRests } from '@/utils/musicXmlMapper';
+import {
+  computeXPositionFromTimeMapping,
+  type TimeMappingEntry
+} from '@/utils/timeMappingScroll';
 
 type MeasureRange = [number, number];
 
@@ -73,11 +77,6 @@ function getSheetCacheKey(
 
 const PLAYHEAD_POSITION_PX = 80;
 const WRAPPER_SCROLL_PADDING_PX = 200;
-
-interface TimeMappingEntry {
-  timeMs: number;
-  xPosition: number;
-}
 
 function areMeasureRangesEqual(a?: MeasureRange, b?: MeasureRange): boolean {
   if (a === b) return true;
@@ -439,7 +438,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       
       if (currentTime < 0) {
         if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transform = `translateX(0px)`;
+          scoreWrapperRef.current.style.transform = 'translate3d(0, 0, 0)';
         }
         lastScrollXRef.current = 0;
         animationFrameRef.current = requestAnimationFrame(updateScroll);
@@ -448,33 +447,14 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       
       const currentTimeMs = currentTime * 1000;
       const loopDurationMs = loopDuration * 1000;
-      
-      let xPosition = 0;
-      
-      for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
-          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
-          break;
-        }
-      }
-      
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
-        const lastEntry = mapping[mapping.length - 1];
-        const remainingTime = loopDurationMs - lastEntry.timeMs;
-        if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
-          xPosition = lastEntry.xPosition + t * (sw - lastEntry.xPosition);
-        } else {
-          xPosition = lastEntry.xPosition;
-        }
-      }
+
+      const xPosition = computeXPositionFromTimeMapping(mapping, currentTimeMs, loopDurationMs, sw);
       
       const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
       
       if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
         if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+          scoreWrapperRef.current.style.transform = `translate3d(-${scrollX}px, 0, 0)`;
         }
         lastScrollXRef.current = scrollX;
       }
