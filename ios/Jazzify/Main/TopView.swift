@@ -43,7 +43,9 @@ struct TopView: View {
                     VStack(spacing: 20) {
                         profileCard
                         if !appState.isPremium {
-                            membershipBanner
+                            Button { showSubscription = true } label: {
+                                membershipBanner
+                            }
                         }
                         tutorialCard
                         statsCard

@@ -44,6 +44,8 @@ final class AppState: ObservableObject {
             self.profile = nil
             self.billingStatus = nil
             self.profileSetupError = nil
+            UserDefaults.standard.removeObject(forKey: "preferred_locale")
+            self.locale = Config.appLocale
             self.authState = .unauthenticated
         }
     }
@@ -113,6 +115,8 @@ final class AppState: ObservableObject {
         self.profile = nil
         self.billingStatus = nil
         self.profileSetupError = nil
+        UserDefaults.standard.removeObject(forKey: "preferred_locale")
+        self.locale = Config.appLocale
         self.authState = .unauthenticated
     }
 
