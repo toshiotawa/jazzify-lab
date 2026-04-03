@@ -15,7 +15,7 @@ interface FantasyPIXIRendererProps {
   imageTexturesRef?: React.MutableRefObject<Map<string, HTMLImageElement>>;
 }
 
-export interface TaikoDisplayNote {
+interface TaikoDisplayNote {
   id: string;
   chord: string;
   x: number;
@@ -77,20 +77,9 @@ const HIT_EMOJI = '🎵';
 
 const EMOJI_FONT_FALLBACK = '"Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif';
 
-const isLikelyWebKitRenderer = (): boolean => {
-  if (typeof navigator === 'undefined') {
-    return false;
-  }
-
-  const userAgent = navigator.userAgent.toLowerCase();
-  return userAgent.includes('safari') && !userAgent.includes('chrome') && !userAgent.includes('android');
-};
-
 export class FantasyPIXIInstance {
   private canvas: HTMLCanvasElement;
   private ctx: CanvasRenderingContext2D;
-  private taikoCanvas: HTMLCanvasElement;
-  private taikoCtx: CanvasRenderingContext2D;
   private width: number;
   private height: number;
   private pixelRatio: number;
@@ -116,10 +105,11 @@ export class FantasyPIXIInstance {
   private unsubscribeEnraged: (() => void) | null = null;
   private enragedState: Record<string, boolean> = {};
 
-  private needsMainRender = true;
-  private needsTaikoRender = true;
+  // 🚀 パフォーマンス最適化: レンダリング頻度制御
+  private lastRenderTime = 0;
+  private readonly minRenderInterval = 16; // 16ms = 60FPS
+  private needsRender = true; // 変更があった場合のみ true
   private isSheetMusicMode = false;
-  private readonly lightweightMonsterEffects = isLikelyWebKitRenderer();
 
   // 🚀 ノーツ描画最適化: プリレンダリングキャッシュ
   private noteCircleCache: HTMLCanvasElement | null = null;
@@ -128,7 +118,6 @@ export class FantasyPIXIInstance {
 
   constructor(
     canvas: HTMLCanvasElement,
-    taikoCanvas: HTMLCanvasElement,
     width: number,
     height: number,
     onMonsterDefeated?: () => void,
@@ -140,12 +129,6 @@ export class FantasyPIXIInstance {
       throw new Error('Canvas 2D context is not available');
     }
     this.ctx = context;
-    this.taikoCanvas = taikoCanvas;
-    const taikoContext = taikoCanvas.getContext('2d');
-    if (!taikoContext) {
-      throw new Error('Taiko canvas 2D context is not available');
-    }
-    this.taikoCtx = taikoContext;
     this.width = width;
     this.height = height;
     this.pixelRatio = typeof window !== 'undefined' ? window.devicePixelRatio || 1 : 1;
@@ -157,7 +140,6 @@ export class FantasyPIXIInstance {
     // 怒り状態を購読
     this.unsubscribeEnraged = useEnemyStore.subscribe((state) => {
       this.enragedState = state.enraged;
-      this.requestMainRender();
     });
     this.enragedState = useEnemyStore.getState().enraged;
     
@@ -172,8 +154,7 @@ export class FantasyPIXIInstance {
     this.width = width;
     this.height = height;
     this.configureCanvasSize(width, height);
-    this.requestMainRender();
-    this.requestTaikoRender();
+    this.requestRender();
   }
 
   setActiveMonsters(monsters: MonsterState[]): void {
@@ -217,13 +198,13 @@ export class FantasyPIXIInstance {
     }
 
     this.monsters = visuals;
-    this.requestMainRender();
+    this.requestRender();
   }
 
   setDefaultMonsterIcon(icon: string): void {
     this.defaultMonsterIcon = icon;
     this.ensureImage(icon);
-    this.requestMainRender();
+    this.requestRender();
   }
 
   createMonsterSprite(icon: string): void {
@@ -233,26 +214,25 @@ export class FantasyPIXIInstance {
   updateTaikoMode(enabled: boolean): void {
     if (this.taikoMode !== enabled) {
       this.taikoMode = enabled;
-      this.requestTaikoRender();
-      if (enabled) {
-        this.requestMainRender();
-      }
+      this.requestRender();
     }
   }
 
   updateTaikoNotes(notes: TaikoDisplayNote[]): void {
-    // 呼び出し元(FantasyGameScreen)で差分フィルタ済みのため、常に更新する
-    this.taikoNotes = notes;
+    const newLen = notes.length;
+    if (this.taikoNotes.length !== newLen) {
+      this.taikoNotes.length = newLen;
+    }
+    for (let i = 0; i < newLen; i++) {
+      this.taikoNotes[i] = notes[i];
+    }
     this.taikoNotesDirty = true;
-    this.requestTaikoRender();
+    this.requestRender();
   }
 
   setTaikoFrameCallback(cb: (() => void) | null): void {
-    if (this.taikoFrameCallback === cb) {
-      return;
-    }
     this.taikoFrameCallback = cb;
-    this.requestTaikoRender();
+    this.requestRender();
   }
 
   getJudgeLinePosition(): { x: number; y: number } {
@@ -270,7 +250,6 @@ export class FantasyPIXIInstance {
       duration: success ? 300 : 400,
       success
     });
-    this.requestMainRender();
   }
 
   triggerAttackSuccessOnMonster(
@@ -297,7 +276,7 @@ export class FantasyPIXIInstance {
         y: visual.y,
         value: damageDealt,
         start: performance.now(),
-        duration: this.isSheetMusicMode ? 100 : (this.lightweightMonsterEffects && this.taikoMode ? 900 : 1800),
+        duration: this.isSheetMusicMode ? 100 : 1800,
         offsetX: Math.cos(randAngle) * randDist,
         offsetY: Math.sin(randAngle) * randDist,
       });
@@ -310,28 +289,19 @@ export class FantasyPIXIInstance {
           this.onMonsterDefeated?.();
         }, 400);
       }
-      this.requestMainRender();
     }
   }
 
 
   updateOverlayText(text: string | null): void {
     if (!text) {
-      if (this.overlayText !== null) {
-        this.overlayText = null;
-        this.requestMainRender();
-      }
-      return;
-    }
-
-    if (this.overlayText?.value === text) {
+      this.overlayText = null;
       return;
     }
     this.overlayText = {
       value: text,
       until: performance.now() + 1800
     };
-    this.requestMainRender();
   }
 
   destroy(): void {
@@ -358,12 +328,6 @@ export class FantasyPIXIInstance {
     this.canvas.width = Math.max(1, Math.floor(width * this.pixelRatio));
     this.canvas.height = Math.max(1, Math.floor(height * this.pixelRatio));
     this.ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
-
-    this.taikoCanvas.style.width = `${width}px`;
-    this.taikoCanvas.style.height = `${height}px`;
-    this.taikoCanvas.width = Math.max(1, Math.floor(width * this.pixelRatio));
-    this.taikoCanvas.height = Math.max(1, Math.floor(height * this.pixelRatio));
-    this.taikoCtx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
   }
 
   private startLoop(): void {
@@ -381,39 +345,28 @@ export class FantasyPIXIInstance {
       this.taikoFrameCallback();
     }
 
-    const now = performance.now();
-    const hasActiveMainAnimations =
+    const hasActiveAnimations =
       this.effects.length > 0 ||
       this.damagePopups.length > 0 ||
       this.overlayText !== null ||
-      this.hasMonsterAnimations(now);
-    const needsTaikoFrame =
-      this.taikoMode &&
-      (this.taikoFrameCallback !== null || this.taikoNotesDirty || this.needsTaikoRender || this.taikoNotes.length > 0);
+      this.taikoNotesDirty ||
+      this.monsters.length > 0 ||
+      (this.taikoMode && this.taikoFrameCallback !== null);
 
-    if (hasActiveMainAnimations || this.needsMainRender) {
-      this.drawMainFrame();
-      this.needsMainRender = false;
-    }
-
-    if (needsTaikoFrame || this.needsTaikoRender) {
-      this.drawTaikoFrame();
-      this.needsTaikoRender = false;
+    if (hasActiveAnimations || this.needsRender) {
+      this.drawFrame();
+      this.needsRender = false;
       this.taikoNotesDirty = false;
     }
     
     this.startLoop();
   };
 
-  private requestMainRender(): void {
-    this.needsMainRender = true;
+  private requestRender(): void {
+    this.needsRender = true;
   }
 
-  private requestTaikoRender(): void {
-    this.needsTaikoRender = true;
-  }
-
-  private drawMainFrame(): void {
+  private drawFrame(): void {
     const ctx = this.ctx;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -423,45 +376,14 @@ export class FantasyPIXIInstance {
     
     this.drawBackground(ctx);
     this.drawMonsters(ctx);
+    
+    if (this.taikoMode) {
+      this.drawTaikoLane(ctx);
+    }
+    
     this.drawDamagePopups(ctx);
     this.drawEffects(ctx);
     this.drawOverlayText(ctx);
-  }
-
-  private drawTaikoFrame(): void {
-    const ctx = this.taikoCtx;
-    ctx.save();
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    ctx.clearRect(0, 0, this.taikoCanvas.width, this.taikoCanvas.height);
-    ctx.restore();
-    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
-
-    if (!this.taikoMode) {
-      return;
-    }
-
-    this.drawTaikoLane(ctx);
-  }
-
-  private hasMonsterAnimations(now: number): boolean {
-    if (this.monsters.length === 0) {
-      return false;
-    }
-
-    if (!this.taikoMode) {
-      return true;
-    }
-
-    return this.monsters.some((monster) => {
-      const isEnraged = this.enragedState[monster.id] || false;
-      const targetScale = isEnraged ? 1.25 : 1;
-      return (
-        Math.abs(monster.targetX - monster.x) > 0.5 ||
-        Math.abs(monster.enrageScale - targetScale) > 0.01 ||
-        monster.flashUntil > now ||
-        (monster.defeated && typeof monster.defeatedAt === 'number' && now - monster.defeatedAt < 450)
-      );
-    });
   }
 
   private drawBackground(ctx: CanvasRenderingContext2D): void {
@@ -519,7 +441,7 @@ export class FantasyPIXIInstance {
       
       // Y位置（軽量な浮遊アニメーション - sin波で5pxの上下動）
       // 各モンスターに異なるオフセットを与えて動きをずらす
-      const floatOffset = this.taikoMode ? 0 : Math.sin(now * 0.002 + monster.x * 0.01) * 5;
+      const floatOffset = Math.sin(now * 0.002 + monster.x * 0.01) * 5;
       monster.y = this.height * 0.45 + floatOffset;
       
       ctx.save();
@@ -540,7 +462,7 @@ export class FantasyPIXIInstance {
       // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
       
       // 怒り時の赤みがかった色合い
-      if (isEnraged && !(this.lightweightMonsterEffects && this.taikoMode)) {
+      if (isEnraged) {
         ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
       }
       
@@ -572,7 +494,8 @@ export class FantasyPIXIInstance {
         ctx.font = `${Math.floor(monsterSize * 0.3)}px ${EMOJI_FONT_FALLBACK}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        const pulse = this.taikoMode ? 1 : 1 + Math.sin(now * 0.01) * 0.1;
+        // アニメーション（パルス）
+        const pulse = 1 + Math.sin(now * 0.01) * 0.1;
         ctx.save();
         ctx.translate(monsterSize * 0.35, -monsterSize * 0.35);
         ctx.scale(pulse, pulse);
@@ -868,7 +791,7 @@ export class FantasyPIXIInstance {
           m.image = img;
         }
       }
-      this.requestMainRender();
+      this.requestRender();
     };
     img.onerror = () => {
       this.loadingImages.delete(icon);
@@ -908,16 +831,13 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   imageTexturesRef
 }) => {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
-  const taikoCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const rendererRef = useRef<FantasyPIXIInstance | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
-    const taikoCanvas = taikoCanvasRef.current;
-    if (!canvas || !taikoCanvas) return;
+    if (!canvas) return;
     const renderer = new FantasyPIXIInstance(
       canvas,
-      taikoCanvas,
       width,
       height,
       onMonsterDefeated,
@@ -946,16 +866,10 @@ export const FantasyPIXIRenderer: React.FC<FantasyPIXIRendererProps> = ({
   }, [activeMonsters]);
 
   return (
-    <div className={cn('relative block w-full h-full', className)}>
-      <canvas
-        ref={canvasRef}
-        className="absolute inset-0 block w-full h-full"
-      />
-      <canvas
-        ref={taikoCanvasRef}
-        className="absolute inset-0 block w-full h-full pointer-events-none"
-      />
-    </div>
+    <canvas
+      ref={canvasRef}
+      className={cn('block w-full h-full', className)}
+    />
   );
 };
 
