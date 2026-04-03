@@ -28,9 +28,13 @@ const getMidiAccess = (): Promise<MIDIAccess> => {
   return midiAccessPromise;
 };
 
+const isVirtualNetworkDevice = (name: string): boolean =>
+  /^(Network )?Session \d+$/i.test(name);
+
 const enumerateMidiDevices = (midiAccess: MIDIAccess): MidiDevice[] => {
   const deviceList: MidiDevice[] = [];
   midiAccess.inputs.forEach((input) => {
+    if (isVirtualNetworkDevice(input.name ?? '')) return;
     deviceList.push({
       id: input.id,
       name: input.name || `Unknown Device (${input.id})`,
