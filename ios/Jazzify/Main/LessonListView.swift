@@ -120,7 +120,8 @@ struct LessonListView: View {
     private func courseRow(_ course: Course) -> some View {
         VStack(spacing: 0) {
             Button {
-                if course.premiumOnly == true {
+                let courseLocksForNonPremium = course.premiumOnly == true && course.isTutorial != true
+                if courseLocksForNonPremium {
                     Task {
                         let premium = await appState.ensureFreshBilling()
                         if !premium {
@@ -179,7 +180,7 @@ struct LessonListView: View {
                         }
                     }
 
-                    if !appState.isPremium && course.premiumOnly == true {
+                    if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
                         Image(systemName: "lock.fill")
                             .foregroundStyle(.purple)
                     } else {
@@ -315,7 +316,8 @@ struct LessonListView: View {
 
     @ViewBuilder
     private func lessonRow(_ lesson: Lesson, courseId: UUID, accessState: LessonAccessState?) -> some View {
-        let isMembershipLocked = !appState.isPremium && (lesson.premiumOnly ?? false)
+        let isTutorialCourse = courses.first(where: { $0.id == courseId })?.isTutorial == true
+        let isMembershipLocked = !isTutorialCourse && !appState.isPremium && (lesson.premiumOnly ?? false)
         let isUnlocked = accessState?.isUnlocked ?? false
         let isCompleted = accessState?.isCompleted ?? (progressMap[courseId]?.contains(lesson.id) ?? false)
         let isLocked = isMembershipLocked || !isUnlocked
