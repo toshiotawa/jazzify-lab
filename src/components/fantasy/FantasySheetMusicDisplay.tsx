@@ -2,12 +2,12 @@
  * ファンタジーモード用楽譜表示コンポーネント
  * OSMDを使用してMusicXMLを正確に表示
  * Progression_Timing用の横スクロール形式楽譜
- * 
+ *
  * 楽譜は渡されたmusicXmlをそのまま1回だけレンダリングする。
  * 移調が必要な場合は呼び出し側で移調済みのmusicXmlを渡す。
  */
 
-import React, { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useRef, useEffect, useState, useCallback, useMemo, useImperativeHandle } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { cn } from '@/utils/cn';
 import { bgmManager } from '@/utils/BGMManager';
@@ -24,7 +24,7 @@ interface SheetPreloadSection {
   useRhythmNotation?: boolean;
 }
 
-interface FantasySheetMusicDisplayProps {
+export interface FantasySheetMusicDisplayProps {
   width: number;
   height: number;
   musicXml: string;
@@ -49,6 +49,11 @@ interface FantasySheetMusicDisplayProps {
   nextTransposeOffset?: number;
   /** @deprecated */
   nextSectionTransposeOffset?: number;
+}
+
+export interface FantasySheetMusicDisplayHandle {
+  resetPlaybackTime: () => void;
+  updatePlaybackTime: (currentTime: number) => void;
 }
 
 // ─── モジュールレベル永続キャッシュ（セクション間即時切り替え用） ───
@@ -133,7 +138,7 @@ function areFantasySheetMusicDisplayPropsEqual(
   );
 }
 
-const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
+const FantasySheetMusicDisplay = React.forwardRef<FantasySheetMusicDisplayHandle, FantasySheetMusicDisplayProps>(({
   width,
   height,
   musicXml,
@@ -152,7 +157,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   listenBars,
   useRhythmNotation = false,
   className
-}) => {
+}, ref) => {
   const renderContainerRef = useRef<HTMLDivElement>(null);
   const preRenderContainerRef = useRef<HTMLDivElement>(null);
   const preloadContainerRef = useRef<HTMLDivElement>(null);
@@ -160,25 +165,24 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
   const scoreWrapperRef = useRef<HTMLDivElement>(null);
   const timeMappingRef = useRef<TimeMappingEntry[]>([]);
   const lastScrollXRef = useRef(0);
-  const animationFrameRef = useRef<number | null>(null);
   const sheetWidthRef = useRef<number>(0);
-  
+
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  
+
   const [sheetImage, setSheetImage] = useState<string | null>(null);
   const [sheetWidth, setSheetWidth] = useState<number>(0);
   const [isInitialized, setIsInitialized] = useState(false);
-  
+
   const [nextSectionResult, setNextSectionResult] = useState<SheetRenderResult | null>(null);
-  
+
   const loopInfo = useMemo(() => {
     const secPerBeat = 60 / (bpm || 120);
     const secPerMeasure = secPerBeat * (timeSignature || 4);
     const loopDuration = (measureCount || 8) * secPerMeasure;
     return { secPerBeat, secPerMeasure, loopDuration };
   }, [bpm, timeSignature, measureCount]);
-  
+
   const renderSheet = useCallback(async (
     xml: string,
     container: HTMLDivElement,
@@ -206,7 +210,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         }
         displayXml = new XMLSerializer().serializeToString(doc);
       }
-      
+
       const options: IOSMDOptions = {
         autoResize: false,
         backend: 'canvas',
@@ -224,35 +228,35 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
         defaultColorLabel: '#000000',
         defaultColorTitle: '#000000',
       };
-      
+
       const osmd = new OpenSheetMusicDisplay(container, options);
       await osmd.load(displayXml);
       osmd.render();
-      
+
       const canvas = container.querySelector('canvas');
       if (!canvas) {
         osmd.clear();
         return null;
       }
-      
+
       const dataUrl = canvas.toDataURL('image/png');
-      
+
       const graphicSheet = osmd.GraphicSheet;
       const boundingBox = graphicSheet && (graphicSheet as any)?.BoundingBox;
       let scaleFactor = 10;
-      
+
       if (boundingBox && boundingBox.width > 0) {
         const rectWidth = canvas.getBoundingClientRect().width || canvas.width;
         if (rectWidth > 0) {
           scaleFactor = rectWidth / boundingBox.width;
         }
       }
-      
+
       const mapping: TimeMappingEntry[] = [];
       const secPerMeasure = (60 / effectiveBpm) * effectiveTimeSig;
       let measureIndex = 0;
       let firstMeasureX: number | null = null;
-      
+
       if (graphicSheet && graphicSheet.MusicPages && graphicSheet.MusicPages.length > 0) {
         for (const page of graphicSheet.MusicPages) {
           for (const system of page.MusicSystems) {
@@ -263,7 +267,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
                   if (firstMeasureX === null) {
                     firstMeasureX = measureX;
                   }
-                  
+
                   const timeMs = (measureIndex - countInMeasures) * secPerMeasure * 1000;
                   mapping.push({
                     timeMs,
@@ -276,7 +280,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           }
         }
       }
-      
+
       if (countInMeasures === 0 && firstMeasureX !== null && mapping.length > 0) {
         if (mapping[0].timeMs !== 0) {
           mapping.unshift({
@@ -285,9 +289,9 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           });
         }
       }
-      
+
       const resultWidth = container.scrollWidth || canvas.width;
-      
+
       osmd.clear();
       return { imageData: dataUrl, mapping, sheetWidth: resultWidth };
     } catch (err) {
@@ -295,13 +299,13 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       return null;
     }
   }, [bpm, timeSignature, listenBars, useRhythmNotation, countInMeasures]);
-  
+
   const initializeSheet = useCallback(async () => {
     if (!musicXml || !renderContainerRef.current) {
       setError('楽譜データがありません');
       return;
     }
-    
+
     const cacheKey = getSheetCacheKey(musicXml, bpm || 120, timeSignature || 4, simpleMode, listenBars, useRhythmNotation);
     const cached = sheetRenderCache.get(cacheKey);
     if (cached) {
@@ -313,25 +317,25 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       setIsLoading(false);
       return;
     }
-    
+
     setIsLoading(true);
     setError(null);
-    
+
     try {
       if (renderContainerRef.current) {
         renderContainerRef.current.innerHTML = '';
       }
-      
+
       const result = await renderSheet(musicXml, renderContainerRef.current!, simpleMode);
       if (result) {
         sheetWidthRef.current = result.sheetWidth;
         timeMappingRef.current = result.mapping;
         setSheetImage(result.imageData);
         setSheetWidth(result.sheetWidth);
-        
+
         sheetRenderCache.set(cacheKey, result);
       }
-      
+
       setIsInitialized(true);
     } catch (err) {
       devLog.debug('❌ 楽譜初期化エラー:', err);
@@ -340,13 +344,13 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       setIsLoading(false);
     }
   }, [musicXml, renderSheet, bpm, timeSignature, simpleMode, listenBars, useRhythmNotation]);
-  
+
   useEffect(() => {
     if (musicXml) {
       initializeSheet();
     }
   }, [musicXml, initializeSheet]);
-  
+
   useEffect(() => {
     if (!nextMusicXml) {
       setNextSectionResult(null);
@@ -384,12 +388,12 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       } catch {}
     })();
   }, [nextMusicXml, nextBpm, nextTimeSignature, nextListenBars, nextUseRhythmNotation, bpm, timeSignature, simpleMode, renderSheet]);
-  
+
   const preloadGenRef = useRef(0);
   useEffect(() => {
     if (!preloadSections || preloadSections.length === 0) return;
     if (!preloadContainerRef.current) return;
-    
+
     const uncached = preloadSections.filter(s => {
       const key = getSheetCacheKey(s.musicXml, s.bpm, s.timeSignature, simpleMode, s.listenBars, s.useRhythmNotation);
       return !sheetRenderCache.has(key);
@@ -416,92 +420,78 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       }
     })();
   }, [preloadSections, simpleMode, renderSheet]);
-  
+
   const rightSheetImage = nextSectionResult?.imageData ?? (disablePreview ? null : sheetImage);
   const rightSheetWidth = nextSectionResult?.sheetWidth ?? (disablePreview ? 0 : sheetWidth);
-  
-  useEffect(() => {
+
+  const updateScrollFromTime = useCallback((currentTime: number) => {
     if (!scoreWrapperRef.current || !isInitialized) {
       return;
     }
-    
-    const { loopDuration } = loopInfo;
-    
-    const updateScroll = () => {
-      const currentTime = bgmManager.getCurrentMusicTime();
-      const mapping = timeMappingRef.current;
-      const sw = sheetWidthRef.current;
-      
-      if (mapping.length === 0 || sw <= 0) {
-        animationFrameRef.current = requestAnimationFrame(updateScroll);
+
+    const mapping = timeMappingRef.current;
+    const sw = sheetWidthRef.current;
+    if (mapping.length === 0 || sw <= 0) {
+      return;
+    }
+
+    if (currentTime < 0) {
+      scoreWrapperRef.current.style.transform = 'translateX(0px)';
+      lastScrollXRef.current = 0;
+      return;
+    }
+
+    const currentTimeMs = currentTime * 1000;
+    const loopDurationMs = loopInfo.loopDuration * 1000;
+    let xPosition = 0;
+
+    for (let index = 0; index < mapping.length - 1; index += 1) {
+      if (currentTimeMs >= mapping[index].timeMs && currentTimeMs < mapping[index + 1].timeMs) {
+        const segmentDuration = mapping[index + 1].timeMs - mapping[index].timeMs;
+        const t = segmentDuration > 0 ? (currentTimeMs - mapping[index].timeMs) / segmentDuration : 0;
+        xPosition = mapping[index].xPosition + t * (mapping[index + 1].xPosition - mapping[index].xPosition);
+        break;
+      }
+    }
+
+    const lastEntry = mapping[mapping.length - 1];
+    if (currentTimeMs >= lastEntry.timeMs) {
+      const remainingTime = loopDurationMs - lastEntry.timeMs;
+      if (remainingTime > 0) {
+        const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
+        xPosition = lastEntry.xPosition + t * (sw - lastEntry.xPosition);
+      } else {
+        xPosition = lastEntry.xPosition;
+      }
+    }
+
+    const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
+    if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
+      scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
+      lastScrollXRef.current = scrollX;
+    }
+  }, [isInitialized, loopInfo.loopDuration]);
+
+  useImperativeHandle(ref, () => ({
+    resetPlaybackTime: () => {
+      if (!scoreWrapperRef.current) {
         return;
       }
-      
-      if (currentTime < 0) {
-        if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transform = `translateX(0px)`;
-        }
-        lastScrollXRef.current = 0;
-        animationFrameRef.current = requestAnimationFrame(updateScroll);
-        return;
-      }
-      
-      const currentTimeMs = currentTime * 1000;
-      const loopDurationMs = loopDuration * 1000;
-      
-      let xPosition = 0;
-      
-      for (let i = 0; i < mapping.length - 1; i++) {
-        if (currentTimeMs >= mapping[i].timeMs && currentTimeMs < mapping[i + 1].timeMs) {
-          const t = (currentTimeMs - mapping[i].timeMs) / (mapping[i + 1].timeMs - mapping[i].timeMs);
-          xPosition = mapping[i].xPosition + t * (mapping[i + 1].xPosition - mapping[i].xPosition);
-          break;
-        }
-      }
-      
-      if (currentTimeMs >= mapping[mapping.length - 1].timeMs) {
-        const lastEntry = mapping[mapping.length - 1];
-        const remainingTime = loopDurationMs - lastEntry.timeMs;
-        if (remainingTime > 0) {
-          const t = (currentTimeMs - lastEntry.timeMs) / remainingTime;
-          xPosition = lastEntry.xPosition + t * (sw - lastEntry.xPosition);
-        } else {
-          xPosition = lastEntry.xPosition;
-        }
-      }
-      
-      const scrollX = Math.max(0, xPosition - PLAYHEAD_POSITION_PX);
-      
-      if (Math.abs(scrollX - lastScrollXRef.current) > 0.5) {
-        if (scoreWrapperRef.current) {
-          scoreWrapperRef.current.style.transform = `translateX(-${scrollX}px)`;
-        }
-        lastScrollXRef.current = scrollX;
-      }
-      
-      animationFrameRef.current = requestAnimationFrame(updateScroll);
-    };
-    
-    animationFrameRef.current = requestAnimationFrame(updateScroll);
-    
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, [loopInfo, isInitialized]);
-  
+      scoreWrapperRef.current.style.transform = 'translateX(0px)';
+      lastScrollXRef.current = 0;
+    },
+    updatePlaybackTime: (currentTime: number) => {
+      updateScrollFromTime(currentTime);
+    },
+  }), [updateScrollFromTime]);
+
   useEffect(() => {
-    return () => {
-      if (animationFrameRef.current !== null) {
-        cancelAnimationFrame(animationFrameRef.current);
-      }
-    };
-  }, []);
-  
+    updateScrollFromTime(bgmManager.getCurrentMusicTime());
+  }, [updateScrollFromTime]);
+
   if (!musicXml) {
     return (
-      <div 
+      <div
         className={cn('flex items-center justify-center bg-white text-gray-500 text-sm', className)}
         style={{ width, height }}
       >
@@ -509,18 +499,18 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       </div>
     );
   }
-  
+
   return (
-    <div 
+    <div
       className={cn('relative overflow-hidden bg-white rounded', className)}
       style={{ width, height }}
     >
-      <div 
+      <div
         className="absolute top-0 bottom-0 w-0.5 bg-red-500 z-20"
         style={{ left: `${PLAYHEAD_POSITION_PX}px` }}
       />
-      
-      <div 
+
+      <div
         className="h-full overflow-hidden"
       >
         {isLoading && (
@@ -528,60 +518,60 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
             <div className="text-gray-600 text-sm">楽譜を読み込み中...</div>
           </div>
         )}
-        
+
         {error && (
           <div className="absolute inset-0 flex items-center justify-center bg-white/90 z-30">
             <div className="text-red-600 text-sm">{error}</div>
           </div>
         )}
-        
-        <div 
+
+        <div
           ref={scoreWrapperRef}
           className="h-full flex relative"
-          style={{ 
+          style={{
             width: `${sheetWidth + rightSheetWidth + WRAPPER_SCROLL_PADDING_PX}px`,
             willChange: 'transform'
           }}
         >
-          <div 
+          <div
             className="h-full flex items-center fantasy-sheet-music flex-shrink-0"
             style={{
               display: isInitialized ? 'none' : 'flex',
               ['--osmd-background' as string]: 'transparent'
             }}
           />
-          
+
           {isInitialized && sheetImage && (
-            <div 
+            <div
               className="h-full flex items-center flex-shrink-0"
-              style={{ 
+              style={{
                 width: sheetWidth > 0 ? `${sheetWidth}px` : 'auto'
               }}
             >
-              <img 
-                src={sheetImage} 
-                alt="" 
+              <img
+                src={sheetImage}
+                alt=""
                 className="h-full object-contain"
-                style={{ 
+                style={{
                   imageRendering: 'auto',
                   pointerEvents: 'none'
                 }}
               />
             </div>
           )}
-          
+
           {isInitialized && rightSheetImage && (
-            <div 
+            <div
               className="h-full flex items-center flex-shrink-0"
-              style={{ 
+              style={{
                 width: rightSheetWidth > 0 ? `${rightSheetWidth}px` : 'auto'
               }}
             >
-              <img 
-                src={rightSheetImage} 
-                alt="" 
+              <img
+                src={rightSheetImage}
+                alt=""
                 className="h-full object-contain"
-                style={{ 
+                style={{
                   imageRendering: 'auto',
                   pointerEvents: 'none'
                 }}
@@ -590,8 +580,8 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           )}
         </div>
       </div>
-      
-      <div 
+
+      <div
         ref={renderContainerRef}
         className="absolute fantasy-sheet-music"
         style={{
@@ -603,7 +593,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           ['--osmd-background' as string]: 'transparent'
         }}
       />
-      <div 
+      <div
         ref={preRenderContainerRef}
         className="absolute fantasy-sheet-music"
         style={{
@@ -615,7 +605,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
           ['--osmd-background' as string]: 'transparent'
         }}
       />
-      <div 
+      <div
         ref={preloadContainerRef}
         className="absolute fantasy-sheet-music"
         style={{
@@ -629,7 +619,7 @@ const FantasySheetMusicDisplay: React.FC<FantasySheetMusicDisplayProps> = ({
       />
     </div>
   );
-};
+});
 
 const MemoizedFantasySheetMusicDisplay = React.memo(
   FantasySheetMusicDisplay,

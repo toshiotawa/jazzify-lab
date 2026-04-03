@@ -3,7 +3,7 @@
  * ゲームロジックとステート管理を担当
  */
 
-import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo } from 'react';
 import { devLog } from '@/utils/logger';
 import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
@@ -907,21 +907,77 @@ export const useFantasyGameEngine = ({
   });
 
   const gameStateRef = useRef(gameState);
+  const pendingReactStateRef = useRef<FantasyGameState | null>(null);
+  const reactSyncHandleRef = useRef<number | ReturnType<typeof setTimeout> | null>(null);
+  const enemyGaugeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  const clearScheduledReactSync = useCallback(() => {
+    if (reactSyncHandleRef.current === null) {
+      return;
+    }
+
+    if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function' && typeof reactSyncHandleRef.current === 'number') {
+      window.cancelAnimationFrame(reactSyncHandleRef.current);
+    } else {
+      clearTimeout(reactSyncHandleRef.current);
+    }
+    reactSyncHandleRef.current = null;
+  }, []);
+
+  const publishGameStateToReact = useCallback((nextState: FantasyGameState, immediate = false) => {
+    const shouldDefer =
+      !immediate &&
+      nextState.isGameActive &&
+      nextState.isTaikoMode &&
+      !nextState.isGameOver &&
+      nextState.gameResult === null;
+
+    if (!shouldDefer) {
+      pendingReactStateRef.current = null;
+      clearScheduledReactSync();
+      setGameState(nextState);
+      return;
+    }
+
+    pendingReactStateRef.current = nextState;
+    if (reactSyncHandleRef.current !== null) {
+      return;
+    }
+
+    const raf =
+      typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+        ? window.requestAnimationFrame.bind(window)
+        : (callback: FrameRequestCallback) => setTimeout(() => callback(performance.now()), 16);
+
+    reactSyncHandleRef.current = raf(() => {
+      reactSyncHandleRef.current = null;
+      if (pendingReactStateRef.current) {
+        setGameState(pendingReactStateRef.current);
+        pendingReactStateRef.current = null;
+      }
+    });
+  }, [clearScheduledReactSync]);
+
+  const clearEnemyGaugeTimer = useCallback(() => {
+    if (enemyGaugeTimerRef.current !== null) {
+      clearInterval(enemyGaugeTimerRef.current);
+      enemyGaugeTimerRef.current = null;
+    }
+  }, []);
 
   const setGameStateSync = useCallback((
-    updaterOrValue: FantasyGameState | ((prev: FantasyGameState) => FantasyGameState)
+    updaterOrValue: FantasyGameState | ((prev: FantasyGameState) => FantasyGameState),
+    options?: { immediate?: boolean }
   ) => {
     if (typeof updaterOrValue === 'function') {
       const next = updaterOrValue(gameStateRef.current);
       gameStateRef.current = next;
-      setGameState(next);
+      publishGameStateToReact(next, options?.immediate);
     } else {
       gameStateRef.current = updaterOrValue;
-      setGameState(updaterOrValue);
+      publishGameStateToReact(updaterOrValue, options?.immediate);
     }
-  }, []);
-  
-  const [enemyGaugeTimer, setEnemyGaugeTimer] = useState<NodeJS.Timeout | null>(null);
+  }, [publishGameStateToReact]);
 
   
   // timing_combining 専用の入力判定（コード完成判定・ダメージ・エフェクト対応版）
@@ -2423,34 +2479,6 @@ export const useFantasyGameEngine = ({
     onEnemyAttack(attackingMonsterId);
   }, [gameState.playMode, onGameStateChange, onGameComplete, onEnemyAttack]);
   
-  // ゲージタイマーの管理
-  useEffect(() => {
-    // 既存のタイマーをクリア
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
-    }
-    
-    // ゲームがアクティブな場合のみ新しいタイマーを開始
-    // Ready中は開始しない
-    // 本番モード or 練習+太鼓モード でタイマー開始
-    const needsTimer = gameState.isGameActive && gameState.currentStage && !isReady &&
-      (gameState.playMode !== 'practice' || gameState.isTaikoMode);
-    if (needsTimer) {
-      const timer = setInterval(() => {
-        updateEnemyGauge();
-      }, 50); // 50ms間隔で更新（セクション切り替え検出の高速化）
-      setEnemyGaugeTimer(timer);
-    }
-    
-    // クリーンアップ
-    return () => {
-      if (enemyGaugeTimer) {
-        clearInterval(enemyGaugeTimer);
-      }
-    };
-  }, [gameState.isGameActive, gameState.currentStage, isReady]); // ゲーム状態とステージ、Readyの変更を監視
-  
   // 敵ゲージの更新（マルチモンスター対応）
   const updateEnemyGauge = useCallback(() => {
     /* Ready 中は停止 */
@@ -3329,17 +3357,14 @@ export const useFantasyGameEngine = ({
     const currentState = gameStateRef.current;
 
     // 太鼓モード: gameStateRefから同期読み取り→ヒット判定→レンダリングref即時更新
-    // startTransitionでReact再レンダリングを低優先度化し、RAFをブロックしない
+    // React反映は次フレームへまとめ、入力ホットパスを詰まらせない
     if (currentState.isGameActive && !currentState.isWaitingForNextMonster &&
         currentState.isTaikoMode && currentState.taikoNotes.length > 0) {
       const nextTaikoState = handleTaikoModeInput(currentState, note, capturedInputMusicTime);
 
       gameStateRef.current = nextTaikoState;
       onTaikoVisualSyncRef.current?.(nextTaikoState);
-
-      startTransition(() => {
-        setGameState(() => gameStateRef.current);
-      });
+      publishGameStateToReact(nextTaikoState);
       return;
     }
 
@@ -3458,7 +3483,7 @@ export const useFantasyGameEngine = ({
       }
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds, setGameStateSync]);
+  }, [handleTaikoModeInput, publishGameStateToReact, setGameStateSync]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
@@ -3556,11 +3581,8 @@ export const useFantasyGameEngine = ({
     bagSelectorRef.current = null;
     singleOrderIndexRef.current = 0;
     
-    if (enemyGaugeTimer) {
-      clearInterval(enemyGaugeTimer);
-      setEnemyGaugeTimer(null);
-    }
-  }, [enemyGaugeTimer]);
+    clearEnemyGaugeTimer();
+  }, [clearEnemyGaugeTimer, setGameStateSync]);
   
   // ステージ変更時の初期化
   // useEffect(() => {
@@ -3573,20 +3595,20 @@ export const useFantasyGameEngine = ({
   useEffect(() => {
     // クリーンアップ関数を返す
     return () => {
-      // タイマーのクリア
-      setGameStateSync(prevState => {
-        if (prevState.isGameActive) {
-          // ゲームが進行中の場合は停止
-          bgmManager.stop();
-        }
-        return {
-          ...prevState,
-          isGameActive: false,
-          activeMonsters: [],
-          taikoNotes: [],
-          currentNoteIndex: 0
-        };
-      });
+      clearScheduledReactSync();
+      clearEnemyGaugeTimer();
+      const prevState = gameStateRef.current;
+      if (prevState.isGameActive) {
+        bgmManager.stop();
+      }
+      gameStateRef.current = {
+        ...prevState,
+        isGameActive: false,
+        activeMonsters: [],
+        taikoNotes: [],
+        currentNoteIndex: 0
+      };
+      pendingReactStateRef.current = null;
       
       // モンスターアイコン配列のクリア
       setStageMonsterIds([]);
@@ -3598,7 +3620,7 @@ export const useFantasyGameEngine = ({
       enrageTimersRef.current.forEach(clearTimeout);
       enrageTimersRef.current.clear();
     };
-  }, []); // 空の依存配列で、コンポーネントのアンマウント時のみ実行
+  }, [clearEnemyGaugeTimer, clearScheduledReactSync]); // アンマウント時のクリーンアップ
 
   // エフェクトの分離：enemyGaugeTimer専用
   useEffect(() => {
@@ -3608,22 +3630,23 @@ export const useFantasyGameEngine = ({
       (gameState.playMode === 'practice' && !gameState.isTaikoMode) || // 太鼓モードなら練習でも動かす
       isReady
     ) {
-      if (enemyGaugeTimer) {
-        clearInterval(enemyGaugeTimer);
-        setEnemyGaugeTimer(null);
-      }
+      clearEnemyGaugeTimer();
       return;
     }
 
+    clearEnemyGaugeTimer();
     const timer = setInterval(() => {
       updateEnemyGauge();
     }, 100);
-    setEnemyGaugeTimer(timer);
+    enemyGaugeTimerRef.current = timer;
 
     return () => {
       clearInterval(timer);
+      if (enemyGaugeTimerRef.current === timer) {
+        enemyGaugeTimerRef.current = null;
+      }
     };
-  }, [gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady, gameState.isTaikoMode, gameState.playMode]); // 依存配列追加
+  }, [clearEnemyGaugeTimer, gameState.isGameActive, gameState.currentStage?.id, updateEnemyGauge, isReady, gameState.isTaikoMode, gameState.playMode]); // 依存配列追加
 
   // 撃破済みモンスター（defeatedAt設定済み）を200ms後に削除して新しいモンスターを補充
   const DEFEAT_ANIMATION_DELAY = 200; // HPバー0演出の表示時間（ms）
