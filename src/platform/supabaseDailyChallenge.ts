@@ -43,6 +43,14 @@ const DEFAULT_STAGE_NAME: Record<DailyChallengeDifficulty, string> = {
   super_advanced: 'デイリーチャレンジ（超上級）',
 };
 
+const DEFAULT_STAGE_NAME_EN: Record<DailyChallengeDifficulty, string> = {
+  super_beginner: 'Daily Challenge (Super Beginner)',
+  beginner: 'Daily Challenge (Beginner)',
+  intermediate: 'Daily Challenge (Intermediate)',
+  advanced: 'Daily Challenge (Advanced)',
+  super_advanced: 'Daily Challenge (Super Advanced)',
+};
+
 export const getDailyChallengeStageNumber = (difficulty: DailyChallengeDifficulty): string =>
   DAILY_CHALLENGE_STAGE_NUMBERS[difficulty];
 
@@ -57,6 +65,17 @@ const DAILY_CHALLENGE_DESCRIPTIONS: Record<DailyChallengeDifficulty, string> = {
   intermediate: 'メジャー・マイナートライアド全ルートに挑戦！',
   advanced: 'チャーチモード7種、Harm.Minor、Mel.Minor、W.H Dim、H.W Dim、Alt、Lyd 7th。',
   super_advanced: 'ジャズボイシング全ルート。M7(9), m7(9), 7(9.6th)等。',
+};
+
+const DAILY_CHALLENGE_DESCRIPTIONS_EN: Record<DailyChallengeDifficulty, string> = {
+  super_beginner:
+    'Single-note recognition across all 17 pitch classes (including sharps and flats).',
+  beginner: 'Sheet reading mode: treble and bass clefs, all accidentals.',
+  intermediate: 'Major and minor triads on every root.',
+  advanced:
+    'Seven church modes, harmonic and melodic minor, whole-half and half-whole diminished, altered, and Lydian dominant.',
+  super_advanced:
+    'Jazz voicings on every root: M7(9), m7(9), 7(9.6th), and more.',
 };
 
 export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyChallengeDifficulty, FantasyStage>> {
@@ -74,7 +93,9 @@ export async function ensureDailyChallengeStagesExist(): Promise<Record<DailyCha
     const payload = {
       stage_number: getDailyChallengeStageNumber(difficulty),
       name: DEFAULT_STAGE_NAME[difficulty],
+      name_en: DEFAULT_STAGE_NAME_EN[difficulty],
       description: DAILY_CHALLENGE_DESCRIPTIONS[difficulty],
+      description_en: DAILY_CHALLENGE_DESCRIPTIONS_EN[difficulty],
       mode: 'single' as const,
       usage_type: 'fantasy' as const,
       stage_tier: 'basic' as const,

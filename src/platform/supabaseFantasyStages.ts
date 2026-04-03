@@ -274,7 +274,9 @@ export interface UpsertFantasyStagePayload {
   id?: string;
   stage_number?: string | null;  // レッスン専用ステージではnull可
   name: string;
+  name_en?: string | null;
   description?: string;
+  description_en?: string | null;
   max_hp?: number;
   enemy_gauge_seconds?: number;
   enemy_count?: number;
