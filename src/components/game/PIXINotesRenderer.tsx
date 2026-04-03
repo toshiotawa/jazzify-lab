@@ -313,7 +313,7 @@ export class PIXINotesRendererInstance {
     } else {
       this.highlightedKeys.delete(clamped);
     }
-    this.requestRender();
+    this.requestRenderThrottled();
   }
 
   setGuideHighlightsByMidiNotes(midiNotes: number[]): void {

@@ -318,11 +318,15 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const initPromise = (async () => {
         try {
           // 1. ゲーム開始に必須な初期化のみブロッキング（オーディオ + GM音源）
-          await Promise.all([
-            initializeAudioSystem().then(() => {
-              updateGlobalVolume(settings.midiVolume ?? 0.8);
-            }),
-            FantasySoundManager.waitForGMReady()
+          // CDNが遅い場合に永久ハングしないよう10秒タイムアウトを設定
+          await Promise.race([
+            Promise.all([
+              initializeAudioSystem().then(() => {
+                updateGlobalVolume(settings.midiVolume ?? 0.8);
+              }),
+              FantasySoundManager.waitForGMReady()
+            ]),
+            new Promise<void>((resolve) => setTimeout(resolve, 10000))
           ]);
           setIsInitialized(true);
 
@@ -1161,11 +1165,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
     const inputTimestampMs = performance.now();
 
-    // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
-    if ((window as any).Tone?.context?.state !== 'running') {
-       (window as any).Tone?.start?.().catch(() => {});
-    }
-
     // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
     if (source === 'mouse' && activeNotesRef.current.has(note)) {
       return;
@@ -1174,16 +1173,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 判定を最優先にするため、先にゲームエンジンへ入力を渡す
     engineHandleNoteInput(note, inputTimestampMs);
 
-    // クリック時にも音声を再生（静的インポート済みのplayNote使用）
     if (source === 'mouse') {
       activeNotesRef.current.add(note);
-      // fire-and-forget で呼び出し
-      playNote(note, 64).catch(() => {});
-    }
-    
-    // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
-    if (source === 'mouse') {
+      // 音声再生をメインスレッドから分離し、ノーツアニメーションのRAFを優先
       setTimeout(() => {
+        if ((window as unknown as Record<string, unknown>).Tone) {
+          const ctx = ((window as unknown as Record<string, unknown>).Tone as Record<string, unknown>).context as AudioContext | undefined;
+          if (ctx?.state !== 'running') {
+            ((window as unknown as Record<string, unknown>).Tone as Record<string, (() => Promise<void>) | undefined>).start?.()?.catch(() => {});
+          }
+        }
+        playNote(note, 64).catch(() => {});
         FantasySoundManager.unlock().catch(() => {});
       }, 0);
     }
