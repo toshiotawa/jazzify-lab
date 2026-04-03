@@ -227,13 +227,13 @@ const GameScreen: React.FC = () => {
             hand_filter: song.hand_filter ?? null,
           } as any, mapped);
           
-          gameActions.setCurrentTab('practice');
+          gameActions.setMode('performance');
           
           setIsLoadingLessonSong(false);
           
           // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
           setTimeout(() => {
-            window.location.hash = '#practice';
+            window.location.hash = '#performance';
           }, 10);
           
         } catch (error) {
@@ -457,10 +457,10 @@ const GameScreen: React.FC = () => {
             hand_filter: song.hand_filter ?? null,
           } as any, mapped);
           
-          gameActions.setCurrentTab('practice');
+          gameActions.setMode('performance');
           setIsLoadingLessonSong(false);
           setTimeout(() => {
-            window.location.hash = '#practice';
+            window.location.hash = '#performance';
           }, 10);
           
         } catch (error) {

@@ -229,7 +229,7 @@ const defaultPerformanceMetrics: PerformanceMetrics = {
 
 const defaultState: GameState = {
   // ゲーム基本状態
-  mode: 'practice',
+  mode: 'performance',
   isPlaying: false,
   isPaused: false,
   currentTime: 0,
@@ -258,7 +258,7 @@ const defaultState: GameState = {
   
   // UI状態
   isSettingsOpen: false,
-  currentTab: 'practice',
+  currentTab: 'performance',
   /** リザルトモーダル表示 */
   resultModalOpen: false,
   
