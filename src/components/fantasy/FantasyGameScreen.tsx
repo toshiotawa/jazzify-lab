@@ -459,7 +459,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         midiControllerRef.current.disconnect();
       }
     }
-  }, [settings.inputMethod, settings.selectedMidiDevice]);
+    // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策
+    // AudioContext操作後に短い遅延を置いてBGM音量を再適用する
+    const currentBgmVolume = settings.bgmVolume ?? 0.7;
+    const timer = setTimeout(() => {
+      if (bgmManager.getIsPlaying()) {
+        bgmManager.setVolume(currentBgmVolume);
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [settings.inputMethod, settings.selectedMidiDevice, settings.bgmVolume]);
 
   // 🚀 パフォーマンス最適化: ステージ設定に応じてルート音を有効/無効にする（動的インポート不要）
   useEffect(() => {

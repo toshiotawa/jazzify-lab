@@ -802,6 +802,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         midiControllerRef.current.disconnect();
       }
     }
+    // iOS: 入力方式切り替え後にBGM音量が低下する問題への対策
+    const timer = setTimeout(() => {
+      if (bgmAudioRef.current) {
+        bgmAudioRef.current.volume = bgmVolumeRef.current;
+      }
+    }, 100);
+    return () => clearTimeout(timer);
   }, [settings.inputMethod, settings.selectedMidiDevice]);
 
   // PIXIレンダラーの準備（ファンタジーモードと同様の挙動）

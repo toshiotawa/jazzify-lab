@@ -1167,7 +1167,17 @@ useEffect(() => {
         midiControllerRef.current.disconnect();
       }
     }
-  }, [settings.inputMethod, settings.selectedMidiDevice]);
+    // iOS: 入力方式切り替え後に音楽トラックの音量が低下する問題への対策
+    const timer = setTimeout(() => {
+      if (musicGainRef.current && audioContextRef.current) {
+        musicGainRef.current.gain.setValueAtTime(
+          settings.musicVolume,
+          audioContextRef.current.currentTime
+        );
+      }
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [settings.inputMethod, settings.selectedMidiDevice, settings.musicVolume]);
 
   // ゲームエンジン初期化
   useEffect(() => {

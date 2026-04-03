@@ -175,11 +175,17 @@ const doInitializeAudioSystem = async (): Promise<void> => {
     }
 
     const ToneLib: any = (window as any).Tone;
-    const optimizedContext = new ToneLib.Context({
-      latencyHint: 'interactive',
-      lookAhead: 0
-    });
-    ToneLib.setContext(optimizedContext);
+    const currentContext: any = ToneLib.getContext ? ToneLib.getContext() : ToneLib.context;
+    const currentLookAhead = currentContext?.lookAhead ?? 0.1;
+    if (!currentContext || currentLookAhead > 0) {
+      const optimizedContext = new ToneLib.Context({
+        latencyHint: 'interactive',
+        lookAhead: 0
+      });
+      ToneLib.setContext(optimizedContext);
+    } else if (currentContext?.state !== 'running') {
+      await currentContext.resume();
+    }
 
     globalSampler = new ToneLib.Sampler({
       urls: LIGHT_SAMPLER_URLS,
