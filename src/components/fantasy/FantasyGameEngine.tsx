@@ -32,19 +32,32 @@ import {
 import { bgmManager } from '@/utils/BGMManager';
 import { note as parseNote } from 'tonal';
 
-/** 太鼓ヒット時: 浅複製+1要素のみ差し替え（全要素 map よりメインスレッド負荷を抑える） */
-const copyTaikoNotesWithIndexHit = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] => {
-  const next = notes.slice();
-  next[chosenIndex] = { ...notes[chosenIndex], isHit: true };
-  return next;
+/** 太鼓ヒット: 配列を再割り当てせず対象ノーツのみ更新（大量ノーツ時の GC を抑制） */
+const markTaikoNoteHitMutable = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] => {
+  const target = notes[chosenIndex];
+  if (!target || target.isHit) return notes;
+  target.isHit = true;
+  target.isMissed = false;
+  return notes;
 };
 
-const copyTaikoNotesAwaitingLoopResync = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] =>
-  notes.map((n, i) => ({
-    ...n,
-    isHit: i === chosenIndex,
-    isMissed: false
-  }));
+const markTaikoNoteMissMutable = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] => {
+  const target = notes[chosenIndex];
+  if (!target || target.isMissed) return notes;
+  target.isMissed = true;
+  target.isHit = false;
+  return notes;
+};
+
+/** awaitingLoop 復帰時: 全ノーツの isHit をリセット（インプレース） */
+const resyncTaikoNotesAwaitingLoopMutable = (notes: TaikoNote[], chosenIndex: number): TaikoNote[] => {
+  for (let i = 0; i < notes.length; i++) {
+    const n = notes[i];
+    n.isHit = i === chosenIndex;
+    n.isMissed = false;
+  }
+  return notes;
+};
 
 // ===== 型定義 =====
 
@@ -1479,13 +1492,13 @@ export const useFantasyGameEngine = ({
         const defPreHitIdxs = [...(workingState.preHitNoteIndices || [])];
         let defTaikoNotes;
         if (wasAwaitingLoop) {
-          defTaikoNotes = copyTaikoNotesAwaitingLoopResync(workingState.taikoNotes, chosenIndex);
+          defTaikoNotes = resyncTaikoNotesAwaitingLoopMutable(workingState.taikoNotes, chosenIndex);
           if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
         } else if (defIsPreHit) {
-          defTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
+          defTaikoNotes = markTaikoNoteHitMutable(workingState.taikoNotes, chosenIndex);
           if (!defPreHitIdxs.includes(chosenIndex)) defPreHitIdxs.push(chosenIndex);
         } else {
-          defTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
+          defTaikoNotes = markTaikoNoteHitMutable(workingState.taikoNotes, chosenIndex);
         }
         return {
           ...workingState,
@@ -1574,17 +1587,17 @@ export const useFantasyGameEngine = ({
       const updatedPreHitIndices = [...(workingState.preHitNoteIndices || [])];
       
       if (wasAwaitingLoop) {
-        updatedTaikoNotes = copyTaikoNotesAwaitingLoopResync(workingState.taikoNotes, chosenIndex);
+        updatedTaikoNotes = resyncTaikoNotesAwaitingLoopMutable(workingState.taikoNotes, chosenIndex);
         if (!updatedPreHitIndices.includes(chosenIndex)) {
           updatedPreHitIndices.push(chosenIndex);
         }
       } else if (isPreHit) {
-        updatedTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
+        updatedTaikoNotes = markTaikoNoteHitMutable(workingState.taikoNotes, chosenIndex);
         if (!updatedPreHitIndices.includes(chosenIndex)) {
           updatedPreHitIndices.push(chosenIndex);
         }
       } else {
-        updatedTaikoNotes = copyTaikoNotesWithIndexHit(workingState.taikoNotes, chosenIndex);
+        updatedTaikoNotes = markTaikoNoteHitMutable(workingState.taikoNotes, chosenIndex);
       }
 
       // モンスター更新（次のターゲット/次次ターゲットは選ばれたノーツ基準）
@@ -3158,8 +3171,7 @@ export const useFantasyGameEngine = ({
           }
           
           // ミスしたノーツに isMissed フラグを立てる（表示で判定ライン奥まで流し続けるため）
-          const updatedTaikoNotes = [...prevState.taikoNotes];
-          updatedTaikoNotes[currentNoteIndex] = { ...currentNote, isMissed: true };
+          markTaikoNoteMissMutable(prevState.taikoNotes, currentNoteIndex);
           
           // HP減少とゲームオーバー判定（練習モードではスキップ）
           const newHp = isPracticeMode ? prevState.playerHp : Math.max(0, prevState.playerHp - 1);
@@ -3170,7 +3182,7 @@ export const useFantasyGameEngine = ({
             lastNormalizedTimeRef.current = normalizedTime;
             const finalState = {
               ...prevState,
-              taikoNotes: updatedTaikoNotes,
+              taikoNotes: prevState.taikoNotes,
               playerHp: 0,
               isGameActive: false,
               isGameOver: true,
@@ -3195,7 +3207,7 @@ export const useFantasyGameEngine = ({
             lastNormalizedTimeRef.current = normalizedTime;
             return {
               ...prevState,
-              taikoNotes: updatedTaikoNotes,
+              taikoNotes: prevState.taikoNotes,
               playerHp: newHp,
               playerSp: newSp,
               awaitingLoopStart: true,
@@ -3210,12 +3222,12 @@ export const useFantasyGameEngine = ({
             };
           }
           
-          const nextNote = updatedTaikoNotes[nextIndex];
-          const nextNextNote = (nextIndex + 1 < updatedTaikoNotes.length) ? updatedTaikoNotes[nextIndex + 1] : updatedTaikoNotes[0];
+          const nextNote = prevState.taikoNotes[nextIndex];
+          const nextNextNote = (nextIndex + 1 < prevState.taikoNotes.length) ? prevState.taikoNotes[nextIndex + 1] : prevState.taikoNotes[0];
           lastNormalizedTimeRef.current = normalizedTime;
           return {
             ...prevState,
-            taikoNotes: updatedTaikoNotes,
+            taikoNotes: prevState.taikoNotes,
             playerHp: newHp,
             playerSp: newSp,
             currentNoteIndex: nextIndex,
@@ -3607,8 +3619,7 @@ export const useFantasyGameEngine = ({
       // モンスターアイコン配列のクリア
       setStageMonsterIds([]);
       
-      // プリロードしたテクスチャのクリア（参照のみクリア、実体はPIXI側で管理）
-      imageTexturesRef.current.clear();
+      // globalImageCache 共有の Map を clear しない（ステージ遷移の再ロード負荷軽減）
       
       // 怒り解除タイマーのクリーンアップ
       enrageTimersRef.current.forEach(clearTimeout);

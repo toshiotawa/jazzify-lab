@@ -159,6 +159,11 @@ export class FantasyPIXIInstance {
     this.isSheetMusicMode = enabled;
   }
 
+  /** ノーツ多数時はモンスター側の filter / 浮遊を省略して描画負荷を抑える */
+  private isHeavyTaikoMode(): boolean {
+    return this.taikoMode && this.taikoNotes.length >= 24;
+  }
+
   resize(width: number, height: number): void {
     this.width = width;
     this.height = height;
@@ -372,7 +377,7 @@ export class FantasyPIXIInstance {
       this.damagePopups.length > 0 ||
       this.overlayText !== null ||
       this.taikoNotesDirty ||
-      this.monsters.length > 0 ||
+      (this.monsters.length > 0 && !this.taikoMode) ||
       (this.taikoMode && this.taikoFrameCallback !== null);
 
     if (hasActiveAnimations || this.needsRender) {
@@ -463,9 +468,9 @@ export class FantasyPIXIInstance {
       );
       const monsterSize = baseSize * monster.enrageScale;
       
-      // Y位置（軽量な浮遊アニメーション - sin波で5pxの上下動）
-      // 各モンスターに異なるオフセットを与えて動きをずらす
-      const floatOffset = Math.sin(now * 0.002 + monster.x * 0.01) * 5;
+      const heavyTaiko = this.isHeavyTaikoMode();
+      // Y位置（軽量な浮遊アニメーション - sin波で5pxの上下動）。太鼓多ノーツ時は省略
+      const floatOffset = heavyTaiko ? 0 : Math.sin(now * 0.002 + monster.x * 0.01) * 5;
       monster.y = this.height * 0.45 + floatOffset;
       
       ctx.save();
@@ -485,8 +490,8 @@ export class FantasyPIXIInstance {
       
       // フラッシュ効果（ダメージ時）は削除 - バウンスアニメーションのみで表現
       
-      // 怒り時の赤みがかった色合い
-      if (isEnraged) {
+      // 怒り時の赤みがかった色合い（太鼓多ノーツ時は filter 省略）
+      if (isEnraged && !heavyTaiko) {
         ctx.filter = 'sepia(30%) saturate(150%) hue-rotate(-10deg)';
       }
       
@@ -653,12 +658,21 @@ export class FantasyPIXIInstance {
     ctx.arc(judgePos.x, judgePos.y, 35, 0, Math.PI * 2);
     ctx.stroke();
 
+    let labeledCount = 0;
+    const labelLimit = 10;
+    const nearDistance = 420;
+
     for (let ni = 0; ni < this.taikoNotes.length; ni++) {
       const note = this.taikoNotes[ni];
 
-      // プリレンダリング済みの影とノーツ円を drawImage で描画
       ctx.drawImage(shadowImg, note.x + 2 - halfSize, judgePos.y + 2 - halfSize);
       ctx.drawImage(circleImg, note.x - halfSize, judgePos.y - halfSize);
+
+      const shouldDrawLabel =
+        labeledCount < labelLimit ||
+        Math.abs(note.x - judgePos.x) < nearDistance;
+      if (!shouldDrawLabel) continue;
+      labeledCount++;
 
       const displayNotes = note.noteNames && note.noteNames.length > 0
         ? note.noteNames
@@ -676,6 +690,8 @@ export class FantasyPIXIInstance {
   private drawDamagePopups(ctx: CanvasRenderingContext2D): void {
     const now = performance.now();
     const taikoLight = this.taikoMode;
+    const ultraLight =
+      taikoLight || this.isWebKit || this.isHeavyTaikoMode();
     
     this.damagePopups = this.damagePopups.filter(
       (popup) => now - popup.start < popup.duration
@@ -722,7 +738,7 @@ export class FantasyPIXIInstance {
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       
-      if (!taikoLight) {
+      if (!ultraLight) {
         ctx.shadowColor = '#fbbf24';
         ctx.shadowBlur = 16;
         ctx.strokeStyle = DAMAGE_STROKE;

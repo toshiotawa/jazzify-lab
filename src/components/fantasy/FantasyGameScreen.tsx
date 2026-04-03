@@ -82,6 +82,40 @@ function saveSheetMusicHeight(staves: number, height: number): void {
   } catch { /* ignore */ }
 }
 
+/** hitTime 昇順配列向け: 初めて hitTime >= time となるインデックス */
+const lowerBoundByHitTime = (
+  notes: TaikoNote[],
+  time: number,
+  lo = 0,
+  hi = notes.length
+): number => {
+  let l = lo;
+  let r = hi;
+  while (l < r) {
+    const m = (l + r) >> 1;
+    if (notes[m].hitTime < time) l = m + 1;
+    else r = m;
+  }
+  return l;
+};
+
+/** hitTime 昇順配列向け: 初めて hitTime > time となるインデックス */
+const upperBoundByHitTime = (
+  notes: TaikoNote[],
+  time: number,
+  lo = 0,
+  hi = notes.length
+): number => {
+  let l = lo;
+  let r = hi;
+  while (l < r) {
+    const m = (l + r) >> 1;
+    if (notes[m].hitTime <= time) l = m + 1;
+    else r = m;
+  }
+  return l;
+};
+
 const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   stage,
   autoStart = false, // ★ 追加
@@ -1625,35 +1659,28 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       
       if (!isAwaitingLoop) {
         const lowerBound = -0.35;
-        const len = taikoNotes.length;
-        for (let index = 0; index < len; index++) {
+        const visibleStart = lowerBoundByHitTime(
+          taikoNotes,
+          normalizedTime + lowerBound
+        );
+        const visibleEnd = upperBoundByHitTime(
+          taikoNotes,
+          normalizedTime + lookAheadTime,
+          visibleStart
+        );
+
+        for (let index = visibleStart; index < visibleEnd; index++) {
           const note = taikoNotes[index];
-          if (note.isHit) continue;
-
-          if (note.isMissed) {
-            const timeUntilHit = note.hitTime - normalizedTime;
-            if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-              workBuffer.push({
-                id: note.id,
-                chord: note.chord.displayName,
-                x: jx + timeUntilHit * noteSpeed,
-                noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
-              });
-            }
-            continue;
-          }
-
-          if (index < currentNoteIndex) continue;
+          if (!note || note.isHit) continue;
+          if (!note.isMissed && index < currentNoteIndex) continue;
 
           const timeUntilHit = note.hitTime - normalizedTime;
-          if (timeUntilHit >= lowerBound && timeUntilHit <= lookAheadTime) {
-            workBuffer.push({
-              id: note.id,
-              chord: note.chord.displayName,
-              x: jx + timeUntilHit * noteSpeed,
-              noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
-            });
-          }
+          workBuffer.push({
+            id: note.id,
+            chord: note.chord.displayName,
+            x: jx + timeUntilHit * noteSpeed,
+            noteNames: (useRhythmNotation && stageData.callResponseEnabled) ? [] : getDisplayNoteNames(note)
+          });
         }
       }
       
@@ -1663,23 +1690,27 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       const shouldShowNextLoopPreview = !isProgressionOrder && (isAwaitingLoop || timeToLoop < lookAheadTime);
       
       if (shouldShowNextLoopPreview && taikoNotes.length > 0) {
+        const cap = Math.min(currentNoteIndex, taikoNotes.length);
+        const previewEnd = upperBoundByHitTime(taikoNotes, lookAheadTime, 0, cap);
         const bufLen = workBuffer.length;
-        for (let i = 0; i < taikoNotes.length; i++) {
+        for (let i = 0; i < previewEnd; i++) {
           const note = taikoNotes[i];
+          if (!note) continue;
 
-          // 重複チェック: workBuffer 内にベースIDが既にあるか（インライン検索）
           let isDup = false;
           for (let k = 0; k < bufLen; k++) {
-            if (workBuffer[k].id === note.id) { isDup = true; break; }
+            if (workBuffer[k].id === note.id) {
+              isDup = true;
+              break;
+            }
           }
           if (isDup) continue;
           if (i < preHitFlags.length && preHitFlags[i]) continue;
 
           const virtualHitTime = note.hitTime + loopDuration;
           const timeUntilHit = virtualHitTime - normalizedTime;
-
           if (timeUntilHit <= 0) continue;
-          if (timeUntilHit > timeToLoop + lookAheadTime) break;
+          if (timeUntilHit > timeToLoop + lookAheadTime) continue;
 
           workBuffer.push({
             id: `${note.id}_loop`,
