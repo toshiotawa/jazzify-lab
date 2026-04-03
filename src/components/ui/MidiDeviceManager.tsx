@@ -29,7 +29,7 @@ const getMidiAccess = (): Promise<MIDIAccess> => {
 };
 
 const isVirtualNetworkDevice = (name: string): boolean =>
-  /^(Network )?Session \d+$/i.test(name);
+  /\bSession \d+$/i.test(name);
 
 const enumerateMidiDevices = (midiAccess: MIDIAccess): MidiDevice[] => {
   const deviceList: MidiDevice[] = [];
@@ -96,12 +96,14 @@ export const useMidiDevices = () => {
     if (!iosNative) return;
 
     window.onNativeMidiDevices = (nativeDevices) => {
-      const deviceList: MidiDevice[] = nativeDevices.map((d) => ({
-        id: String(d.uniqueID),
-        name: d.displayName || `Unknown Device (${d.uniqueID})`,
-        manufacturer: d.manufacturer || '',
-        connected: true
-      }));
+      const deviceList: MidiDevice[] = nativeDevices
+        .filter((d) => !isVirtualNetworkDevice(d.displayName ?? ''))
+        .map((d) => ({
+          id: String(d.uniqueID),
+          name: d.displayName || `Unknown Device (${d.uniqueID})`,
+          manufacturer: d.manufacturer || '',
+          connected: true
+        }));
       setDevices(deviceList);
       setIsRefreshing(false);
     };

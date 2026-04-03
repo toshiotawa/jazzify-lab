@@ -52,12 +52,18 @@ final class MIDIManager: ObservableObject {
         refreshDevices()
     }
 
+    private func isNetworkSessionEndpoint(_ source: MIDIEndpointRef) -> Bool {
+        source == MIDINetworkSession.default().sourceEndpoint()
+    }
+
     func refreshDevices() {
         var devices: [MIDIDeviceInfo] = []
         let sourceCount = MIDIGetNumberOfSources()
 
         for i in 0..<sourceCount {
             let source = MIDIGetSource(i)
+            if isNetworkSessionEndpoint(source) { continue }
+
             var uniqueID: Int32 = 0
             MIDIObjectGetIntegerProperty(source, kMIDIPropertyUniqueID, &uniqueID)
 

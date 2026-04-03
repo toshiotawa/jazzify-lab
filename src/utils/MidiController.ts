@@ -545,7 +545,7 @@ export class MIDIController {
     
     const devices: MidiDevice[] = [];
     this.midiAccess.inputs.forEach((input: MIDIInput) => {
-      if (/^(Network )?Session \d+$/i.test(input.name ?? '')) return;
+      if (/\bSession \d+$/i.test(input.name ?? '')) return;
       devices.push({
         id: input.id,
         name: input.name || `Unknown Device (${input.id})`,
