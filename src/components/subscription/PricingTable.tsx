@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
@@ -84,6 +84,16 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
 
   const isIOS = isIOSWebView();
 
+  const featureRows = useMemo((): FeatureRow[] => [
+    ...FEATURES,
+    {
+      label: isEnglishCopy
+        ? 'Daily Challenge\n(all difficulties)'
+        : 'デイリーチャレンジ\n(全難易度)',
+      values: { free: '×', premium: '○' },
+    },
+  ], [isEnglishCopy]);
+
   useEffect(() => {
     const checkBilling = async () => {
       try {
@@ -107,8 +117,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
       <div className="w-full h-full flex items-center justify-center p-8">
         <div className="text-center text-gray-400">
           <p>{isEnglishCopy
-            ? 'Subscription management is available in the app settings.'
-            : 'サブスクリプション管理はアプリの設定から行えます。'}</p>
+            ? 'To view or cancel your subscription, go to Settings → Apple ID → Subscriptions.'
+            : 'サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。'}</p>
         </div>
       </div>
     );
@@ -130,8 +140,8 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
           </p>
           <p className="text-gray-500 text-sm">
             {isEnglishCopy
-              ? 'To manage your subscription, please use the iOS app settings.'
-              : 'サブスクリプションの管理はiOSアプリの設定から行ってください。'}
+              ? 'To view or cancel your subscription, go to Settings → Apple ID → Subscriptions.'
+              : 'サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。'}
           </p>
         </div>
       </div>
@@ -255,7 +265,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
 
             {/* 機能行 */}
             <tbody>
-              {FEATURES.map((feature, idx) => (
+              {featureRows.map((feature, idx) => (
                 <tr key={idx} className={idx % 2 === 0 ? 'bg-slate-900/50' : 'bg-slate-800/30'}>
                   <td className="p-3 border border-slate-700 text-sm text-gray-300 font-medium whitespace-pre-line">
                     {feature.label}

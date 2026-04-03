@@ -60,6 +60,45 @@ const AccountPage: React.FC = () => {
     }
   }, [nicknameValue, profile?.nickname, updateNickname, pushToast, isEnglishCopy]);
 
+  const handleOpenBillingPortal = useCallback(async () => {
+    const readPortalUrl = (data: unknown): string | null => {
+      if (typeof data !== 'object' || data === null || !('url' in data)) return null;
+      const url = Reflect.get(data, 'url');
+      return typeof url === 'string' ? url : null;
+    };
+    const readErrorFields = (data: unknown): { error: string; details: string } => {
+      if (typeof data !== 'object' || data === null) return { error: '', details: '' };
+      const e = Reflect.get(data, 'error');
+      const d = Reflect.get(data, 'details');
+      return {
+        error: typeof e === 'string' ? e : '',
+        details: typeof d === 'string' ? d : '',
+      };
+    };
+    try {
+      const response = await fetch('/.netlify/functions/lemonsqueezyPortal', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${useAuthStore.getState().session?.access_token ?? ''}`,
+        },
+      });
+      if (response.ok) {
+        const portalUrl = readPortalUrl(await response.json());
+        if (portalUrl) window.open(portalUrl, '_blank');
+      } else if (response.status === 404) {
+        alert(isEnglishCopy ? 'No subscription found. Please select Premium first.' : 'Premium プランが見つかりません。先にプランを選択してください。');
+        window.location.href = '/main#pricing';
+      } else {
+        const err = readErrorFields(await response.json().catch(() => null));
+        const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open billing portal' : '請求ポータルの表示に失敗しました');
+        alert(msg);
+      }
+    } catch {
+      alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
+    }
+  }, [isEnglishCopy]);
+
   useEffect(() => {
     const syncFromHash = () => {
       setOpen(window.location.hash.startsWith('#account'));
@@ -330,21 +369,30 @@ const AccountPage: React.FC = () => {
                           </p>
                           <p className="text-xs text-gray-400">
                             {isEnglishCopy
-                              ? 'Your subscription was purchased through the iOS app. To manage it, please use the iOS app settings.'
-                              : 'iOS版でサブスクリプションの手続き済みです。管理はiOSアプリの設定から行ってください。'}
+                              ? 'To view or cancel your subscription, go to Settings → Apple ID → Subscriptions.'
+                              : 'サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。'}
                           </p>
                         </div>
                       )}
                       {billingProvider === 'lemon' && (
-                        <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2">
+                        <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2 space-y-2">
                           <p className="text-sm text-blue-200 font-semibold mb-1">
                             {isEnglishCopy ? 'Subscribed via Web' : 'Web版で手続き済み'}
                           </p>
                           <p className="text-xs text-gray-400">
                             {isEnglishCopy
-                              ? 'Manage your subscription from the billing portal below.'
-                              : '下の請求ポータルからサブスクリプションを管理できます。'}
+                              ? 'Use the billing portal to view your plan or cancel your subscription.'
+                              : '請求ポータルでプランの確認や解約ができます。'}
                           </p>
+                          {isPremiumMember && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline w-full"
+                              onClick={() => void handleOpenBillingPortal()}
+                            >
+                              {isEnglishCopy ? 'Open Billing Portal' : '請求ポータルを開く'}
+                            </button>
+                          )}
                         </div>
                       )}
                     </div>
@@ -359,39 +407,6 @@ const AccountPage: React.FC = () => {
                         : '退会するとログインできなくなります。公開データは「退会ユーザー」として匿名化されます。'}
                     </p>
                     <div className="flex gap-2">
-                      {isPremiumMember && (
-                        <button
-                          className="btn btn-sm btn-outline"
-                          onClick={async () => {
-                            try {
-                              const response = await fetch('/.netlify/functions/lemonsqueezyPortal', {
-                                method: 'POST',
-                                headers: {
-                                  'Content-Type': 'application/json',
-                                  'Authorization': (()=>{ try{ return `Bearer ${useAuthStore.getState().session?.access_token || ''}` }catch{return ''}})(),
-                                },
-                              });
-                              if (response.ok) {
-                                const { url } = await response.json();
-                                window.open(url, '_blank');
-                              } else {
-                                if (response.status === 404) {
-                                  alert(isEnglishCopy ? 'No subscription found. Please select Premium first.' : 'Premium プランが見つかりません。先にプランを選択してください。');
-                                  window.location.href = '/main#pricing';
-                                } else {
-                                  const err = await response.json().catch(() => ({ error: '', details: '' }));
-                                  const msg = [err.error, err.details].filter(Boolean).join(': ') || (isEnglishCopy ? 'Failed to open billing portal' : '請求ポータルの表示に失敗しました');
-                                  alert(msg);
-                                }
-                              }
-                            } catch (e) {
-                              alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
-                            }
-                          }}
-                        >
-                          {isEnglishCopy ? 'Open Billing Portal' : '請求ポータルを開く'}
-                        </button>
-                      )}
                       <button
                         className={`btn btn-sm ${!isPremiumMember ? 'btn-danger' : 'btn-disabled'}`}
                         disabled={isPremiumMember}

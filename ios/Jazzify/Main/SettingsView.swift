@@ -138,7 +138,7 @@ struct SettingsView: View {
             } label: {
                 HStack {
                     Label(
-                        locale == .ja ? "サブスクリプション管理" : "Manage Subscription",
+                        locale == .ja ? "サブスクリプション" : "Subscriptions",
                         systemImage: "creditcard.fill"
                     )
                     .foregroundStyle(.white)
@@ -156,15 +156,12 @@ struct SettingsView: View {
             if let billing = appState.billingStatus,
                billing.provider == .apple,
                billing.status == .active || billing.status == .trial {
-                Button {
-                    openAppleSubscriptionManagement()
-                } label: {
-                    Label(
-                        locale == .ja ? "Apple でサブスクリプションを管理" : "Manage in Apple Settings",
-                        systemImage: "apple.logo"
-                    )
-                    .foregroundStyle(.blue)
-                }
+                Text(locale == .ja
+                     ? "サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。"
+                     : "To view or cancel your subscription, go to Settings → Apple ID → Subscriptions.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.leading)
             }
         } header: {
             Text(locale == .ja ? "課金" : "Billing")
@@ -271,10 +268,6 @@ struct SettingsView: View {
         isDeleting = false
     }
 
-    private func openAppleSubscriptionManagement() {
-        guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
-        UIApplication.shared.open(url)
-    }
 }
 
 struct MIDISettingsView: View {

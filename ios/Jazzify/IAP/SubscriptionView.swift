@@ -34,7 +34,7 @@ struct SubscriptionView: View {
                     .padding()
                 }
             }
-            .navigationTitle(locale == .ja ? "サブスクリプション" : "Subscription")
+            .navigationTitle(locale == .ja ? "サブスクリプション" : "Subscriptions")
             .navigationBarTitleDisplayMode(.inline)
             .toolbarColorScheme(.dark, for: .navigationBar)
             .toolbar {
@@ -74,6 +74,7 @@ struct SubscriptionView: View {
             VStack(spacing: 4) {
                 featureRow(icon: "music.note.list", text: locale == .ja ? "全レッスンにアクセス" : "Access all lessons")
                 featureRow(icon: "gamecontroller.fill", text: locale == .ja ? "全サバイバルステージ" : "All Survival stages")
+                featureRow(icon: "flame.fill", text: locale == .ja ? "デイリーチャレンジの全難易度を解放" : "All Daily Challenge difficulty levels unlocked")
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
         }
@@ -113,19 +114,13 @@ struct SubscriptionView: View {
             )
 
             if let billing = appState.billingStatus, billing.provider == .apple {
-                Button {
-                    guard let url = URL(string: "https://apps.apple.com/account/subscriptions") else { return }
-                    UIApplication.shared.open(url)
-                } label: {
-                    Label(
-                        locale == .ja ? "Appleで管理" : "Manage in Apple Settings",
-                        systemImage: "apple.logo"
-                    )
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 48)
-                }
-                .buttonStyle(.bordered)
-                .tint(.blue)
+                Text(locale == .ja
+                     ? "サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。"
+                     : "To view or cancel your subscription, go to Settings → Apple ID → Subscriptions.")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+                    .multilineTextAlignment(.leading)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }

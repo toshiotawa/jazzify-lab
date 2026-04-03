@@ -468,13 +468,13 @@
         "en" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "Manage Subscription"
+            "value" : "Subscriptions"
           }
         },
         "ja" : {
           "stringUnit" : {
             "state" : "translated",
-            "value" : "サブスクリプション管理"
+            "value" : "サブスクリプション"
           }
         }
       }
