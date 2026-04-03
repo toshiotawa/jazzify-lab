@@ -10,6 +10,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import Dashboard from '@/components/dashboard/Dashboard';
 import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
+import MidiWarningModal from '@/components/ui/MidiWarningModal';
 
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const ProfileWizard = React.lazy(() => import('@/components/auth/ProfileWizard'));
@@ -404,6 +405,7 @@ const App: React.FC = () => {
           )}
         >
           {user && <ProfileWizard />}
+          <MidiWarningModal />
           {MainContent}
           <ToastContainer />
         </div>
