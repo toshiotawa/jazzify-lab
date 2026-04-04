@@ -281,7 +281,10 @@ const LessonDetailPage: React.FC = () => {
       
     } catch (e: unknown) {
       if (!isStale()) {
-        pushToast('レッスンデータの読み込みに失敗しました', 'error');
+        pushToast(
+          isEnglishCopy ? 'Failed to load lesson data.' : 'レッスンデータの読み込みに失敗しました',
+          'error',
+        );
       }
       console.error('Error loading lesson data:', e);
     } finally {
@@ -470,7 +473,7 @@ const LessonDetailPage: React.FC = () => {
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-400">読み込み中...</p>
+          <p className="text-gray-400">{isEnglishCopy ? 'Loading…' : '読み込み中...'}</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
@@ -1076,15 +1079,28 @@ const LessonDetailPage: React.FC = () => {
               >
                 <FaCheckCircle />
                 <span>
-                  {lessonProgress?.completed ? 'レッスン完了済み' : 
-                   completing ? '完了処理中...' : 'レッスン完了'}
+                  {lessonProgress?.completed
+                    ? isEnglishCopy
+                      ? 'Lesson completed'
+                      : 'レッスン完了済み'
+                    : completing
+                      ? isEnglishCopy
+                        ? 'Completing…'
+                        : '完了処理中...'
+                      : isEnglishCopy
+                        ? 'Mark lesson complete'
+                        : 'レッスン完了'}
                 </span>
               </button>
               
               <p className="text-xs text-gray-400 text-center mt-2">
-                {lessonProgress?.completed ? 
-                  'このレッスンは既に完了しています' : 
-                  '動画視聴と実習課題を完了したら押してください'}
+                {lessonProgress?.completed
+                  ? isEnglishCopy
+                    ? 'You have already completed this lesson.'
+                    : 'このレッスンは既に完了しています'
+                  : isEnglishCopy
+                    ? 'Tap after you have watched the videos and finished the practice tasks.'
+                    : '動画視聴と実習課題を完了したら押してください'}
               </p>
 
             </div>
@@ -1095,9 +1111,11 @@ const LessonDetailPage: React.FC = () => {
                 <div className="bg-slate-800 rounded-xl p-6 max-w-sm mx-4 border border-slate-600 shadow-2xl" onClick={e => e.stopPropagation()}>
                   <div className="text-center mb-4">
                     <div className="text-4xl mb-2">🎉</div>
-                    <h3 className="text-xl font-bold text-white">レッスン完了！</h3>
+                    <h3 className="text-xl font-bold text-white">
+                      {isEnglishCopy ? 'Lesson complete!' : 'レッスン完了！'}
+                    </h3>
                     <p className="text-gray-300 text-sm mt-2">
-                      次のレッスンに進みますか？
+                      {isEnglishCopy ? 'Go to the next lesson?' : '次のレッスンに進みますか？'}
                     </p>
                     <p className="text-blue-300 text-sm mt-1 font-medium">
                       {navigationInfo.nextLesson.title}
@@ -1108,7 +1126,7 @@ const LessonDetailPage: React.FC = () => {
                       onClick={() => setShowNextLessonPrompt(false)}
                       className="flex-1 px-4 py-2 bg-slate-600 hover:bg-slate-500 text-white rounded-lg transition-colors text-sm"
                     >
-                      このまま留まる
+                      {isEnglishCopy ? 'Stay on this page' : 'このまま留まる'}
                     </button>
                     <button
                       onClick={() => {
@@ -1123,7 +1141,8 @@ const LessonDetailPage: React.FC = () => {
                       }}
                       className="flex-1 px-4 py-2 bg-green-600 hover:bg-green-500 text-white rounded-lg transition-colors text-sm font-medium flex items-center justify-center gap-2"
                     >
-                      次へ進む <FaChevronRight className="w-3 h-3" />
+                      {isEnglishCopy ? 'Continue' : '次へ進む'}{' '}
+                      <FaChevronRight className="w-3 h-3" />
                     </button>
                   </div>
                 </div>

@@ -1,4 +1,5 @@
 import { Component, ErrorInfo, ReactNode } from 'react';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface Props {
   children: ReactNode;
@@ -51,6 +52,8 @@ class ErrorBoundary extends Component<Props, State> {
         return this.props.fallback;
       }
 
+      const isEnglishCopy = shouldUseEnglishCopy();
+
       // デフォルトのエラー画面
       return (
         <div className="min-h-screen bg-gradient-game flex items-center justify-center p-4">
@@ -58,19 +61,29 @@ class ErrorBoundary extends Component<Props, State> {
             <div className="text-center">
               <div className="text-6xl mb-4">🎵💥</div>
               <h1 className="text-2xl font-bold text-red-400 mb-4">
-                予期しないエラーが発生しました
+                {isEnglishCopy ? 'Something went wrong' : '予期しないエラーが発生しました'}
               </h1>
               <p className="text-gray-300 mb-6">
-                申し訳ございません。アプリケーションでエラーが発生しました。
-                <br />
-                ページを再読み込みするか、しばらく経ってから再度お試しください。
+                {isEnglishCopy ? (
+                  <>
+                    Sorry, the app hit an unexpected error.
+                    <br />
+                    Reload the page or try again in a little while.
+                  </>
+                ) : (
+                  <>
+                    申し訳ございません。アプリケーションでエラーが発生しました。
+                    <br />
+                    ページを再読み込みするか、しばらく経ってから再度お試しください。
+                  </>
+                )}
               </p>
               
               {/* 開発環境でのエラー詳細 */}
               {process.env.NODE_ENV === 'development' && this.state.error && (
                 <details className="mt-6 p-4 bg-red-900 bg-opacity-50 rounded-lg text-left">
                   <summary className="cursor-pointer text-red-300 font-semibold mb-2">
-                    エラー詳細（開発者向け）
+                    {isEnglishCopy ? 'Error details (dev)' : 'エラー詳細（開発者向け）'}
                   </summary>
                   <div className="text-xs font-mono text-red-200 whitespace-pre-wrap overflow-auto max-h-64">
                     <div className="mb-2">
@@ -97,13 +110,13 @@ class ErrorBoundary extends Component<Props, State> {
                   onClick={this.handleRetry}
                   className="btn btn-primary"
                 >
-                  再試行
+                  {isEnglishCopy ? 'Try again' : '再試行'}
                 </button>
                 <button
                   onClick={() => window.location.reload()}
                   className="btn btn-secondary"
                 >
-                  ページを再読み込み
+                  {isEnglishCopy ? 'Reload page' : 'ページを再読み込み'}
                 </button>
               </div>
             </div>

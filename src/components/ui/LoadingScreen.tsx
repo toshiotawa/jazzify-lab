@@ -1,5 +1,6 @@
-import React, { useMemo } from 'react';
-import { detectPreferredLocale } from '@/utils/globalAudience';
+import React from 'react';
+import { useAuthStore } from '@/stores/authStore';
+import { getStoredPreferredLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface LoadingScreenProps {
   progress?: number;
@@ -10,7 +11,8 @@ interface LoadingScreenProps {
 
 /**
  * ローディング画面コンポーネント
- * 認証前に表示されるため、detectPreferredLocaleを使用してロケールを判定
+ * アプリの言語設定（プロフィール / localStorage）をブラウザ言語より優先する。
+ * useMemo で固定しない（認証完了後にプロフィールが入っても再判定できるようにする）。
  */
 const LoadingScreen: React.FC<LoadingScreenProps> = ({
   progress = 0,
@@ -18,8 +20,10 @@ const LoadingScreen: React.FC<LoadingScreenProps> = ({
   error,
   onRetry
 }) => {
-  // 認証前でも使えるロケール判定（URL TLD、クエリパラメータから判定）
-  const isEnglishCopy = useMemo(() => detectPreferredLocale() === 'en', []);
+  const profile = useAuthStore((s) => s.profile);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    preferredLocale: profile?.preferred_locale ?? getStoredPreferredLocale(),
+  });
 
   // デフォルトメッセージの設定（日英統一）
   const defaultMessage = 'Loading Jazzify...';

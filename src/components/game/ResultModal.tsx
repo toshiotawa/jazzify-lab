@@ -26,6 +26,7 @@ const ResultModal: React.FC = () => {
 
   const { profile, fetchProfile } = useAuthStore();
   const geoCountry = useGeoStore((state) => state.country);
+  const lessonContext = useLessonContext();
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,

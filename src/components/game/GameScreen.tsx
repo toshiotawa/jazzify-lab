@@ -32,6 +32,14 @@ const GameScreen: React.FC = () => {
 
   const gameActions = useGameActions();
   
+  const { profile: gsProfile } = useAuthStore();
+  const gsGeoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopyGameScreen = shouldUseEnglishCopy({
+    rank: gsProfile?.rank,
+    country: gsProfile?.country ?? gsGeoCountry,
+    preferredLocale: gsProfile?.preferred_locale ?? null,
+  });
+
   // レッスン曲読み込み中の状態管理を追加
   const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
 
@@ -530,7 +538,9 @@ const GameScreen: React.FC = () => {
       <div className="w-full h-screen bg-gradient-game text-white flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-lg text-gray-300">レッスン曲を読み込み中...</p>
+          <p className="text-lg text-gray-300">
+            {isEnglishCopyGameScreen ? 'Loading lesson song…' : 'レッスン曲を読み込み中...'}
+          </p>
         </div>
       </div>
     );
