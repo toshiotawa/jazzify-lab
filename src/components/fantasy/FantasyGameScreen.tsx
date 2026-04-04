@@ -1178,34 +1178,29 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'touch' | 'midi' = 'mouse') => {
     const inputTimestampMs = performance.now();
 
-    // startGame で unlock 済みなら Tone.start / unlock を毎入力で叩かない
-    if (!audioUnlockedRef.current) {
-      if ((window as any).Tone?.context?.state !== 'running') {
-        (window as any).Tone?.start?.().catch(() => {});
-      }
-    }
-
     const isScreen = source === 'mouse' || source === 'touch';
 
     if (isScreen && activeNotesRef.current.has(note)) {
       return;
     }
-    
-    engineHandleNoteInput(note, inputTimestampMs);
 
     if (isScreen) {
-      activeNotesRef.current.add(note);
-      // タッチ直後に発音する（setTimeout(0) は Safari/WKWebView でマクロタスク遅延が乗り体感ラグになる）
-      void playNote(note, 64).catch(() => {});
-    }
-    
-    // 未 unlock 時だけ低優先度で解放を試みる
-    if (isScreen && !audioUnlockedRef.current) {
-      audioUnlockedRef.current = true;
-      setTimeout(() => {
+      // Safari / WKWebView では setTimeout(0) に逃がすと体感で遅れる。
+      // 発音を最優先で即時実行する。
+      if (!audioUnlockedRef.current) {
+        audioUnlockedRef.current = true;
+        FantasySoundManager.ensureContextsRunning();
         FantasySoundManager.unlock().catch(() => {});
-      }, 0);
+        if ((window as any).Tone?.context?.state !== 'running') {
+          (window as any).Tone?.start?.().catch(() => {});
+        }
+      }
+
+      activeNotesRef.current.add(note);
+      playNoteRef.current?.(note, 64).catch(() => {});
     }
+
+    engineHandleNoteInput(note, inputTimestampMs);
   }, [engineHandleNoteInput]);
   
   // handleNoteInputBridgeが定義された後にRefを更新
