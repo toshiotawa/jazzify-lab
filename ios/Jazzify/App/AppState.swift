@@ -250,8 +250,44 @@ final class AppState: ObservableObject {
         do {
             try await supabase.requestEmailChange(newEmail: trimmed)
             let msg = locale == .ja
-                ? "\(trimmed) に確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。"
-                : "We sent a confirmation email to \(trimmed). Tap the link in the email to complete the change."
+                ? "\(trimmed) に確認コードを送信しました。メールに記載の6桁のコードを入力してください。"
+                : "We sent a verification code to \(trimmed). Enter the 6-digit code below."
+            return (true, msg)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    /// メール変更 OTP 確認後、Netlify で課金メール同期 → プロフィール再取得
+    func verifyEmailChangeOtp(newEmail: String, token: String) async -> (ok: Bool, message: String) {
+        let trimmedEmail = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let digits = token.trimmingCharacters(in: .whitespacesAndNewlines).filter { $0.isNumber }
+        if digits.count < 6 {
+            return (false, locale == .ja ? "確認コードは6桁です" : "The code must be 6 digits.")
+        }
+
+        do {
+            try await supabase.verifyEmailChangeOtp(newEmail: trimmedEmail, token: digits)
+            var billingSyncError: String?
+            do {
+                try await supabase.syncBillingEmailAfterChange(newEmail: trimmedEmail)
+            } catch {
+                billingSyncError = error.localizedDescription
+            }
+
+            let session = try await supabase.client.auth.session
+            if let updated = try await supabase.fetchProfileIfExists(userId: session.user.id) {
+                self.profile = updated
+            }
+            await refreshBillingStatus()
+
+            if let err = billingSyncError {
+                let msg = locale == .ja
+                    ? "メールは更新しましたが、請求情報の同期に失敗しました: \(err)"
+                    : "Email updated, but billing sync failed: \(err)"
+                return (true, msg)
+            }
+            let msg = locale == .ja ? "メールアドレスを更新しました" : "Email address updated."
             return (true, msg)
         } catch {
             return (false, error.localizedDescription)

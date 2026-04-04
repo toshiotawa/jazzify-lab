@@ -387,11 +387,15 @@ private struct NicknameEditView: View {
 
 private struct EmailEditView: View {
     @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
     let currentEmail: String
     @State private var newEmail = ""
     @State private var sending = false
     @State private var statusMessage: String?
     @State private var statusIsError = false
+    @State private var pendingNewEmail: String?
+    @State private var otpCode = ""
+    @State private var verifying = false
 
     private var locale: AppLocale { appState.locale }
 
@@ -399,8 +403,18 @@ private struct EmailEditView: View {
         newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    private var canSend: Bool {
-        !trimmedNew.isEmpty && trimmedNew != currentEmail
+    private var canSendCode: Bool {
+        !trimmedNew.isEmpty && trimmedNew != currentEmail && pendingNewEmail == nil
+    }
+
+    private var otpDigitsBinding: Binding<String> {
+        Binding(
+            get: { otpCode },
+            set: { newValue in
+                let digits = newValue.filter { $0.isNumber }
+                otpCode = String(digits.prefix(6))
+            }
+        )
     }
 
     var body: some View {
@@ -432,7 +446,69 @@ private struct EmailEditView: View {
                     .background(Color(hex: "1e293b"))
                     .cornerRadius(10)
                     .foregroundStyle(.white)
-                    .disabled(sending)
+                    .disabled(sending || pendingNewEmail != nil)
+
+                    if let pending = pendingNewEmail {
+                        VStack(alignment: .leading, spacing: 10) {
+                            Text(locale == .ja ? "送信先: \(pending)" : "Sent to: \(pending)")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            Text(locale == .ja ? "6桁の確認コード" : "6-digit code")
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                            TextField(
+                                locale == .ja ? "000000" : "000000",
+                                text: otpDigitsBinding
+                            )
+                            .textContentType(.oneTimeCode)
+                            .keyboardType(.numberPad)
+                            .padding(12)
+                            .background(Color(hex: "1e293b"))
+                            .cornerRadius(10)
+                            .foregroundStyle(.white)
+                            .disabled(verifying)
+
+                            Button {
+                                Task { await verifyOtp() }
+                            } label: {
+                                HStack {
+                                    if verifying {
+                                        ProgressView()
+                                            .tint(.white)
+                                    }
+                                    Text(locale == .ja ? "確認" : "Verify")
+                                        .fontWeight(.semibold)
+                                }
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 14)
+                                .background(otpCode.count >= 6 ? Color.purple : Color(hex: "334155"))
+                                .foregroundStyle(.white)
+                                .cornerRadius(12)
+                            }
+                            .disabled(otpCode.count < 6 || verifying)
+
+                            HStack(spacing: 16) {
+                                Button(locale == .ja ? "コードを再送信" : "Resend code") {
+                                    Task { await resendCode() }
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.cyan)
+                                .disabled(sending || verifying)
+
+                                Button(locale == .ja ? "キャンセル" : "Cancel") {
+                                    pendingNewEmail = nil
+                                    otpCode = ""
+                                    statusMessage = nil
+                                }
+                                .font(.caption)
+                                .foregroundStyle(.gray)
+                                .disabled(verifying)
+                            }
+                        }
+                        .padding(12)
+                        .background(Color(hex: "1e293b").opacity(0.6))
+                        .cornerRadius(12)
+                    }
 
                     if let statusMessage {
                         Text(statusMessage)
@@ -441,30 +517,26 @@ private struct EmailEditView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    Button {
-                        Task { await send() }
-                    } label: {
-                        HStack {
-                            if sending {
-                                ProgressView()
-                                    .tint(.white)
+                    if pendingNewEmail == nil {
+                        Button {
+                            Task { await send() }
+                        } label: {
+                            HStack {
+                                if sending {
+                                    ProgressView()
+                                        .tint(.white)
+                                }
+                                Text(locale == .ja ? "コードを送信" : "Send code")
+                                    .fontWeight(.semibold)
                             }
-                            Text(locale == .ja ? "確認メールを送信" : "Send confirmation email")
-                                .fontWeight(.semibold)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 14)
+                            .background(canSendCode ? Color.purple : Color(hex: "334155"))
+                            .foregroundStyle(.white)
+                            .cornerRadius(12)
                         }
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 14)
-                        .background(canSend ? Color.purple : Color(hex: "334155"))
-                        .foregroundStyle(.white)
-                        .cornerRadius(12)
+                        .disabled(!canSendCode || sending)
                     }
-                    .disabled(!canSend || sending)
-
-                    Text(locale == .ja
-                         ? "メール内のリンクから変更を完了してください（ウェブと同じ手順です）。"
-                         : "Complete the change using the link in the email (same flow as the web app).")
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
                 }
                 .padding(20)
             }
@@ -483,7 +555,37 @@ private struct EmailEditView: View {
         statusIsError = !result.ok
         statusMessage = result.message
         if result.ok {
+            pendingNewEmail = trimmedNew
+            otpCode = ""
+        }
+    }
+
+    private func resendCode() async {
+        guard let pending = pendingNewEmail else { return }
+        newEmail = pending
+        statusMessage = nil
+        sending = true
+        let result = await appState.requestEmailChange(pending)
+        sending = false
+        statusIsError = !result.ok
+        statusMessage = result.message
+    }
+
+    private func verifyOtp() async {
+        guard let pending = pendingNewEmail else { return }
+        statusMessage = nil
+        verifying = true
+        let result = await appState.verifyEmailChangeOtp(newEmail: pending, token: otpCode)
+        verifying = false
+        statusIsError = !result.ok
+        statusMessage = result.message
+        if result.ok {
+            otpCode = ""
+            pendingNewEmail = nil
             newEmail = ""
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) {
+                dismiss()
+            }
         }
     }
 }

@@ -15,6 +15,7 @@ const AccountPage: React.FC = () => {
     profile,
     logout,
     updateEmail,
+    verifyEmailChangeOtp,
     updateNickname,
     emailChangeStatus,
     clearEmailChangeStatus,
@@ -33,6 +34,10 @@ const AccountPage: React.FC = () => {
   const [nicknameEditing, setNicknameEditing] = useState(false);
   const [nicknameValue, setNicknameValue] = useState('');
   const [nicknameSaving, setNicknameSaving] = useState(false);
+  /** メール変更 OTP 待ちの新メールアドレス（null なら未送信） */
+  const [emailChangePendingAddress, setEmailChangePendingAddress] = useState<string | null>(null);
+  const [emailOtpCode, setEmailOtpCode] = useState('');
+  const [emailOtpVerifying, setEmailOtpVerifying] = useState(false);
   const geoCountry = useGeoStore(s => s.country);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
@@ -305,11 +310,17 @@ const AccountPage: React.FC = () => {
                           value={newEmail}
                           onChange={e => setNewEmail(e.target.value)}
                           placeholder={isEnglishCopy ? 'New email address' : '新しいメールアドレス'}
-                          disabled={emailUpdating}
+                          disabled={emailUpdating || emailChangePendingAddress != null}
                         />
                         <button
+                          type="button"
                           className="px-3 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-xs text-gray-200 transition-colors disabled:opacity-50 whitespace-nowrap"
-                          disabled={emailUpdating || !newEmail.trim() || newEmail.trim() === profile?.email}
+                          disabled={
+                            emailUpdating ||
+                            emailChangePendingAddress != null ||
+                            !newEmail.trim() ||
+                            newEmail.trim() === profile?.email
+                          }
                           onClick={async () => {
                             const email = newEmail.trim();
                             if (!email) {
@@ -328,23 +339,133 @@ const AccountPage: React.FC = () => {
                             setEmailUpdating(true);
                             setEmailMessage('');
                             try {
-                              const result = await updateEmail(email);
+                              const result = await updateEmail(email, isEnglishCopy);
                               setEmailMessage(result.message);
-                              if (result.success) setNewEmail('');
+                              if (result.success) {
+                                setEmailChangePendingAddress(email);
+                                setEmailOtpCode('');
+                              }
                             } catch (err) {
-                              setEmailMessage((isEnglishCopy ? 'Failed to update email: ' : 'メールアドレスの更新に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
+                              setEmailMessage((isEnglishCopy ? 'Failed to send code: ' : '送信に失敗しました: ') + (err instanceof Error ? err.message : String(err)));
                             } finally {
                               setEmailUpdating(false);
                             }
                           }}
                         >
-                          {emailUpdating ? '...' : (isEnglishCopy ? 'Send' : '送信')}
+                          {emailUpdating ? '...' : (isEnglishCopy ? 'Send code' : 'コードを送信')}
                         </button>
                       </div>
+
+                      {emailChangePendingAddress != null && (
+                        <div className="space-y-2 mt-3 p-3 rounded-lg bg-slate-900/50 border border-slate-600/50">
+                          <p className="text-xs text-gray-400">
+                            {isEnglishCopy ? 'Sent to' : '送信先'}:{' '}
+                            <span className="text-gray-200 font-medium">{emailChangePendingAddress}</span>
+                          </p>
+                          <label htmlFor="emailOtp" className="text-xs text-gray-400">
+                            {isEnglishCopy ? '6-digit code' : '6桁の確認コード'}
+                          </label>
+                          <div className="flex gap-2 flex-wrap">
+                            <input
+                              id="emailOtp"
+                              type="text"
+                              inputMode="numeric"
+                              autoComplete="one-time-code"
+                              maxLength={6}
+                              className="flex-1 min-w-[8rem] p-2 rounded-lg bg-slate-700 text-sm tracking-widest focus:outline-none focus:ring-1 focus:ring-primary-400"
+                              value={emailOtpCode}
+                              onChange={e => setEmailOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                              placeholder={isEnglishCopy ? '000000' : '000000'}
+                              disabled={emailOtpVerifying}
+                            />
+                            <button
+                              type="button"
+                              className="px-3 py-2 rounded-lg bg-primary-600 hover:bg-primary-500 text-xs text-white transition-colors disabled:opacity-50 whitespace-nowrap"
+                              disabled={
+                                emailOtpVerifying ||
+                                emailOtpCode.replace(/\s/g, '').length < 6
+                              }
+                              onClick={async () => {
+                                const pending = emailChangePendingAddress;
+                                if (!pending) return;
+                                setEmailOtpVerifying(true);
+                                setEmailMessage('');
+                                try {
+                                  const result = await verifyEmailChangeOtp(
+                                    pending,
+                                    emailOtpCode,
+                                    isEnglishCopy,
+                                  );
+                                  setEmailMessage(result.message);
+                                  if (result.success) {
+                                    pushToast(
+                                      isEnglishCopy ? 'Email updated' : 'メールアドレスを更新しました',
+                                      'success',
+                                    );
+                                    setEmailChangePendingAddress(null);
+                                    setNewEmail('');
+                                    setEmailOtpCode('');
+                                  }
+                                } catch (err) {
+                                  setEmailMessage(
+                                    (isEnglishCopy ? 'Verification failed: ' : '確認に失敗しました: ') +
+                                      (err instanceof Error ? err.message : String(err)),
+                                  );
+                                } finally {
+                                  setEmailOtpVerifying(false);
+                                }
+                              }}
+                            >
+                              {emailOtpVerifying ? '...' : (isEnglishCopy ? 'Verify' : '確認')}
+                            </button>
+                          </div>
+                          <div className="flex gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              className="text-xs text-primary-300 hover:underline disabled:opacity-50"
+                              disabled={emailUpdating || emailOtpVerifying}
+                              onClick={async () => {
+                                const pending = emailChangePendingAddress;
+                                if (!pending) return;
+                                setEmailUpdating(true);
+                                setEmailMessage('');
+                                try {
+                                  const result = await updateEmail(pending, isEnglishCopy);
+                                  setEmailMessage(result.message);
+                                } finally {
+                                  setEmailUpdating(false);
+                                }
+                              }}
+                            >
+                              {isEnglishCopy ? 'Resend code' : 'コードを再送信'}
+                            </button>
+                            <button
+                              type="button"
+                              className="text-xs text-gray-400 hover:underline"
+                              disabled={emailOtpVerifying}
+                              onClick={() => {
+                                setEmailChangePendingAddress(null);
+                                setEmailOtpCode('');
+                                setEmailMessage('');
+                              }}
+                            >
+                              {isEnglishCopy ? 'Cancel' : 'キャンセル'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {emailMessage && (
-                        <div className={`text-xs p-2 rounded-lg ${
-                          (emailMessage.includes('送信しました') || emailMessage.includes('sent')) ? 'text-green-400 bg-green-900/20' : 'text-red-400 bg-red-900/20'
-                        }`}>
+                        <div
+                          className={`text-xs p-2 rounded-lg ${
+                            emailMessage.includes('送信しました') ||
+                            emailMessage.includes('verification code') ||
+                            emailMessage.includes('更新しました') ||
+                            emailMessage.includes('updated')
+                              ? 'text-green-400 bg-green-900/20'
+                              : 'text-red-400 bg-red-900/20'
+                          }`}
+                        >
                           {emailMessage}
                         </div>
                       )}

@@ -130,10 +130,49 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
-    /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認メール送信）
+    /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認コード送信。テンプレートに `{{ .Token }}` が必要）
     func requestEmailChange(newEmail: String) async throws {
         let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
         _ = try await client.auth.update(user: .init(email: trimmed))
+    }
+
+    /// メール変更の OTP 検証（`verifyOtp` type `email_change`）
+    func verifyEmailChangeOtp(newEmail: String, token: String) async throws {
+        let trimmedEmail = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmedToken = token.trimmingCharacters(in: .whitespacesAndNewlines)
+            .filter { $0.isNumber }
+        _ = try await client.auth.verifyOTP(
+            email: trimmedEmail,
+            token: trimmedToken,
+            type: .emailChange
+        )
+    }
+
+    /// ウェブの `USER_UPDATED` 後と同じ Netlify 関数で Stripe / Lemon / profiles を同期
+    func syncBillingEmailAfterChange(newEmail: String) async throws {
+        let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        let token = try await accessToken()
+        let base = Config.webAppBaseURL.absoluteString.trimmingCharacters(in: CharacterSet(charactersIn: "/"))
+        guard let url = URL(string: base + "/.netlify/functions/updateCustomerEmail") else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        struct Body: Encodable {
+            let email: String
+        }
+        request.httpBody = try JSONEncoder().encode(Body(email: trimmed))
+
+        let (data, response) = try await URLSession.shared.data(for: request)
+        guard let httpResponse = response as? HTTPURLResponse else {
+            throw SupabaseServiceError.invalidResponse
+        }
+        if httpResponse.statusCode != 200 {
+            let body = String(data: data, encoding: .utf8) ?? ""
+            throw SupabaseServiceError.serverError(statusCode: httpResponse.statusCode, message: body)
+        }
     }
 
     // MARK: - Lessons

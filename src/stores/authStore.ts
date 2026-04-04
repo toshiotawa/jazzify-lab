@@ -60,7 +60,13 @@ interface AuthActions {
   logout: () => Promise<void>;
   fetchProfile: (options?: { forceRefresh?: boolean }) => Promise<void>;
   createProfile: (nickname: string, agreed: boolean, country?: string) => Promise<void>;
-  updateEmail: (newEmail: string) => Promise<{ success: boolean; message: string }>;
+  updateEmail: (newEmail: string, isEnglishCopy?: boolean) => Promise<{ success: boolean; message: string }>;
+  /** メール変更用 OTP（ダッシュボードの Change email テンプレートに {{ .Token }} が必要） */
+  verifyEmailChangeOtp: (
+    newEmail: string,
+    token: string,
+    isEnglishCopy?: boolean,
+  ) => Promise<{ success: boolean; message: string }>;
   updateNickname: (nickname: string) => Promise<{ success: boolean; message: string }>;
   clearEmailChangeStatus: () => void;
   setOptimisticAvatarUrl: (url: string | null) => void;
@@ -736,20 +742,31 @@ export const useAuthStore = create<AuthState & AuthActions>()(
     /**
      * メールアドレス更新 (Supabase Auth)
      */
-    updateEmail: async (newEmail: string) => {
+    updateEmail: async (newEmail: string, isEnglishCopy = false) => {
       const supabase = getSupabaseClient();
       const { user } = get();
       
       if (!user) {
-        return { success: false, message: 'ログインが必要です' };
+        return {
+          success: false,
+          message: isEnglishCopy ? 'Please sign in.' : 'ログインが必要です',
+        };
       }
 
       if (!newEmail || !newEmail.includes('@')) {
-        return { success: false, message: '有効なメールアドレスを入力してください' };
+        return {
+          success: false,
+          message: isEnglishCopy
+            ? 'Please enter a valid email address.'
+            : '有効なメールアドレスを入力してください',
+        };
       }
 
       if (user.email === newEmail) {
-        return { success: false, message: '現在のメールアドレスと同じです' };
+        return {
+          success: false,
+          message: isEnglishCopy ? 'Same as your current email.' : '現在のメールアドレスと同じです',
+        };
       }
 
       try {
@@ -771,9 +788,11 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           state.loading = false;
         });
 
-        return { 
-          success: true, 
-          message: `${newEmail} に確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。` 
+        return {
+          success: true,
+          message: isEnglishCopy
+            ? `We sent a verification code to ${newEmail}. Enter the 6-digit code below.`
+            : `${newEmail} に確認コードを送信しました。メールに記載の6桁のコードを入力してください。`,
         };
 
       } catch (error) {
@@ -788,6 +807,55 @@ export const useAuthStore = create<AuthState & AuthActions>()(
           success: false, 
           message: errorMessage
         };
+      }
+    },
+
+    verifyEmailChangeOtp: async (newEmail: string, token: string, isEnglishCopy = false) => {
+      const supabase = getSupabaseClient();
+      const email = newEmail.trim();
+      const code = token.trim().replace(/\s/g, '');
+      if (!email || !code) {
+        return {
+          success: false,
+          message: isEnglishCopy
+            ? 'Please enter your email and verification code.'
+            : 'メールアドレスと確認コードを入力してください',
+        };
+      }
+      if (code.length < 6) {
+        return {
+          success: false,
+          message: isEnglishCopy ? 'The code must be 6 digits.' : '確認コードは6桁です',
+        };
+      }
+      try {
+        set(state => {
+          state.loading = true;
+          state.error = null;
+        });
+        const { error } = await supabase.auth.verifyOtp({
+          email,
+          token: code,
+          type: 'email_change',
+        });
+        if (error) throw error;
+        set(state => {
+          state.loading = false;
+        });
+        await get().fetchProfile({ forceRefresh: true });
+        return {
+          success: true,
+          message: isEnglishCopy ? 'Email address updated.' : 'メールアドレスを更新しました',
+        };
+      } catch (error) {
+        console.error('Email change OTP error:', error);
+        const errorMessage =
+          error instanceof Error ? error.message : '確認コードの検証に失敗しました';
+        set(state => {
+          state.loading = false;
+          state.error = errorMessage;
+        });
+        return { success: false, message: errorMessage };
       }
     },
 
