@@ -22,11 +22,14 @@ Shows:
 - app launch
 - login with the Apple Review account using email + password
 - opening the Lessons tab
-- starting a Tutorial lesson
+- opening the Tutorial course and starting lesson tasks that introduce each format (see below)
 - gameplay using on-screen piano input
-- a vertically scrolling lesson task
-- a brief horizontal-scrolling lesson task
-- the results screen
+- **Tutorial Lesson 6:** vertically scrolling lesson task (rhythm-style)
+- **Tutorial Lesson 7:** horizontal-scrolling lesson task (RPG-style)
+- **Tutorial Lesson 8:** attack-gauge chord battle task
+- the results screen (after each of Lessons 6–8 when gameplay is trimmed with jump cuts)
+
+**Note:** In the Tutorial course, **Lessons 6–8** are dedicated introductions to the three lesson task types. **All three are shown in this recording** (not omitted). Reviewers can also read each lesson’s title and description in the Lessons list before starting play.
 
 **02_microphone_input_test**  
 Shows:
@@ -102,10 +105,10 @@ After signing in with the review account, please check the following flows.
 1. Open the Lessons tab.
 2. Free users can access the Tutorial course.
 3. Tapping any course other than Tutorial presents the subscription paywall.
-4. Lesson content includes multiple task formats:
-   - a horizontal-scrolling RPG-style exercise
-   - an attack-gauge chord battle exercise
-   - a vertically scrolling rhythm-style exercise
+4. Lesson content includes multiple task formats. In the **Tutorial** course, **Lessons 6–8** explain each type in the lesson list before play:
+   - **Lesson 6:** vertically scrolling rhythm-style exercise
+   - **Lesson 7:** horizontal-scrolling RPG-style exercise
+   - **Lesson 8:** attack-gauge chord battle exercise (complete chords before the gauge fills)
 5. Start a supported lesson and review gameplay with on-screen piano, microphone input, or MIDI input where available.
 6. After completion, a results screen shows performance feedback.
 
@@ -194,11 +197,14 @@ App Review Information — Jazzify (iOS)
 - アプリ起動
 - Apple Review アカウントでの email + password ログイン
 - Lessons タブを開く
-- Tutorial レッスンの開始
+- Tutorial コースを開き、各形式を説明するレッスン課題を開始する（下記）
 - オンスクリーンピアノを使ったプレイ
-- 縦スクロール課題
-- 横スクロール課題の短い確認
-- 結果画面
+- **チュートリアル レッスン6:** 縦スクロール課題（リズムゲーム型）
+- **チュートリアル レッスン7:** 横スクロール課題（RPG 風）
+- **チュートリアル レッスン8:** 攻撃ゲージ型のコード課題
+- 各レッスン終了後の結果画面（プレイ部分はジャンプカットしてよい）
+
+**補足:** Tutorial の **レッスン6〜8** は、それぞれ課題タイプ（ゲーム形式）の導入用です。**本収録では3つとも必ず含めます（省略しません）。** プレイ前に Lessons 一覧でタイトル・説明文を確認できます。
 
 **02_microphone_input_test**  
 確認できる内容:
@@ -274,10 +280,10 @@ Jazzify は、インタラクティブなゲームプレイとリアルタイム
 1. Lessons タブを開く
 2. 無料ユーザーは Tutorial コースにアクセスできる
 3. Tutorial 以外のコースをタップすると、サブスクリプション paywall が表示される
-4. レッスンには複数の課題形式がある
-   - 横スクロール風 RPG 課題
-   - 攻撃ゲージが貯まるまでにコードを完成させて攻撃する課題
-   - 縦スクロールのリズムゲーム型課題
+4. レッスンには複数の課題形式がある。**Tutorial** コースでは **レッスン6〜8** が一覧の説明とあわせて各形式を案内する。
+   - **レッスン6:** 縦スクロールのリズムゲーム型課題
+   - **レッスン7:** 横スクロール風 RPG 課題
+   - **レッスン8:** 攻撃ゲージが貯まるまでにコードを完成させて攻撃する課題
 5. 対応レッスンを開始し、オンスクリーンピアノ、マイク入力、MIDI 入力でのプレイを確認する
 6. 終了後、結果画面でフィードバックを確認する
 
@@ -412,3 +418,182 @@ https://jazzify.jp/terms/ios
 
 **Privacy Policy:**  
 https://jazzify.jp/privacy/ios
+
+---
+
+## ブロック2｜画面収録用 動画台本（4本・ファイル名と1対1）
+
+長い曲はフルで見せず、**数秒プレイ → 終盤へジャンプカット → 結果画面**で十分です。
+
+### 01_login_and_basic_gameplay
+
+**冒頭字幕:** Login and basic gameplay
+
+**台本**
+
+1. アプリを起動する
+2. Apple Review アカウントで email + password を入力してログインする
+3. Lessons タブを開く
+4. Tutorial コースを開く
+5. **チュートリアル レッスン6（縦スクロールの課題）**を開始する
+6. オンスクリーンピアノで数秒プレイする
+7. 判定が出る様子を見せる
+8. 必要なら小さく **Gameplay trimmed for brevity** を表示する
+9. 終盤へジャンプカットして結果画面を見せる
+10. レッスン一覧に戻る
+11. **チュートリアル レッスン7（横スクロールの課題）**を開始する
+12. オンスクリーンピアノで数秒プレイする
+13. 判定が出る様子を見せる
+14. 必要なら **Gameplay trimmed for brevity** を表示する
+15. 終盤へジャンプカットして結果画面を見せる
+16. レッスン一覧に戻る
+17. **チュートリアル レッスン8（攻撃ゲージのコード課題）**を開始する
+18. オンスクリーンピアノで数秒プレイする
+19. 判定が出る様子を見せる
+20. 必要なら **Gameplay trimmed for brevity** を表示する
+21. 終盤へジャンプカットして結果画面を見せる
+
+**この動画が説明していること**
+
+- app launch  
+- review account login  
+- Lessons tab  
+- Tutorial course（**レッスン6・7・8をいずれも収録に含める**）  
+- on-screen piano input  
+- vertically scrolling lesson task（レッスン6）  
+- horizontal-scrolling lesson task（レッスン7）  
+- attack-gauge chord task（レッスン8）  
+- results screen（各レッスンごと）  
+
+---
+
+### 02_microphone_input_test
+
+**冒頭字幕:** Microphone input test
+
+**台本**
+
+1. TOP タブを開く
+2. マイク対応の Daily Challenge または対応課題を開く
+3. プレイ開始前の状態を1秒ほど見せる
+4. マイク許可ダイアログを表示する
+5. 許可する
+6. 実際に音を入力し、ノーツ判定が反応する様子を見せる
+7. 数秒プレイする
+8. 必要なら **Gameplay trimmed for brevity** を表示する
+9. 終盤へジャンプカットして結果画面を見せる
+
+**この動画が説明していること**
+
+- microphone-supported gameplay  
+- microphone permission prompt  
+- granting microphone access  
+- gameplay using microphone-based pitch detection  
+- live note judgment using microphone input  
+- short completion flow / results screen  
+
+---
+
+### 03_midi_input_test
+
+**冒頭字幕:** MIDI device test
+
+**台本**
+
+1. MIDI デバイス接続済みの状態から始める
+2. Lessons または TOP の MIDI 対応課題を開く
+3. 必要なら接続状態や入力ソースが分かる箇所を映す
+4. プレイを開始する
+5. MIDI キーボードを弾く
+6. 画面上のノーツ判定が反応する様子を見せる
+7. 数秒プレイする
+8. 必要なら **Gameplay trimmed for brevity** を表示する
+9. 終盤へジャンプカットして結果画面を見せる
+
+**この動画が説明していること**
+
+- MIDI-supported gameplay  
+- connected MIDI device  
+- live note judgment reacting to MIDI input  
+- short completion flow / results screen  
+
+---
+
+### 04_subscription_survival_and_account_delete
+
+**冒頭字幕:** Subscription, Survival access, and account deletion
+
+**台本**
+
+1. TOP タブを開く
+2. **Unlock all features with Premium** をタップする（日本語 UI ならプレミアム導線の同等ボタン）
+3. paywall を表示する
+4. **Subscribe to Premium** をタップする
+5. Apple の IAP シートが画面下から出ることを見せる
+6. 購入せずに戻る
+7. Survival タブを開く
+8. Survival が Premium 必須であること、または **Subscribe to Premium** 導線を見せる
+9. Settings タブを開く
+10. **Subscriptions** をタップし、同じサブスクリプション画面が開くことを見せる
+11. **Delete Account** をタップする
+12. 削除確認フローを見せる
+
+**この動画が説明していること**
+
+- subscription paywall from a premium entry point  
+- Subscribe to Premium button  
+- Apple IAP sheet from the bottom  
+- Survival tab premium access behavior  
+- Settings > Subscriptions  
+- account deletion flow  
+
+---
+
+## ブロック3｜App Store スクリーンショット文案（完成コピー）
+
+1枚目は**実プレイ画面**を強く出す（ログイン画面・一覧だけ・雰囲気だけは弱い）。Apple も実使用画面を重視します。
+
+### 1枚目｜Lessons の縦スクロール課題
+
+**見せる内容:** 縦スクロールのノーツ、鍵盤、判定が同時に見える実プレイ画面（チュートリアル **レッスン6** と対応）
+
+| | 日本語 | English |
+|---|--------|---------|
+| 見出し | ゲーム感覚でコードを覚える | Learn chords like a game |
+| 補足 | 弾きながら自然に身につく | Play and make the basics stick |
+
+### 2枚目｜Lessons の学習導線
+
+**見せる内容:** Tutorial から先のコース構造や、段階的に進めることが分かるレッスン画面（**レッスン6〜8** で課題タイプが説明されていることが分かるとよい）
+
+| | 日本語 | English |
+|---|--------|---------|
+| 見出し | 順番に学べるから迷わない | A clear path to progress |
+| 補足 | 基礎から実践まで段階的に進める | Move from basics to real practice |
+
+### 3枚目｜TOP の Daily Challenge
+
+**見せる内容:** 攻撃ゲージが貯まるまでにコードを完成させて攻撃する課題。Daily Challenge であることが分かる画面（チュートリアル **レッスン8** と同系のゲージ型）
+
+| | 日本語 | English |
+|---|--------|---------|
+| 見出し | 毎日の挑戦で実戦感覚を磨く | Sharpen skills with daily challenges |
+| 補足 | 素早く反応してコードを組み立てる | React fast and build chords in time |
+
+### 4枚目｜MIDI入力対応
+
+**見せる内容:** MIDI 入力で判定しているプレイ画面。可能なら接続や入力ソースが分かる状態
+
+| | 日本語 | English |
+|---|--------|---------|
+| 見出し | MIDIキーボードで本格練習 | Train with your MIDI keyboard |
+| 補足 | 手と耳を使って実践的に学べる | Build your ear and hands through real play |
+
+### 5枚目｜Survival モード
+
+**見せる内容:** 敵から逃げながら攻撃し、一定時間生き残る 2D サバイバル画面
+
+| | 日本語 | English |
+|---|--------|---------|
+| 見出し | 逃げて弾いて生き残る | Play, react, and survive |
+| 補足 | 反応力とコード感覚を同時に鍛える | Train timing and chord reflexes together |
