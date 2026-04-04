@@ -11,7 +11,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode, combiningSync } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode, combiningSync, type TaikoVisualSnapshot } from './FantasyGameEngine';
 import { 
   TaikoNote, 
   ChordProgressionDataItem
@@ -692,6 +692,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isCombiningModeRef = useRef(false);
   const combinedSectionsRef = useRef<CombinedSection[]>([]);
   const currentSectionIndexRef = useRef(0);
+  const taikoVisualSnapshotRef = useRef<TaikoVisualSnapshot | null>(null);
 
   const handleTaikoVisualSync = useCallback((s: FantasyGameState) => {
     taikoNotesRef.current = s.taikoNotes;
@@ -720,6 +721,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
     onTaikoVisualSync: handleTaikoVisualSync,
+    taikoVisualSnapshotRef,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
@@ -1306,13 +1308,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         requestAnimationFrame(centerPianoC4);
       });
       
-      {
-        const ua = getWindow().navigator.userAgent;
-        const isWebKitTouchHeavy =
-          /AppleWebKit\//.test(ua) &&
-          !/Chrome\/|Chromium\/|Edg\/|OPR\/|CriOS|FxiOS/.test(ua);
-        renderer.setTouchActionMode(isWebKitTouchHeavy ? 'pan-x' : 'none');
-      }
+      renderer.setTouchActionMode('none');
       renderer.setKeyCallbacks(
         (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => {
           handleNoteInputBridge(note, pointerKind === 'pen' ? 'touch' : pointerKind);
@@ -1418,6 +1414,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     currentNoteIndexRef.current = 0;
     awaitingLoopStartRef.current = false;
     taikoLoopCycleRef.current = 0;
+    taikoVisualSnapshotRef.current = null;
     preHitNoteIndicesRef.current = [];
     isCombiningModeRef.current = false;
     combinedSectionsRef.current = [];
@@ -1531,9 +1528,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     };
 
     const runTaikoFrame = () => {
-      const taikoNotes = taikoNotesRef.current;
-      const stateNoteIndex = currentNoteIndexRef.current;
-      const stateAwaitingLoop = awaitingLoopStartRef.current;
+      const snapshot = taikoVisualSnapshotRef.current;
+      const nowMs = performance.now();
+      const useSnapshot = !!snapshot && nowMs <= snapshot.expiresAtMs;
+      if (snapshot && !useSnapshot) {
+        taikoVisualSnapshotRef.current = null;
+      }
+
+      const currentTime = useSnapshot
+        ? snapshot!.currentTime
+        : bgmManager.getCurrentMusicTime();
+
+      const taikoNotes = useSnapshot
+        ? snapshot!.taikoNotes
+        : taikoNotesRef.current;
+
+      const stateNoteIndex = useSnapshot
+        ? snapshot!.currentNoteIndex
+        : currentNoteIndexRef.current;
+
+      const stateAwaitingLoop = useSnapshot
+        ? snapshot!.awaitingLoopStart
+        : awaitingLoopStartRef.current;
+
+      if (useSnapshot) {
+        taikoVisualSnapshotRef.current = null;
+      }
+
       const preHitIndices = preHitNoteIndicesRef.current || [];
       if (preHitIndices !== lastPreHitRef) rebuildPreHitFlags(preHitIndices);
       
@@ -1545,7 +1566,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         return;
       }
       
-      const currentTime = bgmManager.getCurrentMusicTime();
       const jx = judgeLinePos.x;
       
       // カウントイン中

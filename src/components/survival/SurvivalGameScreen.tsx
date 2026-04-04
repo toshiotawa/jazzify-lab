@@ -847,6 +847,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           renderer.highlightKey(note, active);
         });
       }
+
+      renderer.setTouchActionMode('pan-x');
     }
   }, [settings.noteNameStyle, settings.simpleDisplayMode]);
   

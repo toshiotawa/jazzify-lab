@@ -1436,6 +1436,8 @@ useEffect(() => {
       log.info('✅ MIDIController ↔ PIXIレンダラー連携完了');
     }
 
+    renderer.setTouchActionMode('pan-x');
+
     log.info('🎮 PIXI.js ノーツレンダラー準備完了');
   }, [handlePianoKeyPress, handlePianoKeyRelease, settings.noteNameStyle, settings.simpleDisplayMode, settings.pianoHeight, settings.transpose, settings.transposingInstrument, settings.selectedMidiDevice, settings.practiceGuide]);
   

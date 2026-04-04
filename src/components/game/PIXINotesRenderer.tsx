@@ -210,7 +210,7 @@ export class PIXINotesRendererInstance {
   private pointerStates = new Map<number, PointerState>();
   private onKeyPress?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
   private onKeyRelease?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
-  private touchActionMode: 'pan-x' | 'none' = 'pan-x';
+  private touchActionMode: 'pan-x' | 'none' = 'none';
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
@@ -532,7 +532,11 @@ export class PIXINotesRendererInstance {
 
     private handleTouchStart = (event: TouchEvent): void => {
       if (this.destroyed) return;
-      
+
+      if (this.touchActionMode === 'none') {
+        event.preventDefault();
+      }
+
       const rect = this.canvas.getBoundingClientRect();
       const pointerType = 'touch';
 
@@ -560,6 +564,11 @@ export class PIXINotesRendererInstance {
 
     private handleTouchMove = (event: TouchEvent): void => {
       if (this.destroyed) return;
+
+      if (this.touchActionMode === 'none') {
+        event.preventDefault();
+      }
+
       const rect = this.canvas.getBoundingClientRect();
 
       for (let i = 0; i < event.changedTouches.length; i++) {

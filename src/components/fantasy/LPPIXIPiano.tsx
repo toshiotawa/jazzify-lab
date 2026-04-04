@@ -108,6 +108,8 @@ const LPPIXIPiano: React.FC<LPPIXIPianoProps> = ({
       }
     );
 
+    renderer.setTouchActionMode('pan-x');
+
     // PIXI 初期化後にもセンタリングを複数回試行
     requestAnimationFrame(centerToC4);
     setTimeout(centerToC4, 120);

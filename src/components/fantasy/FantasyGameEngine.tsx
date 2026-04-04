@@ -3,7 +3,7 @@
  * ゲームロジックとステート管理を担当
  */
 
-import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo, startTransition } from 'react';
+import React, { useState, useEffect, useCallback, useReducer, useRef, useMemo, startTransition, type MutableRefObject } from 'react';
 import { devLog } from '@/utils/logger';
 import { resolveChord, resolveInterval, formatIntervalDisplayName, parseScaleName, buildScaleNotes, buildScaleMidiNotes } from '@/utils/chord-utils';
 import { toDisplayChordName, type DisplayOpts } from '@/utils/display-note';
@@ -335,11 +335,23 @@ export interface FantasyGameState {
   combo: number;
 }
 
+/** 太鼓: 入力で確定した音楽時刻・状態を次の描画フレームまで流す（判定時刻と描画時刻の分裂を防ぐ） */
+export interface TaikoVisualSnapshot {
+  expiresAtMs: number;
+  currentTime: number;
+  taikoNotes: TaikoNote[];
+  currentNoteIndex: number;
+  awaitingLoopStart: boolean;
+  taikoLoopCycle: number;
+}
+
 interface FantasyGameEngineProps {
   stage: FantasyStage | null;
   onGameStateChange: (state: FantasyGameState) => void;
   /** 太鼓モード: 入力処理の setState 内で即座に呼び、RAF 表示ループが React コミット前でも最新ノーツ状態を参照できるようにする */
   onTaikoVisualSync?: (state: FantasyGameState) => void;
+  /** 太鼓: runTaikoFrame が bgm 時刻を取り直す前に、入力と同じ currentTime を1〜2フレーム使う */
+  taikoVisualSnapshotRef?: MutableRefObject<TaikoVisualSnapshot | null>;
   // ▼▼▼ 変更点 ▼▼▼
   // monsterId を追加
   onChordCorrect: (chord: ChordDefinition, isSpecial: boolean, damageDealt: number, defeated: boolean, monsterId: string) => void;
@@ -846,6 +858,7 @@ export const useFantasyGameEngine = ({
   stage,
   onGameStateChange,
   onTaikoVisualSync,
+  taikoVisualSnapshotRef,
   onChordCorrect,
   onChordIncorrect,
   onGameComplete,
@@ -3378,6 +3391,16 @@ export const useFantasyGameEngine = ({
       }
 
       gameStateRef.current = nextTaikoState;
+      if (taikoVisualSnapshotRef) {
+        taikoVisualSnapshotRef.current = {
+          expiresAtMs: performance.now() + 48,
+          currentTime: capturedInputMusicTime,
+          taikoNotes: nextTaikoState.taikoNotes,
+          currentNoteIndex: nextTaikoState.currentNoteIndex,
+          awaitingLoopStart: nextTaikoState.awaitingLoopStart,
+          taikoLoopCycle: nextTaikoState.taikoLoopCycle ?? 0,
+        };
+      }
       onTaikoVisualSyncRef.current?.(nextTaikoState);
       reactDirtyRef.current = true;
       return;
