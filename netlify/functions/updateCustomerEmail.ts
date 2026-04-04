@@ -10,6 +10,59 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+/** `lemonsqueezyResolveLink` と同じくストア内メールで顧客 ID を解決 */
+async function resolveLemonCustomerIdByEmail(email: string): Promise<string | null> {
+  const apiKey = process.env.LEMONSQUEEZY_API_KEY;
+  const storeId = process.env.LEMONSQUEEZY_STORE_ID;
+  if (!apiKey || !storeId) return null;
+
+  const url = new URL('https://api.lemonsqueezy.com/v1/customers');
+  url.searchParams.set('filter[store_id]', storeId);
+  url.searchParams.set('filter[email]', email);
+
+  const res = await fetch(url.toString(), {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/vnd.api+json',
+    },
+  });
+  if (!res.ok) return null;
+  const json = await res.json();
+  const first = json?.data?.[0];
+  return first?.id != null ? String(first.id) : null;
+}
+
+/** https://docs.lemonsqueezy.com/api/customers/update-customer */
+async function patchLemonCustomerEmail(customerId: string, newEmail: string): Promise<void> {
+  const apiKey = process.env.LEMONSQUEEZY_API_KEY;
+  if (!apiKey) {
+    throw new Error('LEMONSQUEEZY_API_KEY is not configured');
+  }
+
+  const res = await fetch(`https://api.lemonsqueezy.com/v1/customers/${encodeURIComponent(customerId)}`, {
+    method: 'PATCH',
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      Accept: 'application/vnd.api+json',
+      'Content-Type': 'application/vnd.api+json',
+    },
+    body: JSON.stringify({
+      data: {
+        type: 'customers',
+        id: customerId,
+        attributes: {
+          email: newEmail,
+        },
+      },
+    }),
+  });
+
+  if (!res.ok) {
+    const body = await res.text();
+    throw new Error(`Lemon Squeezy PATCH customer failed (${res.status}): ${body}`);
+  }
+}
+
 export const handler = async (event, _context) => {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -85,10 +138,10 @@ export const handler = async (event, _context) => {
       };
     }
 
-    // ユーザーのプロフィールからStripe Customer IDを取得
+    // ユーザーのプロフィールから課金プロバイダー ID を取得
     const { data: profile, error: profileError } = await supabase
       .from('profiles')
-      .select('stripe_customer_id, email')
+      .select('stripe_customer_id, lemon_customer_id, email')
       .eq('id', user.id)
       .single();
 
@@ -108,7 +161,8 @@ export const handler = async (event, _context) => {
         body: JSON.stringify({ 
           success: true,
           message: 'Email is already up to date',
-          updated_stripe: false
+          updated_stripe: false,
+          updated_lemon: false,
         }),
       };
     }
@@ -134,10 +188,50 @@ export const handler = async (event, _context) => {
       }
     }
 
-    // Supabaseのprofilesテーブルのemailも更新
+    // Lemon Squeezy: 顧客メールを同期（ID 優先、なければ変更前メールで検索）
+    let lemonCustomerId =
+      profile.lemon_customer_id != null && String(profile.lemon_customer_id).trim() !== ''
+        ? String(profile.lemon_customer_id).trim()
+        : null;
+    let updatedLemon = false;
+
+    if (!lemonCustomerId && profile.email) {
+      lemonCustomerId = await resolveLemonCustomerIdByEmail(profile.email);
+    }
+
+    if (lemonCustomerId) {
+      if (!process.env.LEMONSQUEEZY_API_KEY) {
+        console.warn(
+          'Lemon customer id present but LEMONSQUEEZY_API_KEY not set; skipping Lemon email sync',
+        );
+      } else {
+        try {
+          await patchLemonCustomerEmail(lemonCustomerId, newEmail);
+          updatedLemon = true;
+          console.log(`Updated Lemon Squeezy customer ${lemonCustomerId} email to ${newEmail}`);
+        } catch (lemonError) {
+          console.error('Error updating Lemon Squeezy customer email:', lemonError);
+          return {
+            statusCode: 500,
+            headers,
+            body: JSON.stringify({
+              error: 'Failed to update customer email in Lemon Squeezy',
+              details: lemonError instanceof Error ? lemonError.message : String(lemonError),
+            }),
+          };
+        }
+      }
+    }
+
+    // Supabaseのprofilesテーブルのemail（および新規に解決した lemon_customer_id）を更新
+    const profilePatch: { email: string; lemon_customer_id?: string } = { email: newEmail };
+    if (lemonCustomerId && !profile.lemon_customer_id) {
+      profilePatch.lemon_customer_id = lemonCustomerId;
+    }
+
     const { error: updateError } = await supabase
       .from('profiles')
-      .update({ email: newEmail })
+      .update(profilePatch)
       .eq('id', user.id);
 
     if (updateError) {
@@ -157,8 +251,9 @@ export const handler = async (event, _context) => {
       headers,
       body: JSON.stringify({ 
         success: true,
-        message: 'Email updated successfully in both systems',
-        updated_stripe: !!profile.stripe_customer_id
+        message: 'Email updated successfully',
+        updated_stripe: !!profile.stripe_customer_id,
+        updated_lemon: updatedLemon,
       }),
     };
 

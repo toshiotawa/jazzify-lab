@@ -116,6 +116,26 @@ final class SupabaseService: Sendable {
             .execute()
     }
 
+    /// Web の `profiles.update({ nickname })` と同じ経路
+    func updateProfileNickname(userId: UUID, nickname: String) async throws {
+        let trimmed = nickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        struct NicknameUpdate: Encodable {
+            let nickname: String
+        }
+
+        try await client
+            .from("profiles")
+            .update(NicknameUpdate(nickname: trimmed))
+            .eq("id", value: userId.uuidString)
+            .execute()
+    }
+
+    /// Web の `supabase.auth.updateUser({ email })` と同じ経路（確認メール送信）
+    func requestEmailChange(newEmail: String) async throws {
+        let trimmed = newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+        _ = try await client.auth.update(user: .init(email: trimmed))
+    }
+
     // MARK: - Lessons
 
     func fetchCourses() async throws -> [Course] {

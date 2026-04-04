@@ -66,21 +66,30 @@ struct SettingsView: View {
     private var accountSection: some View {
         Section {
             if let profile {
-                HStack {
-                    Text(locale == .ja ? "ニックネーム" : "Nickname")
-                        .foregroundStyle(.gray)
-                    Spacer()
-                    Text(profile.nickname)
-                        .foregroundStyle(.white)
+                NavigationLink {
+                    NicknameEditView(initialNickname: profile.nickname)
+                } label: {
+                    HStack {
+                        Text(locale == .ja ? "ニックネーム" : "Nickname")
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text(profile.nickname)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
                 }
 
-                HStack {
-                    Text(locale == .ja ? "メール" : "Email")
-                        .foregroundStyle(.gray)
-                    Spacer()
-                    Text(profile.email)
-                        .foregroundStyle(.white)
-                        .lineLimit(1)
+                NavigationLink {
+                    EmailEditView(currentEmail: profile.email)
+                } label: {
+                    HStack {
+                        Text(locale == .ja ? "メール" : "Email")
+                            .foregroundStyle(.gray)
+                        Spacer()
+                        Text(profile.email)
+                            .foregroundStyle(.white)
+                            .lineLimit(1)
+                    }
                 }
 
                 HStack {
@@ -275,6 +284,208 @@ struct SettingsView: View {
         isDeleting = false
     }
 
+}
+
+// MARK: - ニックネーム（Web の profiles.update と同じ経路）
+
+private struct NicknameEditView: View {
+    @EnvironmentObject var appState: AppState
+    @Environment(\.dismiss) private var dismiss
+    let initialNickname: String
+    @State private var text: String
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    init(initialNickname: String) {
+        self.initialNickname = initialNickname
+        _text = State(initialValue: initialNickname)
+    }
+
+    private var locale: AppLocale { appState.locale }
+
+    private var trimmed: String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    var body: some View {
+        ZStack {
+            Color(hex: "0f172a").ignoresSafeArea()
+
+            VStack(alignment: .leading, spacing: 16) {
+                Text(locale == .ja ? "ニックネーム" : "Nickname")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+
+                TextField(
+                    locale == .ja ? "1〜20文字" : "1–20 characters",
+                    text: $text
+                )
+                .textContentType(.nickname)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .padding(12)
+                .background(Color(hex: "1e293b"))
+                .cornerRadius(10)
+                .foregroundStyle(.white)
+                .disabled(saving)
+
+                if let errorMessage {
+                    Text(errorMessage)
+                        .font(.caption)
+                        .foregroundStyle(.red)
+                }
+
+                Button {
+                    Task { await save() }
+                } label: {
+                    HStack {
+                        if saving {
+                            ProgressView()
+                                .tint(.white)
+                        }
+                        Text(locale == .ja ? "保存" : "Save")
+                            .fontWeight(.semibold)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background(canSave ? Color.purple : Color(hex: "334155"))
+                    .foregroundStyle(.white)
+                    .cornerRadius(12)
+                }
+                .disabled(!canSave || saving)
+
+                Spacer()
+            }
+            .padding(20)
+        }
+        .navigationTitle(locale == .ja ? "ニックネーム" : "Nickname")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+    }
+
+    private var canSave: Bool {
+        let initial = initialNickname.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmed != initial else { return false }
+        return !trimmed.isEmpty && trimmed.count <= 20
+    }
+
+    private func save() async {
+        errorMessage = nil
+        saving = true
+        let result = await appState.updateNickname(text)
+        saving = false
+        if result.ok {
+            dismiss()
+        } else {
+            errorMessage = result.message
+        }
+    }
+}
+
+// MARK: - メール（Web の auth.updateUser と同じ経路）
+
+private struct EmailEditView: View {
+    @EnvironmentObject var appState: AppState
+    let currentEmail: String
+    @State private var newEmail = ""
+    @State private var sending = false
+    @State private var statusMessage: String?
+    @State private var statusIsError = false
+
+    private var locale: AppLocale { appState.locale }
+
+    private var trimmedNew: String {
+        newEmail.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    private var canSend: Bool {
+        !trimmedNew.isEmpty && trimmedNew != currentEmail
+    }
+
+    var body: some View {
+        ZStack {
+            Color(hex: "0f172a").ignoresSafeArea()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 16) {
+                    Text(locale == .ja ? "現在のメール" : "Current email")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    Text(currentEmail)
+                        .foregroundStyle(.white)
+                        .font(.subheadline)
+                        .lineLimit(3)
+
+                    Text(locale == .ja ? "新しいメールアドレス" : "New email address")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                    TextField(
+                        locale == .ja ? "新しいメールアドレス" : "New email address",
+                        text: $newEmail
+                    )
+                    .textContentType(.emailAddress)
+                    .keyboardType(.emailAddress)
+                    .textInputAutocapitalization(.never)
+                    .autocorrectionDisabled()
+                    .padding(12)
+                    .background(Color(hex: "1e293b"))
+                    .cornerRadius(10)
+                    .foregroundStyle(.white)
+                    .disabled(sending)
+
+                    if let statusMessage {
+                        Text(statusMessage)
+                            .font(.caption)
+                            .foregroundStyle(statusIsError ? Color.red : Color.green)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    Button {
+                        Task { await send() }
+                    } label: {
+                        HStack {
+                            if sending {
+                                ProgressView()
+                                    .tint(.white)
+                            }
+                            Text(locale == .ja ? "確認メールを送信" : "Send confirmation email")
+                                .fontWeight(.semibold)
+                        }
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 14)
+                        .background(canSend ? Color.purple : Color(hex: "334155"))
+                        .foregroundStyle(.white)
+                        .cornerRadius(12)
+                    }
+                    .disabled(!canSend || sending)
+
+                    Text(locale == .ja
+                         ? "メール内のリンクから変更を完了してください（ウェブと同じ手順です）。"
+                         : "Complete the change using the link in the email (same flow as the web app).")
+                        .font(.caption2)
+                        .foregroundStyle(.gray)
+                }
+                .padding(20)
+            }
+        }
+        .navigationTitle(locale == .ja ? "メール変更" : "Change email")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbarColorScheme(.dark, for: .navigationBar)
+        .toolbarBackground(Color(hex: "0f172a"), for: .navigationBar)
+    }
+
+    private func send() async {
+        statusMessage = nil
+        sending = true
+        let result = await appState.requestEmailChange(newEmail)
+        sending = false
+        statusIsError = !result.ok
+        statusMessage = result.message
+        if result.ok {
+            newEmail = ""
+        }
+    }
 }
 
 struct MIDISettingsView: View {

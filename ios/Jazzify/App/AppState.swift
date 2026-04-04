@@ -202,6 +202,67 @@ final class AppState: ObservableObject {
         try? await supabase.updatePreferredLocale(userId: userId, locale: newLocale)
     }
 
+    /// Web の `updateNickname`（profiles 更新）と同じ
+    func updateNickname(_ raw: String) async -> (ok: Bool, message: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return (false, locale == .ja ? "ニックネームを入力してください" : "Please enter a nickname.")
+        }
+        if trimmed.count > 20 {
+            return (false, locale == .ja ? "ニックネームは1〜20文字で入力してください" : "Nickname must be 1–20 characters.")
+        }
+        guard let userId = profile?.id else {
+            return (false, locale == .ja ? "ログインが必要です" : "Please sign in.")
+        }
+        if trimmed == profile?.nickname {
+            return (true, "")
+        }
+
+        do {
+            try await supabase.updateProfileNickname(userId: userId, nickname: trimmed)
+            if var p = profile {
+                p.nickname = trimmed
+                self.profile = p
+            }
+            let msg = locale == .ja ? "ニックネームを更新しました" : "Nickname updated"
+            return (true, msg)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    /// Web の `updateEmail`（`auth.updateUser({ email })`）と同じ
+    func requestEmailChange(_ raw: String) async -> (ok: Bool, message: String) {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            return (false, locale == .ja ? "メールアドレスを入力してください" : "Please enter an email address.")
+        }
+        if !Self.isValidEmailFormat(trimmed) {
+            return (false, locale == .ja ? "有効なメールアドレスを入力してください" : "Please enter a valid email address.")
+        }
+        guard let current = profile?.email else {
+            return (false, locale == .ja ? "ログインが必要です" : "Please sign in.")
+        }
+        if trimmed == current {
+            return (false, locale == .ja ? "現在のメールアドレスと同じです" : "Same as your current email.")
+        }
+
+        do {
+            try await supabase.requestEmailChange(newEmail: trimmed)
+            let msg = locale == .ja
+                ? "\(trimmed) に確認メールを送信しました。メール内のリンクをクリックして変更を完了してください。"
+                : "We sent a confirmation email to \(trimmed). Tap the link in the email to complete the change."
+            return (true, msg)
+        } catch {
+            return (false, error.localizedDescription)
+        }
+    }
+
+    private static func isValidEmailFormat(_ value: String) -> Bool {
+        let pattern = "^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$"
+        return value.range(of: pattern, options: .regularExpression) != nil
+    }
+
     var isPremium: Bool {
         if let billing = billingStatus {
             if let endsAt = billing.currentPeriodEndsAt,
