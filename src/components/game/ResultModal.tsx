@@ -3,9 +3,11 @@ import { useGameSelector, useGameActions } from '@/stores/helpers';
 import { useLessonContext } from '@/stores/gameStore';
 import { updateLessonRequirementProgress, fetchLessonRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/fa';
 import { log } from '@/utils/logger';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -23,8 +25,13 @@ const ResultModal: React.FC = () => {
   } = useGameActions();
 
   const { profile, fetchProfile } = useAuthStore();
-  const lessonContext = useLessonContext();
-  const { todayKey, resetLabel } = useUtcResetInfo(false);
+  const geoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
+  const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
 
   const [lessonRequirementSuccess, setLessonRequirementSuccess] = useState<boolean | null>(null);
   const [clearStats, setClearStats] = useState<{current: number; goal: number} | null>(null);
@@ -235,27 +242,39 @@ const ResultModal: React.FC = () => {
                 {lessonRequirementSuccess ? (
                   <>
                     <FaCheckCircle className="text-emerald-400" />
-                    課題条件クリア！
+                    {isEnglishCopy ? 'Task conditions cleared!' : '課題条件クリア！'}
                   </>
                 ) : (
                   <>
                     <FaTimesCircle className="text-red-400" />
-                    課題条件未達成
+                    {isEnglishCopy ? 'Task conditions not met' : '課題条件未達成'}
                   </>
                 )}
               </div>
               <div className="text-sm text-gray-300">
-                <div>必要条件:</div>
+                <div>{isEnglishCopy ? 'Requirements:' : '必要条件:'}</div>
                 <div className="mt-1">
-                  ランク: {lessonContext.clearConditions.rank}以上
-                  {lessonContext.clearConditions.speed && ` / 速度: ${lessonContext.clearConditions.speed}倍以上`}
-                  {lessonContext.clearConditions.key !== undefined && ` / キー: ${lessonContext.clearConditions.key > 0 ? '+' : ''}${lessonContext.clearConditions.key}`}
+                  {isEnglishCopy
+                    ? `Rank: ${lessonContext.clearConditions.rank} or higher`
+                    : `ランク: ${lessonContext.clearConditions.rank}以上`}
+                  {lessonContext.clearConditions.speed &&
+                    (isEnglishCopy
+                      ? ` / Speed: ${lessonContext.clearConditions.speed}x or faster`
+                      : ` / 速度: ${lessonContext.clearConditions.speed}倍以上`)}
+                  {lessonContext.clearConditions.key !== undefined &&
+                    (isEnglishCopy
+                      ? ` / Key: ${lessonContext.clearConditions.key > 0 ? '+' : ''}${lessonContext.clearConditions.key}`
+                      : ` / キー: ${lessonContext.clearConditions.key > 0 ? '+' : ''}${lessonContext.clearConditions.key}`)}
                 </div>
                 {(lessonContext.clearConditions.count || 1) > 1 && (
                   <div className="mt-1 text-xs">
-                    {lessonContext.clearConditions.requires_days 
-                      ? `${lessonContext.clearConditions.count}日間クリアが必要${lessonContext.clearConditions.daily_count ? ` (${lessonContext.clearConditions.daily_count}回/日)` : ''}`
-                      : `${lessonContext.clearConditions.count}回クリアが必要`}
+                    {lessonContext.clearConditions.requires_days
+                      ? isEnglishCopy
+                        ? `Need clears on ${lessonContext.clearConditions.count} separate day(s)${lessonContext.clearConditions.daily_count ? ` (${lessonContext.clearConditions.daily_count} per day)` : ''}`
+                        : `${lessonContext.clearConditions.count}日間クリアが必要${lessonContext.clearConditions.daily_count ? ` (${lessonContext.clearConditions.daily_count}回/日)` : ''}`
+                      : isEnglishCopy
+                        ? `Need ${lessonContext.clearConditions.count} clear(s)`
+                        : `${lessonContext.clearConditions.count}回クリアが必要`}
                   </div>
                 )}
               </div>
@@ -267,25 +286,38 @@ const ResultModal: React.FC = () => {
           <div className="px-4 sm:px-6 py-2">
             <div className="text-center p-3 rounded-lg bg-slate-800/50 border border-slate-600">
               <div className="text-sm font-medium text-gray-300 mb-1">
-                {lessonContext?.clearConditions.requires_days ? 'クリア日数' : 'クリア回数'}
-                {dailyInfo && ` (${dailyInfo.dailyRequired}回/日)`}
+                {lessonContext?.clearConditions.requires_days
+                  ? (isEnglishCopy ? 'Days cleared' : 'クリア日数')
+                  : (isEnglishCopy ? 'Clears' : 'クリア回数')}
+                {dailyInfo &&
+                  (isEnglishCopy
+                    ? ` (${dailyInfo.dailyRequired} per day)`
+                    : ` (${dailyInfo.dailyRequired}回/日)`)}
               </div>
               <div className="text-lg font-bold text-blue-400">
                 {clearStats.current} / {clearStats.goal}
-                {lessonContext?.clearConditions.requires_days ? '日' : '回'}
+                {lessonContext?.clearConditions.requires_days
+                  ? (isEnglishCopy ? ' days' : '日')
+                  : (isEnglishCopy ? ' clears' : '回')}
               </div>
               {dailyInfo && !dailyInfo.isCompleted && (
                 <div className="mt-1">
                   {dailyInfo.todayCompleted ? (
                     <div className="space-y-1">
-                      <span className="block text-xs text-emerald-400">✅ 本日の課題: クリア済み</span>
+                      <span className="block text-xs text-emerald-400">
+                        ✅ {isEnglishCopy ? "Today's goal: Cleared" : '本日の課題: クリア済み'}
+                      </span>
                       <span className="block text-xs text-gray-400">⏳ {resetLabel}</span>
                     </div>
                   ) : (
                     <div className="space-y-1">
                       <span className="block text-xs text-yellow-300">
-                        📅 本日: {dailyInfo.todayCount}/{dailyInfo.dailyRequired}回
-                        {dailyInfo.todayCount > 0 && ` (あと${dailyInfo.dailyRequired - dailyInfo.todayCount}回)`}
+                        📅 {isEnglishCopy ? 'Today' : '本日'}: {dailyInfo.todayCount}/{dailyInfo.dailyRequired}
+                        {isEnglishCopy ? ' clears' : '回'}
+                        {dailyInfo.todayCount > 0 &&
+                          (isEnglishCopy
+                            ? ` (${dailyInfo.dailyRequired - dailyInfo.todayCount} more needed)`
+                            : ` (あと${dailyInfo.dailyRequired - dailyInfo.todayCount}回)`)}
                       </span>
                       <span className="block text-xs text-gray-400">⏳ {resetLabel}</span>
                     </div>
@@ -295,7 +327,7 @@ const ResultModal: React.FC = () => {
               {(dailyInfo?.isCompleted || clearStats.current >= clearStats.goal) && (
                 <div className="text-xs text-emerald-400 mt-1 flex items-center justify-center gap-1">
                   <FaAward className="text-emerald-400" />
-                  目標達成！
+                  {isEnglishCopy ? 'Goal reached!' : '目標達成！'}
                 </div>
               )}
             </div>
@@ -327,7 +359,7 @@ const ResultModal: React.FC = () => {
           {/* 精度バー */}
           <div className="mb-6">
             <div className="flex justify-between text-xs text-gray-400 mb-1">
-              <span>精度</span>
+              <span>{isEnglishCopy ? 'Accuracy' : '精度'}</span>
               <span>{Math.round(score.accuracy * 100)}%</span>
             </div>
             <div className="h-2 bg-gray-700 rounded-full overflow-hidden">
@@ -341,11 +373,11 @@ const ResultModal: React.FC = () => {
           {/* 設定情報 */}
           <div className="grid grid-cols-2 gap-2 text-sm text-gray-300 mb-6">
             <div className="flex justify-between">
-              <span className="text-gray-500">再生速度:</span>
+              <span className="text-gray-500">{isEnglishCopy ? 'Playback speed:' : '再生速度:'}</span>
               <span className="font-mono">{settings.playbackSpeed}x</span>
             </div>
             <div className="flex justify-between">
-              <span className="text-gray-500">移調:</span>
+              <span className="text-gray-500">{isEnglishCopy ? 'Transpose:' : '移調:'}</span>
               <span className="font-mono">{settings.transpose > 0 ? `+${settings.transpose}` : settings.transpose}</span>
             </div>
           </div>
@@ -356,13 +388,13 @@ const ResultModal: React.FC = () => {
               onClick={handleRetry} 
               className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
-              <span>もう一度</span>
+              <span>{isEnglishCopy ? 'Retry' : 'もう一度'}</span>
             </button>
             <button 
               onClick={handleChooseSong} 
               className="control-btn control-btn-secondary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
-              <span>曲選択</span>
+              <span>{isEnglishCopy ? 'Song list' : '曲選択'}</span>
             </button>
             {lessonContext && (
               <button 
@@ -376,7 +408,7 @@ const ResultModal: React.FC = () => {
                 className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
               >
                 <FaArrowLeft />
-                <span>レッスンに戻る</span>
+                <span>{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</span>
               </button>
             )}
           </div>

@@ -969,7 +969,9 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
                 : 'bg-red-900/30 border-red-500'
             }`}>
               <div className="text-lg font-bold mb-2">
-                {lessonClearResult.success ? '✅ 課題条件クリア！' : '❌ 課題条件未達成'}
+                {lessonClearResult.success
+                  ? (isEnglishCopy ? '✅ Task conditions cleared!' : '✅ 課題条件クリア！')
+                  : (isEnglishCopy ? '❌ Task conditions not met' : '❌ 課題条件未達成')}
               </div>
               {lessonContext?.clearConditions.rank && (
                 <div className="text-sm text-gray-300">
