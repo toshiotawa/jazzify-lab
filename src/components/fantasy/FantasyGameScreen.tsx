@@ -549,6 +549,21 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     });
   }, []);
 
+  const shiftPianoOctave = useCallback((direction: -1 | 1) => {
+    const container = pianoScrollRef.current;
+    if (!container) return;
+    const TOTAL_WHITE_KEYS = 52;
+    const whiteKeyWidth = container.scrollWidth / TOTAL_WHITE_KEYS;
+    const octavePixels = whiteKeyWidth * 7;
+    const maxScroll = Math.max(0, container.scrollWidth - container.clientWidth);
+    const target = Math.max(0, Math.min(maxScroll, container.scrollLeft + direction * octavePixels));
+    isProgrammaticScrollRef.current = true;
+    container.scrollLeft = target;
+    requestAnimationFrame(() => {
+      isProgrammaticScrollRef.current = false;
+    });
+  }, []);
+
   useEffect(() => {
     // Run after initial mount/layout
     const raf = requestAnimationFrame(centerPianoC4);
@@ -609,7 +624,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         const parts = id.split('/');
         if (parts[1]) bassToPlay = parts[1];
       }
-      FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+      queueMicrotask(() => {
+        FantasySoundManager.playRootNote(bassToPlay).catch(() => {});
+      });
     }
   }, [fantasyPixiInstance, stage?.playRootOnCorrect]);
   
@@ -618,16 +635,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, []);
   
   const handleEnemyAttack = useCallback((_attackingMonsterId?: string) => {
-    // 🚀 パフォーマンス最適化: 敵の攻撃音を同期的に再生（動的インポート不要）
     if (stage.mode === 'single' || stage.mode === 'single_order') {
-      FantasySoundManager.playEnemyAttack();
+      queueMicrotask(() => FantasySoundManager.playEnemyAttack());
     }
     
-    // ダメージ時の画面振動
     setDamageShake(true);
     setTimeout(() => setDamageShake(false), 500);
     
-    // ハートフラッシュ効果
     setHeartFlash(true);
     setTimeout(() => setHeartFlash(false), 150);
     
@@ -1069,6 +1083,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     await bgmManager.ensureContextRunningAsync();
     FantasySoundManager.unlock().catch(() => {});
     FantasySoundManager.ensureContextsRunning();
+    audioUnlockedRef.current = true;
 
     if (!isInitialized && initPromiseRef.current) {
       await initPromiseRef.current;
@@ -1182,32 +1197,33 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
-  // 🚀 パフォーマンス最適化: 動的インポートを完全に削除
-  const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'midi' = 'mouse') => {
+  const audioUnlockedRef = useRef(false);
+  const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'touch' | 'midi' = 'mouse') => {
     const inputTimestampMs = performance.now();
 
-    // 高速化: AudioContext が停止している場合のみ再開を試みる (非同期実行)
-    if ((window as any).Tone?.context?.state !== 'running') {
-       (window as any).Tone?.start?.().catch(() => {});
+    // startGame で unlock 済みなら Tone.start / unlock を毎入力で叩かない
+    if (!audioUnlockedRef.current) {
+      if ((window as any).Tone?.context?.state !== 'running') {
+        (window as any).Tone?.start?.().catch(() => {});
+      }
     }
 
-    // マウスクリック時のみ重複チェック（MIDI経由ではスキップしない）
-    if (source === 'mouse' && activeNotesRef.current.has(note)) {
+    const isScreen = source === 'mouse' || source === 'touch';
+
+    if (isScreen && activeNotesRef.current.has(note)) {
       return;
     }
     
-    // 判定を最優先にするため、先にゲームエンジンへ入力を渡す
     engineHandleNoteInput(note, inputTimestampMs);
 
-    // クリック時にも音声を再生（静的インポート済みのplayNote使用）
-    if (source === 'mouse') {
+    if (isScreen) {
       activeNotesRef.current.add(note);
-      // fire-and-forget で呼び出し
       playNote(note, 64).catch(() => {});
     }
     
-    // FantasySoundManagerのアンロックは低優先度で実行（静的インポート済み）
-    if (source === 'mouse') {
+    // 未 unlock 時だけ低優先度で解放を試みる
+    if (isScreen && !audioUnlockedRef.current) {
+      audioUnlockedRef.current = true;
       setTimeout(() => {
         FantasySoundManager.unlock().catch(() => {});
       }, 0);
@@ -1274,14 +1290,12 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         requestAnimationFrame(centerPianoC4);
       });
       
-      // キーボードのクリックイベントを接続
-      // 🚀 パフォーマンス最適化: 動的インポートを削除
+      renderer.setTouchActionMode('none');
       renderer.setKeyCallbacks(
-        (note: number) => {
-          handleNoteInputBridge(note, 'mouse'); // マウスクリックとして扱う
+        (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => {
+          handleNoteInputBridge(note, pointerKind === 'pen' ? 'touch' : pointerKind);
         },
         (note: number) => {
-          // マウスリリース時に音を止める（静的インポート済み）
           stopNote(note);
           activeNotesRef.current.delete(note);
         }
@@ -2505,35 +2519,49 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
           }
           
           if (needsScroll) {
-            // スクロールが必要な場合
             return (
-              <div 
-                className="absolute inset-0 overflow-x-auto overflow-y-hidden touch-pan-x custom-game-scrollbar" 
-                style={{ 
-                  WebkitOverflowScrolling: 'touch',
-                  scrollSnapType: 'none',
-                  scrollBehavior: 'auto',
-                  width: '100%',
-                  touchAction: 'pan-x', // 横スクロールのみを許可
-                  overscrollBehavior: 'contain' // スクロールの境界を制限
-                }}
-                onScroll={handlePianoScroll}
-                ref={(el) => {
-                  pianoScrollRef.current = el;
-                  if (el) {
-                    requestAnimationFrame(() => {
-                      requestAnimationFrame(centerPianoC4);
-                    });
-                  }
-                }}
-              >
-              <PIXINotesRenderer
-                width={pixiWidth}
-                height={120} // ★★★ 高さを120に固定 ★★★
-                onReady={handlePixiReady}
-                className="w-full h-full"
-              />
-              </div>
+              <>
+                <div 
+                  className="absolute inset-0 overflow-x-scroll overflow-y-hidden scrollbar-hidden"
+                  style={{ touchAction: 'none' }}
+                  ref={(el) => {
+                    pianoScrollRef.current = el;
+                    if (el) {
+                      requestAnimationFrame(() => {
+                        requestAnimationFrame(centerPianoC4);
+                      });
+                    }
+                  }}
+                >
+                  <div style={{ width: pixiWidth, height: '100%' }}>
+                    <PIXINotesRenderer
+                      width={pixiWidth}
+                      height={120}
+                      onReady={handlePixiReady}
+                      className="w-full h-full"
+                    />
+                  </div>
+                </div>
+                {/* オクターブシフトボタン（ピアノ左上） */}
+                <div className="absolute top-0 left-1 z-10 flex items-center gap-0.5 pointer-events-auto" style={{ height: '28px' }}>
+                  <button
+                    type="button"
+                    aria-label="1 octave left"
+                    onPointerDown={(e) => { e.stopPropagation(); shiftPianoOctave(-1); }}
+                    className="w-7 h-7 flex items-center justify-center rounded bg-black/60 text-white/80 text-sm active:bg-white/20 select-none"
+                  >
+                    ‹
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="1 octave right"
+                    onPointerDown={(e) => { e.stopPropagation(); shiftPianoOctave(1); }}
+                    className="w-7 h-7 flex items-center justify-center rounded bg-black/60 text-white/80 text-sm active:bg-white/20 select-none"
+                  >
+                    ›
+                  </button>
+                </div>
+              </>
             );
           } else {
             // スクロールが不要な場合（全画面表示）

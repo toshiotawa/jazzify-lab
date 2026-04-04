@@ -60,6 +60,14 @@
     scrollbar-color: #6b7280 #1f2937;
   }
   
+  .scrollbar-hidden {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none;
+  }
+
   .custom-game-scrollbar::-webkit-scrollbar {
     width: 10px;
     height: 14px;

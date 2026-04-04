@@ -208,8 +208,9 @@ export class PIXINotesRendererInstance {
   private guideHighlightedKeys = new Set<number>();
   private correctHighlightedKeys = new Set<number>(); // 正解済み鍵盤（赤色で保持）
   private pointerStates = new Map<number, PointerState>();
-  private onKeyPress?: (note: number) => void;
-  private onKeyRelease?: (note: number) => void;
+  private onKeyPress?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
+  private onKeyRelease?: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void;
+  private touchActionMode: 'pan-x' | 'none' = 'pan-x';
   private backgroundCanvas: HTMLCanvasElement | null = null;
   private backgroundNeedsUpdate = true;
   private chordText = '';
@@ -301,9 +302,17 @@ export class PIXINotesRendererInstance {
     this.requestRender();
   }
 
-  setKeyCallbacks(onPress: (note: number) => void, onRelease: (note: number) => void): void {
+  setKeyCallbacks(
+    onPress: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void,
+    onRelease: (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => void
+  ): void {
     this.onKeyPress = onPress;
     this.onKeyRelease = onRelease;
+  }
+
+  setTouchActionMode(mode: 'pan-x' | 'none'): void {
+    this.touchActionMode = mode;
+    this.canvas.style.touchAction = mode === 'none' ? 'none' : 'pan-x pinch-zoom';
   }
 
   highlightKey(midiNote: number, active: boolean): void {
@@ -500,7 +509,7 @@ export class PIXINotesRendererInstance {
     this.canvas.addEventListener('pointercancel', this.handlePointerUp);
     this.canvas.addEventListener('pointerleave', this.handlePointerUp);
     this.canvas.addEventListener('contextmenu', this.preventContextMenu);
-    this.canvas.style.touchAction = 'pan-x pinch-zoom';
+    this.canvas.style.touchAction = this.touchActionMode === 'none' ? 'none' : 'pan-x pinch-zoom';
   }
 
   private detachEvents(): void {
@@ -523,8 +532,6 @@ export class PIXINotesRendererInstance {
 
     private handleTouchStart = (event: TouchEvent): void => {
       if (this.destroyed) return;
-      // スクロール判定は touchmove で行うため、ここでは preventDefault しない
-      // ただし、PointerEvent との重複を防ぐため、PointerEvent 側で touch を無視する
       
       const rect = this.canvas.getBoundingClientRect();
       const pointerType = 'touch';
@@ -543,11 +550,10 @@ export class PIXINotesRendererInstance {
           isScrolling: false
         };
         
-        // Touch.identifier をキーとして使用
         this.pointerStates.set(touch.identifier, state);
         
         if (midi !== null) {
-          this.triggerKeyPress(midi);
+          this.triggerKeyPress(midi, 'touch');
         }
       }
     };
@@ -561,27 +567,19 @@ export class PIXINotesRendererInstance {
         const state = this.pointerStates.get(touch.identifier);
         
         if (!state) continue;
-        
-        // スクロール判定
         if (state.isScrolling) continue;
         
         const deltaX = touch.clientX - state.startX;
         const deltaY = touch.clientY - state.startY;
         
-        // 横方向への動きが大きい場合はスクロールとみなす
         if (Math.abs(deltaX) > 10 && Math.abs(deltaX) > Math.abs(deltaY)) {
            if (state.midi !== null) {
-             this.triggerKeyRelease(state.midi);
+             this.triggerKeyRelease(state.midi, 'touch');
              state.midi = null;
            }
            state.isScrolling = true;
            continue;
         }
-        
-        // 縦方向の動きなど、スクロールでない場合は preventDefault してブラウザ動作を抑制（リフレッシュなど）
-        // ただし pan-x なので横スクロールはブラウザが処理するはず
-        // ここで preventDefault すると横スクロールも止まる可能性があるので注意
-        // event.preventDefault(); // ここではしない
 
         const x = ((touch.clientX - rect.left) / rect.width) * this.width;
         const y = ((touch.clientY - rect.top) / rect.height) * this.height;
@@ -592,11 +590,11 @@ export class PIXINotesRendererInstance {
         }
         
         if (state.midi !== null) {
-          this.triggerKeyRelease(state.midi);
+          this.triggerKeyRelease(state.midi, 'touch');
         }
         
         state.midi = nextMidi;
-        this.triggerKeyPress(nextMidi);
+        this.triggerKeyPress(nextMidi, 'touch');
       }
     };
 
@@ -609,7 +607,7 @@ export class PIXINotesRendererInstance {
         
         if (state) {
           if (state.midi !== null) {
-            this.triggerKeyRelease(state.midi);
+            this.triggerKeyRelease(state.midi, 'touch');
           }
           this.pointerStates.delete(touch.identifier);
         }
@@ -618,11 +616,11 @@ export class PIXINotesRendererInstance {
 
     private handlePointerDown = (event: PointerEvent): void => {
       if (this.destroyed) return;
-      // タッチイベントは handleTouchStart で処理済みのため無視
       if (event.pointerType === 'touch') return;
 
       const midi = this.hitTest(event);
       const pointerType = event.pointerType || 'mouse';
+      const kind: 'mouse' | 'touch' | 'pen' = pointerType === 'pen' ? 'pen' : 'mouse';
       const state: PointerState = {
         midi,
         pointerType,
@@ -632,14 +630,12 @@ export class PIXINotesRendererInstance {
       };
       this.pointerStates.set(event.pointerId, state);
       if (midi !== null) {
-        if (pointerType !== 'touch') {
-          try {
-            this.canvas.setPointerCapture(event.pointerId);
-          } catch {
-            // ignore
-          }
+        try {
+          this.canvas.setPointerCapture(event.pointerId);
+        } catch {
+          // ignore
         }
-        this.triggerKeyPress(midi);
+        this.triggerKeyPress(midi, kind);
       }
     };
 
@@ -655,22 +651,23 @@ export class PIXINotesRendererInstance {
         const horizontalSwipe = Math.abs(deltaX) > 8 && Math.abs(deltaX) > Math.abs(deltaY);
         if (horizontalSwipe) {
           if (state.midi !== null) {
-            this.triggerKeyRelease(state.midi);
+            this.triggerKeyRelease(state.midi, 'touch');
             state.midi = null;
           }
           state.isScrolling = true;
         }
         return;
       }
+      const kind: 'mouse' | 'touch' | 'pen' = state.pointerType === 'pen' ? 'pen' : 'mouse';
       const nextMidi = this.hitTest(event);
       if (nextMidi === null || nextMidi === state.midi) {
         return;
       }
       if (state.midi !== null) {
-        this.triggerKeyRelease(state.midi);
+        this.triggerKeyRelease(state.midi, kind);
       }
       state.midi = nextMidi;
-      this.triggerKeyPress(nextMidi);
+      this.triggerKeyPress(nextMidi, kind);
     };
 
     private handlePointerUp = (event: PointerEvent): void => {
@@ -678,8 +675,9 @@ export class PIXINotesRendererInstance {
       if (!state) {
         return;
       }
+      const kind: 'mouse' | 'touch' | 'pen' = state.pointerType === 'touch' ? 'touch' : state.pointerType === 'pen' ? 'pen' : 'mouse';
       if (state.midi !== null) {
-        this.triggerKeyRelease(state.midi);
+        this.triggerKeyRelease(state.midi, kind);
       }
       if (state.pointerType !== 'touch') {
         try {
@@ -691,14 +689,14 @@ export class PIXINotesRendererInstance {
       this.pointerStates.delete(event.pointerId);
     };
 
-  private triggerKeyPress(midi: number): void {
+  private triggerKeyPress(midi: number, pointerKind: 'mouse' | 'touch' | 'pen' = 'mouse'): void {
     this.highlightKey(midi, true);
-    this.onKeyPress?.(midi);
+    this.onKeyPress?.(midi, pointerKind);
   }
 
-  private triggerKeyRelease(midi: number): void {
+  private triggerKeyRelease(midi: number, pointerKind: 'mouse' | 'touch' | 'pen' = 'mouse'): void {
     this.highlightKey(midi, false);
-    this.onKeyRelease?.(midi);
+    this.onKeyRelease?.(midi, pointerKind);
   }
 
   private hitTest(event: PointerEvent): number | null {
