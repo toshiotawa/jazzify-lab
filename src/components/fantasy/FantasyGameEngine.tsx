@@ -1735,9 +1735,14 @@ export const useFantasyGameEngine = ({
     bgmManager.stop();
 
     // 新しいステージ定義から値を取得
-    const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : stage.enemyCount;
-    const enemyHp = stage.enemyHp;
-    const totalQuestions = playMode === 'practice' ? Number.POSITIVE_INFINITY : totalEnemies * enemyHp;
+    // 挑戦モードで enemy_count / enemy_hp が 0 または欠落すると totalQuestions===0 になり、
+    // handleEnemyAttack 内で correctAnswers>=totalQuestions が 0>=0 となり即クリア音が鳴る。
+    const challengeEnemyCount = Math.max(1, Math.floor(Number(stage.enemyCount)) || 1);
+    const enemyHp = Math.max(1, Math.floor(Number(stage.enemyHp)) || 1);
+    const totalEnemies = playMode === 'practice' ? Number.POSITIVE_INFINITY : challengeEnemyCount;
+    const totalQuestions = playMode === 'practice'
+      ? Number.POSITIVE_INFINITY
+      : Math.max(1, challengeEnemyCount * enemyHp);
     const simultaneousCount = (stage.mode.startsWith('progression') || stage.mode === 'timing_combining') ? 1 : (stage.simultaneousMonsterCount || 1);
 
     // single_orderモード用: インデックスを初期化
@@ -1751,7 +1756,7 @@ export const useFantasyGameEngine = ({
         // 無限湧きのため、固定長のバッチだけ確保（以降はフォールバックのランダムでもOK）
         return getStageMonsterIds(PRACTICE_QUEUE_BATCH_SIZE);
       }
-      return getStageMonsterIds(stage.enemyCount);
+      return getStageMonsterIds(challengeEnemyCount);
     })();
     setStageMonsterIds(monsterIds);
 
@@ -1816,7 +1821,7 @@ export const useFantasyGameEngine = ({
     const monsterQueue = playMode === 'practice'
       ? createPracticeQueueBatch(PRACTICE_QUEUE_BATCH_SIZE)
       : (() => {
-          const monsterIndices = Array.from({ length: stage.enemyCount }, (_, i) => i);
+          const monsterIndices = Array.from({ length: challengeEnemyCount }, (_, i) => i);
           for (let i = monsterIndices.length - 1; i > 0; i--) {
             const j = Math.floor(Math.random() * (i + 1));
             [monsterIndices[i], monsterIndices[j]] = [monsterIndices[j], monsterIndices[i]];
@@ -2396,7 +2401,10 @@ export const useFantasyGameEngine = ({
         return finalState;
         } else {
           // HP減少して次の問題へ（回答数ベース、ループ対応）
-          const isComplete = prevState.correctAnswers >= prevState.totalQuestions;
+          // totalQuestions===0 のときは 0>=0 で誤クリアしないようガード
+          const isComplete =
+            prevState.totalQuestions > 0 &&
+            prevState.correctAnswers >= prevState.totalQuestions;
           
           if (isComplete) {
             // 必要な回答数に到達済みでHP残りありならクリア
