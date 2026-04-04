@@ -29,6 +29,7 @@ import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import { getWindow } from '@/platform';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -1230,7 +1231,10 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     if (isScreen) {
       activeNotesRef.current.add(note);
-      playNote(note, 64).catch(() => {});
+      // メインスレッドをすぐ返し、次タスクで発音（WebKit でタッチと rAF の詰まりを軽減）
+      getWindow().setTimeout(() => {
+        playNote(note, 64).catch(() => {});
+      }, 0);
     }
     
     // 未 unlock 時だけ低優先度で解放を試みる
@@ -1302,7 +1306,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         requestAnimationFrame(centerPianoC4);
       });
       
-      renderer.setTouchActionMode('none');
+      {
+        const ua = getWindow().navigator.userAgent;
+        const isWebKitTouchHeavy =
+          /AppleWebKit\//.test(ua) &&
+          !/Chrome\/|Chromium\/|Edg\/|OPR\/|CriOS|FxiOS/.test(ua);
+        renderer.setTouchActionMode(isWebKitTouchHeavy ? 'pan-x' : 'none');
+      }
       renderer.setKeyCallbacks(
         (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => {
           handleNoteInputBridge(note, pointerKind === 'pen' ? 'touch' : pointerKind);

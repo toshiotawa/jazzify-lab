@@ -1360,9 +1360,12 @@ export const useFantasyGameEngine = ({
       }
     }
     
-    // 移調設定がある場合、次のループの移調後のノーツを事前計算
-    let nextLoopTransposedNotes: TaikoNote[] | null = null;
-    if (workingState.transposeSettings && workingState.originalTaikoNotes.length > 0) {
+    // 移調: 次ループ先読みノーツ判定が必要になったときだけ transpose（毎入力の全譜面コピーを避ける）
+    // （let + クロージャ代入だと TS が型を追跡できず never になるため ref オブジェクトに保持）
+    const nextLoopTransposeRef: { notes: TaikoNote[] | null } = { notes: null };
+    const ensureNextLoopTransposedNotes = (): void => {
+      if (nextLoopTransposeRef.notes !== null) return;
+      if (!workingState.transposeSettings || workingState.originalTaikoNotes.length === 0) return;
       const nextLoopCycle = (workingState.taikoLoopCycle ?? 0) + 1;
       const nextTransposeOffset = calculateTransposeOffset(
         workingState.transposeSettings.keyOffset,
@@ -1370,8 +1373,8 @@ export const useFantasyGameEngine = ({
         workingState.transposeSettings.repeatKeyChange
       );
       const simpleMode = displayOpts?.simple ?? true;
-      nextLoopTransposedNotes = transposeTaikoNotes(workingState.originalTaikoNotes, nextTransposeOffset, simpleMode);
-    }
+      nextLoopTransposeRef.notes = transposeTaikoNotes(workingState.originalTaikoNotes, nextTransposeOffset, simpleMode);
+    };
 
     let chosen: {
       i: number;
@@ -1403,10 +1406,19 @@ export const useFantasyGameEngine = ({
         effectiveHitTime = n.hitTime + loopDuration;
       }
 
+      if (isNextLoopNote && workingState.transposeSettings && workingState.originalTaikoNotes.length > 0) {
+        ensureNextLoopTransposedNotes();
+      }
+
       // 移調ループの場合、次のループのノーツは移調後のコードを使用
       let chordNotes = n.chord.notes;
-      if (isNextLoopNote && nextLoopTransposedNotes && nextLoopTransposedNotes[i]) {
-        chordNotes = nextLoopTransposedNotes[i].chord.notes;
+      const nlRow: TaikoNote | undefined =
+        isNextLoopNote && nextLoopTransposeRef.notes !== null
+          ? nextLoopTransposeRef.notes[i]
+          : undefined;
+      const transposedAtCandidate = nlRow;
+      if (isNextLoopNote && transposedAtCandidate !== undefined) {
+        chordNotes = transposedAtCandidate.chord.notes;
       }
 
       // 毎入力で Set を作らず、直接 mod12 比較
@@ -1428,7 +1440,7 @@ export const useFantasyGameEngine = ({
         j,
         effectiveHitTime,
         isNextLoopNote,
-        nextLoopChord: isNextLoopNote && nextLoopTransposedNotes ? (nextLoopTransposedNotes[i]?.chord || null) : null
+        nextLoopChord: isNextLoopNote && transposedAtCandidate !== undefined ? transposedAtCandidate.chord : null
       };
 
       if (!chosen) {
