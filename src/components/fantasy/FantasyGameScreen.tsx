@@ -30,7 +30,6 @@ import { useGeoStore } from '@/stores/geoStore';
 // 🚀 パフォーマンス最適化: FantasySoundManagerを静的インポート
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
-import { getWindow } from '@/platform';
 
 interface FantasyGameScreenProps {
   stage: FantasyStage;
@@ -1196,10 +1195,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
 
     if (isScreen) {
       activeNotesRef.current.add(note);
-      // メインスレッドをすぐ返し、次タスクで発音（WebKit でタッチと rAF の詰まりを軽減）
-      getWindow().setTimeout(() => {
-        playNote(note, 64).catch(() => {});
-      }, 0);
+      // タッチ直後に発音する（setTimeout(0) は Safari/WKWebView でマクロタスク遅延が乗り体感ラグになる）
+      void playNote(note, 64).catch(() => {});
     }
     
     // 未 unlock 時だけ低優先度で解放を試みる
