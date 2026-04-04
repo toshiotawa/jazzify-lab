@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { OpenSheetMusicDisplay, IOSMDOptions } from 'opensheetmusicdisplay';
 import { useGameSelector } from '@/stores/helpers';
 import { useGameStore } from '@/stores/gameStore';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { cn } from '@/utils/cn';
 import { simplifyMusicXmlForDisplay, stripLyricsFromMusicXml } from '@/utils/musicXmlMapper';
 import { log } from '@/utils/logger';
@@ -61,6 +64,13 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
     settings: s.settings,
     currentSong: s.currentSong,
   }));
+  const sheetProfile = useAuthStore((s) => s.profile);
+  const sheetGeoCountry = useGeoStore((s) => s.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: sheetProfile?.rank,
+    country: sheetProfile?.country ?? sheetGeoCountry,
+    preferredLocale: sheetProfile?.preferred_locale,
+  });
   // 楽曲の hide_sheet_music が true の場合、ユーザー設定に関係なく楽譜を非表示
   const shouldRenderSheet = settings.showSheetMusic && !currentSong?.hide_sheet_music;
   // リズム譜モード: 楽曲の use_rhythm_notation フラグを取得
@@ -740,19 +750,26 @@ const SheetMusicDisplay: React.FC<SheetMusicDisplayProps> = ({ className = '' })
           <div className="relative h-full pt-4 pb-4">
             {isLoading && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-                <div className="text-black">楽譜を読み込み中...</div>
+                <div className="text-black">
+                  {isEnglishCopy ? 'Loading sheet music...' : '楽譜を読み込み中...'}
+                </div>
               </div>
             )}
             
             {error && (
               <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75">
-                <div className="text-red-600">エラー: {error}</div>
+                <div className="text-red-600">
+                  {isEnglishCopy ? 'Error: ' : 'エラー: '}
+                  {error}
+                </div>
               </div>
             )}
             
             {(!musicXml && !isLoading) && (
               <div className="absolute inset-0 flex items-center justify-center">
-                <div className="text-gray-600">楽譜データがありません</div>
+                <div className="text-gray-600">
+                  {isEnglishCopy ? 'No sheet music data' : '楽譜データがありません'}
+                </div>
               </div>
             )}
             

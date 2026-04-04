@@ -31,14 +31,21 @@ const GameScreen: React.FC = () => {
   }));
 
   const gameActions = useGameActions();
-  
-  // レッスン曲読み込み中の状態管理を追加
-  const [isLoadingLessonSong, setIsLoadingLessonSong] = useState(false);
+  const { profile: gameScreenProfile } = useAuthStore();
+  const gameScreenGeoCountry = useGeoStore((state) => state.country);
+  const isEnglishCopyGameScreen = shouldUseEnglishCopy({
+    rank: gameScreenProfile?.rank,
+    country: gameScreenProfile?.country ?? gameScreenGeoCountry,
+    preferredLocale: gameScreenProfile?.preferred_locale,
+  });
+
+  /** #play-lesson / #play-mission から曲を読み込む最中（英語UIでは文言を切り替え） */
+  const [playRouteLoading, setPlayRouteLoading] = useState<'lesson' | 'mission' | null>(null);
 
   // レッスン曲とミッション曲の自動読み込み処理を追加
   useEffect(() => {
       const handleLessonPlay = async (hash: string) => {
-      setIsLoadingLessonSong(true);
+      setPlayRouteLoading('lesson');
       
       const params = new URLSearchParams(hash.split('?')[1] || '');
       const songId = params.get('id');
@@ -62,7 +69,7 @@ const GameScreen: React.FC = () => {
           if (!song) {
             console.error('曲が見つかりません:', songId);
             // エラー時は曲選択画面に戻る
-            setIsLoadingLessonSong(false);
+            setPlayRouteLoading(null);
             window.location.hash = '#dashboard';
             return;
           }
@@ -229,7 +236,7 @@ const GameScreen: React.FC = () => {
           
           gameActions.setMode('performance');
           
-          setIsLoadingLessonSong(false);
+          setPlayRouteLoading(null);
           
           // 少し遅延させてからハッシュを変更（画面更新の完了を待つ）
           setTimeout(() => {
@@ -246,12 +253,18 @@ const GameScreen: React.FC = () => {
           }
           
           // ユーザーにエラーを通知（簡素なアラート）
-          let userMessage = '楽曲の読み込みに失敗しました。';
+          let userMessage = isEnglishCopyGameScreen
+            ? 'Failed to load the song.'
+            : '楽曲の読み込みに失敗しました。';
           if (error instanceof Error) {
             if (error.message.includes('HTMLが返されました')) {
-              userMessage = 'ファイルが見つかりません。曲データの設定を確認してください。';
+              userMessage = isEnglishCopyGameScreen
+                ? 'File not found. Please check the song data configuration.'
+                : 'ファイルが見つかりません。曲データの設定を確認してください。';
             } else if (error.message.includes('JSON') || error.message.includes('Unexpected token')) {
-              userMessage = '楽曲ファイルの形式が正しくありません。';
+              userMessage = isEnglishCopyGameScreen
+                ? 'The song file format is invalid.'
+                : '楽曲ファイルの形式が正しくありません。';
             }
           }
           
@@ -260,22 +273,22 @@ const GameScreen: React.FC = () => {
             alert(userMessage);
           }, 100);
           
-          setIsLoadingLessonSong(false);
+          setPlayRouteLoading(null);
           window.location.hash = '#dashboard';
         }
       } else {
         console.warn('⚠️ songIdが不足:', { songId });
-        setIsLoadingLessonSong(false);
+        setPlayRouteLoading(null);
       }
     };
 
       const handleMissionPlay = async (hash: string) => {
-      setIsLoadingLessonSong(true);
+      setPlayRouteLoading('mission');
       
       // 権限制御: Standard(Global)はミッションプレイ不可
       if (useAuthStore.getState().profile?.rank === 'standard_global') {
         console.warn('Standard(Global)は#play-mission非対応のためミッション一覧→ダッシュボードへ');
-        setIsLoadingLessonSong(false);
+        setPlayRouteLoading(null);
         window.location.hash = '#dashboard';
         return;
       }
@@ -297,7 +310,7 @@ const GameScreen: React.FC = () => {
               missionId,
               availableSongs: challengeSongs.map(cs => cs.song_id)
             });
-            setIsLoadingLessonSong(false);
+            setPlayRouteLoading(null);
             // ミッション一覧に戻る
             setTimeout(() => {
               window.location.hash = '#missions';
@@ -315,7 +328,7 @@ const GameScreen: React.FC = () => {
               songId,
               availableSongs: songs.map(s => ({ id: s.id, title: s.title }))
             });
-            setIsLoadingLessonSong(false);
+            setPlayRouteLoading(null);
             // ミッション一覧に戻る
             setTimeout(() => {
               window.location.hash = '#missions';
@@ -458,7 +471,7 @@ const GameScreen: React.FC = () => {
           } as any, mapped);
           
           gameActions.setMode('performance');
-          setIsLoadingLessonSong(false);
+          setPlayRouteLoading(null);
           setTimeout(() => {
             window.location.hash = '#performance';
           }, 10);
@@ -470,7 +483,7 @@ const GameScreen: React.FC = () => {
             missionId,
             errorMessage: error instanceof Error ? error.message : 'Unknown error'
           });
-          setIsLoadingLessonSong(false);
+          setPlayRouteLoading(null);
           // エラー時はミッション一覧に戻る
           setTimeout(() => {
             window.location.hash = '#missions';
@@ -478,7 +491,7 @@ const GameScreen: React.FC = () => {
         }
       } else {
         console.warn('⚠️ songIdまたはmissionIdが不足:', { songId, missionId });
-        setIsLoadingLessonSong(false);
+        setPlayRouteLoading(null);
       }
     };
 
@@ -495,7 +508,7 @@ const GameScreen: React.FC = () => {
         return;
       }
       
-      setIsLoadingLessonSong(false);
+      setPlayRouteLoading(null);
     };
     
     checkLessonPlay();
@@ -507,7 +520,7 @@ const GameScreen: React.FC = () => {
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [gameActions]);
+  }, [gameActions, isEnglishCopyGameScreen]);
 
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外
@@ -516,21 +529,29 @@ const GameScreen: React.FC = () => {
     
     // レッスン曲・ミッション曲読み込み中は曲選択画面へのリダイレクトをスキップ
     const isStandardGlobal = useAuthStore.getState().profile?.rank === 'standard_global';
-    if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && !isLoadingLessonSong) {
+    if (!currentSong && currentTab !== 'songs' && !isPlayLessonHash && playRouteLoading === null) {
       if (isStandardGlobal) {
         return;
       }
       window.location.hash = '#dashboard';
     }
-  }, [currentSong, currentTab, gameActions, isLoadingLessonSong]);
+  }, [currentSong, currentTab, gameActions, playRouteLoading]);
 
-  // レッスン曲読み込み中はローディング表示のみを返す
-  if (isLoadingLessonSong) {
+  // #play-lesson / #play-mission からの曲読み込み中はローディング表示のみを返す
+  if (playRouteLoading !== null) {
+    const loadingPlayText =
+      playRouteLoading === 'mission'
+        ? isEnglishCopyGameScreen
+          ? 'Loading mission song...'
+          : 'ミッション曲を読み込み中...'
+        : isEnglishCopyGameScreen
+          ? 'Loading lesson song...'
+          : 'レッスン曲を読み込み中...';
     return (
       <div className="w-full h-screen bg-gradient-game text-white flex items-center justify-center">
         <div className="text-center space-y-4">
           <div className="w-16 h-16 border-4 border-primary-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-          <p className="text-lg text-gray-300">レッスン曲を読み込み中...</p>
+          <p className="text-lg text-gray-300">{loadingPlayText}</p>
         </div>
       </div>
     );

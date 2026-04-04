@@ -281,7 +281,10 @@ const LessonDetailPage: React.FC = () => {
       
     } catch (e: unknown) {
       if (!isStale()) {
-        pushToast('レッスンデータの読み込みに失敗しました', 'error');
+        pushToast(
+          isEnglishCopy ? 'Failed to load lesson data.' : 'レッスンデータの読み込みに失敗しました',
+          'error',
+        );
       }
       console.error('Error loading lesson data:', e);
     } finally {
@@ -470,7 +473,7 @@ const LessonDetailPage: React.FC = () => {
 
       {loading ? (
         <div className="flex-1 flex items-center justify-center">
-          <p className="text-gray-400">読み込み中...</p>
+          <p className="text-gray-400">{isEnglishCopy ? 'Loading...' : '読み込み中...'}</p>
         </div>
       ) : (
         <div className="flex-1 overflow-y-auto">
