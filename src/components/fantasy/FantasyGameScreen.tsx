@@ -1810,9 +1810,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       } else {
         fantasyPixiInstance.updateOverlayText(null);
       }
-
-      // 30Hz throttled React sync (RAF 駆動でスムーズに同期)
-      flushToReact();
     };
 
     fantasyPixiInstance.setTaikoFrameCallback(runTaikoFrame);
@@ -1823,7 +1820,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // 🚀 パフォーマンス最適化: taikoNotes/currentNoteIndex/awaitingLoopStartを依存配列から除外
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない
   }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage, useRhythmNotation]);
-  
+
+  // 太鼓モード: flushToReact を runTaikoFrame（rAF）と同じスタックから切り離す。
+  // WebKit 系でタッチ時にメインスレッドが詰まった際、音楽時刻は進むのに描画だけ遅れる「止まり→ワープ」を抑える。
+  useEffect(() => {
+    if (!gameState.isTaikoMode) return;
+    const id = setInterval(() => {
+      flushToReact();
+    }, 50);
+    return () => clearInterval(id);
+  }, [gameState.isTaikoMode, flushToReact]);
+
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
     if (!pixiRenderer) return;
