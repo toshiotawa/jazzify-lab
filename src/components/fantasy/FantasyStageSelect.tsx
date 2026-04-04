@@ -3,7 +3,7 @@
  * ステージ一覧表示とアンロック管理
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { FaHatWizard } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 import { FantasyStage } from './FantasyGameEngine';
@@ -93,7 +93,15 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const fantasyAudienceContext = useMemo(
+    () => ({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale,
+    }),
+    [profile?.rank, profile?.country, profile?.preferred_locale, geoCountry],
+  );
+  const isEnglishCopy = shouldUseEnglishCopy(fantasyAudienceContext);
   const fantasyHeaderTitle = isEnglishCopy ? 'Fantasy Mode' : 'ファンタジーモード';
   const currentStageLabel = isEnglishCopy ? 'Current stage' : '現在地';
   const storyButtonLabel = isEnglishCopy ? 'Story' : 'ストーリー';
@@ -608,7 +616,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-base sm:text-lg font-medium mb-1 whitespace-normal break-words",
             unlocked ? "text-white" : "text-gray-400"
             )}>
-              {unlocked ? getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : "???"}
+              {unlocked ? getLocalizedFantasyStageName(stage, fantasyAudienceContext) : "???"}
           </div>
           
           {/* モードタグ */}
@@ -628,7 +636,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
             "text-xs sm:text-sm leading-relaxed break-words line-clamp-2 sm:line-clamp-3",
             unlocked ? "text-gray-300" : "text-gray-500"
             )}>
-              {unlocked ? getLocalizedFantasyStageDescription(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }) : (
+              {unlocked ? getLocalizedFantasyStageDescription(stage, fantasyAudienceContext) : (
                 isFreeOrGuest && stage.stageNumber && stage.stageNumber >= '1-4' 
                   ? (isEnglishCopy ? 'Available on the Standard plan or higher.' : 'スタンダードプラン以上で利用可能です') 
                   : (isEnglishCopy ? 'This stage is still locked.' : 'このステージはまだロックされています')
@@ -664,7 +672,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         </div>
       </div>
     );
-  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex, isFreeOrGuest, isEnglishCopy]);
+  }, [isStageUnlocked, getStageClearInfo, handleStageSelect, getStageGlobalIndex, isFreeOrGuest, isEnglishCopy, fantasyAudienceContext]);
   
   // ローディング画面
   if (loading) {

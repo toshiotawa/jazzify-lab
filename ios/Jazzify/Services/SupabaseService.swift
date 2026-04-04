@@ -213,6 +213,7 @@ final class SupabaseService: Sendable {
                 clear_conditions,
                 order_index,
                 title,
+                title_en,
                 songs (id, title, artist),
                 fantasyStage:fantasy_stages (
                     id,

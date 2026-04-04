@@ -658,7 +658,7 @@ const LessonDetailPage: React.FC = () => {
                               {stageDef ? (
                                 <>
                                   <div className="text-gray-300 text-xs mt-1">
-                                    Stage {stageDef.stageNumber}: {stageDef.name}
+                                    Stage {stageDef.stageNumber}: {isEnglishCopy ? stageDef.nameEn : stageDef.name}
                                   </div>
                                   <div className="text-gray-400 text-xs mt-1">
                                     {STAGE_TIME_LIMIT_SECONDS}秒生存 + {STAGE_KILL_QUOTA}体撃破でクリア

@@ -107,10 +107,18 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [onGameComplete]);
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const fantasyAudienceContext = useMemo(
+    () => ({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale,
+    }),
+    [profile?.rank, profile?.country, profile?.preferred_locale, geoCountry],
+  );
+  const isEnglishCopy = shouldUseEnglishCopy(fantasyAudienceContext);
   const localizedStageName = useMemo(
-    () => getLocalizedFantasyStageName(stage, { rank: profile?.rank, country: profile?.country ?? geoCountry }),
-    [stage, profile?.rank, geoCountry],
+    () => getLocalizedFantasyStageName(stage, fantasyAudienceContext),
+    [stage, fantasyAudienceContext],
   );
   // useGameStoreの使用を削除（ファンタジーモードでは不要）
   

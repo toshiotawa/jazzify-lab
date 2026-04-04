@@ -78,23 +78,40 @@ private let rootPatterns: [(ja: String, en: String)] = [
     ("白鍵黒鍵全て", "All Keys"),
 ]
 
+private let stageDifficulties: [SurvivalStageDifficulty] = [.easy, .normal, .hard, .extreme]
+
 private func generateAllStages() -> [SurvivalStage] {
     var stages: [SurvivalStage] = []
     var num = 1
-    for chord in chordTypes {
-        for pattern in rootPatterns {
-            stages.append(SurvivalStage(
-                stageNumber: num,
-                nameJa: "\(num). \(chord.ja) \(pattern.ja)",
-                nameEn: "\(num). \(chord.en) \(pattern.en)",
-                difficulty: chord.difficulty,
-                chordDisplayJa: chord.ja,
-                chordDisplayEn: chord.en,
-                rootPatternJa: pattern.ja,
-                rootPatternEn: pattern.en
-            ))
-            num += 1
+    for difficulty in stageDifficulties {
+        let typesForDifficulty = chordTypes.filter { $0.difficulty == difficulty }
+        for chord in typesForDifficulty {
+            for pattern in rootPatterns {
+                stages.append(SurvivalStage(
+                    stageNumber: num,
+                    nameJa: "\(num). \(chord.ja) \(pattern.ja)",
+                    nameEn: "\(num). \(chord.en) \(pattern.en)",
+                    difficulty: chord.difficulty,
+                    chordDisplayJa: chord.ja,
+                    chordDisplayEn: chord.en,
+                    rootPatternJa: pattern.ja,
+                    rootPatternEn: pattern.en
+                ))
+                num += 1
+            }
         }
+        let allPattern = rootPatterns[4]
+        stages.append(SurvivalStage(
+            stageNumber: num,
+            nameJa: "\(num). ミックス \(allPattern.ja)",
+            nameEn: "\(num). Mixed \(allPattern.en)",
+            difficulty: difficulty,
+            chordDisplayJa: "ミックス",
+            chordDisplayEn: "Mixed",
+            rootPatternJa: allPattern.ja,
+            rootPatternEn: allPattern.en
+        ))
+        num += 1
     }
     return stages
 }
@@ -189,8 +206,8 @@ struct SurvivalView: View {
                     iconColor: .orange,
                     title: locale == .ja ? "サバイバル" : "Survival",
                     description: locale == .ja
-                        ? "コードの構成音を制限時間内に演奏するモードです。全100ステージあり、難易度別（Easy / Normal / Hard / Extreme）に分かれています。ステージをクリアすると次が解放されます。ヒントモードを使うと構成音が表示されますが、クリア扱いにはなりません。"
-                        : "Play chord tones within a time limit. There are 100 stages divided by difficulty (Easy / Normal / Hard / Extreme). Clear a stage to unlock the next. Hint mode shows chord tones but clears won't count as official.",
+                        ? "コードの構成音を制限時間内に演奏するモードです。全109ステージあり、難易度別（Easy / Normal / Hard / Extreme）に分かれ、各難易度の最後はその範囲のコードを総合する Mixed ステージです。ステージをクリアすると次が解放されます。ヒントモードを使うと構成音が表示されますが、クリア扱いにはなりません。"
+                        : "Play chord tones within a time limit. There are 109 stages divided by difficulty (Easy / Normal / Hard / Extreme). Each tier ends with a Mixed stage covering all chord types and all roots for that tier. Clear a stage to unlock the next. Hint mode shows chord tones but clears won't count as official.",
                     locale: locale
                 )
                 .presentationDetents([.medium])

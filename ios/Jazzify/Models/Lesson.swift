@@ -149,11 +149,13 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let clearConditions: LessonClearConditions?
     let orderIndex: Int?
     let title: String?
+    let titleEn: String?
     let songs: LessonSongReferenceSong?
     let fantasyStage: FantasyStage?
 
     enum CodingKeys: String, CodingKey {
         case id, title, songs
+        case titleEn = "title_en"
         case lessonId = "lesson_id"
         case songId = "song_id"
         case fantasyStageId = "fantasy_stage_id"

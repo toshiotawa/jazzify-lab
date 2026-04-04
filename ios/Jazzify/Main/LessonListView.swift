@@ -1285,9 +1285,19 @@ struct LessonDetailView: View {
         }
     }
 
-    private func requirementTitle(_ requirement: LessonSong, index: Int) -> String {
+    private func localizedLessonSongTitle(_ requirement: LessonSong) -> String? {
+        if locale == .en, let en = requirement.titleEn, !en.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            return en
+        }
         if let title = requirement.title, !title.isEmpty {
-            return "\(index + 1). \(title)"
+            return title
+        }
+        return nil
+    }
+
+    private func requirementTitle(_ requirement: LessonSong, index: Int) -> String {
+        if let t = localizedLessonSongTitle(requirement) {
+            return "\(index + 1). \(t)"
         }
         if let songTitle = requirement.songs?.title {
             return "\(index + 1). \(songTitle)"
@@ -1378,8 +1388,8 @@ struct LessonDetailView: View {
     }
 
     private func requirementSortKey(_ requirement: LessonSong) -> String {
-        if let title = requirement.title, !title.isEmpty {
-            return title
+        if let t = localizedLessonSongTitle(requirement) {
+            return t
         }
         if let songTitle = requirement.songs?.title {
             return songTitle

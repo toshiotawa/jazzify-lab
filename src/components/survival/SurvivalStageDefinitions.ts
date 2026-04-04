@@ -1,6 +1,6 @@
 /**
  * サバイバル ステージモード ステージ定義
- * 全105ステージ: 21コードタイプ × 5ルートパターン
+ * 21コードタイプ × 5ルートパターン + 各難易度末尾の Mixed（全コードタイプ×全ルート）= 109ステージ
  */
 
 import { SurvivalDifficulty } from './SurvivalTypes';
@@ -19,6 +19,8 @@ export interface StageDefinition {
   rootPatternName: string;
   rootPatternNameEn: string;
   allowedChords: string[];
+  /** 難易度内の全コードタイプ・全ルートを含む総合ステージ */
+  isMixedStage?: boolean;
 }
 
 const ROOT_CDE = ['C', 'D', 'E'];
@@ -80,33 +82,64 @@ const CHORD_TYPES: ChordTypeDef[] = [
   { suffix: 'dim(M7)', displayJa: 'dim(M7)', displayEn: 'dim(M7)', difficulty: 'extreme' },
 ];
 
+const DIFFICULTY_ORDER: SurvivalDifficulty[] = ['easy', 'normal', 'hard', 'extreme'];
+
 function buildAllowedChords(roots: string[], suffix: string): string[] {
   return roots.map(r => `${r}${suffix}`);
+}
+
+function buildMixedAllowedChordsForDifficulty(difficulty: SurvivalDifficulty): string[] {
+  const types = CHORD_TYPES.filter(ct => ct.difficulty === difficulty);
+  const combined: string[] = [];
+  for (const ct of types) {
+    combined.push(...buildAllowedChords(ROOT_ALL, ct.suffix));
+  }
+  return combined;
 }
 
 function generateAllStages(): StageDefinition[] {
   const stages: StageDefinition[] = [];
   let stageNum = 1;
 
-  for (const chordType of CHORD_TYPES) {
-    for (const pattern of PATTERNS) {
-      const roots = ROOTS_BY_PATTERN[pattern];
-      const patternName = PATTERN_NAMES[pattern];
-      stages.push({
-        stageNumber: stageNum,
-        name: `${stageNum}. ${chordType.displayJa} ${patternName.ja}`,
-        nameEn: `${stageNum}. ${chordType.displayEn} ${patternName.en}`,
-        difficulty: chordType.difficulty,
-        chordSuffix: chordType.suffix,
-        chordDisplayName: chordType.displayJa,
-        chordDisplayNameEn: chordType.displayEn,
-        rootPattern: pattern,
-        rootPatternName: patternName.ja,
-        rootPatternNameEn: patternName.en,
-        allowedChords: buildAllowedChords(roots, chordType.suffix),
-      });
-      stageNum++;
+  for (const difficulty of DIFFICULTY_ORDER) {
+    const typesInDifficulty = CHORD_TYPES.filter(ct => ct.difficulty === difficulty);
+    for (const chordType of typesInDifficulty) {
+      for (const pattern of PATTERNS) {
+        const roots = ROOTS_BY_PATTERN[pattern];
+        const patternName = PATTERN_NAMES[pattern];
+        stages.push({
+          stageNumber: stageNum,
+          name: `${stageNum}. ${chordType.displayJa} ${patternName.ja}`,
+          nameEn: `${stageNum}. ${chordType.displayEn} ${patternName.en}`,
+          difficulty,
+          chordSuffix: chordType.suffix,
+          chordDisplayName: chordType.displayJa,
+          chordDisplayNameEn: chordType.displayEn,
+          rootPattern: pattern,
+          rootPatternName: patternName.ja,
+          rootPatternNameEn: patternName.en,
+          allowedChords: buildAllowedChords(roots, chordType.suffix),
+        });
+        stageNum++;
+      }
     }
+
+    const patternAll = PATTERN_NAMES.all;
+    stages.push({
+      stageNumber: stageNum,
+      name: `${stageNum}. ミックス ${patternAll.ja}`,
+      nameEn: `${stageNum}. Mixed ${patternAll.en}`,
+      difficulty,
+      chordSuffix: 'mixed',
+      chordDisplayName: 'ミックス',
+      chordDisplayNameEn: 'Mixed',
+      rootPattern: 'all',
+      rootPatternName: patternAll.ja,
+      rootPatternNameEn: patternAll.en,
+      allowedChords: buildMixedAllowedChordsForDifficulty(difficulty),
+      isMixedStage: true,
+    });
+    stageNum++;
   }
 
   return stages;
