@@ -680,7 +680,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     getCurrentEnemy,
     proceedToNextEnemy,
     imageTexturesRef,
-    flushToReact,
     ENEMY_LIST
   } = useFantasyGameEngine({
     stage: null, // ★★★ change
@@ -1272,7 +1271,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         requestAnimationFrame(centerPianoC4);
       });
       
-      renderer.setTouchActionMode('none');
+      renderer.setTouchActionMode(gameState.isTaikoMode ? 'pan-x' : 'none');
       renderer.setKeyCallbacks(
         (note: number, pointerKind: 'mouse' | 'touch' | 'pen') => {
           handleNoteInputBridge(note, pointerKind === 'pen' ? 'touch' : pointerKind);
@@ -1290,7 +1289,13 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         });
       }
     }
-  }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle]);
+  }, [handleNoteInputBridge, effectiveShowGuide, keyboardNoteNameStyle, gameState.isTaikoMode]);
+
+  // 太鼓時は pan-x（レジェンド相当）で WebKit のジェスチャ調停と競合しにくくする
+  useEffect(() => {
+    if (!pixiRenderer) return;
+    pixiRenderer.setTouchActionMode(gameState.isTaikoMode ? 'pan-x' : 'none');
+  }, [pixiRenderer, gameState.isTaikoMode]);
 
   // ファンタジーPIXIレンダラーの準備完了ハンドラー
   const handleFantasyPixiReady = useCallback((instance: FantasyPIXIInstance) => {
@@ -1481,14 +1486,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない
   }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage, useRhythmNotation, currentNoteNameLang, currentSimpleNoteName]);
 
-  // 太鼓モード: UI 同期用。ノーツ位置・判定の真実は TaikoRenderBridge（BGM 時刻）側。
-  useEffect(() => {
-    if (!gameState.isTaikoMode) return;
-    const id = setInterval(() => {
-      flushToReact();
-    }, 50);
-    return () => clearInterval(id);
-  }, [gameState.isTaikoMode, flushToReact]);
+  // 太鼓の React 同期は FantasyGameEngine の flushToReact（ゲージ・入力経由）に一本化
 
   // 設定変更時にPIXIレンダラーを更新（鍵盤ハイライトは条件付きで有効）
   useEffect(() => {
@@ -2201,7 +2199,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
               <>
                 <div 
                   className="absolute inset-0 overflow-x-scroll overflow-y-hidden scrollbar-hidden"
-                  style={{ touchAction: 'none' }}
+                  style={{ touchAction: gameState.isTaikoMode ? 'pan-x' : 'none' }}
                   ref={setPianoScrollContainerRef}
                   onScroll={handlePianoScroll}
                 >

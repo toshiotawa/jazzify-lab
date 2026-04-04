@@ -114,6 +114,15 @@ export class FantasyPIXIInstance {
   private needsRender = true; // 変更があった場合のみ true
   private isSheetMusicMode = false;
 
+  /**
+   * 太鼓モード: モンスター＋背景をオフスクリーンに低頻度で描き、毎フレームは合成＋太鼓レーン中心にする。
+   * メイン rAF の仕事量を減らし、ノーツ列とモンスター演出の相互汚染を抑える。
+   */
+  private taikoMonsterBuffer: HTMLCanvasElement | null = null;
+  private lastTaikoMonsterComposite = 0;
+  private forceMonsterLayerComposite = true;
+  private readonly TAIKO_MONSTER_LAYER_MIN_MS = 34;
+
   /** 毎フレーム createLinearGradient を避ける（リサイズまで再利用） */
   private backgroundGradient: CanvasGradient | null = null;
 
@@ -168,6 +177,8 @@ export class FantasyPIXIInstance {
     this.width = width;
     this.height = height;
     this.configureCanvasSize(width, height);
+    this.forceMonsterLayerComposite = true;
+    this.taikoMonsterBuffer = null;
     this.requestRender();
   }
 
@@ -212,12 +223,14 @@ export class FantasyPIXIInstance {
     }
 
     this.monsters = visuals;
+    this.forceMonsterLayerComposite = true;
     this.requestRender();
   }
 
   setDefaultMonsterIcon(icon: string): void {
     this.defaultMonsterIcon = icon;
     this.ensureImage(icon);
+    this.forceMonsterLayerComposite = true;
     this.requestRender();
   }
 
@@ -228,6 +241,11 @@ export class FantasyPIXIInstance {
   updateTaikoMode(enabled: boolean): void {
     if (this.taikoMode !== enabled) {
       this.taikoMode = enabled;
+      if (!enabled) {
+        this.taikoMonsterBuffer = null;
+      } else {
+        this.forceMonsterLayerComposite = true;
+      }
       this.requestRender();
     }
   }
@@ -289,20 +307,23 @@ export class FantasyPIXIInstance {
       
       const randAngle = Math.random() * Math.PI * 0.8 + Math.PI * 0.1;
       const randDist = 30 + Math.random() * 40;
-      this.damagePopups.push({
-        id: `damage_${Date.now()}_${Math.random()}`,
-        x: visual.x,
-        y: visual.y,
-        value: damageDealt,
-        start: performance.now(),
-        duration: this.isSheetMusicMode
-          ? 100
-          : taikoLight
-            ? 320
-            : 1800,
-        offsetX: Math.cos(randAngle) * randDist,
-        offsetY: Math.sin(randAngle) * randDist,
-      });
+      const skipDamagePopup = taikoLight && this.isWebKit;
+      if (!skipDamagePopup) {
+        this.damagePopups.push({
+          id: `damage_${Date.now()}_${Math.random()}`,
+          x: visual.x,
+          y: visual.y,
+          value: damageDealt,
+          start: performance.now(),
+          duration: this.isSheetMusicMode
+            ? 100
+            : taikoLight
+              ? 320
+              : 1800,
+          offsetX: Math.cos(randAngle) * randDist,
+          offsetY: Math.sin(randAngle) * randDist,
+        });
+      }
 
       if (defeated && !visual.defeated) {
         visual.defeated = true;
@@ -311,6 +332,7 @@ export class FantasyPIXIInstance {
           this.onMonsterDefeated?.();
         }, 400);
       }
+      this.forceMonsterLayerComposite = true;
       this.requestRender();
     }
   }
@@ -344,6 +366,7 @@ export class FantasyPIXIInstance {
     this.noteShadowCache = null;
     this.badgeStackCache.clear();
     this.backgroundGradient = null;
+    this.taikoMonsterBuffer = null;
   }
 
   private configureCanvasSize(width: number, height: number): void {
@@ -393,7 +416,66 @@ export class FantasyPIXIInstance {
     this.needsRender = true;
   }
 
+  private ensureTaikoMonsterBuffer(): void {
+    const w = this.canvas.width;
+    const h = this.canvas.height;
+    if (!this.taikoMonsterBuffer || this.taikoMonsterBuffer.width !== w || this.taikoMonsterBuffer.height !== h) {
+      this.taikoMonsterBuffer = document.createElement('canvas');
+      this.taikoMonsterBuffer.width = w;
+      this.taikoMonsterBuffer.height = h;
+    }
+  }
+
+  /** 太鼓: 背景・モンスターをオフスクリーンに間引き描画し、毎フレームは合成してからレーンのみ高頻度更新 */
+  private drawFrameTaikoLayered(): void {
+    const now = performance.now();
+    const needMonster =
+      this.forceMonsterLayerComposite ||
+      this.taikoMonsterBuffer == null ||
+      now - this.lastTaikoMonsterComposite >= this.TAIKO_MONSTER_LAYER_MIN_MS;
+
+    if (needMonster) {
+      this.ensureTaikoMonsterBuffer();
+      const b = this.taikoMonsterBuffer!;
+      const bctx = b.getContext('2d');
+      if (!bctx) return;
+      bctx.save();
+      bctx.setTransform(1, 0, 0, 1, 0, 0);
+      bctx.clearRect(0, 0, b.width, b.height);
+      bctx.restore();
+      bctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+      this.drawBackground(bctx);
+      this.drawMonsters(bctx);
+      this.lastTaikoMonsterComposite = now;
+      this.forceMonsterLayerComposite = false;
+    }
+
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.clearRect(0, 0, this.canvas.width, this.canvas.height);
+    ctx.restore();
+    ctx.setTransform(this.pixelRatio, 0, 0, this.pixelRatio, 0, 0);
+
+    if (this.taikoMonsterBuffer) {
+      ctx.drawImage(this.taikoMonsterBuffer, 0, 0, this.width, this.height);
+    } else {
+      this.drawBackground(ctx);
+      this.drawMonsters(ctx);
+    }
+
+    this.drawTaikoLane(ctx);
+    this.drawDamagePopups(ctx);
+    this.drawEffects(ctx);
+    this.drawOverlayText(ctx);
+  }
+
   private drawFrame(): void {
+    if (this.taikoMode) {
+      this.drawFrameTaikoLayered();
+      return;
+    }
+
     const ctx = this.ctx;
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
@@ -403,10 +485,6 @@ export class FantasyPIXIInstance {
     
     this.drawBackground(ctx);
     this.drawMonsters(ctx);
-    
-    if (this.taikoMode) {
-      this.drawTaikoLane(ctx);
-    }
     
     this.drawDamagePopups(ctx);
     this.drawEffects(ctx);

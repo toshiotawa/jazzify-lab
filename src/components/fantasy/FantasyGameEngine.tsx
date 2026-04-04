@@ -938,7 +938,9 @@ export const useFantasyGameEngine = ({
   const gaugeTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const reactDirtyRef = useRef(false);
   const lastReactSyncRef = useRef(0);
-  const REACT_SYNC_INTERVAL_MS = 33; // ~30Hz
+  const REACT_SYNC_INTERVAL_MS = 33; // ~30Hz（非太鼓）
+  /** 太鼓はスコア／コンボ等の低頻度 UI のみ React へ — メインスレッド負荷を抑える */
+  const REACT_SYNC_INTERVAL_MS_TAIKO = 100;
 
   const committedGameStateRef = useRef(gameState);
   useEffect(() => { committedGameStateRef.current = gameState; }, [gameState]);
@@ -951,7 +953,8 @@ export const useFantasyGameEngine = ({
       return;
     }
     const now = performance.now();
-    if (now - lastReactSyncRef.current < REACT_SYNC_INTERVAL_MS) return;
+    const throttleMs = next.isTaikoMode ? REACT_SYNC_INTERVAL_MS_TAIKO : REACT_SYNC_INTERVAL_MS;
+    if (now - lastReactSyncRef.current < throttleMs) return;
     lastReactSyncRef.current = now;
     reactDirtyRef.current = false;
     startTransition(() => {
@@ -3334,9 +3337,7 @@ export const useFantasyGameEngine = ({
       gameStateRef.current = nextState;
       reactDirtyRef.current = true;
     }
-    if (!prevState.isTaikoMode) {
-      flushToReact();
-    }
+    flushToReact();
   }, [handleEnemyAttack, onGameStateChange, isReady, flushToReact]);
 
   // ゲージタイマーの管理（ref ベース — React state 経由せずメインスレッド負荷を削減）
@@ -3368,7 +3369,7 @@ export const useFantasyGameEngine = ({
 
     const currentState = gameStateRef.current;
 
-    // 太鼓モード: gameStateRef を直接更新し、React 再レンダリングは 30Hz 同期に委ねる
+    // 太鼓モード: gameStateRef を直接更新し、React は flushToReact（低頻度）のみ
     if (currentState.isGameActive && !currentState.isWaitingForNextMonster &&
         currentState.isTaikoMode && currentState.taikoNotes.length > 0) {
       const nextTaikoState = handleTaikoModeInput(currentState, note, capturedInputMusicTime);
@@ -3380,6 +3381,7 @@ export const useFantasyGameEngine = ({
       gameStateRef.current = nextTaikoState;
       onTaikoVisualSyncRef.current?.(nextTaikoState);
       reactDirtyRef.current = true;
+      flushToReact();
       return;
     }
 
@@ -3497,8 +3499,8 @@ export const useFantasyGameEngine = ({
         return newState;
       }
     });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds, setGameStateSync]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- handleTaikoModeInput は安定参照で十分
+  }, [onChordCorrect, onGameComplete, onGameStateChange, stageMonsterIds, setGameStateSync, flushToReact]);
   
   // 次の敵へ進むための新しい関数
   const proceedToNextEnemy = useCallback(() => {
