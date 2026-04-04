@@ -92,13 +92,6 @@ export class TaikoRenderBridge {
   private readonly lookAheadTime = 4;
   private readonly noteSpeed = 200;
 
-  /**
-   * 描画用の音楽時刻（WebKit でタッチやメインスレッド停滞時に rAF が飛び、
-   * getCurrentMusicTime だけが一気に進んでノーツが左にワープするのを抑える）
-   */
-  private displayMusicTimeForRender: number | null = null;
-  private lastDisplaySmoothPerfMs = 0;
-
   constructor(
     private readonly refs: TaikoRenderRefs,
     private readonly params: TaikoRenderParams,
@@ -133,32 +126,9 @@ export class TaikoRenderBridge {
   }
 
   /**
-   * BGM の実時間に追従しつつ、1 描画フレームあたりの進み幅を上限してワープ感を防ぐ。
-   * 判定・ゲーム状態は engine 側の生の getCurrentMusicTime に任せる。
+   * ノーツ X 座標は毎フレーム BGM の現在時刻から直接算出する（レジェンドと同様、音楽時刻を単一の真実とする）。
+   * 表示用に別スムージングはしない（入力停滞時の見かけのワープより、時刻と描画のずれを残さない方が優先）。
    */
-  private smoothTaikoDisplayMusicTime(raw: number): number {
-    const now = performance.now();
-    if (this.displayMusicTimeForRender === null) {
-      this.displayMusicTimeForRender = raw;
-      this.lastDisplaySmoothPerfMs = now;
-      return raw;
-    }
-    const dtWall = Math.min((now - this.lastDisplaySmoothPerfMs) / 1000, 0.35);
-    this.lastDisplaySmoothPerfMs = now;
-    const maxAdvance = Math.min(dtWall * 1.15 + 0.004, 0.048);
-    const d = raw - this.displayMusicTimeForRender;
-    if (d < -maxAdvance * 2) {
-      this.displayMusicTimeForRender = raw;
-      return raw;
-    }
-    if (d > maxAdvance) {
-      this.displayMusicTimeForRender += maxAdvance;
-      return this.displayMusicTimeForRender;
-    }
-    this.displayMusicTimeForRender = raw;
-    return raw;
-  }
-
   tick(pixi: FantasyPIXIInstance): void {
     const {
       taikoNotesRef,
@@ -192,7 +162,6 @@ export class TaikoRenderBridge {
     if (preHitIndices !== this.lastPreHitRef) this.rebuildPreHitFlags(preHitIndices);
 
     if (taikoNotes.length === 0) {
-      this.displayMusicTimeForRender = null;
       if (!this.lastSentEmpty) {
         pixi.updateTaikoNotes([]);
         this.lastSentEmpty = true;
@@ -200,7 +169,7 @@ export class TaikoRenderBridge {
       return;
     }
 
-    const currentTime = this.smoothTaikoDisplayMusicTime(rawMusicTime);
+    const currentTime = rawMusicTime;
 
     const jx = pixi.getJudgeLinePosition().x;
 

@@ -1481,8 +1481,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     // これらはrefで参照するため、変更時にアニメーションループが再起動されない
   }, [gameState.isTaikoMode, fantasyPixiInstance, gameState.currentStage, useRhythmNotation, currentNoteNameLang, currentSimpleNoteName]);
 
-  // 太鼓モード: flushToReact を runTaikoFrame（rAF）と同じスタックから切り離す。
-  // WebKit 系でタッチ時にメインスレッドが詰まった際、音楽時刻は進むのに描画だけ遅れる「止まり→ワープ」を抑える。
+  // 太鼓モード: UI 同期用。ノーツ位置・判定の真実は TaikoRenderBridge（BGM 時刻）側。
   useEffect(() => {
     if (!gameState.isTaikoMode) return;
     const id = setInterval(() => {
