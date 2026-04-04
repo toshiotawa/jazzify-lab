@@ -11,7 +11,7 @@ import { VoiceInputController } from '@/utils/VoiceInputController';
 import { useGameStore } from '@/stores/gameStore';
 import { useAuthStore } from '@/stores/authStore';
 import { bgmManager } from '@/utils/BGMManager';
-import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode, type TaikoVisualSnapshot } from './FantasyGameEngine';
+import { useFantasyGameEngine, ChordDefinition, FantasyStage, FantasyGameState, MonsterState, CombinedSection, type FantasyPlayMode } from './FantasyGameEngine';
 import { TaikoRenderBridge } from './TaikoRenderBridge';
 import { 
   TaikoNote, 
@@ -659,8 +659,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const isCombiningModeRef = useRef(false);
   const combinedSectionsRef = useRef<CombinedSection[]>([]);
   const currentSectionIndexRef = useRef(0);
-  const taikoVisualSnapshotRef = useRef<TaikoVisualSnapshot | null>(null);
-
   const handleTaikoVisualSync = useCallback((s: FantasyGameState) => {
     taikoNotesRef.current = s.taikoNotes;
     currentNoteIndexRef.current = s.currentNoteIndex;
@@ -688,7 +686,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     stage: null, // ★★★ change
     onGameStateChange: handleGameStateChange,
     onTaikoVisualSync: handleTaikoVisualSync,
-    taikoVisualSnapshotRef,
     onChordCorrect: handleChordCorrect,
     onChordIncorrect: handleChordIncorrect,
     onGameComplete: handleGameCompleteCallback,
@@ -1381,7 +1378,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     currentNoteIndexRef.current = 0;
     awaitingLoopStartRef.current = false;
     taikoLoopCycleRef.current = 0;
-    taikoVisualSnapshotRef.current = null;
     preHitNoteIndicesRef.current = [];
     isCombiningModeRef.current = false;
     combinedSectionsRef.current = [];
@@ -1456,7 +1452,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         awaitingLoopStartRef,
         taikoLoopCycleRef,
         preHitNoteIndicesRef,
-        taikoVisualSnapshotRef,
         combinedSectionsRef,
       },
       {

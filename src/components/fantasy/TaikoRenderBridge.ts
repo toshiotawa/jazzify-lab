@@ -7,7 +7,7 @@ import type { MutableRefObject } from 'react';
 import { bgmManager } from '@/utils/BGMManager';
 import type { DisplayOpts } from '@/utils/display-note';
 import { toDisplayName } from '@/utils/display-note';
-import type { CombinedSection, FantasyStage, TaikoVisualSnapshot } from './FantasyGameEngine';
+import type { CombinedSection, FantasyStage } from './FantasyGameEngine';
 import { combiningSync } from './FantasyGameEngine';
 import type { TaikoNote } from './TaikoNoteSystem';
 import type { FantasyPIXIInstance } from './FantasyPIXIRenderer';
@@ -54,7 +54,6 @@ export interface TaikoRenderRefs {
   awaitingLoopStartRef: MutableRefObject<boolean>;
   taikoLoopCycleRef: MutableRefObject<number>;
   preHitNoteIndicesRef: MutableRefObject<number[]>;
-  taikoVisualSnapshotRef: MutableRefObject<TaikoVisualSnapshot | null>;
   combinedSectionsRef: MutableRefObject<CombinedSection[]>;
 }
 
@@ -133,7 +132,6 @@ export class TaikoRenderBridge {
       awaitingLoopStartRef,
       taikoLoopCycleRef,
       preHitNoteIndicesRef,
-      taikoVisualSnapshotRef,
       combinedSectionsRef,
     } = this.refs;
 
@@ -151,24 +149,10 @@ export class TaikoRenderBridge {
 
     const { setCrOverlay, crOverlayTimerRef } = this.callbacks;
 
-    const snapshot = taikoVisualSnapshotRef.current;
-    const nowMs = performance.now();
-    const useSnapshot = !!snapshot && nowMs <= snapshot.expiresAtMs;
-    if (snapshot && !useSnapshot) {
-      taikoVisualSnapshotRef.current = null;
-    }
-
-    const currentTime = useSnapshot ? snapshot!.currentTime : bgmManager.getCurrentMusicTime();
-
-    const taikoNotes = useSnapshot ? snapshot!.taikoNotes : taikoNotesRef.current;
-
-    const stateNoteIndex = useSnapshot ? snapshot!.currentNoteIndex : currentNoteIndexRef.current;
-
-    const stateAwaitingLoop = useSnapshot ? snapshot!.awaitingLoopStart : awaitingLoopStartRef.current;
-
-    if (useSnapshot) {
-      taikoVisualSnapshotRef.current = null;
-    }
+    const currentTime = bgmManager.getCurrentMusicTime();
+    const taikoNotes = taikoNotesRef.current;
+    const stateNoteIndex = currentNoteIndexRef.current;
+    const stateAwaitingLoop = awaitingLoopStartRef.current;
 
     const preHitIndices = preHitNoteIndicesRef.current || [];
     if (preHitIndices !== this.lastPreHitRef) this.rebuildPreHitFlags(preHitIndices);
