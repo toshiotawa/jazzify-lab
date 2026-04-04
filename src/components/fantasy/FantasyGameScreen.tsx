@@ -552,6 +552,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   const shiftPianoOctave = useCallback((direction: -1 | 1) => {
     const container = pianoScrollRef.current;
     if (!container) return;
+    // オクターブシフトはユーザーの表示位置の意図として扱い、以降の centerPianoC4 で上書きしない
+    hasUserScrolledRef.current = true;
     const TOTAL_WHITE_KEYS = 52;
     const whiteKeyWidth = container.scrollWidth / TOTAL_WHITE_KEYS;
     const octavePixels = whiteKeyWidth * 7;
@@ -563,6 +565,16 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       isProgrammaticScrollRef.current = false;
     });
   }, []);
+
+  // インライン ref だと親の再レンダーのたびに ref が付け直され centerPianoC4 が毎回走り、スクロール位置が C4 に戻る
+  const setPianoScrollContainerRef = useCallback((el: HTMLDivElement | null) => {
+    pianoScrollRef.current = el;
+    if (el) {
+      requestAnimationFrame(() => {
+        requestAnimationFrame(centerPianoC4);
+      });
+    }
+  }, [centerPianoC4]);
 
   useEffect(() => {
     // Run after initial mount/layout
@@ -2524,14 +2536,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                 <div 
                   className="absolute inset-0 overflow-x-scroll overflow-y-hidden scrollbar-hidden"
                   style={{ touchAction: 'none' }}
-                  ref={(el) => {
-                    pianoScrollRef.current = el;
-                    if (el) {
-                      requestAnimationFrame(() => {
-                        requestAnimationFrame(centerPianoC4);
-                      });
-                    }
-                  }}
+                  ref={setPianoScrollContainerRef}
+                  onScroll={handlePianoScroll}
                 >
                   <div style={{ width: pixiWidth, height: '100%' }}>
                     <PIXINotesRenderer
