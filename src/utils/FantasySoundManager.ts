@@ -150,8 +150,11 @@ export class FantasySoundManager {
    * MidiController の play/stop と同一音高で競合しないよう、専用シンセで再生する。
    * GM の playBgmNote 経路も activeGMNotes を使わないが、音色をピアノ演奏と区別するため AMSynth を優先。
    */
-  public static playLegendBgmDemoNote(midiNote: number, durationSec: number): void {
-    this.instance._playLegendBgmDemoNote(midiNote, durationSec);
+  /**
+   * @param volume01 レジェンド設定の BGM 音量（0〜1）。`settings.bgmVolume` を渡す。
+   */
+  public static playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01 = 0.7): void {
+    this.instance._playLegendBgmDemoNote(midiNote, durationSec, volume01);
   }
   
   // GM音源が利用可能かどうか
@@ -821,22 +824,30 @@ export class FantasySoundManager {
           release: 0.12,
         },
       }).toDestination();
-      synth.volume.value = -14;
+      synth.volume.value = -2;
       this.legendBgmGuideSynth = synth;
     } catch {
       this.legendBgmGuideSynth = null;
     }
   }
 
-  private _playLegendBgmGuideNote(midiNote: number, durationSec: number): void {
+  private _playLegendBgmGuideNote(midiNote: number, durationSec: number, volume01: number): void {
     if (!this.legendBgmGuideSynth) {
+      return;
+    }
+    const v = Math.max(0, Math.min(1, volume01));
+    if (v < 0.001) {
       return;
     }
     try {
       void Tone.start();
+      const baseDb = -2;
+      const db = baseDb + 20 * Math.log10(v);
+      this.legendBgmGuideSynth.volume.value = Math.max(-80, db);
       const noteName = Tone.Frequency(midiNote, 'midi').toNote();
       const dur = Math.max(0.04, durationSec);
-      this.legendBgmGuideSynth.triggerAttackRelease(noteName, dur, undefined, 0.55);
+      const vel = Math.min(1, Math.max(0.06, 0.88 * v));
+      this.legendBgmGuideSynth.triggerAttackRelease(noteName, dur, undefined, vel);
     } catch {
       // ignore
     }
@@ -845,15 +856,19 @@ export class FantasySoundManager {
   /**
    * 専用 AMSynth → 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
    */
-  private _playLegendBgmDemoNote(midiNote: number, durationSec: number): void {
+  private _playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
+    const v = Math.max(0, Math.min(1, volume01));
+    if (v < 0.001) {
+      return;
+    }
     this._ensureContextsRunning();
     this.ensureLegendBgmGuideSynth();
     if (this.legendBgmGuideSynth) {
-      this._playLegendBgmGuideNote(midiNote, durationSec);
+      this._playLegendBgmGuideNote(midiNote, durationSec, v);
       return;
     }
     if (FantasySoundManager.isGMReady()) {
-      this._playBgmGMNote(midiNote, 0.63, durationSec);
+      this._playBgmGMNote(midiNote, 0.63 * v, durationSec);
     }
   }
 

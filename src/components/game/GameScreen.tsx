@@ -959,11 +959,12 @@ const EmptySlot: React.FC<{ text: string }> = ({ text }) => {
  * 設定パネル（簡易版）
  */
 const SettingsPanel: React.FC = () => {
-  const { settings, mode, lessonContext, missionContext } = useGameSelector((s) => ({ 
+  const { settings, mode, lessonContext, missionContext, currentSong } = useGameSelector((s) => ({ 
     settings: s.settings, 
     mode: s.mode,
     lessonContext: s.lessonContext,
-    missionContext: s.missionContext
+    missionContext: s.missionContext,
+    currentSong: s.currentSong
   }));
   const gameActions = useGameActions();
   const { profile: spProfile } = useAuthStore();
@@ -1260,6 +1261,32 @@ const SettingsPanel: React.FC = () => {
                   className="slider w-full"
                 />
               </div>
+
+              {!(currentSong?.audioFile?.trim()) && (
+                <div>
+                  <label className="block text-sm font-medium text-gray-300 mb-2">
+                    {isEnglishCopy
+                      ? `BGM volume (note guide): ${Math.round((settings.bgmVolume ?? 0.7) * 100)}%`
+                      : `BGM音量（ノーツ合成のガイド）: ${Math.round((settings.bgmVolume ?? 0.7) * 100)}%`}
+                  </label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={settings.bgmVolume ?? 0.7}
+                    onChange={(e) =>
+                      gameActions.updateSettings({ bgmVolume: parseFloat(e.target.value) })
+                    }
+                    className="slider w-full"
+                  />
+                  <p className="text-xs text-gray-500 mt-1">
+                    {isEnglishCopy
+                      ? 'Applies when this song has no audio file (synthesized guide playback).'
+                      : '音源ファイルがない曲（ノーツから合成するガイド再生）でのみ有効です。'}
+                  </p>
+                </div>
+              )}
               
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-2">

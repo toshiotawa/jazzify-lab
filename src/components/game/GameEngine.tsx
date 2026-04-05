@@ -1239,12 +1239,16 @@ useEffect(() => {
       gameEngine.setEnableBgmSynthesis(true);
       gameEngine.setBgmNoteCallback((pitch: number, durationSec: number) => {
         if (!isPlayingRef.current) return;
-        FantasySoundManager.playLegendBgmDemoNote(pitch, durationSec);
+        FantasySoundManager.playLegendBgmDemoNote(
+          pitch,
+          durationSec,
+          settings.bgmVolume ?? 0.7
+        );
       });
     } else {
       gameEngine.setEnableBgmSynthesis(false);
     }
-  }, [gameEngine, hasAudioTrack]);
+  }, [gameEngine, hasAudioTrack, settings.bgmVolume]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {
