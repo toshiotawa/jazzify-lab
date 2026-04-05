@@ -1229,7 +1229,9 @@ useEffect(() => {
     }
   }, [gameEngine, ensureMidiModule]);
 
-  // BGM合成: 音源なし曲でノーツを自動演奏してBGMとして鳴らす（オートプレイと同じ経路）
+  // BGM合成: 音源なし曲でノーツを自動演奏してBGMとして鳴らす
+  // MidiController.playNote/stopNote 経路はユーザー入力の stop と同一音高で競合するため、
+  // FantasySoundManager の専用シンセ（AMSynth）または GM の時間指定BGM経路を使う。
   useEffect(() => {
     if (!gameEngine) return;
 
@@ -1237,22 +1239,12 @@ useEffect(() => {
       gameEngine.setEnableBgmSynthesis(true);
       gameEngine.setBgmNoteCallback((pitch: number, durationSec: number) => {
         if (!isPlayingRef.current) return;
-        const releaseMs = Math.max(50, durationSec * 1000 - 30);
-        const module = midiModuleRef.current;
-        if (module) {
-          void module.playNote(pitch, 80).catch(() => {});
-          setTimeout(() => module.stopNote(pitch), releaseMs);
-          return;
-        }
-        void ensureMidiModule().then((m) => {
-          void m.playNote(pitch, 80).catch(() => {});
-          setTimeout(() => m.stopNote(pitch), releaseMs);
-        }).catch(() => {});
+        FantasySoundManager.playLegendBgmDemoNote(pitch, durationSec);
       });
     } else {
       gameEngine.setEnableBgmSynthesis(false);
     }
-  }, [gameEngine, hasAudioTrack, ensureMidiModule]);
+  }, [gameEngine, hasAudioTrack]);
   
   // 設定変更時の更新（transpose を含む）
   useEffect(() => {

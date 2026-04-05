@@ -34,6 +34,7 @@
 import { getWindow } from '@/platform';
 import { note as tonalNote } from 'tonal';
 import Soundfont from 'soundfont-player';
+import * as Tone from 'tone';
 
 export type MagicSeType = 'fire' | 'ice' | 'thunder';
 
@@ -142,6 +143,15 @@ export class FantasySoundManager {
   // BGM用: ノートを指定時間鳴らして自然にフェードアウト（手動停止不要）
   public static playBgmNote(midiNote: number, velocity: number, durationSec: number) {
     return this.instance._playBgmGMNote(midiNote, velocity, durationSec);
+  }
+
+  /**
+   * レジェンドモード「音源なし」時のデモBGM用。
+   * MidiController の play/stop と同一音高で競合しないよう、専用シンセで再生する。
+   * GM の playBgmNote 経路も activeGMNotes を使わないが、音色をピアノ演奏と区別するため AMSynth を優先。
+   */
+  public static playLegendBgmDemoNote(midiNote: number, durationSec: number): void {
+    this.instance._playLegendBgmDemoNote(midiNote, durationSec);
   }
   
   // GM音源が利用可能かどうか
@@ -583,6 +593,9 @@ export class FantasySoundManager {
 
   private activeFMNotes: Set<number> = new Set();
 
+  /** レジェンド用デモBGM（ピアノ入力と独立した AMSynth・PolySynth） */
+  private legendBgmGuideSynth: Tone.PolySynth<Tone.AMSynth> | null = null;
+
   // 全AudioContextをresume（ゲーム開始前の呼び出し推奨）
   private _ensureContextsRunning(): void {
     try {
@@ -783,6 +796,64 @@ export class FantasySoundManager {
       }, totalDuration * 1000 + 100);
     } catch {
       // BGM note playback error - ignore
+    }
+  }
+
+  private ensureLegendBgmGuideSynth(): void {
+    if (this.legendBgmGuideSynth) {
+      return;
+    }
+    try {
+      const synth = new Tone.PolySynth(Tone.AMSynth, {
+        harmonicity: 2.6,
+        oscillator: { type: 'triangle' },
+        envelope: {
+          attack: 0.004,
+          decay: 0.22,
+          sustain: 0.18,
+          release: 0.42,
+        },
+        modulation: { type: 'sine' },
+        modulationEnvelope: {
+          attack: 0.002,
+          decay: 0.08,
+          sustain: 0.05,
+          release: 0.12,
+        },
+      }).toDestination();
+      synth.volume.value = -14;
+      this.legendBgmGuideSynth = synth;
+    } catch {
+      this.legendBgmGuideSynth = null;
+    }
+  }
+
+  private _playLegendBgmGuideNote(midiNote: number, durationSec: number): void {
+    if (!this.legendBgmGuideSynth) {
+      return;
+    }
+    try {
+      void Tone.start();
+      const noteName = Tone.Frequency(midiNote, 'midi').toNote();
+      const dur = Math.max(0.04, durationSec);
+      this.legendBgmGuideSynth.triggerAttackRelease(noteName, dur, undefined, 0.55);
+    } catch {
+      // ignore
+    }
+  }
+
+  /**
+   * 専用 AMSynth → 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
+   */
+  private _playLegendBgmDemoNote(midiNote: number, durationSec: number): void {
+    this._ensureContextsRunning();
+    this.ensureLegendBgmGuideSynth();
+    if (this.legendBgmGuideSynth) {
+      this._playLegendBgmGuideNote(midiNote, durationSec);
+      return;
+    }
+    if (FantasySoundManager.isGMReady()) {
+      this._playBgmGMNote(midiNote, 0.63, durationSec);
     }
   }
 
