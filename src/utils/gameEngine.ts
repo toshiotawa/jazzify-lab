@@ -15,7 +15,10 @@ import type {
 } from '@/types';
 import { log, devLog } from './logger';
 
-type InternalNote = NoteData & { _wasProcessed?: boolean };
+type InternalNote = NoteData & {
+  _wasProcessed?: boolean;
+  _bgmGuideTriggered?: boolean;
+};
 
 // ===== 定数定義 =====
 
@@ -171,6 +174,7 @@ export class GameEngine {
       }))
       .sort((a, b) => a.time - b.time);
     this.nextNoteIndex = 0;
+    this.nextBgmGuideIndex = this.findNextBgmGuideIndex(0);
   }
 
   private recycleAllActiveNotes(): void {
@@ -591,11 +595,15 @@ export class GameEngine {
     for (const note of notes) {
       if (note.time >= startTime) {
         delete note._wasProcessed;
+        delete note._bgmGuideTriggered;
+      } else {
+        note._bgmGuideTriggered = true;
       }
       note.appearTime = note.time + timingAdj - lookahead;
     }
     const lookBehind = Math.max(0, startTime - lookahead);
     this.nextNoteIndex = this.findNextNoteIndex(lookBehind);
+    this.nextBgmGuideIndex = this.findNextBgmGuideIndex(startTime);
   }
   
   /**
@@ -605,6 +613,10 @@ export class GameEngine {
    */
   private updateNotes(currentTime: number): ActiveNote[] {
     this.spawnUpcomingNotes(currentTime);
+
+    // 音源なしモードのデモ再生は activeNotes の生存状態に依存させない。
+    // ユーザーが先に演奏して note が hit/completed になっても、譜面時刻では必ず鳴らす。
+    this.triggerScheduledBgmGuides(currentTime);
     
     // Loop 1: 位置更新専用（毎フレーム実行、軽量処理のみ）
     this.updateNotePositions(currentTime);
@@ -713,6 +725,7 @@ export class GameEngine {
 
   // 🚀 GC最適化: 削除リストをクラスレベルでキャッシュ
   private readonly notesToDeleteBuffer: string[] = [];
+  private nextBgmGuideIndex = 0;
   
   /**
    * 🎯 判定・状態更新専用ループ（フレーム間引き実行）
@@ -730,8 +743,6 @@ export class GameEngine {
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
       this.checkHitLineCrossing(note, currentTime, timingAdjSec);
-      // 幾何検出で取りこぼした場合でも、演奏時刻ではガイドBGMを1回だけ再生（ノーツの見た目・判定は不変）
-      this.checkTimeBasedBgmGuide(note, currentTime, timingAdjSec);
       
         // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
         const latestNote = this.activeNotes.get(noteId) || note;
@@ -843,19 +854,7 @@ export class GameEngine {
         // 重複ログ防止フラグを即座に設定
         note.crossingLogged = true;
 
-      // BGM合成: 音源なし時にノーツを自動演奏（判定は行わない）
       const practiceGuide = this.settings.practiceGuide ?? 'key';
-      if (
-        this.enableBgmSynthesis &&
-        this.onBgmNote &&
-        practiceGuide !== 'key_auto' &&
-        !note.bgmSynthLogged
-      ) {
-        const bgmPitch = note.pitch + this.settings.transpose;
-        const bgmDuration = note.duration ?? 0.3;
-        this.onBgmNote(bgmPitch, bgmDuration);
-        note.bgmSynthLogged = true;
-      }
 
       // 練習モードガイド処理
       if (practiceGuide !== 'off') {
@@ -918,40 +917,58 @@ export class GameEngine {
     }
   }
 
-  /**
-   * 音源なしBGM: 判定ラインの幾何検出が間に合わない場合でも、譜面の演奏時刻でガイド音を1回だけ鳴らす。
-   * ミス／完了判定や Y 座標計算には触れない。
-   */
-  private checkTimeBasedBgmGuide(
-    note: ActiveNote,
-    currentTime: number,
-    timingAdjSec: number
-  ): void {
+  // BGMデモ再生は triggerScheduledBgmGuides() に一本化した。
+
+  private findNextBgmGuideIndex(targetTime: number): number {
+    if (this.notes.length === 0) return 0;
+
+    const timingAdjSec = this.getTimingAdjSec();
+    let low = 0;
+    let high = this.notes.length - 1;
+    let result = this.notes.length;
+
+    while (low <= high) {
+      const mid = (low + high) >> 1;
+      const midNote = this.notes[mid];
+      const adjustedTime = midNote ? this.getAdjustedNoteTime(midNote, timingAdjSec) : 0;
+      if (adjustedTime >= targetTime) {
+        result = mid;
+        high = mid - 1;
+      } else {
+        low = mid + 1;
+      }
+    }
+
+    return Math.max(0, result);
+  }
+
+  private triggerScheduledBgmGuides(currentTime: number): void {
     const practiceGuide = this.settings.practiceGuide ?? 'key';
-    if (
-      !this.enableBgmSynthesis ||
-      !this.onBgmNote ||
-      practiceGuide === 'key_auto' ||
-      note.bgmSynthLogged
-    ) {
+    if (!this.enableBgmSynthesis || !this.onBgmNote || practiceGuide === 'key_auto') {
       return;
     }
-    // 先打ちで既に hit になっていても、譜面時刻ではガイドBGMを鳴らす
-    if (
-      note.state !== 'visible' &&
-      note.state !== 'missed' &&
-      note.state !== 'hit'
-    ) {
-      return;
+
+    while (this.nextBgmGuideIndex < this.notes.length) {
+      const note = this.notes[this.nextBgmGuideIndex] as InternalNote;
+      const displayTime = this.getAdjustedNoteTime(note);
+      if (displayTime > currentTime) {
+        break;
+      }
+
+      if (!note._bgmGuideTriggered) {
+        const bgmPitch = note.pitch + this.settings.transpose;
+        const bgmDuration = Math.max(0.04, note.duration ?? 0.3);
+        this.onBgmNote(bgmPitch, bgmDuration);
+        note._bgmGuideTriggered = true;
+
+        const active = this.activeNotes.get(note.id);
+        if (active) {
+          active.bgmSynthLogged = true;
+        }
+      }
+
+      this.nextBgmGuideIndex += 1;
     }
-    const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
-    if (currentTime < displayTime) {
-      return;
-    }
-    const bgmPitch = note.pitch + this.settings.transpose;
-    const bgmDuration = note.duration ?? 0.3;
-    this.onBgmNote(bgmPitch, bgmDuration);
-    note.bgmSynthLogged = true;
   }
   
     private calculateNoteY(note: NoteData, currentTime: number): number {

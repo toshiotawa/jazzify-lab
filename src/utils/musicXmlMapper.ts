@@ -161,6 +161,83 @@ export function mergeJsonWithNames(jsonNotes: NoteData[], noteNames: string[]): 
 }
 
 /**
+ * JSONノーツの time / pitch はそのまま使い、MusicXML由来の再生メタデータ
+ * （duration / noteName / hand）だけを上書きする。
+ *
+ * parseMusicXmlToNoteData() は装飾音を展開するため、単純な index マージだと
+ * JSON 側と件数がズレることがある。そこで、順序を保ったまま time+pitch で
+ * 前方探索して最も近い XML ノートを採用する。
+ */
+export function mergeJsonWithMusicXmlPlaybackMeta(
+  jsonNotes: NoteData[],
+  xmlNotes: NoteData[],
+): NoteData[] {
+  if (jsonNotes.length === 0 || xmlNotes.length === 0) {
+    return jsonNotes;
+  }
+
+  const usedXmlIndices = new Set<number>();
+  let xmlCursor = 0;
+  const LOOKAHEAD = 12;
+  const TIME_TOLERANCE_SEC = 0.12;
+
+  return jsonNotes.map((jsonNote) => {
+    let bestIndex = -1;
+    let bestScore = Number.POSITIVE_INFINITY;
+
+    for (let i = xmlCursor; i < Math.min(xmlNotes.length, xmlCursor + LOOKAHEAD); i += 1) {
+      if (usedXmlIndices.has(i)) continue;
+      const xmlNote = xmlNotes[i];
+      if (!xmlNote) continue;
+
+      // pitch が違う候補は採用しない
+      if (xmlNote.pitch !== jsonNote.pitch) continue;
+
+      const timeDiff = Math.abs((xmlNote.time ?? 0) - (jsonNote.time ?? 0));
+      if (timeDiff > TIME_TOLERANCE_SEC) continue;
+
+      if (timeDiff < bestScore) {
+        bestScore = timeDiff;
+        bestIndex = i;
+        if (timeDiff === 0) break;
+      }
+    }
+
+    if (bestIndex === -1) {
+      for (let i = xmlCursor; i < Math.min(xmlNotes.length, xmlCursor + LOOKAHEAD); i += 1) {
+        if (usedXmlIndices.has(i)) continue;
+        const xmlNote = xmlNotes[i];
+        if (!xmlNote) continue;
+
+        const timeDiff = Math.abs((xmlNote.time ?? 0) - (jsonNote.time ?? 0));
+        const pitchDiff = Math.abs((xmlNote.pitch ?? 0) - (jsonNote.pitch ?? 0));
+        const score = (pitchDiff * 10) + timeDiff;
+
+        if (score < bestScore) {
+          bestScore = score;
+          bestIndex = i;
+        }
+      }
+    }
+
+    if (bestIndex === -1) {
+      return jsonNote;
+    }
+
+    usedXmlIndices.add(bestIndex);
+    xmlCursor = bestIndex + 1;
+
+    const xmlNote = xmlNotes[bestIndex];
+    return {
+      ...jsonNote,
+      duration: xmlNote.duration ?? jsonNote.duration,
+      noteName: xmlNote.noteName ?? jsonNote.noteName,
+      hand: xmlNote.hand ?? jsonNote.hand,
+    };
+  });
+}
+
+/**
  * MusicXML内のノーツとコードの位置情報を抽出
  */
 interface MusicXmlNotePosition {

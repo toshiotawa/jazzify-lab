@@ -762,6 +762,7 @@ export class FantasySoundManager {
       }
 
       const currentTime = ctx.currentTime;
+      const safeDuration = Math.max(0.04, Math.min(durationSec, 16));
       const volumeBoost = 8.0;
       const baseGain = velocity * volumeBoost * this.gmPianoVolume;
       const acousticGain = baseGain * (1 - this.gmMixBalance * 0.5);
@@ -771,31 +772,39 @@ export class FantasySoundManager {
       noteGain.gain.value = 1.0;
       noteGain.connect(this.gmMasterGain || ctx.destination);
 
-      const fadeStart = currentTime + durationSec;
+      const fadeStart = currentTime + safeDuration;
       const fadeTime = 0.35;
       noteGain.gain.setValueAtTime(1.0, fadeStart);
       noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
 
-      const totalDuration = durationSec + fadeTime + 0.05;
+      const totalDuration = safeDuration + fadeTime + 0.05;
+      const startedVoices: unknown[] = [];
 
       if (acousticGain > 0) {
-        this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
+        startedVoices.push(this.gmAcousticPiano.play(midiNote.toString(), currentTime, {
           gain: acousticGain,
           duration: totalDuration,
           destination: noteGain
-        } as any);
+        } as any));
       }
 
       if (this.gmElectricPiano && electricGain > 0) {
-        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+        startedVoices.push(this.gmElectricPiano.play(midiNote.toString(), currentTime, {
           gain: electricGain,
           duration: totalDuration,
           destination: noteGain
-        } as any);
+        } as any));
       }
 
-      setTimeout(() => {
+      getWindow().setTimeout(() => {
         try { noteGain.disconnect(); } catch { /* ignore */ }
+        for (const voice of startedVoices) {
+          try {
+            (voice as { stop?: () => void })?.stop?.();
+          } catch {
+            /* ignore */
+          }
+        }
       }, totalDuration * 1000 + 100);
     } catch {
       // BGM note playback error - ignore
@@ -819,6 +828,7 @@ export class FantasySoundManager {
       }
 
       const currentTime = ctx.currentTime;
+      const safeDuration = Math.max(0.04, Math.min(durationSec, 16));
       const volumeBoost = 8.0;
       const electricGain = velocity * volumeBoost * this.gmPianoVolume;
 
@@ -826,23 +836,25 @@ export class FantasySoundManager {
       noteGain.gain.value = 1.0;
       noteGain.connect(this.gmMasterGain || ctx.destination);
 
-      const fadeStart = currentTime + durationSec;
+      const fadeStart = currentTime + safeDuration;
       const fadeTime = 0.35;
       noteGain.gain.setValueAtTime(1.0, fadeStart);
       noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
 
-      const totalDuration = durationSec + fadeTime + 0.05;
+      const totalDuration = safeDuration + fadeTime + 0.05;
+      let electricVoice: unknown = null;
 
       if (electricGain > 0) {
-        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+        electricVoice = this.gmElectricPiano.play(midiNote.toString(), currentTime, {
           gain: electricGain,
           duration: totalDuration,
           destination: noteGain
         } as any);
       }
 
-      setTimeout(() => {
+      getWindow().setTimeout(() => {
         try {
+          (electricVoice as { stop?: () => void })?.stop?.();
           noteGain.disconnect();
         } catch {
           /* ignore */
