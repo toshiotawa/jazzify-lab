@@ -148,7 +148,7 @@ export class FantasySoundManager {
   /**
    * レジェンドモード「音源なし」時のデモBGM用。
    * MidiController の play/stop と同一音高で競合しないよう、専用シンセで再生する。
-   * GM の playBgmNote 経路も activeGMNotes を使わないが、音色をピアノ演奏と区別するため AMSynth を優先。
+   * GM の playBgmNote 経路も activeGMNotes を使わないが、音色はエレクトリックピアノ風 FM を優先。
    */
   /**
    * @param volume01 レジェンド設定の BGM 音量（0〜1）。`settings.bgmVolume` を渡す。
@@ -596,8 +596,8 @@ export class FantasySoundManager {
 
   private activeFMNotes: Set<number> = new Set();
 
-  /** レジェンド用デモBGM（ピアノ入力と独立した AMSynth・PolySynth） */
-  private legendBgmGuideSynth: Tone.PolySynth<Tone.AMSynth> | null = null;
+  /** レジェンド用デモBGM（ピアノ入力と独立した FM・PolySynth＝エレピ風） */
+  private legendBgmGuideSynth: Tone.PolySynth<Tone.FMSynth> | null = null;
 
   // 全AudioContextをresume（ゲーム開始前の呼び出し推奨）
   private _ensureContextsRunning(): void {
@@ -807,21 +807,22 @@ export class FantasySoundManager {
       return;
     }
     try {
-      const synth = new Tone.PolySynth(Tone.AMSynth, {
-        harmonicity: 1.85,
+      const synth = new Tone.PolySynth(Tone.FMSynth, {
+        harmonicity: 1.45,
+        modulationIndex: 3.2,
         oscillator: { type: 'sine' },
+        modulation: { type: 'sine' },
         envelope: {
-          attack: 0.055,
-          decay: 0.28,
-          sustain: 0.32,
-          release: 0.55,
+          attack: 0.012,
+          decay: 0.22,
+          sustain: 0.28,
+          release: 0.52,
         },
-        modulation: { type: 'triangle' },
         modulationEnvelope: {
-          attack: 0.065,
-          decay: 0.2,
-          sustain: 0.12,
-          release: 0.28,
+          attack: 0.004,
+          decay: 0.12,
+          sustain: 0.08,
+          release: 0.35,
         },
       }).toDestination();
       synth.volume.value = 0;
@@ -860,7 +861,7 @@ export class FantasySoundManager {
   }
 
   /**
-   * 専用 AMSynth → 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
+   * 専用 FM（エレピ風）→ 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
    */
   private _playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
     const bgm = Math.max(0, Math.min(1, volume01));

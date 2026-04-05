@@ -60,6 +60,8 @@ export interface ActiveNote extends NoteData {
   _lastLogicY?: number; // ロジック更新時のY座標（フレームスキップ耐性のある通過検出用）
   judged?: boolean; // Miss判定の重複を防ぐフラグ
   crossingLogged?: boolean; // 判定ライン通過ログの重複を防ぐフラグ
+  /** 音源なしBGM合成ガイド音を既に再生したか（幾何検出を逃した場合の時刻フォールバック用） */
+  bgmSynthLogged?: boolean;
 }
 
 export interface JudgmentTiming {

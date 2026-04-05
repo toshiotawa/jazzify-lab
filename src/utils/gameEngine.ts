@@ -191,6 +191,7 @@ export class GameEngine {
     note.y = undefined;
     note.judged = false;
     note.crossingLogged = false;
+    note.bgmSynthLogged = false;
   }
 
   private borrowActiveNote(source: NoteData, currentTime: number): ActiveNote {
@@ -212,12 +213,14 @@ export class GameEngine {
       instance.y = baseY;
       instance.judged = false;
       instance.crossingLogged = false;
+      instance.bgmSynthLogged = false;
       return instance;
     }
     return {
       ...source,
       state: 'visible',
-      y: baseY
+      y: baseY,
+      bgmSynthLogged: false
     };
   }
 
@@ -727,6 +730,8 @@ export class GameEngine {
       
       // 🎯 STEP 1: 判定ライン通過検出を先に実行（オートプレイ処理含む）
       this.checkHitLineCrossing(note, currentTime, timingAdjSec);
+      // 幾何検出で取りこぼした場合でも、演奏時刻ではガイドBGMを1回だけ再生（ノーツの見た目・判定は不変）
+      this.checkTimeBasedBgmGuide(note, currentTime, timingAdjSec);
       
         // 🎯 STEP 2: 最新の状態を取得してから通常の状態更新
         const latestNote = this.activeNotes.get(noteId) || note;
@@ -840,10 +845,16 @@ export class GameEngine {
 
       // BGM合成: 音源なし時にノーツを自動演奏（判定は行わない）
       const practiceGuide = this.settings.practiceGuide ?? 'key';
-      if (this.enableBgmSynthesis && this.onBgmNote && practiceGuide !== 'key_auto') {
+      if (
+        this.enableBgmSynthesis &&
+        this.onBgmNote &&
+        practiceGuide !== 'key_auto' &&
+        !note.bgmSynthLogged
+      ) {
         const bgmPitch = note.pitch + this.settings.transpose;
         const bgmDuration = note.duration ?? 0.3;
         this.onBgmNote(bgmPitch, bgmDuration);
+        note.bgmSynthLogged = true;
       }
 
       // 練習モードガイド処理
@@ -905,6 +916,37 @@ export class GameEngine {
         
       }
     }
+  }
+
+  /**
+   * 音源なしBGM: 判定ラインの幾何検出が間に合わない場合でも、譜面の演奏時刻でガイド音を1回だけ鳴らす。
+   * ミス／完了判定や Y 座標計算には触れない。
+   */
+  private checkTimeBasedBgmGuide(
+    note: ActiveNote,
+    currentTime: number,
+    timingAdjSec: number
+  ): void {
+    const practiceGuide = this.settings.practiceGuide ?? 'key';
+    if (
+      !this.enableBgmSynthesis ||
+      !this.onBgmNote ||
+      practiceGuide === 'key_auto' ||
+      note.bgmSynthLogged
+    ) {
+      return;
+    }
+    if (note.state !== 'visible' && note.state !== 'missed') {
+      return;
+    }
+    const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);
+    if (currentTime < displayTime) {
+      return;
+    }
+    const bgmPitch = note.pitch + this.settings.transpose;
+    const bgmDuration = note.duration ?? 0.3;
+    this.onBgmNote(bgmPitch, bgmDuration);
+    note.bgmSynthLogged = true;
   }
   
     private calculateNoteY(note: NoteData, currentTime: number): number {
