@@ -5,7 +5,7 @@ import { getSupabaseClient, fetchWithCache, clearCacheByKey } from '@/platform/s
 import { useUserStatsStore } from './userStatsStore';
 import { persistPreferredLocale, resolveAudienceLocale, detectBrowserLocale, getStoredPreferredLocale } from '@/utils/globalAudience';
 import { normalizeMembershipTier } from '@/utils/membership';
-import { isIOSWebView, getNativeAuthToken } from '@/utils/iosbridge';
+import { isIOSWebView, getNativeAuthToken, getNativeRefreshToken } from '@/utils/iosbridge';
 
 interface AuthState {
   user: User | null;
@@ -136,11 +136,12 @@ export const useAuthStore = create<AuthState & AuthActions>()(
       let session: Session | null = null;
 
       if (isIOSWebView()) {
-        const nativeToken = getNativeAuthToken();
-        if (nativeToken) {
+        const accessToken = getNativeAuthToken();
+        const refreshToken = getNativeRefreshToken();
+        if (accessToken && refreshToken) {
           const { data, error: setErr } = await supabase.auth.setSession({
-            access_token: nativeToken,
-            refresh_token: nativeToken,
+            access_token: accessToken,
+            refresh_token: refreshToken,
           });
           if (!setErr && data.session) {
             session = data.session;

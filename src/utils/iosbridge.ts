@@ -7,6 +7,8 @@ declare global {
       };
     };
     __NATIVE_AUTH_TOKEN__?: string;
+    /** iOS ネイティブから注入する Supabase リフレッシュトークン（WebView の setSession 用） */
+    __NATIVE_REFRESH_TOKEN__?: string;
     onNativeMidiMessage?: (status: number, note: number, velocity: number) => void;
     onNativeMidiDevices?: (devices: Array<{ uniqueID: number; displayName: string; manufacturer: string }>) => void;
     onNativeMidiSelected?: (uniqueID: number) => void;
@@ -49,6 +51,11 @@ export const getIOSParam = (key: string): string | null => {
 export const getNativeAuthToken = (): string | null => {
   if (typeof window === 'undefined') return null;
   return window.__NATIVE_AUTH_TOKEN__ ?? null;
+};
+
+export const getNativeRefreshToken = (): string | null => {
+  if (typeof window === 'undefined') return null;
+  return window.__NATIVE_REFRESH_TOKEN__ ?? null;
 };
 
 export const sendGameCallback = (action: string, data?: Record<string, unknown>): void => {

@@ -95,7 +95,8 @@ struct GameWebView: View {
     let mode: GameMode
     let locale: AppLocale
     var onClose: (() -> Void)?
-    @State private var resolvedToken: String?
+    @State private var resolvedAccessToken: String?
+    @State private var resolvedRefreshToken: String?
     @State private var tokenReady = false
 
     private var isDemoMode: Bool {
@@ -105,12 +106,20 @@ struct GameWebView: View {
         }
     }
 
-    init(mode: GameMode, locale: AppLocale, authToken: String? = nil, onClose: (() -> Void)? = nil) {
+    init(
+        mode: GameMode,
+        locale: AppLocale,
+        accessToken: String? = nil,
+        refreshToken: String? = nil,
+        onClose: (() -> Void)? = nil
+    ) {
         self.mode = mode
         self.locale = locale
         self.onClose = onClose
-        self._resolvedToken = State(initialValue: authToken)
-        self._tokenReady = State(initialValue: authToken != nil)
+        self._resolvedAccessToken = State(initialValue: accessToken)
+        self._resolvedRefreshToken = State(initialValue: refreshToken)
+        let hasPair = accessToken != nil && refreshToken != nil
+        self._tokenReady = State(initialValue: hasPair)
     }
 
     var body: some View {
@@ -121,7 +130,8 @@ struct GameWebView: View {
                 WebViewRepresentable(
                     url: buildURL(),
                     coordinator: coordinator,
-                    authToken: resolvedToken
+                    accessToken: resolvedAccessToken,
+                    refreshToken: resolvedRefreshToken
                 )
                 .ignoresSafeArea()
             } else {
@@ -131,8 +141,15 @@ struct GameWebView: View {
 
         }
         .task {
-            if !isDemoMode && resolvedToken == nil {
-                resolvedToken = try? await SupabaseService.shared.accessToken()
+            if !isDemoMode && (resolvedAccessToken == nil || resolvedRefreshToken == nil) {
+                do {
+                    let session = try await SupabaseService.shared.client.auth.session
+                    resolvedAccessToken = session.accessToken
+                    resolvedRefreshToken = session.refreshToken
+                } catch {
+                    resolvedAccessToken = nil
+                    resolvedRefreshToken = nil
+                }
             }
             tokenReady = true
         }
@@ -173,7 +190,8 @@ struct GameWebView: View {
 struct WebViewRepresentable: UIViewRepresentable {
     let url: URL
     let coordinator: WebViewCoordinator
-    let authToken: String?
+    let accessToken: String?
+    let refreshToken: String?
 
     func makeUIView(context: Context) -> WKWebView {
         let config = WKWebViewConfiguration()
@@ -222,8 +240,8 @@ struct WebViewRepresentable: UIViewRepresentable {
 
         coordinator.webView = webView
 
-        if let token = authToken {
-            injectAuthToken(webView: webView, token: token)
+        if let access = accessToken, let refresh = refreshToken {
+            injectAuthTokens(webView: webView, accessToken: access, refreshToken: refresh)
         }
         injectViewportHeight(webView: webView)
 
@@ -233,9 +251,21 @@ struct WebViewRepresentable: UIViewRepresentable {
 
     func updateUIView(_ webView: WKWebView, context: Context) {}
 
-    private func injectAuthToken(webView: WKWebView, token: String) {
+    private func injectAuthTokens(webView: WKWebView, accessToken: String, refreshToken: String) {
+        func jsStringLiteral(_ value: String) -> String {
+            guard let data = try? JSONEncoder().encode(value),
+                  let s = String(data: data, encoding: .utf8) else {
+                return "\"\""
+            }
+            return s
+        }
+        let accessLit = jsStringLiteral(accessToken)
+        let refreshLit = jsStringLiteral(refreshToken)
         let script = WKUserScript(
-            source: "window.__NATIVE_AUTH_TOKEN__ = '\(token)';",
+            source: """
+            window.__NATIVE_AUTH_TOKEN__ = \(accessLit);
+            window.__NATIVE_REFRESH_TOKEN__ = \(refreshLit);
+            """,
             injectionTime: .atDocumentStart,
             forMainFrameOnly: true
         )
