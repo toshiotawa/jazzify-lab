@@ -772,12 +772,13 @@ export class FantasySoundManager {
       noteGain.gain.value = 1.0;
       noteGain.connect(this.gmMasterGain || ctx.destination);
 
-      const fadeStart = currentTime + safeDuration;
-      const fadeTime = 0.35;
-      noteGain.gain.setValueAtTime(1.0, fadeStart);
-      noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
+      const releaseSec = Math.min(0.08, Math.max(0.02, safeDuration * 0.42));
+      const releaseStart = currentTime + Math.max(0, safeDuration - releaseSec);
+      noteGain.gain.setValueAtTime(1.0, currentTime);
+      noteGain.gain.setValueAtTime(1.0, releaseStart);
+      noteGain.gain.linearRampToValueAtTime(0, currentTime + safeDuration);
 
-      const totalDuration = safeDuration + fadeTime + 0.05;
+      const totalDuration = safeDuration + 0.06;
       const startedVoices: unknown[] = [];
 
       if (acousticGain > 0) {
@@ -836,12 +837,13 @@ export class FantasySoundManager {
       noteGain.gain.value = 1.0;
       noteGain.connect(this.gmMasterGain || ctx.destination);
 
-      const fadeStart = currentTime + safeDuration;
-      const fadeTime = 0.35;
-      noteGain.gain.setValueAtTime(1.0, fadeStart);
-      noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
+      const releaseSec = Math.min(0.08, Math.max(0.02, safeDuration * 0.42));
+      const releaseStart = currentTime + Math.max(0, safeDuration - releaseSec);
+      noteGain.gain.setValueAtTime(1.0, currentTime);
+      noteGain.gain.setValueAtTime(1.0, releaseStart);
+      noteGain.gain.linearRampToValueAtTime(0, currentTime + safeDuration);
 
-      const totalDuration = safeDuration + fadeTime + 0.05;
+      const totalDuration = safeDuration + 0.06;
       let electricVoice: unknown = null;
 
       if (electricGain > 0) {

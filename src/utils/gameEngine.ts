@@ -957,7 +957,17 @@ export class GameEngine {
 
       if (!note._bgmGuideTriggered) {
         const bgmPitch = note.pitch + this.settings.transpose;
-        const bgmDuration = Math.max(0.04, note.duration ?? 0.3);
+        const rawDur = note.duration ?? 0.3;
+        const next = this.notes[this.nextBgmGuideIndex + 1];
+        const gapToNextOnset = next
+          ? this.getAdjustedNoteTime(next) - displayTime
+          : Number.POSITIVE_INFINITY;
+        // 次の発音より前に必ず収める（速い16分・8分連打で音が濁るのを防ぐ）
+        let capped = rawDur;
+        if (Number.isFinite(gapToNextOnset) && gapToNextOnset > 0.02) {
+          capped = Math.min(rawDur, gapToNextOnset - 0.012);
+        }
+        const bgmDuration = Math.max(0.04, Math.min(capped, 16));
         this.onBgmNote(bgmPitch, bgmDuration);
         note._bgmGuideTriggered = true;
 
