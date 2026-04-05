@@ -22,12 +22,13 @@ import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
  * ゲームのメインUI要素を統合
  */
 const GameScreen: React.FC = () => {
-  const { currentTab, currentSong, score, isSettingsOpen, settings } = useGameSelector((s) => ({
+  const { currentTab, currentSong, score, isSettingsOpen, settings, resultModalOpen } = useGameSelector((s) => ({
     currentTab: s.currentTab,
     currentSong: s.currentSong,
     score: s.score,
     isSettingsOpen: s.isSettingsOpen,
-    settings: s.settings
+    settings: s.settings,
+    resultModalOpen: s.resultModalOpen
   }));
 
   const gameActions = useGameActions();
@@ -58,6 +59,8 @@ const GameScreen: React.FC = () => {
       const notation = params.get('notation') || 'both';
       const requiresDays = params.get('requiresDays') === 'true';
       const dailyCount = parseInt(params.get('dailyCount') || '1');
+      const lsTitle = params.get('lsTitle');
+      const lsTitleEn = params.get('lsTitleEn');
       
       
       if (songId) {
@@ -195,15 +198,22 @@ const GameScreen: React.FC = () => {
 
           // レッスンコンテキストを設定
           if (lessonId) {
-            gameActions.setLessonContext(lessonId, {
-              key,
-              speed,
-              rank,
-              count,
-              notation_setting: notation,
-              requires_days: requiresDays,
-              daily_count: dailyCount
-            });
+            gameActions.setLessonContext(
+              lessonId,
+              {
+                key,
+                speed,
+                rank,
+                count,
+                notation_setting: notation,
+                requires_days: requiresDays,
+                daily_count: dailyCount
+              },
+              {
+                lessonSongTitle: lsTitle,
+                lessonSongTitleEn: lsTitleEn
+              }
+            );
           }
           
           gameActions.stop();
@@ -562,8 +572,11 @@ const GameScreen: React.FC = () => {
         <GameHeader />
       )}
 
-      {/* メインコンテンツエリア */}
-      <main className="flex-1 flex flex-col overflow-hidden min-h-0">
+      {/* メインコンテンツエリア — リザルト表示中は下層のタッチを無効化（ヘッダー z-60 より下のモーダル操作を確実にする） */}
+      <main
+        className={`flex-1 flex flex-col overflow-hidden min-h-0${resultModalOpen ? ' pointer-events-none' : ''}`}
+        aria-hidden={resultModalOpen}
+      >
         <GamePlayScreen />
       </main>
 
@@ -809,7 +822,9 @@ const LessonBackButton: React.FC = () => {
       <button
         type="button"
         onClick={() => {
-          if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+          if (isIOSWebView()) {
+            sendGameCallback('gameEnd');
+          }
           window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
         }}
         className="
@@ -851,7 +866,9 @@ const MissionBackButton: React.FC = () => {
       <button
         type="button"
         onClick={() => {
-          if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+          if (isIOSWebView()) {
+            sendGameCallback('gameEnd');
+          }
           window.location.hash = '#missions';
         }}
         className="

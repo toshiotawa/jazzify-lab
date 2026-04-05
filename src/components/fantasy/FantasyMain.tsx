@@ -787,16 +787,22 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   }, [profile, currentStage, isLessonMode, lessonContext, toast, isFreeOrGuest, isMissionMode, missionContext]);
 
   const handleBackToStageSelect = useCallback(() => {
-    if (isIOSWebView()) {
-      sendGameCallback('gameEnd');
-      return;
-    }
     if (isLessonMode && lessonContext) {
-      window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+      if (isIOSWebView()) {
+        sendGameCallback('gameEnd');
+      }
+      getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
       return;
     }
     if (isMissionMode) {
-      window.location.hash = '#missions';
+      if (isIOSWebView()) {
+        sendGameCallback('gameEnd');
+      }
+      getWindow().location.hash = '#missions';
+      return;
+    }
+    if (isIOSWebView()) {
+      sendGameCallback('gameEnd');
       return;
     }
     setCurrentStage(null);
@@ -1120,7 +1126,13 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
               )}
             {/* 戻るボタンの遷移先を分岐 */}
               {isLessonMode && lessonContext ? (
-                <button onClick={() => { if (isIOSWebView()) { sendGameCallback('gameEnd'); return; } window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`; }} className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans">{isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}</button>
+                <button
+                  type="button"
+                  onClick={handleBackToStageSelect}
+                  className="w-full px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg font-medium transition-colors font-sans"
+                >
+                  {isEnglishCopy ? 'Back to lesson' : 'レッスンに戻る'}
+                </button>
               ) : (
                 <button onClick={handleBackToStageSelect} className="w-full px-6 py-2 bg-gray-600 hover:bg-gray-500 rounded-lg font-medium transition-colors font-sans">{backToSelectLabel}</button>
               )}

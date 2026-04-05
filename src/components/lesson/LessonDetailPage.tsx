@@ -907,6 +907,12 @@ const LessonDetailPage: React.FC = () => {
                               const params = new URLSearchParams();
                               params.set('id', req.song_id);
                               params.set('lessonId', req.lesson_id);
+                              if (req.title) {
+                                params.set('lsTitle', req.title);
+                              }
+                              if (req.title_en) {
+                                params.set('lsTitleEn', req.title_en);
+                              }
                               params.set('key', String(req.clear_conditions?.key || 0));
                               params.set('speed', String(req.clear_conditions?.speed || 1.0));
                               params.set('rank', req.clear_conditions?.rank || 'B');

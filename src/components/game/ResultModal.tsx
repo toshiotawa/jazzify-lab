@@ -8,6 +8,9 @@ import { FaArrowLeft, FaCheckCircle, FaTimesCircle, FaAward } from 'react-icons/
 import { log } from '@/utils/logger';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { lessonSongDisplayTitle } from '@/utils/lessonCopy';
+import { getWindow } from '@/platform';
+import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 const ResultModal: React.FC = () => {
   const { currentSong, score, settings, resultModalOpen } = useGameSelector((s) => ({
@@ -170,6 +173,16 @@ const ResultModal: React.FC = () => {
 
   if (!resultModalOpen || !currentSong) return null;
 
+  const resultSongTitle = lessonContext
+    ? lessonSongDisplayTitle(
+        {
+          title: lessonContext.lessonSongTitle ?? currentSong.title,
+          title_en: lessonContext.lessonSongTitleEn ?? null,
+        },
+        isEnglishCopy
+      )
+    : currentSong.title;
+
   const handleRetry = () => {
     resetScore();
     seek(0);
@@ -203,7 +216,7 @@ const ResultModal: React.FC = () => {
             RESULT
           </h2>
           <div className="text-center">
-            <div className="text-lg sm:text-xl font-semibold text-gray-100 mb-1 truncate">{currentSong.title}</div>
+            <div className="text-lg sm:text-xl font-semibold text-gray-100 mb-1 truncate">{resultSongTitle}</div>
             <div className="text-sm text-gray-400 truncate">{currentSong.artist}</div>
           </div>
         </div>
@@ -374,22 +387,25 @@ const ResultModal: React.FC = () => {
 
           {/* アクションボタン */}
           <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
-            <button 
+            <button
               type="button"
-              onClick={handleRetry} 
+              onClick={handleRetry}
               className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               <span>{isEnglishCopy ? 'Retry' : 'もう一度'}</span>
             </button>
             {lessonContext && (
-              <button 
+              <button
                 type="button"
                 onClick={() => {
+                  if (isIOSWebView()) {
+                    sendGameCallback('gameEnd');
+                  }
                   resetScore();
                   seek(0);
                   closeResultModal();
                   setProcessed(false);
-                  window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
+                  getWindow().location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
                 }}
                 className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
               >

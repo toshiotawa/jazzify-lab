@@ -554,7 +554,11 @@ interface GameStoreState extends GameState {
   updateNoteNames: (noteNamesMap: { [noteId: string]: string }) => void;
   
   // レッスンコンテキスト
-  setLessonContext: (lessonId: string, clearConditions: ClearConditions) => void;
+        setLessonContext: (
+          lessonId: string,
+          clearConditions: ClearConditions,
+          titles?: { lessonSongTitle?: string | null; lessonSongTitleEn?: string | null }
+        ) => void;
   clearLessonContext: () => void;
   
   // ミッションコンテキスト
@@ -1977,11 +1981,17 @@ export const useGameStore = createWithEqualityFn<GameStoreState>()(
           }),
         
         // レッスンコンテキスト
-        setLessonContext: (lessonId: string, clearConditions: ClearConditions) =>
+        setLessonContext: (
+          lessonId: string,
+          clearConditions: ClearConditions,
+          titles?: { lessonSongTitle?: string | null; lessonSongTitleEn?: string | null }
+        ) =>
           set((state: GameStoreState) => {
             state.lessonContext = {
               lessonId,
-              clearConditions
+              clearConditions,
+              lessonSongTitle: titles?.lessonSongTitle ?? undefined,
+              lessonSongTitleEn: titles?.lessonSongTitleEn ?? undefined,
             };
           }),
         

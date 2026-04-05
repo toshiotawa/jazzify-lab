@@ -677,7 +677,8 @@
   
   /* モーダルスタイル */
   .modal-overlay {
-    @apply fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-50 flex items-center justify-center p-4;
+    /* GameHeader は z-[60] のため、リザルトが下に回ってクリック不能になるのを防ぐ */
+    @apply fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm z-[100] flex items-center justify-center p-4;
   }
   
   .modal-content {

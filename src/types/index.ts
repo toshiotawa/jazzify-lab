@@ -297,6 +297,9 @@ export interface GameState {
   lessonContext?: {
     lessonId: string;
     clearConditions: ClearConditions;
+    /** lesson_songs の表示名（リザルト等。未設定時は songs.title） */
+    lessonSongTitle?: string | null;
+    lessonSongTitleEn?: string | null;
   };
   
   // ミッション情報（ミッションから起動した場合）
