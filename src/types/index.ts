@@ -127,6 +127,9 @@ export interface SongMetadata {
   audio_padding_seconds?: number | null;
   /** 手フィルタ: 'right'=右手のみ, 'left'=左手のみ, null/undefined=両手 */
   hand_filter?: 'right' | 'left' | null;
+  /** レッスン課題の表示名（lesson_songs）。設定時はリザルトで songs.title より優先 */
+  lesson_display_title?: string | null;
+  lesson_display_title_en?: string | null;
 }
 
 export interface Song {

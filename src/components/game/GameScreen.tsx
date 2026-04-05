@@ -10,6 +10,7 @@ import { getTransposingInstrumentName } from '@/utils/musicXmlTransposer';
 import type { TransposingInstrument } from '@/types';
 import { useAuthStore } from '@/stores/authStore';
 import { fetchSongs } from '@/platform/supabaseSongs';
+import { fetchLessonById } from '@/platform/supabaseLessons';
 import { getChallengeSongs } from '@/platform/supabaseChallenges';
 import { FaArrowLeft, FaMusic } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
@@ -59,10 +60,35 @@ const GameScreen: React.FC = () => {
       const notation = params.get('notation') || 'both';
       const requiresDays = params.get('requiresDays') === 'true';
       const dailyCount = parseInt(params.get('dailyCount') || '1');
-      const lsTitle = params.get('lsTitle');
-      const lsTitleEn = params.get('lsTitleEn');
-      
-      
+      let lsTitle = params.get('lsTitle');
+      let lsTitleEn = params.get('lsTitleEn');
+
+      const shouldFetchLessonSongTitles =
+        !!lessonId &&
+        !!songId &&
+        (!lsTitle?.trim() ||
+          (isEnglishCopyGameScreen && (lsTitleEn == null || lsTitleEn === '')));
+
+      if (shouldFetchLessonSongTitles) {
+        try {
+          const lessonData = await fetchLessonById(lessonId);
+          const normalizedSongIdForLesson = songId.toLowerCase();
+          const match = lessonData.lesson_songs?.find(
+            (ls) => (ls.song_id ?? '').toLowerCase() === normalizedSongIdForLesson
+          );
+          if (match) {
+            if (!lsTitle?.trim()) {
+              lsTitle = match.title ?? null;
+            }
+            if (isEnglishCopyGameScreen && (lsTitleEn == null || lsTitleEn === '')) {
+              lsTitleEn = match.title_en ?? null;
+            }
+          }
+        } catch {
+          // 表示名の補完に失敗しても演奏は続行
+        }
+      }
+
       if (songId) {
         try {
           // 曲データを取得（レッスン曲は通常曲も使用できるため、すべての曲から検索）
@@ -243,6 +269,8 @@ const GameScreen: React.FC = () => {
             audio_start_time: rangeAudioStart ?? song.audio_start_time ?? null,
             audio_end_time: rangeAudioEnd ?? song.audio_end_time ?? null,
             hand_filter: song.hand_filter ?? null,
+            lesson_display_title: lsTitle ?? undefined,
+            lesson_display_title_en: lsTitleEn ?? undefined,
           } as any, mapped);
           
           gameActions.setMode('performance');
@@ -525,7 +553,7 @@ const GameScreen: React.FC = () => {
     
     window.addEventListener('hashchange', handleHashChange);
     return () => window.removeEventListener('hashchange', handleHashChange);
-  }, [gameActions]);
+  }, [gameActions, isEnglishCopyGameScreen]);
 
   // 🔧 自動リダイレクト: 曲が未選択で、今タブが songs 以外なら自動で songs タブへ
   // ただし、レッスン曲読み込み中（#play-lesson）またはミッション曲読み込み中（#play-mission）は除外

@@ -176,8 +176,14 @@ const ResultModal: React.FC = () => {
   const resultSongTitle = lessonContext
     ? lessonSongDisplayTitle(
         {
-          title: lessonContext.lessonSongTitle ?? currentSong.title,
-          title_en: lessonContext.lessonSongTitleEn ?? null,
+          title:
+            lessonContext.lessonSongTitle ??
+            currentSong.lesson_display_title ??
+            currentSong.title,
+          title_en:
+            lessonContext.lessonSongTitleEn ??
+            currentSong.lesson_display_title_en ??
+            null,
         },
         isEnglishCopy
       )
