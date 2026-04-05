@@ -808,45 +808,51 @@ export class FantasySoundManager {
     }
     try {
       const synth = new Tone.PolySynth(Tone.AMSynth, {
-        harmonicity: 2.6,
-        oscillator: { type: 'triangle' },
+        harmonicity: 1.85,
+        oscillator: { type: 'sine' },
         envelope: {
-          attack: 0.004,
-          decay: 0.22,
-          sustain: 0.18,
-          release: 0.42,
+          attack: 0.055,
+          decay: 0.28,
+          sustain: 0.32,
+          release: 0.55,
         },
-        modulation: { type: 'sine' },
+        modulation: { type: 'triangle' },
         modulationEnvelope: {
-          attack: 0.002,
-          decay: 0.08,
-          sustain: 0.05,
-          release: 0.12,
+          attack: 0.065,
+          decay: 0.2,
+          sustain: 0.12,
+          release: 0.28,
         },
       }).toDestination();
-      synth.volume.value = -2;
+      synth.volume.value = 0;
       this.legendBgmGuideSynth = synth;
     } catch {
       this.legendBgmGuideSynth = null;
     }
   }
 
-  private _playLegendBgmGuideNote(midiNote: number, durationSec: number, volume01: number): void {
+  /**
+   * レジェンド用 BGM: BGM × MIDI（gmPianoVolume）の幾何平均でレベル合成。
+   * bgm と midi を同じ数値にしたとき v=その数値となり、ピアノ単体のマスターに近い相対感になる。
+   */
+  private _playLegendBgmGuideNote(midiNote: number, durationSec: number, bgmVolume01: number): void {
     if (!this.legendBgmGuideSynth) {
       return;
     }
-    const v = Math.max(0, Math.min(1, volume01));
+    const bgm = Math.max(0, Math.min(1, bgmVolume01));
+    const midi = Math.max(0.001, Math.min(1, this.gmPianoVolume));
+    const v = Math.max(0, Math.min(1, Math.sqrt(bgm * midi)));
     if (v < 0.001) {
       return;
     }
     try {
       void Tone.start();
-      const baseDb = -2;
+      const baseDb = 9;
       const db = baseDb + 20 * Math.log10(v);
       this.legendBgmGuideSynth.volume.value = Math.max(-80, db);
       const noteName = Tone.Frequency(midiNote, 'midi').toNote();
       const dur = Math.max(0.04, durationSec);
-      const vel = Math.min(1, Math.max(0.06, 0.88 * v));
+      const vel = Math.min(1, Math.max(0.08, 0.78 * v));
       this.legendBgmGuideSynth.triggerAttackRelease(noteName, dur, undefined, vel);
     } catch {
       // ignore
@@ -857,18 +863,20 @@ export class FantasySoundManager {
    * 専用 AMSynth → 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
    */
   private _playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
-    const v = Math.max(0, Math.min(1, volume01));
-    if (v < 0.001) {
+    const bgm = Math.max(0, Math.min(1, volume01));
+    const midi = Math.max(0.001, Math.min(1, this.gmPianoVolume));
+    const vBlend = Math.sqrt(bgm * midi);
+    if (vBlend < 0.001) {
       return;
     }
     this._ensureContextsRunning();
     this.ensureLegendBgmGuideSynth();
     if (this.legendBgmGuideSynth) {
-      this._playLegendBgmGuideNote(midiNote, durationSec, v);
+      this._playLegendBgmGuideNote(midiNote, durationSec, bgm);
       return;
     }
     if (FantasySoundManager.isGMReady()) {
-      this._playBgmGMNote(midiNote, 0.63 * v, durationSec);
+      this._playBgmGMNote(midiNote, 0.63 * vBlend, durationSec);
     }
   }
 
