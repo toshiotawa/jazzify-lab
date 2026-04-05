@@ -936,7 +936,12 @@ export class GameEngine {
     ) {
       return;
     }
-    if (note.state !== 'visible' && note.state !== 'missed') {
+    // 先打ちで既に hit になっていても、譜面時刻ではガイドBGMを鳴らす
+    if (
+      note.state !== 'visible' &&
+      note.state !== 'missed' &&
+      note.state !== 'hit'
+    ) {
       return;
     }
     const displayTime = this.getAdjustedNoteTime(note, timingAdjSec);

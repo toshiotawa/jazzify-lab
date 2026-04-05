@@ -148,7 +148,7 @@ export class FantasySoundManager {
   /**
    * レジェンドモード「音源なし」時のデモBGM用。
    * MidiController の play/stop と同一音高で競合しないよう、専用シンセで再生する。
-   * GM の playBgmNote 経路も activeGMNotes を使わないが、音色はエレクトリックピアノ風 FM を優先。
+   * GM の playBgmNote 経路も activeGMNotes を使わない。音色は Soundfont の electric_piano_1（未ロード時は FM 等）。
    */
   /**
    * @param volume01 レジェンド設定の BGM 音量（0〜1）。`settings.bgmVolume` を渡す。
@@ -802,6 +802,57 @@ export class FantasySoundManager {
     }
   }
 
+  /** レジェンド音源なしガイド用: GM electric_piano_1 のみ（アコギ層なし） */
+  private _playBgmGMNoteElectricPianoOnly(
+    midiNote: number,
+    velocity: number,
+    durationSec: number
+  ): void {
+    if (!this.gmPianoReady || !this.gmAudioContext || !this.gmElectricPiano) {
+      return;
+    }
+
+    try {
+      const ctx = this.gmAudioContext;
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const currentTime = ctx.currentTime;
+      const volumeBoost = 8.0;
+      const electricGain = velocity * volumeBoost * this.gmPianoVolume;
+
+      const noteGain = ctx.createGain();
+      noteGain.gain.value = 1.0;
+      noteGain.connect(this.gmMasterGain || ctx.destination);
+
+      const fadeStart = currentTime + durationSec;
+      const fadeTime = 0.35;
+      noteGain.gain.setValueAtTime(1.0, fadeStart);
+      noteGain.gain.linearRampToValueAtTime(0, fadeStart + fadeTime);
+
+      const totalDuration = durationSec + fadeTime + 0.05;
+
+      if (electricGain > 0) {
+        this.gmElectricPiano.play(midiNote.toString(), currentTime, {
+          gain: electricGain,
+          duration: totalDuration,
+          destination: noteGain
+        } as any);
+      }
+
+      setTimeout(() => {
+        try {
+          noteGain.disconnect();
+        } catch {
+          /* ignore */
+        }
+      }, totalDuration * 1000 + 100);
+    } catch {
+      // BGM note playback error - ignore
+    }
+  }
+
   private ensureLegendBgmGuideSynth(): void {
     if (this.legendBgmGuideSynth) {
       return;
@@ -861,7 +912,7 @@ export class FantasySoundManager {
   }
 
   /**
-   * 専用 FM（エレピ風）→ 失敗時は GM の時間指定BGM（ピアノ系だが stopGMNote と独立）
+   * レジェンド音源なしガイド: GM electric_piano_1 を優先。未ロード時は従来の混合GM → FM。
    */
   private _playLegendBgmDemoNote(midiNote: number, durationSec: number, volume01: number): void {
     const bgm = Math.max(0, Math.min(1, volume01));
@@ -871,13 +922,17 @@ export class FantasySoundManager {
       return;
     }
     this._ensureContextsRunning();
-    this.ensureLegendBgmGuideSynth();
-    if (this.legendBgmGuideSynth) {
-      this._playLegendBgmGuideNote(midiNote, durationSec, bgm);
+    if (this.gmPianoReady && this.gmElectricPiano) {
+      this._playBgmGMNoteElectricPianoOnly(midiNote, 0.63 * vBlend, durationSec);
       return;
     }
     if (FantasySoundManager.isGMReady()) {
       this._playBgmGMNote(midiNote, 0.63 * vBlend, durationSec);
+      return;
+    }
+    this.ensureLegendBgmGuideSynth();
+    if (this.legendBgmGuideSynth) {
+      this._playLegendBgmGuideNote(midiNote, durationSec, bgm);
     }
   }
 
