@@ -20,8 +20,6 @@ const ResultModal: React.FC = () => {
     closeResultModal,
     resetScore,
     seek,
-    setCurrentTab,
-    clearLessonContext,
   } = useGameActions();
 
   const { profile, fetchProfile } = useAuthStore();
@@ -177,15 +175,6 @@ const ResultModal: React.FC = () => {
     seek(0);
     closeResultModal();
     setProcessed(false);
-  };
-
-  const handleChooseSong = () => {
-    resetScore();
-    seek(0);
-    closeResultModal();
-    clearLessonContext();
-    setProcessed(false);
-    window.location.hash = '#dashboard';
   };
 
   // ランクによる色とグロー効果
@@ -386,19 +375,15 @@ const ResultModal: React.FC = () => {
           {/* アクションボタン */}
           <div className="flex flex-col sm:flex-row justify-center space-y-3 sm:space-y-0 sm:space-x-4">
             <button 
+              type="button"
               onClick={handleRetry} 
               className="control-btn control-btn-primary flex items-center justify-center space-x-2 w-full sm:w-auto"
             >
               <span>{isEnglishCopy ? 'Retry' : 'もう一度'}</span>
             </button>
-            <button 
-              onClick={handleChooseSong} 
-              className="control-btn control-btn-secondary flex items-center justify-center space-x-2 w-full sm:w-auto"
-            >
-              <span>{isEnglishCopy ? 'Song list' : '曲選択'}</span>
-            </button>
             {lessonContext && (
               <button 
+                type="button"
                 onClick={() => {
                   resetScore();
                   seek(0);

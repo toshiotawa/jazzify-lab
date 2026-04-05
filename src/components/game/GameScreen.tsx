@@ -805,8 +805,9 @@ const LessonBackButton: React.FC = () => {
   }
 
   return (
-    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+    <div className="pointer-events-auto absolute z-[40] left-[max(1rem,env(safe-area-inset-left))] top-1/2 -translate-y-1/2">
       <button
+        type="button"
         onClick={() => {
           if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
           window.location.hash = `#lesson-detail?id=${lessonContext.lessonId}`;
@@ -846,8 +847,9 @@ const MissionBackButton: React.FC = () => {
   }
 
   return (
-    <div className="absolute left-4 top-1/2 transform -translate-y-1/2 z-10">
+    <div className="pointer-events-auto absolute z-[40] left-[max(1rem,env(safe-area-inset-left))] top-1/2 -translate-y-1/2">
       <button
+        type="button"
         onClick={() => {
           if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
           window.location.hash = '#missions';
