@@ -31,6 +31,8 @@ interface FantasySettingsModalProps {
   isDailyChallenge?: boolean;
   isPracticeMode?: boolean;
   showKeyboardGuide?: boolean;
+  /** 英語UI（プロフィール・ロケール等に連動） */
+  isEnglishCopy?: boolean;
 }
 
 interface FantasySettings {
@@ -61,9 +63,11 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
   keyboardNoteNameStyle = 'abc',
   isDailyChallenge = false,
   isPracticeMode = false,
-  showKeyboardGuide = false
+  showKeyboardGuide = false,
+  isEnglishCopy = false
 }) => {
   const { settings: gameSettings, updateSettings: updateGameSettings } = useGameStore();
+  const en = isEnglishCopy;
   
   const [settings, setSettings] = useState<FantasySettings>({
     midiDeviceId: midiDeviceId,
@@ -167,7 +171,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
       >
         <div className="flex justify-between items-center mb-4 sticky top-0 bg-gray-800 pb-2">
           <h2 className="text-xl font-bold text-white">
-            {isDailyChallenge ? 'デイリーチャレンジ設定' : 'ファンタジーモード設定'}
+            {isDailyChallenge
+              ? en
+                ? 'Daily Challenge settings'
+                : 'デイリーチャレンジ設定'
+              : en
+                ? 'Fantasy mode settings'
+                : 'ファンタジーモード設定'}
           </h2>
           <button
             onClick={onClose}
@@ -181,10 +191,12 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
           {/* 入力方式選択 */}
           <div>
             <label className="block text-sm font-medium text-white mb-1">
-              入力方式
+              {en ? 'Input method' : '入力方式'}
             </label>
             <p className="text-xs text-gray-400 mb-3">
-              MIDI（キーボード）または音声入力（マイク）を選択できます。
+              {en
+                ? 'Choose MIDI (keyboard) or voice input (microphone).'
+                : 'MIDI（キーボード）または音声入力（マイク）を選択できます。'}
             </p>
             <div className="flex gap-2 mb-3">
               <button
@@ -207,44 +219,62 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                 }`}
               >
-                🎤 音声
+                {en ? '🎤 Voice' : '🎤 音声'}
               </button>
             </div>
 
             {gameSettings.inputMethod === 'midi' && (
               <div className="bg-blue-900 bg-opacity-20 p-3 rounded-lg border border-blue-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-blue-200 mb-2">🎹 MIDIデバイス</h4>
+                <h4 className="text-sm font-medium text-blue-200 mb-2">
+                  {en ? '🎹 MIDI device' : '🎹 MIDIデバイス'}
+                </h4>
                 <MidiDeviceSelector
                   value={settings.midiDeviceId}
                   onChange={handleMidiDeviceChange}
                   className="w-full"
                 />
                 <div className="mt-1 text-xs text-gray-400">
-                  {isMidiConnected ? '✅ 接続済み' : '❌ 未接続'}
+                  {isMidiConnected
+                    ? en
+                      ? '✅ Connected'
+                      : '✅ 接続済み'
+                    : en
+                      ? '❌ Not connected'
+                      : '❌ 未接続'}
                 </div>
               </div>
             )}
 
             {gameSettings.inputMethod === 'voice' && (
               <div className="bg-purple-900 bg-opacity-20 p-3 rounded-lg border border-purple-700 border-opacity-30">
-                <h4 className="text-sm font-medium text-purple-200 mb-2">🎤 音声入力設定</h4>
+                <h4 className="text-sm font-medium text-purple-200 mb-2">
+                  {en ? '🎤 Voice input' : '🎤 音声入力設定'}
+                </h4>
                 <div className="bg-yellow-900 bg-opacity-30 border border-yellow-600 border-opacity-40 rounded p-2 mb-3">
                   <p className="text-xs text-yellow-300">
-                    ⚠️ 単音での読み取り専用です。和音の読み取りは不正確です。
+                    {en
+                      ? '⚠️ Monophonic input only. Chord detection is unreliable.'
+                      : '⚠️ 単音での読み取り専用です。和音の読み取りは不正確です。'}
                   </p>
                 </div>
                 <div className="bg-orange-900 bg-opacity-30 border border-orange-600 border-opacity-40 rounded p-2 mb-3">
                   <p className="text-xs text-orange-300">
-                    🎵 このモードはコード（和音）入力が中心のため、音声入力では一音ずつ順番に鳴らして認識させる必要があります。同時押しのような操作はできません。
+                    {en
+                      ? '🎵 This mode focuses on chord input; with voice you must play one note at a time in order. Simultaneous notes are not supported.'
+                      : '🎵 このモードはコード（和音）入力が中心のため、音声入力では一音ずつ順番に鳴らして認識させる必要があります。同時押しのような操作はできません。'}
                   </p>
                 </div>
                 <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-3">
                   <p className="text-xs text-purple-300">
-                    💡 音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。
+                    {en
+                      ? '💡 Voice input has latency; try shifting timing toward + (later).'
+                      : '💡 音声入力にはレイテンシがあるため、タイミング調整で+（遅く）方向にずらすことをおすすめします。'}
                   </p>
                 </div>
                 <p className="text-xs text-gray-400 mb-3">
-                  マイクを使用してピッチを検出します。iOS/Android対応。
+                  {en
+                    ? 'Detect pitch using a microphone. Works on iOS/Android.'
+                    : 'マイクを使用してピッチを検出します。iOS/Android対応。'}
                 </p>
                 <AudioDeviceSelector
                   value={gameSettings.selectedAudioDevice}
@@ -252,7 +282,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                 />
                 <div className="mt-3">
                   <label className="block text-sm font-medium text-purple-200 mb-2">
-                    音声認識の感度: {gameSettings.voiceSensitivity}
+                    {en ? 'Voice sensitivity' : '音声認識の感度'}: {gameSettings.voiceSensitivity}
                   </label>
                   <input
                     type="range"
@@ -264,8 +294,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                     className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
                   />
                   <div className="flex justify-between text-xs text-gray-500 mt-1">
-                    <span>低（ノイズ耐性）</span>
-                    <span>高（高感度）</span>
+                    <span>{en ? 'Low (noise resistant)' : '低（ノイズ耐性）'}</span>
+                    <span>{en ? 'High (sensitive)' : '高（高感度）'}</span>
                   </div>
                 </div>
               </div>
@@ -274,8 +304,8 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
 
           {/* ピアノ音量設定 */}
           <div>
-            <label className="block text.sm font-medium text-white mb-2">
-              ピアノ音量: {Math.round(settings.volume * 100)}%
+            <label className="block text-sm font-medium text-white mb-2">
+              {en ? 'Piano volume' : 'ピアノ音量'}: {Math.round(settings.volume * 100)}%
             </label>
             <input
               type="range"
@@ -287,14 +317,17 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-gray-400 mt-1">
-              ピアノの音が遅れて聴こえる際は、ピアノ音量を0％にして、ご自身のデバイスもしくはDAWから音を鳴らしてください。
+              {en
+                ? 'If piano sound is delayed, set piano volume to 0% and use your device or DAW for audio.'
+                : 'ピアノの音が遅れて聴こえる際は、ピアノ音量を0％にして、ご自身のデバイスもしくはDAWから音を鳴らしてください。'}
             </p>
           </div>
 
           {/* 正解時ルート音量設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              正解時ルート音量: {Math.round(settings.rootSoundVolume * 100)}%
+              {en ? 'Root note volume (correct answer)' : '正解時ルート音量'}:{' '}
+              {Math.round(settings.rootSoundVolume * 100)}%
             </label>
             <input
               type="range"
@@ -306,14 +339,16 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-gray-400 mt-1">
-              コード正解時に鳴るルート音の音量を調整できます
+              {en
+                ? 'Volume of the root note played when you answer a chord correctly.'
+                : 'コード正解時に鳴るルート音の音量を調整できます'}
             </p>
           </div>
 
           {/* 効果音音量設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              効果音音量: {Math.round(settings.soundEffectVolume * 100)}%
+              {en ? 'SFX volume' : '効果音音量'}: {Math.round(settings.soundEffectVolume * 100)}%
             </label>
             <input
               type="range"
@@ -325,14 +360,16 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-gray-400 mt-1">
-              魔法や敵の攻撃音の音量を調整できます
+              {en
+                ? 'Adjust spell and enemy attack sound volume.'
+                : '魔法や敵の攻撃音の音量を調整できます'}
             </p>
           </div>
 
           {/* BGM音量 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              BGM音量: {Math.round(settings.bgmVolume * 100)}%
+              {en ? 'BGM volume' : 'BGM音量'}: {Math.round(settings.bgmVolume * 100)}%
             </label>
             <input
               type="range"
@@ -346,22 +383,28 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <p className="text-xs text-gray-400 mt-1">
-              背景音楽の音量を調整できます
+              {en ? 'Adjust background music volume.' : '背景音楽の音量を調整できます'}
             </p>
           </div>
 
           {/* タイミング調整 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              表示タイミング調整 (判定も同期): {gameSettings.timingAdjustment > 0 ? '+' : ''}{gameSettings.timingAdjustment}ms
+              {en ? 'Display timing (judgment synced)' : '表示タイミング調整 (判定も同期)'}:{' '}
+              {gameSettings.timingAdjustment > 0 ? '+' : ''}
+              {gameSettings.timingAdjustment}ms
             </label>
             <div className="text-xs text-gray-400 mb-2">
-              ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）
+              {en
+                ? 'Adjust note position and judgment timing (earlier: −, later: +).'
+                : 'ノーツの表示位置と判定タイミングを調整します（早く: -, 遅く: +）'}
             </div>
             {gameSettings.inputMethod === 'voice' && (
               <div className="bg-purple-900 bg-opacity-30 border border-purple-600 border-opacity-40 rounded p-2 mb-2">
                 <p className="text-xs text-purple-300">
-                  🎤 音声入力使用中: マイクのレイテンシを補正するため、+（遅く）方向への調整をおすすめします。
+                  {en
+                    ? '🎤 Using voice input: shift toward + (later) to compensate for microphone latency.'
+                    : '🎤 音声入力使用中: マイクのレイテンシを補正するため、+（遅く）方向への調整をおすすめします。'}
                 </p>
               </div>
             )}
@@ -375,9 +418,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               className="w-full h-2 bg-gray-700 rounded-lg appearance-none cursor-pointer"
             />
             <div className="flex justify-between text-xs text-gray-500 mt-1">
-              <span>-400ms (早く)</span>
+              <span>{en ? '-400ms (earlier)' : '-400ms (早く)'}</span>
               <span>0ms</span>
-              <span>+400ms (遅く)</span>
+              <span>{en ? '+400ms (later)' : '+400ms (遅く)'}</span>
             </div>
           </div>
 
@@ -392,11 +435,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                   className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-white">
-                  鍵盤上にガイドを表示
+                  {en ? 'Show guide on keyboard' : '鍵盤上にガイドを表示'}
                 </span>
               </label>
               <p className="text-xs text-gray-400 mt-1">
-                練習モード時のみ、押すべき鍵盤をハイライト表示します
+                {en
+                  ? 'In practice mode only, highlights keys to press.'
+                  : '練習モード時のみ、押すべき鍵盤をハイライト表示します'}
               </p>
             </div>
           )}
@@ -404,7 +449,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
           {/* 鍵盤上の音名表示設定 */}
           <div>
             <label className="block text-sm font-medium text-white mb-2">
-              鍵盤上の音名表示
+              {en ? 'Note names on keyboard' : '鍵盤上の音名表示'}
             </label>
             <div className="flex space-x-4">
               <label className="flex items-center">
@@ -416,7 +461,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                   onChange={(e) => handleSettingChange('keyboardNoteNameStyle', e.target.value)}
                   className="mr-2 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-white">英語 (C, D, E)</span>
+                <span className="text-sm text-white">
+                  {en ? 'Letters (C, D, E)' : '英語 (C, D, E)'}
+                </span>
               </label>
               <label className="flex items-center">
                 <input
@@ -427,7 +474,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                   onChange={(e) => handleSettingChange('keyboardNoteNameStyle', e.target.value)}
                   className="mr-2 text-blue-600 focus:ring-blue-500"
                 />
-                <span className="text-sm text-white">ドレミ</span>
+                <span className="text-sm text-white">{en ? 'Solfege' : 'ドレミ'}</span>
               </label>
               <label className="flex items-center">
                 <input
@@ -442,7 +489,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
               </label>
             </div>
             <p className="text-xs text-gray-400 mt-1">
-              鍵盤に表示される音名のスタイルを切り替えます
+              {en
+                ? 'Choose how note names appear on the keyboard.'
+                : '鍵盤に表示される音名のスタイルを切り替えます'}
             </p>
           </div>
 
@@ -450,7 +499,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
           {!isDailyChallenge && (
             <div>
               <label className="block text-sm font-medium text-white mb-2">
-                ヒント音名表示言語
+                {en ? 'Hint note name language' : 'ヒント音名表示言語'}
               </label>
               <div className="flex space-x-4">
                 <label className="flex items-center">
@@ -462,7 +511,9 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                     onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
                     className="mr-2 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-white">英語 (C, D, E)</span>
+                  <span className="text-sm text-white">
+                    {en ? 'Letters (C, D, E)' : '英語 (C, D, E)'}
+                  </span>
                 </label>
                 <label className="flex items-center">
                   <input
@@ -473,11 +524,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                     onChange={(e) => handleSettingChange('noteNameLang', e.target.value)}
                     className="mr-2 text-blue-600 focus:ring-blue-500"
                   />
-                  <span className="text-sm text-white">ドレミ</span>
+                  <span className="text-sm text-white">{en ? 'Solfege' : 'ドレミ'}</span>
                 </label>
               </div>
               <p className="text-xs text-gray-400 mt-1">
-                ヒント表示の音名言語を切り替えます（コードネームは常に英語表記）
+                {en
+                  ? 'Language for hint note names (chord symbols stay in English).'
+                  : 'ヒント表示の音名言語を切り替えます（コードネームは常に英語表記）'}
               </p>
             </div>
           )}
@@ -493,11 +546,13 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
                   className="rounded border-gray-600 text-blue-600 focus:ring-blue-500"
                 />
                 <span className="text-sm font-medium text-white">
-                  ヒント音名の簡易表記
+                  {en ? 'Simplified hint note names' : 'ヒント音名の簡易表記'}
                 </span>
               </label>
               <p className="text-xs text-gray-400 mt-1">
-                ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）
+                {en
+                  ? 'Convert double sharps/flats in hints to simpler names (e.g. Fx → G).'
+                  : 'ヒント表示のダブルシャープ・ダブルフラットを基本音名に変換します（例: Fx → G）'}
               </p>
             </div>
           )}
@@ -508,7 +563,7 @@ const FantasySettingsModal: React.FC<FantasySettingsModalProps> = ({
             onClick={onClose}
             className="px-4 py-2 bg-gray-600 hover:bg-gray-500 text-white rounded transition-colors"
           >
-            閉じる
+            {en ? 'Close' : '閉じる'}
           </button>
         </div>
       </div>

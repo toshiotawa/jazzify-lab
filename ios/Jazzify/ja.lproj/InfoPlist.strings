@@ -1,0 +1,2 @@
+/* マイク許可（WebView の getUserMedia 要求時のシステムダイアログ） */
+"NSMicrophoneUsageDescription" = "ピッチ検出のため、マイクで演奏音を拾います。";

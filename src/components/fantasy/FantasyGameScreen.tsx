@@ -2348,6 +2348,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
         isDailyChallenge={isDailyChallenge}
         isPracticeMode={playMode === 'practice'}
         showKeyboardGuide={showKeyboardGuide}
+        isEnglishCopy={isEnglishCopy}
       />
       
       {/* オーバーレイ表示 */}           {/* ★★★ add */}

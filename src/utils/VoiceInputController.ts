@@ -9,6 +9,9 @@
  */
 
 import { log, devLog } from '@/utils/logger';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+
+const voiceUserMessage = (ja: string, en: string): string => (shouldUseEnglishCopy() ? en : ja);
 
 // WASM モジュールのインポート用型定義
 type WasmPitchDetectorModule = {
@@ -285,7 +288,12 @@ export class VoiceInputController {
   async connect(deviceId?: string): Promise<boolean> {
     if (!VoiceInputController.isSupported()) {
       log.error('音声入力はこのブラウザでサポートされていません');
-      this.onError?.('音声入力はこのブラウザでサポートされていません');
+      this.onError?.(
+        voiceUserMessage(
+          '音声入力はこのブラウザでサポートされていません',
+          'Voice input is not supported in this browser.',
+        ),
+      );
       return false;
     }
 
@@ -388,7 +396,12 @@ export class VoiceInputController {
       return true;
     } catch (error) {
       log.error('音声入力接続エラー:', error);
-      this.onError?.('マイクへのアクセスに失敗しました。権限を確認してください。');
+      this.onError?.(
+        voiceUserMessage(
+          'マイクへのアクセスに失敗しました。権限を確認してください。',
+          'Could not access the microphone. Please check permissions.',
+        ),
+      );
       return false;
     }
   }
