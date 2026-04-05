@@ -863,15 +863,19 @@ const LessonDetailPage: React.FC = () => {
                             </div>
                           </div>
                           
-                          {!isFantasy && !isSurvival && (
-                            <div className="mt-3">
-                              <span className="text-gray-400">表示設定:</span>
-                              <span className="ml-2">
-                                {req.clear_conditions?.notation_setting === 'notes_chords' ? 'ノート＆コード' : 
-                                 req.clear_conditions?.notation_setting === 'chords_only' ? 'コードのみ' : '両方'}
-                              </span>
-                            </div>
-                          )}
+                          {!isFantasy &&
+                            !isSurvival &&
+                            (req.clear_conditions?.notation_setting === 'notes_chords' ||
+                              req.clear_conditions?.notation_setting === 'chords_only') && (
+                              <div className="mt-3">
+                                <span className="text-gray-400">表示設定:</span>
+                                <span className="ml-2">
+                                  {req.clear_conditions?.notation_setting === 'notes_chords'
+                                    ? 'ノート＆コード'
+                                    : 'コードのみ'}
+                                </span>
+                              </div>
+                            )}
                           
                           {/* 最高ランク表示 */}
                           {progress?.best_rank && (
