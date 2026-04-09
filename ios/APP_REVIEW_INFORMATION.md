@@ -421,6 +421,83 @@ https://jazzify.jp/privacy/ios
 
 ---
 
+## 1-D. Resolution Center 返信文（英語・再提出・そのまま送信可）
+
+App Review のメッセージに **Reply** する欄用。トーンは「前回の指摘を踏まえて確認しやすくした」寄り（反論調にしない）。
+
+```
+Hello App Review Team,
+
+Thank you for your review and feedback.
+
+Following your previous review, we updated both the app and the App Store metadata to make the subscription flow and required subscription information clearer for review.
+
+Changes made:
+
+- Added the required subscription information and the Terms of Use / Privacy Policy links to the App Store metadata.
+- Updated the paywall to display the subscription name, duration, pricing, auto-renewal information, and the Terms of Use / Privacy Policy links. For subscribers, the same screen still shows plan details from StoreKit where available.
+- Improved subscription product loading: if StoreKit cannot return products in time, the paywall now shows a clear message with a Try Again button instead of staying on Loading indefinitely.
+- Changed the review account back to a free account so that the in-app purchase flow can be reviewed from the unpaid state.
+
+Review account (email + password login):
+Email: toshiotawa@me.com
+Password: 00000000
+
+Paywall access path:
+Settings tab → Billing → Subscriptions
+
+Please let us know if any further information is needed.
+
+Best regards
+```
+
+---
+
+## 1-E. App Review Notes（英語・提出バージョンの Notes 欄用）
+
+App Store Connect の **App Review Information → Notes**（またはバージョン提出時の審査メモ）向け。返信文より **操作導線** を厚めに書いた版です。
+
+```
+Review account credentials (email + password):
+Email: toshiotawa@me.com
+Password: 00000000
+
+The review account is a free account and is not subscribed. Please sign in with email and password after launching the app.
+
+How to open the subscription / paywall (English UI; any path below works):
+
+Primary (recommended): Settings tab → Billing section → Subscriptions → opens “Subscriptions” (Jazzify Premium paywall).
+
+Other entry points for free users:
+- Top tab → tap the banner “Unlock all features with Premium”
+- Top tab → Daily Challenge → choose a difficulty higher than “Super Beginner” → tap “Play”
+- Lessons tab → tap any course other than “Tutorial”
+- Survival tab → tap “Subscribe to Premium”
+
+On the paywall, you should see the subscription name, duration, pricing (from the App Store / StoreKit), auto-renewal text, and links to Terms of Use and Privacy Policy. Tapping “Subscribe to Premium” presents Apple’s In-App Purchase sheet.
+
+If product information does not load immediately, the screen shows an error message and a “Try Again” button instead of staying on “Loading…” indefinitely. Please retry after a moment or check network / VPN settings.
+
+We also updated App Store metadata with the required subscription information and policy links.
+
+If needed, please verify the subscription flow from this unpaid account in the Sandbox environment.
+
+Thank you.
+```
+
+---
+
+## 1-F. 返信文と Notes の使い分け（日本語）
+
+| 貼り付け先 | 使う節 | 内容の違い |
+|-----------|--------|------------|
+| App Review の **返信** | **1-D** | 何を直したかの要約、審査アカウント情報。手順は短くてよい。 |
+| **App Review Information → Notes** | **1-E** | 審査担当が迷わないよう **タブ名・ボタン名どおりの導線** を英語UI前提で記載。 |
+
+導線は `MainTabView.swift`（Top / Lessons / Survival / Settings）、`TopView.swift`（バナー・Daily Challenge）、`LessonListView.swift`（Tutorial以外のコース）、`SurvivalView.swift`、`SettingsView.swift`（Billing → Subscriptions）の実装と一致しています。
+
+---
+
 ## ブロック2｜画面収録用 動画台本（4本・ファイル名と1対1）
 
 長い曲はフルで見せず、**数秒プレイ → 終盤へジャンプカット → 結果画面**で十分です。

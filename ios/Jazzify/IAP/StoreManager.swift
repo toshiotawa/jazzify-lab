@@ -6,6 +6,10 @@ final class StoreManager: ObservableObject {
     static let shared = StoreManager()
 
     @Published var product: Product?
+    /// 商品カタログ取得中（初回オープン前の分岐用に、未取得かつ失敗なしのときも true 扱いで UI 側がスピナーにできるよう loadProduct 先頭で立てる）
+    @Published private(set) var isLoadingProduct = false
+    /// 取得失敗（タイムアウト・0件・StoreKit エラー）。成功時は nil
+    @Published private(set) var productFetchFailure: ProductFetchFailure?
     @Published var purchaseState: PurchaseState = .idle
     @Published var isSubscribed = false
     @Published var currentSubscription: Transaction?
@@ -27,13 +31,58 @@ final class StoreManager: ObservableObject {
         }
     }
 
+    /// StoreKit からサブスク商品を取得する。タイムアウト・0件・エラー時は `productFetchFailure` を設定し、無限ローディングにしない。
     func loadProduct() async {
-        do {
-            let products = try await Product.products(for: [Config.iapProductID])
-            self.product = products.first
-        } catch {
-            self.product = nil
+        isLoadingProduct = true
+        productFetchFailure = nil
+
+        let timeoutNs: UInt64 = 25 * 1_000_000_000
+
+        let raceResult: ProductFetchRaceResult = await withTaskGroup(of: ProductFetchRaceResult.self) { group in
+            group.addTask { @MainActor in
+                do {
+                    let products = try await Product.products(for: [Config.iapProductID])
+                    return .fetched(.success(products))
+                } catch {
+                    return .fetched(.failure(error))
+                }
+            }
+            group.addTask {
+                try? await Task.sleep(nanoseconds: timeoutNs)
+                return .timedOut
+            }
+
+            let first = await group.next()!
+            group.cancelAll()
+            return first
         }
+
+        defer { isLoadingProduct = false }
+
+        switch raceResult {
+        case .timedOut:
+            product = nil
+            productFetchFailure = .timedOut
+        case .fetched(let result):
+            switch result {
+            case .success(let products):
+                if let first = products.first {
+                    product = first
+                    productFetchFailure = nil
+                } else {
+                    product = nil
+                    productFetchFailure = .noProducts
+                }
+            case .failure(let error):
+                product = nil
+                productFetchFailure = .storeError(error.localizedDescription)
+            }
+        }
+    }
+
+    private enum ProductFetchRaceResult: Sendable {
+        case fetched(Result<[Product], Error>)
+        case timedOut
     }
 
     func listenForTransactions() async {
@@ -229,6 +278,16 @@ final class StoreManager: ObservableObject {
     deinit {
         transactionListener?.cancel()
     }
+}
+
+/// サブスク商品カタログ取得の失敗理由（UI でメッセージ分岐に使用）
+enum ProductFetchFailure: Equatable {
+    /// `Product.products` が制限時間内に完了しなかった
+    case timedOut
+    /// 返却配列が空（Product ID 未設定・未販売・環境不整合など）
+    case noProducts
+    /// StoreKit がエラーを返した
+    case storeError(String)
 }
 
 enum PurchaseState: Equatable {

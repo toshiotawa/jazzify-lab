@@ -173,6 +173,29 @@ struct SubscriptionView: View {
                      : "Pricing may vary by region. See the App Store for the current price in your country or region.")
                     .font(.caption2)
                     .foregroundStyle(.gray.opacity(0.9))
+            } else if store.isLoadingProduct {
+                ProgressView()
+                    .tint(.purple)
+                Text(locale == .ja ? "プラン情報を読み込み中…" : "Loading plan details…")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            } else if let failure = store.productFetchFailure {
+                VStack(spacing: 10) {
+                    Text(productFetchFailureMessage(failure))
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                        .multilineTextAlignment(.leading)
+                    Button {
+                        Task { await store.loadProduct() }
+                    } label: {
+                        Text(locale == .ja ? "再試行" : "Try Again")
+                            .font(.subheadline.bold())
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 10)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
+                }
             } else {
                 ProgressView()
                     .tint(.purple)
@@ -333,6 +356,32 @@ struct SubscriptionView: View {
                         .font(.caption)
                         .foregroundStyle(.orange)
                 }
+            } else if store.isLoadingProduct {
+                ProgressView()
+                    .tint(.purple)
+                Text(locale == .ja ? "読み込み中..." : "Loading...")
+                    .font(.subheadline)
+                    .foregroundStyle(.gray)
+            } else if let failure = store.productFetchFailure {
+                VStack(spacing: 12) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .foregroundStyle(.orange)
+                    Text(productFetchFailureMessage(failure))
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                        .multilineTextAlignment(.center)
+
+                    Button {
+                        Task { await store.loadProduct() }
+                    } label: {
+                        Text(locale == .ja ? "再試行" : "Try Again")
+                            .font(.headline)
+                            .frame(maxWidth: .infinity)
+                            .frame(height: 48)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.purple)
+                }
             } else {
                 ProgressView()
                     .tint(.purple)
@@ -340,6 +389,23 @@ struct SubscriptionView: View {
                     .font(.subheadline)
                     .foregroundStyle(.gray)
             }
+        }
+    }
+
+    private func productFetchFailureMessage(_ failure: ProductFetchFailure) -> String {
+        switch failure {
+        case .timedOut:
+            return locale == .ja
+                ? "読み込みがタイムアウトしました。ネットワークを確認してから再試行してください。"
+                : "The request timed out. Check your network connection and try again."
+        case .noProducts:
+            return locale == .ja
+                ? "サブスクリプション情報を読み込めませんでした。しばらくしてから再試行するか、App Store の表示をご確認ください。"
+                : "Unable to load subscription options. Please try again in a moment, or verify your App Store settings."
+        case .storeError(let message):
+            return locale == .ja
+                ? "読み込みに失敗しました: \(message)"
+                : "Could not load subscription information: \(message)"
         }
     }
 
