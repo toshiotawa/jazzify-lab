@@ -9,6 +9,16 @@ struct SubscriptionView: View {
 
     private var locale: AppLocale { appState.locale }
 
+    /// 購入ブロックでトライアル説明を出すか（フッター文言の切替にも使用）
+    private var showIntroPaywallDetails: Bool {
+        guard appState.canShowIAP,
+              !appState.isPremium,
+              let product = store.product,
+              product.subscription?.introductoryOffer != nil
+        else { return false }
+        return eligibleForIntroOffer
+    }
+
     var body: some View {
         NavigationStack {
             ZStack {
@@ -20,7 +30,7 @@ struct SubscriptionView: View {
                 .ignoresSafeArea()
 
                 ScrollView {
-                    VStack(spacing: 24) {
+                    VStack(spacing: 18) {
                         if let bannerKind = appState.paymentIssueBannerKind {
                             PaymentIssueBannerView(kind: bannerKind, locale: locale)
                                 .padding(.horizontal, 4)
@@ -82,7 +92,7 @@ struct SubscriptionView: View {
                 featureRow(icon: "chart.bar.fill", text: locale == .ja ? "詳細な統計情報" : "Detailed statistics")
             }
         }
-        .padding(.top, 20)
+        .padding(.top, 12)
     }
 
     private func featureRow(icon: String, text: String) -> some View {
@@ -291,20 +301,43 @@ struct SubscriptionView: View {
             }
 
             if let product = store.product {
-                VStack(spacing: 8) {
-                    Text(product.displayPrice)
-                        .font(.system(size: 36, weight: .bold))
-                        .foregroundStyle(.white)
-                    Text(locale == .ja ? "/ 月" : "/ month")
-                        .font(.subheadline)
-                        .foregroundStyle(.gray)
+                let showIntroDetails = showIntroPaywallDetails
 
-                    if eligibleForIntroOffer, let introOffer = product.subscription?.introductoryOffer {
+                VStack(spacing: 10) {
+                    if showIntroDetails, let introOffer = product.subscription?.introductoryOffer {
                         Text(locale == .ja
-                             ? introTrialLabelJa(introOffer)
-                             : introTrialLabelEn(introOffer))
-                            .font(.subheadline.bold())
+                             ? introTrialHeadlineJa(introOffer)
+                             : introTrialHeadlineEn(introOffer))
+                            .font(.headline)
                             .foregroundStyle(.green)
+                            .multilineTextAlignment(.center)
+
+                        Text(locale == .ja
+                             ? thenPriceLineJa(displayPrice: product.displayPrice)
+                             : thenPriceLineEn(displayPrice: product.displayPrice))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.95))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    if !showIntroDetails {
+                        Text(locale == .ja
+                             ? nonTrialPriceNoteJa(displayPrice: product.displayPrice)
+                             : nonTrialPriceNoteEn(displayPrice: product.displayPrice))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.95))
+                            .multilineTextAlignment(.center)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+
+                    VStack(spacing: 4) {
+                        Text(product.displayPrice)
+                            .font(.system(size: 36, weight: .bold))
+                            .foregroundStyle(.white)
+                        Text(locale == .ja ? "/ 月" : "/ month")
+                            .font(.subheadline)
+                            .foregroundStyle(.gray)
                     }
                 }
 
@@ -320,8 +353,13 @@ struct SubscriptionView: View {
                             ProgressView()
                                 .tint(.white)
                         default:
-                            Text(locale == .ja ? "プレミアムに登録" : "Subscribe to Premium")
-                                .font(.headline)
+                            Text(
+                                purchaseButtonTitle(
+                                    showIntroDetails: showIntroDetails,
+                                    introOffer: product.subscription?.introductoryOffer
+                                )
+                            )
+                            .font(.headline)
                         }
                     }
                     .frame(maxWidth: .infinity)
@@ -338,10 +376,18 @@ struct SubscriptionView: View {
                     }
                 } label: {
                     Text(locale == .ja ? "購入を復元" : "Restore Purchases")
-                        .font(.subheadline)
+                        .font(.subheadline.weight(.semibold))
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 12)
                 }
-                .buttonStyle(.bordered)
-                .tint(.gray)
+                .buttonStyle(.plain)
+                .foregroundStyle(.white)
+                .background(Color.white.opacity(0.14))
+                .cornerRadius(10)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10)
+                        .stroke(Color.white.opacity(0.38), lineWidth: 1)
+                )
 
                 if case .failed(let message) = store.purchaseState {
                     Text(message)
@@ -413,9 +459,7 @@ struct SubscriptionView: View {
 
     private var legalSection: some View {
         VStack(spacing: 8) {
-            Text(locale == .ja
-                 ? "サブスクリプションは自動的に更新されます。更新日の24時間前までにキャンセルすることで、次回の請求を停止できます。"
-                 : "Subscriptions automatically renew. You can cancel at least 24 hours before the renewal date to stop the next charge.")
+            Text(legalFooterNote)
                 .font(.caption2)
                 .foregroundStyle(.gray)
                 .multilineTextAlignment(.center)
@@ -431,6 +475,18 @@ struct SubscriptionView: View {
             }
         }
         .padding(.top, 8)
+    }
+
+    /// 下部は1行のみ（トライアル時は無料終了前のキャンセル、それ以外は更新前のキャンセル）
+    private var legalFooterNote: String {
+        if showIntroPaywallDetails {
+            return locale == .ja
+                ? "無料期間終了の24時間前までにキャンセルすると、次回の請求は発生しません。"
+                : "Cancel at least 24 hours before the trial ends to avoid the next charge."
+        }
+        return locale == .ja
+            ? "更新日の24時間前までにキャンセルしない限り、自動更新されます。"
+            : "Auto-renews unless canceled at least 24 hours before renewal."
     }
 
     private var appleLinkedToOtherAccountSection: some View {
@@ -458,37 +514,90 @@ struct SubscriptionView: View {
         )
     }
 
-    private func introTrialLabelJa(_ offer: Product.SubscriptionOffer) -> String {
+    private func purchaseButtonTitle(showIntroDetails: Bool, introOffer: Product.SubscriptionOffer?) -> String {
+        guard showIntroDetails, let offer = introOffer else {
+            return locale == .ja ? "プレミアムに登録" : "Subscribe to Premium"
+        }
         let unit = offer.period.unit
         let value = offer.period.value
+        if locale == .ja {
+            switch unit {
+            case .day:
+                return "\(value)日間の無料トライアルを開始"
+            case .week:
+                return value == 1 ? "1週間の無料トライアルを開始" : "\(value)週間の無料トライアルを開始"
+            case .month:
+                return value == 1 ? "1か月の無料トライアルを開始" : "\(value)か月の無料トライアルを開始"
+            case .year:
+                return value == 1 ? "1年の無料トライアルを開始" : "\(value)年の無料トライアルを開始"
+            @unknown default:
+                return "無料トライアルを開始"
+            }
+        }
         switch unit {
         case .day:
-            return "最初の\(value)日間は無料"
+            return "Start \(value)-day free trial"
         case .week:
-            return "最初の\(value)週間は無料"
+            return value == 1 ? "Start 1-week free trial" : "Start \(value)-week free trial"
         case .month:
-            return "最初の\(value)か月は無料"
+            return value == 1 ? "Start 1-month free trial" : "Start \(value)-month free trial"
         case .year:
-            return "最初の\(value)年は無料"
+            return value == 1 ? "Start 1-year free trial" : "Start \(value)-year free trial"
         @unknown default:
-            return "無料トライアルあり"
+            return "Start free trial"
         }
     }
 
-    private func introTrialLabelEn(_ offer: Product.SubscriptionOffer) -> String {
+    /// 緑見出し用（例: 7日間無料）
+    private func introTrialHeadlineJa(_ offer: Product.SubscriptionOffer) -> String {
         let unit = offer.period.unit
         let value = offer.period.value
         switch unit {
         case .day:
-            return value == 1 ? "Free for the first day" : "Free for the first \(value) days"
+            return "\(value)日間無料"
         case .week:
-            return value == 1 ? "Free for the first week" : "Free for the first \(value) weeks"
+            return value == 1 ? "1週間無料" : "\(value)週間無料"
         case .month:
-            return value == 1 ? "Free for the first month" : "Free for the first \(value) months"
+            return value == 1 ? "1か月無料" : "\(value)か月無料"
         case .year:
-            return value == 1 ? "Free for the first year" : "Free for the first \(value) years"
+            return value == 1 ? "1年無料" : "\(value)年無料"
         @unknown default:
-            return "Includes a free trial"
+            return "無料トライアル"
         }
+    }
+
+    private func introTrialHeadlineEn(_ offer: Product.SubscriptionOffer) -> String {
+        let unit = offer.period.unit
+        let value = offer.period.value
+        switch unit {
+        case .day:
+            return value == 1 ? "1-day free trial" : "\(value)-day free trial"
+        case .week:
+            return value == 1 ? "1-week free trial" : "\(value)-week free trial"
+        case .month:
+            return value == 1 ? "1-month free trial" : "\(value)-month free trial"
+        case .year:
+            return value == 1 ? "1-year free trial" : "\(value)-year free trial"
+        @unknown default:
+            return "Free trial"
+        }
+    }
+
+    /// 価格の直前の1行（トライアル時）
+    private func thenPriceLineJa(displayPrice: String) -> String {
+        "その後は月額\(displayPrice)。キャンセルしない限り自動更新されます"
+    }
+
+    private func thenPriceLineEn(displayPrice: String) -> String {
+        "Then \(displayPrice)/month, auto-renews unless canceled"
+    }
+
+    /// 非トライアル時・価格の直前の1行
+    private func nonTrialPriceNoteJa(displayPrice: String) -> String {
+        "月額\(displayPrice)。キャンセルしない限り自動更新されます"
+    }
+
+    private func nonTrialPriceNoteEn(displayPrice: String) -> String {
+        "\(displayPrice)/month, auto-renews unless canceled"
     }
 }
