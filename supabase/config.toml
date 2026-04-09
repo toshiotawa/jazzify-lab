@@ -302,6 +302,10 @@ deno_version = 1
 # [edge_runtime.secrets]
 # secret_key = "env(SECRET_VALUE)"
 
+# App Store Server Notifications: no Supabase JWT on POST (signedPayload is verified in-handler).
+[functions.apple-webhook]
+verify_jwt = false
+
 [analytics]
 enabled = true
 port = 54327
