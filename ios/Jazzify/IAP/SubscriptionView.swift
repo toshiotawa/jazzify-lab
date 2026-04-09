@@ -117,6 +117,8 @@ struct SubscriptionView: View {
                     .stroke(Color.green.opacity(0.3), lineWidth: 1)
             )
 
+            activeSubscriptionProductDetails
+
             if let billing = appState.billingStatus, billing.provider == .apple {
                 Text(locale == .ja
                      ? "サブスクリプションの確認・解約は、設定 → Apple ID → サブスクリプションから行えます。"
@@ -126,6 +128,106 @@ struct SubscriptionView: View {
                     .multilineTextAlignment(.leading)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+        }
+    }
+
+    /// 審査・ユーザー向けに、購読中でも App Store 表示のプラン名・期間・価格を表示する
+    private var activeSubscriptionProductDetails: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if let product = store.product {
+                Text(locale == .ja ? "現在のプラン" : "Current plan")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+
+                Text(product.displayName)
+                    .font(.headline)
+                    .foregroundStyle(.white)
+
+                if let period = product.subscription?.subscriptionPeriod {
+                    Text(locale == .ja
+                         ? "購読期間: \(subscriptionPeriodLabelJa(period))"
+                         : "Subscription period: \(subscriptionPeriodLabelEn(period))")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                }
+
+                HStack(alignment: .firstTextBaseline, spacing: 4) {
+                    Text(product.displayPrice)
+                        .font(.system(size: 28, weight: .bold))
+                        .foregroundStyle(.white)
+                    Text(locale == .ja ? "/ 月" : "/ month")
+                        .font(.subheadline)
+                        .foregroundStyle(.gray)
+                }
+
+                if let ends = store.currentSubscription?.expirationDate {
+                    Text(locale == .ja
+                         ? "現在の期間の終了: \(formatSubscriptionDate(ends))"
+                         : "Current period ends: \(formatSubscriptionDate(ends))")
+                        .font(.caption)
+                        .foregroundStyle(.gray)
+                }
+
+                Text(locale == .ja
+                     ? "表示価格は国・地域により異なる場合があります。最新はApp Storeの表示に従います。"
+                     : "Pricing may vary by region. See the App Store for the current price in your country or region.")
+                    .font(.caption2)
+                    .foregroundStyle(.gray.opacity(0.9))
+            } else {
+                ProgressView()
+                    .tint(.purple)
+                Text(locale == .ja ? "プラン情報を読み込み中…" : "Loading plan details…")
+                    .font(.caption)
+                    .foregroundStyle(.gray)
+            }
+        }
+        .padding()
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.white.opacity(0.06))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(Color.white.opacity(0.12), lineWidth: 1)
+        )
+    }
+
+    private func formatSubscriptionDate(_ date: Date) -> String {
+        let formatter = DateFormatter()
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        formatter.locale = locale == .ja ? Locale(identifier: "ja_JP") : Locale(identifier: "en_US_POSIX")
+        return formatter.string(from: date)
+    }
+
+    private func subscriptionPeriodLabelJa(_ period: Product.SubscriptionPeriod) -> String {
+        let value = period.value
+        switch period.unit {
+        case .day:
+            return value == 1 ? "1日" : "\(value)日"
+        case .week:
+            return value == 1 ? "1週間" : "\(value)週間"
+        case .month:
+            return value == 1 ? "1か月" : "\(value)か月"
+        case .year:
+            return value == 1 ? "1年" : "\(value)年"
+        @unknown default:
+            return "（期間）"
+        }
+    }
+
+    private func subscriptionPeriodLabelEn(_ period: Product.SubscriptionPeriod) -> String {
+        let value = period.value
+        switch period.unit {
+        case .day:
+            return value == 1 ? "1 day" : "\(value) days"
+        case .week:
+            return value == 1 ? "1 week" : "\(value) weeks"
+        case .month:
+            return value == 1 ? "1 month" : "\(value) months"
+        case .year:
+            return value == 1 ? "1 year" : "\(value) years"
+        @unknown default:
+            return "period"
         }
     }
 
@@ -253,7 +355,7 @@ struct SubscriptionView: View {
                 .multilineTextAlignment(.center)
 
             HStack(spacing: 16) {
-                Link(locale == .ja ? "利用規約" : "Terms of Service",
+                Link(locale == .ja ? "利用規約" : "Terms of Use",
                      destination: Config.termsIosURL)
                     .font(.caption2)
 
