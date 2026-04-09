@@ -126,6 +126,7 @@ final class AppState: ObservableObject {
             self.lastBillingCheckedAt = Date()
             self.billingFetchFailCount = 0
             schedulePeriodEndRefresh(response)
+            await refreshProfileIfBillingShowsPaidButRankStillFree(response)
         } catch {
             self.lastBillingCheckedAt = Date()
             self.billingFetchFailCount += 1
@@ -133,6 +134,21 @@ final class AppState: ObservableObject {
                 self.billingStatus = nil
             }
         }
+    }
+
+    /// 課金側は有効だが `profiles.rank` のWebhook反映が遅いとき、表示・他画面との整合のため再取得を試みる
+    private func refreshProfileIfBillingShowsPaidButRankStillFree(_ response: BillingStatusResponse) async {
+        guard let p = profile, p.rank == .free else { return }
+        let paid: Bool
+        switch response.entitlementState {
+        case .active, .paymentIssueWithAccess, .cancelledButActiveUntilEnd:
+            paid = true
+        case .paymentIssueNoAccess, .expired:
+            paid = false
+        }
+        guard paid else { return }
+        guard let updated = try? await supabase.fetchProfileIfExists(userId: p.id) else { return }
+        self.profile = updated
     }
 
     /// フォアグラウンド復帰用: スロットルつき再取得
@@ -341,6 +357,24 @@ final class AppState: ObservableObject {
     var canDeleteAccount: Bool {
         guard let billing = billingStatus else { return true }
         return billing.entitlementState == .expired
+    }
+
+    // MARK: - Plan display (align with `isPremium`, not only `profiles.rank`)
+
+    /// トップのプロフィールカード・設定の「プラン」用。課金エンタイトルメントは `billingStatus` 経由で先に確定しうるため、`rank` 単体より `isPremium` を優先する。
+    var displayPlanLabel: String {
+        if isPremium {
+            return locale == .ja ? "プレミアム" : "Premium"
+        }
+        guard let profile else {
+            return locale == .ja ? "フリー" : "Free"
+        }
+        return profile.rank.label(locale: locale)
+    }
+
+    var displayPlanUsesPremiumAccent: Bool {
+        if isPremium { return true }
+        return profile?.rank.isPremium ?? false
     }
 
     /// 支払い問題バナー（Lemon: 利用可 / Apple: 停止）

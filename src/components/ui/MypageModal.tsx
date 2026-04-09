@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthStore } from '@/stores/authStore';
 import GameHeader from '@/components/ui/GameHeader';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 /**
  * マイページページ (モーダル→ページ化)
@@ -9,6 +10,7 @@ import GameHeader from '@/components/ui/GameHeader';
 const MypagePage: React.FC = () => {
   const { profile } = useAuthStore();
   const [open, setOpen] = useState<boolean>(false);
+  const { planLabel } = useBillingAwareMembership('ja');
 
   useEffect(() => {
     const check = () => setOpen(window.location.hash === '#mypage');
@@ -41,8 +43,8 @@ const MypagePage: React.FC = () => {
               <span>{profile.nickname}</span>
             </div>
             <div>
-              <span className="text-gray-400 mr-2">ランク:</span>
-              <span>{profile.rank}</span>
+              <span className="text-gray-400 mr-2">プラン:</span>
+              <span>{planLabel}</span>
             </div>
           </div>
         </div>

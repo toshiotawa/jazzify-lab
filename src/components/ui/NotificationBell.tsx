@@ -5,7 +5,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { isPremiumTier } from '@/utils/membership';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 const NotificationBell: React.FC = () => {
   const { user, profile } = useAuthStore();
@@ -18,7 +18,7 @@ const NotificationBell: React.FC = () => {
     preferredLocale: profile?.preferred_locale ?? null,
   });
 
-  const allowedRank = isPremiumTier(profile?.rank);
+  const { isPremiumMember: allowedRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const canShow = !!user && allowedRank;
 
   // 翻訳テキスト

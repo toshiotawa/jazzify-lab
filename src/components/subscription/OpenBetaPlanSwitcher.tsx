@@ -4,6 +4,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { getMembershipLabel, normalizeMembershipTier } from '@/utils/membership';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 // オープンベータ用の簡易プラン変更UI
 // 注意: Stripe を介さず Supabase の profiles.rank を直接更新します
@@ -19,6 +20,7 @@ const OpenBetaPlanSwitcher: React.FC = () => {
     country: profile?.country,
     preferredLocale: profile?.preferred_locale ?? null,
   });
+  const { planLabel: displayPlanLabel } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
     const isRank = (value: string): value is Rank => (
       value === 'free' ||
@@ -87,7 +89,7 @@ const OpenBetaPlanSwitcher: React.FC = () => {
           <h3 className="text-lg font-semibold text-white">{isEnglishCopy ? 'Open Beta: Change plan' : 'オープンベータ: プラン変更'}</h3>
         {profile?.rank && (
           <span className="text-xs px-2 py-1 rounded-full bg-slate-700 text-gray-300">
-              {isEnglishCopy ? 'Current' : '現在'}: {getMembershipLabel(profile.rank, isEnglishCopy ? 'en' : 'ja')}
+              {isEnglishCopy ? 'Current' : '現在'}: {displayPlanLabel}
           </span>
         )}
       </div>

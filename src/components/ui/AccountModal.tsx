@@ -5,7 +5,7 @@ import { useToastStore } from '@/stores/toastStore';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import GameHeader from '@/components/ui/GameHeader';
 import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { getMembershipLabel, isPremiumTier } from '@/utils/membership';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
@@ -46,8 +46,7 @@ const AccountPage: React.FC = () => {
     geoCountryHint: geoCountry,
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
-  const planLabel = getMembershipLabel(profile?.rank, localeCode);
-  const isPremiumMember = isPremiumTier(profile?.rank);
+  const { planLabel, isPremiumMember } = useBillingAwareMembership(localeCode);
   const handleNicknameSave = useCallback(async () => {
     const trimmed = nicknameValue.trim();
     if (!trimmed || trimmed === profile?.nickname) {

@@ -16,6 +16,7 @@ import {
 } from '@/utils/courseDifficulty';
 import type { CourseDifficultyTier } from '@/types';
 import { useGeoStore } from '@/stores/geoStore';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 
@@ -34,6 +35,7 @@ const LessonPage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   useEffect(() => {
     const checkHash = () => {
@@ -153,7 +155,7 @@ const LessonPage: React.FC = () => {
   }
 
   const renderCourseCard = (course: Course) => {
-    const accessResult = canAccessCourse(course, profile?.rank || 'free', completedCourseIds, isEnglishCopy);
+    const accessResult = canAccessCourse(course, effectiveRank, completedCourseIds, isEnglishCopy);
     const accessible = accessResult.canAccess;
     const progress = allCoursesProgress[course.id] ?? 0;
     const count = lessonCounts[course.id] ?? 0;

@@ -96,8 +96,8 @@ struct SettingsView: View {
                     Text(locale == .ja ? "プラン" : "Plan")
                         .foregroundStyle(.gray)
                     Spacer()
-                    Text(profile.rank.label(locale: locale))
-                        .foregroundStyle(profile.rank.isPremium ? .purple : .white)
+                    Text(appState.displayPlanLabel)
+                        .foregroundStyle(appState.displayPlanUsesPremiumAccent ? .purple : .white)
                 }
             }
         } header: {

@@ -11,6 +11,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
 import { lessonDisplayTitle } from '@/utils/lessonCopy';
 import { useGeoStore } from '@/stores/geoStore';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { FaLock, FaCheck, FaStar, FaChevronRight, FaArrowLeft } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
@@ -37,6 +38,7 @@ const CoursePage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   useEffect(() => {
     const checkHash = () => {
@@ -74,7 +76,7 @@ const CoursePage: React.FC = () => {
           return;
         }
 
-        const accessResult = canAccessCourse(courseData, profile.rank, completedCourses, isEnglishCopy);
+        const accessResult = canAccessCourse(courseData, effectiveRank, completedCourses, isEnglishCopy);
         if (!accessResult.canAccess) {
           toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
           window.location.hash = '#lessons';
@@ -130,11 +132,11 @@ const CoursePage: React.FC = () => {
 
     void loadCourseData();
     return () => { cancelled = true; };
-  }, [open, courseId, profile?.id, isEnglishCopy]);
+  }, [open, courseId, profile?.id, isEnglishCopy, effectiveRank]);
 
   useEffect(() => {
     if (!open || !courseId) return;
-    const shouldMonitor = profile?.isAdmin || profile?.rank === 'premium' || profile?.rank === 'platinum' || profile?.rank === 'black';
+    const shouldMonitor = profile?.isAdmin || effectiveRank === 'premium' || effectiveRank === 'platinum' || effectiveRank === 'black';
     if (!shouldMonitor) return;
 
     const unsubLessons = subscribeRealtime('lesson-changes', 'lessons', '*', () => {
@@ -157,7 +159,7 @@ const CoursePage: React.FC = () => {
     }, { clearCache: false });
 
     return () => { unsubLessons(); unsubSongs(); unsubReqs(); };
-  }, [open, courseId, profile?.isAdmin, profile?.rank]);
+  }, [open, courseId, profile?.isAdmin, effectiveRank]);
 
   const reloadLessons = async (cId: string) => {
     try {
@@ -177,9 +179,9 @@ const CoursePage: React.FC = () => {
     return buildLessonAccessGraph({
       lessons,
       progressMap: progress as Record<string, LessonProgress | undefined>,
-      userRank: profile?.rank,
+      userRank: effectiveRank,
     });
-  }, [lessons, progress, profile?.rank]);
+  }, [lessons, progress, effectiveRank]);
 
   useEffect(() => {
     if (!shouldScrollToIncomplete.current || lessons.length === 0 || loading) return;

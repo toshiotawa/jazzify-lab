@@ -14,7 +14,7 @@ import GameHeader from '@/components/ui/GameHeader';
 import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { getMembershipLabel } from '@/utils/membership';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 import TutorialProgressSection from '@/components/dashboard/TutorialProgressSection';
@@ -34,6 +34,7 @@ const Dashboard: React.FC = () => {
       country: profile?.country ?? geoCountry,
       preferredLocale: profile?.preferred_locale ?? null,
     });
+    const { isPremiumMember, planLabel } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
   const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
   const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';
@@ -134,7 +135,6 @@ const Dashboard: React.FC = () => {
 
   // ランクに応じたアイコンを取得する関数
     const getRankIcon = (rank: string) => {
-
       switch (rank.toLowerCase()) {
         case 'premium':
           return <FaGem className="text-yellow-400 text-lg" />;
@@ -147,8 +147,8 @@ const Dashboard: React.FC = () => {
 
   if (!open) return null;
 
-  // フリープランの場合はプラン変更UIのみ表示
-  if (profile?.rank === 'free') {
+  // 表示上フリーのみ（課金反映遅延時は billing-status で上書き）
+  if (profile && !isPremiumMember) {
     return (
       <div className="w-full h-full flex flex-col bg-gradient-game text-white">
         <GameHeader />
@@ -203,8 +203,8 @@ const Dashboard: React.FC = () => {
                   
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <div className="flex items-center space-x-1">
-                      {getRankIcon(profile.rank)}
-                      <span>{getMembershipLabel(profile.rank, isEnglishCopy ? 'en' : 'ja')}</span>
+                      {getRankIcon(isPremiumMember ? 'premium' : (profile.rank ?? 'free'))}
+                      <span>{planLabel}</span>
                     </div>
                   </div>
                   

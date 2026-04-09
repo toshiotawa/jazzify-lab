@@ -17,7 +17,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { lessonDisplayDescription, lessonDisplayTitle, lessonSongDisplayTitle } from '@/utils/lessonCopy';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
-import { isPremiumTier } from '@/utils/membership';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { Lesson, LessonSong } from '@/types';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
@@ -94,6 +94,7 @@ const LessonDetailPage: React.FC = () => {
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { isPremiumMember, effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const { todayKey, resetLabel } = useUtcResetInfo(isEnglishCopy);
 
   const practiceCopy = useMemo(
@@ -136,16 +137,15 @@ const LessonDetailPage: React.FC = () => {
   );
   const { fetchStats } = useUserStatsStore();
 
-  const isPlatinumMember = isPremiumTier(profile?.rank);
   const visibleAttachments = useMemo(
-    () => attachments.filter(att => !att.platinum_only || isPlatinumMember),
-    [attachments, isPlatinumMember]
+    () => attachments.filter(att => !att.platinum_only || isPremiumMember),
+    [attachments, isPremiumMember]
   );
   const platinumOnlyCount = useMemo(
     () => attachments.filter(att => att.platinum_only).length,
     [attachments]
   );
-  const showPlatinumNotice = !isPlatinumMember && platinumOnlyCount > 0;
+  const showPlatinumNotice = !isPremiumMember && platinumOnlyCount > 0;
   const shouldDisplayAttachmentsSection = visibleAttachments.length > 0 || showPlatinumNotice;
 
   const [navigationInfo, setNavigationInfo] = useState<LessonNavigationInfo | null>(null);
@@ -247,7 +247,7 @@ const LessonDetailPage: React.FC = () => {
         }
         if (course) {
           setShouldHideVideos(false);
-          const access = canAccessCourse(course, profile.rank, completedCourses, isEnglishCopy);
+          const access = canAccessCourse(course, effectiveRank, completedCourses, isEnglishCopy);
           if (!access.canAccess) {
             pushToast(
               access.reason
@@ -269,7 +269,7 @@ const LessonDetailPage: React.FC = () => {
       // ナビゲーション情報を取得
       if (lessonData?.course_id) {
           try {
-            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, profile?.rank);
+            const navInfo = await getLessonNavigationInfo(targetLessonId, lessonData.course_id, effectiveRank);
             if (!isStale()) {
               setNavigationInfo(navInfo);
             }
@@ -292,7 +292,7 @@ const LessonDetailPage: React.FC = () => {
         setLoading(false);
       }
     }
-  }, [isEnglishCopy, profile?.id, profile?.rank]);
+  }, [isEnglishCopy, profile?.id, effectiveRank]);
 
   useEffect(() => {
     if (open && lessonId) {
@@ -349,7 +349,7 @@ const LessonDetailPage: React.FC = () => {
       if (lesson.course_id) {
         try {
           clearNavigationCacheForCourse(lesson.course_id);
-          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, profile?.rank, { forceRefresh: true });
+          const freshNavInfo = await getLessonNavigationInfo(lessonId, lesson.course_id, effectiveRank, { forceRefresh: true });
           setNavigationInfo(freshNavInfo);
           if (freshNavInfo.nextLesson && freshNavInfo.canGoNext) {
             setShowNextLessonPrompt(true);

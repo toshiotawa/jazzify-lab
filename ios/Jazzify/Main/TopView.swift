@@ -146,14 +146,14 @@ struct TopView: View {
                 Spacer()
             }
 
-            if let profile {
+            if profile != nil {
                 HStack {
-                    Text(profile.rank.label(locale: locale))
+                    Text(appState.displayPlanLabel)
                         .font(.caption.bold())
                         .padding(.horizontal, 12)
                         .padding(.vertical, 4)
-                        .background(profile.rank.isPremium ? Color.purple.opacity(0.3) : Color.gray.opacity(0.3))
-                        .foregroundStyle(profile.rank.isPremium ? .purple : .gray)
+                        .background(appState.displayPlanUsesPremiumAccent ? Color.purple.opacity(0.3) : Color.gray.opacity(0.3))
+                        .foregroundStyle(appState.displayPlanUsesPremiumAccent ? .purple : .gray)
                         .cornerRadius(12)
                     Spacer()
                 }
