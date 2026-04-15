@@ -1,6 +1,6 @@
 import React from 'react';
 import { createPortal } from 'react-dom';
-import { FaGem, FaTimes, FaMusic, FaGamepad, FaBookOpen, FaCalendarDay, FaCrown, FaUsers } from 'react-icons/fa';
+import { FaTimes } from 'react-icons/fa';
 
 interface WebPaywallModalProps {
   open: boolean;
@@ -9,21 +9,15 @@ interface WebPaywallModalProps {
 }
 
 const FEATURES_JA = [
-  { icon: FaBookOpen, text: 'すべてのレッスンが無制限' },
-  { icon: FaGamepad, text: 'サバイバル ステージモードでプレイ' },
-  { icon: FaCalendarDay, text: 'デイリーチャレンジ 全難易度' },
-  { icon: FaMusic, text: 'ファンタジー＆レジェンドモード' },
-  { icon: FaUsers, text: 'コミュニティ機能（日記・ランキング）' },
-  { icon: FaCrown, text: 'ミッション機能' },
+  'すべてのレッスンが無制限',
+  'サバイバル ステージモードでプレイ',
+  'デイリーチャレンジ 全難易度',
 ];
 
 const FEATURES_EN = [
-  { icon: FaBookOpen, text: 'Unlimited access to all lessons' },
-  { icon: FaGamepad, text: 'Play Survival Stage Mode' },
-  { icon: FaCalendarDay, text: 'Daily Challenge — all difficulties' },
-  { icon: FaMusic, text: 'Fantasy & Legend modes' },
-  { icon: FaUsers, text: 'Community features (diary, rankings)' },
-  { icon: FaCrown, text: 'Missions' },
+  'Unlimited access to all lessons',
+  'Play Survival Stage Mode',
+  'Daily Challenge — all difficulties',
 ];
 
 const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEnglishCopy }) => {
@@ -54,25 +48,19 @@ const WebPaywallModal: React.FC<WebPaywallModalProps> = ({ open, onClose, isEngl
         </button>
 
         <div className="text-center mb-5">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-amber-500/20 border border-amber-500/30 mb-3">
-            <FaGem className="text-2xl text-amber-400" />
-          </div>
           <h3 className="text-xl font-bold">
             {isEnglishCopy ? 'Upgrade to Premium' : 'プレミアムにアップグレード'}
           </h3>
           <p className="text-sm text-gray-400 mt-1">
             {isEnglishCopy
-              ? '7-day free trial • then ¥4,980/month'
-              : '7日間無料トライアル・以降 ¥4,980/月'}
+              ? '7-day free trial, then ¥4,980/month'
+              : '7日間無料トライアル、以降 ¥4,980/月'}
           </p>
         </div>
 
-        <ul className="space-y-3 mb-6">
-          {features.map((f) => (
-            <li key={f.text} className="flex items-center gap-3 text-sm">
-              <f.icon className="text-amber-400 shrink-0" />
-              <span className="text-gray-200">{f.text}</span>
-            </li>
+        <ul className="space-y-2 mb-6 text-sm text-gray-200 list-disc list-inside">
+          {features.map((line) => (
+            <li key={line}>{line}</li>
           ))}
         </ul>
 
