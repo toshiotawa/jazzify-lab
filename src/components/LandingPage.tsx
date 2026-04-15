@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { CheckIcon } from '@/components/landing/LpPricingIcons';
 
 import '@/landing.css';
 
@@ -46,23 +47,11 @@ const AppStoreBadge: React.FC<{ className?: string }> = ({ className = '' }) => 
   </a>
 );
 
-const detectIOSDevice = (): boolean => {
-  if (typeof navigator === 'undefined') return false;
-  const ua = navigator.userAgent;
-  return /iPad|iPhone|iPod/.test(ua) ||
-    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
-};
-
 const LandingPage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const demoSentinelRef = useRef<HTMLDivElement | null>(null);
   const [shouldRenderFantasyDemo, setShouldRenderFantasyDemo] = useState(false);
-  const [isIOSDevice, setIsIOSDevice] = useState(false);
   const isEnglishLanding = shouldUseEnglishCopy();
-
-  useEffect(() => {
-    setIsIOSDevice(detectIOSDevice());
-  }, []);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -239,7 +228,7 @@ const LandingPage: React.FC = () => {
                   >
                       {primaryCtaLabel}
                   </Link>
-                  {isIOSDevice && <AppStoreBadge />}
+                  <AppStoreBadge />
                 </div>
               </div>
             </div>
@@ -424,14 +413,12 @@ const LandingPage: React.FC = () => {
               <div className="px-8 py-8">
                 <p className="text-xs font-medium mb-6 tracking-wider" style={{ color: 'var(--lp-gold-dim)' }}>プレミアムで開放される機能</p>
                 <ul className="space-y-5">
-                  {([
-                    { icon: '🎹', text: '全レッスンにアクセス' },
-                    { icon: '⚔️', text: '全サバイバルステージ' },
-                    { icon: '🔥', text: 'デイリーチャレンジの全難易度を解放' },
-                  ] as { icon: string; text: string }[]).map((item, idx) => (
-                    <li key={idx} className="flex items-center gap-4">
-                      <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-base" style={{ background: 'rgba(200,162,77,0.1)' }}>{item.icon}</span>
-                      <span className="text-sm sm:text-base" style={{ color: 'var(--lp-cream)' }}>{item.text}</span>
+                  {(['全レッスンにアクセス', '全サバイバルステージ', 'デイリーチャレンジの全難易度を解放'] as const).map((text) => (
+                    <li key={text} className="flex items-center gap-3">
+                      <span className="shrink-0 flex items-center justify-center" aria-hidden="true">
+                        <CheckIcon />
+                      </span>
+                      <span className="text-sm sm:text-base" style={{ color: 'var(--lp-cream)' }}>{text}</span>
                     </li>
                   ))}
                 </ul>
@@ -639,7 +626,7 @@ const LandingPage: React.FC = () => {
               >
                 {primaryCtaLabel}
               </Link>
-              {isIOSDevice && <AppStoreBadge />}
+              <AppStoreBadge />
             </div>
           </div>
         </section>
