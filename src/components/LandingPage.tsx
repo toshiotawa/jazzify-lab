@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { CheckIcon } from '@/components/landing/LpPricingIcons';
+
 import '@/landing.css';
 
 const LPFantasyDemo = React.lazy(() => import('./fantasy/LPFantasyDemo'));
@@ -28,11 +28,41 @@ const MusicNoteIcon: React.FC = () => (
   <span aria-hidden="true" className="mr-2">♪</span>
 );
 
+const APP_STORE_URL = 'https://apps.apple.com/us/app/jazzify/id6761457001';
+
+const AppStoreBadge: React.FC<{ className?: string }> = ({ className = '' }) => (
+  <a
+    href={APP_STORE_URL}
+    target="_blank"
+    rel="noopener noreferrer"
+    className={`inline-flex items-center gap-2 px-5 py-3 rounded-full transition-opacity hover:opacity-80 ${className}`}
+    style={{ background: 'var(--lp-cream)', color: '#000' }}
+    aria-label="App StoreでJazzifyをダウンロード"
+  >
+    <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
+      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+    </svg>
+    <span className="text-sm font-semibold">App Store</span>
+  </a>
+);
+
+const detectIOSDevice = (): boolean => {
+  if (typeof navigator === 'undefined') return false;
+  const ua = navigator.userAgent;
+  return /iPad|iPhone|iPod/.test(ua) ||
+    (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+};
+
 const LandingPage: React.FC = () => {
   const scrollRef = useRef<HTMLDivElement | null>(null);
   const demoSentinelRef = useRef<HTMLDivElement | null>(null);
   const [shouldRenderFantasyDemo, setShouldRenderFantasyDemo] = useState(false);
+  const [isIOSDevice, setIsIOSDevice] = useState(false);
   const isEnglishLanding = shouldUseEnglishCopy();
+
+  useEffect(() => {
+    setIsIOSDevice(detectIOSDevice());
+  }, []);
 
   useEffect(() => {
     const root = scrollRef.current;
@@ -103,7 +133,7 @@ const LandingPage: React.FC = () => {
       isEnglishLanding
         ? []
         : [
-            { id: 'modes', label: '学習モード' },
+            { id: 'modes', label: '身につくこと' },
             { id: 'pricing', label: '料金プラン' },
             { id: 'faq', label: 'FAQ' },
           ]
@@ -201,7 +231,7 @@ const LandingPage: React.FC = () => {
                     dataAnimate="from-behind"
                   />
                 </div>
-                <div className="text-center md:text-left">
+                <div className="flex flex-wrap items-center gap-4 justify-center md:justify-start">
                   <Link
                       to="/signup"
                       aria-label={heroCtaAria}
@@ -209,6 +239,7 @@ const LandingPage: React.FC = () => {
                   >
                       {primaryCtaLabel}
                   </Link>
+                  {isIOSDevice && <AppStoreBadge />}
                 </div>
               </div>
             </div>
@@ -311,8 +342,8 @@ const LandingPage: React.FC = () => {
         {/* Section divider */}
         <div className="lp-gold-rule my-8" />
 
-        {/* 成果セクション */}
-        <section className="py-24 sm:py-32" data-animate="slide-left text-up">
+        {/* Jazzifyで身につくこと */}
+        <section id="modes" className="py-24 sm:py-32" data-animate="slide-right text-up">
           <div className="container mx-auto px-6">
             <div className="text-center mb-6">
               <span className="lp-section-label" data-animate="from-behind">001 — learn</span>
@@ -322,56 +353,6 @@ const LandingPage: React.FC = () => {
               data-animate="from-behind heading-underline"
             >
               Jazzifyで身につくこと
-            </h2>
-            <div className="grid md:grid-cols-3 gap-12 max-w-5xl mx-auto" data-animate="alt-cards text-up">
-              <div className="text-center p-8">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <picture>
-                    <source srcSet="/monster_icons/monster_35.webp" type="image/webp" />
-                    <img src="/monster_icons/monster_35.png" alt="コード進行" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
-                  </picture>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ジャズの響きを手に覚えこませる</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>ゲーム感覚で、ジャズの定番コードが指に馴染む</p>
-              </div>
-              <div className="text-center p-8">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <picture>
-                    <source srcSet="/monster_icons/monster_61.webp" type="image/webp" />
-                    <img src="/monster_icons/monster_61.png" alt="名演再現" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
-                  </picture>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: '#e8c874' }}>名演ソロを耳コピ＆再現</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠たちの伝説的なソロを、自分の手でなぞって体得する</p>
-              </div>
-              <div className="text-center p-8">
-                <div className="w-20 h-20 mx-auto mb-6 rounded-full flex items-center justify-center overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.1)' }}>
-                  <picture>
-                    <source srcSet="/stage_icons/3.webp" type="image/webp" />
-                    <img src="/stage_icons/3.png" alt="体系的レッスン" className="w-14 h-14 object-contain" width={56} height={56} loading="lazy" />
-                  </picture>
-                </div>
-                <h3 className="text-xl font-bold mb-3" style={{ color: '#7db4d8' }}>基礎から体系的にレッスン</h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、何から始めればいいか迷わない</p>
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Section divider */}
-        <div className="lp-gold-rule my-8" />
-
-        {/* 学習モード */}
-        <section id="modes" className="py-24 sm:py-32" data-animate="slide-right text-up">
-          <div className="container mx-auto px-6">
-            <div className="text-center mb-6">
-              <span className="lp-section-label" data-animate="from-behind">002 — modes</span>
-            </div>
-            <h2
-              className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
-              data-animate="from-behind heading-underline"
-            >
-              学習モード
             </h2>
 
             <div className="grid lg:grid-cols-3 gap-10 max-w-5xl mx-auto" data-animate="alt-cards text-up">
@@ -383,7 +364,7 @@ const LandingPage: React.FC = () => {
                   </picture>
                 </div>
                 <div className="p-8">
-                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>レジェンドモード</h3>
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>ジャズの響きを手に覚えこませる</h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>巨匠の名演ソロを再現しながら、フレーズを体で覚える</p>
                 </div>
               </div>
@@ -396,7 +377,7 @@ const LandingPage: React.FC = () => {
                   </picture>
                 </div>
                 <div className="p-8">
-                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>ファンタジーモード</h3>
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>実戦で使えるコード力が身につく</h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>RPG風バトルで、コード進行をゲーム感覚でマスター</p>
                 </div>
               </div>
@@ -409,7 +390,7 @@ const LandingPage: React.FC = () => {
                   </picture>
                 </div>
                 <div className="p-8">
-                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>レッスンモード</h3>
+                  <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>体系的にジャズピアノの知識が身につく</h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>動画付きカリキュラムで、基礎から応用まで体系的に学習</p>
                 </div>
               </div>
@@ -422,56 +403,48 @@ const LandingPage: React.FC = () => {
 
         {/* 料金プラン */}
         <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6">
+          <div className="max-w-3xl mx-auto px-4 sm:px-6">
             <div className="text-center mb-6">
-              <span className="lp-section-label" data-animate="from-behind">003 — pricing</span>
+              <span className="lp-section-label" data-animate="from-behind">002 — pricing</span>
             </div>
-            <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-8 section-title" data-animate="from-behind heading-underline">
+            <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title" data-animate="from-behind heading-underline">
               料金プラン
             </h2>
-            <p className="text-center text-sm mb-10" style={{ color: 'var(--lp-gold)' }}>有料プランはプレミアムのみ（月額4,980円・税込・初回7日間無料トライアル付与の場合あり）</p>
 
-            <div className="overflow-x-auto" data-animate="alt-cards text-up">
-              <table className="w-full border-collapse">
-                <thead>
-                  <tr>
-                    <th className="p-3 text-left min-w-[140px]" style={{ background: 'rgba(7,11,20,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
-                      <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>機能</span>
-                    </th>
-                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)' }}>
-                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>フリー</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥0</div>
-                    </th>
-                    <th className="p-4 text-center min-w-[120px]" style={{ background: 'rgba(13,19,33,0.8)', border: '1px solid rgba(200,162,77,0.08)', borderTop: '2px solid var(--lp-gold)' }}>
-                      <span className="lp-btn-gold inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2">おすすめ</span>
-                      <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プレミアム</div>
-                      <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥4,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}> / 月（税込）</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>初回7日間無料トライアル</div>
-                    </th>
-                  </tr>
-                </thead>
-                <tbody>
+            <div className="rounded-2xl overflow-hidden" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }} data-animate="alt-cards text-up">
+              <div className="text-center px-8 pt-10 pb-6" style={{ borderBottom: '1px solid rgba(200,162,77,0.1)' }}>
+                <span className="lp-btn-gold inline-block px-4 py-1 rounded-full text-xs font-medium mb-4">Premium</span>
+                <div className="flex items-baseline justify-center gap-1">
+                  <span className="lp-display text-4xl sm:text-5xl font-bold" style={{ color: 'var(--lp-cream)' }}>¥4,980</span>
+                  <span className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>/月（税込）</span>
+                </div>
+                <p className="text-sm mt-3" style={{ color: 'var(--lp-gold)' }}>初回利用者には7日間の無料トライアルが付与されます</p>
+              </div>
+
+              <div className="px-8 py-8">
+                <p className="text-xs font-medium mb-6 tracking-wider" style={{ color: 'var(--lp-gold-dim)' }}>プレミアムで開放される機能</p>
+                <ul className="space-y-5">
                   {([
-                    { label: 'コミュニティ機能\n(日記・ランキング)', values: ['×', '○'] },
-                    { label: 'ミッション', values: ['×', '○'] },
-                    { label: 'ファンタジー', values: ['×', '○'] },
-                    { label: 'レジェンド', values: ['×', '無制限'] },
-                    { label: 'サバイバル', values: ['×', '無制限'] },
-                    { label: 'レッスン', values: ['×', '無制限'] },
-                  ] as { label: string; values: string[] }[]).map((row, idx) => (
-                    <tr key={idx} style={{ background: idx % 2 === 0 ? 'rgba(7,11,20,0.4)' : 'rgba(13,19,33,0.3)' }}>
-                      <td className="p-3 text-sm font-medium whitespace-pre-line" style={{ border: '1px solid rgba(200,162,77,0.06)', color: 'var(--lp-cream-muted)' }}>{row.label}</td>
-                      {row.values.map((v, i) => (
-                        <td key={i} className="p-3 text-center" style={{ border: '1px solid rgba(200,162,77,0.06)' }}>
-                          {v === '○' ? <span className="text-lg font-bold" style={{ color: 'var(--lp-gold)' }}>○</span>
-                            : v === '×' ? <span className="text-lg font-bold" style={{ color: '#6b5c5c' }}>×</span>
-                            : <span className="text-sm font-medium" style={{ color: 'var(--lp-cream)' }}>{v}</span>}
-                        </td>
-                      ))}
-                    </tr>
+                    { icon: '🎹', text: '全レッスンにアクセス' },
+                    { icon: '⚔️', text: '全サバイバルステージ' },
+                    { icon: '🔥', text: 'デイリーチャレンジの全難易度を解放' },
+                  ] as { icon: string; text: string }[]).map((item, idx) => (
+                    <li key={idx} className="flex items-center gap-4">
+                      <span className="shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-base" style={{ background: 'rgba(200,162,77,0.1)' }}>{item.icon}</span>
+                      <span className="text-sm sm:text-base" style={{ color: 'var(--lp-cream)' }}>{item.text}</span>
+                    </li>
                   ))}
-                </tbody>
-              </table>
+                </ul>
+              </div>
+
+              <div className="px-8 pb-10 text-center">
+                <Link
+                  to="/signup"
+                  className="lp-btn-gold inline-flex items-center justify-center w-full max-w-sm px-8 py-4 rounded-full text-base sm:text-lg"
+                >
+                  無料トライアルを始める
+                </Link>
+              </div>
             </div>
           </div>
         </section>
@@ -483,7 +456,7 @@ const LandingPage: React.FC = () => {
         <section id="faq" className="py-24 sm:py-32" data-animate="slide-left text-up">
           <div className="container mx-auto px-6">
             <div className="text-center mb-6">
-              <span className="lp-section-label" data-animate="from-behind">004 — faq</span>
+              <span className="lp-section-label" data-animate="from-behind">003 — faq</span>
             </div>
             <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title" data-animate="from-behind heading-underline">
               よくある質問
@@ -515,26 +488,16 @@ const LandingPage: React.FC = () => {
                   >
                     {id === 1 && 'はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。'}
                     {id === 2 && 'ピアノ、ギター、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。'}
-                    {id === 3 && '一部のコンテンツはダウンロードしてオフラインでご利用いただけます。ただし、コミュニティ機能やランキング機能など、一部の機能はインターネット接続が必要です。'}
+                    {id === 3 && 'いいえ、オフラインではご利用いただけません。インターネット接続が必要です。'}
                     {id === 4 && '有料プランはプレミアムプランのみです。フリープランからプレミアムへのアップグレードは、マイページ等の案内に従いいつでもお申し込みいただけます。'}
-                    {id === 5 && '初回利用者には7日間の無料トライアルが付与される場合があります。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。'}
+                    {id === 5 && '初回利用者には7日間の無料トライアルが付与されます。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。'}
                     {id === 6 && (
                       <span>
                         Jazzify の iOS アプリでは、USB 経由で MIDI キーボードを接続してご利用いただけます。ケーブルや接続手順の詳細は{' '}
                         <Link to="/help/ios-midi" className="underline" style={{ color: '#7db4d8' }}>
                           iPhone/iPad での MIDI 機器利用について
                         </Link>
-                        をご覧ください。ブラウザ（Safari 等）からご利用の場合は Web MIDI API が使えないことがあるため、App Store の{' '}
-                        <a
-                          href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="underline"
-                          style={{ color: '#7db4d8' }}
-                        >
-                          Web MIDI Browser
-                        </a>
-                        {' '}の利用をご検討ください。ご不明点は{' '}
+                        をご覧ください。ご不明点は{' '}
                         <Link to="/contact" className="underline" style={{ color: '#7db4d8' }}>
                           お問い合わせフォーム
                         </Link>
@@ -553,12 +516,65 @@ const LandingPage: React.FC = () => {
         {/* Section divider */}
         <div className="lp-gold-rule my-8" />
 
+        {/* iOS App */}
+        {!isEnglishLanding && (
+          <section className="py-24 sm:py-32" data-animate="slide-right text-up">
+            <div className="container mx-auto px-6">
+              <div className="text-center mb-6">
+                <span className="lp-section-label" data-animate="from-behind">004 — app</span>
+              </div>
+              <h2
+                className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title"
+                data-animate="from-behind heading-underline"
+              >
+                iOSアプリ版
+              </h2>
+              <div className="max-w-2xl mx-auto text-center" data-animate="alt-cards text-up">
+                <div className="rounded-2xl p-8 sm:p-12" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }}>
+                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.15)' }}>
+                    <picture>
+                      <source srcSet="/default_avater/default-avater.webp" type="image/webp" />
+                      <img src="/default_avater/default-avater.png" alt="Jazzify アプリアイコン" className="w-full h-full object-cover" width={80} height={80} loading="lazy" />
+                    </picture>
+                  </div>
+                  <h3 className="lp-display text-2xl sm:text-3xl font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Jazzify</h3>
+                  <p className="text-sm sm:text-base leading-relaxed mb-2" style={{ color: 'var(--lp-cream-muted)' }}>
+                    iPhone・iPadでも、MIDIキーボードを接続してジャズを学べます。
+                  </p>
+                  <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--lp-cream-muted)' }}>
+                    App Store から無料でダウンロードできます。
+                  </p>
+                  <a
+                    href="https://apps.apple.com/us/app/jazzify/id6761457001"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-3 px-6 py-3 rounded-xl transition-opacity hover:opacity-80"
+                    style={{ background: 'var(--lp-cream)', color: '#000' }}
+                    aria-label="App StoreでJazzifyをダウンロード"
+                  >
+                    <svg viewBox="0 0 24 24" className="w-7 h-7" fill="currentColor" aria-hidden="true">
+                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                    </svg>
+                    <div className="text-left">
+                      <div className="text-[10px] leading-none">Download on the</div>
+                      <div className="text-lg font-semibold leading-tight">App Store</div>
+                    </div>
+                  </a>
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* Section divider */}
+        <div className="lp-gold-rule my-8" />
+
         {/* Developer's Voice */}
         <section className="py-28 sm:py-40 relative overflow-hidden" data-animate="slide-left text-up">
           <div className="absolute inset-0" style={{ background: 'radial-gradient(ellipse 50% 60% at 25% 40%, rgba(59,107,156,0.06), transparent)' }} />
           <div className="container mx-auto px-6 relative z-10">
             <div className="text-center mb-6">
-              <span className="lp-section-label" data-animate="from-behind">{isEnglishLanding ? '005 — voice' : '005 — voice'}</span>
+              <span className="lp-section-label" data-animate="from-behind">005 — voice</span>
             </div>
             <h2
               className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
@@ -615,7 +631,7 @@ const LandingPage: React.FC = () => {
               {finalHeadingText}
             </h2>
             <p className="mb-12 text-lg" style={{ color: 'var(--lp-cream-muted)' }}>{finalDescriptionText}</p>
-            <div className="flex items-center justify-center">
+            <div className="flex flex-wrap items-center justify-center gap-4">
               <Link
                 to="/signup"
                 aria-label={heroCtaAria}
@@ -623,6 +639,7 @@ const LandingPage: React.FC = () => {
               >
                 {primaryCtaLabel}
               </Link>
+              {isIOSDevice && <AppStoreBadge />}
             </div>
           </div>
         </section>
