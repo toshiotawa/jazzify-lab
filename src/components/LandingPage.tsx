@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Helmet } from 'react-helmet-async';
 import { Link } from 'react-router-dom';
+import { getWindow } from '@/platform';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { CheckIcon } from '@/components/landing/LpPricingIcons';
 
@@ -134,13 +135,26 @@ const LandingPage: React.FC = () => {
     [isEnglishLanding]
   );
 
+  const siteOrigin = useMemo(() => {
+    try {
+      return getWindow().location.origin;
+    } catch {
+      return 'https://jazzify.jp';
+    }
+  }, []);
+
   const heroTitleText = isEnglishLanding ? 'Turn practice into an adventure.' : '練習を冒険に。';
   const heroSubtitleText = isEnglishLanding ? 'Transform your playing with an RPG-inspired jazz journey.' : 'ゲーム感覚で、ジャズが弾けるようになる。';
   const primaryCtaLabel = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
   const heroCtaAria = isEnglishLanding ? 'Start your 7-day free trial' : '1週間の無料トライアルを始める';
+  const helmetTitle = isEnglishLanding
+    ? 'Jazzify | Jazz Learning Game — Learn jazz piano online'
+    : 'Jazzify | ジャズピアノ・コードをオンラインで — Jazz Learning Game';
   const helmetDescription = isEnglishLanding
-    ? 'Learn jazz through game-like drills and structured lessons. Connect a MIDI keyboard and get instant feedback. New users receive a 7-day free trial.'
-    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。初回利用者には7日間の無料トライアルで全機能をお試しいただけます。';
+    ? 'Jazz Learning Game — Learn jazz piano through interactive gameplay. Practice jazz piano, chords, and comping online with game-like drills, structured lessons, and MIDI feedback. New users receive a 7-day free trial.'
+    : 'Jazz Learning Game（Jazzify）。ジャズピアノ・コード（和声・コード進行）をオンラインで。インタラクティブなゲーム形式で即興とコンピングを楽しく練習できます。初回は7日間の無料トライアル。';
+  const helmetOgLocale = isEnglishLanding ? 'en_US' : 'ja_JP';
+  const helmetOgLocaleAlternate = isEnglishLanding ? 'ja_JP' : 'en_US';
   const finalHeadingText = isEnglishLanding ? 'Start your free trial' : '今すぐ無料トライアルを始める';
   const finalDescriptionText = isEnglishLanding
     ? 'Registration takes just a few minutes. New users receive a 7-day free trial, then monthly billing applies.'
@@ -157,8 +171,24 @@ const LandingPage: React.FC = () => {
   return (
     <div className="lp-root flex h-screen flex-col overflow-hidden" style={{ fontFamily: '"Kaisei Opti", serif', color: 'var(--lp-cream)' }}>
         <Helmet>
-          <title>Jazzify</title>
+          <title>{helmetTitle}</title>
           <meta name="description" content={helmetDescription} />
+          <link rel="canonical" href={`${siteOrigin}/`} />
+          <link rel="alternate" hreflang="ja" href="https://jazzify.jp/" />
+          <link rel="alternate" hreflang="en" href="https://en.jazzify.jp/" />
+          <link rel="alternate" hreflang="x-default" href="https://jazzify.jp/" />
+          <meta property="og:type" content="website" />
+          <meta property="og:site_name" content="Jazzify" />
+          <meta property="og:title" content={helmetTitle} />
+          <meta property="og:description" content={helmetDescription} />
+          <meta property="og:url" content={`${siteOrigin}/`} />
+          <meta property="og:locale" content={helmetOgLocale} />
+          <meta property="og:locale:alternate" content={helmetOgLocaleAlternate} />
+          <meta property="og:image" content={`${siteOrigin}/first-view-md.webp`} />
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content={helmetTitle} />
+          <meta name="twitter:description" content={helmetDescription} />
+          <meta name="twitter:image" content={`${siteOrigin}/first-view-md.webp`} />
       </Helmet>
 
       <div className="relative flex-1 overflow-y-auto overflow-x-hidden" ref={scrollRef} style={{ background: 'var(--lp-base)' }}>
@@ -370,7 +400,7 @@ const LandingPage: React.FC = () => {
                         style={{ color: 'var(--lp-cream-muted)' }}
                       >
                         {id === 1 && 'Yes. Jazzify is built with beginners in mind. Fantasy Mode helps you learn chords in a game-like way, even if you are new to the instrument.'}
-                        {id === 2 && 'We support the main jazz instruments, including piano, guitar, bass, saxophone, and trumpet. You can practice with a MIDI keyboard or microphone input, depending on your setup.'}
+                        {id === 2 && 'We support the main jazz instruments, including piano, bass, saxophone, and trumpet. You can practice with a MIDI keyboard or microphone input, depending on your setup.'}
                         {id === 3 && 'No. Jazzify requires an internet connection and is not available offline.'}
                         {id === 4 && 'Paid plans are Premium only. You can upgrade from the Free plan to Premium anytime from your account or checkout flow.'}
                         {id === 5 && 'New users receive a 7-day free trial. If you cancel during the trial, you will not be charged. After the trial, you can cancel before the next renewal as described in the Terms. You keep access for any period you have already paid for. Refunds follow the Terms and what is shown at checkout.'}
@@ -545,7 +575,7 @@ const LandingPage: React.FC = () => {
                     style={{ color: 'var(--lp-cream-muted)' }}
                   >
                     {id === 1 && 'はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。'}
-                    {id === 2 && 'ピアノ、ギター、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。'}
+                    {id === 2 && 'ピアノ、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。'}
                     {id === 3 && 'いいえ、オフラインではご利用いただけません。インターネット接続が必要です。'}
                     {id === 4 && '有料プランはプレミアムプランのみです。フリープランからプレミアムへのアップグレードは、マイページ等の案内に従いいつでもお申し込みいただけます。'}
                     {id === 5 && '初回利用者には7日間の無料トライアルが付与されます。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。'}
