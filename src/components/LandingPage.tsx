@@ -117,11 +117,11 @@ const LandingPage: React.FC = () => {
   const heroCtaAria = isEnglishLanding ? 'Start your 7-day free trial' : '1週間の無料トライアルを始める';
   const helmetDescription = isEnglishLanding
     ? 'Start your jazz adventure in a fantasy realm. New subscribers get a 7-day free trial (when eligible). Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
-    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。初回利用者には7日間の無料トライアル（対象者あり）で全機能をお試しいただけます。';
+    : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。初回利用者には7日間の無料トライアルで全機能をお試しいただけます。';
   const finalHeadingText = isEnglishLanding ? 'Start your free trial' : '今すぐ無料トライアルを始める';
   const finalDescriptionText = isEnglishLanding
     ? 'Registration takes just a few minutes. Eligible users get a 7-day free trial before the first charge.'
-    : '登録は数分で完了。初回は7日間の無料トライアル（対象者あり）のあと月額課金となります。';
+    : '登録は数分で完了。初回は7日間の無料トライアルのあと月額課金となります。';
 
   const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
     e.preventDefault();
@@ -465,7 +465,7 @@ const LandingPage: React.FC = () => {
                       <span className="lp-btn-gold inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2">おすすめ</span>
                       <div className="text-lg font-semibold" style={{ color: 'var(--lp-cream)' }}>プレミアム</div>
                       <div className="text-2xl font-bold mt-1 lp-display" style={{ color: 'var(--lp-cream)' }}>¥4,980<span className="text-xs font-normal" style={{ color: 'var(--lp-cream-muted)' }}> / 月（税込）</span></div>
-                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>初回7日間無料トライアル（対象者あり）</div>
+                      <div className="text-xs mt-1" style={{ color: 'var(--lp-gold)' }}>初回7日間無料トライアル</div>
                     </th>
                   </tr>
                 </thead>
@@ -523,7 +523,7 @@ const LandingPage: React.FC = () => {
                       {id === 3 && 'オフラインでも使用できますか？'}
                       {id === 4 && 'プレミアムプランについて教えてください'}
                       {id === 5 && 'キャンセル・返金は可能ですか？'}
-                      {id === 6 && 'iPhone、iPadでMIDI機器が使用できません。'}
+                      {id === 6 && 'iPhone／iPadでMIDIキーボードは使えますか？'}
                     </h3>
                     <ChevronIcon open={openFaqId === id} />
                   </button>
@@ -539,7 +539,11 @@ const LandingPage: React.FC = () => {
                     {id === 5 && '初回利用者には7日間の無料トライアルが付与される場合があります。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。'}
                     {id === 6 && (
                       <span>
-                        iOS（Safari等）では Web MIDI API が利用できません。App Store の{' '}
+                        Jazzify の iOS アプリでは、USB 経由で MIDI キーボードを接続してご利用いただけます。ケーブルや接続手順の詳細は{' '}
+                        <Link to="/help/ios-midi" className="underline" style={{ color: '#7db4d8' }}>
+                          iPhone/iPad での MIDI 機器利用について
+                        </Link>
+                        をご覧ください。ブラウザ（Safari 等）からご利用の場合は Web MIDI API が使えないことがあるため、App Store の{' '}
                         <a
                           href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
                           target="_blank"
@@ -549,10 +553,10 @@ const LandingPage: React.FC = () => {
                         >
                           Web MIDI Browser
                         </a>
-                        {' '}のご利用をご検討ください。{' '}
-                        <Link to="/help/ios-midi" className="underline" style={{ color: '#7db4d8' }}>詳しくはこちら</Link>
-                        {' ／ '}
-                        <Link to="/contact" className="underline" style={{ color: '#7db4d8' }}>お問い合わせフォーム</Link>
+                        {' '}の利用をご検討ください。ご不明点は{' '}
+                        <Link to="/contact" className="underline" style={{ color: '#7db4d8' }}>
+                          お問い合わせフォーム
+                        </Link>
                         へどうぞ。
                       </span>
                     )}

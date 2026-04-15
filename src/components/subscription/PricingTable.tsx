@@ -225,7 +225,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
           <p className="text-sm text-gray-500">
             {isEnglishCopy
               ? 'Eligible users get a 7-day free trial, then Premium is billed monthly via Lemon Squeezy (JPY; USD equivalent at checkout).'
-              : '初回は7日間の無料トライアル（対象者あり）のあと、月額4,980円（税込）が Lemon Squeezy 経由で課金されます。'}
+              : '初回は7日間の無料トライアルのあと、月額4,980円（税込）が Lemon Squeezy 経由で課金されます。'}
           </p>
         </div>
 
@@ -257,7 +257,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                     </div>
                     {plan.key !== 'free' && (
                       <div className="text-xs text-green-400 mt-1">
-                        {isEnglishCopy ? '7-day free trial when eligible' : '初回7日間無料トライアル（対象者あり）'}
+                        {isEnglishCopy ? '7-day free trial when eligible' : '初回7日間無料トライアル'}
                       </div>
                     )}
                   </th>
