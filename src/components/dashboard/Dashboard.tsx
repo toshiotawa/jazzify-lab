@@ -147,13 +147,10 @@ const Dashboard: React.FC = () => {
                         {isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}{' '}
                         {userStats.dailyChallengeParticipationDays}
                       </span>
-                      {userStats.survivalBestTimeSeconds > 0 && (
-                        <span>
-                          {isEnglishCopy ? 'Survival' : 'サバイバル'}:{' '}
-                          {Math.floor(userStats.survivalBestTimeSeconds / 60)}
-                          {isEnglishCopy ? 'min' : '分'}
-                        </span>
-                      )}
+                      <span>
+                        {isEnglishCopy ? 'Survival cleared' : 'サバイバルクリア'}{' '}
+                        {userStats.survivalClearCount}
+                      </span>
                     </div>
                   ) : null}
                 </div>

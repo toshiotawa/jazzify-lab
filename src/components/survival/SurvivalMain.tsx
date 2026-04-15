@@ -420,12 +420,6 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
               {isEnglishCopy ? 'Back' : '戻る'}
             </button>
           </div>
-
-          <div className="max-w-2xl mx-auto mt-3">
-            <p className="text-gray-400 text-sm font-sans text-center">
-              {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇せよ！'}
-            </p>
-          </div>
         </div>
 
         <SurvivalStageMode

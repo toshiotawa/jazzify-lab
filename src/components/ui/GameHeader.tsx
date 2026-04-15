@@ -5,7 +5,6 @@ import { useGeoStore } from '@/stores/geoStore';
 import { FaUserCircle } from 'react-icons/fa';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
-import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 
 /**
  * ゲーム画面で用いるヘッダーを共通化したコンポーネント。
@@ -19,8 +18,6 @@ const GameHeader: React.FC = () => {
         country: profile?.country ?? geoCountry,
         preferredLocale: profile?.preferred_locale ?? null,
       });
-  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
-  const showFreeTierNav = !isPremiumMember;
 
   return (
     <>
@@ -40,15 +37,7 @@ const GameHeader: React.FC = () => {
           </button>
 
             <HashButton hash="#lessons">{isEnglishCopy ? 'Lessons' : 'レッスン'}</HashButton>
-            <HashButton hash="#daily-challenge" matchHashPrefix>
-              {isEnglishCopy ? 'Daily' : 'デイリー'}
-            </HashButton>
             <HashButton hash="#survival">{isEnglishCopy ? 'Survival' : 'サバイバル'}</HashButton>
-            {showFreeTierNav && (
-              <span className="hidden lg:inline text-[10px] text-amber-200/90 max-w-[140px] truncate align-middle">
-                {isEnglishCopy ? 'Free: limited modes' : 'フリー: 一部のみ'}
-              </span>
-            )}
         </div>
 
           {/* 右側のコントロール */}
@@ -66,11 +55,9 @@ interface HashButtonProps {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
-  /** true のとき `#path?query` でも `#path` と一致したとみなす（デイリーチャレンジ等） */
-  matchHashPrefix?: boolean;
 }
 
-const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabled, matchHashPrefix = false }) => {
+const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabled }) => {
   const [currentHash, setCurrentHash] = useState(window.location.hash);
 
   useEffect(() => {
@@ -79,9 +66,7 @@ const HashButton: React.FC<HashButtonProps> = ({ hash, children, onClick, disabl
     return () => window.removeEventListener('hashchange', handler);
   }, []);
 
-  const active = matchHashPrefix
-    ? currentHash === hash || currentHash.startsWith(`${hash}?`)
-    : currentHash === hash;
+  const active = currentHash === hash;
 
   return (
     <button

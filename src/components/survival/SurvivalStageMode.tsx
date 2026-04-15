@@ -253,9 +253,6 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
                 <FaTrophy className="text-yellow-400" />
                 <span>STAGE MODE</span>
               </h1>
-              <p className="text-gray-400 text-sm sm:text-base font-sans">
-                {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇せよ！'}
-              </p>
             </div>
             <div className="flex gap-2">
               <button
@@ -282,21 +279,6 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
                 : 'サバイバル・ステージモードはフリープランでは閲覧のみです。プレミアムでプレイできます。'}
             </div>
           )}
-
-          {/* 説明セクション */}
-          <div className="bg-black/40 rounded-xl p-4 border border-purple-500/30">
-            <div className="flex items-center space-x-2 mb-1">
-              <FaTrophy className="text-yellow-400 text-sm" />
-              <h3 className="text-sm font-semibold font-sans">
-                {isEnglishCopy ? 'Complete all stages!' : '全ステージを制覇しよう！'}
-              </h3>
-            </div>
-            <p className="text-gray-400 text-xs sm:text-sm font-sans">
-              {isEnglishCopy
-                ? 'Stages get progressively harder with new characters and faster enemies.'
-                : 'ステージが進むにつれ新キャラクターが登場し、敵の速度も上がります。'}
-            </p>
-          </div>
 
           {/* 進捗バー */}
           <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/30">
