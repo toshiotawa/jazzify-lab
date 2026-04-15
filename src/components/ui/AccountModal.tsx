@@ -6,6 +6,7 @@ import { getSupabaseClient } from '@/platform/supabaseClient';
 import GameHeader from '@/components/ui/GameHeader';
 import { persistPreferredLocale, resolveAudienceLocale, shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 /**
  * #account ハッシュに合わせて表示されるアカウントページ (モーダル→ページ化)
@@ -47,6 +48,7 @@ const AccountPage: React.FC = () => {
   });
   const localeCode = isEnglishCopy ? 'en' : 'ja';
   const { planLabel, isPremiumMember } = useBillingAwareMembership(localeCode);
+  const [showPaywall, setShowPaywall] = useState(false);
   const handleNicknameSave = useCallback(async () => {
     const trimmed = nicknameValue.trim();
     if (!trimmed || trimmed === profile?.nickname) {
@@ -482,6 +484,16 @@ const AccountPage: React.FC = () => {
                         </span>
                       </div>
 
+                      {!isPremiumMember && billingProvider !== 'apple' && (
+                        <button
+                          type="button"
+                          className="w-full py-2.5 rounded-lg font-semibold text-sm bg-gradient-to-r from-amber-500 to-orange-500 hover:from-amber-400 hover:to-orange-400 text-black transition-all duration-200 mt-2"
+                          onClick={() => setShowPaywall(true)}
+                        >
+                          {isEnglishCopy ? 'Subscribe to Premium' : 'プレミアムに登録する'}
+                        </button>
+                      )}
+
                       {billingProvider === 'apple' && (
                         <div className="bg-orange-900/20 rounded-lg p-3 border border-orange-700/30 mt-2">
                           <p className="text-sm text-orange-200 font-semibold mb-1">
@@ -582,6 +594,7 @@ const AccountPage: React.FC = () => {
         </div>
       </div>
 
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>
   );
 };

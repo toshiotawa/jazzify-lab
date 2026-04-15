@@ -19,6 +19,7 @@ import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { FaLock, FaCheck, FaGraduationCap, FaChevronRight } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 const LessonPage: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -36,6 +37,7 @@ const LessonPage: React.FC = () => {
     preferredLocale: profile?.preferred_locale,
   });
   const { effectiveRank } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     const checkHash = () => {
@@ -175,6 +177,8 @@ const LessonPage: React.FC = () => {
         onClick={() => {
           if (accessible) {
             window.location.hash = `#course?id=${course.id}`;
+          } else if (course.premium_only) {
+            setShowPaywall(true);
           } else {
             toast.warning(accessResult.reason || (isEnglishCopy ? 'Cannot access this course' : 'このコースにはアクセスできません'));
           }
@@ -324,6 +328,7 @@ const LessonPage: React.FC = () => {
           )}
         </div>
       </div>
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>
   );
 };

@@ -13,6 +13,7 @@ import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { isFreeWebDailyChallengeDifficulty } from '@/utils/freeWebTier';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 type PlayMode = 'challenge' | 'practice';
 
@@ -88,6 +89,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
   const toast = useToast();
   const [view, setView] = useState<ViewState>({ type: 'loading' });
   const [hashTick, setHashTick] = useState(0);
+  const [showPaywall, setShowPaywall] = useState(false);
   const profile = useAuthStore(s => s.profile);
   const geoCountry = useGeoStore(s => s.country);
   const isEn = shouldUseEnglishCopy({
@@ -192,7 +194,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
                     className={`btn w-full justify-between ${locked ? 'btn-outline opacity-70' : 'btn-primary'}`}
                     onClick={() => {
                       if (locked) {
-                        window.location.hash = '#pricing';
+                        setShowPaywall(true);
                         return;
                       }
                       window.location.hash = `#daily-challenge?difficulty=${d}`;
@@ -218,12 +220,13 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
               {isEn ? 'Back' : '戻る'}
             </button>
             {!isPremiumMember && (
-              <button type="button" className="btn btn-sm btn-link text-primary-300" onClick={() => { window.location.hash = '#pricing'; }}>
+              <button type="button" className="btn btn-sm btn-link text-primary-300" onClick={() => setShowPaywall(true)}>
                 {upgradeCta}
               </button>
             )}
           </div>
         </div>
+        <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEn} />
       </div>
     );
   }
@@ -252,13 +255,12 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
               <button
                 type="button"
                 className="btn btn-primary w-full"
-                onClick={() => {
-                  window.location.hash = '#pricing';
-                }}
+                onClick={() => setShowPaywall(true)}
               >
                 {isEn ? 'View plans' : 'プランを見る'}
               </button>
             )}
+            <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEn} />
             <button
               type="button"
               className="btn btn-outline w-full border-slate-500"

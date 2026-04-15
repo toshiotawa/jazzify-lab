@@ -17,6 +17,7 @@ import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { DailyChallengeRecordsSection } from '@/components/dashboard/DailyChallengeRecordsSection';
 import TutorialProgressSection from '@/components/dashboard/TutorialProgressSection';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 /**
  * ダッシュボード画面
@@ -108,6 +109,8 @@ const Dashboard: React.FC = () => {
     }
   };
 
+  const [showPaywall, setShowPaywall] = useState(false);
+
   if (!open) return null;
 
   return (
@@ -115,7 +118,34 @@ const Dashboard: React.FC = () => {
       <GameHeader />
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
+          {!isPremiumMember && (
+            <button
+              type="button"
+              className="w-full text-left rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-900/30 to-orange-900/20 p-5 transition-all hover:border-amber-500/50 hover:from-amber-900/40 hover:to-orange-900/30"
+              onClick={() => setShowPaywall(true)}
+            >
+              <div className="flex items-center gap-4">
+                <div className="flex items-center justify-center w-12 h-12 rounded-full bg-amber-500/20 border border-amber-500/30 shrink-0">
+                  <FaGem className="text-xl text-amber-400" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-bold text-amber-100">
+                    {isEnglishCopy ? 'Upgrade to Premium' : 'プレミアムにアップグレード'}
+                  </h3>
+                  <p className="text-sm text-gray-400 mt-0.5">
+                    {isEnglishCopy
+                      ? 'Unlock all lessons, modes, and features. 7-day free trial available.'
+                      : 'すべてのレッスン・モード・機能を解放。7日間無料トライアルあり。'}
+                  </p>
+                </div>
+                <span className="text-amber-400 text-sm font-semibold shrink-0">
+                  {isEnglishCopy ? 'Details →' : '詳細 →'}
+                </span>
+              </div>
+            </button>
+          )}
           <TutorialProgressSection />
+          <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">

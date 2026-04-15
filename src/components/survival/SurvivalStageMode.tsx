@@ -28,6 +28,7 @@ import { FaTrophy, FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import WebPaywallModal from '@/components/ui/WebPaywallModal';
 
 const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
   veryeasy: 'text-emerald-300',
@@ -117,6 +118,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   const [selectedCharacterId, setSelectedCharacterId] = useState<string>('');
   const [isPlanRestrictionModalOpen, setIsPlanRestrictionModalOpen] = useState(false);
   const [hintMode, setHintMode] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const isCharacterSelectable = useCallback((character: SurvivalCharacter): boolean => {
     if (!isDomesticStandard) return true;
@@ -273,11 +275,15 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
         <div className="max-w-2xl mx-auto space-y-4">
 
           {playLocked && (
-            <div className="rounded-xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100 font-sans">
+            <button
+              type="button"
+              className="w-full text-left rounded-xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100 font-sans hover:bg-amber-950/60 hover:border-amber-500/60 transition-colors"
+              onClick={() => setShowPaywall(true)}
+            >
               {isEnglishCopy
-                ? 'Survival Stage Mode is view-only on the Free plan. Subscribe to Premium to play.'
-                : 'サバイバル・ステージモードはフリープランでは閲覧のみです。プレミアムでプレイできます。'}
-            </div>
+                ? 'Survival Stage Mode is view-only on the Free plan. Tap to view Premium plans →'
+                : 'サバイバル・ステージモードはフリープランでは閲覧のみです。タップしてプレミアムプランを見る →'}
+            </button>
           )}
 
           {/* 進捗バー */}
@@ -421,23 +427,33 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
           {/* 開始ボタン */}
           <button
             type="button"
-            onClick={handleStart}
-            disabled={playLocked || !selectedStage || !isStageUnlocked(selectedStage?.stageNumber ?? 0)}
+            onClick={() => {
+              if (playLocked) {
+                setShowPaywall(true);
+                return;
+              }
+              handleStart();
+            }}
+            disabled={!playLocked && (!selectedStage || !isStageUnlocked(selectedStage?.stageNumber ?? 0))}
             className={cn(
               'w-full py-4 rounded-xl font-bold text-lg font-sans transition-all duration-200 flex items-center justify-center gap-3',
-              !playLocked && selectedStage && isStageUnlocked(selectedStage.stageNumber)
-                ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg hover:shadow-purple-500/30'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed',
+              playLocked
+                ? 'bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white shadow-lg hover:shadow-amber-500/30 cursor-pointer'
+                : selectedStage && isStageUnlocked(selectedStage.stageNumber)
+                  ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg hover:shadow-purple-500/30'
+                  : 'bg-gray-700 text-gray-500 cursor-not-allowed',
             )}
           >
-            <FaPlay />
+            {playLocked ? <FaLock /> : <FaPlay />}
             {playLocked
-              ? (isEnglishCopy ? 'Premium required' : 'プレミアムで解放')
+              ? (isEnglishCopy ? 'Upgrade to Premium' : 'プレミアムにアップグレード')
               : (isEnglishCopy ? 'START STAGE' : 'ステージ開始')}
           </button>
 
         </div>
       </div>
+
+      <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
 
       {/* プラン制限モーダル */}
       {isPlanRestrictionModalOpen && (
