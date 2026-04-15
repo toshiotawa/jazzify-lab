@@ -31,14 +31,14 @@ const MusicNoteIcon: React.FC = () => (
 
 const APP_STORE_URL = 'https://apps.apple.com/us/app/jazzify/id6761457001';
 
-const AppStoreBadge: React.FC<{ className?: string }> = ({ className = '' }) => (
+const AppStoreBadge: React.FC<{ className?: string; english?: boolean }> = ({ className = '', english = false }) => (
   <a
     href={APP_STORE_URL}
     target="_blank"
     rel="noopener noreferrer"
     className={`inline-flex items-center gap-2 px-5 py-3 rounded-full transition-opacity hover:opacity-80 ${className}`}
     style={{ background: 'var(--lp-cream)', color: '#000' }}
-    aria-label="App StoreでJazzifyをダウンロード"
+    aria-label={english ? 'Download Jazzify on the App Store' : 'App StoreでJazzifyをダウンロード'}
   >
     <svg viewBox="0 0 24 24" className="w-6 h-6" fill="currentColor" aria-hidden="true">
       <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
@@ -120,7 +120,11 @@ const LandingPage: React.FC = () => {
   const navLinks = useMemo(
     () => (
       isEnglishLanding
-        ? []
+        ? [
+            { id: 'modes', label: 'What you learn' },
+            { id: 'pricing', label: 'Pricing' },
+            { id: 'faq', label: 'FAQ' },
+          ]
         : [
             { id: 'modes', label: '身につくこと' },
             { id: 'pricing', label: '料金プラン' },
@@ -135,11 +139,11 @@ const LandingPage: React.FC = () => {
   const primaryCtaLabel = isEnglishLanding ? 'Start your free trial' : '無料トライアルを始める';
   const heroCtaAria = isEnglishLanding ? 'Start your 7-day free trial' : '1週間の無料トライアルを始める';
   const helmetDescription = isEnglishLanding
-    ? 'Start your jazz adventure in a fantasy realm. New subscribers get a 7-day free trial (when eligible). Practice with real-time feedback, unlock quests, and battle through Fantasy Mode.'
+    ? 'Learn jazz through game-like drills and structured lessons. Connect a MIDI keyboard and get instant feedback. New users receive a 7-day free trial.'
     : 'ゲーム感覚でジャズが弾けるようになる学習プラットフォーム。初回利用者には7日間の無料トライアルで全機能をお試しいただけます。';
   const finalHeadingText = isEnglishLanding ? 'Start your free trial' : '今すぐ無料トライアルを始める';
   const finalDescriptionText = isEnglishLanding
-    ? 'Registration takes just a few minutes. Eligible users get a 7-day free trial before the first charge.'
+    ? 'Registration takes just a few minutes. New users receive a 7-day free trial, then monthly billing applies.'
     : '登録は数分で完了。初回は7日間の無料トライアルのあと月額課金となります。';
 
   const handleAnchorClick = (e: React.MouseEvent<HTMLAnchorElement>, targetId: string) => {
@@ -204,7 +208,7 @@ const LandingPage: React.FC = () => {
               <div className="w-full md:w-1/2">
                 <picture>
                   <source srcSet="/first-view-sm.webp 616w, /first-view-md.webp 768w, /first-view.webp 1080w" sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 50vw" type="image/webp" />
-                  <img src="/first-view.png" alt="ジャズの冒険イメージ" className="w-full h-auto rounded-lg" width={1080} height={1080} fetchPriority="high" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
+                  <img src="/first-view.png" alt={isEnglishLanding ? 'Jazz learning adventure illustration' : 'ジャズの冒険イメージ'} className="w-full h-auto rounded-lg" width={1080} height={1080} fetchPriority="high" style={{ border: '1px solid rgba(200,162,77,0.08)' }} />
                 </picture>
               </div>
               <div className="w-full md:w-1/2">
@@ -228,7 +232,7 @@ const LandingPage: React.FC = () => {
                   >
                       {primaryCtaLabel}
                   </Link>
-                  <AppStoreBadge />
+                  <AppStoreBadge english={isEnglishLanding} />
                 </div>
               </div>
             </div>
@@ -255,10 +259,73 @@ const LandingPage: React.FC = () => {
         {isEnglishLanding && (
           <>
             <div className="lp-gold-rule my-8" />
-            <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
+
+            <section id="modes" className="py-24 sm:py-32" data-animate="slide-right text-up">
               <div className="container mx-auto px-6">
                 <div className="text-center mb-6">
-                  <span className="lp-section-label" data-animate="from-behind">001 — pricing</span>
+                  <span className="lp-section-label" data-animate="from-behind">001 — learn</span>
+                </div>
+                <h2
+                  className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title"
+                  data-animate="from-behind heading-underline"
+                >
+                  What you&apos;ll learn with Jazzify
+                </h2>
+
+                <div className="grid lg:grid-cols-3 gap-10 max-w-5xl mx-auto" data-animate="alt-cards text-up">
+                  <div className="feature-card rounded-lg overflow-hidden text-center">
+                    <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
+                      <picture>
+                        <source srcSet="/regend_demo.webp" type="image/webp" />
+                        <img src="/regend_demo.png" alt="Legend Mode: sheet music and piano roll to recreate iconic solos" className="w-full h-full object-cover" loading="lazy" />
+                      </picture>
+                    </div>
+                    <div className="p-8">
+                      <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#e8c874' }}>Absorb the sound of jazz into your hands</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
+                        Learn legendary solo phrases by playing them with your whole body.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="feature-card rounded-lg overflow-hidden text-center">
+                    <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
+                      <picture>
+                        <source srcSet="/fantasy_demo.webp" type="image/webp" />
+                        <img src="/fantasy_demo.png" alt="Fantasy Mode: RPG-style battles to master chord progressions" className="w-full h-full object-cover" loading="lazy" />
+                      </picture>
+                    </div>
+                    <div className="p-8">
+                      <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: 'var(--lp-gold-light)' }}>Build chord fluency that holds up on the bandstand</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
+                        Master chord progressions through fast-paced, RPG-style battles.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="feature-card rounded-lg overflow-hidden text-center">
+                    <div className="w-full aspect-video flex items-center justify-center overflow-hidden">
+                      <picture>
+                        <source srcSet="/lessons_demo.webp" type="image/webp" />
+                        <img src="/lessons_demo.png" alt="Lesson Mode: structured courses with video lessons" className="w-full h-full object-cover" loading="lazy" />
+                      </picture>
+                    </div>
+                    <div className="p-8">
+                      <h3 className="lp-display text-2xl font-bold mb-3" style={{ color: '#7db4d8' }}>Build structured jazz piano knowledge from the ground up</h3>
+                      <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
+                        Video-backed courses take you from fundamentals to advanced ideas, step by step.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <div className="lp-gold-rule my-8" />
+            <section id="pricing" className="py-24 sm:py-32" data-animate="slide-right text-up">
+              <div className="max-w-3xl mx-auto px-4 sm:px-6">
+                <div className="text-center mb-6">
+                  <span className="lp-section-label" data-animate="from-behind">002 — pricing</span>
                 </div>
                 <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title" data-animate="from-behind heading-underline">
                   Pricing
@@ -273,13 +340,13 @@ const LandingPage: React.FC = () => {
             <section id="faq" className="py-24 sm:py-32" data-animate="slide-left text-up">
               <div className="container mx-auto px-6">
                 <div className="text-center mb-6">
-                  <span className="lp-section-label" data-animate="from-behind">002 — faq</span>
+                  <span className="lp-section-label" data-animate="from-behind">003 — faq</span>
                 </div>
                 <h2 className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-20 section-title" data-animate="from-behind heading-underline">
                   FAQ
                 </h2>
                 <div className="max-w-3xl mx-auto" data-animate="alt-cards text-up">
-                  {(Array.from([1, 2, 3]) as number[]).map((id) => (
+                  {(Array.from([1, 2, 3, 4, 5, 6]) as number[]).map((id) => (
                     <div key={id} className="faq-item py-6">
                       <button
                         className="w-full flex items-center justify-between cursor-pointer text-left gap-4"
@@ -288,9 +355,12 @@ const LandingPage: React.FC = () => {
                         aria-controls={`faq-content-en-${id}`}
                       >
                         <h3 className="text-base sm:text-lg font-bold" style={{ color: 'var(--lp-cream)' }}>
-                          {id === 1 && 'What devices can I use?'}
-                          {id === 2 && 'How do I use MIDI devices on iOS (iPhone/iPad)?'}
-                          {id === 3 && 'Can I cancel anytime?'}
+                          {id === 1 && 'I have never played an instrument. Is that okay?'}
+                          {id === 2 && 'Which instruments are supported?'}
+                          {id === 3 && 'Can I use Jazzify offline?'}
+                          {id === 4 && 'Tell me about the Premium plan'}
+                          {id === 5 && 'Can I cancel or get a refund?'}
+                          {id === 6 && 'Can I use a MIDI keyboard on iPhone or iPad?'}
                         </h3>
                         <ChevronIcon open={openFaqId === id} />
                       </button>
@@ -299,23 +369,24 @@ const LandingPage: React.FC = () => {
                         className={`mt-4 ${openFaqId === id ? '' : 'hidden'}`}
                         style={{ color: 'var(--lp-cream-muted)' }}
                       >
-                        {id === 1 && 'You can use MIDI keyboards with our application. Connect your MIDI device and start practicing!'}
-                        {id === 2 && (
+                        {id === 1 && 'Yes. Jazzify is built with beginners in mind. Fantasy Mode helps you learn chords in a game-like way, even if you are new to the instrument.'}
+                        {id === 2 && 'We support the main jazz instruments, including piano, guitar, bass, saxophone, and trumpet. You can practice with a MIDI keyboard or microphone input, depending on your setup.'}
+                        {id === 3 && 'No. Jazzify requires an internet connection and is not available offline.'}
+                        {id === 4 && 'Paid plans are Premium only. You can upgrade from the Free plan to Premium anytime from your account or checkout flow.'}
+                        {id === 5 && 'New users receive a 7-day free trial. If you cancel during the trial, you will not be charged. After the trial, you can cancel before the next renewal as described in the Terms. You keep access for any period you have already paid for. Refunds follow the Terms and what is shown at checkout.'}
+                        {id === 6 && (
                           <span>
-                            iOS (Safari, etc.) does not support Web MIDI API. Please use{' '}
-                            <a
-                              href="https://apps.apple.com/us/app/web-midi-browser/id953846217?l"
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="underline"
-                              style={{ color: '#7db4d8' }}
-                            >
-                              Web MIDI Browser
-                            </a>
-                            {' '}from the App Store.
+                            In the Jazzify iOS app, you can connect a MIDI keyboard over USB. See{' '}
+                            <Link to="/help/ios-midi" className="underline" style={{ color: '#7db4d8' }}>
+                              Using MIDI on iPhone and iPad
+                            </Link>
+                            {' '}for cables and setup. For other questions, use the{' '}
+                            <Link to="/contact" className="underline" style={{ color: '#7db4d8' }}>
+                              contact form
+                            </Link>
+                            .
                           </span>
                         )}
-                        {id === 3 && 'Eligible subscribers get a 7-day free trial before the first charge. After the trial, Premium is billed monthly via Lemon Squeezy (checkout in JPY, processed in USD equivalent). Cancel before the next renewal as described in the Terms.'}
                       </div>
                     </div>
                   ))}
@@ -504,54 +575,54 @@ const LandingPage: React.FC = () => {
         <div className="lp-gold-rule my-8" />
 
         {/* iOS App */}
-        {!isEnglishLanding && (
-          <section className="py-24 sm:py-32" data-animate="slide-right text-up">
-            <div className="container mx-auto px-6">
-              <div className="text-center mb-6">
-                <span className="lp-section-label" data-animate="from-behind">004 — app</span>
-              </div>
-              <h2
-                className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title"
-                data-animate="from-behind heading-underline"
-              >
-                iOSアプリ版
-              </h2>
-              <div className="max-w-2xl mx-auto text-center" data-animate="alt-cards text-up">
-                <div className="rounded-2xl p-8 sm:p-12" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }}>
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.15)' }}>
-                    <picture>
-                      <source srcSet="/default_avater/default-avater.webp" type="image/webp" />
-                      <img src="/default_avater/default-avater.png" alt="Jazzify アプリアイコン" className="w-full h-full object-cover" width={80} height={80} loading="lazy" />
-                    </picture>
-                  </div>
-                  <h3 className="lp-display text-2xl sm:text-3xl font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Jazzify</h3>
-                  <p className="text-sm sm:text-base leading-relaxed mb-2" style={{ color: 'var(--lp-cream-muted)' }}>
-                    iPhone・iPadでも、MIDIキーボードを接続してジャズを学べます。
-                  </p>
-                  <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--lp-cream-muted)' }}>
-                    App Store から無料でダウンロードできます。
-                  </p>
-                  <a
-                    href="https://apps.apple.com/us/app/jazzify/id6761457001"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-flex items-center gap-3 px-6 py-3 rounded-xl transition-opacity hover:opacity-80"
-                    style={{ background: 'var(--lp-cream)', color: '#000' }}
-                    aria-label="App StoreでJazzifyをダウンロード"
-                  >
-                    <svg viewBox="0 0 24 24" className="w-7 h-7" fill="currentColor" aria-hidden="true">
-                      <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
-                    </svg>
-                    <div className="text-left">
-                      <div className="text-[10px] leading-none">Download on the</div>
-                      <div className="text-lg font-semibold leading-tight">App Store</div>
-                    </div>
-                  </a>
+        <section className="py-24 sm:py-32" data-animate="slide-right text-up">
+          <div className="container mx-auto px-6">
+            <div className="text-center mb-6">
+              <span className="lp-section-label" data-animate="from-behind">004 — app</span>
+            </div>
+            <h2
+              className="lp-display text-3xl sm:text-4xl md:text-6xl font-bold text-center mb-16 section-title"
+              data-animate="from-behind heading-underline"
+            >
+              {isEnglishLanding ? 'Jazzify for iOS' : 'iOSアプリ版'}
+            </h2>
+            <div className="max-w-2xl mx-auto text-center" data-animate="alt-cards text-up">
+              <div className="rounded-2xl p-8 sm:p-12" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }}>
+                <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.15)' }}>
+                  <picture>
+                    <source srcSet="/default_avater/default-avater.webp" type="image/webp" />
+                    <img src="/default_avater/default-avater.png" alt={isEnglishLanding ? 'Jazzify app icon' : 'Jazzify アプリアイコン'} className="w-full h-full object-cover" width={80} height={80} loading="lazy" />
+                  </picture>
                 </div>
+                <h3 className="lp-display text-2xl sm:text-3xl font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Jazzify</h3>
+                <p className="text-sm sm:text-base leading-relaxed mb-2" style={{ color: 'var(--lp-cream-muted)' }}>
+                  {isEnglishLanding
+                    ? 'On iPhone and iPad, connect a MIDI keyboard and learn jazz with the same experience as on the web.'
+                    : 'iPhone・iPadでも、MIDIキーボードを接続してジャズを学べます。'}
+                </p>
+                <p className="text-sm leading-relaxed mb-8" style={{ color: 'var(--lp-cream-muted)' }}>
+                  {isEnglishLanding ? 'Download free from the App Store.' : 'App Store から無料でダウンロードできます。'}
+                </p>
+                <a
+                  href={APP_STORE_URL}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-3 px-6 py-3 rounded-xl transition-opacity hover:opacity-80"
+                  style={{ background: 'var(--lp-cream)', color: '#000' }}
+                  aria-label={isEnglishLanding ? 'Download Jazzify on the App Store' : 'App StoreでJazzifyをダウンロード'}
+                >
+                  <svg viewBox="0 0 24 24" className="w-7 h-7" fill="currentColor" aria-hidden="true">
+                    <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z" />
+                  </svg>
+                  <div className="text-left">
+                    <div className="text-[10px] leading-none">Download on the</div>
+                    <div className="text-lg font-semibold leading-tight">App Store</div>
+                  </div>
+                </a>
               </div>
             </div>
-          </section>
-        )}
+          </div>
+        </section>
 
         {/* Section divider */}
         <div className="lp-gold-rule my-8" />
@@ -626,7 +697,7 @@ const LandingPage: React.FC = () => {
               >
                 {primaryCtaLabel}
               </Link>
-              <AppStoreBadge />
+              <AppStoreBadge english={isEnglishLanding} />
             </div>
           </div>
         </section>
@@ -635,18 +706,33 @@ const LandingPage: React.FC = () => {
         {isEnglishLanding && (
           <footer className="py-16" style={{ background: 'var(--lp-base)', borderTop: '1px solid rgba(200,162,77,0.1)' }}>
             <div className="container mx-auto px-6">
-              <div className="grid md:grid-cols-2 gap-8 mb-12">
+              <div className="grid md:grid-cols-3 gap-8 mb-12">
                 <div className="col-span-1">
                   <h3 className="lp-display text-2xl font-bold mb-4" style={{ color: 'var(--lp-gold)' }}>
                     <MusicNoteIcon />Jazzify
                   </h3>
                   <p className="text-sm leading-relaxed" style={{ color: 'var(--lp-cream-muted)' }}>
-                    Embark on a jazz adventure in a fantasy realm. A learning platform for all jazz enthusiasts, from beginners to advanced players.
+                    Learn jazz through game-like drills and structured lessons. From first notes to advanced playing, built for daily practice.
                   </p>
+                </div>
+                <div>
+                  <h4 className="font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Service</h4>
+                  <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+                    {navLinks.map(l => (
+                      <li key={l.id}>
+                        <a href={`#${l.id}`} className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, l.id)}>
+                          {l.label}
+                        </a>
+                      </li>
+                    ))}
+                    <li><Link to="/signup" className="transition-colors duration-200 hover:opacity-80">Sign up</Link></li>
+                  </ul>
                 </div>
                 <div>
                   <h4 className="font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Support</h4>
                   <ul className="space-y-2 text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
+                    <li><a href="#faq" className="transition-colors duration-200 hover:opacity-80" onClick={(e) => handleAnchorClick(e, 'faq')}>FAQ</a></li>
+                    <li><Link to="/help/ios-midi" className="transition-colors duration-200 hover:opacity-80">MIDI on iPhone / iPad</Link></li>
                     <li><Link to="/contact" className="transition-colors duration-200 hover:opacity-80">Contact</Link></li>
                     <li><Link to="/terms" className="transition-colors duration-200 hover:opacity-80">Terms of Service</Link></li>
                     <li><Link to="/privacy" className="transition-colors duration-200 hover:opacity-80">Privacy Policy</Link></li>
