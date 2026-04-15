@@ -110,49 +110,6 @@ const Dashboard: React.FC = () => {
 
   if (!open) return null;
 
-  if (profile && !isPremiumMember) {
-    const upgradeTitle = isEnglishCopy ? 'Upgrade to Premium' : 'プレミアムでプレイ';
-    const upgradeBody = isEnglishCopy
-      ? 'Subscribe to unlock all lessons, game modes, and diary features.'
-      : 'プレミアムに加入すると、全レッスン・各ゲームモード・日記の画像添付などをご利用いただけます。';
-    const upgradeCta = isEnglishCopy ? 'View plans' : 'プランを見る';
-    const accountCta = isEnglishCopy ? 'Account & billing' : 'アカウント・お支払い';
-
-    return (
-      <div className="w-full h-full flex flex-col bg-gradient-game text-white">
-        <GameHeader />
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
-          <div className="max-w-2xl mx-auto space-y-6">
-            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
-              <h2 className="text-xl font-semibold text-white mb-2">{upgradeTitle}</h2>
-              <p className="text-sm text-gray-300 mb-5">{upgradeBody}</p>
-              <div className="flex flex-wrap gap-3">
-                <button
-                  type="button"
-                  className="btn btn-primary"
-                  onClick={() => {
-                    window.location.hash = '#pricing';
-                  }}
-                >
-                  {upgradeCta}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-outline border-slate-500 text-white hover:bg-slate-700"
-                  onClick={() => {
-                    window.location.hash = '#account';
-                  }}
-                >
-                  {accountCta}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />

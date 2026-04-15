@@ -92,6 +92,8 @@ interface SurvivalStageModeProps {
   onBackToMenu: () => void;
   onBackToModeSelect?: () => void;
   embedded?: boolean;
+  /** true のときステージ選択は閲覧のみ（プレミアム未加入の Web 向け） */
+  playLocked?: boolean;
 }
 
 const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
@@ -99,6 +101,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   onBackToMenu,
   onBackToModeSelect,
   embedded,
+  playLocked = false,
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
@@ -200,6 +203,7 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
   const handleStart = async () => {
     if (!selectedStage) return;
     if (!isStageUnlocked(selectedStage.stageNumber)) return;
+    if (playLocked) return;
 
     if (!isIOSWebView()) {
       try {
@@ -270,6 +274,14 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
 
       <div className="px-4 sm:px-6 pb-32 sm:pb-6">
         <div className="max-w-2xl mx-auto space-y-4">
+
+          {playLocked && (
+            <div className="rounded-xl border border-amber-500/40 bg-amber-950/40 p-4 text-sm text-amber-100 font-sans">
+              {isEnglishCopy
+                ? 'Survival Stage Mode is view-only on the Free plan. Subscribe to Premium to play.'
+                : 'サバイバル・ステージモードはフリープランでは閲覧のみです。プレミアムでプレイできます。'}
+            </div>
+          )}
 
           {/* 説明セクション */}
           <div className="bg-black/40 rounded-xl p-4 border border-purple-500/30">
@@ -403,12 +415,13 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
 
           {/* HINTモード */}
           <div className="bg-black/40 rounded-xl p-4 border border-yellow-500/30">
-            <label className="flex items-center gap-3 cursor-pointer">
+            <label className={`flex items-center gap-3 ${playLocked ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
               <input
                 type="checkbox"
                 checked={hintMode}
+                disabled={playLocked}
                 onChange={(e) => setHintMode(e.target.checked)}
-                className="w-5 h-5 rounded border-gray-500 text-yellow-500 focus:ring-yellow-500 cursor-pointer"
+                className="w-5 h-5 rounded border-gray-500 text-yellow-500 focus:ring-yellow-500 cursor-pointer disabled:cursor-not-allowed"
               />
               <div>
                 <span className="text-sm font-bold text-yellow-300 font-sans">
@@ -425,17 +438,20 @@ const SurvivalStageMode: React.FC<SurvivalStageModeProps> = ({
 
           {/* 開始ボタン */}
           <button
+            type="button"
             onClick={handleStart}
-            disabled={!selectedStage || !isStageUnlocked(selectedStage?.stageNumber ?? 0)}
+            disabled={playLocked || !selectedStage || !isStageUnlocked(selectedStage?.stageNumber ?? 0)}
             className={cn(
               'w-full py-4 rounded-xl font-bold text-lg font-sans transition-all duration-200 flex items-center justify-center gap-3',
-              selectedStage && isStageUnlocked(selectedStage.stageNumber)
+              !playLocked && selectedStage && isStageUnlocked(selectedStage.stageNumber)
                 ? 'bg-gradient-to-r from-purple-600 to-pink-600 hover:from-purple-500 hover:to-pink-500 text-white shadow-lg hover:shadow-purple-500/30'
-                : 'bg-gray-700 text-gray-500 cursor-not-allowed'
+                : 'bg-gray-700 text-gray-500 cursor-not-allowed',
             )}
           >
             <FaPlay />
-            {isEnglishCopy ? 'START STAGE' : 'ステージ開始'}
+            {playLocked
+              ? (isEnglishCopy ? 'Premium required' : 'プレミアムで解放')
+              : (isEnglishCopy ? 'START STAGE' : 'ステージ開始')}
           </button>
 
         </div>

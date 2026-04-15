@@ -4,6 +4,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView } from '@/utils/iosbridge';
 import PaymentIssueBanner from '@/components/ui/PaymentIssueBanner';
+import GameHeader from '@/components/ui/GameHeader';
 
 type PlanKey = 'free' | 'premium';
 
@@ -41,33 +42,6 @@ interface FeatureRow {
   values: Record<PlanKey, string>;
 }
 
-const FEATURES: FeatureRow[] = [
-  {
-    label: 'コミュニティ機能\n(日記・ランキング)',
-    values: { free: '×', premium: '○' },
-  },
-  {
-    label: 'ミッション',
-    values: { free: '×', premium: '○' },
-  },
-  {
-    label: 'ファンタジー',
-    values: { free: '×', premium: '○' },
-  },
-  {
-    label: 'レジェンド',
-    values: { free: '×', premium: '無制限' },
-  },
-  {
-    label: 'サバイバル',
-    values: { free: '×', premium: '無制限' },
-  },
-  {
-    label: 'レッスン',
-    values: { free: '×', premium: '無制限' },
-  },
-];
-
 interface Props {
   mode?: 'checkout' | 'view';
 }
@@ -86,12 +60,42 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
   const isIOS = isIOSWebView();
 
   const featureRows = useMemo((): FeatureRow[] => [
-    ...FEATURES,
     {
-      label: isEnglishCopy
-        ? 'Daily Challenge\n(all difficulties)'
-        : 'デイリーチャレンジ\n(全難易度)',
+      label: isEnglishCopy ? 'Community (diary, rankings)' : 'コミュニティ機能\n(日記・ランキング)',
       values: { free: '×', premium: '○' },
+    },
+    {
+      label: isEnglishCopy ? 'Missions' : 'ミッション',
+      values: { free: '×', premium: '○' },
+    },
+    {
+      label: isEnglishCopy ? 'Fantasy mode' : 'ファンタジー',
+      values: { free: '×', premium: '○' },
+    },
+    {
+      label: isEnglishCopy ? 'Legend mode' : 'レジェンド',
+      values: { free: '×', premium: isEnglishCopy ? 'Unlimited' : '無制限' },
+    },
+    {
+      label: isEnglishCopy ? 'Survival (stage mode)' : 'サバイバル（ステージ）',
+      values: {
+        free: isEnglishCopy ? 'View only' : '閲覧のみ',
+        premium: isEnglishCopy ? 'Unlimited' : '無制限',
+      },
+    },
+    {
+      label: isEnglishCopy ? 'Lessons' : 'レッスン',
+      values: {
+        free: isEnglishCopy ? 'Tutorial' : 'チュートリアル',
+        premium: isEnglishCopy ? 'Unlimited' : '無制限',
+      },
+    },
+    {
+      label: isEnglishCopy ? 'Daily Challenge' : 'デイリーチャレンジ',
+      values: {
+        free: isEnglishCopy ? 'Super Beginner' : '超初級のみ',
+        premium: isEnglishCopy ? 'All difficulties' : '全難易度',
+      },
     },
   ], [isEnglishCopy]);
 
@@ -189,8 +193,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
         const error = await response.json().catch(() => ({ error: isEnglishCopy ? 'Failed to open checkout' : 'チェックアウトの起動に失敗しました' }));
         alert(`Error: ${error.error}`);
       }
-    } catch (error) {
-      console.error('LemonSqueezy checkout error:', error);
+    } catch {
       alert(isEnglishCopy ? 'An error occurred' : 'エラーが発生しました');
     } finally {
       setLoading(null);
@@ -204,44 +207,57 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
     if (value === '×') {
       return <span className="text-red-400 text-lg font-bold">×</span>;
     }
-    return <span className="text-white text-sm font-medium">{value}</span>;
+    return <span className="text-white text-sm font-medium leading-snug">{value}</span>;
   };
 
-  return (
-    <div className="w-full h-full overflow-auto">
-      <PaymentIssueBanner />
-      <div className="w-full max-w-7xl mx-auto p-6">
-        <div className="text-center mb-8">
-          <h2 className="text-3xl font-bold text-white mb-4">
-            {mode === 'checkout'
-              ? (isEnglishCopy ? 'Choose your plan' : 'プランを選択')
-              : (isEnglishCopy ? 'Plan comparison' : 'プラン比較')}
-          </h2>
-          <p className="text-gray-300 mb-4">
-            {isEnglishCopy
-              ? 'Unlock all lessons and game modes with Premium.'
-              : 'Premium で全レッスンと全ゲームモードを利用できます。'}
-          </p>
-          <p className="text-sm text-gray-500">
-            {isEnglishCopy
-              ? 'Eligible users get a 7-day free trial, then Premium is billed monthly via Lemon Squeezy (JPY; USD equivalent at checkout).'
-              : '初回は7日間の無料トライアルのあと、月額4,980円（税込）が Lemon Squeezy 経由で課金されます。'}
-          </p>
-        </div>
+  const featureColTitle = isEnglishCopy ? 'Features' : '機能';
 
-        {/* 比較テーブル */}
-        <div className="overflow-x-auto">
-          <table className="w-full border-collapse">
+  return (
+    <div className="w-full h-full flex flex-col overflow-hidden bg-gradient-game text-white">
+      <GameHeader />
+      <div className="flex-1 overflow-y-auto">
+        <PaymentIssueBanner />
+        <div className="w-full max-w-5xl mx-auto p-4 sm:p-8 pb-12">
+          <div
+            className="rounded-2xl overflow-hidden border border-amber-500/20 shadow-2xl"
+            style={{ background: 'rgba(13,19,33,0.72)' }}
+          >
+            <div className="text-center px-6 pt-10 pb-6 border-b border-amber-500/10">
+              <span
+                className="inline-block px-4 py-1 rounded-full text-xs font-medium mb-4 border border-amber-400/40 text-amber-100/95 tracking-wide"
+                style={{ background: 'rgba(200,162,77,0.12)' }}
+              >
+                {isEnglishCopy ? 'Plans' : 'プラン'}
+              </span>
+              <h2 className="text-2xl sm:text-3xl font-bold mb-3" style={{ color: 'rgb(248 250 252)' }}>
+                {mode === 'checkout'
+                  ? (isEnglishCopy ? 'Choose your plan' : 'プランを選択')
+                  : (isEnglishCopy ? 'Plan comparison' : 'プラン比較')}
+              </h2>
+              <p className="text-sm sm:text-base text-slate-300 mb-2 max-w-xl mx-auto">
+                {isEnglishCopy
+                  ? 'Free members can explore lessons (tutorial), stats, daily challenge (Super Beginner), and Survival stage mode (view only).'
+                  : 'フリー会員はチュートリアルレッスン・統計・デイリーチャレンジ（超初級）・サバイバル閲覧などをご利用いただけます。'}
+              </p>
+              <p className="text-xs sm:text-sm text-slate-500 max-w-xl mx-auto">
+                {isEnglishCopy
+                  ? 'Eligible users get a 7-day free trial, then Premium is billed monthly via Lemon Squeezy (JPY; USD equivalent at checkout).'
+                  : '初回は7日間の無料トライアルのあと、月額4,980円（税込）が Lemon Squeezy 経由で課金されます。'}
+              </p>
+            </div>
+
+            <div className="px-4 sm:px-6 py-6 overflow-x-auto">
+          <table className="w-full border-collapse min-w-[520px]">
             {/* プランヘッダー */}
             <thead>
               <tr>
-                <th className="p-3 text-left bg-slate-900 border border-slate-700 min-w-[140px]">
-                  <span className="text-gray-400 text-sm">機能</span>
+                <th className="p-3 text-left bg-slate-900/90 border border-slate-700/80 min-w-[140px]">
+                  <span className="text-slate-400 text-sm">{featureColTitle}</span>
                 </th>
                 {plans.map((plan) => (
                   <th
                     key={plan.key}
-                    className={`p-4 text-center border border-slate-700 min-w-[130px] ${plan.headerClass}`}
+                    className={`p-4 text-center border border-slate-700/80 min-w-[130px] ${plan.headerClass}`}
                   >
                     {plan.badge && (
                       <span className={`inline-block px-3 py-0.5 rounded-full text-xs font-medium mb-2 ${plan.badgeClass}`}>
@@ -256,7 +272,7 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
                       )}
                     </div>
                     {plan.key !== 'free' && (
-                      <div className="text-xs text-green-400 mt-1">
+                      <div className="text-xs text-amber-200/90 mt-1">
                         {isEnglishCopy ? '7-day free trial when eligible' : '初回7日間無料トライアル'}
                       </div>
                     )}
@@ -286,17 +302,18 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               {/* 選択ボタン行 */}
               {mode === 'checkout' && (
                 <tr>
-                  <td className="p-3 border border-slate-700 bg-slate-900" />
+                  <td className="p-3 border border-slate-700/80 bg-slate-900/90" />
                   {PLANS.map((plan) => (
-                    <td key={plan.key} className="p-4 border border-slate-700 text-center bg-slate-900">
+                    <td key={plan.key} className="p-4 border border-slate-700/80 text-center bg-slate-900/90">
                       {plan.key === 'free' ? (
-                        <button className="btn btn-outline btn-sm w-full opacity-60" disabled>
-                          現在のプラン
+                        <button type="button" className="btn btn-outline btn-sm w-full opacity-60" disabled>
+                          {isEnglishCopy ? 'Current plan' : '現在のプラン'}
                         </button>
                       ) : (
                         <button
-                          className="btn btn-primary btn-sm w-full"
-                          onClick={() => handlePlanSelect(plan.key as 'premium')}
+                          type="button"
+                          className="btn btn-primary btn-sm w-full rounded-full"
+                          onClick={() => void handlePlanSelect(plan.key as 'premium')}
                           disabled={loading === plan.key}
                         >
                           {loading === plan.key
@@ -310,18 +327,21 @@ const PricingTable: React.FC<Props> = ({ mode = 'checkout' }) => {
               )}
             </tbody>
           </table>
-        </div>
+            </div>
 
-        {mode === 'view' && (
-          <div className="text-center mt-8">
-            <button
-              className="btn btn-outline"
-              onClick={() => { window.history.back(); }}
-            >
-              {isEnglishCopy ? 'Back' : '戻る'}
-            </button>
+            {mode === 'view' && (
+              <div className="text-center px-6 pb-8">
+                <button
+                  type="button"
+                  className="btn btn-outline border-slate-500"
+                  onClick={() => { window.history.back(); }}
+                >
+                  {isEnglishCopy ? 'Back' : '戻る'}
+                </button>
+              </div>
+            )}
           </div>
-        )}
+        </div>
       </div>
     </div>
   );

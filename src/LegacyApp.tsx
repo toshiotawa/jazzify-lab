@@ -8,6 +8,7 @@ import ToastContainer from '@/components/ui/ToastContainer';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
 import Dashboard from '@/components/dashboard/Dashboard';
 import { isIOSWebView, getIOSMode, getIOSParam } from '@/utils/iosbridge';
 import MidiWarningModal from '@/components/ui/MidiWarningModal';
@@ -39,13 +40,14 @@ const App: React.FC = () => {
   // 認証ストアの状態
   const { profile, loading:authLoading, user } = useAuthStore();
   const geoCountry = useGeoStore(s => s.country);
-  const isFree = profile?.rank === 'free';
   const isAdmin = Boolean(profile?.isAdmin);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     geoCountryHint: geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const isFreeRank = profile?.rank === 'free';
   
   // hash monitor
   const [hash, setHash] = useState(window.location.hash);
@@ -104,16 +106,32 @@ const App: React.FC = () => {
     window.location.replace(next);
   }, [hash]);
 
-  // フリープランはダッシュボード/アカウント/料金プランのみ
+  // プレミアム未加入はフリー向けハッシュのみ（課金APIと rank の両方を考慮）
   useEffect(() => {
     if (isIOSWebView()) return;
     const baseHash = window.location.hash.split('?')[0];
-    if (isFree && !isAdmin) {
-      if (baseHash !== '#dashboard' && baseHash !== '#account' && baseHash !== '#pricing') {
+    if (!isPremiumMember && !isAdmin) {
+      const allowedForLimited = new Set([
+        '#dashboard',
+        '#account',
+        '#pricing',
+        '#plan-comparison',
+        '#lessons',
+        '#course',
+        '#lesson-detail',
+        '#information',
+        '#daily-challenge',
+        '#survival',
+        '#survival-lesson',
+        '#play-lesson',
+        '#practice',
+        '#performance',
+      ]);
+      if (!allowedForLimited.has(baseHash)) {
         window.location.hash = '#dashboard';
       }
     }
-  }, [isFree, isAdmin]);
+  }, [isPremiumMember, isAdmin]);
   
   // 他画面遷移時にヘッダー非表示状態を自動解除
   useEffect(() => {
@@ -289,7 +307,7 @@ const App: React.FC = () => {
     );
   }
 
-  if (hash === '#mypage' && !isFree) {
+  if (hash === '#mypage' && !isFreeRank) {
     return (
       <React.Suspense fallback={<LoadingScreen />}>
         <MypagePage />
@@ -311,16 +329,16 @@ const App: React.FC = () => {
       MainContent = <Dashboard />;
       break;
     case '#lessons':
-      MainContent = isFree ? <Dashboard /> : <LessonPage />;
+      MainContent = <LessonPage />;
       break;
     case '#course':
-      MainContent = isFree ? <Dashboard /> : <CoursePage />;
+      MainContent = <CoursePage />;
       break;
     case '#lesson-detail':
-      MainContent = isFree ? <Dashboard /> : <LessonDetailPage />;
+      MainContent = <LessonDetailPage />;
       break;
     case '#information':
-      MainContent = isFree ? <Dashboard /> : <InformationPage />;
+      MainContent = <InformationPage />;
       break;
     case '#pricing':
       MainContent = <PricingTable />;
@@ -342,35 +360,35 @@ const App: React.FC = () => {
       MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
       break;
     case '#fantasy':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = !isPremiumMember ? <Dashboard /> : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyFantasyMain />
         </React.Suspense>
       );
       break;
     case '#daily-challenge':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyDailyChallengeMain />
         </React.Suspense>
       );
       break;
     case '#Story':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = !isPremiumMember ? <Dashboard /> : (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyStoryPage />
         </React.Suspense>
       );
       break;
     case '#survival':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalMain />
         </React.Suspense>
       );
       break;
     case '#survival-lesson':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazySurvivalMain lessonMode />
         </React.Suspense>
@@ -379,7 +397,7 @@ const App: React.FC = () => {
     case '#practice':
     case '#performance':
     case '#play-lesson':
-      MainContent = isFree ? <Dashboard /> : (
+      MainContent = (
         <React.Suspense fallback={<LoadingScreen />}>
           <LazyGameScreen />
         </React.Suspense>

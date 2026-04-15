@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
+import { FaLock } from 'react-icons/fa';
 import FantasyGameScreen from '@/components/fantasy/FantasyGameScreen';
 import type { FantasyStage as EngineFantasyStage } from '@/components/fantasy/FantasyGameEngine';
+import GameHeader from '@/components/ui/GameHeader';
 import { useToast } from '@/stores/toastStore';
 import type { DailyChallengeDifficulty, FantasyStage } from '@/types';
 import { createDailyChallengeRecord, fetchDailyChallengeRecordsSince, fetchDailyChallengeStage } from '@/platform/supabaseDailyChallenge';
@@ -9,12 +11,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { isFreeWebDailyChallengeDifficulty } from '@/utils/freeWebTier';
 
 type PlayMode = 'challenge' | 'practice';
 
 type ViewState =
   | { type: 'loading' }
-  | { type: 'blocked'; reason: 'invalid' | 'already_played' | 'missing_stage' }
+  | { type: 'pick' }
+  | { type: 'blocked'; reason: 'invalid' | 'already_played' | 'missing_stage' | 'premium_required' }
   | { type: 'playing'; stage: EngineFantasyStage; difficulty: DailyChallengeDifficulty; playMode: PlayMode }
   | { type: 'result'; difficulty: DailyChallengeDifficulty; score: number };
 
@@ -82,6 +87,7 @@ interface DailyChallengeMainProps {
 const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }) => {
   const toast = useToast();
   const [view, setView] = useState<ViewState>({ type: 'loading' });
+  const [hashTick, setHashTick] = useState(0);
   const profile = useAuthStore(s => s.profile);
   const geoCountry = useGeoStore(s => s.country);
   const isEn = shouldUseEnglishCopy({
@@ -89,12 +95,23 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
     country: profile?.country ?? geoCountry,
     preferredLocale: profile?.preferred_locale,
   });
+  const localeCode = isEn ? 'en' : 'ja';
+  const { isPremiumMember } = useBillingAwareMembership(localeCode);
   const { todayKey: today, resetLabel } = useUtcResetInfo(isEn);
   const difficultyLabel = (d: DailyChallengeDifficulty): string =>
     isEn ? DIFFICULTY_LABELS_EN[d] : DIFFICULTY_LABELS_JA[d];
 
   useEffect(() => {
+    const onHash = (): void => {
+      setHashTick((n) => n + 1);
+    };
+    window.addEventListener('hashchange', onHash);
+    return () => window.removeEventListener('hashchange', onHash);
+  }, []);
+
+  useEffect(() => {
     const run = async () => {
+      setView({ type: 'loading' });
       let difficulty = parseDifficulty(window.location.hash);
       if (!difficulty && iosDifficulty && VALID_DIFFICULTIES.includes(iosDifficulty as DailyChallengeDifficulty)) {
         difficulty = iosDifficulty as DailyChallengeDifficulty;
@@ -106,7 +123,16 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
         }
       }
       if (!difficulty) {
-        setView({ type: 'blocked', reason: 'invalid' });
+        if (isIOSWebView()) {
+          setView({ type: 'blocked', reason: 'invalid' });
+          return;
+        }
+        setView({ type: 'pick' });
+        return;
+      }
+
+      if (!isPremiumMember && !isFreeWebDailyChallengeDifficulty(difficulty)) {
+        setView({ type: 'blocked', reason: 'premium_required' });
         return;
       }
 
@@ -130,13 +156,74 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
       setView({ type: 'playing', stage: toEngineStage(stage), difficulty, playMode: 'challenge' });
     };
 
-    run().catch(() => setView({ type: 'blocked', reason: 'invalid' }));
-  }, [today]);
+    void run().catch(() => setView({ type: 'blocked', reason: 'invalid' }));
+  }, [today, hashTick, isPremiumMember, iosDifficulty]);
 
   if (view.type === 'loading') {
     return (
       <div className="w-full h-full flex items-center justify-center text-white">
         <div className="text-sm text-gray-300">{isEn ? 'Loading...' : '読み込み中...'}</div>
+      </div>
+    );
+  }
+
+  if (view.type === 'pick') {
+    const pickTitle = isEn ? 'Choose difficulty' : '難易度を選ぶ';
+    const pickHint = isEn
+      ? 'Free plan: Super Beginner only. Upgrade for all levels.'
+      : 'フリープランは超初級のみプレイできます。プレミアムで全難易度を解放。';
+    const upgradeCta = isEn ? 'View plans' : 'プランを見る';
+
+    return (
+      <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+        <GameHeader />
+        <div className="flex-1 overflow-y-auto p-4 sm:p-6">
+          <div className="max-w-lg mx-auto space-y-4">
+            <h1 className="text-xl font-bold">{isEn ? 'Daily Challenge' : 'デイリーチャレンジ'}</h1>
+            <p className="text-sm text-gray-300">{pickTitle}</p>
+            {!isPremiumMember && <p className="text-xs text-amber-200/90">{pickHint}</p>}
+            <div className="flex flex-col gap-2">
+              {VALID_DIFFICULTIES.map((d) => {
+                const locked = !isPremiumMember && !isFreeWebDailyChallengeDifficulty(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className={`btn w-full justify-between ${locked ? 'btn-outline opacity-70' : 'btn-primary'}`}
+                    onClick={() => {
+                      if (locked) {
+                        window.location.hash = '#pricing';
+                        return;
+                      }
+                      window.location.hash = `#daily-challenge?difficulty=${d}`;
+                    }}
+                  >
+                    <span>{difficultyLabel(d)}</span>
+                    {locked ? <FaLock className="text-sm opacity-80" aria-hidden /> : null}
+                  </button>
+                );
+              })}
+            </div>
+            <button
+              type="button"
+              className="btn btn-outline w-full border-slate-500"
+              onClick={() => {
+                if (isIOSWebView()) {
+                  sendGameCallback('gameEnd');
+                  return;
+                }
+                window.location.hash = '#dashboard';
+              }}
+            >
+              {isEn ? 'Back' : '戻る'}
+            </button>
+            {!isPremiumMember && (
+              <button type="button" className="btn btn-sm btn-link text-primary-300" onClick={() => { window.location.hash = '#pricing'; }}>
+                {upgradeCta}
+              </button>
+            )}
+          </div>
+        </div>
       </div>
     );
   }
@@ -147,23 +234,42 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
         ? (isEn ? 'You have already played this difficulty today.' : '本日はこの難易度をプレイ済みです。')
         : view.reason === 'missing_stage'
           ? (isEn ? 'Daily challenge stage not found. Please configure it in the admin panel.' : 'デイリーチャレンジのステージ設定が見つかりません。管理画面で設定してください。')
-          : (isEn ? 'Failed to start daily challenge.' : 'デイリーチャレンジの起動に失敗しました。');
+          : view.reason === 'premium_required'
+            ? (isEn
+              ? 'This difficulty is for Premium members. Free members can play Super Beginner.'
+              : 'この難易度はプレミアム会員向けです。フリーは超初級のみプレイできます。')
+            : (isEn ? 'Failed to start daily challenge.' : 'デイリーチャレンジの起動に失敗しました。');
 
     return (
-      <div className="w-full h-full flex items-center justify-center p-6 text-white">
-        <div className="max-w-md w-full bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
-          <div className="text-lg font-bold">{isEn ? 'Daily Challenge' : 'デイリーチャレンジ'}</div>
-          <div className="text-sm text-gray-200">{message}</div>
-          <div className="text-xs text-gray-400">⏳ {resetLabel}</div>
-          <button
-            className="btn btn-primary w-full"
-            onClick={() => {
-              if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
-              window.location.hash = '#dashboard';
-            }}
-          >
-            {isEn ? 'Back to Dashboard' : 'ダッシュボードに戻る'}
-          </button>
+      <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+        <GameHeader />
+        <div className="flex-1 flex items-center justify-center p-6">
+          <div className="max-w-md w-full bg-slate-800 rounded-lg border border-slate-700 p-6 space-y-4">
+            <div className="text-lg font-bold">{isEn ? 'Daily Challenge' : 'デイリーチャレンジ'}</div>
+            <div className="text-sm text-gray-200">{message}</div>
+            <div className="text-xs text-gray-400">⏳ {resetLabel}</div>
+            {view.reason === 'premium_required' && (
+              <button
+                type="button"
+                className="btn btn-primary w-full"
+                onClick={() => {
+                  window.location.hash = '#pricing';
+                }}
+              >
+                {isEn ? 'View plans' : 'プランを見る'}
+              </button>
+            )}
+            <button
+              type="button"
+              className="btn btn-outline w-full border-slate-500"
+              onClick={() => {
+                if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
+                window.location.hash = '#dashboard';
+              }}
+            >
+              {isEn ? 'Back to Dashboard' : 'ダッシュボードに戻る'}
+            </button>
+          </div>
         </div>
       </div>
     );
@@ -214,7 +320,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
       timeLimitSeconds={isPracticeMode ? Infinity : 120}
       onBackToStageSelect={() => {
         if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
-        window.location.hash = '#dashboard';
+        window.location.hash = '#daily-challenge';
       }}
       onGameComplete={async (_result, _score, correctAnswers) => {
         const score = correctAnswers;

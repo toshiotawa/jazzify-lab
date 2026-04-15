@@ -18,7 +18,8 @@ import { lessonDisplayDescription, lessonDisplayTitle, lessonSongDisplayTitle } 
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
-import { Lesson, LessonSong } from '@/types';
+import { CourseDifficultyTier, Lesson, LessonSong } from '@/types';
+import { normalizeCourseDifficultyTier } from '@/utils/courseDifficulty';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
 import GameHeader from '@/components/ui/GameHeader';
 import { 
@@ -53,16 +54,32 @@ import {
 import { NavLinkKey } from '@/types';
 import { getStageByNumber, STAGE_KILL_QUOTA, STAGE_TIME_LIMIT_SECONDS } from '@/components/survival/SurvivalStageDefinitions';
 
-const NAV_LINK_CONFIG: Record<NavLinkKey, { label: string; hash: string; icon: React.ReactNode; color: string }> = {
-  dashboard:   { label: 'ダッシュボード', hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
-  legend:      { label: 'ダッシュボード', hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
-  lesson:      { label: 'レッスン',       hash: '#lessons',      icon: <FaTrophy className="text-sm" />,     color: 'bg-purple-700 hover:bg-purple-600' },
-  fantasy:     { label: 'ファンタジー',   hash: '#fantasy',      icon: <FaMagic className="text-sm" />,      color: 'bg-pink-700 hover:bg-pink-600' },
-  survival:    { label: 'サバイバル',     hash: '#survival',     icon: <FaSkull className="text-sm" />,      color: 'bg-red-700 hover:bg-red-600' },
-  ranking:     { label: 'ランキング',     hash: '#ranking',      icon: <FaList className="text-sm" />,       color: 'bg-yellow-700 hover:bg-yellow-600' },
-  mission:     { label: 'ミッション',     hash: '#missions',     icon: <FaBullseye className="text-sm" />,   color: 'bg-orange-700 hover:bg-orange-600' },
-  diary:       { label: '日記',           hash: '#diary',        icon: <FaEdit className="text-sm" />,       color: 'bg-pink-600 hover:bg-pink-500' },
-  information: { label: 'お知らせ',       hash: '#information',  icon: <FaBell className="text-sm" />,       color: 'bg-blue-700 hover:bg-blue-600' },
+const NAV_LINK_CONFIG: Record<NavLinkKey, { hash: string; icon: React.ReactNode; color: string }> = {
+  dashboard:   { hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
+  legend:      { hash: '#dashboard',    icon: <FaHome className="text-sm" />,       color: 'bg-slate-600 hover:bg-slate-500' },
+  lesson:      { hash: '#lessons',      icon: <FaTrophy className="text-sm" />,     color: 'bg-purple-700 hover:bg-purple-600' },
+  fantasy:     { hash: '#fantasy',      icon: <FaMagic className="text-sm" />,      color: 'bg-pink-700 hover:bg-pink-600' },
+  survival:    { hash: '#survival',     icon: <FaSkull className="text-sm" />,      color: 'bg-red-700 hover:bg-red-600' },
+  ranking:     { hash: '#ranking',      icon: <FaList className="text-sm" />,       color: 'bg-yellow-700 hover:bg-yellow-600' },
+  mission:     { hash: '#missions',     icon: <FaBullseye className="text-sm" />,   color: 'bg-orange-700 hover:bg-orange-600' },
+  diary:       { hash: '#diary',        icon: <FaEdit className="text-sm" />,       color: 'bg-pink-600 hover:bg-pink-500' },
+  information: { hash: '#information',  icon: <FaBell className="text-sm" />,       color: 'bg-blue-700 hover:bg-blue-600' },
+};
+
+const getNavLinkLabel = (key: NavLinkKey, isEnglishCopy: boolean): string => {
+  const labels: Record<NavLinkKey, { en: string; ja: string }> = {
+    dashboard: { en: 'Dashboard', ja: 'ダッシュボード' },
+    legend: { en: 'Dashboard', ja: 'ダッシュボード' },
+    lesson: { en: 'Lessons', ja: 'レッスン' },
+    fantasy: { en: 'Fantasy', ja: 'ファンタジー' },
+    survival: { en: 'Survival', ja: 'サバイバル' },
+    ranking: { en: 'Ranking', ja: 'ランキング' },
+    mission: { en: 'Missions', ja: 'ミッション' },
+    diary: { en: 'Diary', ja: '日記' },
+    information: { en: 'News', ja: 'お知らせ' },
+  };
+  const row = labels[key];
+  return isEnglishCopy ? row.en : row.ja;
 };
 
 /**
@@ -84,6 +101,7 @@ const LessonDetailPage: React.FC = () => {
   const [attachments, setAttachments] = useState<LessonAttachment[]>([]);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [shouldHideVideos, setShouldHideVideos] = useState(false);
+  const [courseDifficultyTier, setCourseDifficultyTier] = useState<CourseDifficultyTier | null>(null);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -122,6 +140,9 @@ const LessonDetailPage: React.FC = () => {
       startPractice: isEnglishCopy ? 'Start practice' : '練習開始',
       retry: isEnglishCopy ? 'Retry' : '再挑戦',
       noTasks: isEnglishCopy ? 'No practice tasks yet.' : '実習課題がありません',
+      displaySettingLabel: isEnglishCopy ? 'Display:' : '表示設定:',
+      notesAndChordsLabel: isEnglishCopy ? 'Notes & chords' : 'ノート＆コード',
+      chordsOnlyLabel: isEnglishCopy ? 'Chords only' : 'コードのみ',
       daysProgressFmt: (a: number, b: number, perDay?: number) =>
         perDay !== undefined
           ? isEnglishCopy
@@ -247,6 +268,7 @@ const LessonDetailPage: React.FC = () => {
         }
         if (course) {
           setShouldHideVideos(false);
+          setCourseDifficultyTier(normalizeCourseDifficultyTier(course.difficulty_tier));
           const access = canAccessCourse(course, effectiveRank, completedCourses, isEnglishCopy);
           if (!access.canAccess) {
             pushToast(
@@ -257,6 +279,8 @@ const LessonDetailPage: React.FC = () => {
             window.location.hash = '#lessons';
             return;
           }
+        } else {
+          setCourseDifficultyTier(null);
         }
       }
       
@@ -307,7 +331,11 @@ const LessonDetailPage: React.FC = () => {
     
     // 実習課題が全て完了しているかチェック（全ユーザー対象）
     if (!allRequirementsCompleted) {
-      toast.warning('全ての実習課題を完了してからレッスンを完了してください。');
+      toast.warning(
+        isEnglishCopy
+          ? 'Complete all practice tasks before marking the lesson complete.'
+          : '全ての実習課題を完了してからレッスンを完了してください。',
+      );
       return;
     }
     
@@ -322,12 +350,17 @@ const LessonDetailPage: React.FC = () => {
       clearSupabaseCache(); // 全体キャッシュもクリア
       
       // ユーザー統計を更新
-      fetchStats().catch(console.error); // エラーは無視
-      
-      toast.success('レッスンを完了しました！', {
-        title: '🎉 完了',
-        duration: 3000,
+      fetchStats().catch(() => {
+        /* 統計更新失敗は非致命 */
       });
+
+      toast.success(
+        isEnglishCopy ? 'Lesson marked complete.' : 'レッスンを完了しました！',
+        {
+          title: isEnglishCopy ? '🎉 Done' : '🎉 完了',
+          duration: 3000,
+        },
+      );
       
       // 完了状態を即座に反映（ページに留まる）
       setLessonProgress(prev => prev 
@@ -358,9 +391,8 @@ const LessonDetailPage: React.FC = () => {
           // ナビゲーション情報取得失敗は致命的でないため無視
         }
       }
-    } catch (e: unknown) {
-      toast.error('完了処理に失敗しました');
-      console.error('レッスン完了エラー:', e);
+    } catch {
+      toast.error(isEnglishCopy ? 'Could not complete the lesson.' : '完了処理に失敗しました');
     } finally {
       setCompleting(false);
     }
@@ -868,11 +900,11 @@ const LessonDetailPage: React.FC = () => {
                             (req.clear_conditions?.notation_setting === 'notes_chords' ||
                               req.clear_conditions?.notation_setting === 'chords_only') && (
                               <div className="mt-3">
-                                <span className="text-gray-400">表示設定:</span>
+                                <span className="text-gray-400">{practiceCopy.displaySettingLabel}</span>
                                 <span className="ml-2">
                                   {req.clear_conditions?.notation_setting === 'notes_chords'
-                                    ? 'ノート＆コード'
-                                    : 'コードのみ'}
+                                    ? practiceCopy.notesAndChordsLabel
+                                    : practiceCopy.chordsOnlyLabel}
                                 </span>
                               </div>
                             )}
@@ -891,6 +923,25 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
+                            if ((isFantasy || isSurvival) && !isPremiumMember) {
+                              toast.warning(
+                                isEnglishCopy
+                                  ? 'This task requires Premium.'
+                                  : 'この課題はプレミアム会員のみプレイできます。',
+                              );
+                              return;
+                            }
+                            if (!isFantasy && !isSurvival && !isPremiumMember) {
+                              const tier = courseDifficultyTier ? normalizeCourseDifficultyTier(courseDifficultyTier) : null;
+                              if (tier !== 'tutorial') {
+                                toast.warning(
+                                  isEnglishCopy
+                                    ? 'Free members can play tutorial lessons only.'
+                                    : 'フリー会員はチュートリアルコースのみプレイできます。',
+                                );
+                                return;
+                              }
+                            }
                             if (isSurvival) {
                               const params = new URLSearchParams();
                               params.set('lessonId', req.lesson_id);
@@ -1057,7 +1108,9 @@ const LessonDetailPage: React.FC = () => {
             {/* ナビゲーションリンクボタン */}
             {lesson?.nav_links && lesson.nav_links.length > 0 && (
               <div className="bg-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">ページ移動</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                  {isEnglishCopy ? 'Quick links' : 'ページ移動'}
+                </h3>
                 <div className="flex flex-wrap gap-2">
                   {lesson.nav_links.map(key => {
                     const cfg = NAV_LINK_CONFIG[key];
@@ -1065,11 +1118,12 @@ const LessonDetailPage: React.FC = () => {
                     return (
                       <button
                         key={key}
+                        type="button"
                         onClick={() => { window.location.hash = cfg.hash; }}
                         className={`inline-flex items-center gap-2 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors ${cfg.color}`}
                       >
                         {cfg.icon}
-                        {cfg.label}
+                        {getNavLinkLabel(key, isEnglishCopy)}
                       </button>
                     );
                   })}

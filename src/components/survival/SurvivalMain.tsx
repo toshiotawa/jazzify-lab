@@ -18,6 +18,8 @@ import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequir
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 import { isIOSWebView, getIOSParam, sendGameCallback } from '@/utils/iosbridge';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import GameHeader from '@/components/ui/GameHeader';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
   id: row.id,
@@ -97,6 +99,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const { profile, loading: authLoading } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
 
   const [isIOSSurvival] = useState(() => !lessonMode && !demoMode && hasIOSParams());
   const [screen, setScreen] = useState<Screen>((lessonMode || demoMode || isIOSSurvival) ? 'game' : 'select');
@@ -112,6 +115,8 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   const [iosInitialized, setIosInitialized] = useState(false);
   const [iosInitError, setIosInitError] = useState(false);
   const [demoInitialized, setDemoInitialized] = useState(false);
+
+  const survivalPlayLocked = !isPremiumMember && !lessonMode && !demoMode && !isIOSSurvival;
 
   useEffect(() => {
     if (!demoMode || demoInitialized) return;
@@ -215,6 +220,11 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   useEffect(() => {
     if (!lessonMode || !lessonParams || lessonInitialized) return;
 
+    if (!isPremiumMember && !demoMode && !isIOSSurvival) {
+      window.location.hash = '#survival';
+      return;
+    }
+
     const lessonId = lessonParams.get('lessonId') || '';
     const lessonSongId = lessonParams.get('lessonSongId') || '';
     const stageNumber = parseInt(lessonParams.get('stageNumber') || '0', 10);
@@ -262,7 +272,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     };
 
     initLesson();
-  }, [lessonMode, lessonParams, lessonInitialized]);
+  }, [lessonMode, lessonParams, lessonInitialized, isPremiumMember, demoMode, isIOSSurvival]);
 
   const handleLessonStageClear = useCallback(async () => {
     if (!lessonContext || !profile) return;
@@ -387,7 +397,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black flex items-center justify-center fantasy-game-screen">
         <div className="text-white text-center">
           <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-white mx-auto mb-4" />
-          <p className="text-lg">読み込み中...</p>
+          <p className="text-lg">{isEnglishCopy ? 'Loading…' : '読み込み中...'}</p>
         </div>
       </div>
     );
@@ -395,7 +405,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
   if (screen === 'select') {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
+      <>
+        <GameHeader />
+        <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
         <div className="relative z-10 p-4 sm:p-6 text-white">
           <div className="flex justify-between items-center mb-6">
             <h1 className="text-3xl sm:text-4xl font-bold font-sans tracking-wider">
@@ -418,10 +430,12 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
 
         <SurvivalStageMode
           embedded
+          playLocked={survivalPlayLocked}
           onStageSelect={handleStageSelect}
           onBackToMenu={handleBackToMenu}
         />
-      </div>
+        </div>
+      </>
     );
   }
 
@@ -446,11 +460,15 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   }
 
   return (
-    <SurvivalStageMode
-      embedded
-      onStageSelect={handleStageSelect}
-      onBackToMenu={handleBackToMenu}
-    />
+    <>
+      <GameHeader />
+      <SurvivalStageMode
+        embedded
+        playLocked={survivalPlayLocked}
+        onStageSelect={handleStageSelect}
+        onBackToMenu={handleBackToMenu}
+      />
+    </>
   );
 };
 

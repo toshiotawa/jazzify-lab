@@ -8,6 +8,8 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { getUtcDateString } from '@/utils/utcDay';
+import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
+import { isFreeWebDailyChallengeDifficulty } from '@/utils/freeWebTier';
 
 type Period = 'week' | 'month';
 type WeekChoice = 'this_week' | 'last_week';
@@ -70,6 +72,7 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const geoCountry = useGeoStore(state => state.country);
   const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
   const { todayKey: today, resetLabel } = useUtcResetInfo(isEnglishCopy);
+  const { isPremiumMember } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   
   const difficultyLabel = isEnglishCopy ? difficultyLabelEn : difficultyLabelJp;
   const dayLabels = isEnglishCopy ? dayLabelsEn : dayLabelsJp;
@@ -86,7 +89,13 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const notPlayedText = isEnglishCopy ? 'Not played today' : '本日は未プレイ';
   const loadingText = isEnglishCopy ? 'Loading...' : '読み込み中...';
   const noRecordsText = isEnglishCopy ? 'No records' : '記録がありません';
-  const oncePerDayText = isEnglishCopy ? 'Once per day for each difficulty (all 5 levels can each be played)' : '1日に各難易度1回まで（5段階それぞれプレイ可能）';
+  const oncePerDayText = isEnglishCopy
+    ? (isPremiumMember
+      ? 'Once per day for each difficulty (all 5 levels can each be played)'
+      : 'Free plan: Super Beginner once per day. Premium unlocks all 5 difficulties.')
+    : (isPremiumMember
+      ? '1日に各難易度1回まで（5段階それぞれプレイ可能）'
+      : 'フリーは超初級のみ1日1回。プレミアムで全5難易度をプレイできます。');
   const loadErrorText = isEnglishCopy ? 'Failed to load records' : '記録の読み込みに失敗しました';
 
   const [period, setPeriod] = useState<Period>('week');
@@ -98,6 +107,12 @@ export const DailyChallengeRecordsSection: React.FC = () => {
   const [loading, setLoading] = useState(false);
 
   const [selectedYearMonth, setSelectedYearMonth] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!isPremiumMember && !isFreeWebDailyChallengeDifficulty(difficulty)) {
+      setDifficulty('super_beginner');
+    }
+  }, [isPremiumMember, difficulty]);
 
   useEffect(() => {
     const load = async () => {
@@ -204,15 +219,27 @@ export const DailyChallengeRecordsSection: React.FC = () => {
             </div>
 
             <div className="flex flex-wrap gap-1 ml-auto">
-              {(['super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced'] as const).map((d) => (
-                <button
-                  key={d}
-                  className={cn('btn btn-xs', difficulty === d ? 'btn-active' : 'btn-outline')}
-                  onClick={() => setDifficulty(d)}
-                >
-                  {difficultyLabel[d]}
-                </button>
-              ))}
+              {(['super_beginner', 'beginner', 'intermediate', 'advanced', 'super_advanced'] as const).map((d) => {
+                const tierLocked = !isPremiumMember && !isFreeWebDailyChallengeDifficulty(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    className={cn(
+                      'btn btn-xs',
+                      difficulty === d ? 'btn-active' : 'btn-outline',
+                      tierLocked && 'opacity-50 cursor-not-allowed',
+                    )}
+                    disabled={tierLocked}
+                    onClick={() => {
+                      if (tierLocked) return;
+                      setDifficulty(d);
+                    }}
+                  >
+                    {difficultyLabel[d]}
+                  </button>
+                );
+              })}
             </div>
           </div>
 

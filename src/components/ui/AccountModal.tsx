@@ -497,22 +497,20 @@ const AccountPage: React.FC = () => {
                       {billingProvider === 'lemon' && (
                         <div className="bg-blue-900/20 rounded-lg p-3 border border-blue-700/30 mt-2 space-y-2">
                           <p className="text-sm text-blue-200 font-semibold mb-1">
-                            {isEnglishCopy ? 'Subscribed via Web' : 'Web版で手続き済み'}
+                            {isEnglishCopy ? 'Web billing (Lemon Squeezy)' : 'Web課金（Lemon Squeezy）'}
                           </p>
                           <p className="text-xs text-gray-400">
                             {isEnglishCopy
-                              ? 'Use the billing portal to view your plan or cancel your subscription.'
-                              : '請求ポータルでプランの確認や解約ができます。'}
+                              ? 'Open the billing portal to manage subscriptions, trials, and payment history when available for your account email.'
+                              : '登録メールに紐づく Lemon Squeezy の顧客ポータルがあれば、トライアル・契約・支払履歴の確認ができます。'}
                           </p>
-                          {isPremiumMember && (
-                            <button
-                              type="button"
-                              className="btn btn-sm btn-outline w-full"
-                              onClick={() => void handleOpenBillingPortal()}
-                            >
-                              {isEnglishCopy ? 'Open Billing Portal' : '請求ポータルを開く'}
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            className="btn btn-sm btn-outline w-full"
+                            onClick={() => void handleOpenBillingPortal()}
+                          >
+                            {isEnglishCopy ? 'Open Billing Portal' : '請求ポータルを開く'}
+                          </button>
                         </div>
                       )}
                     </div>
