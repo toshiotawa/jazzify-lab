@@ -699,48 +699,65 @@ export const getDirectionVector = (direction: Direction): { x: number; y: number
   return vectors[direction];
 };
 
+/** 仮想スティックのアナログ入力（方向×強度）。キーボードのみのときは null。 */
 export const updatePlayerPosition = (
   player: PlayerState,
   keys: Set<string>,
-  deltaTime: number
+  deltaTime: number,
+  analogInput: { x: number; y: number } | null = null
 ): PlayerState => {
-  let dx = 0;
-  let dy = 0;
-  
-  if (keys.has('w') || keys.has('arrowup')) dy -= 1;
-  if (keys.has('s') || keys.has('arrowdown')) dy += 1;
-  if (keys.has('a') || keys.has('arrowleft')) dx -= 1;
-  if (keys.has('d') || keys.has('arrowright')) dx += 1;
-  
-  if (dx === 0 && dy === 0) return player;
-  
-  // 正規化
-  const length = Math.sqrt(dx * dx + dy * dy);
-  dx /= length;
-  dy /= length;
-  
+  let kdx = 0;
+  let kdy = 0;
+
+  if (keys.has('w') || keys.has('arrowup')) kdy -= 1;
+  if (keys.has('s') || keys.has('arrowdown')) kdy += 1;
+  if (keys.has('a') || keys.has('arrowleft')) kdx -= 1;
+  if (keys.has('d') || keys.has('arrowright')) kdx += 1;
+
+  const analogMag = analogInput ? Math.hypot(analogInput.x, analogInput.y) : 0;
+  const analogActive = analogMag > 0.004;
+
+  let dirX = 0;
+  let dirY = 0;
+  let moveStrength = 1;
+
+  if (analogActive && analogInput) {
+    dirX = analogInput.x / analogMag;
+    dirY = analogInput.y / analogMag;
+    moveStrength = Math.min(1, analogMag);
+  } else if (kdx !== 0 || kdy !== 0) {
+    const len = Math.hypot(kdx, kdy);
+    dirX = kdx / len;
+    dirY = kdy / len;
+    moveStrength = 1;
+  } else {
+    return player;
+  }
+
   // 速度計算（バフ込み、上限あり）
   const speedMultiplier = player.statusEffects.some(e => e.type === 'speed_up') ? 2 : 1;
   const conditionalMultipliers = getConditionalSkillMultipliers(player);
   const totalSpeed = player.stats.speed + conditionalMultipliers.speedBonus;
   const speed = Math.min(MAX_PLAYER_SPEED, BASE_PLAYER_SPEED * (1 + totalSpeed * 0.1) * speedMultiplier);
-  
-  // 新しい位置
-  let newX = player.x + dx * speed * deltaTime;
-  let newY = player.y + dy * speed * deltaTime;
-  
+
+  // 新しい位置（アナログは強度で速度をスケール）
+  let newX = player.x + dirX * speed * moveStrength * deltaTime;
+  let newY = player.y + dirY * speed * moveStrength * deltaTime;
+
   // マップ範囲内に制限
   newX = Math.max(PLAYER_SIZE / 2, Math.min(MAP_CONFIG.width - PLAYER_SIZE / 2, newX));
   newY = Math.max(PLAYER_SIZE / 2, Math.min(MAP_CONFIG.height - PLAYER_SIZE / 2, newY));
-  
-  // 方向を決定
+
+  // 方向を決定（見た目は8方向。内部移動は単位ベクトルに基づく）
   let direction: Direction = player.direction;
-  if (dx !== 0 || dy !== 0) {
+  if (dirX !== 0 || dirY !== 0) {
+    const dx = dirX;
+    const dy = dirY;
     if (dx > 0.5) direction = dy < -0.5 ? 'up-right' : dy > 0.5 ? 'down-right' : 'right';
     else if (dx < -0.5) direction = dy < -0.5 ? 'up-left' : dy > 0.5 ? 'down-left' : 'left';
     else direction = dy < 0 ? 'up' : 'down';
   }
-  
+
   return { ...player, x: newX, y: newY, direction };
 };
 

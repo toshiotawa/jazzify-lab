@@ -82,10 +82,16 @@ import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import {
+  SURVIVAL_STICK_DEAD_ZONE_FRACTION,
+  SURVIVAL_STICK_SMOOTHING_LAMBDA,
+  computeAnalogFromOffset,
+  smoothAnalogToward,
+} from '@/utils/survivalVirtualStickInput';
 
 // ===== バーチャルスティック =====
 interface VirtualStickProps {
-  onDirectionChange: (keys: Set<string>) => void;
+  onAnalogChange: (v: { x: number; y: number }) => void;
 }
 
 const THUNDER_LIGHTNING_DURATION_MS = 260;
@@ -94,7 +100,9 @@ const MAX_ACTIVE_THUNDER_LIGHTNING = 24;
 const FIRE_AURA_PROJECTILE_ERASE_BASE_RADIUS = 60;
 const FIRE_AURA_PROJECTILE_ERASE_PER_LEVEL = 8;
 
-const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
+const VIRTUAL_STICK_MAX_RADIUS_PX = 40;
+
+const VirtualStick: React.FC<VirtualStickProps> = ({ onAnalogChange }) => {
   const stickRef = useRef<HTMLDivElement>(null);
   const [isDragging, setIsDragging] = useState(false);
   const [stickPos, setStickPos] = useState({ x: 0, y: 0 });
@@ -116,7 +124,7 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
   const handlePointerMove = (e: React.PointerEvent) => {
     if (!isDragging) return;
     
-    const maxRadius = 40;
+    const maxRadius = VIRTUAL_STICK_MAX_RADIUS_PX;
     let dx = e.clientX - centerRef.current.x;
     let dy = e.clientY - centerRef.current.y;
     
@@ -127,23 +135,13 @@ const VirtualStick: React.FC<VirtualStickProps> = ({ onDirectionChange }) => {
     }
     
     setStickPos({ x: dx, y: dy });
-    
-    // 方向を計算してキーセットに変換
-    const keys = new Set<string>();
-    const threshold = 15;
-    
-    if (dy < -threshold) keys.add('w');
-    if (dy > threshold) keys.add('s');
-    if (dx < -threshold) keys.add('a');
-    if (dx > threshold) keys.add('d');
-    
-    onDirectionChange(keys);
+    onAnalogChange(computeAnalogFromOffset(dx, dy, maxRadius, SURVIVAL_STICK_DEAD_ZONE_FRACTION));
   };
   
   const handlePointerUp = () => {
     setIsDragging(false);
     setStickPos({ x: 0, y: 0 });
-    onDirectionChange(new Set());
+    onAnalogChange({ x: 0, y: 0 });
   };
   
   return (
@@ -445,7 +443,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // キー入力状態
   const keysRef = useRef<Set<string>>(new Set());
-  const virtualKeysRef = useRef<Set<string>>(new Set());
+  /** 仮想スティックの目標アナログ（タッチ/ポインターで更新、ゲームループで平滑化） */
+  const virtualAnalogTargetRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+  const virtualAnalogSmoothedRef = useRef<{ x: number; y: number }>({ x: 0, y: 0 });
   const lastUpdateRef = useRef<number>(0);
   const animationFrameRef = useRef<number>(0);
   const spawnTimerRef = useRef<number>(0);
@@ -904,11 +904,6 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     };
   }, []);
   
-  // バーチャルスティックの方向変更
-  const handleVirtualStickChange = useCallback((keys: Set<string>) => {
-    virtualKeysRef.current = keys;
-  }, []);
-  
   // フローティングスティック操作ハンドラー（モバイル用：キャンバスエリア全体で操作）
   // iOS Safari ではReact合成イベントがpassiveリスナーとして登録されるため
   // preventDefault()が無視される。ネイティブリスナーで { passive: false } を使用。
@@ -924,12 +919,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       return false;
     };
 
+    const FLOATING_STICK_MAX_RADIUS_PX = 44;
+
     const onTouchStart = (e: TouchEvent) => {
       if (!isTouchDevice.current || e.touches.length === 0) return;
       if (isInteractiveElement(e.target)) return;
       e.preventDefault();
       const touch = e.touches[0];
       floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
+      virtualAnalogSmoothedRef.current = { x: 0, y: 0 };
+      virtualAnalogTargetRef.current = { x: 0, y: 0 };
       setFloatingStick({
         baseX: touch.clientX, baseY: touch.clientY,
         stickX: 0, stickY: 0, visible: true,
@@ -944,7 +943,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       let dx = touch.clientX - base.baseX;
       let dy = touch.clientY - base.baseY;
 
-      const maxRadius = 44;
+      const maxRadius = FLOATING_STICK_MAX_RADIUS_PX;
       const dist = Math.sqrt(dx * dx + dy * dy);
       if (dist > maxRadius) {
         dx = (dx / dist) * maxRadius;
@@ -955,19 +954,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         ...prev, stickX: dx, stickY: dy,
       }));
 
-      const threshold = 12;
-      const keys = new Set<string>();
-      if (dy < -threshold) keys.add('w');
-      if (dy > threshold) keys.add('s');
-      if (dx < -threshold) keys.add('a');
-      if (dx > threshold) keys.add('d');
-      virtualKeysRef.current = keys;
+      virtualAnalogTargetRef.current = computeAnalogFromOffset(
+        dx,
+        dy,
+        maxRadius,
+        SURVIVAL_STICK_DEAD_ZONE_FRACTION
+      );
     };
 
     const onTouchEnd = () => {
       floatingStickRef.current = null;
       setFloatingStick(prev => ({ ...prev, visible: false }));
-      virtualKeysRef.current = new Set();
+      virtualAnalogTargetRef.current = { x: 0, y: 0 };
     };
 
     wrapper.addEventListener('touchstart', onTouchStart, { passive: false });
@@ -1873,8 +1871,17 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       const deltaTime = Math.min((timestamp - lastUpdateRef.current) / 1000, 0.1);
       lastUpdateRef.current = timestamp;
       
-      // キーボードとバーチャルスティックのキーをマージ
-      const combinedKeys = new Set([...keysRef.current, ...virtualKeysRef.current]);
+      virtualAnalogSmoothedRef.current = smoothAnalogToward(
+        virtualAnalogSmoothedRef.current,
+        virtualAnalogTargetRef.current,
+        deltaTime,
+        SURVIVAL_STICK_SMOOTHING_LAMBDA
+      );
+      const smoothed = virtualAnalogSmoothedRef.current;
+      const analogForMove =
+        smoothed.x * smoothed.x + smoothed.y * smoothed.y > 1e-6 ? smoothed : null;
+
+      const combinedKeys = new Set(keysRef.current);
       
       setGameState(prev => {
         // isLevelingUp中もゲームは継続
@@ -1888,7 +1895,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.elapsedTime = prev.elapsedTime + deltaTime;
         
         // プレイヤー移動（常に新しいオブジェクトを生成し、shared referenceによるミューテーション汚染を防止）
-        const movedPlayer = updatePlayerPosition(prev.player, combinedKeys, deltaTime);
+        const movedPlayer = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
         newState.player = {
           ...movedPlayer,
           stats: { ...movedPlayer.stats },
