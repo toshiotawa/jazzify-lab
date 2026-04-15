@@ -7,6 +7,7 @@ import { DiaryComment } from '@/platform/supabaseDiary';
 import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
+import { getMembershipLabel } from '@/utils/membership';
 
 const Avatar: React.FC<{ url?: string }> = ({ url }) => (
   <img
@@ -20,7 +21,12 @@ const DiaryFeed: React.FC = () => {
   const { diaries, loading, fetch: fetchAll, like, comments, fetchComments, addComment, deleteComment, deleteDiary, likeUsers, fetchLikeUsers, update, loadMore, hasMore, loadingMore } = useDiaryStore();
   const { user, profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
-  const isEnglishCopy = shouldUseEnglishCopy({ rank: profile?.rank, country: profile?.country ?? geoCountry, preferredLocale: profile?.preferred_locale });
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const membershipLocale = isEnglishCopy ? 'en' : 'ja';
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [commentText, setCommentText] = useState<Record<string, string>>({});
   const [editingId, setEditingId] = useState<string|null>(null);
@@ -190,7 +196,7 @@ const DiaryFeed: React.FC = () => {
               <span className="text-xs ml-2 text-yellow-400">Lv.{d.level}</span>
               <div className="flex items-center space-x-1 ml-1">
                 {getRankIcon(d.rank)}
-                <span className="text-xs text-green-400">{d.rank}</span>
+                <span className="text-xs text-green-400">{getMembershipLabel(d.rank, membershipLocale)}</span>
               </div>
             </div>
           </div>
@@ -313,7 +319,7 @@ const DiaryFeed: React.FC = () => {
                       <span className="text-yellow-400">Lv.{u.level}</span>
                       <div className="flex items-center space-x-1">
                         {getRankIcon(u.rank)}
-                        <span className="text-xs text-green-400">{u.rank}</span>
+                        <span className="text-xs text-green-400">{getMembershipLabel(u.rank, membershipLocale)}</span>
                       </div>
                     </div>
                   ))}

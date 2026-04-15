@@ -215,25 +215,6 @@ const LandingPage: React.FC = () => {
           </div>
         </section>
 
-        {/* Open Beta Banner */}
-        <section className="py-10 sm:py-14 text-center" style={{ background: 'linear-gradient(180deg, rgba(200,162,77,0.06) 0%, transparent 100%)' }}>
-          <div className="container mx-auto px-6">
-            <div className="inline-block mb-4 px-4 py-1 rounded-full text-xs font-bold lp-mono" style={{ background: 'rgba(200,162,77,0.12)', color: 'var(--lp-gold-light)', border: '1px solid rgba(200,162,77,0.2)' }}>
-              {isEnglishLanding ? 'OPEN BETA' : 'オープンβテスト中'}
-            </div>
-            <p className="text-lg sm:text-xl mb-2" style={{ color: 'var(--lp-cream)' }}>
-              {isEnglishLanding
-                ? 'Open beta until March 15 — play all features for free.'
-                : '3/15までオープンβテスト中。すべての機能を無料でプレイできます。'}
-            </p>
-            <p className="text-sm" style={{ color: 'var(--lp-cream-muted)' }}>
-              {isEnglishLanding
-                ? 'Official launch scheduled for March 19.'
-                : '3/19に正式リリース予定。'}
-            </p>
-          </div>
-        </section>
-
         {/* Fantasy Demo */}
         <div ref={demoSentinelRef} />
         {shouldRenderFantasyDemo ? (

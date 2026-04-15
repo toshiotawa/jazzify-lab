@@ -13,6 +13,7 @@ import { DEFAULT_TITLE, type Title, TITLES, MISSION_TITLES, LESSON_TITLES, WIZAR
 import { fetchUserStats, UserStats } from '@/platform/supabaseUserStats';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { translateTitle, translateTitleRequirement } from '@/utils/titleTranslations';
+import { getMembershipLabel } from '@/utils/membership';
 
 interface UserDiary {
   id: string;
@@ -292,7 +293,7 @@ const DiaryPage: React.FC = () => {
                           <span>Lv.{profile.level}</span>
                           <div className="flex items-center space-x-1">
                             {getRankIcon(profile.rank)}
-                            <span className="capitalize">{profile.rank}</span>
+                            <span>{getMembershipLabel(profile.rank, isEnglishCopy ? 'en' : 'ja')}</span>
                           </div>
                           <span>{isEnglishCopy ? 'Total XP' : '累計経験値'} {profile.xp?.toLocaleString() || '0'}</span>
                         </div>
@@ -426,7 +427,9 @@ const DiaryPage: React.FC = () => {
                                   <span className="text-yellow-400">Lv.{u.level}</span>
                                   <div className="flex items-center space-x-1">
                                     {getRankIcon(u.rank)}
-                                    <span className="text-xs text-green-400">{u.rank}</span>
+                                    <span className="text-xs text-green-400">
+                                      {getMembershipLabel(u.rank, isEnglishCopy ? 'en' : 'ja')}
+                                    </span>
                                   </div>
                                 </div>
                               ))}

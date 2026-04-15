@@ -2,6 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { useDiaryStore } from '@/stores/diaryStore';
 import { useToast, getValidationMessage, handleApiError } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import { getMembershipLabel, isPremiumTier } from '@/utils/membership';
 import { Diary } from '@/platform/supabaseDiary';
 import { compressDiaryImage } from '@/utils/imageCompression';
 import { uploadDiaryImage } from '@/platform/r2Storage';
@@ -24,6 +27,13 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
   const [hasImageChanged, setHasImageChanged] = useState(false);
   const toast = useToast();
   const { profile } = useAuthStore();
+  const geoCountry = useGeoStore(s => s.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale,
+  });
+  const membershipLocale = isEnglishCopy ? 'en' : 'ja';
   const isEdit = !!diary;
   const disabled = (isEdit ? false : todayPosted) || submitting || text.trim().length === 0;
 
@@ -285,9 +295,11 @@ const DiaryEditor = ({ diary, onClose }: Props) => {
             {!isEdit && (
               <span className="text-emerald-400">
                 投稿すると +{getExpectedXp().toLocaleString()} XP
-                {profile?.rank && ['standard', 'standard_global', 'premium', 'platinum', 'black'].includes(profile.rank) && (
+                {profile?.rank && isPremiumTier(profile.rank) && (
                   <span className="ml-1 text-xs text-yellow-400">
-                    ({profile?.rank} 倍率適用)
+                    {isEnglishCopy
+                      ? ` (${getMembershipLabel(profile.rank, membershipLocale)} · 1.5× XP)`
+                      : `（${getMembershipLabel(profile.rank, membershipLocale)}プラン・XP 1.5倍）`}
                   </span>
                 )}
               </span>

@@ -4,14 +4,13 @@ import { useUserStatsStore } from '@/stores/userStatsStore';
 import { Announcement, fetchActiveAnnouncements } from '@/platform/supabaseAnnouncements';
 import { useToast } from '@/stores/toastStore';
 import { mdToHtml } from '@/utils/markdown';
-import { 
-  FaBell, 
-  FaExternalLinkAlt, 
+import {
+  FaBell,
+  FaExternalLinkAlt,
   FaGem,
   FaMedal,
 } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
-import OpenBetaPlanSwitcher from '@/components/subscription/OpenBetaPlanSwitcher';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -26,15 +25,14 @@ import TutorialProgressSection from '@/components/dashboard/TutorialProgressSect
 const Dashboard: React.FC = () => {
   const [open, setOpen] = useState(false);
   const [latestAnnouncement, setLatestAnnouncement] = useState<Announcement | null>(null);
-  const [loading, setLoading] = useState(true);
-    const { profile, optimisticAvatarUrl } = useAuthStore();
-    const geoCountry = useGeoStore(state => state.country);
-    const isEnglishCopy = shouldUseEnglishCopy({
-      rank: profile?.rank,
-      country: profile?.country ?? geoCountry,
-      preferredLocale: profile?.preferred_locale ?? null,
-    });
-    const { isPremiumMember, planLabel } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
+  const { profile, optimisticAvatarUrl } = useAuthStore();
+  const geoCountry = useGeoStore(state => state.country);
+  const isEnglishCopy = shouldUseEnglishCopy({
+    rank: profile?.rank,
+    country: profile?.country ?? geoCountry,
+    preferredLocale: profile?.preferred_locale ?? null,
+  });
+  const { isPremiumMember, planLabel } = useBillingAwareMembership(isEnglishCopy ? 'en' : 'ja');
   const announcementsTitle = isEnglishCopy ? 'Announcements' : 'お知らせ';
   const noAnnouncementsText = isEnglishCopy ? 'No announcements at the moment' : '現在お知らせはありません';
   const viewAllAnnouncementsText = isEnglishCopy ? 'View all announcements →' : 'すべてのお知らせを見る →';
@@ -55,106 +53,100 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     if (open) {
-      loadDashboardData();
+      void loadDashboardData();
     }
   }, [open, profile?.id]);
 
-    const loadDashboardData = async () => {
-    setLoading(true);
-    
-    try {
-      // すべてのデータを並行読み込み
-      const promises: Promise<any>[] = [];
-      
-      // ミッション情報のフェッチは行わない（カードは説明のみ表示）
+  const loadDashboardData = async () => {
+    const promises: Promise<unknown>[] = [];
 
-      promises.push(
-          fetchActiveAnnouncements(isEnglishCopy ? 'en' : 'ja').then(announcementsData => {
-            // 優先度順（priorityが小さいほど上位）でソートし、最新の1件を取得
-            const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
-              // まず優先度で比較
-              if (a.priority !== b.priority) {
-                return a.priority - b.priority;
-              }
-              // 優先度が同じ場合は作成日時で比較（新しい順）
-              return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-            });
-            
-            const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
-            
-            console.log('Dashboard: Latest announcement data:', latestData);
-            console.log('Dashboard: All active announcements:', announcementsData);
-            console.log('Dashboard: Sorted announcements:', sortedAnnouncements);
-            console.log('Dashboard: Total active announcements count:', announcementsData.length);
-            
-            setLatestAnnouncement(latestData);
-            
-            if (!latestData) {
-              console.log('Dashboard: No active announcements found');
-              if (announcementsData.length === 0) {
-                console.log('Dashboard: No announcements exist at all');
-              } else {
-                console.log('Dashboard: Active announcements exist but latestData is null');
-              }
+    promises.push(
+      fetchActiveAnnouncements(isEnglishCopy ? 'en' : 'ja')
+        .then((announcementsData) => {
+          const sortedAnnouncements = announcementsData.sort((a: Announcement, b: Announcement) => {
+            if (a.priority !== b.priority) {
+              return a.priority - b.priority;
             }
-            }).catch((announcementError: any) => {
-              console.error('Announcement loading error:', announcementError);
-              toast.error(
-                isEnglishCopy
-                  ? `Failed to load announcements: ${announcementError.message}`
-                  : `お知らせの読み込みに失敗しました: ${announcementError.message}`,
-                {
-                  title: isEnglishCopy ? 'Announcement error' : 'お知らせエラー',
-                  duration: 5000,
-                }
-              );
-          })
-        );
+            return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+          });
 
-      if (profile) {
-        promises.push(
-          fetchStats(profile.id).catch((statsError: any) => {
-            console.error('User stats loading error:', statsError);
-            // 統計の読み込み失敗は致命的ではないので、エラーログのみ
-          })
-        );
-      }
+          const latestData = sortedAnnouncements.length > 0 ? sortedAnnouncements[0] : null;
+          setLatestAnnouncement(latestData);
+        })
+        .catch((announcementError: unknown) => {
+          const message = announcementError instanceof Error ? announcementError.message : String(announcementError);
+          toast.error(
+            isEnglishCopy
+              ? `Failed to load announcements: ${message}`
+              : `お知らせの読み込みに失敗しました: ${message}`,
+            {
+              title: isEnglishCopy ? 'Announcement error' : 'お知らせエラー',
+              duration: 5000,
+            },
+          );
+        }),
+    );
 
-      // すべてのプロミスを並行実行
-      await Promise.all(promises);
-    } catch (error) {
-      console.error('Dashboard data loading error:', error);
-    } finally {
-      setLoading(false);
+    if (profile) {
+      promises.push(
+        fetchStats(profile.id).catch(() => {
+          /* 統計失敗は非致命 */
+        }),
+      );
+    }
+
+    await Promise.all(promises);
+  };
+
+  const getRankIcon = (rank: string) => {
+    switch (rank.toLowerCase()) {
+      case 'premium':
+        return <FaGem className="text-yellow-400 text-lg" />;
+      case 'free':
+      default:
+        return <FaMedal className="text-gray-400 text-sm" />;
     }
   };
 
-  const handleClose = () => {
-    window.location.hash = '';
-  };
-
-  // ランクに応じたアイコンを取得する関数
-    const getRankIcon = (rank: string) => {
-      switch (rank.toLowerCase()) {
-        case 'premium':
-          return <FaGem className="text-yellow-400 text-lg" />;
-        case 'free':
-        default:
-          return <FaMedal className="text-gray-400 text-sm" />;
-      }
-    };
-
-
   if (!open) return null;
 
-  // 表示上フリーのみ（課金反映遅延時は billing-status で上書き）
   if (profile && !isPremiumMember) {
+    const upgradeTitle = isEnglishCopy ? 'Upgrade to Premium' : 'プレミアムでプレイ';
+    const upgradeBody = isEnglishCopy
+      ? 'Subscribe to unlock all lessons, game modes, and diary features.'
+      : 'プレミアムに加入すると、全レッスン・各ゲームモード・日記の画像添付などをご利用いただけます。';
+    const upgradeCta = isEnglishCopy ? 'View plans' : 'プランを見る';
+    const accountCta = isEnglishCopy ? 'Account & billing' : 'アカウント・お支払い';
+
     return (
       <div className="w-full h-full flex flex-col bg-gradient-game text-white">
         <GameHeader />
         <div className="flex-1 overflow-y-auto p-4 sm:p-6">
           <div className="max-w-2xl mx-auto space-y-6">
-            <OpenBetaPlanSwitcher />
+            <div className="bg-slate-800 rounded-lg border border-slate-700 p-6">
+              <h2 className="text-xl font-semibold text-white mb-2">{upgradeTitle}</h2>
+              <p className="text-sm text-gray-300 mb-5">{upgradeBody}</p>
+              <div className="flex flex-wrap gap-3">
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    window.location.hash = '#pricing';
+                  }}
+                >
+                  {upgradeCta}
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-outline border-slate-500 text-white hover:bg-slate-700"
+                  onClick={() => {
+                    window.location.hash = '#account';
+                  }}
+                >
+                  {accountCta}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </div>
@@ -162,34 +154,11 @@ const Dashboard: React.FC = () => {
   }
 
   return (
-    <div 
-      className="w-full h-full flex flex-col bg-gradient-game text-white"
-    >
+    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
       <GameHeader />
-      {/* ダッシュボードコンテンツ */}
       <div className="flex-1 overflow-y-auto p-4 sm:p-6">
         <div className="max-w-6xl mx-auto space-y-6">
-          {/* オープンβ通知 */}
-          <div className="bg-gradient-to-r from-yellow-900/30 to-amber-900/20 rounded-lg p-5 border border-yellow-700/40">
-              <div className="flex items-center gap-2 mb-2">
-                <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-yellow-600/30 text-yellow-300 border border-yellow-600/40">
-                  {isEnglishCopy ? 'OPEN BETA' : 'オープンβ'}
-                </span>
-              </div>
-              <p className="text-sm text-gray-200 mb-2">
-                {isEnglishCopy
-                  ? 'Open beta until March 15 — all features are free to play. Official launch scheduled for March 19.'
-                  : '3/15までオープンβテスト中です。すべての機能を無料でお試しいただけます。3/19に正式リリース予定。'}
-              </p>
-              <p className="text-xs text-gray-400">
-                {isEnglishCopy
-                  ? 'All accounts will be deleted after the open beta ends. Please re-register after the official launch.'
-                  : 'オープンβテスト終了後、アカウントは全て削除されます。正式リリース後に再度ご登録ください。'}
-              </p>
-            </div>
-          <OpenBetaPlanSwitcher />
           <TutorialProgressSection />
-          {/* ユーザー情報カード */}
           {profile && (
             <div className="bg-slate-800 rounded-lg p-6 border border-slate-700">
               <div className="flex items-center space-x-4">
@@ -200,25 +169,32 @@ const Dashboard: React.FC = () => {
                 />
                 <div className="flex-1">
                   <h2 className="text-2xl font-bold">{profile.nickname}</h2>
-                  
+
                   <div className="flex items-center space-x-4 text-sm text-gray-400">
                     <div className="flex items-center space-x-1">
-                      {getRankIcon(isPremiumMember ? 'premium' : (profile.rank ?? 'free'))}
+                      {getRankIcon(isPremiumMember ? 'premium' : 'free')}
                       <span>{planLabel}</span>
                     </div>
                   </div>
-                  
+
                   {statsLoading ? (
-                      <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
-                        <span className="animate-pulse">{statsLoadingText}</span>
-                      </div>
+                    <div className="flex items-center space-x-4 text-sm text-gray-400 mt-2">
+                      <span className="animate-pulse">{statsLoadingText}</span>
+                    </div>
                   ) : userStats ? (
                     <div className="flex items-center flex-wrap gap-x-4 gap-y-1 text-sm text-gray-400 mt-2">
-                      <span>{isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}</span>
-                      <span>{isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'} {userStats.dailyChallengeParticipationDays}</span>
+                      <span>
+                        {isEnglishCopy ? 'Lessons cleared' : 'レッスンクリア数'} {userStats.lessonCompletedCount}
+                      </span>
+                      <span>
+                        {isEnglishCopy ? 'Daily Challenge Days' : 'デイリーチャレンジ実施日数'}{' '}
+                        {userStats.dailyChallengeParticipationDays}
+                      </span>
                       {userStats.survivalBestTimeSeconds > 0 && (
                         <span>
-                          {isEnglishCopy ? 'Survival' : 'サバイバル'}: {Math.floor(userStats.survivalBestTimeSeconds / 60)}{isEnglishCopy ? 'min' : '分'}
+                          {isEnglishCopy ? 'Survival' : 'サバイバル'}:{' '}
+                          {Math.floor(userStats.survivalBestTimeSeconds / 60)}
+                          {isEnglishCopy ? 'min' : '分'}
                         </span>
                       )}
                     </div>
@@ -228,71 +204,74 @@ const Dashboard: React.FC = () => {
             </div>
           )}
 
-          {/* お知らせセクション */}
-                <div className="bg-slate-800 rounded-lg border border-slate-700">
-                  <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
-                    <FaBell className="w-5 h-5 text-yellow-400" />
-                    <h3 className="text-lg font-semibold">{announcementsTitle}</h3>
-                  </div>
-                
-                <div className="p-4">
-                    {!latestAnnouncement ? (
-                      <p className="text-gray-400 text-center py-6">
-                        {noAnnouncementsText}
-                      </p>
-                  ) : (
-                    <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
-                      <h4 className="font-semibold mb-2">
-                        {(isEnglishCopy && latestAnnouncement.title_en) ? latestAnnouncement.title_en : latestAnnouncement.title}
-                      </h4>
-                      <div 
-                        className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
-                        dangerouslySetInnerHTML={{
-                          __html: mdToHtml(
-                            (isEnglishCopy && latestAnnouncement.content_en) ? latestAnnouncement.content_en : latestAnnouncement.content,
-                          ),
-                        }}
-                      />
-                      
-                      {latestAnnouncement.link_url && (
-                        <a
-                          href={latestAnnouncement.link_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm underline transition-colors"
-                        >
-                          <FaExternalLinkAlt className="w-3 h-3" />
-                            <span>
-                              {(isEnglishCopy && latestAnnouncement.link_text_en)
-                                ? latestAnnouncement.link_text_en
-                                : latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}
-                            </span>
-                        </a>
-                      )}
-                      
-                      <div className="text-xs text-gray-500 mt-2">
-                        {new Date(latestAnnouncement.created_at).toLocaleDateString(isEnglishCopy ? 'en-US' : 'ja-JP')}
-                      </div>
+          <div className="bg-slate-800 rounded-lg border border-slate-700">
+            <div className="flex items-center space-x-2 p-4 border-b border-slate-700">
+              <FaBell className="w-5 h-5 text-yellow-400" />
+              <h3 className="text-lg font-semibold">{announcementsTitle}</h3>
+            </div>
 
-                      <div className="mt-3">
-                          <button
-                            onClick={() => { window.location.hash = '#information'; }}
-                            className="text-xs text-blue-400 hover:text-blue-300"
-                          >
-                            {viewAllAnnouncementsText}
-                          </button>
-                      </div>
-                    </div>
+            <div className="p-4">
+              {!latestAnnouncement ? (
+                <p className="text-gray-400 text-center py-6">{noAnnouncementsText}</p>
+              ) : (
+                <div className="bg-slate-700 rounded-lg p-4 hover:bg-slate-600 transition-colors">
+                  <h4 className="font-semibold mb-2">
+                    {isEnglishCopy && latestAnnouncement.title_en
+                      ? latestAnnouncement.title_en
+                      : latestAnnouncement.title}
+                  </h4>
+                  <div
+                    className="text-sm text-gray-300 mb-3 [&_a]:text-blue-400 [&_a]:underline [&_a:hover]:text-blue-300 [&_a]:transition-colors"
+                    dangerouslySetInnerHTML={{
+                      __html: mdToHtml(
+                        isEnglishCopy && latestAnnouncement.content_en
+                          ? latestAnnouncement.content_en
+                          : latestAnnouncement.content,
+                      ),
+                    }}
+                  />
+
+                  {latestAnnouncement.link_url && (
+                    <a
+                      href={latestAnnouncement.link_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center space-x-2 text-blue-400 hover:text-blue-300 text-sm underline transition-colors"
+                    >
+                      <FaExternalLinkAlt className="w-3 h-3" />
+                      <span>
+                        {isEnglishCopy && latestAnnouncement.link_text_en
+                          ? latestAnnouncement.link_text_en
+                          : latestAnnouncement.link_text || (isEnglishCopy ? 'Open link' : 'リンクを開く')}
+                      </span>
+                    </a>
                   )}
-                </div>
-              </div>
 
-              {/* 記録（デイリーチャレンジ） */}
-              <DailyChallengeRecordsSection />
+                  <div className="text-xs text-gray-500 mt-2">
+                    {new Date(latestAnnouncement.created_at).toLocaleDateString(isEnglishCopy ? 'en-US' : 'ja-JP')}
+                  </div>
+
+                  <div className="mt-3">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        window.location.hash = '#information';
+                      }}
+                      className="text-xs text-blue-400 hover:text-blue-300"
+                    >
+                      {viewAllAnnouncementsText}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+
+          <DailyChallengeRecordsSection />
         </div>
       </div>
     </div>
   );
 };
 
-export default Dashboard; 
+export default Dashboard;
