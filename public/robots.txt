@@ -1,0 +1,5 @@
+User-agent: *
+Allow: /
+
+# サービス要約（AI・要約ツール向けの補助情報）
+# https://jazzify.jp/llms.txt

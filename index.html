@@ -35,6 +35,62 @@
     "description": "Jazz Learning Game — Learn jazz piano through interactive gameplay. ジャズピアノ・コードをオンラインで学ぶインタラクティブな学習アプリ。"
   }
   </script>
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    "mainEntity": [
+      {
+        "@type": "Question",
+        "name": "楽器未経験者でも大丈夫ですか？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "どんな楽器に対応していますか？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "ピアノ、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "オフラインでも使用できますか？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "いいえ、オフラインではご利用いただけません。インターネット接続が必要です。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "プレミアムプランについて教えてください",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "有料プランはプレミアムプランのみです。フリープランからプレミアムへのアップグレードは、マイページ等の案内に従いいつでもお申し込みいただけます。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "キャンセル・返金は可能ですか？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "初回利用者には7日間の無料トライアルが付与されます。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。"
+        }
+      },
+      {
+        "@type": "Question",
+        "name": "iPhone／iPadでMIDIキーボードは使えますか？",
+        "acceptedAnswer": {
+          "@type": "Answer",
+          "text": "Jazzify の iOS アプリでは、USB 経由で MIDI キーボードを接続してご利用いただけます。詳細はヘルプページの「iPhone/iPad での MIDI 機器利用について」をご覧ください。"
+        }
+      }
+    ]
+  }
+  </script>
   
   <!-- LCP image preload -->
   <link rel="preload" as="image" href="/first-view-md.webp" type="image/webp" imagesrcset="/first-view-sm.webp 616w, /first-view-md.webp 768w, /first-view.webp 1080w" imagesizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 50vw">
@@ -105,6 +161,42 @@
       color: #93c5fd;
       text-align: center;
     }
+
+    /* JS 実行前でも本文が読める静的 LP シェル（React マウント時に置き換わる） */
+    .lp-static-shell {
+      --lp-gold: #c8a24d;
+      --lp-cream: #ede5d8;
+      --lp-cream-muted: #b5ada2;
+      --lp-base: #060a12;
+      font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif;
+      background: var(--lp-base);
+      color: var(--lp-cream);
+      min-height: 100vh;
+      padding: 5rem 1.25rem 3rem;
+      max-width: 72rem;
+      margin: 0 auto;
+      line-height: 1.65;
+    }
+    .lp-static-shell h1 { font-size: 1.5rem; color: var(--lp-gold); margin: 0 0 1rem; }
+    .lp-static-shell .lp-hero { font-size: clamp(2rem, 5vw, 3.5rem); font-weight: 800; margin: 0 0 1rem; line-height: 1.15; color: var(--lp-cream); }
+    .lp-static-shell h2 { font-size: clamp(1.5rem, 3vw, 2.25rem); color: var(--lp-gold); margin: 2.5rem 0 1rem; }
+    .lp-static-shell h3 { font-size: 1.125rem; font-weight: 700; margin: 1rem 0 0.5rem; color: var(--lp-cream); }
+    .lp-static-shell p { margin: 0 0 1rem; color: var(--lp-cream-muted); }
+    .lp-static-shell a { color: #7db4d8; text-decoration: underline; }
+    .lp-static-shell .lp-cta {
+      display: inline-block;
+      margin: 0.5rem 0.75rem 0.5rem 0;
+      padding: 0.75rem 1.5rem;
+      border-radius: 9999px;
+      background: linear-gradient(135deg, #c8a24d, #e4c570);
+      color: #060a12;
+      font-weight: 700;
+      text-decoration: none;
+    }
+    .lp-static-shell ul { margin: 0 0 1rem 1.25rem; padding: 0; color: var(--lp-cream-muted); }
+    .lp-static-shell li { margin: 0.35rem 0; }
+    .lp-static-shell .lp-faq dt { font-weight: 700; color: var(--lp-cream); margin-top: 1.25rem; }
+    .lp-static-shell .lp-faq dd { margin: 0.5rem 0 0; color: var(--lp-cream-muted); }
   </style>
 </head>
 <body>
@@ -118,7 +210,108 @@
     <div class="loading-spinner"></div>
     <div class="loading-text">Loading Jazzify...</div>
   </div>
-  <div id="root"></div>
+  <div id="root">
+    <div class="lp-root lp-static-shell" data-static-landing-shell="true">
+      <main>
+        <header>
+          <h1>Jazzify</h1>
+          <p class="lp-hero">練習を冒険に。</p>
+          <p>ゲーム感覚で、ジャズが弾けるようになる。</p>
+          <p>
+            <a class="lp-cta" href="/signup">無料トライアルを始める</a>
+            <a class="lp-cta" href="https://apps.apple.com/us/app/jazzify/id6761457001" rel="noopener noreferrer" target="_blank">App Store</a>
+          </p>
+          <p class="lp-muted">初回は7日間の無料トライアル。英語サイト: <a href="https://en.jazzify.jp/">en.jazzify.jp</a></p>
+        </header>
+
+        <figure style="margin: 2rem 0;">
+          <picture>
+            <source srcset="/first-view-sm.webp 616w, /first-view-md.webp 768w, /first-view.webp 1080w" sizes="(max-width: 640px) 100vw, 50vw" type="image/webp" />
+            <img src="/first-view.png" alt="ジャズの冒険イメージ" width="1080" height="1080" loading="eager" decoding="async" fetchpriority="high" style="max-width: 100%; height: auto; border-radius: 0.5rem; border: 1px solid rgba(200,162,77,0.08);" />
+          </picture>
+        </figure>
+
+        <section id="modes" aria-labelledby="modes-heading">
+          <h2 id="modes-heading">Jazzifyで身につくこと</h2>
+          <article>
+            <h3>ジャズの響きを手に覚えこませる</h3>
+            <p>巨匠の名演ソロを再現しながら、フレーズを体で覚える（レジェンドモード）。</p>
+          </article>
+          <article>
+            <h3>実戦で使えるコード力が身につく</h3>
+            <p>RPG風バトルで、コード進行をゲーム感覚でマスター（ファンタジーモード）。</p>
+          </article>
+          <article>
+            <h3>体系的にジャズピアノの知識が身につく</h3>
+            <p>動画付きカリキュラムで、基礎から応用まで体系的に学習（レッスンモード）。</p>
+          </article>
+        </section>
+
+        <!-- 料金文言は src/components/LandingPage.tsx（日本語セクション）と揃えること -->
+        <section id="pricing" aria-labelledby="pricing-heading">
+          <h2 id="pricing-heading">料金プラン</h2>
+          <p><strong style="color: #ede5d8;">Premium</strong> — ¥4,980 /月（税込）。初回利用者には7日間の無料トライアルが付与されます。</p>
+          <p>プレミアムで開放される主な機能:</p>
+          <ul>
+            <li>全レッスンにアクセス</li>
+            <li>全サバイバルステージ</li>
+            <li>デイリーチャレンジの全難易度を解放</li>
+          </ul>
+          <p><a class="lp-cta" href="/signup">無料トライアルを始める</a></p>
+        </section>
+
+        <section id="faq" aria-labelledby="faq-heading">
+          <h2 id="faq-heading">よくある質問</h2>
+          <dl class="lp-faq">
+            <dt>楽器未経験者でも大丈夫ですか？</dt>
+            <dd>はい、全く問題ありません。Jazzifyは初心者の方を想定して作られており、楽器を触ったことがない方でも楽しく学習できる仕組みになっています。ファンタジーモードでは、ゲーム感覚でコードを覚えることができます。</dd>
+            <dt>どんな楽器に対応していますか？</dt>
+            <dd>ピアノ、ベース、サックス、トランペットなど、主要なジャズ楽器に対応しています。MIDIキーボードやマイク入力にも対応しているため、お持ちの楽器で学習していただけます。</dd>
+            <dt>オフラインでも使用できますか？</dt>
+            <dd>いいえ、オフラインではご利用いただけません。インターネット接続が必要です。</dd>
+            <dt>プレミアムプランについて教えてください</dt>
+            <dd>有料プランはプレミアムプランのみです。フリープランからプレミアムへのアップグレードは、マイページ等の案内に従いいつでもお申し込みいただけます。</dd>
+            <dt>キャンセル・返金は可能ですか？</dt>
+            <dd>初回利用者には7日間の無料トライアルが付与されます。トライアル期間中に解約した場合は料金は発生しません。トライアル終了後は、月額プランは次回更新前までに所定の解約手続きを行うことでキャンセルできます。キャンセル後も、既に支払済みの期間の満了まではご利用いただけます。返金については利用規約および決済画面の表示に従います。</dd>
+            <dt>iPhone／iPadでMIDIキーボードは使えますか？</dt>
+            <dd>Jazzify の iOS アプリでは、USB 経由で MIDI キーボードを接続してご利用いただけます。ケーブルや接続手順の詳細は <a href="/help/ios-midi">iPhone/iPad での MIDI 機器利用について</a> をご覧ください。ご不明点は <a href="/contact">お問い合わせフォーム</a> へどうぞ。</dd>
+          </dl>
+        </section>
+
+        <section aria-labelledby="ios-heading">
+          <h2 id="ios-heading">iOSアプリ版</h2>
+          <p>iPhone・iPadでも、MIDIキーボードを接続してジャズを学べます。App Store から無料でダウンロードできます。</p>
+        </section>
+
+        <section aria-labelledby="voice-heading">
+          <h2 id="voice-heading">開発者の声</h2>
+          <blockquote>
+            <p style="color: #ede5d8; font-style: italic;">ジャズを独学で始めた時、練習方法がわからず何度も壁にぶつかりました。「私が初学者のころにこんなものがあれば、」——その思いが、Jazzifyの原点です。</p>
+          </blockquote>
+          <p class="lp-muted">永吉 俊雄 — Jazzify 開発者 / ジャズピアニスト</p>
+        </section>
+
+        <section aria-labelledby="final-cta-heading">
+          <h2 id="final-cta-heading">今すぐ無料トライアルを始める</h2>
+          <p>登録は数分で完了。初回は7日間の無料トライアルのあと月額課金となります。</p>
+          <p><a class="lp-cta" href="/signup">無料トライアルを始める</a></p>
+        </section>
+
+        <section lang="en" aria-label="English summary for crawlers">
+          <h2>English summary</h2>
+          <p>Jazzify is a Jazz Learning Game for practicing jazz piano, chords, and comping online through interactive drills and structured lessons. New users receive a 7-day free trial. Web: <a href="https://jazzify.jp/">jazzify.jp</a> · English: <a href="https://en.jazzify.jp/">en.jazzify.jp</a></p>
+        </section>
+
+        <footer>
+          <nav aria-label="フッターリンク">
+            <p><a href="#modes">身につくこと</a> · <a href="#pricing">料金プラン</a> · <a href="#faq">よくある質問</a> · <a href="/signup">新規登録</a></p>
+            <p><a href="/help/ios-midi">iPhone/iPadでMIDIを使う</a> · <a href="/contact">お問い合わせ</a> · <a href="/terms">利用規約</a> · <a href="/privacy">プライバシーポリシー</a> · <a href="/legal/tokushoho">特定商取引法に基づく表記</a></p>
+          </nav>
+          <p class="lp-muted" style="margin-top: 1.5rem;">© Jazzify</p>
+        </footer>
+      </main>
+    </div>
+  </div>
   
   <!-- Netlify Forms registration (hidden) -->
   <form name="contact" netlify data-netlify="true" hidden>

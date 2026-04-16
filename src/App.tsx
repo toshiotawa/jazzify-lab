@@ -3,8 +3,7 @@ import { Routes, Route, useLocation, Navigate } from 'react-router-dom';
 import { Helmet } from 'react-helmet-async';
 import ToastContainer from '@/components/ui/ToastContainer';
 import { EnvironmentBadge } from '@/components/ui/EnvironmentBadge';
-
-const LandingPage = React.lazy(() => import('@/components/LandingPage'));
+import LandingPage from '@/components/LandingPage';
 const ProtectedAppRoute = React.lazy(() => import('@/routes/ProtectedAppRoute'));
 const AuthLanding = React.lazy(() => import('@/components/auth/AuthLanding'));
 const VerifyOtpPage = React.lazy(() => import('@/components/auth/VerifyOtpPage'));
