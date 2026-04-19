@@ -24,8 +24,6 @@ interface DescentBlockProps {
   blockLabel: string;
   blockLabelEn: string;
   isEnglishCopy: boolean;
-  /** このブロックが最前線（キャラがいるブロック）か */
-  isFrontier: boolean;
   /** 現在キャラがいるステージ番号（フロンティア表示用） */
   frontierStageNumber: number;
 }

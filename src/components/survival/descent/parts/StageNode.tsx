@@ -5,6 +5,7 @@
  */
 
 import React, { useCallback } from 'react';
+import { FaLock } from 'react-icons/fa';
 import { cn } from '@/utils/cn';
 
 export type StageNodeState = 'locked' | 'unlocked' | 'cleared';
@@ -57,7 +58,7 @@ export const StageNode: React.FC<StageNodeProps> = ({
       }
       return 'bg-slate-100 border-slate-50 text-slate-900 shadow-[0_4px_12px_rgba(0,0,0,0.55)]';
     }
-    return 'bg-slate-900/90 border-slate-700/60 text-slate-600';
+    return 'bg-slate-950/95 border-slate-800/70 text-slate-700 shadow-[inset_0_0_6px_rgba(0,0,0,0.6)]';
   })();
 
   const selectedRing = selected ? 'ring-4 ring-amber-300/80 ring-offset-2 ring-offset-black/30' : '';
@@ -112,6 +113,8 @@ export const StageNode: React.FC<StageNodeProps> = ({
               {stageNumber}
             </span>
           </span>
+        ) : state === 'locked' ? (
+          <FaLock style={{ fontSize: Math.max(12, 16 * scale), opacity: 0.7 }} />
         ) : (
           stageNumber
         )}

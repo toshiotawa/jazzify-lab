@@ -1,8 +1,8 @@
 /**
  * 魔王城降下マップ：サバイバルのステージ選択画面
- * - 固定ビューポート + transform: translate3d() の仮想カメラ
- * - 21ブロック(コードタイプ単位)を縦に連結
- * - 最前線ステージにキャラクター、ノードクリックで詳細モーダル
+ * - PC: 左マップ + 右情報パネル (grid)
+ * - 仮想カメラ: ホイール/タッチ/ドラッグで縦スクロール
+ * - クリックでステージ選択→右パネル(大画面)/ 下パネル(小画面) に詳細表示
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -36,11 +36,11 @@ import {
   getStagePosition,
   getBlockLayoutForStage,
 } from './descentLayout';
-import { ALL_BLOCKS, getAccessibleBlockIndex } from './descentBlocks';
+import { ALL_BLOCKS, getAccessibleBlockIndex, getBlockForStage, BlockMeta } from './descentBlocks';
 import DescentBlock, { BlockDimVeil } from './DescentBlock';
 import BackgroundWall from './parts/BackgroundWall';
 import DescentCharacter from './parts/DescentCharacter';
-import StageDetailModal from './StageDetailModal';
+import DescentSidePanel from './DescentSidePanel';
 import { useDescentCamera } from './useDescentCamera';
 
 const convertToSurvivalCharacter = (row: SurvivalCharacterRow): SurvivalCharacter => ({
@@ -119,6 +119,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
   const [currentStageNumber, setCurrentStageNumber] = useState(1);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
+  const [stageClearsByStage, setStageClearsByStage] = useState<Map<number, SurvivalStageClear>>(new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -139,7 +140,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 1.8);
+  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 1.6);
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
   const mapHeightPx = MAP_LOGICAL_HEIGHT * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
@@ -182,7 +183,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
         try {
           const clears = await fetchSurvivalStageClears(profile.id);
-          setClearedStages(new Set(clears.map((c: SurvivalStageClear) => c.stageNumber)));
+          setClearedStages(new Set(clears.map(c => c.stageNumber)));
+          const map = new Map<number, SurvivalStageClear>();
+          clears.forEach(c => map.set(c.stageNumber, c));
+          setStageClearsByStage(map);
         } catch { /* ignore */ }
       }
 
@@ -227,7 +231,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     [frontierStageNumber, clearedStages],
   );
 
-  const { cameraY, focusCamera } = useDescentCamera({
+  const { cameraY, focusCamera, adjustCamera } = useDescentCamera({
     viewportHeight: viewport.height,
     scale,
     frontierStageNumber,
@@ -240,15 +244,70 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     if (pos) focusCamera(pos.y);
   }, [loading, frontierStageNumber, focusCamera]);
 
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+
+    let dragging = false;
+    let lastClientY = 0;
+    let downClientY = 0;
+    let movedDuringDrag = false;
+
+    const onWheel = (e: WheelEvent) => {
+      e.preventDefault();
+      adjustCamera(e.deltaY);
+    };
+
+    const onPointerDown = (e: PointerEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && target.closest('button,[role="button"]')) return;
+      dragging = true;
+      movedDuringDrag = false;
+      lastClientY = e.clientY;
+      downClientY = e.clientY;
+      try { el.setPointerCapture(e.pointerId); } catch { /* ignore */ }
+    };
+
+    const onPointerMove = (e: PointerEvent) => {
+      if (!dragging) return;
+      const dy = e.clientY - lastClientY;
+      lastClientY = e.clientY;
+      if (Math.abs(e.clientY - downClientY) > 4) {
+        movedDuringDrag = true;
+      }
+      adjustCamera(-dy);
+    };
+
+    const onPointerUp = (e: PointerEvent) => {
+      if (!dragging) return;
+      dragging = false;
+      try { el.releasePointerCapture(e.pointerId); } catch { /* ignore */ }
+      if (movedDuringDrag) {
+        e.preventDefault();
+        e.stopPropagation();
+      }
+    };
+
+    el.addEventListener('wheel', onWheel, { passive: false });
+    el.addEventListener('pointerdown', onPointerDown);
+    el.addEventListener('pointermove', onPointerMove);
+    el.addEventListener('pointerup', onPointerUp);
+    el.addEventListener('pointercancel', onPointerUp);
+
+    return () => {
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('pointerdown', onPointerDown);
+      el.removeEventListener('pointermove', onPointerMove);
+      el.removeEventListener('pointerup', onPointerUp);
+      el.removeEventListener('pointercancel', onPointerUp);
+    };
+  }, [adjustCamera]);
+
   const handleSelectStage = useCallback((stageNumber: number) => {
     setSelectedStageNumber(stageNumber);
     const pos = getStagePosition(stageNumber);
     if (pos) focusCamera(pos.y);
   }, [focusCamera]);
-
-  const handleCloseModal = useCallback(() => {
-    setSelectedStageNumber(null);
-  }, []);
 
   const handleStart = useCallback(async () => {
     if (!selectedStage) return;
@@ -292,6 +351,21 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return 'center';
   })();
 
+  const panelBlock: BlockMeta | null = useMemo(() => {
+    const refStage = selectedStage?.stageNumber ?? frontierStageNumber;
+    return getBlockForStage(refStage) ?? ALL_BLOCKS[0];
+  }, [selectedStage, frontierStageNumber]);
+
+  const panelBlockClearedCount = useMemo(() => {
+    if (!panelBlock) return 0;
+    return panelBlock.stageNumbers.filter(n => clearedStages.has(n)).length;
+  }, [panelBlock, clearedStages]);
+
+  const selectedStageClear = useMemo<SurvivalStageClear | null>(() => {
+    if (!selectedStage) return null;
+    return stageClearsByStage.get(selectedStage.stageNumber) ?? null;
+  }, [selectedStage, stageClearsByStage]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -304,7 +378,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }
 
   return (
-    <div className="relative w-full">
+    <div className="relative w-full px-3 sm:px-4">
       <style>{`
         @keyframes descent-breath {
           0%, 100% { transform: translateY(0); }
@@ -319,7 +393,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       {playLocked && (
         <button
           type="button"
-          className="mx-4 mb-3 block w-[calc(100%-2rem)] rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-left text-sm text-amber-100 font-sans hover:bg-amber-950/60 hover:border-amber-500/60 transition-colors"
+          className="mx-auto mb-3 block w-full max-w-[1280px] rounded-xl border border-amber-500/40 bg-amber-950/40 p-3 text-left text-sm text-amber-100 font-sans hover:bg-amber-950/60 hover:border-amber-500/60 transition-colors"
           onClick={() => setShowPaywall(true)}
         >
           {isEnglishCopy
@@ -328,98 +402,101 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </button>
       )}
 
-      <div
-        ref={viewportRef}
-        className="relative mx-auto overflow-hidden"
-        style={{
-          width: '100%',
-          maxWidth: 1160,
-          height: 'min(88vh, 960px)',
-          borderRadius: 10,
-          boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.55)',
-        }}
-      >
+      <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
         <div
-          aria-hidden
-          className="absolute left-1/2 top-3 z-[50] -translate-x-1/2 rounded-full border border-amber-400/30 bg-black/50 px-3 py-1 text-[11px] font-sans tracking-wider text-amber-200 backdrop-blur-sm"
-        >
-          {progressPercent}%
-        </div>
-
-        <div
-          className="absolute left-0 top-0 will-change-transform"
+          ref={viewportRef}
+          className="relative overflow-hidden touch-none select-none"
           style={{
-            width: worldWidthPx,
-            height: mapHeightPx,
-            transform: `translate3d(0, ${-cameraY}px, 0)`,
+            width: '100%',
+            height: 'min(86vh, 920px)',
+            borderRadius: 10,
+            boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.6)',
+            cursor: 'grab',
           }}
         >
-          <BackgroundWall widthPx={worldWidthPx} heightPx={mapHeightPx} scale={scale} />
+          <div
+            aria-hidden
+            className="absolute left-1/2 top-3 z-[50] -translate-x-1/2 rounded-full border border-amber-400/30 bg-black/55 px-3 py-1 text-[11px] font-sans tracking-wider text-amber-200 backdrop-blur-sm"
+          >
+            {progressPercent}%
+          </div>
 
           <div
-            className="absolute left-1/2 top-0"
+            className="absolute left-0 top-0 will-change-transform"
             style={{
-              width: mapWidthPx,
+              width: worldWidthPx,
               height: mapHeightPx,
-              transform: 'translateX(-50%)',
+              transform: `translate3d(0, ${-cameraY}px, 0)`,
             }}
           >
-            {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
-              const blockMeta = ALL_BLOCKS[idx];
-              const dim = idx > accessibleBlockIndex;
-              return (
-                <DescentBlock
-                  key={layout.blockKey}
-                  layout={layout}
+            <BackgroundWall widthPx={worldWidthPx} heightPx={mapHeightPx} scale={scale} />
+
+            <div
+              className="absolute left-1/2 top-0"
+              style={{
+                width: mapWidthPx,
+                height: mapHeightPx,
+                transform: 'translateX(-50%)',
+              }}
+            >
+              {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
+                const blockMeta = ALL_BLOCKS[idx];
+                const dim = idx > accessibleBlockIndex;
+                return (
+                  <DescentBlock
+                    key={layout.blockKey}
+                    layout={layout}
+                    scale={scale}
+                    selectedStageNumber={selectedStageNumber ?? -1}
+                    clearedStages={clearedStages}
+                    isStageUnlocked={isStageUnlocked}
+                    onSelectStage={handleSelectStage}
+                    dim={dim}
+                    blockLabel={blockMeta.label}
+                    blockLabelEn={blockMeta.labelEn}
+                    isEnglishCopy={isEnglishCopy}
+                    frontierStageNumber={frontierStageNumber}
+                  />
+                );
+              })}
+
+              {ALL_BLOCK_LAYOUTS.map((layout, idx) =>
+                idx > accessibleBlockIndex ? (
+                  <BlockDimVeil key={`veil-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
+                ) : null,
+              )}
+
+              {frontierPosition && (
+                <DescentCharacter
+                  xPx={frontierPosition.x * scale}
+                  yPx={frontierPosition.y * scale}
                   scale={scale}
-                  selectedStageNumber={selectedStageNumber ?? -1}
-                  clearedStages={clearedStages}
-                  isStageUnlocked={isStageUnlocked}
-                  onSelectStage={handleSelectStage}
-                  dim={dim}
-                  blockLabel={blockMeta.label}
-                  blockLabelEn={blockMeta.labelEn}
-                  isEnglishCopy={isEnglishCopy}
-                  isFrontier={layout.stages.some(s => s.stageNumber === frontierStageNumber)}
-                  frontierStageNumber={frontierStageNumber}
+                  facing={frontierFacing}
                 />
-              );
-            })}
-
-            {ALL_BLOCK_LAYOUTS.map((layout, idx) =>
-              idx > accessibleBlockIndex ? (
-                <BlockDimVeil key={`veil-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
-              ) : null,
-            )}
-
-            {frontierPosition && (
-              <DescentCharacter
-                xPx={frontierPosition.x * scale}
-                yPx={frontierPosition.y * scale}
-                scale={scale}
-                facing={frontierFacing}
-              />
-            )}
+              )}
+            </div>
           </div>
         </div>
-      </div>
 
-      <StageDetailModal
-        open={selectedStageNumber !== null}
-        stage={selectedStage}
-        isUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
-        isCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
-        hintMode={hintMode}
-        onHintModeChange={setHintMode}
-        playLocked={playLocked}
-        onStart={handleStart}
-        onClose={handleCloseModal}
-        onRequestUpgrade={() => {
-          setSelectedStageNumber(null);
-          setShowPaywall(true);
-        }}
-        isEnglishCopy={isEnglishCopy}
-      />
+        <div className="min-h-[520px] lg:h-[min(86vh,920px)]">
+          <DescentSidePanel
+            isEnglishCopy={isEnglishCopy}
+            totalClearedCount={clearedStages.size}
+            totalStages={TOTAL_STAGES}
+            activeBlock={panelBlock}
+            blockClearedCount={panelBlockClearedCount}
+            selectedStage={selectedStage}
+            selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
+            selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
+            selectedStageClear={selectedStageClear}
+            hintMode={hintMode}
+            onHintModeChange={setHintMode}
+            playLocked={playLocked}
+            onStart={handleStart}
+            onRequestUpgrade={() => setShowPaywall(true)}
+          />
+        </div>
+      </div>
 
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>

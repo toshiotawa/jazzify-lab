@@ -22,6 +22,8 @@ interface CameraState {
   cameraY: number;
   maxCameraY: number;
   focusCamera: (logicalY: number) => void;
+  adjustCamera: (deltaPx: number) => void;
+  setCamera: (valuePx: number) => void;
 }
 
 export const useDescentCamera = ({
@@ -55,6 +57,15 @@ export const useDescentCamera = ({
     const clamped = Math.max(0, Math.min(maxCameraYRef.current, rawTargetPx));
     targetRef.current = clamped;
   }, [scale, viewportHeight]);
+
+  const adjustCamera = useCallback((deltaPx: number) => {
+    const next = targetRef.current + deltaPx;
+    targetRef.current = Math.max(0, Math.min(maxCameraYRef.current, next));
+  }, []);
+
+  const setCamera = useCallback((valuePx: number) => {
+    targetRef.current = Math.max(0, Math.min(maxCameraYRef.current, valuePx));
+  }, []);
 
   useEffect(() => {
     const animate = (now: number) => {
@@ -97,5 +108,7 @@ export const useDescentCamera = ({
     cameraY: Math.max(0, Math.min(maxCameraY, cameraY)),
     maxCameraY,
     focusCamera,
+    adjustCamera,
+    setCamera,
   };
 };
