@@ -86,6 +86,22 @@ interface SurvivalDescentMapProps {
 
 const VIEWPORT_FALLBACK_HEIGHT = 720;
 
+const readDebugProgress = (): number | null => {
+  try {
+    const hash = window.location.hash;
+    const idx = hash.indexOf('?');
+    if (idx < 0) return null;
+    const params = new URLSearchParams(hash.slice(idx + 1));
+    const raw = params.get('debugProgress');
+    if (!raw) return null;
+    const n = parseInt(raw, 10);
+    if (!Number.isFinite(n) || n <= 0) return null;
+    return Math.min(n, TOTAL_STAGES);
+  } catch {
+    return null;
+  }
+};
+
 const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   onStageSelect,
   playLocked = false,
@@ -167,6 +183,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           const clears = await fetchSurvivalStageClears(profile.id);
           setClearedStages(new Set(clears.map((c: SurvivalStageClear) => c.stageNumber)));
         } catch { /* ignore */ }
+      }
+
+      const debugProgress = readDebugProgress();
+      if (debugProgress != null) {
+        const cleared = new Set<number>();
+        for (let i = 1; i <= debugProgress; i += 1) cleared.add(i);
+        setClearedStages(cleared);
+        setCurrentStageNumber(Math.min(TOTAL_STAGES, debugProgress + 1));
       }
     } finally {
       setLoading(false);

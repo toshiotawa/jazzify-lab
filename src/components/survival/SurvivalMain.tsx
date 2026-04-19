@@ -408,26 +408,12 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
       <>
         <GameHeader />
         <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
-        <div className="relative z-10 p-4 sm:p-6 text-white">
-          <div className="flex justify-between items-center mb-6">
-            <h1 className="text-3xl sm:text-4xl font-bold font-sans tracking-wider">
-              SURVIVAL
-            </h1>
-            <button
-              onClick={handleBackToMenu}
-              className="px-4 sm:px-6 py-2 sm:py-3 bg-gray-700 hover:bg-gray-600 rounded-lg font-medium transition-colors text-sm sm:text-base font-sans"
-            >
-              {isEnglishCopy ? 'Back' : '戻る'}
-            </button>
-          </div>
-        </div>
-
-        <SurvivalDescentMap
-          embedded
-          playLocked={survivalPlayLocked}
-          onStageSelect={handleStageSelect}
-          onBackToMenu={handleBackToMenu}
-        />
+          <SurvivalDescentMap
+            embedded
+            playLocked={survivalPlayLocked}
+            onStageSelect={handleStageSelect}
+            onBackToMenu={handleBackToMenu}
+          />
         </div>
       </>
     );
