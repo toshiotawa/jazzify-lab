@@ -61,22 +61,13 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
       className="flex h-full w-full flex-col gap-4 overflow-y-auto rounded-xl border border-amber-500/15 bg-gradient-to-b from-[#140c1f]/90 to-[#060410]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.6)]"
       aria-label={isEnglishCopy ? 'Survival info panel' : 'サバイバル情報パネル'}
     >
-      <div className="flex items-baseline justify-between">
-        <h2 className="text-2xl font-bold tracking-[0.25em] text-amber-100/95">
-          SURVIVAL
-        </h2>
-        <span className="text-[10px] tracking-widest text-amber-300/70">
-          {isEnglishCopy ? 'DEMON CASTLE DESCENT' : '魔王城降下'}
-        </span>
-      </div>
-
       <div className="rounded-lg border border-white/5 bg-black/30 p-3">
         <div className="mb-1 flex items-baseline justify-between">
           <span className="text-[11px] tracking-wider text-gray-400">
             {isEnglishCopy ? 'TOTAL PROGRESS' : '全体進捗'}
           </span>
           <span className="font-mono text-sm text-amber-200">
-            {totalClearedCount} / {totalStages}
+            {totalProgressPct}%
           </span>
         </div>
         <div className="relative h-1.5 w-full overflow-hidden rounded-full bg-white/5">

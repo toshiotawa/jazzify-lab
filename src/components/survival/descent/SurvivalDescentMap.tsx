@@ -301,7 +301,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
       el.removeEventListener('pointerup', onPointerUp);
       el.removeEventListener('pointercancel', onPointerUp);
     };
-  }, [adjustCamera]);
+  }, [adjustCamera, loading]);
 
   const handleSelectStage = useCallback((stageNumber: number) => {
     setSelectedStageNumber(stageNumber);
