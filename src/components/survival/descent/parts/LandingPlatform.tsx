@@ -29,8 +29,8 @@ export const LandingPlatform: React.FC<LandingPlatformProps> = ({ type, xPx, yPx
         backgroundImage: `url('/${type === 'big' ? 'big_odoriba.JPG' : 'odoriba.JPG'}')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
-        filter: dim ? 'brightness(0.35) saturate(0.5) blur(0.6px)' : 'brightness(0.9)',
-        boxShadow: '0 8px 18px rgba(0,0,0,0.45)',
+        filter: dim ? 'brightness(0.35) saturate(0.5) blur(0.6px)' : 'brightness(1.05)',
+        boxShadow: '0 10px 22px rgba(0,0,0,0.55), 0 0 14px rgba(120,96,180,0.1)',
         borderRadius: Math.max(4, 6 * scale),
       }}
     />

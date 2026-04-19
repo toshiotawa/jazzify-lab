@@ -24,6 +24,10 @@ interface DescentBlockProps {
   blockLabel: string;
   blockLabelEn: string;
   isEnglishCopy: boolean;
+  /** このブロックが最前線（キャラがいるブロック）か */
+  isFrontier: boolean;
+  /** 現在キャラがいるステージ番号（フロンティア表示用） */
+  frontierStageNumber: number;
 }
 
 export const DescentBlock: React.FC<DescentBlockProps> = ({
@@ -37,6 +41,7 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
   blockLabel,
   blockLabelEn,
   isEnglishCopy,
+  frontierStageNumber,
 }) => {
   const block = getBlockByKey(layout.blockKey);
 
@@ -103,6 +108,7 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
         const unlocked = isStageUnlocked(stage.stageNumber);
         const cleared = clearedStages.has(stage.stageNumber);
         const nodeState: StageNodeState = cleared ? 'cleared' : unlocked ? 'unlocked' : 'locked';
+        const isFrontierNode = !dim && stage.stageNumber === frontierStageNumber && unlocked && !cleared;
         return (
           <StageNode
             key={`node-${stage.stageNumber}`}
@@ -114,6 +120,7 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
             selected={selectedStageNumber === stage.stageNumber && !dim}
             onSelect={onSelectStage}
             dim={dim}
+            isFrontier={isFrontierNode}
           />
         );
       })}

@@ -407,7 +407,13 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     return (
       <>
         <GameHeader />
-        <div className="min-h-screen bg-gradient-to-b from-gray-900 via-purple-900 to-black overflow-y-auto fantasy-game-screen">
+        <div
+          className="min-h-screen overflow-y-auto fantasy-game-screen"
+          style={{
+            background:
+              'radial-gradient(ellipse at top, #1b1228 0%, #0d0818 45%, #050309 100%)',
+          }}
+        >
           <SurvivalDescentMap
             embedded
             playLocked={survivalPlayLocked}
@@ -442,12 +448,20 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   return (
     <>
       <GameHeader />
-      <SurvivalDescentMap
-        embedded
-        playLocked={survivalPlayLocked}
-        onStageSelect={handleStageSelect}
-        onBackToMenu={handleBackToMenu}
-      />
+      <div
+        className="min-h-screen overflow-y-auto fantasy-game-screen"
+        style={{
+          background:
+            'radial-gradient(ellipse at top, #1b1228 0%, #0d0818 45%, #050309 100%)',
+        }}
+      >
+        <SurvivalDescentMap
+          embedded
+          playLocked={survivalPlayLocked}
+          onStageSelect={handleStageSelect}
+          onBackToMenu={handleBackToMenu}
+        />
+      </div>
     </>
   );
 };

@@ -139,9 +139,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 1.6);
+  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 1.8);
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
   const mapHeightPx = MAP_LOGICAL_HEIGHT * scale;
+  const worldWidthPx = Math.max(mapWidthPx, viewport.width);
 
   const loadData = useCallback(async () => {
     try {
@@ -309,6 +310,10 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           0%, 100% { transform: translateY(0); }
           50% { transform: translateY(-2px); }
         }
+        @keyframes descent-frontier-pulse {
+          0%, 100% { transform: scale(1); opacity: 0.85; }
+          50% { transform: scale(1.08); opacity: 1; }
+        }
       `}</style>
 
       {playLocked && (
@@ -325,13 +330,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 
       <div
         ref={viewportRef}
-        className="relative mx-auto overflow-hidden bg-black"
+        className="relative mx-auto overflow-hidden"
         style={{
           width: '100%',
-          maxWidth: 560,
-          height: 'min(82vh, 900px)',
-          border: '1px solid rgba(60,60,80,0.5)',
-          borderRadius: 12,
+          maxWidth: 1160,
+          height: 'min(88vh, 960px)',
+          borderRadius: 10,
+          boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.55)',
         }}
       >
         <div
@@ -342,49 +347,60 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </div>
 
         <div
-          className="absolute left-1/2 top-0 will-change-transform"
+          className="absolute left-0 top-0 will-change-transform"
           style={{
-            width: mapWidthPx,
+            width: worldWidthPx,
             height: mapHeightPx,
-            transform: `translate3d(${-mapWidthPx / 2}px, ${-cameraY}px, 0)`,
+            transform: `translate3d(0, ${-cameraY}px, 0)`,
           }}
         >
-          <BackgroundWall logicalWidth={MAP_LOGICAL_WIDTH} logicalHeight={MAP_LOGICAL_HEIGHT} scale={scale} />
+          <BackgroundWall widthPx={worldWidthPx} heightPx={mapHeightPx} scale={scale} />
 
-          {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
-            const blockMeta = ALL_BLOCKS[idx];
-            const dim = idx > accessibleBlockIndex;
-            return (
-              <DescentBlock
-                key={layout.blockKey}
-                layout={layout}
+          <div
+            className="absolute left-1/2 top-0"
+            style={{
+              width: mapWidthPx,
+              height: mapHeightPx,
+              transform: 'translateX(-50%)',
+            }}
+          >
+            {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
+              const blockMeta = ALL_BLOCKS[idx];
+              const dim = idx > accessibleBlockIndex;
+              return (
+                <DescentBlock
+                  key={layout.blockKey}
+                  layout={layout}
+                  scale={scale}
+                  selectedStageNumber={selectedStageNumber ?? -1}
+                  clearedStages={clearedStages}
+                  isStageUnlocked={isStageUnlocked}
+                  onSelectStage={handleSelectStage}
+                  dim={dim}
+                  blockLabel={blockMeta.label}
+                  blockLabelEn={blockMeta.labelEn}
+                  isEnglishCopy={isEnglishCopy}
+                  isFrontier={layout.stages.some(s => s.stageNumber === frontierStageNumber)}
+                  frontierStageNumber={frontierStageNumber}
+                />
+              );
+            })}
+
+            {ALL_BLOCK_LAYOUTS.map((layout, idx) =>
+              idx > accessibleBlockIndex ? (
+                <BlockDimVeil key={`veil-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
+              ) : null,
+            )}
+
+            {frontierPosition && (
+              <DescentCharacter
+                xPx={frontierPosition.x * scale}
+                yPx={frontierPosition.y * scale}
                 scale={scale}
-                selectedStageNumber={selectedStageNumber ?? -1}
-                clearedStages={clearedStages}
-                isStageUnlocked={isStageUnlocked}
-                onSelectStage={handleSelectStage}
-                dim={dim}
-                blockLabel={blockMeta.label}
-                blockLabelEn={blockMeta.labelEn}
-                isEnglishCopy={isEnglishCopy}
+                facing={frontierFacing}
               />
-            );
-          })}
-
-          {ALL_BLOCK_LAYOUTS.map((layout, idx) =>
-            idx > accessibleBlockIndex ? (
-              <BlockDimVeil key={`veil-${layout.blockKey}`} layout={layout} scale={scale} widthPx={mapWidthPx} />
-            ) : null,
-          )}
-
-          {frontierPosition && (
-            <DescentCharacter
-              xPx={frontierPosition.x * scale}
-              yPx={frontierPosition.y * scale}
-              scale={scale}
-              facing={frontierFacing}
-            />
-          )}
+            )}
+          </div>
         </div>
       </div>
 
