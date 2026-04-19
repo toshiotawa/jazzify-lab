@@ -1,11 +1,36 @@
 /**
  * サバイバル ステージモード ステージ定義
- * 21コードタイプ × 5ルートパターン + 各難易度末尾の Mixed（全コードタイプ×全ルート）= 109ステージ
+ * 21ブロック構成（コードタイプ単位、各5ステージ。ミックスを含むブロックのみ6ステージ）
+ * 合計 110 ステージ = 21 × 5 + 5 Mixed
  */
 
 import { SurvivalDifficulty } from './SurvivalTypes';
 
 export type RootPattern = 'cde' | 'fgab' | 'sharp' | 'flat' | 'all';
+
+/** 21ブロックのコードタイプID（UI用・順序はステージ番号順） */
+export type BlockKey =
+  | 'major'
+  | 'minor'
+  | 'M7'
+  | 'm7'
+  | '7'
+  | 'm7b5'
+  | 'mM7'
+  | 'dim7'
+  | 'aug7'
+  | '6'
+  | 'm6'
+  | 'M7_9'
+  | 'm7_9'
+  | '7_9_13'
+  | '7_b9_b13'
+  | '6_9'
+  | 'm6_9'
+  | '7_b9_13'
+  | '7_sharp9_b13'
+  | 'm7b5_11'
+  | 'dimM7';
 
 export interface StageDefinition {
   stageNumber: number;
@@ -19,7 +44,9 @@ export interface StageDefinition {
   rootPatternName: string;
   rootPatternNameEn: string;
   allowedChords: string[];
-  /** 難易度内の全コードタイプ・全ルートを含む総合ステージ */
+  /** 所属ブロック */
+  blockKey: BlockKey;
+  /** ブロック末尾の Mixed ステージ（そのブロックのコードタイプ群のミックス） */
   isMixedStage?: boolean;
 }
 
@@ -48,51 +75,61 @@ const PATTERN_NAMES: Record<RootPattern, { ja: string; en: string }> = {
 const PATTERNS: RootPattern[] = ['cde', 'fgab', 'sharp', 'flat', 'all'];
 
 interface ChordTypeDef {
+  blockKey: BlockKey;
   suffix: string;
   displayJa: string;
   displayEn: string;
   difficulty: SurvivalDifficulty;
+  /** true のときこのブロック末尾に難易度グループ用 Mixed ステージを挿入 */
+  trailingMixedGroup?: 'easy' | 'normalA' | 'normalB' | 'hard' | 'extreme';
 }
 
 const CHORD_TYPES: ChordTypeDef[] = [
-  // Easy (2)
-  { suffix: '', displayJa: 'メジャー', displayEn: 'Major', difficulty: 'easy' },
-  { suffix: 'm', displayJa: 'マイナー', displayEn: 'Minor', difficulty: 'easy' },
-  // Normal (9)
-  { suffix: 'M7', displayJa: 'M7', displayEn: 'M7', difficulty: 'normal' },
-  { suffix: 'm7', displayJa: 'm7', displayEn: 'm7', difficulty: 'normal' },
-  { suffix: '7', displayJa: '7', displayEn: '7', difficulty: 'normal' },
-  { suffix: 'm7b5', displayJa: 'm7b5', displayEn: 'm7b5', difficulty: 'normal' },
-  { suffix: 'mM7', displayJa: 'mM7', displayEn: 'mM7', difficulty: 'normal' },
-  { suffix: 'dim7', displayJa: 'dim7', displayEn: 'dim7', difficulty: 'normal' },
-  { suffix: 'aug7', displayJa: 'aug7', displayEn: 'aug7', difficulty: 'normal' },
-  { suffix: '6', displayJa: '6', displayEn: '6', difficulty: 'normal' },
-  { suffix: 'm6', displayJa: 'm6', displayEn: 'm6', difficulty: 'normal' },
-  // Hard (6)
-  { suffix: 'M7(9)', displayJa: 'M7(9)', displayEn: 'M7(9)', difficulty: 'hard' },
-  { suffix: 'm7(9)', displayJa: 'm7(9)', displayEn: 'm7(9)', difficulty: 'hard' },
-  { suffix: '7(9.6th)', displayJa: '7(9.13)', displayEn: '7(9.13)', difficulty: 'hard' },
-  { suffix: '7(b9.b6th)', displayJa: '7(b9.b13)', displayEn: '7(b9.b13)', difficulty: 'hard' },
-  { suffix: '6(9)', displayJa: '6(9)', displayEn: '6(9)', difficulty: 'hard' },
-  { suffix: 'm6(9)', displayJa: 'm6(9)', displayEn: 'm6(9)', difficulty: 'hard' },
-  // Extreme (4)
-  { suffix: '7(b9.6th)', displayJa: '7(b9.13)', displayEn: '7(b9.13)', difficulty: 'extreme' },
-  { suffix: '7(#9.b6th)', displayJa: '7(#9.b13)', displayEn: '7(#9.b13)', difficulty: 'extreme' },
-  { suffix: 'm7(b5)(11)', displayJa: 'm7(b5)(11)', displayEn: 'm7(b5)(11)', difficulty: 'extreme' },
-  { suffix: 'dim(M7)', displayJa: 'dim(M7)', displayEn: 'dim(M7)', difficulty: 'extreme' },
+  // Easy (2 blocks)
+  { blockKey: 'major', suffix: '', displayJa: 'メジャー', displayEn: 'Major', difficulty: 'easy' },
+  { blockKey: 'minor', suffix: 'm', displayJa: 'マイナー', displayEn: 'Minor', difficulty: 'easy', trailingMixedGroup: 'easy' },
+  // Normal 前半 (4 blocks)
+  { blockKey: 'M7', suffix: 'M7', displayJa: 'M7', displayEn: 'M7', difficulty: 'normal' },
+  { blockKey: 'm7', suffix: 'm7', displayJa: 'm7', displayEn: 'm7', difficulty: 'normal' },
+  { blockKey: '7', suffix: '7', displayJa: '7', displayEn: '7', difficulty: 'normal' },
+  { blockKey: 'm7b5', suffix: 'm7b5', displayJa: 'm7b5', displayEn: 'm7b5', difficulty: 'normal', trailingMixedGroup: 'normalA' },
+  // Normal 後半 (5 blocks)
+  { blockKey: 'mM7', suffix: 'mM7', displayJa: 'mM7', displayEn: 'mM7', difficulty: 'normal' },
+  { blockKey: 'dim7', suffix: 'dim7', displayJa: 'dim7', displayEn: 'dim7', difficulty: 'normal' },
+  { blockKey: 'aug7', suffix: 'aug7', displayJa: 'aug7', displayEn: 'aug7', difficulty: 'normal' },
+  { blockKey: '6', suffix: '6', displayJa: '6', displayEn: '6', difficulty: 'normal' },
+  { blockKey: 'm6', suffix: 'm6', displayJa: 'm6', displayEn: 'm6', difficulty: 'normal', trailingMixedGroup: 'normalB' },
+  // Hard (6 blocks)
+  { blockKey: 'M7_9', suffix: 'M7(9)', displayJa: 'M7(9)', displayEn: 'M7(9)', difficulty: 'hard' },
+  { blockKey: 'm7_9', suffix: 'm7(9)', displayJa: 'm7(9)', displayEn: 'm7(9)', difficulty: 'hard' },
+  { blockKey: '7_9_13', suffix: '7(9.6th)', displayJa: '7(9.13)', displayEn: '7(9.13)', difficulty: 'hard' },
+  { blockKey: '7_b9_b13', suffix: '7(b9.b6th)', displayJa: '7(b9.b13)', displayEn: '7(b9.b13)', difficulty: 'hard' },
+  { blockKey: '6_9', suffix: '6(9)', displayJa: '6(9)', displayEn: '6(9)', difficulty: 'hard' },
+  { blockKey: 'm6_9', suffix: 'm6(9)', displayJa: 'm6(9)', displayEn: 'm6(9)', difficulty: 'hard', trailingMixedGroup: 'hard' },
+  // Extreme (4 blocks)
+  { blockKey: '7_b9_13', suffix: '7(b9.6th)', displayJa: '7(b9.13)', displayEn: '7(b9.13)', difficulty: 'extreme' },
+  { blockKey: '7_sharp9_b13', suffix: '7(#9.b6th)', displayJa: '7(#9.b13)', displayEn: '7(#9.b13)', difficulty: 'extreme' },
+  { blockKey: 'm7b5_11', suffix: 'm7(b5)(11)', displayJa: 'm7(b5)(11)', displayEn: 'm7(b5)(11)', difficulty: 'extreme' },
+  { blockKey: 'dimM7', suffix: 'dim(M7)', displayJa: 'dim(M7)', displayEn: 'dim(M7)', difficulty: 'extreme', trailingMixedGroup: 'extreme' },
 ];
 
-const DIFFICULTY_ORDER: SurvivalDifficulty[] = ['easy', 'normal', 'hard', 'extreme'];
+/** 難易度グループ別 Mixed の対象コードタイプ suffix 群 */
+const MIXED_GROUPS: Record<Exclude<ChordTypeDef['trailingMixedGroup'], undefined>, { suffixes: string[]; difficulty: SurvivalDifficulty; blockKey: BlockKey }> = {
+  easy: { suffixes: ['', 'm'], difficulty: 'easy', blockKey: 'minor' },
+  normalA: { suffixes: ['M7', 'm7', '7', 'm7b5'], difficulty: 'normal', blockKey: 'm7b5' },
+  normalB: { suffixes: ['mM7', 'dim7', 'aug7', '6', 'm6'], difficulty: 'normal', blockKey: 'm6' },
+  hard: { suffixes: ['M7(9)', 'm7(9)', '7(9.6th)', '7(b9.b6th)', '6(9)', 'm6(9)'], difficulty: 'hard', blockKey: 'm6_9' },
+  extreme: { suffixes: ['7(b9.6th)', '7(#9.b6th)', 'm7(b5)(11)', 'dim(M7)'], difficulty: 'extreme', blockKey: 'dimM7' },
+};
 
 function buildAllowedChords(roots: string[], suffix: string): string[] {
   return roots.map(r => `${r}${suffix}`);
 }
 
-function buildMixedAllowedChordsForDifficulty(difficulty: SurvivalDifficulty): string[] {
-  const types = CHORD_TYPES.filter(ct => ct.difficulty === difficulty);
+function buildMixedAllowedChords(suffixes: string[]): string[] {
   const combined: string[] = [];
-  for (const ct of types) {
-    combined.push(...buildAllowedChords(ROOT_ALL, ct.suffix));
+  for (const suffix of suffixes) {
+    combined.push(...buildAllowedChords(ROOT_ALL, suffix));
   }
   return combined;
 }
@@ -101,45 +138,47 @@ function generateAllStages(): StageDefinition[] {
   const stages: StageDefinition[] = [];
   let stageNum = 1;
 
-  for (const difficulty of DIFFICULTY_ORDER) {
-    const typesInDifficulty = CHORD_TYPES.filter(ct => ct.difficulty === difficulty);
-    for (const chordType of typesInDifficulty) {
-      for (const pattern of PATTERNS) {
-        const roots = ROOTS_BY_PATTERN[pattern];
-        const patternName = PATTERN_NAMES[pattern];
-        stages.push({
-          stageNumber: stageNum,
-          name: `${stageNum}. ${chordType.displayJa} ${patternName.ja}`,
-          nameEn: `${stageNum}. ${chordType.displayEn} ${patternName.en}`,
-          difficulty,
-          chordSuffix: chordType.suffix,
-          chordDisplayName: chordType.displayJa,
-          chordDisplayNameEn: chordType.displayEn,
-          rootPattern: pattern,
-          rootPatternName: patternName.ja,
-          rootPatternNameEn: patternName.en,
-          allowedChords: buildAllowedChords(roots, chordType.suffix),
-        });
-        stageNum++;
-      }
+  for (const chordType of CHORD_TYPES) {
+    for (const pattern of PATTERNS) {
+      const roots = ROOTS_BY_PATTERN[pattern];
+      const patternName = PATTERN_NAMES[pattern];
+      stages.push({
+        stageNumber: stageNum,
+        name: `${stageNum}. ${chordType.displayJa} ${patternName.ja}`,
+        nameEn: `${stageNum}. ${chordType.displayEn} ${patternName.en}`,
+        difficulty: chordType.difficulty,
+        chordSuffix: chordType.suffix,
+        chordDisplayName: chordType.displayJa,
+        chordDisplayNameEn: chordType.displayEn,
+        rootPattern: pattern,
+        rootPatternName: patternName.ja,
+        rootPatternNameEn: patternName.en,
+        allowedChords: buildAllowedChords(roots, chordType.suffix),
+        blockKey: chordType.blockKey,
+      });
+      stageNum++;
     }
 
-    const patternAll = PATTERN_NAMES.all;
-    stages.push({
-      stageNumber: stageNum,
-      name: `${stageNum}. ミックス ${patternAll.ja}`,
-      nameEn: `${stageNum}. Mixed ${patternAll.en}`,
-      difficulty,
-      chordSuffix: 'mixed',
-      chordDisplayName: 'ミックス',
-      chordDisplayNameEn: 'Mixed',
-      rootPattern: 'all',
-      rootPatternName: patternAll.ja,
-      rootPatternNameEn: patternAll.en,
-      allowedChords: buildMixedAllowedChordsForDifficulty(difficulty),
-      isMixedStage: true,
-    });
-    stageNum++;
+    if (chordType.trailingMixedGroup) {
+      const group = MIXED_GROUPS[chordType.trailingMixedGroup];
+      const patternAll = PATTERN_NAMES.all;
+      stages.push({
+        stageNumber: stageNum,
+        name: `${stageNum}. ミックス ${patternAll.ja}`,
+        nameEn: `${stageNum}. Mixed ${patternAll.en}`,
+        difficulty: group.difficulty,
+        chordSuffix: 'mixed',
+        chordDisplayName: 'ミックス',
+        chordDisplayNameEn: 'Mixed',
+        rootPattern: 'all',
+        rootPatternName: patternAll.ja,
+        rootPatternNameEn: patternAll.en,
+        allowedChords: buildMixedAllowedChords(group.suffixes),
+        blockKey: group.blockKey,
+        isMixedStage: true,
+      });
+      stageNum++;
+    }
   }
 
   return stages;

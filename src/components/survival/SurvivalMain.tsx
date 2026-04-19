@@ -7,7 +7,7 @@
 import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import { SurvivalDifficulty, DifficultyConfig, SurvivalCharacter } from './SurvivalTypes';
 import { DebugSettings, DIFFICULTY_CONFIGS } from './SurvivalStageSelect';
-import SurvivalStageMode from './SurvivalStageMode';
+import SurvivalDescentMap from './descent/SurvivalDescentMap';
 import SurvivalGameScreen from './SurvivalGameScreen';
 import { StageDefinition, STAGE_TIME_LIMIT_SECONDS, ALL_STAGES, TOTAL_STAGES } from './SurvivalStageDefinitions';
 import { useAuthStore } from '@/stores/authStore';
@@ -422,7 +422,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
           </div>
         </div>
 
-        <SurvivalStageMode
+        <SurvivalDescentMap
           embedded
           playLocked={survivalPlayLocked}
           onStageSelect={handleStageSelect}
@@ -456,7 +456,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   return (
     <>
       <GameHeader />
-      <SurvivalStageMode
+      <SurvivalDescentMap
         embedded
         playLocked={survivalPlayLocked}
         onStageSelect={handleStageSelect}
