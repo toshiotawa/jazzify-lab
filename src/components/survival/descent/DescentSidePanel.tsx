@@ -2,15 +2,14 @@
  * 降下マップ 右側情報パネル (デスクトップ向け)
  * - SURVIVAL 見出し / 全体進捗
  * - 現在 or 選択中ブロック名 / 進捗
- * - 選択中ステージ詳細 / 状態 / ベスト / 開始ボタン
+ * - 選択中ステージ詳細 / 状態 / 開始ボタン
  */
 
 import React from 'react';
 import { cn } from '@/utils/cn';
-import { FaLock, FaCheck, FaPlay, FaCrown } from 'react-icons/fa';
+import { FaLock, FaCheck, FaPlay } from 'react-icons/fa';
 import { StageDefinition, STAGE_TIME_LIMIT_SECONDS } from '../SurvivalStageDefinitions';
 import { BlockMeta } from './descentBlocks';
-import { SurvivalStageClear } from '@/platform/supabaseSurvival';
 
 interface DescentSidePanelProps {
   isEnglishCopy: boolean;
@@ -21,19 +20,12 @@ interface DescentSidePanelProps {
   selectedStage: StageDefinition | null;
   selectedStageIsUnlocked: boolean;
   selectedStageIsCleared: boolean;
-  selectedStageClear: SurvivalStageClear | null;
   hintMode: boolean;
   onHintModeChange: (v: boolean) => void;
   playLocked: boolean;
   onStart: () => void;
   onRequestUpgrade: () => void;
 }
-
-const formatTime = (seconds: number): string => {
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return `${m}:${s.toString().padStart(2, '0')}`;
-};
 
 export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   isEnglishCopy,
@@ -44,7 +36,6 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
   selectedStage,
   selectedStageIsUnlocked,
   selectedStageIsCleared,
-  selectedStageClear,
   hintMode,
   onHintModeChange,
   playLocked,
@@ -169,41 +160,6 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                 {isEnglishCopy
                   ? 'Mixed: all chord types in this block.'
                   : 'ミックス: このブロック全コードタイプ'}
-              </div>
-            )}
-
-            {selectedStageClear && (
-              <div className="mb-3 rounded-md border border-emerald-500/20 bg-emerald-950/20 p-2.5">
-                <div className="mb-1 flex items-center gap-2 text-[11px] text-emerald-200">
-                  <FaCrown className="text-emerald-300" />
-                  {isEnglishCopy ? 'Best Record' : 'ベスト記録'}
-                </div>
-                <div className="grid grid-cols-3 gap-2 text-center text-[11px]">
-                  <div>
-                    <div className="text-gray-400 text-[10px]">
-                      {isEnglishCopy ? 'Time' : '時間'}
-                    </div>
-                    <div className="font-mono text-white">
-                      {formatTime(selectedStageClear.survivalTimeSeconds)}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 text-[10px]">
-                      {isEnglishCopy ? 'Lv' : 'Lv'}
-                    </div>
-                    <div className="font-mono text-white">
-                      {selectedStageClear.finalLevel}
-                    </div>
-                  </div>
-                  <div>
-                    <div className="text-gray-400 text-[10px]">
-                      {isEnglishCopy ? 'Kills' : '撃破'}
-                    </div>
-                    <div className="font-mono text-white">
-                      {selectedStageClear.enemiesDefeated}
-                    </div>
-                  </div>
-                </div>
               </div>
             )}
 

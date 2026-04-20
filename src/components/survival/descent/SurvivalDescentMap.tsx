@@ -17,7 +17,6 @@ import {
   fetchSurvivalStageProgress,
   fetchSurvivalStageClears,
   SurvivalCharacterRow,
-  SurvivalStageClear,
 } from '@/platform/supabaseSurvival';
 import { DIFFICULTY_CONFIGS } from '../SurvivalStageSelect';
 import {
@@ -150,7 +149,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [difficultyConfigs, setDifficultyConfigs] = useState<DifficultyConfig[]>(DIFFICULTY_CONFIGS);
   const [currentStageNumber, setCurrentStageNumber] = useState(1);
   const [clearedStages, setClearedStages] = useState<Set<number>>(new Set());
-  const [stageClearsByStage, setStageClearsByStage] = useState<Map<number, SurvivalStageClear>>(new Map());
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
@@ -245,9 +243,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         try {
           const clears = await fetchSurvivalStageClears(profile.id);
           setClearedStages(new Set(clears.map(c => c.stageNumber)));
-          const map = new Map<number, SurvivalStageClear>();
-          clears.forEach(c => map.set(c.stageNumber, c));
-          setStageClearsByStage(map);
         } catch { /* ignore */ }
       }
 
@@ -407,7 +402,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, [adjustCamera, loading]);
 
   const handleSelectStage = useCallback((stageNumber: number) => {
-    SurvivalMapAudio.playSe('stage_click');
     setSelectedStageNumber(stageNumber);
     const pos = getStagePosition(stageNumber);
     if (pos) focusCamera(pos.y);
@@ -472,11 +466,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     if (!panelBlock) return 0;
     return panelBlock.stageNumbers.filter(n => clearedStages.has(n)).length;
   }, [panelBlock, clearedStages]);
-
-  const selectedStageClear = useMemo<SurvivalStageClear | null>(() => {
-    if (!selectedStage) return null;
-    return stageClearsByStage.get(selectedStage.stageNumber) ?? null;
-  }, [selectedStage, stageClearsByStage]);
 
   if (loading) {
     return (
@@ -644,7 +633,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             selectedStage={selectedStage}
             selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
             selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
-            selectedStageClear={selectedStageClear}
             hintMode={hintMode}
             onHintModeChange={setHintMode}
             playLocked={playLocked}
@@ -686,7 +674,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                 selectedStage={selectedStage}
                 selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
                 selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
-                selectedStageClear={selectedStageClear}
                 hintMode={hintMode}
                 onHintModeChange={setHintMode}
                 playLocked={playLocked}
