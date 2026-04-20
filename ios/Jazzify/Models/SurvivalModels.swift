@@ -40,6 +40,16 @@ struct SurvivalStageClearRow: Codable, Sendable {
     }
 }
 
+struct SurvivalStageProgressRow: Codable, Sendable {
+    let currentStageNumber: Int
+    let totalClearedStages: Int
+
+    enum CodingKeys: String, CodingKey {
+        case currentStageNumber = "current_stage_number"
+        case totalClearedStages = "total_cleared_stages"
+    }
+}
+
 struct SurvivalDifficultyRow: Codable, Identifiable, Sendable {
     let id: UUID
     let difficulty: String

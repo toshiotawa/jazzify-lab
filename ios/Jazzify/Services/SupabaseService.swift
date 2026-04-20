@@ -468,6 +468,18 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// Web 版 `fetchSurvivalStageProgress` と同じデータを返す。行が無い場合は `(current: 1, cleared: 0)` を使用するよう呼び出し側で扱う。
+    func fetchSurvivalStageProgress(userId: UUID) async throws -> SurvivalStageProgressRow? {
+        let rows: [SurvivalStageProgressRow] = try await client
+            .from("survival_stage_progress")
+            .select("current_stage_number, total_cleared_stages")
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first
+    }
+
     // MARK: - Daily Challenge Records
 
     func fetchDailyChallengeRecords(userId: UUID, difficulty: String, since: String) async throws -> [DailyChallengeRecordRow] {

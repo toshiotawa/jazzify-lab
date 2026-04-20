@@ -47,6 +47,7 @@
 		EDBC42A930C4782BFB482A81 /* MIDIBridge.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */; };
 		F7B880F18591177477CF6FE3 /* BillingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 44BB606E44E08242A371BE80 /* BillingService.swift */; };
 		FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F76672005EE666A9B39BC95 /* SurvivalModels.swift */; };
+		CD4F8AD1C6B23E0F72A41C90 /* SurvivalStageDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD4F8AD2C6B23E0F72A41C91 /* SurvivalStageDefinition.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -71,6 +72,7 @@
 		710661B97325754204CE9621 /* OrientationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationManager.swift; sourceTree = "<group>"; };
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
 		7F76672005EE666A9B39BC95 /* SurvivalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalModels.swift; sourceTree = "<group>"; };
+		CD4F8AD2C6B23E0F72A41C91 /* SurvivalStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageDefinition.swift; sourceTree = "<group>"; };
 		8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerifyView.swift; sourceTree = "<group>"; };
 		8497DA09733314AB9BE43767 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		8AE637ADB172B5C753918491 /* SurvivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalView.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				59EA909F7A24426B48949D2C /* Profile.swift */,
 				ECDEDC88537A018A2B1C9EB2 /* Subscription.swift */,
 				7F76672005EE666A9B39BC95 /* SurvivalModels.swift */,
+				CD4F8AD2C6B23E0F72A41C91 /* SurvivalStageDefinition.swift */,
 				E8965BF87290861DA4507B67 /* UserStats.swift */,
 			);
 			path = Models;
@@ -366,6 +369,7 @@
 				A1B2C3D4E5F6789012345678 /* PaymentIssueBannerView.swift in Sources */,
 				07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */,
 				FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */,
+				CD4F8AD1C6B23E0F72A41C90 /* SurvivalStageDefinition.swift in Sources */,
 				537268253B9AB86886F57E47 /* SurvivalView.swift in Sources */,
 				56798F7B79D567C225C5CB37 /* TopView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,
