@@ -186,7 +186,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return () => ro.disconnect();
   }, []);
 
-  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 1.6);
+  const scale = Math.min(viewport.width / MAP_LOGICAL_WIDTH, 2.2);
   const mapWidthPx = MAP_LOGICAL_WIDTH * scale;
   const mapHeightPx = MAP_LOGICAL_HEIGHT * scale;
   const worldWidthPx = Math.max(mapWidthPx, viewport.width);
@@ -486,13 +486,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </button>
       )}
 
-      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-0 md:grid-cols-[minmax(0,1fr)_340px]">
+      <div className="mx-auto grid w-full max-w-[1700px] grid-cols-1 gap-0 md:grid-cols-[minmax(0,1fr)_320px]">
         <div
           ref={viewportRef}
           className="relative overflow-hidden touch-none select-none"
           style={{
             width: '100%',
-            height: isMobileLayout ? 'min(88vh, 100%)' : 'min(86vh, 920px)',
+            height: isMobileLayout ? 'min(88vh, 100%)' : 'min(88vh, 960px)',
             borderTopLeftRadius: 10,
             borderBottomLeftRadius: 10,
             borderTopRightRadius: isMobileLayout ? 10 : 0,
@@ -561,7 +561,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           </div>
         </div>
 
-        <div className="hidden md:block md:h-[min(86vh,920px)]">
+        <div className="hidden md:block md:h-[min(88vh,960px)]">
           <DescentSidePanel
             isEnglishCopy={isEnglishCopy}
             totalClearedCount={clearedStages.size}

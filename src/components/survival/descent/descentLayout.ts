@@ -7,14 +7,14 @@
 import { ALL_BLOCKS, BlockMeta, getBlockByKey, getBlockForStage } from './descentBlocks';
 import { BlockKey } from '../SurvivalStageDefinitions';
 
-/** ロジカル座標系の幅（デザイン基準・スマホ縦画面相当） */
-export const MAP_LOGICAL_WIDTH = 390;
+/** ロジカル座標系の幅（デザイン基準・横長レイアウト寄り） */
+export const MAP_LOGICAL_WIDTH = 560;
 
 /** 3レーンの X 座標（論理座標） */
 export const LANE_X = {
-  L: 95,
+  L: 120,
   C: MAP_LOGICAL_WIDTH / 2,
-  R: 295,
+  R: 440,
 } as const;
 
 export type LaneKey = keyof typeof LANE_X;

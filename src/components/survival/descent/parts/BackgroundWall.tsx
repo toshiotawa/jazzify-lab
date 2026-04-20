@@ -1,12 +1,12 @@
 /**
  * 魔王城降下マップ: 背景レンガ壁
- * background.webp を縦横にタイルし、下層ほど暗くなるグラデをオーバーレイする。
- * さらにブロック深度に応じて色相が段階変化する深度レイヤを重ねる。
+ * ブロックごとに hue-rotate / saturate / contrast フィルターを掛けた
+ * 石壁テクスチャを貼り分けることで、降下するほど景色が大きく変化する。
  */
 
 import React from 'react';
 import { ALL_BLOCK_LAYOUTS } from '../descentLayout';
-import { getBlockTint } from '../blockTheme';
+import { getBlockFilter, getBlockTint } from '../blockTheme';
 
 interface BackgroundWallProps {
   widthPx: number;
@@ -23,27 +23,38 @@ export const BackgroundWall: React.FC<BackgroundWallProps> = ({ widthPx, heightP
       style={{
         width: widthPx,
         height: heightPx,
-        backgroundImage: "url('/background.webp?v=20260420b')",
-        backgroundRepeat: 'repeat',
-        backgroundSize: `${tile}px ${tile}px`,
+        background: '#09070f',
       }}
     >
       {ALL_BLOCK_LAYOUTS.map(layout => {
+        const filter = getBlockFilter(layout.blockIndex);
         const tint = getBlockTint(layout.blockIndex);
         const top = layout.startY * scale;
         const height = (layout.endY - layout.startY) * scale;
         return (
-          <div
-            key={`tint-${layout.blockKey}`}
-            className="absolute left-0 w-full"
-            style={{
-              top,
-              height,
-              background: `linear-gradient(to bottom, ${tint.top} 0%, ${tint.bottom} 100%)`,
-              mixBlendMode: 'soft-light',
-              opacity: 0.9,
-            }}
-          />
+          <React.Fragment key={`bg-${layout.blockKey}`}>
+            <div
+              className="absolute left-0 w-full"
+              style={{
+                top,
+                height,
+                backgroundImage: "url('/background.webp?v=20260420b')",
+                backgroundRepeat: 'repeat',
+                backgroundSize: `${tile}px ${tile}px`,
+                filter: filter.background,
+              }}
+            />
+            <div
+              className="absolute left-0 w-full"
+              style={{
+                top,
+                height,
+                background: `linear-gradient(to bottom, ${tint.top} 0%, ${tint.bottom} 100%)`,
+                mixBlendMode: 'overlay',
+                opacity: 0.85,
+              }}
+            />
+          </React.Fragment>
         );
       })}
 
@@ -51,7 +62,7 @@ export const BackgroundWall: React.FC<BackgroundWallProps> = ({ widthPx, heightP
         className="absolute inset-0"
         style={{
           background:
-            'linear-gradient(to bottom, rgba(18,22,40,0.35) 0%, rgba(18,16,38,0.5) 25%, rgba(28,14,48,0.62) 55%, rgba(12,8,22,0.82) 85%, rgba(4,2,10,0.95) 100%)',
+            'linear-gradient(to bottom, rgba(18,22,40,0.25) 0%, rgba(18,16,38,0.4) 25%, rgba(28,14,48,0.55) 55%, rgba(12,8,22,0.75) 85%, rgba(4,2,10,0.9) 100%)',
         }}
       />
       <div

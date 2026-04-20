@@ -18,6 +18,8 @@ interface StairConnectorProps {
   scale: number;
   dim?: boolean;
   highlighted?: boolean;
+  /** 通常線に適用する色相回転 (度) */
+  hueDeg?: number;
 }
 
 function buildStepPath(from: Point, to: Point): string {
@@ -38,7 +40,7 @@ function buildStepPath(from: Point, to: Point): string {
   return points.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ');
 }
 
-export const StairConnector: React.FC<StairConnectorProps> = ({ from, to, scale, dim, highlighted }) => {
+export const StairConnector: React.FC<StairConnectorProps> = ({ from, to, scale, dim, highlighted, hueDeg = 0 }) => {
   const padX = 20;
   const padY = 10;
   const minX = Math.min(from.x, to.x) - padX;
@@ -72,6 +74,7 @@ export const StairConnector: React.FC<StairConnectorProps> = ({ from, to, scale,
         height: heightPx,
         opacity,
         overflow: 'visible',
+        filter: !highlighted && hueDeg !== 0 ? `hue-rotate(${hueDeg}deg) saturate(1.1)` : undefined,
       }}
       width={widthPx}
       height={heightPx}
