@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Course, Lesson } from '@/types';
 import { fetchCourseById, canAccessCourse, fetchUserCompletedCourses } from '@/platform/supabaseCourses';
@@ -9,14 +9,14 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast } from '@/stores/toastStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { courseDisplayDescription, courseDisplayTitle } from '@/utils/courseCopy';
-import { lessonDisplayTitle } from '@/utils/lessonCopy';
 import { useGeoStore } from '@/stores/geoStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
-import { FaLock, FaCheck, FaStar, FaChevronRight, FaArrowLeft } from 'react-icons/fa';
+import { FaArrowLeft } from 'react-icons/fa';
 import GameHeader from '@/components/ui/GameHeader';
 import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '@/platform/supabaseLessonRequirements';
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
+import LessonJourneyMap from './journey/LessonJourneyMap';
 
 const CoursePage: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -25,10 +25,7 @@ const CoursePage: React.FC = () => {
   const [lessons, setLessons] = useState<Lesson[]>([]);
   const [progress, setProgress] = useState<Record<string, LessonProgress>>({});
   const [lessonRequirementsProgress, setLessonRequirementsProgress] = useState<Record<string, LessonRequirementProgress[]>>({});
-  const [completedCourseIds, setCompletedCourseIds] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const shouldScrollToIncomplete = useRef(true);
 
   const { profile } = useAuthStore();
   const toast = useToast();
@@ -84,7 +81,6 @@ const CoursePage: React.FC = () => {
         }
 
         setCourse(courseData);
-        setCompletedCourseIds(completedCourses);
         clearNavigationCacheForCourse(courseId);
 
         const [lessonsData, progressData] = await Promise.all([
@@ -183,58 +179,16 @@ const CoursePage: React.FC = () => {
     });
   }, [lessons, progress, effectiveRank]);
 
-  useEffect(() => {
-    if (!shouldScrollToIncomplete.current || lessons.length === 0 || loading) return;
-    shouldScrollToIncomplete.current = false;
-
-    const sorted = [...lessons].sort((a, b) => {
-      const ba = a.block_number || 1;
-      const bb = b.block_number || 1;
-      return ba !== bb ? ba - bb : a.order_index - b.order_index;
-    });
-
-    const first = sorted.find(l => !(lessonAccessGraph.lessonStates[l.id]?.isCompleted));
-    if (first && scrollRef.current) {
-      requestAnimationFrame(() => {
-        const el = scrollRef.current?.querySelector(`[data-lesson-id="${first.id}"]`);
-        el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-    }
-  }, [lessons, loading, lessonAccessGraph]);
-
-  const groupLessonsByBlock = (items: Lesson[]) => {
-    const blocks: Record<number, Lesson[]> = {};
-    const blockNames: Record<number, string> = {};
-    items.forEach(lesson => {
-      const bn = lesson.block_number || 1;
-      if (!blocks[bn]) blocks[bn] = [];
-      blocks[bn].push(lesson);
-      if (!blockNames[bn]) {
-        if (isEnglishCopy) {
-          if (lesson.block_name_en) blockNames[bn] = lesson.block_name_en;
-          else if (lesson.block_name) blockNames[bn] = lesson.block_name;
-        } else if (lesson.block_name) {
-          blockNames[bn] = lesson.block_name;
-        }
-      }
-    });
-    return { blocks, blockNames };
-  };
-
-  const getLessonCompletionRate = (lesson: Lesson): number => {
-    const reqs = lessonRequirementsProgress[lesson.id] || [];
-    if (reqs.length === 0) return 0;
-    return Math.round((reqs.filter(r => r.is_completed).length / reqs.length) * 100);
-  };
-
-  const handleLessonClick = (lesson: Lesson) => {
-    const state = lessonAccessGraph.lessonStates[lesson.id];
+  const handleStartLesson = useCallback((lessonId: string) => {
+    const state = lessonAccessGraph.lessonStates[lessonId];
     if (!state?.isUnlocked) {
-      toast.warning(isEnglishCopy ? 'This lesson is not yet unlocked' : 'このレッスンはまだ解放されていません');
+      toast.warning(
+        isEnglishCopy ? 'This lesson is not yet unlocked' : 'このレッスンはまだ解放されていません',
+      );
       return;
     }
-    window.location.hash = `#lesson-detail?id=${lesson.id}`;
-  };
+    window.location.hash = `#lesson-detail?id=${lessonId}`;
+  }, [lessonAccessGraph, toast, isEnglishCopy]);
 
   if (!open) return null;
 
@@ -263,21 +217,25 @@ const CoursePage: React.FC = () => {
   const courseDesc = course ? courseDisplayDescription(course, isEnglishCopy) : undefined;
 
   return (
-    <div className="w-full h-full flex flex-col bg-gradient-game text-white">
+    <div
+      className="w-full h-full flex flex-col text-white"
+      style={{
+        background: 'linear-gradient(to top, #050315 0%, #0b0624 45%, #150a32 100%)',
+      }}
+    >
       <GameHeader />
-      <div ref={scrollRef} className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-6 space-y-6">
-          {/* Breadcrumb */}
-          <nav className="flex items-center gap-2 text-sm text-gray-400">
+      <div className="flex-1 overflow-y-auto" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="max-w-[1700px] mx-auto px-3 sm:px-5 py-4 space-y-4">
+          <nav className="flex items-center gap-2 text-sm text-violet-200/75">
             <button
-              className="hover:text-white transition-colors flex items-center gap-1.5"
+              className="hover:text-violet-100 transition-colors flex items-center gap-1.5"
               onClick={() => { window.location.hash = '#lessons'; }}
             >
               <FaArrowLeft className="text-xs" />
               {isEnglishCopy ? 'Lessons' : 'レッスン'}
             </button>
-            <span>/</span>
-            <span className="text-white truncate">
+            <span className="opacity-50">/</span>
+            <span className="text-violet-50 truncate">
               {course ? courseDisplayTitle(course, isEnglishCopy) : '...'}
             </span>
           </nav>
@@ -285,18 +243,17 @@ const CoursePage: React.FC = () => {
           {loading ? (
             <div className="flex items-center justify-center py-20">
               <div className="flex flex-col items-center gap-3">
-                <div className="w-8 h-8 border-2 border-primary-500 border-t-transparent rounded-full animate-spin" />
-                <p className="text-sm text-gray-400">
+                <div className="w-8 h-8 border-2 border-violet-400 border-t-transparent rounded-full animate-spin" />
+                <p className="text-sm text-violet-200/75">
                   {isEnglishCopy ? 'Loading...' : '読み込み中...'}
                 </p>
               </div>
             </div>
           ) : course ? (
             <>
-              {/* Course header */}
-              <div className="bg-slate-800/60 rounded-xl border border-slate-700/50 p-5">
+              <div className="rounded-2xl border border-violet-400/20 bg-[rgba(15,8,42,0.6)] backdrop-blur-sm p-4 sm:p-5">
                 <div className="flex items-start justify-between gap-4 mb-3">
-                  <div>
+                  <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2 mb-1">
                       {course.is_tutorial && (
                         <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-bold border border-cyan-500/30">
@@ -304,130 +261,46 @@ const CoursePage: React.FC = () => {
                         </span>
                       )}
                       {course.premium_only && (
-                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-yellow-400 text-black font-bold">
+                        <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-400 text-amber-950 font-bold">
                           Premium
                         </span>
                       )}
                     </div>
-                    <h1 className="text-xl font-bold">{courseDisplayTitle(course, isEnglishCopy)}</h1>
+                    <h1 className="text-xl font-bold text-violet-50 truncate">
+                      {courseDisplayTitle(course, isEnglishCopy)}
+                    </h1>
                   </div>
                   <div className="text-right shrink-0">
-                    <span className="text-2xl font-bold text-primary-400">{courseProgress}%</span>
-                    <p className="text-xs text-gray-400">
+                    <span className="text-2xl font-bold text-amber-200">{courseProgress}%</span>
+                    <p className="text-xs text-violet-200/70">
                       {completedLessons}/{totalLessons} {isEnglishCopy ? 'completed' : '完了'}
                     </p>
                   </div>
                 </div>
                 {courseDesc && (
-                  <p className="text-sm text-gray-400">{courseDesc}</p>
+                  <p className="text-sm text-violet-100/75">{courseDesc}</p>
                 )}
-                <div className="mt-3 h-1.5 bg-slate-700/80 rounded-full overflow-hidden">
+                <div className="mt-3 h-1.5 bg-slate-900/60 rounded-full overflow-hidden">
                   <div
-                    className={`h-full rounded-full transition-all duration-500 ${
-                      courseProgress === 100 ? 'bg-emerald-500' : 'bg-primary-500'
-                    }`}
-                    style={{ width: `${courseProgress}%` }}
+                    className="h-full rounded-full transition-all duration-500"
+                    style={{
+                      width: `${courseProgress}%`,
+                      background: courseProgress === 100
+                        ? 'linear-gradient(to right, #7de3a7, #3ecf9b)'
+                        : 'linear-gradient(to right, #c4b5fd, #8b5cf6)',
+                    }}
                   />
                 </div>
               </div>
 
-              {/* Blocks */}
-              <div className="space-y-5">
-                {(() => {
-                  const { blocks, blockNames } = groupLessonsByBlock(lessons);
-                  return Object.entries(blocks).map(([blockNumber, blockLessons]) => {
-                    const blockNum = parseInt(blockNumber);
-                    const blockState = lessonAccessGraph.blockStates[blockNum];
-                    const isBlockUnlocked = blockState?.isUnlocked ?? false;
-                    const isBlockCompleted = blockState?.isCompleted ?? false;
-
-                    return (
-                      <div key={blockNum} className="space-y-2">
-                        <div className="flex items-center justify-between px-1">
-                          <h3 className="text-base font-semibold">
-                            {blockNames[blockNum] || `${isEnglishCopy ? 'Block' : 'ブロック'} ${blockNum}`}
-                          </h3>
-                          <span className={`text-xs font-medium px-2.5 py-1 rounded-full ${
-                            isBlockCompleted
-                              ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
-                              : isBlockUnlocked
-                                ? 'bg-blue-500/20 text-blue-400 border border-blue-500/30'
-                                : 'bg-slate-700/50 text-gray-500 border border-slate-600/30'
-                          }`}>
-                            {isBlockCompleted
-                              ? (isEnglishCopy ? 'Completed' : '完了')
-                              : isBlockUnlocked
-                                ? (isEnglishCopy ? 'In Progress' : '進行中')
-                                : (isEnglishCopy ? 'Locked' : '未解放')}
-                          </span>
-                        </div>
-
-                        <div className="space-y-2">
-                          {blockLessons
-                            .sort((a, b) => a.order_index - b.order_index)
-                            .map(lesson => {
-                              const accessState = lessonAccessGraph.lessonStates[lesson.id];
-                              const unlocked = accessState?.isUnlocked ?? false;
-                              const completed = accessState?.isCompleted ?? (progress[lesson.id]?.completed || false);
-                              const completionRate = getLessonCompletionRate(lesson);
-
-                              return (
-                                <button
-                                  key={lesson.id}
-                                  data-lesson-id={lesson.id}
-                                  className={`w-full text-left rounded-xl border p-4 transition-all duration-150 ${
-                                    unlocked
-                                      ? completed
-                                        ? 'border-emerald-500/30 bg-emerald-900/10 hover:bg-emerald-900/20'
-                                        : 'border-slate-600/50 bg-slate-800/50 hover:bg-slate-700/50 hover:border-primary-500/40'
-                                      : 'border-slate-700/30 bg-slate-800/20 opacity-50 cursor-not-allowed'
-                                  }`}
-                                  onClick={() => handleLessonClick(lesson)}
-                                >
-                                  <div className="flex items-center gap-3">
-                                    <div className={`shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-sm font-bold ${
-                                      completed
-                                        ? 'bg-emerald-500/20 text-emerald-400'
-                                        : unlocked
-                                          ? 'bg-primary-500/20 text-primary-400'
-                                          : 'bg-slate-700/50 text-gray-500'
-                                    }`}>
-                                      {completed ? <FaCheck /> : unlocked ? (lesson.order_index + 1) : <FaLock className="text-xs" />}
-                                    </div>
-
-                                    <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2">
-                                        <span className={`font-medium text-sm truncate ${unlocked ? 'text-white' : 'text-gray-500'}`}>
-                                          {lessonDisplayTitle(lesson, isEnglishCopy)}
-                                        </span>
-                                        {completed && <FaStar className="text-xs text-yellow-400 shrink-0" />}
-                                      </div>
-                                      {unlocked && !completed && completionRate > 0 && (
-                                        <div className="flex items-center gap-2 mt-1.5">
-                                          <div className="flex-1 h-1 bg-slate-700/80 rounded-full overflow-hidden">
-                                            <div
-                                              className="h-full bg-primary-500 rounded-full transition-all"
-                                              style={{ width: `${completionRate}%` }}
-                                            />
-                                          </div>
-                                          <span className="text-[10px] text-gray-400">{completionRate}%</span>
-                                        </div>
-                                      )}
-                                    </div>
-
-                                    {unlocked && (
-                                      <FaChevronRight className="text-xs text-gray-500 shrink-0" />
-                                    )}
-                                  </div>
-                                </button>
-                              );
-                            })}
-                        </div>
-                      </div>
-                    );
-                  });
-                })()}
-              </div>
+              <LessonJourneyMap
+                course={course}
+                lessons={lessons}
+                accessGraph={lessonAccessGraph}
+                requirementsProgress={lessonRequirementsProgress}
+                isEnglishCopy={isEnglishCopy}
+                onStartLesson={handleStartLesson}
+              />
             </>
           ) : null}
         </div>

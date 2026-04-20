@@ -1,0 +1,760 @@
+import SwiftUI
+
+// MARK: - Background
+
+struct LessonJourneyBackgroundView: View {
+    let widthPx: CGFloat
+    let heightPx: CGFloat
+
+    private var stars: [Star] {
+        Star.generate(
+            count: Int(min(200, max(80, (widthPx * heightPx) / 14000))),
+            width: widthPx,
+            height: heightPx,
+            seed: 29_081
+        )
+    }
+
+    var body: some View {
+        ZStack {
+            LinearGradient(
+                gradient: Gradient(colors: [
+                    Color(hex: "050315"),
+                    Color(hex: "0d0927"),
+                    Color(hex: "1b0a3f"),
+                    Color(hex: "2a1257"),
+                    Color(hex: "362076"),
+                ]),
+                startPoint: .bottom,
+                endPoint: .top
+            )
+            RadialGradient(
+                gradient: Gradient(colors: [Color.purple.opacity(0.22), .clear]),
+                center: .init(x: 0.3, y: 0.85),
+                startRadius: 0,
+                endRadius: widthPx * 0.8
+            )
+            RadialGradient(
+                gradient: Gradient(colors: [Color.cyan.opacity(0.14), .clear]),
+                center: .init(x: 0.8, y: 0.2),
+                startRadius: 0,
+                endRadius: widthPx * 0.7
+            )
+
+            Canvas { context, _ in
+                for star in stars {
+                    let rect = CGRect(
+                        x: star.x - star.radius,
+                        y: star.y - star.radius,
+                        width: star.radius * 2,
+                        height: star.radius * 2
+                    )
+                    context.fill(
+                        Path(ellipseIn: rect),
+                        with: .color(Color.white.opacity(star.opacity))
+                    )
+                }
+            }
+            .frame(width: widthPx, height: heightPx)
+            .allowsHitTesting(false)
+        }
+        .frame(width: widthPx, height: heightPx)
+    }
+
+    private struct Star {
+        let x: CGFloat
+        let y: CGFloat
+        let radius: CGFloat
+        let opacity: Double
+
+        static func generate(count: Int, width: CGFloat, height: CGFloat, seed: UInt64) -> [Star] {
+            var rng = SeededGenerator(seed: seed)
+            var arr: [Star] = []
+            arr.reserveCapacity(count)
+            for _ in 0..<count {
+                let x = CGFloat.random(in: 0...max(1, width), using: &rng)
+                let y = CGFloat.random(in: 0...max(1, height), using: &rng)
+                let r = CGFloat.random(in: 0.6...2.0, using: &rng)
+                let op = Double.random(in: 0.4...0.95, using: &rng)
+                arr.append(Star(x: x, y: y, radius: r, opacity: op))
+            }
+            return arr
+        }
+    }
+
+    private struct SeededGenerator: RandomNumberGenerator {
+        var state: UInt64
+        init(seed: UInt64) { state = seed }
+        mutating func next() -> UInt64 {
+            state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
+            return state
+        }
+    }
+}
+
+// MARK: - Path Canvas
+
+struct LessonJourneyPathCanvas: View {
+    let layout: LessonJourneyLayout
+    let scale: CGFloat
+    let accessGraph: LessonJourneyAccessGraph
+    let frontierLessonId: UUID?
+
+    var body: some View {
+        Canvas { context, _ in
+            for block in layout.blocks {
+                drawBlockPaths(context: &context, block: block)
+            }
+        }
+        .allowsHitTesting(false)
+    }
+
+    private func drawBlockPaths(context: inout GraphicsContext, block: LessonJourneyBlockLayout) {
+        for i in 0..<max(0, block.lessonNodes.count - 1) {
+            let a = block.lessonNodes[i]
+            let b = block.lessonNodes[i + 1]
+            drawCurve(
+                context: &context,
+                from: a, to: b,
+                state: pathState(a: a.lessonId, b: b.lessonId),
+                accent: block.accent
+            )
+        }
+        if let last = block.lessonNodes.last {
+            drawCurve(
+                context: &context,
+                from: last,
+                to: block.milestone,
+                state: isCompleted(last.lessonId) ? (isBlockCompleted(block: block) ? .cleared : .active) : .locked,
+                accent: block.accent
+            )
+        }
+        if let next = nextBlockFirstNode(after: block) {
+            drawCurve(
+                context: &context,
+                from: block.milestone,
+                to: next,
+                state: isBlockCompleted(block: block) ? .active : .locked,
+                accent: block.accent
+            )
+        }
+    }
+
+    private enum PathState { case cleared, active, locked }
+
+    private func pathState(a: UUID?, b: UUID?) -> PathState {
+        let aCompleted = isCompleted(a)
+        let bCompleted = isCompleted(b)
+        let bUnlocked = isUnlocked(b)
+        if aCompleted && bCompleted { return .cleared }
+        if aCompleted && bUnlocked { return .active }
+        return .locked
+    }
+
+    private func isCompleted(_ id: UUID?) -> Bool {
+        guard let id else { return false }
+        return accessGraph.lessonStates[id]?.isCompleted ?? false
+    }
+
+    private func isUnlocked(_ id: UUID?) -> Bool {
+        guard let id else { return false }
+        return accessGraph.lessonStates[id]?.isUnlocked ?? false
+    }
+
+    private func isBlockCompleted(block: LessonJourneyBlockLayout) -> Bool {
+        accessGraph.blockStates[block.blockNumber]?.isCompleted ?? false
+    }
+
+    private func nextBlockFirstNode(after block: LessonJourneyBlockLayout) -> LessonJourneyNode? {
+        let nextIndex = block.blockIndex + 1
+        guard nextIndex < layout.blocks.count else { return nil }
+        return layout.blocks[nextIndex].lessonNodes.first
+    }
+
+    private func drawCurve(
+        context: inout GraphicsContext,
+        from a: LessonJourneyNode,
+        to b: LessonJourneyNode,
+        state: PathState,
+        accent: CGFloat
+    ) {
+        let fromPt = CGPoint(x: a.x * scale, y: a.y * scale)
+        let toPt = CGPoint(x: b.x * scale, y: b.y * scale)
+        let midY = (fromPt.y + toPt.y) / 2
+        let ctrl1 = CGPoint(x: fromPt.x, y: midY)
+        let ctrl2 = CGPoint(x: toPt.x, y: midY)
+
+        var path = Path()
+        path.move(to: fromPt)
+        path.addCurve(to: toPt, control1: ctrl1, control2: ctrl2)
+
+        let hue = 262.0 + Double(accent) * 30.0
+        let strokeColor: Color
+        let width: CGFloat
+        let dash: [CGFloat]
+        switch state {
+        case .cleared:
+            strokeColor = Color(hue: hue / 360, saturation: 0.55, brightness: 0.75, opacity: 0.9)
+            width = max(2.6, 3.2 * scale)
+            dash = []
+        case .active:
+            strokeColor = Color(hue: (hue + 8) / 360, saturation: 0.82, brightness: 0.85, opacity: 0.95)
+            width = max(3.2, 4.2 * scale)
+            dash = []
+        case .locked:
+            strokeColor = Color(hue: hue / 360, saturation: 0.25, brightness: 0.45, opacity: 0.5)
+            width = max(2.0, 2.4 * scale)
+            dash = [max(6, 8 * scale), max(6, 10 * scale)]
+        }
+
+        context.stroke(
+            path,
+            with: .color(strokeColor),
+            style: StrokeStyle(lineWidth: width, lineCap: .round, dash: dash)
+        )
+
+        if state == .active {
+            context.stroke(
+                path,
+                with: .color(Color.white.opacity(0.85)),
+                style: StrokeStyle(lineWidth: max(1.4, 1.8 * scale), lineCap: .round)
+            )
+        }
+    }
+}
+
+// MARK: - Band
+
+struct LessonJourneyBandView: View {
+    let widthPx: CGFloat
+    let yPx: CGFloat
+    let label: String
+    let sublabel: String?
+    let accent: CGFloat
+    let dim: Bool
+
+    var body: some View {
+        let hue = 262.0 + Double(accent) * 40.0
+        ZStack {
+            Rectangle()
+                .fill(
+                    LinearGradient(
+                        gradient: Gradient(colors: [
+                            .clear,
+                            Color(hue: hue / 360, saturation: 0.55, brightness: 0.28).opacity(0.55),
+                            Color(hue: (hue + 10) / 360, saturation: 0.55, brightness: 0.32).opacity(0.55),
+                            Color(hue: hue / 360, saturation: 0.55, brightness: 0.28).opacity(0.55),
+                            .clear,
+                        ]),
+                        startPoint: .leading,
+                        endPoint: .trailing
+                    )
+                )
+            VStack(spacing: 2) {
+                Text(label)
+                    .font(.system(size: 14, weight: .bold))
+                    .tracking(0.8)
+                    .foregroundStyle(Color.white.opacity(0.95))
+                if let sublabel, !sublabel.isEmpty {
+                    Text(sublabel)
+                        .font(.system(size: 10, weight: .medium))
+                        .tracking(1.4)
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
+            }
+        }
+        .frame(width: widthPx, height: 48)
+        .position(x: widthPx / 2, y: yPx)
+        .opacity(dim ? 0.4 : 1.0)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Node
+
+struct LessonJourneyNodeView: View {
+    let node: LessonJourneyNode
+    let scale: CGFloat
+    let accessState: LessonJourneyAccessGraph.LessonState
+    let isFrontier: Bool
+    let selected: Bool
+    let dim: Bool
+    let onSelect: () -> Void
+
+    var body: some View {
+        let diameter = 56 * scale
+        Button(action: onSelect) {
+            ZStack {
+                Circle()
+                    .fill(fillGradient)
+                    .overlay(
+                        Circle().stroke(borderColor, lineWidth: 2)
+                    )
+                    .shadow(color: glowColor, radius: isFrontier ? 14 : 8)
+
+                if accessState.isCompleted {
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 18 * scale, weight: .bold))
+                        .foregroundStyle(.white)
+                } else if !accessState.isUnlocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 16 * scale, weight: .bold))
+                        .foregroundStyle(Color(hex: "94a3b8"))
+                } else {
+                    Text("\(node.number)")
+                        .font(.system(size: 18 * scale, weight: .bold))
+                        .foregroundStyle(titleColor)
+                }
+            }
+            .frame(width: diameter, height: diameter)
+        }
+        .buttonStyle(.plain)
+        .disabled(!accessState.isUnlocked)
+        .overlay(
+            Group {
+                if isFrontier {
+                    Circle()
+                        .stroke(Color.yellow.opacity(0.6), lineWidth: 2)
+                        .frame(width: diameter * 1.6, height: diameter * 1.6)
+                }
+                if selected {
+                    Circle()
+                        .stroke(Color.cyan, lineWidth: 3)
+                        .frame(width: diameter + 10, height: diameter + 10)
+                }
+            }
+            .allowsHitTesting(false)
+        )
+        .opacity(dim ? 0.4 : 1)
+        .position(x: node.x * scale, y: node.y * scale)
+    }
+
+    private var fillGradient: LinearGradient {
+        if accessState.isCompleted {
+            return LinearGradient(
+                colors: [Color(hex: "6ee7b7").opacity(0.85), Color(hex: "10b981").opacity(0.85)],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
+        if !accessState.isUnlocked {
+            return LinearGradient(
+                colors: [Color(hex: "1e293b"), Color(hex: "0f172a")],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
+        if isFrontier {
+            return LinearGradient(
+                colors: [Color(hex: "fde68a"), Color(hex: "fbbf24")],
+                startPoint: .topLeading, endPoint: .bottomTrailing
+            )
+        }
+        return LinearGradient(
+            colors: [Color(hex: "ddd6fe"), Color(hex: "a78bfa")],
+            startPoint: .topLeading, endPoint: .bottomTrailing
+        )
+    }
+
+    private var borderColor: Color {
+        if !accessState.isUnlocked { return Color(hex: "334155") }
+        if accessState.isCompleted { return Color(hex: "a7f3d0") }
+        if isFrontier { return Color(hex: "fef3c7") }
+        return Color(hex: "ede9fe")
+    }
+
+    private var glowColor: Color {
+        if !accessState.isUnlocked { return .black.opacity(0.4) }
+        if accessState.isCompleted { return Color(hex: "10b981").opacity(0.5) }
+        if isFrontier { return Color(hex: "fbbf24").opacity(0.8) }
+        return Color(hex: "a78bfa").opacity(0.6)
+    }
+
+    private var titleColor: Color {
+        if isFrontier { return Color(hex: "78350f") }
+        return Color(hex: "3b1a7f")
+    }
+}
+
+// MARK: - Milestone
+
+struct LessonJourneyMilestoneView: View {
+    let xPx: CGFloat
+    let yPx: CGFloat
+    let scale: CGFloat
+    let cleared: Bool
+    let dim: Bool
+    let label: String
+    let accent: CGFloat
+
+    var body: some View {
+        let size = 78 * scale
+        let hue = 262.0 + Double(accent) * 40.0
+        VStack(spacing: 6) {
+            RoundedRectangle(cornerRadius: 14 * scale)
+                .fill(
+                    RadialGradient(
+                        gradient: Gradient(colors: [
+                            Color(hue: hue / 360, saturation: cleared ? 0.9 : 0.4, brightness: cleared ? 0.85 : 0.5),
+                            Color(hue: (hue - 10) / 360, saturation: 0.7, brightness: cleared ? 0.3 : 0.2),
+                        ]),
+                        center: .init(x: 0.3, y: 0.25),
+                        startRadius: 0,
+                        endRadius: size
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14 * scale)
+                        .stroke(Color.white.opacity(cleared ? 0.8 : 0.25), lineWidth: 2)
+                )
+                .frame(width: size, height: size)
+                .rotationEffect(.degrees(45))
+                .shadow(color: Color(hue: hue / 360, saturation: 0.8, brightness: 0.6).opacity(cleared ? 0.7 : 0.25), radius: cleared ? 18 : 8)
+
+            Text(label)
+                .font(.system(size: 10, weight: .bold))
+                .padding(.horizontal, 8)
+                .padding(.vertical, 2)
+                .background(Color.black.opacity(0.65))
+                .foregroundStyle(Color.white.opacity(cleared ? 0.95 : 0.7))
+                .clipShape(Capsule())
+        }
+        .opacity(dim ? 0.5 : 1)
+        .position(x: xPx, y: yPx)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Goal
+
+struct LessonJourneyGoalView: View {
+    let xPx: CGFloat
+    let yPx: CGFloat
+    let scale: CGFloat
+    let cleared: Bool
+    let label: String
+
+    var body: some View {
+        let size = 112 * scale
+        VStack(spacing: 6) {
+            ZStack {
+                Circle()
+                    .fill(
+                        RadialGradient(
+                            gradient: Gradient(colors: [Color(hex: "fffce3"), Color(hex: "ffd76a"), Color(hex: "c99a3c")]),
+                            center: .init(x: 0.35, y: 0.3),
+                            startRadius: 0,
+                            endRadius: size / 2
+                        )
+                    )
+                    .overlay(
+                        Circle().stroke(Color(hex: "fff7c4").opacity(0.9), lineWidth: 2)
+                    )
+                    .shadow(color: Color(hex: "ffd76a").opacity(0.8), radius: 20)
+                    .frame(width: size * 0.64, height: size * 0.64)
+
+                Image(systemName: "crown.fill")
+                    .font(.system(size: 30 * scale, weight: .bold))
+                    .foregroundStyle(Color(hex: "78350f"))
+            }
+
+            Text(label)
+                .font(.system(size: 12, weight: .bold))
+                .tracking(1.2)
+                .foregroundStyle(Color(hex: "ffecb3"))
+                .shadow(color: .black.opacity(0.6), radius: 6)
+        }
+        .opacity(cleared ? 1 : 0.9)
+        .position(x: xPx, y: yPx)
+        .allowsHitTesting(false)
+    }
+}
+
+// MARK: - Character
+
+struct LessonJourneyCharacterView: View {
+    let xPx: CGFloat
+    let yPx: CGFloat
+    let scale: CGFloat
+
+    @State private var floatOffset: CGFloat = 0
+
+    var body: some View {
+        let size = 76 * scale
+        Image("default-avater")
+            .resizable()
+            .scaledToFit()
+            .frame(width: size, height: size)
+            .shadow(color: .black.opacity(0.5), radius: 8, y: 6)
+            .offset(y: floatOffset - size * 0.72)
+            .position(x: xPx, y: yPx)
+            .allowsHitTesting(false)
+            .onAppear {
+                withAnimation(.easeInOut(duration: 3.2).repeatForever(autoreverses: true)) {
+                    floatOffset = -6
+                }
+            }
+    }
+}
+
+// MARK: - Detail Sheet
+
+struct LessonJourneyDetailSheet: View {
+    let locale: AppLocale
+    let lesson: Lesson
+    let accessState: LessonJourneyAccessGraph.LessonState?
+    let isFrontier: Bool
+    let blockLabel: String
+    let onStart: () -> Void
+    let onClose: () -> Void
+
+    var body: some View {
+        let isUnlocked = accessState?.isUnlocked ?? false
+        let isCompleted = accessState?.isCompleted ?? false
+        let statusLabel: String = {
+            if isCompleted { return locale == .ja ? "クリア済み" : "Cleared" }
+            if isFrontier { return locale == .ja ? "現在地" : "Current" }
+            if isUnlocked { return locale == .ja ? "挑戦可能" : "Available" }
+            return locale == .ja ? "未解放" : "Locked"
+        }()
+        let statusColor: Color = {
+            if isCompleted { return Color(hex: "6ee7b7") }
+            if isFrontier { return Color(hex: "fbbf24") }
+            if isUnlocked { return Color(hex: "c4b5fd") }
+            return Color.gray
+        }()
+
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 8) {
+                Text(statusLabel)
+                    .font(.caption.bold())
+                    .tracking(1.0)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(statusColor.opacity(0.2))
+                    .overlay(Capsule().stroke(statusColor.opacity(0.4), lineWidth: 1))
+                    .foregroundStyle(statusColor)
+                    .clipShape(Capsule())
+                Text(blockLabel)
+                    .font(.caption)
+                    .tracking(1.2)
+                    .foregroundStyle(Color(hex: "c4b5fd"))
+                Spacer()
+            }
+
+            Text(lesson.localizedTitle(locale))
+                .font(.title3.bold())
+                .foregroundStyle(.white)
+
+            if let desc = lesson.localizedDescription(locale), !desc.isEmpty {
+                Text(snippet(desc))
+                    .font(.callout)
+                    .foregroundStyle(Color.white.opacity(0.8))
+                    .lineLimit(3)
+            }
+
+            Button(action: onStart) {
+                HStack {
+                    Image(systemName: isCompleted ? "checkmark.circle.fill" : "play.fill")
+                    Text(isCompleted
+                        ? (locale == .ja ? "もう一度挑戦する" : "Review lesson")
+                        : (locale == .ja ? "レッスンを開始" : "Start lesson"))
+                        .font(.headline)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(
+                    LinearGradient(colors: [Color(hex: "fde68a"), Color(hex: "fbbf24")], startPoint: .leading, endPoint: .trailing)
+                )
+                .foregroundStyle(Color(hex: "78350f"))
+                .clipShape(RoundedRectangle(cornerRadius: 14))
+            }
+            .disabled(!isUnlocked)
+            .opacity(isUnlocked ? 1 : 0.5)
+
+            Button(action: onClose) {
+                Text(locale == .ja ? "閉じる" : "Close")
+                    .font(.subheadline)
+                    .foregroundStyle(Color(hex: "94a3b8"))
+                    .frame(maxWidth: .infinity)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color(hex: "120830"))
+    }
+
+    private func snippet(_ text: String) -> String {
+        let normalized = text.replacingOccurrences(of: "\n", with: " ").trimmingCharacters(in: .whitespaces)
+        if normalized.count <= 180 { return normalized }
+        let end = normalized.index(normalized.startIndex, offsetBy: 180)
+        return String(normalized[..<end]) + "…"
+    }
+}
+
+// MARK: - List Panel (iPad regular)
+
+struct LessonJourneyListPanel: View {
+    let locale: AppLocale
+    let lessons: [Lesson]
+    let accessGraph: LessonJourneyAccessGraph
+    let frontierLessonId: UUID?
+    let selectedLessonId: UUID?
+    let completedCount: Int
+    let totalCount: Int
+    let onSelect: (Lesson) -> Void
+
+    var body: some View {
+        let percent = totalCount > 0 ? Int((Double(completedCount) / Double(totalCount)) * 100.0) : 0
+        VStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text(locale == .ja ? "レッスン一覧" : "Lessons")
+                    .font(.subheadline.bold())
+                    .tracking(1.2)
+                    .foregroundStyle(Color(hex: "c4b5fd"))
+                HStack {
+                    Text("\(completedCount)/\(totalCount) \(locale == .ja ? "完了" : "completed")")
+                        .font(.caption)
+                        .foregroundStyle(Color(hex: "c4b5fd").opacity(0.8))
+                    Spacer()
+                    Text("\(percent)%")
+                        .font(.caption.bold())
+                        .foregroundStyle(Color(hex: "fde68a"))
+                }
+                GeometryReader { g in
+                    ZStack(alignment: .leading) {
+                        Capsule().fill(Color.black.opacity(0.4))
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [Color(hex: "c4b5fd"), Color(hex: "8b5cf6")],
+                                    startPoint: .leading, endPoint: .trailing
+                                )
+                            )
+                            .frame(width: g.size.width * CGFloat(percent) / 100.0)
+                    }
+                }
+                .frame(height: 4)
+            }
+            .padding(14)
+
+            Divider().background(Color.white.opacity(0.15))
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 10) {
+                    ForEach(groupedBlocks(), id: \.blockNumber) { group in
+                        Text(blockName(group))
+                            .font(.system(size: 10, weight: .bold))
+                            .tracking(1.8)
+                            .foregroundStyle(Color(hex: "c4b5fd").opacity(0.85))
+                            .padding(.horizontal, 10)
+                            .padding(.top, 6)
+
+                        VStack(spacing: 4) {
+                            ForEach(group.lessons) { lesson in
+                                listRow(lesson)
+                            }
+                        }
+                    }
+                }
+                .padding(8)
+            }
+        }
+        .background(
+            RoundedRectangle(cornerRadius: 20)
+                .fill(Color(hex: "0a061c").opacity(0.85))
+                .overlay(
+                    RoundedRectangle(cornerRadius: 20)
+                        .stroke(Color.purple.opacity(0.25), lineWidth: 1)
+                )
+        )
+    }
+
+    @ViewBuilder
+    private func listRow(_ lesson: Lesson) -> some View {
+        let state = accessGraph.lessonStates[lesson.id]
+        let isCompleted = state?.isCompleted ?? false
+        let isUnlocked = state?.isUnlocked ?? false
+        let isFrontier = lesson.id == frontierLessonId
+        let isSelected = lesson.id == selectedLessonId
+
+        Button {
+            onSelect(lesson)
+        } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(iconBackground(isCompleted: isCompleted, isUnlocked: isUnlocked, isFrontier: isFrontier))
+                        .frame(width: 28, height: 28)
+                    if isCompleted {
+                        Image(systemName: "checkmark").font(.caption.bold()).foregroundStyle(Color(hex: "10b981"))
+                    } else if !isUnlocked {
+                        Image(systemName: "lock.fill").font(.caption).foregroundStyle(.gray)
+                    } else if isFrontier {
+                        Image(systemName: "play.fill").font(.caption2).foregroundStyle(Color(hex: "fbbf24"))
+                    } else {
+                        Text("\(lesson.orderIndex + 1)").font(.caption.bold()).foregroundStyle(Color(hex: "c4b5fd"))
+                    }
+                }
+                Text(lesson.localizedTitle(locale))
+                    .font(.subheadline)
+                    .foregroundStyle(isUnlocked ? Color.white : Color.gray)
+                    .lineLimit(1)
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 6)
+            .background(
+                RoundedRectangle(cornerRadius: 10)
+                    .fill(isSelected ? Color.cyan.opacity(0.15) : Color.clear)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 10)
+                            .stroke(isSelected ? Color.cyan.opacity(0.6) : .clear, lineWidth: 1)
+                    )
+            )
+        }
+        .buttonStyle(.plain)
+        .disabled(!isUnlocked)
+        .opacity(isUnlocked ? 1 : 0.6)
+    }
+
+    private func iconBackground(isCompleted: Bool, isUnlocked: Bool, isFrontier: Bool) -> Color {
+        if isCompleted { return Color(hex: "10b981").opacity(0.25) }
+        if !isUnlocked { return Color.gray.opacity(0.25) }
+        if isFrontier { return Color(hex: "fbbf24").opacity(0.22) }
+        return Color(hex: "8b5cf6").opacity(0.22)
+    }
+
+    private struct BlockGroup {
+        let blockNumber: Int
+        let name: String?
+        let nameEn: String?
+        let lessons: [Lesson]
+    }
+
+    private func groupedBlocks() -> [BlockGroup] {
+        var map: [Int: [Lesson]] = [:]
+        var nameMap: [Int: (String?, String?)] = [:]
+        var order: [Int] = []
+        for lesson in lessons.sorted(by: { ($0.blockNumber ?? 1, $0.orderIndex) < ($1.blockNumber ?? 1, $1.orderIndex) }) {
+            let bn = lesson.blockNumber ?? 1
+            if map[bn] == nil { order.append(bn) }
+            map[bn, default: []].append(lesson)
+            if nameMap[bn] == nil {
+                nameMap[bn] = (lesson.blockName, lesson.blockNameEn)
+            }
+        }
+        return order.map { bn in
+            BlockGroup(
+                blockNumber: bn,
+                name: nameMap[bn]?.0,
+                nameEn: nameMap[bn]?.1,
+                lessons: map[bn] ?? []
+            )
+        }
+    }
+
+    private func blockName(_ group: BlockGroup) -> String {
+        if locale == .en, let en = group.nameEn, !en.isEmpty { return en }
+        if let n = group.name, !n.isEmpty { return n }
+        return locale == .ja ? "ブロック \(group.blockNumber)" : "Block \(group.blockNumber)"
+    }
+}

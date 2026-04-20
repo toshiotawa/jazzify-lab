@@ -5,25 +5,18 @@ import WebKit
 struct LessonListView: View {
     @EnvironmentObject var appState: AppState
     @State private var courses: [Course] = []
-    @State private var expandedCourseId: UUID?
     @State private var lessonsMap: [UUID: [Lesson]] = [:]
     @State private var progressMap: [UUID: Set<UUID>] = [:]
-    @State private var selectedLesson: Lesson?
     @State private var isLoading = true
     @State private var showLessonInfo = false
     @State private var showSubscription = false
+    @State private var journeyCourse: JourneyCourseLaunch?
 
     private var locale: AppLocale { appState.locale }
 
-    private struct LessonAccessState {
-        let isUnlocked: Bool
-        let isCompleted: Bool
-    }
-
-    private struct BlockAccessState {
-        let blockNumber: Int
-        let isUnlocked: Bool
-        let isCompleted: Bool
+    private struct JourneyCourseLaunch: Identifiable {
+        let id: UUID
+        let course: Course
     }
 
     var body: some View {
@@ -75,15 +68,19 @@ struct LessonListView: View {
             .task { await loadCourses() }
             .navigationDestination(
                 isPresented: Binding(
-                    get: { selectedLesson != nil },
-                    set: { if !$0 { selectedLesson = nil } }
+                    get: { journeyCourse != nil },
+                    set: { if !$0 { journeyCourse = nil } }
                 )
             ) {
-                if let selectedLesson {
-                    LessonDetailView(lesson: selectedLesson)
+                if let launch = journeyCourse {
+                    LessonJourneyView(
+                        course: launch.course,
+                        lessons: lessonsMap[launch.course.id] ?? [],
+                        completedLessonIds: progressMap[launch.course.id] ?? []
+                    )
                 }
             }
-            .onChange(of: selectedLesson == nil) { isNil in
+            .onChange(of: journeyCourse == nil) { isNil in
                 if isNil {
                     Task { await reloadAllProgress() }
                 }
@@ -118,343 +115,74 @@ struct LessonListView: View {
     // MARK: - Course Row
 
     private func courseRow(_ course: Course) -> some View {
-        VStack(spacing: 0) {
-            Button {
-                let courseLocksForNonPremium = course.premiumOnly == true && course.isTutorial != true
-                if courseLocksForNonPremium {
-                    Task {
-                        let premium = await appState.ensureFreshBilling()
-                        if !premium {
-                            showSubscription = true
-                            return
-                        }
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            if expandedCourseId == course.id {
-                                expandedCourseId = nil
-                            } else {
-                                expandedCourseId = course.id
-                                if lessonsMap[course.id] == nil {
-                                    Task { await loadLessons(for: course.id) }
-                                }
-                            }
-                        }
-                    }
-                    return
-                }
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    if expandedCourseId == course.id {
-                        expandedCourseId = nil
-                    } else {
-                        expandedCourseId = course.id
-                        if lessonsMap[course.id] == nil {
-                            Task { await loadLessons(for: course.id) }
-                        }
-                    }
-                }
-            } label: {
-                HStack {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(course.localizedTitle(locale))
-                            .font(.headline)
-                            .foregroundStyle(.white)
+        Button {
+            handleCourseTap(course)
+        } label: {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(course.localizedTitle(locale))
+                        .font(.headline)
+                        .foregroundStyle(.white)
 
-                        if let desc = course.localizedDescription(locale) {
-                            Text(desc)
-                                .font(.caption)
-                                .foregroundStyle(.gray)
-                                .lineLimit(2)
-                        }
-                    }
-
-                    Spacer()
-
-                    if let lessons = lessonsMap[course.id],
-                       let completed = progressMap[course.id] {
-                        let total = lessons.count
-                        let done = completed.count
-                        if total > 0 {
-                            Text("\(done)/\(total)")
-                                .font(.caption.bold())
-                                .foregroundStyle(done == total ? .green : .gray)
-                                .padding(.trailing, 4)
-                        }
-                    }
-
-                    if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
-                        Image(systemName: "lock.fill")
-                            .foregroundStyle(.purple)
-                    } else {
-                        Image(systemName: expandedCourseId == course.id ? "chevron.up" : "chevron.down")
+                    if let desc = course.localizedDescription(locale) {
+                        Text(desc)
+                            .font(.caption)
                             .foregroundStyle(.gray)
+                            .lineLimit(2)
                     }
                 }
-                .padding(16)
-            }
 
-            if expandedCourseId == course.id {
-                if let lessons = lessonsMap[course.id] {
-                    blockGroupedLessons(lessons, courseId: course.id)
+                Spacer()
+
+                if let lessons = lessonsMap[course.id],
+                   let completed = progressMap[course.id] {
+                    let total = lessons.count
+                    let done = completed.count
+                    if total > 0 {
+                        Text("\(done)/\(total)")
+                            .font(.caption.bold())
+                            .foregroundStyle(done == total ? .green : .gray)
+                            .padding(.trailing, 4)
+                    }
+                }
+
+                if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
+                    Image(systemName: "lock.fill")
+                        .foregroundStyle(.purple)
                 } else {
-                    ProgressView()
-                        .tint(.purple)
-                        .padding()
+                    Image(systemName: "chevron.right")
+                        .foregroundStyle(.gray)
                 }
             }
+            .padding(16)
         }
+        .buttonStyle(.plain)
         .background(Color(hex: "1e293b"))
         .cornerRadius(12)
     }
 
-    // MARK: - Block Grouped Lessons
-
-    private func blockGroupedLessons(_ lessons: [Lesson], courseId: UUID) -> some View {
-        let grouped = groupByBlock(lessons)
-        let completedIds = progressMap[courseId] ?? []
-        let accessGraph = buildLessonAccessGraph(lessons, completedIds: completedIds)
-
-        return VStack(spacing: 0) {
-            ForEach(grouped, id: \.blockNumber) { block in
-                HStack {
-                    Text(blockDisplayName(block))
-                        .font(.caption.bold())
-                        .foregroundStyle(.purple)
-                    Spacer()
-                    if let blockState = accessGraph.blockStates[block.blockNumber] {
-                        Text(blockStatusLabel(blockState))
-                            .font(.caption2.bold())
-                            .foregroundStyle(blockStatusColor(blockState))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(blockStatusColor(blockState).opacity(0.18))
-                            .cornerRadius(999)
-                    }
+    private func handleCourseTap(_ course: Course) {
+        let courseLocksForNonPremium = course.premiumOnly == true && course.isTutorial != true
+        if courseLocksForNonPremium {
+            Task {
+                let premium = await appState.ensureFreshBilling()
+                if !premium {
+                    showSubscription = true
+                    return
                 }
-                .padding(.horizontal, 16)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-
-                ForEach(block.lessons) { lesson in
-                    lessonRow(
-                        lesson,
-                        courseId: courseId,
-                        accessState: accessGraph.lessonStates[lesson.id]
-                    )
-                }
+                await openJourney(for: course)
             }
+            return
         }
+        Task { await openJourney(for: course) }
     }
 
-    private struct BlockGroup {
-        let blockNumber: Int
-        let blockName: String?
-        var lessons: [Lesson]
-    }
-
-    private func groupByBlock(_ lessons: [Lesson]) -> [BlockGroup] {
-        let sortedLessons = lessons.sorted { lhs, rhs in
-            let leftBlock = lhs.blockNumber ?? 1
-            let rightBlock = rhs.blockNumber ?? 1
-            if leftBlock != rightBlock {
-                return leftBlock < rightBlock
-            }
-            return lhs.orderIndex < rhs.orderIndex
+    @MainActor
+    private func openJourney(for course: Course) async {
+        if lessonsMap[course.id] == nil {
+            await loadLessons(for: course.id)
         }
-        var map: [Int: BlockGroup] = [:]
-        var order: [Int] = []
-
-        for lesson in sortedLessons {
-            let bn = lesson.blockNumber ?? 1
-            if map[bn] == nil {
-                let name: String? = {
-                    if locale == .en, let en = lesson.blockNameEn, !en.isEmpty { return en }
-                    return lesson.blockName
-                }()
-                map[bn] = BlockGroup(blockNumber: bn, blockName: name, lessons: [])
-                order.append(bn)
-            }
-            map[bn]?.lessons.append(lesson)
-        }
-
-        return order.compactMap { map[$0] }
-    }
-
-    private func buildLessonAccessGraph(
-        _ lessons: [Lesson],
-        completedIds: Set<UUID>
-    ) -> (
-        lessonStates: [UUID: LessonAccessState],
-        blockStates: [Int: BlockAccessState]
-    ) {
-        let grouped = groupByBlock(lessons)
-        var lessonStates: [UUID: LessonAccessState] = [:]
-        var blockStates: [Int: BlockAccessState] = [:]
-
-        for (index, block) in grouped.enumerated() {
-            let previousBlockNumber = index > 0 ? grouped[index - 1].blockNumber : nil
-            let previousCompleted = previousBlockNumber == nil || blockStates[previousBlockNumber!]?.isCompleted == true
-            let isUnlocked = index == 0 || previousCompleted
-            let isCompleted = !block.lessons.isEmpty && block.lessons.allSatisfy { completedIds.contains($0.id) }
-
-            blockStates[block.blockNumber] = BlockAccessState(
-                blockNumber: block.blockNumber,
-                isUnlocked: isUnlocked,
-                isCompleted: isCompleted
-            )
-
-            for lesson in block.lessons {
-                lessonStates[lesson.id] = LessonAccessState(
-                    isUnlocked: isUnlocked,
-                    isCompleted: completedIds.contains(lesson.id)
-                )
-            }
-        }
-
-        return (lessonStates, blockStates)
-    }
-
-    // MARK: - Lesson Row
-
-    @ViewBuilder
-    private func lessonRow(_ lesson: Lesson, courseId: UUID, accessState: LessonAccessState?) -> some View {
-        let isTutorialCourse = courses.first(where: { $0.id == courseId })?.isTutorial == true
-        let isMembershipLocked = !isTutorialCourse && !appState.isPremium && (lesson.premiumOnly ?? false)
-        let isUnlocked = accessState?.isUnlocked ?? false
-        let isCompleted = accessState?.isCompleted ?? (progressMap[courseId]?.contains(lesson.id) ?? false)
-        let isLocked = isMembershipLocked || !isUnlocked
-
-        if isLocked {
-            lessonRowContent(
-                lesson,
-                isLocked: true,
-                isCompleted: isCompleted,
-                isMembershipLocked: isMembershipLocked
-            )
-        } else {
-            Button {
-                selectedLesson = lesson
-            } label: {
-                lessonRowContent(
-                    lesson,
-                    isLocked: false,
-                    isCompleted: isCompleted,
-                    isMembershipLocked: false
-                )
-            }
-            .buttonStyle(.plain)
-        }
-    }
-
-    @ViewBuilder
-    private func lessonRowContent(
-        _ lesson: Lesson,
-        isLocked: Bool,
-        isCompleted: Bool,
-        isMembershipLocked: Bool
-    ) -> some View {
-        HStack {
-            if isCompleted {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if isLocked {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.gray)
-            } else {
-                Image(systemName: "play.circle.fill")
-                    .foregroundStyle(.purple)
-            }
-
-            VStack(alignment: .leading, spacing: 2) {
-                Text(lesson.localizedTitle(locale))
-                    .font(.subheadline)
-                    .foregroundStyle(isLocked ? .gray : .white)
-
-                Text(lessonDisplayText(lesson))
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-
-                if let desc = lesson.localizedDescription(locale), !desc.isEmpty {
-                    Text(desc)
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                        .lineLimit(1)
-                }
-            }
-
-            Spacer()
-
-            if isMembershipLocked {
-                Text("Premium")
-                    .font(.caption2)
-                    .foregroundStyle(.purple)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.purple.opacity(0.2))
-                    .cornerRadius(4)
-            } else if isLocked {
-                Text(locale == .ja ? "未解放" : "Locked")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.gray.opacity(0.18))
-                    .cornerRadius(4)
-            } else if isCompleted {
-                Text(locale == .ja ? "完了" : "Done")
-                    .font(.caption2)
-                    .foregroundStyle(.green)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.green.opacity(0.2))
-                    .cornerRadius(4)
-            } else {
-                Text(locale == .ja ? "進行中" : "In Progress")
-                    .font(.caption2)
-                    .foregroundStyle(.blue)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 2)
-                    .background(Color.blue.opacity(0.18))
-                    .cornerRadius(4)
-            }
-        }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        .opacity(isLocked ? 0.6 : 1)
-        .background(
-            RoundedRectangle(cornerRadius: 10)
-                .fill(isCompleted ? Color.green.opacity(0.08) : Color.clear)
-        )
-    }
-
-    private func blockDisplayName(_ block: BlockGroup) -> String {
-        if let name = block.blockName, !name.isEmpty {
-            return name
-        }
-        return locale == .ja ? "ブロック \(block.blockNumber)" : "Block \(block.blockNumber)"
-    }
-
-    private func blockStatusLabel(_ state: BlockAccessState) -> String {
-        if state.isCompleted {
-            return locale == .ja ? "完了" : "Completed"
-        }
-        if state.isUnlocked {
-            return locale == .ja ? "進行中" : "In Progress"
-        }
-        return locale == .ja ? "未解放" : "Locked"
-    }
-
-    private func blockStatusColor(_ state: BlockAccessState) -> Color {
-        if state.isCompleted {
-            return .green
-        }
-        if state.isUnlocked {
-            return .blue
-        }
-        return .gray
-    }
-
-    private func lessonDisplayText(_ lesson: Lesson) -> String {
-        let lessonNumber = lesson.orderIndex + 1
-        return locale == .ja ? "レッスン \(lessonNumber)" : "Lesson \(lessonNumber)"
+        journeyCourse = JourneyCourseLaunch(id: course.id, course: course)
     }
 
     // MARK: - Data
