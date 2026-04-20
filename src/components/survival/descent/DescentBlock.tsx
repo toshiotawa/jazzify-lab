@@ -1,15 +1,20 @@
 /**
  * 1ブロック分の描画（ヘッダープレート + 踊り場 + 階段コネクタ + 末尾扉）
+ * ブロック Tier に応じた装飾（提灯・封印魔法陣・浮遊パーティクル）も統合。
  */
 
 import React, { useMemo } from 'react';
 import { BlockLayout, LANE_X } from './descentLayout';
 import { getBlockByKey } from './descentBlocks';
+import { getBlockTheme } from './blockTheme';
 import LandingPlatform from './parts/LandingPlatform';
 import StairConnector from './parts/StairConnector';
 import StageNode, { StageNodeState } from './parts/StageNode';
 import BlockHeaderPlate from './parts/BlockHeaderPlate';
 import BlockDoor from './parts/BlockDoor';
+import BlockSeal from './parts/BlockSeal';
+import BlockLantern from './parts/BlockLantern';
+import FloatingEmber from './parts/FloatingEmber';
 
 interface DescentBlockProps {
   layout: BlockLayout;
@@ -18,14 +23,15 @@ interface DescentBlockProps {
   clearedStages: ReadonlySet<number>;
   isStageUnlocked: (stageNumber: number) => boolean;
   onSelectStage: (stageNumber: number) => void;
-  /** このブロックを暗転表示する(未解放ブロック) */
   dim: boolean;
-  /** ブロック識別用 aria-label に使う */
   blockLabel: string;
   blockLabelEn: string;
   isEnglishCopy: boolean;
-  /** 現在キャラがいるステージ番号（フロンティア表示用） */
   frontierStageNumber: number;
+  /** マップ全体幅（パーティクル配置用） */
+  mapWidthPx: number;
+  /** このブロックがフロンティア（現在挑戦中）かどうか */
+  isFrontierBlock: boolean;
 }
 
 export const DescentBlock: React.FC<DescentBlockProps> = ({
@@ -40,8 +46,11 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
   blockLabelEn,
   isEnglishCopy,
   frontierStageNumber,
+  mapWidthPx,
+  isFrontierBlock,
 }) => {
   const block = getBlockByKey(layout.blockKey);
+  const theme = getBlockTheme(layout.blockIndex);
 
   const lastStage = layout.stages[layout.stages.length - 1];
   const doorOpened = block ? block.stageNumbers.every(n => clearedStages.has(n)) : false;
@@ -61,8 +70,28 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
     return pairs;
   }, [layout.stages, clearedStages, isStageUnlocked]);
 
+  const depthLabel = isEnglishCopy
+    ? `FLOOR ${layout.blockIndex + 1}`
+    : `第${layout.blockIndex + 1}階層`;
+
+  const headerXPx = LANE_X.C * scale;
+  const headerYPx = layout.headerY * scale;
+  const lanternOffsetX = Math.round(130 * scale);
+  const lanternYPx = headerYPx + Math.round(6 * scale);
+
   return (
     <div aria-label={`block-${isEnglishCopy ? blockLabelEn : blockLabel}`}>
+      {isFrontierBlock && !dim && (
+        <FloatingEmber
+          startY={layout.startY}
+          endY={layout.endY}
+          widthPx={mapWidthPx}
+          scale={scale}
+          color={theme.lanternOuter}
+          count={5}
+        />
+      )}
+
       {connectors.map((c, i) => (
         <StairConnector
           key={`connector-${i}`}
@@ -74,19 +103,48 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
         />
       ))}
 
+      <BlockLantern
+        xPx={headerXPx - lanternOffsetX}
+        yPx={lanternYPx}
+        scale={scale}
+        theme={theme}
+        lit={!dim && (doorOpened || isFrontierBlock)}
+        dim={dim}
+        side="left"
+      />
+      <BlockLantern
+        xPx={headerXPx + lanternOffsetX}
+        yPx={lanternYPx}
+        scale={scale}
+        theme={theme}
+        lit={!dim && (doorOpened || isFrontierBlock)}
+        dim={dim}
+        side="right"
+      />
+
       <BlockHeaderPlate
         label={isEnglishCopy ? blockLabelEn : blockLabel}
-        xPx={LANE_X.C * scale}
-        yPx={layout.headerY * scale}
+        depthLabel={depthLabel}
+        xPx={headerXPx}
+        yPx={headerYPx}
         scale={scale}
         dim={dim}
         cleared={doorOpened}
+        theme={theme}
       />
 
       <BlockDoor
         xPx={lastStage.x * scale}
         yPx={(lastStage.y - 10) * scale}
         scale={scale}
+        opened={doorOpened}
+        dim={dim}
+      />
+      <BlockSeal
+        xPx={lastStage.x * scale}
+        yPx={(lastStage.y - 90) * scale}
+        scale={scale}
+        theme={theme}
         opened={doorOpened}
         dim={dim}
       />

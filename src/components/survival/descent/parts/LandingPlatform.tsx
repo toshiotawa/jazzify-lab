@@ -26,7 +26,7 @@ export const LandingPlatform: React.FC<LandingPlatformProps> = ({ type, xPx, yPx
         top: yPx - heightPx / 2,
         width: widthPx,
         height: heightPx,
-        backgroundImage: `url('/${type === 'big' ? 'big_odoriba.png' : 'odoriba.png'}?v=20260420a')`,
+        backgroundImage: `url('/${type === 'big' ? 'big_odoriba.webp' : 'odoriba.webp'}?v=20260420b')`,
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         filter: dim ? 'brightness(0.35) saturate(0.5) blur(0.6px)' : 'brightness(1.05)',

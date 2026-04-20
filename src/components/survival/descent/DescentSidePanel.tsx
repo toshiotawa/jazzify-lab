@@ -58,7 +58,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
 
   return (
     <aside
-      className="flex h-full w-full flex-col gap-4 overflow-y-auto rounded-xl border border-amber-500/15 bg-gradient-to-b from-[#140c1f]/90 to-[#060410]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.6)]"
+      className="flex h-full w-full flex-col gap-4 overflow-y-auto border border-amber-500/15 bg-gradient-to-b from-[#140c1f]/90 to-[#060410]/95 p-5 text-white font-sans shadow-[inset_0_0_60px_rgba(0,0,0,0.6)] rounded-xl md:rounded-l-none md:rounded-r-xl md:border-l-0"
       aria-label={isEnglishCopy ? 'Survival info panel' : 'サバイバル情報パネル'}
     >
       <div className="rounded-lg border border-white/5 bg-black/30 p-3">

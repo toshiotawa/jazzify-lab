@@ -1,9 +1,11 @@
 /**
  * ブロック先頭に置くコードタイプ名プレート（石片風）
+ * ブロック Tier に応じて色調 / 枠色 / グロー色が変化する。
  */
 
 import React from 'react';
 import { cn } from '@/utils/cn';
+import { BlockThemeColors } from '../blockTheme';
 
 interface BlockHeaderPlateProps {
   label: string;
@@ -13,6 +15,8 @@ interface BlockHeaderPlateProps {
   scale: number;
   dim?: boolean;
   cleared?: boolean;
+  theme: BlockThemeColors;
+  depthLabel?: string;
 }
 
 export const BlockHeaderPlate: React.FC<BlockHeaderPlateProps> = ({
@@ -23,15 +27,24 @@ export const BlockHeaderPlate: React.FC<BlockHeaderPlateProps> = ({
   scale,
   dim,
   cleared,
+  theme,
+  depthLabel,
 }) => {
-  const widthPx = Math.round(200 * scale);
-  const heightPx = Math.round(56 * scale);
+  const widthPx = Math.round(220 * scale);
+  const heightPx = Math.round(64 * scale);
+  const background = `linear-gradient(to bottom, ${theme.plateTop} 0%, ${theme.plateBottom} 100%)`;
+  const boxShadow = cleared
+    ? `0 0 22px ${theme.plateClearedGlow}, inset 0 0 14px ${theme.plateClearedGlow}`
+    : '0 4px 12px rgba(0,0,0,0.6), inset 0 0 10px rgba(0,0,0,0.45)';
+  const border = cleared
+    ? `1px solid ${theme.plateClearedGlow}`
+    : `1px solid ${theme.plateBorder}`;
+
   return (
     <div
       aria-hidden
       className={cn(
-        'pointer-events-none absolute flex flex-col items-center justify-center rounded-md border shadow-lg',
-        cleared ? 'border-amber-400/60' : 'border-slate-500/60',
+        'pointer-events-none absolute flex flex-col items-center justify-center rounded-md shadow-lg',
         dim ? 'opacity-40' : '',
       )}
       style={{
@@ -39,17 +52,31 @@ export const BlockHeaderPlate: React.FC<BlockHeaderPlateProps> = ({
         top: yPx - heightPx / 2,
         width: widthPx,
         height: heightPx,
-        background:
-          'linear-gradient(to bottom, rgba(58,58,74,0.95) 0%, rgba(28,28,40,0.95) 100%)',
-        boxShadow: cleared
-          ? '0 0 16px rgba(255,196,80,0.35), inset 0 0 12px rgba(255,196,80,0.15)'
-          : '0 4px 10px rgba(0,0,0,0.55), inset 0 0 8px rgba(0,0,0,0.4)',
+        background,
+        border,
+        boxShadow,
         zIndex: 15,
       }}
     >
+      {depthLabel && (
+        <div
+          className="font-sans tracking-[0.3em] opacity-70"
+          style={{
+            fontSize: Math.max(8, 10 * scale),
+            color: theme.plateText,
+            marginBottom: 2,
+          }}
+        >
+          {depthLabel}
+        </div>
+      )}
       <div
-        className={cn('font-bold tracking-wider', cleared ? 'text-amber-200' : 'text-slate-100')}
-        style={{ fontSize: Math.max(14, 22 * scale) }}
+        className="font-bold tracking-wider"
+        style={{
+          fontSize: Math.max(14, 22 * scale),
+          color: theme.plateText,
+          textShadow: '0 2px 4px rgba(0,0,0,0.55)',
+        }}
       >
         {label}
       </div>

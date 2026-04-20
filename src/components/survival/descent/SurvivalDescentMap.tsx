@@ -86,6 +86,33 @@ interface SurvivalDescentMapProps {
 
 const VIEWPORT_FALLBACK_HEIGHT = 720;
 
+const DESCENT_MAP_IMAGES = [
+  '/background.webp?v=20260420b',
+  '/big_odoriba.webp?v=20260420b',
+  '/odoriba.webp?v=20260420b',
+  '/door.webp?v=20260420b',
+];
+
+const preloadDescentImages = (): Promise<void> => {
+  return new Promise(resolve => {
+    let remaining = DESCENT_MAP_IMAGES.length;
+    if (remaining === 0) {
+      resolve();
+      return;
+    }
+    const done = (): void => {
+      remaining -= 1;
+      if (remaining === 0) resolve();
+    };
+    DESCENT_MAP_IMAGES.forEach(src => {
+      const img = new Image();
+      img.onload = done;
+      img.onerror = done;
+      img.src = src;
+    });
+  });
+};
+
 const readDebugProgress = (): number | null => {
   try {
     const hash = window.location.hash;
@@ -167,6 +194,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const loadData = useCallback(async () => {
     try {
       setLoading(true);
+      const imagesPreload = preloadDescentImages();
       try {
         const settingsData = await fetchSurvivalDifficultySettings();
         if (settingsData.length > 0) {
@@ -216,6 +244,11 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         setClearedStages(cleared);
         setCurrentStageNumber(Math.min(TOTAL_STAGES, debugProgress + 1));
       }
+
+      await Promise.race([
+        imagesPreload,
+        new Promise<void>(resolve => platform.setTimeout(resolve, 2500)),
+      ]);
     } finally {
       setLoading(false);
     }
@@ -249,6 +282,11 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     () => getAccessibleBlockIndex(frontierStageNumber, clearedStages),
     [frontierStageNumber, clearedStages],
   );
+
+  const frontierBlockIndex = useMemo(() => {
+    const block = getBlockForStage(frontierStageNumber);
+    return block ? block.blockIndex : 0;
+  }, [frontierStageNumber]);
 
   const { cameraY, focusCamera, adjustCamera } = useDescentCamera({
     viewportHeight: viewport.height,
@@ -403,7 +441,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }
 
   return (
-    <div className="relative w-full px-3 sm:px-4">
+    <div className="relative w-full px-0 sm:px-2">
       <style>{`
         @keyframes descent-breath {
           0%, 100% { transform: translateY(0); }
@@ -412,6 +450,27 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         @keyframes descent-frontier-pulse {
           0%, 100% { transform: scale(1); opacity: 0.85; }
           50% { transform: scale(1.08); opacity: 1; }
+        }
+        @keyframes descent-seal-spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        @keyframes descent-lantern-flicker {
+          0%, 100% { transform: translateX(-50%) scaleY(1) scaleX(1); opacity: 0.95; }
+          25% { transform: translateX(-50%) scaleY(1.08) scaleX(0.96); opacity: 0.85; }
+          50% { transform: translateX(-50%) scaleY(0.94) scaleX(1.04); opacity: 1; }
+          75% { transform: translateX(-50%) scaleY(1.05) scaleX(0.98); opacity: 0.9; }
+        }
+        @keyframes descent-lantern-glow {
+          0%, 100% { opacity: 0.65; transform: translate(-50%, -50%) scale(1); }
+          50% { opacity: 0.9; transform: translate(-50%, -50%) scale(1.18); }
+        }
+        @keyframes descent-ember-float {
+          0% { transform: translate(0, 0); opacity: 0; }
+          15% { opacity: 0.9; }
+          50% { transform: translate(6px, -40px); opacity: 0.7; }
+          85% { opacity: 0.4; }
+          100% { transform: translate(-4px, -80px); opacity: 0; }
         }
       `}</style>
 
@@ -427,14 +486,17 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </button>
       )}
 
-      <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mx-auto grid w-full max-w-[1400px] grid-cols-1 gap-0 md:grid-cols-[minmax(0,1fr)_340px]">
         <div
           ref={viewportRef}
           className="relative overflow-hidden touch-none select-none"
           style={{
             width: '100%',
             height: isMobileLayout ? 'min(88vh, 100%)' : 'min(86vh, 920px)',
-            borderRadius: 10,
+            borderTopLeftRadius: 10,
+            borderBottomLeftRadius: 10,
+            borderTopRightRadius: isMobileLayout ? 10 : 0,
+            borderBottomRightRadius: isMobileLayout ? 10 : 0,
             boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.6)',
             cursor: 'grab',
           }}
@@ -460,6 +522,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               {ALL_BLOCK_LAYOUTS.map((layout, idx) => {
                 const blockMeta = ALL_BLOCKS[idx];
                 const dim = idx > accessibleBlockIndex;
+                const isFrontierBlock = idx === frontierBlockIndex;
                 return (
                   <DescentBlock
                     key={layout.blockKey}
@@ -474,6 +537,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
                     blockLabelEn={blockMeta.labelEn}
                     isEnglishCopy={isEnglishCopy}
                     frontierStageNumber={frontierStageNumber}
+                    mapWidthPx={mapWidthPx}
+                    isFrontierBlock={isFrontierBlock}
                   />
                 );
               })}

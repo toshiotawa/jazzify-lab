@@ -1,10 +1,12 @@
 /**
  * 魔王城降下マップ: 背景レンガ壁
- * background.JPG を縦横にタイルし、下層ほど暗くなるグラデをオーバーレイする。
- * viewport 全幅まで広げることで「石壁の空間」を作る。
+ * background.webp を縦横にタイルし、下層ほど暗くなるグラデをオーバーレイする。
+ * さらにブロック深度に応じて色相が段階変化する深度レイヤを重ねる。
  */
 
 import React from 'react';
+import { ALL_BLOCK_LAYOUTS } from '../descentLayout';
+import { getBlockTint } from '../blockTheme';
 
 interface BackgroundWallProps {
   widthPx: number;
@@ -21,11 +23,30 @@ export const BackgroundWall: React.FC<BackgroundWallProps> = ({ widthPx, heightP
       style={{
         width: widthPx,
         height: heightPx,
-        backgroundImage: "url('/background.JPG')",
+        backgroundImage: "url('/background.webp?v=20260420b')",
         backgroundRepeat: 'repeat',
         backgroundSize: `${tile}px ${tile}px`,
       }}
     >
+      {ALL_BLOCK_LAYOUTS.map(layout => {
+        const tint = getBlockTint(layout.blockIndex);
+        const top = layout.startY * scale;
+        const height = (layout.endY - layout.startY) * scale;
+        return (
+          <div
+            key={`tint-${layout.blockKey}`}
+            className="absolute left-0 w-full"
+            style={{
+              top,
+              height,
+              background: `linear-gradient(to bottom, ${tint.top} 0%, ${tint.bottom} 100%)`,
+              mixBlendMode: 'soft-light',
+              opacity: 0.9,
+            }}
+          />
+        );
+      })}
+
       <div
         className="absolute inset-0"
         style={{

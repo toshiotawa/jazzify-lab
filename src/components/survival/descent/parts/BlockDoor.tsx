@@ -26,7 +26,7 @@ export const BlockDoor: React.FC<BlockDoorProps> = ({ xPx, yPx, scale, opened, d
         top: yPx - heightPx,
         width: widthPx,
         height: heightPx,
-        backgroundImage: "url('/door.png?v=20260420a')",
+        backgroundImage: "url('/door.webp?v=20260420b')",
         backgroundSize: '100% 100%',
         backgroundRepeat: 'no-repeat',
         filter: dim
