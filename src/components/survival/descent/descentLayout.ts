@@ -20,11 +20,11 @@ export const LANE_X = {
 export type LaneKey = keyof typeof LANE_X;
 
 /** Y 間隔ルール */
-const Y_TOP_PADDING = 24;            // ブロックヘッダーの上余白
-const Y_HEADER_TO_FIRST = 70;        // ヘッダープレート → 1つ目の踊り場
+const Y_TOP_PADDING = 56;            // ブロックヘッダーの上余白（タイトルプレート上端分）
+const Y_HEADER_TO_FIRST = 80;        // ヘッダープレート → 1つ目の踊り場
 const Y_STAGE_GAP = 130;             // 通常踊り場間（小→小）
 const Y_BEFORE_BIG = 170;            // 直前踊り場 → 大踊り場
-const Y_DOOR_TO_NEXT_HEADER = 60;    // 扉 → 次ブロックヘッダー
+const Y_DOOR_TO_NEXT_HEADER = 70;    // 扉 → 次ブロックヘッダー
 const Y_DOOR_OFFSET_FROM_BIG = -10;  // 大踊り場に対する扉の相対Y（上方・奥行き演出）
 
 /** 大踊り場（ブロック末尾ステージ）の相対位置 */

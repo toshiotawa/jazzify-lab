@@ -336,8 +336,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
   }, [selectedStage, isStageUnlocked, playLocked, getConfig, characters, onStageSelect, hintMode]);
 
-  const progressPercent = Math.round((clearedStages.size / TOTAL_STAGES) * 100);
-
   const frontierPosition = getStagePosition(frontierStageNumber);
   const frontierBlockLayout = getBlockLayoutForStage(frontierStageNumber);
   const frontierFacing: 'left' | 'right' | 'center' = (() => {
@@ -414,13 +412,6 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
             cursor: 'grab',
           }}
         >
-          <div
-            aria-hidden
-            className="absolute left-1/2 top-3 z-[50] -translate-x-1/2 rounded-full border border-amber-400/30 bg-black/55 px-3 py-1 text-[11px] font-sans tracking-wider text-amber-200 backdrop-blur-sm"
-          >
-            {progressPercent}%
-          </div>
-
           <div
             className="absolute left-0 top-0 will-change-transform"
             style={{
