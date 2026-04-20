@@ -1,8 +1,8 @@
 /**
  * 魔王城降下マップ：サバイバルのステージ選択画面
- * - PC: 左マップ + 右情報パネル (grid)
+ * - PC / iPad (>=768px): 左マップ + 右情報パネル (grid 2カラム)
+ * - iPhone / モバイル (<768px): マップ全面表示、ステージタップで詳細モーダル
  * - 仮想カメラ: ホイール/タッチ/ドラッグで縦スクロール
- * - クリックでステージ選択→右パネル(大画面)/ 下パネル(小画面) に詳細表示
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -123,9 +123,28 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   const [selectedStageNumber, setSelectedStageNumber] = useState<number | null>(null);
   const [hintMode, setHintMode] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
+  const [isMobileLayout, setIsMobileLayout] = useState<boolean>(() => {
+    if (typeof window === 'undefined') return false;
+    return !window.matchMedia('(min-width: 768px)').matches;
+  });
+  const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: MAP_LOGICAL_WIDTH, height: VIEWPORT_FALLBACK_HEIGHT });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(min-width: 768px)');
+    const update = () => setIsMobileLayout(!mq.matches);
+    update();
+    try {
+      mq.addEventListener('change', update);
+      return () => mq.removeEventListener('change', update);
+    } catch {
+      mq.addListener(update);
+      return () => mq.removeListener(update);
+    }
+  }, []);
 
   useEffect(() => {
     const el = viewportRef.current;
@@ -307,7 +326,14 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     setSelectedStageNumber(stageNumber);
     const pos = getStagePosition(stageNumber);
     if (pos) focusCamera(pos.y);
-  }, [focusCamera]);
+    if (isMobileLayout) {
+      setIsMobileDetailOpen(true);
+    }
+  }, [focusCamera, isMobileLayout]);
+
+  const handleCloseMobileDetail = useCallback(() => {
+    setIsMobileDetailOpen(false);
+  }, []);
 
   const handleStart = useCallback(async () => {
     if (!selectedStage) return;
@@ -333,6 +359,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     };
 
     const faiChar = characters.find(c => isFaiCharacter(c));
+    setIsMobileDetailOpen(false);
     onStageSelect(selectedStage.difficulty, stageConfig, selectedStage, faiChar, hintMode);
   }, [selectedStage, isStageUnlocked, playLocked, getConfig, characters, onStageSelect, hintMode]);
 
@@ -400,13 +427,13 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         </button>
       )}
 
-      <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_380px]">
+      <div className="mx-auto grid w-full max-w-[1280px] grid-cols-1 gap-4 md:grid-cols-[minmax(0,1fr)_380px]">
         <div
           ref={viewportRef}
           className="relative overflow-hidden touch-none select-none"
           style={{
             width: '100%',
-            height: 'min(86vh, 920px)',
+            height: isMobileLayout ? 'min(88vh, 100%)' : 'min(86vh, 920px)',
             borderRadius: 10,
             boxShadow: 'inset 0 0 120px 20px rgba(0,0,0,0.6)',
             cursor: 'grab',
@@ -469,7 +496,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           </div>
         </div>
 
-        <div className="min-h-[520px] lg:h-[min(86vh,920px)]">
+        <div className="hidden md:block md:h-[min(86vh,920px)]">
           <DescentSidePanel
             isEnglishCopy={isEnglishCopy}
             totalClearedCount={clearedStages.size}
@@ -488,6 +515,50 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
           />
         </div>
       </div>
+
+      {isMobileLayout && isMobileDetailOpen && selectedStage && (
+        <div className="fixed inset-0 z-40 flex items-end md:hidden" role="dialog" aria-modal="true">
+          <button
+            type="button"
+            aria-label={isEnglishCopy ? 'Close stage detail' : 'ステージ詳細を閉じる'}
+            className="absolute inset-0 bg-black/70"
+            onClick={handleCloseMobileDetail}
+          />
+          <div
+            className="relative z-10 flex max-h-[85vh] w-full flex-col rounded-t-2xl border-t border-amber-500/30 bg-gradient-to-b from-[#140c1f]/95 to-[#060410]/95 shadow-[0_-10px_40px_rgba(0,0,0,0.6)]"
+          >
+            <div className="flex items-center justify-between px-4 pt-3 pb-1">
+              <div className="mx-auto h-1.5 w-10 rounded-full bg-white/20" />
+            </div>
+            <button
+              type="button"
+              onClick={handleCloseMobileDetail}
+              aria-label={isEnglishCopy ? 'Close' : '閉じる'}
+              className="absolute right-3 top-3 z-10 rounded-full bg-black/40 px-2 py-1 text-xs text-gray-200 hover:bg-black/60"
+            >
+              ✕
+            </button>
+            <div className="flex-1 overflow-y-auto px-3 pb-5 pt-1">
+              <DescentSidePanel
+                isEnglishCopy={isEnglishCopy}
+                totalClearedCount={clearedStages.size}
+                totalStages={TOTAL_STAGES}
+                activeBlock={panelBlock}
+                blockClearedCount={panelBlockClearedCount}
+                selectedStage={selectedStage}
+                selectedStageIsUnlocked={selectedStage ? isStageUnlocked(selectedStage.stageNumber) : false}
+                selectedStageIsCleared={selectedStage ? clearedStages.has(selectedStage.stageNumber) : false}
+                selectedStageClear={selectedStageClear}
+                hintMode={hintMode}
+                onHintModeChange={setHintMode}
+                playLocked={playLocked}
+                onStart={handleStart}
+                onRequestUpgrade={() => setShowPaywall(true)}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       <WebPaywallModal open={showPaywall} onClose={() => setShowPaywall(false)} isEnglishCopy={isEnglishCopy} />
     </div>

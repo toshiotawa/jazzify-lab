@@ -338,7 +338,9 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
   }, [activeStageDefinition, selectedConfig]);
 
   const handleBackToSelect = useCallback(() => {
-    if (isIOSWebView()) {
+    // iOS から直接ステージ起動 (レッスン連動 or タブ経由の stageNumber 指定) の場合のみ WebView を閉じる。
+    // iOS タブのマップ画面 (#survival) 経由でゲームに入った場合は、WebView を閉じずにマップへ戻す。
+    if (isIOSWebView() && isIOSSurvival) {
       sendGameCallback('gameEnd');
       return;
     }
@@ -353,7 +355,7 @@ const SurvivalMain: React.FC<SurvivalMainProps> = ({ lessonMode, demoMode }) => 
     setSelectedCharacter(undefined);
     setActiveStageDefinition(null);
     setActiveHintMode(false);
-  }, [activeStageDefinition, lessonMode, lessonContext]);
+  }, [isIOSSurvival, lessonMode, lessonContext]);
 
   const handleBackToMenu = useCallback(() => {
     if (isIOSWebView()) {
