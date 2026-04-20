@@ -50,7 +50,7 @@ export const StageNode: React.FC<StageNodeProps> = ({
 
   const stateClass = (() => {
     if (state === 'cleared') {
-      return 'bg-gradient-to-br from-amber-600 to-amber-800 border-amber-300/80 text-amber-100 shadow-[0_0_10px_rgba(255,176,60,0.35)]';
+      return 'bg-slate-800/80 border-amber-400/70 text-amber-100/90 shadow-[0_2px_8px_rgba(0,0,0,0.55)]';
     }
     if (state === 'unlocked') {
       if (isFrontier) {
@@ -100,19 +100,24 @@ export const StageNode: React.FC<StageNodeProps> = ({
         disabled={state === 'locked'}
       >
         {state === 'cleared' ? (
-          <span className="flex flex-col items-center leading-none">
+          <>
+            <span style={{ lineHeight: 1 }}>{stageNumber}</span>
             <span
               aria-hidden
-              style={{ fontSize: Math.max(14, 20 * scale), lineHeight: 1 }}
+              className="absolute flex items-center justify-center rounded-full bg-amber-400 text-slate-950 font-bold"
+              style={{
+                right: -Math.round(4 * scale),
+                top: -Math.round(4 * scale),
+                width: Math.max(12, 14 * scale),
+                height: Math.max(12, 14 * scale),
+                fontSize: Math.max(8, 9 * scale),
+                boxShadow: '0 1px 3px rgba(0,0,0,0.5)',
+                lineHeight: 1,
+              }}
             >
               ✓
             </span>
-            <span
-              style={{ fontSize: Math.max(9, 10 * scale), opacity: 0.85, marginTop: 2 }}
-            >
-              {stageNumber}
-            </span>
-          </span>
+          </>
         ) : state === 'locked' ? (
           <FaLock style={{ fontSize: Math.max(12, 16 * scale), opacity: 0.7 }} />
         ) : (
