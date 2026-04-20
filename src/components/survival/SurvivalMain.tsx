@@ -87,8 +87,8 @@ async function fetchDbDifficultyConfigs(): Promise<DifficultyConfig[]> {
 }
 
 const DEMO_CDE_NOTES = ['C_note', 'D_note', 'E_note'];
-const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/5b49b467-c54b-4fa8-ba36-bae3cfce424e.mp3';
-const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/b4249680-5471-4e4d-abba-af856ff33310.mp3';
+const DEMO_BGM_ODD = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
+const DEMO_BGM_EVEN = 'https://jazzify-cdn.com/fantasy-bgm/c0371aef-0afb-482c-91b6-c2cbf73b588e.mp3';
 
 const hasIOSParams = (): boolean => {
   if (!isIOSWebView()) return false;
