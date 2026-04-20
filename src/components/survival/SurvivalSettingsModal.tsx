@@ -7,6 +7,7 @@ import React, { useState, useEffect } from 'react';
 import { MidiDeviceSelector, AudioDeviceSelector } from '../ui/MidiDeviceManager';
 import { updateGlobalVolume } from '@/utils/MidiController';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
+import { SurvivalMapAudio } from '@/utils/SurvivalMapAudio';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
@@ -108,12 +109,14 @@ const SurvivalSettingsModal: React.FC<SurvivalSettingsModalProps> = ({
   const handleBgmVolumeChange = (value: number) => {
     setLocalBgmVolume(value);
     onBgmVolumeChange?.(value);
+    SurvivalMapAudio.setBgmVolume(value);
   };
 
   const handleSeVolumeChange = (value: number) => {
     setSeVolume(value);
     updateSettings({ soundEffectVolume: value });
     FantasySoundManager.setVolume(value);
+    SurvivalMapAudio.setSeVolume(value);
   };
 
   const handleToggle = (key: keyof SurvivalDisplaySettings) => {

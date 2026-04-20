@@ -6,10 +6,11 @@
  */
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { FaVolumeUp, FaVolumeMute } from 'react-icons/fa';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useAuthStore } from '@/stores/authStore';
 import { useGeoStore } from '@/stores/geoStore';
-import { platform } from '@/platform';
+import { platform, getWindow } from '@/platform';
 import {
   fetchSurvivalDifficultySettings,
   fetchSurvivalCharacters,
@@ -29,6 +30,8 @@ import WebPaywallModal from '@/components/ui/WebPaywallModal';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { initializeAudioSystem } from '@/utils/MidiController';
 import { isIOSWebView } from '@/utils/iosbridge';
+import { SurvivalMapAudio, SURVIVAL_MAP_BGM_URL } from '@/utils/SurvivalMapAudio';
+import { useGameStore } from '@/stores/gameStore';
 import {
   ALL_BLOCK_LAYOUTS,
   MAP_LOGICAL_HEIGHT,
@@ -135,6 +138,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
 }) => {
   const { profile } = useAuthStore();
   const geoCountry = useGeoStore(state => state.country);
+  const soundEffectVolume = useGameStore(state => state.settings.soundEffectVolume);
   const isEnglishCopy = shouldUseEnglishCopy({
     rank: profile?.rank,
     country: profile?.country ?? geoCountry,
@@ -155,6 +159,16 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
     return !window.matchMedia('(min-width: 768px)').matches;
   });
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
+  const [soundMuted, setSoundMuted] = useState<boolean>(() => SurvivalMapAudio.isMuted());
+
+  const handleToggleSound = useCallback(() => {
+    const next = SurvivalMapAudio.toggleMuted();
+    setSoundMuted(next);
+    if (!next) {
+      void SurvivalMapAudio.unlock().catch(() => { /* ignore */ });
+      void SurvivalMapAudio.playBgm(SURVIVAL_MAP_BGM_URL).catch(() => { /* ignore */ });
+    }
+  }, []);
 
   const viewportRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState({ width: MAP_LOGICAL_WIDTH, height: VIEWPORT_FALLBACK_HEIGHT });
@@ -255,6 +269,38 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, [profile]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  useEffect(() => {
+    if (typeof soundEffectVolume === 'number') {
+      SurvivalMapAudio.setSeVolume(soundEffectVolume);
+    }
+  }, [soundEffectVolume]);
+
+  useEffect(() => {
+    if (!SurvivalMapAudio.isMuted()) {
+      void SurvivalMapAudio.playBgm(SURVIVAL_MAP_BGM_URL).catch(() => { /* autoplay 失敗は握りつぶし、次のユーザー操作で解放される */ });
+    }
+    return () => {
+      void SurvivalMapAudio.stopBgm();
+    };
+  }, []);
+
+  useEffect(() => {
+    const el = viewportRef.current;
+    if (!el) return;
+    const unlock = (): void => {
+      void SurvivalMapAudio.unlock().catch(() => { /* ignore */ });
+    };
+    const onceOpts: AddEventListenerOptions = { once: true };
+    el.addEventListener('pointerdown', unlock, onceOpts);
+    el.addEventListener('touchstart', unlock, onceOpts);
+    getWindow().addEventListener?.('keydown', unlock, onceOpts);
+    return () => {
+      try { el.removeEventListener('pointerdown', unlock); } catch { /* ignore */ }
+      try { el.removeEventListener('touchstart', unlock); } catch { /* ignore */ }
+      try { getWindow().removeEventListener?.('keydown', unlock); } catch { /* ignore */ }
+    };
+  }, []);
 
   const selectedStage = useMemo<StageDefinition | null>(() => {
     if (selectedStageNumber == null) return null;
@@ -361,6 +407,7 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
   }, [adjustCamera, loading]);
 
   const handleSelectStage = useCallback((stageNumber: number) => {
+    SurvivalMapAudio.playSe('stage_click');
     setSelectedStageNumber(stageNumber);
     const pos = getStagePosition(stageNumber);
     if (pos) focusCamera(pos.y);
@@ -389,6 +436,8 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
         ]);
       } catch { /* ignore */ }
     }
+
+    void SurvivalMapAudio.stopBgm();
 
     const baseConfig = getConfig(selectedStage.difficulty);
     const stageConfig: DifficultyConfig = {
@@ -559,6 +608,30 @@ const SurvivalDescentMap: React.FC<SurvivalDescentMapProps> = ({
               )}
             </div>
           </div>
+
+          <button
+            type="button"
+            onClick={handleToggleSound}
+            onPointerDown={(e) => e.stopPropagation()}
+            onTouchStart={(e) => e.stopPropagation()}
+            aria-label={soundMuted
+              ? (isEnglishCopy ? 'Unmute map sound' : 'マップのサウンドをオンにする')
+              : (isEnglishCopy ? 'Mute map sound' : 'マップのサウンドをオフにする')}
+            aria-pressed={!soundMuted}
+            className="absolute bottom-3 right-3 z-30 flex items-center gap-2 rounded-full border border-amber-500/40 bg-black/55 px-3 py-2 text-xs font-semibold text-amber-100 backdrop-blur-sm transition-colors hover:bg-black/75 hover:border-amber-400/70 active:scale-95 sm:bottom-4 sm:right-4 sm:px-4 sm:py-2.5 sm:text-sm"
+            style={{ boxShadow: '0 6px 20px rgba(0,0,0,0.55)' }}
+          >
+            {soundMuted ? (
+              <FaVolumeMute aria-hidden className="text-base sm:text-lg" />
+            ) : (
+              <FaVolumeUp aria-hidden className="text-base sm:text-lg" />
+            )}
+            <span className="tracking-wide">
+              {soundMuted
+                ? (isEnglishCopy ? 'Sound OFF' : 'サウンド OFF')
+                : (isEnglishCopy ? 'Sound ON' : 'サウンド ON')}
+            </span>
+          </button>
         </div>
 
         <div className="hidden md:block md:h-[min(88vh,960px)]">
