@@ -85,7 +85,7 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
 
       <BlockDoor
         xPx={lastStage.x * scale}
-        yPx={(lastStage.y - 60) * scale}
+        yPx={(lastStage.y - 10) * scale}
         scale={scale}
         opened={doorOpened}
         dim={dim}
