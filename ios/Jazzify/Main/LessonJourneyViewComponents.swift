@@ -41,21 +41,36 @@ struct LessonJourneyBackgroundView: View {
                 endRadius: widthPx * 0.7
             )
 
-            Canvas { context, _ in
-                for star in stars {
-                    let rect = CGRect(
-                        x: star.x - star.radius,
-                        y: star.y - star.radius,
-                        width: star.radius * 2,
-                        height: star.radius * 2
-                    )
-                    context.fill(
-                        Path(ellipseIn: rect),
-                        with: .color(Color.white.opacity(star.opacity))
-                    )
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+                let t = timeline.date.timeIntervalSinceReferenceDate
+                Canvas { context, _ in
+                    for star in stars {
+                        let phase = ((t + star.phaseOffset) / star.duration)
+                            .truncatingRemainder(dividingBy: 1)
+                        let k = (1.0 - cos(phase * 2.0 * .pi)) / 2.0
+                        let radius: CGFloat
+                        let opacity: Double
+                        if star.breath {
+                            radius = star.radius * CGFloat(1.0 + 0.55 * k)
+                            opacity = 0.55 + 0.45 * k
+                        } else {
+                            radius = star.radius
+                            opacity = star.baseOpacity * (0.4 + 0.6 * k)
+                        }
+                        let rect = CGRect(
+                            x: star.x - radius,
+                            y: star.y - radius,
+                            width: radius * 2,
+                            height: radius * 2
+                        )
+                        context.fill(
+                            Path(ellipseIn: rect),
+                            with: .color(Color.white.opacity(opacity))
+                        )
+                    }
                 }
+                .frame(width: widthPx, height: heightPx)
             }
-            .frame(width: widthPx, height: heightPx)
             .allowsHitTesting(false)
         }
         .frame(width: widthPx, height: heightPx)
@@ -65,18 +80,32 @@ struct LessonJourneyBackgroundView: View {
         let x: CGFloat
         let y: CGFloat
         let radius: CGFloat
-        let opacity: Double
+        let baseOpacity: Double
+        let breath: Bool
+        /// 呼吸/瞬き 1 周期の長さ (秒)
+        let duration: Double
+        /// 位相オフセット (秒)
+        let phaseOffset: Double
 
         static func generate(count: Int, width: CGFloat, height: CGFloat, seed: UInt64) -> [Star] {
             var rng = SeededGenerator(seed: seed)
             var arr: [Star] = []
             arr.reserveCapacity(count)
-            for _ in 0..<count {
+            for i in 0..<count {
                 let x = CGFloat.random(in: 0...max(1, width), using: &rng)
                 let y = CGFloat.random(in: 0...max(1, height), using: &rng)
                 let r = CGFloat.random(in: 0.6...2.0, using: &rng)
                 let op = Double.random(in: 0.4...0.95, using: &rng)
-                arr.append(Star(x: x, y: y, radius: r, opacity: op))
+                // Web 実装の nearStars 相当: 概ね 1/4 程度を呼吸する星に
+                let breath = (i % 4 == 0)
+                let duration = breath
+                    ? Double.random(in: 3.2...5.6, using: &rng)
+                    : Double.random(in: 2.0...4.6, using: &rng)
+                let phase = Double.random(in: 0...duration, using: &rng)
+                arr.append(Star(
+                    x: x, y: y, radius: r, baseOpacity: op,
+                    breath: breath, duration: duration, phaseOffset: phase
+                ))
             }
             return arr
         }
@@ -89,6 +118,49 @@ struct LessonJourneyBackgroundView: View {
             state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
             return state
         }
+    }
+}
+
+// MARK: - Block Theme Overlay
+
+struct LessonJourneyBlockThemeOverlay: View {
+    let topY: CGFloat
+    let bottomY: CGFloat
+    let widthPx: CGFloat
+    let scale: CGFloat
+    let theme: BlockTheme
+    let dim: Bool
+
+    var body: some View {
+        let height = max(0, (bottomY - topY) * scale)
+        let topPx = topY * scale
+        Rectangle()
+            .fill(
+                LinearGradient(
+                    gradient: Gradient(stops: [
+                        .init(
+                            color: Color(hue: theme.hue / 360, saturation: 0.60, brightness: 0.10).opacity(0.45),
+                            location: 0.0
+                        ),
+                        .init(
+                            color: Color(hue: theme.hueAlt / 360, saturation: 0.70, brightness: 0.24).opacity(0.28),
+                            location: 0.55
+                        ),
+                        .init(
+                            color: Color(hue: theme.hue / 360, saturation: 0.50, brightness: 0.14).opacity(0.18),
+                            location: 0.90
+                        ),
+                        .init(color: .clear, location: 1.0),
+                    ]),
+                    startPoint: .bottom,
+                    endPoint: .top
+                )
+            )
+            .frame(width: widthPx, height: height)
+            .position(x: widthPx / 2, y: topPx + height / 2)
+            .opacity(dim ? 0.18 : 1.0)
+            .blendMode(.screen)
+            .allowsHitTesting(false)
     }
 }
 
@@ -117,25 +189,31 @@ struct LessonJourneyPathCanvas: View {
                 context: &context,
                 from: a, to: b,
                 state: pathState(a: a.lessonId, b: b.lessonId),
-                accent: block.accent
+                theme: block.theme
             )
         }
-        if let last = block.lessonNodes.last {
+        guard let last = block.lessonNodes.last else { return }
+        if let next = nextBlockFirstNode(after: block) {
+            // 最終レッスン → 次ブロック先頭レッスンを直結
             drawCurve(
                 context: &context,
                 from: last,
-                to: block.milestone,
-                state: isCompleted(last.lessonId) ? (isBlockCompleted(block: block) ? .cleared : .active) : .locked,
-                accent: block.accent
+                to: next,
+                state: pathState(a: last.lessonId, b: next.lessonId),
+                theme: block.theme
             )
-        }
-        if let next = nextBlockFirstNode(after: block) {
+        } else {
+            // 最終ブロック: 最終レッスン → コースゴールを直結
+            let goal = layout.goal
+            let goalState: PathState = isBlockCompleted(block: block)
+                ? .cleared
+                : (isCompleted(last.lessonId) ? .active : .locked)
             drawCurve(
                 context: &context,
-                from: block.milestone,
-                to: next,
-                state: isBlockCompleted(block: block) ? .active : .locked,
-                accent: block.accent
+                from: last,
+                to: goal,
+                state: goalState,
+                theme: block.theme
             )
         }
     }
@@ -176,7 +254,7 @@ struct LessonJourneyPathCanvas: View {
         from a: LessonJourneyNode,
         to b: LessonJourneyNode,
         state: PathState,
-        accent: CGFloat
+        theme: BlockTheme
     ) {
         let fromPt = CGPoint(x: a.x * scale, y: a.y * scale)
         let toPt = CGPoint(x: b.x * scale, y: b.y * scale)
@@ -188,7 +266,8 @@ struct LessonJourneyPathCanvas: View {
         path.move(to: fromPt)
         path.addCurve(to: toPt, control1: ctrl1, control2: ctrl2)
 
-        let hue = 262.0 + Double(accent) * 30.0
+        let hue = theme.hue
+        let hueAlt = theme.hueAlt
         let strokeColor: Color
         let width: CGFloat
         let dash: [CGFloat]
@@ -198,7 +277,7 @@ struct LessonJourneyPathCanvas: View {
             width = max(2.6, 3.2 * scale)
             dash = []
         case .active:
-            strokeColor = Color(hue: (hue + 8) / 360, saturation: 0.82, brightness: 0.85, opacity: 0.95)
+            strokeColor = Color(hue: hueAlt / 360, saturation: 0.85, brightness: 0.88, opacity: 0.95)
             width = max(3.2, 4.2 * scale)
             dash = []
         case .locked:
@@ -230,11 +309,12 @@ struct LessonJourneyBandView: View {
     let yPx: CGFloat
     let label: String
     let sublabel: String?
-    let accent: CGFloat
+    let theme: BlockTheme
     let dim: Bool
 
     var body: some View {
-        let hue = 262.0 + Double(accent) * 40.0
+        let hue = theme.hue
+        let hueAlt = theme.hueAlt
         ZStack {
             Rectangle()
                 .fill(
@@ -242,7 +322,7 @@ struct LessonJourneyBandView: View {
                         gradient: Gradient(colors: [
                             .clear,
                             Color(hue: hue / 360, saturation: 0.55, brightness: 0.28).opacity(0.55),
-                            Color(hue: (hue + 10) / 360, saturation: 0.55, brightness: 0.32).opacity(0.55),
+                            Color(hue: hueAlt / 360, saturation: 0.60, brightness: 0.34).opacity(0.6),
                             Color(hue: hue / 360, saturation: 0.55, brightness: 0.28).opacity(0.55),
                             .clear,
                         ]),
@@ -282,7 +362,7 @@ struct LessonJourneyNodeView: View {
     let onSelect: () -> Void
 
     var body: some View {
-        let diameter = 56 * scale
+        let diameter = 48 * scale
         Button(action: onSelect) {
             ZStack {
                 Circle()
@@ -290,19 +370,19 @@ struct LessonJourneyNodeView: View {
                     .overlay(
                         Circle().stroke(borderColor, lineWidth: 2)
                     )
-                    .shadow(color: glowColor, radius: isFrontier ? 14 : 8)
+                    .shadow(color: glowColor, radius: isFrontier ? 12 : 7)
 
                 if accessState.isCompleted {
                     Image(systemName: "checkmark")
-                        .font(.system(size: 18 * scale, weight: .bold))
+                        .font(.system(size: 16 * scale, weight: .bold))
                         .foregroundStyle(.white)
                 } else if !accessState.isUnlocked {
                     Image(systemName: "lock.fill")
-                        .font(.system(size: 16 * scale, weight: .bold))
+                        .font(.system(size: 14 * scale, weight: .bold))
                         .foregroundStyle(Color(hex: "94a3b8"))
                 } else {
                     Text("\(node.number)")
-                        .font(.system(size: 18 * scale, weight: .bold))
+                        .font(.system(size: 16 * scale, weight: .bold))
                         .foregroundStyle(titleColor)
                 }
             }
@@ -374,55 +454,6 @@ struct LessonJourneyNodeView: View {
     }
 }
 
-// MARK: - Milestone
-
-struct LessonJourneyMilestoneView: View {
-    let xPx: CGFloat
-    let yPx: CGFloat
-    let scale: CGFloat
-    let cleared: Bool
-    let dim: Bool
-    let label: String
-    let accent: CGFloat
-
-    var body: some View {
-        let size = 78 * scale
-        let hue = 262.0 + Double(accent) * 40.0
-        VStack(spacing: 6) {
-            RoundedRectangle(cornerRadius: 14 * scale)
-                .fill(
-                    RadialGradient(
-                        gradient: Gradient(colors: [
-                            Color(hue: hue / 360, saturation: cleared ? 0.9 : 0.4, brightness: cleared ? 0.85 : 0.5),
-                            Color(hue: (hue - 10) / 360, saturation: 0.7, brightness: cleared ? 0.3 : 0.2),
-                        ]),
-                        center: .init(x: 0.3, y: 0.25),
-                        startRadius: 0,
-                        endRadius: size
-                    )
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14 * scale)
-                        .stroke(Color.white.opacity(cleared ? 0.8 : 0.25), lineWidth: 2)
-                )
-                .frame(width: size, height: size)
-                .rotationEffect(.degrees(45))
-                .shadow(color: Color(hue: hue / 360, saturation: 0.8, brightness: 0.6).opacity(cleared ? 0.7 : 0.25), radius: cleared ? 18 : 8)
-
-            Text(label)
-                .font(.system(size: 10, weight: .bold))
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2)
-                .background(Color.black.opacity(0.65))
-                .foregroundStyle(Color.white.opacity(cleared ? 0.95 : 0.7))
-                .clipShape(Capsule())
-        }
-        .opacity(dim ? 0.5 : 1)
-        .position(x: xPx, y: yPx)
-        .allowsHitTesting(false)
-    }
-}
-
 // MARK: - Goal
 
 struct LessonJourneyGoalView: View {
@@ -432,39 +463,98 @@ struct LessonJourneyGoalView: View {
     let cleared: Bool
     let label: String
 
+    @State private var breath: CGFloat = 1.0
+
     var body: some View {
-        let size = 112 * scale
+        let size = 96 * scale
         VStack(spacing: 6) {
             ZStack {
+                if cleared {
+                    // halo (光環) ― 完了時のみ表示
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                gradient: Gradient(colors: [
+                                    Color(hex: "fff0b4").opacity(0.65),
+                                    Color(hex: "ffc870").opacity(0.32),
+                                    .clear,
+                                ]),
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: size * 0.72
+                            )
+                        )
+                        .frame(width: size * 1.2, height: size * 1.2)
+                        .scaleEffect(breath)
+                        .opacity(Double(breath))
+
+                    // 光線
+                    ForEach([0, 45, 90, 135], id: \.self) { deg in
+                        Rectangle()
+                            .fill(Color(hex: "ffe6a0").opacity(0.55))
+                            .frame(width: max(1.0, 1.3 * scale), height: size * 0.95)
+                            .rotationEffect(.degrees(Double(deg)))
+                            .blendMode(.screen)
+                    }
+                }
+
+                // コア (王冠の土台)
                 Circle()
                     .fill(
                         RadialGradient(
-                            gradient: Gradient(colors: [Color(hex: "fffce3"), Color(hex: "ffd76a"), Color(hex: "c99a3c")]),
+                            gradient: Gradient(colors: coreGradient),
                             center: .init(x: 0.35, y: 0.3),
                             startRadius: 0,
                             endRadius: size / 2
                         )
                     )
                     .overlay(
-                        Circle().stroke(Color(hex: "fff7c4").opacity(0.9), lineWidth: 2)
+                        Circle().stroke(
+                            cleared
+                                ? Color(hex: "fff7c4").opacity(0.9)
+                                : Color.white.opacity(0.2),
+                            lineWidth: cleared ? 2 : 1.2
+                        )
                     )
-                    .shadow(color: Color(hex: "ffd76a").opacity(0.8), radius: 20)
+                    .shadow(
+                        color: cleared
+                            ? Color(hex: "ffd76a").opacity(0.8)
+                            : Color.black.opacity(0.4),
+                        radius: cleared ? 20 : 6
+                    )
                     .frame(width: size * 0.64, height: size * 0.64)
 
                 Image(systemName: "crown.fill")
-                    .font(.system(size: 30 * scale, weight: .bold))
-                    .foregroundStyle(Color(hex: "78350f"))
+                    .font(.system(size: 26 * scale, weight: .bold))
+                    .foregroundStyle(cleared ? Color(hex: "78350f") : Color(hex: "4b2a0f").opacity(0.6))
             }
 
             Text(label)
                 .font(.system(size: 12, weight: .bold))
                 .tracking(1.2)
-                .foregroundStyle(Color(hex: "ffecb3"))
-                .shadow(color: .black.opacity(0.6), radius: 6)
+                .foregroundStyle(cleared ? Color(hex: "ffecb3") : Color.white.opacity(0.55))
+                .shadow(color: .black.opacity(cleared ? 0.6 : 0.3), radius: cleared ? 6 : 2)
         }
-        .opacity(cleared ? 1 : 0.9)
+        .opacity(cleared ? 1 : 0.85)
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
+        .onAppear {
+            guard cleared else { return }
+            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) {
+                breath = 1.08
+            }
+        }
+    }
+
+    private var coreGradient: [Color] {
+        if cleared {
+            return [Color(hex: "fffce3"), Color(hex: "ffd76a"), Color(hex: "c99a3c")]
+        }
+        return [
+            Color(hex: "4b3b1e").opacity(0.85),
+            Color(hex: "2a1f0e").opacity(0.9),
+            Color(hex: "150e06"),
+        ]
     }
 }
 
@@ -478,13 +568,13 @@ struct LessonJourneyCharacterView: View {
     @State private var floatOffset: CGFloat = 0
 
     var body: some View {
-        let size = 76 * scale
+        let size = 60 * scale
         Image("default-avater")
             .resizable()
             .scaledToFit()
             .frame(width: size, height: size)
-            .shadow(color: .black.opacity(0.5), radius: 8, y: 6)
-            .offset(y: floatOffset - size * 0.72)
+            .shadow(color: .black.opacity(0.5), radius: 7, y: 5)
+            .offset(y: floatOffset - size * 0.78)
             .position(x: xPx, y: yPx)
             .allowsHitTesting(false)
             .onAppear {

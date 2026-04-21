@@ -9,27 +9,56 @@ import Foundation
 enum LessonJourneyLayoutConstants {
     static let logicalWidth: CGFloat = 360
 
-    static let nodeSpacing: CGFloat = 96
-    static let amplitude: CGFloat = 88
+    static let nodeSpacing: CGFloat = 78
+    static let amplitude: CGFloat = 72
     static let sineFrequency: CGFloat = 0.58
-    static let blockTopPad: CGFloat = 96
-    static let blockBottomPad: CGFloat = 56
-    static let milestoneOffset: CGFloat = 110
-    static let goalTopPad: CGFloat = 140
+    static let blockTopPad: CGFloat = 72
+    static let blockBottomPad: CGFloat = 40
+    /// ブロック間の追加オフセット (まとめノード廃止後の隙間)
+    static let blockGap: CGFloat = 40
+    static let goalTopPad: CGFloat = 240
     static let topMargin: CGFloat = 120
     static let bottomMargin: CGFloat = 180
 }
 
 enum LessonJourneyNodeKind {
     case lesson
-    case milestone
     case goal
 }
 
+/// ブロック毎のストーリー性カラーテーマ。
+/// blockIndex % BLOCK_THEMES.count で割り当てる。
+/// 下から上へ: 深夜 → 夜明け → 朝 → 昼 → 夕 → 星空
+struct BlockTheme: Equatable {
+    enum Label: String {
+        case midnight, dawn, morning, noon, dusk, starlight
+    }
+    /// 主色相 (HSL / 0–360)
+    let hue: Double
+    /// 二次色相 (グラデの上端用)
+    let hueAlt: Double
+    let label: Label
+}
+
+enum LessonJourneyBlockThemes {
+    static let all: [BlockTheme] = [
+        BlockTheme(hue: 262, hueAlt: 280, label: .midnight),
+        BlockTheme(hue: 325, hueAlt: 345, label: .dawn),
+        BlockTheme(hue: 200, hueAlt: 215, label: .morning),
+        BlockTheme(hue: 45, hueAlt: 30, label: .noon),
+        BlockTheme(hue: 18, hueAlt: 5, label: .dusk),
+        BlockTheme(hue: 250, hueAlt: 230, label: .starlight),
+    ]
+
+    static func theme(for blockIndex: Int) -> BlockTheme {
+        all[((blockIndex % all.count) + all.count) % all.count]
+    }
+}
+
 struct LessonJourneyNode: Identifiable, Equatable {
-    /// lesson の場合は lesson.id.uuidString。milestone/goal は仮想 ID
+    /// lesson の場合は lesson.id.uuidString。goal は仮想 ID
     let id: String
-    /// ブロック内 1 始まり。milestone/goal は 0。
+    /// ブロック内 1 始まり。goal は 0。
     let number: Int
     let x: CGFloat
     let y: CGFloat
@@ -45,11 +74,10 @@ struct LessonJourneyBlockLayout: Identifiable, Equatable {
     let blockName: String
     let blockNameEn: String?
     let blockIndex: Int
-    let accent: CGFloat
+    let theme: BlockTheme
     let topY: CGFloat
     let bottomY: CGFloat
     let firstLessonY: CGFloat
-    let milestone: LessonJourneyNode
     let lessonNodes: [LessonJourneyNode]
 }
 
@@ -106,7 +134,7 @@ enum LessonJourneyLayoutBuilder {
 
         let blockHeights: [CGFloat] = grouped.map { g in
             let n = CGFloat(max(1, g.lessons.count))
-            return c.blockTopPad + n * c.nodeSpacing + c.milestoneOffset + c.blockBottomPad
+            return c.blockTopPad + n * c.nodeSpacing + c.blockGap + c.blockBottomPad
         }
         let blocksTotalHeight = blockHeights.reduce(CGFloat(0), +)
         let totalHeight = c.topMargin + c.goalTopPad + blocksTotalHeight + c.bottomMargin
@@ -145,29 +173,16 @@ enum LessonJourneyLayoutBuilder {
                 allNodes.append(node)
             }
 
-            let milestoneY = firstLessonY - CGFloat(group.lessons.count) * c.nodeSpacing - c.milestoneOffset * 0.4
-            let milestone = LessonJourneyNode(
-                id: "__milestone_\(group.blockNumber)__",
-                number: 0,
-                x: logicalWidth / 2,
-                y: milestoneY,
-                kind: .milestone,
-                blockIndex: blockIndex,
-                lessonId: nil
-            )
-            allNodes.append(milestone)
-
             let defaultName = defaultBlockName(blockNumber: group.blockNumber, locale: locale)
             let block = LessonJourneyBlockLayout(
                 blockNumber: group.blockNumber,
                 blockName: group.blockName?.isEmpty == false ? group.blockName! : defaultName,
                 blockNameEn: group.blockNameEn,
                 blockIndex: blockIndex,
-                accent: CGFloat(blockIndex % 6) / 6,
+                theme: LessonJourneyBlockThemes.theme(for: blockIndex),
                 topY: blockTopY,
                 bottomY: blockBottomY,
                 firstLessonY: firstLessonY,
-                milestone: milestone,
                 lessonNodes: lessonNodes
             )
             blocks.append(block)

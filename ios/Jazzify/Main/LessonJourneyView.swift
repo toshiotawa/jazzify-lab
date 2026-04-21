@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 /// レッスンモード「学びの旅マップ」(コース詳細画面・iOS)
 /// サバイバルの降下マップと対になる上昇型マップ。
@@ -6,7 +7,6 @@ import SwiftUI
 /// - iPad regular: 左リストパネル + 右マップ 二分割
 struct LessonJourneyView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.horizontalSizeClass) private var hSize
 
     let course: Course
     let initialLessons: [Lesson]
@@ -68,8 +68,10 @@ struct LessonJourneyView: View {
         lessons.isEmpty ? 0 : Int((Double(completedCount) / Double(lessons.count)) * 100.0)
     }
 
+    /// iPad のみ 2 カラム (リスト + マップ) にする。
+    /// iPhone は Max 系の横向き (hSize == .regular) でも 1 カラムで固定。
     private var useSplitLayout: Bool {
-        hSize == .regular
+        UIDevice.current.userInterfaceIdiom == .pad
     }
 
     // MARK: - Body
@@ -233,28 +235,27 @@ struct LessonJourneyView: View {
                                 height: layout.totalHeight * scale
                             )
 
-                            // 帯
+                            // ブロックテーマのカラーオーバーレイ
                             ForEach(layout.blocks) { block in
-                                LessonJourneyBandView(
+                                LessonJourneyBlockThemeOverlay(
+                                    topY: block.topY,
+                                    bottomY: block.bottomY,
                                     widthPx: layout.logicalWidth * scale,
-                                    yPx: block.topY * scale + 28,
-                                    label: block.blockName,
-                                    sublabel: locale == .en ? nil : block.blockNameEn,
-                                    accent: block.accent,
+                                    scale: scale,
+                                    theme: block.theme,
                                     dim: block.blockIndex > accessibleBlockIndex
                                 )
                             }
 
-                            // Milestones
+                            // 帯
                             ForEach(layout.blocks) { block in
-                                LessonJourneyMilestoneView(
-                                    xPx: block.milestone.x * scale,
-                                    yPx: block.milestone.y * scale,
-                                    scale: scale,
-                                    cleared: isBlockCleared(block: block),
-                                    dim: block.blockIndex > accessibleBlockIndex,
+                                LessonJourneyBandView(
+                                    widthPx: layout.logicalWidth * scale,
+                                    yPx: bandYPx(for: block, scale: scale),
                                     label: block.blockName,
-                                    accent: block.accent
+                                    sublabel: locale == .en ? nil : block.blockNameEn,
+                                    theme: block.theme,
+                                    dim: block.blockIndex > accessibleBlockIndex
                                 )
                             }
 
@@ -388,13 +389,20 @@ struct LessonJourneyView: View {
     }
 
     private func scrollToFrontier(scrollProxy: ScrollViewProxy, viewportHeight _: CGFloat, scale _: CGFloat) {
-        if let id = frontierLessonId {
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
-                withAnimation(.easeInOut(duration: 0.6)) {
-                    scrollProxy.scrollTo("lesson-\(id.uuidString)", anchor: .center)
-                }
-            }
+        // ロード時は現在地へ「アニメーションなし」で瞬時に移動する
+        // (Web 実装と同様に、マップの下端からスクロールアップする演出を避ける)
+        guard let id = frontierLessonId else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+            scrollProxy.scrollTo("lesson-\(id.uuidString)", anchor: .center)
         }
+    }
+
+    private func bandYPx(for block: LessonJourneyBlockLayout, scale: CGFloat) -> CGFloat {
+        // 最終ブロックはコース名 (GoalView) との被りを避けて
+        // 帯を下方向へオフセットする
+        let isLast = block.blockIndex == layout.blocks.count - 1
+        let offset: CGFloat = isLast ? 64 : 28
+        return block.topY * scale + offset
     }
 
     private func reloadProgress() async {
