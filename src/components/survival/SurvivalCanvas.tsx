@@ -732,48 +732,306 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             ctx.strokeRect(0, -thickness, length, thickness * 2);
             break;
           }
-          case 'ringTelegraph':
-          case 'ringActive': {
+          case 'ringTelegraph': {
             const outer = h.radius ?? 200;
             const inner = h.innerRadius ?? 120;
-            ctx.strokeStyle = isTelegraph ? 'rgba(180, 120, 255, 0.85)' : 'rgba(255, 220, 80, 1)';
-            ctx.lineWidth = 4;
-            ctx.fillStyle = isTelegraph ? 'rgba(180, 120, 255, 0.12)' : 'rgba(255, 60, 60, 0.4)';
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            // 外縁: 魔方陣風の二重円 + 収縮するガイド
+            const pulse = 0.5 + Math.sin(nowMs / 110) * 0.5;
+            // 予兆の塗り（ドーナツ帯）
+            ctx.fillStyle = `rgba(180, 120, 255, ${0.10 + 0.05 * pulse})`;
             ctx.beginPath();
             ctx.arc(sx, sy, outer, 0, Math.PI * 2);
             ctx.arc(sx, sy, inner, 0, Math.PI * 2, true);
             ctx.fill();
+            // 二重リング（外）
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = `rgba(200, 150, 255, ${0.85})`;
+            ctx.shadowColor = 'rgba(180, 120, 255, 0.9)';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(sx, sy, outer, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.lineWidth = 2;
+            ctx.setLineDash([10, 8]);
+            ctx.strokeStyle = `rgba(230, 200, 255, 0.75)`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, outer - 6, nowMs / 600, nowMs / 600 + Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.shadowBlur = 0;
+            // 内縁
+            ctx.lineWidth = 3;
+            ctx.strokeStyle = 'rgba(200, 150, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, inner, 0, Math.PI * 2);
+            ctx.stroke();
+            // 収縮するカウントダウンリング（時間経過で inner に向かって縮む）
+            const shrinkR = inner + (outer - inner) * (1 - pg);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + 0.4 * pulse})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, shrinkR, 0, Math.PI * 2);
+            ctx.stroke();
+            // ルーン風の放射マーク（8方向）
+            for (let i = 0; i < 8; i++) {
+              const a = (i / 8) * Math.PI * 2 + nowMs / 900;
+              const rOuter = outer - 2;
+              const rInner = outer - 16;
+              ctx.strokeStyle = 'rgba(220, 180, 255, 0.75)';
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(sx + Math.cos(a) * rInner, sy + Math.sin(a) * rInner);
+              ctx.lineTo(sx + Math.cos(a) * rOuter, sy + Math.sin(a) * rOuter);
+              ctx.stroke();
+            }
+            break;
+          }
+          case 'ringActive': {
+            const outer = h.radius ?? 200;
+            const inner = h.innerRadius ?? 120;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            // ドーナツ帯に灼熱のグラデーション
+            const ringMid = (outer + inner) / 2;
+            const grad = ctx.createRadialGradient(sx, sy, inner, sx, sy, outer);
+            grad.addColorStop(0, 'rgba(255, 240, 120, 0.1)');
+            grad.addColorStop(0.3, `rgba(255, 180, 60, ${0.7 * (1 - pg * 0.3)})`);
+            grad.addColorStop(0.6, `rgba(255, 80, 60, ${0.85 * (1 - pg * 0.2)})`);
+            grad.addColorStop(1, 'rgba(120, 0, 80, 0.2)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(sx, sy, outer, 0, Math.PI * 2);
+            ctx.arc(sx, sy, inner, 0, Math.PI * 2, true);
+            ctx.fill();
+            // 外縁・内縁を閃光で縁取り
+            ctx.shadowColor = 'rgba(255, 220, 80, 0.9)';
+            ctx.shadowBlur = 18;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 1)';
+            ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.arc(sx, sy, outer, 0, Math.PI * 2);
             ctx.stroke();
             ctx.beginPath();
             ctx.arc(sx, sy, inner, 0, Math.PI * 2);
             ctx.stroke();
+            ctx.shadowBlur = 0;
+            // リング上の閃光スパーク
+            const sparkCount = 14;
+            for (let i = 0; i < sparkCount; i++) {
+              const a = (i / sparkCount) * Math.PI * 2 + nowMs / 180;
+              const r = ringMid + Math.sin(nowMs / 90 + i) * 14;
+              ctx.fillStyle = `rgba(255, 255, 200, ${0.9 * (1 - pg)})`;
+              ctx.beginPath();
+              ctx.arc(sx + Math.cos(a) * r, sy + Math.sin(a) * r, 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // 外側へ飛び散る火花
+            for (let i = 0; i < 10; i++) {
+              const a = (i / 10) * Math.PI * 2 + nowMs / 220;
+              const r = outer + pg * 18 + Math.sin(nowMs / 100 + i) * 4;
+              ctx.strokeStyle = `rgba(255, 200, 80, ${0.7 * (1 - pg)})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(sx + Math.cos(a) * (outer + 2), sy + Math.sin(a) * (outer + 2));
+              ctx.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r);
+              ctx.stroke();
+            }
             break;
           }
-          case 'crossTelegraph':
+          case 'crossTelegraph': {
+            const length = h.length ?? 500;
+            const thickness = h.thickness ?? 40;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            const pulse = 0.5 + Math.sin(nowMs / 110) * 0.5;
+            // 縦横の予兆帯（ぼんやり + 点線ボーダー）
+            ctx.fillStyle = `rgba(180, 80, 255, ${0.16 + 0.08 * pulse})`;
+            ctx.fillRect(sx - length / 2, sy - thickness, length, thickness * 2);
+            ctx.fillRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            ctx.setLineDash([10, 7]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(220, 180, 255, ${0.85})`;
+            ctx.strokeRect(sx - length / 2, sy - thickness, length, thickness * 2);
+            ctx.strokeRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            ctx.setLineDash([]);
+            // 中央の詠唱サークル
+            ctx.strokeStyle = 'rgba(220, 180, 255, 0.9)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 20 + pulse * 4, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.strokeStyle = 'rgba(220, 180, 255, 0.7)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, 30 + pulse * 6, nowMs / 700, nowMs / 700 + Math.PI * 1.5);
+            ctx.stroke();
+            // 走る予兆エネルギー（軸に沿って左右/上下に往復する細いビーム）
+            const beamOffset = ((pg * 2) % 1) * length;
+            // 横軸
+            ctx.fillStyle = 'rgba(230, 200, 255, 0.85)';
+            ctx.fillRect(sx - length / 2 + beamOffset - 12, sy - 2, 24, 4);
+            ctx.fillRect(sx + length / 2 - beamOffset - 12, sy - 2, 24, 4);
+            // 縦軸
+            ctx.fillRect(sx - 2, sy - length / 2 + beamOffset - 12, 4, 24);
+            ctx.fillRect(sx - 2, sy + length / 2 - beamOffset - 12, 4, 24);
+            break;
+          }
           case 'crossActive': {
             const length = h.length ?? 500;
             const thickness = h.thickness ?? 40;
-            ctx.fillStyle = isTelegraph ? 'rgba(180, 80, 255, 0.22)' : 'rgba(255, 60, 60, 0.55)';
-            ctx.strokeStyle = isTelegraph ? 'rgba(180, 80, 255, 0.9)' : 'rgba(255, 220, 80, 1)';
-            ctx.lineWidth = 3;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            // 横ビームのグラデーション
+            const hGrad = ctx.createLinearGradient(sx - length / 2, sy, sx + length / 2, sy);
+            hGrad.addColorStop(0, 'rgba(180, 60, 255, 0.05)');
+            hGrad.addColorStop(0.5, `rgba(255, 220, 120, ${0.9 * (1 - pg * 0.3)})`);
+            hGrad.addColorStop(1, 'rgba(180, 60, 255, 0.05)');
+            ctx.fillStyle = hGrad;
             ctx.fillRect(sx - length / 2, sy - thickness, length, thickness * 2);
+            // 縦ビームのグラデーション
+            const vGrad = ctx.createLinearGradient(sx, sy - length / 2, sx, sy + length / 2);
+            vGrad.addColorStop(0, 'rgba(180, 60, 255, 0.05)');
+            vGrad.addColorStop(0.5, `rgba(255, 220, 120, ${0.9 * (1 - pg * 0.3)})`);
+            vGrad.addColorStop(1, 'rgba(180, 60, 255, 0.05)');
+            ctx.fillStyle = vGrad;
             ctx.fillRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            // 白い中芯
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * (1 - pg * 0.4)})`;
+            ctx.fillRect(sx - length / 2, sy - thickness * 0.25, length, thickness * 0.5);
+            ctx.fillRect(sx - thickness * 0.25, sy - length / 2, thickness * 0.5, length);
+            // 外縁
+            ctx.shadowColor = 'rgba(255, 200, 80, 0.95)';
+            ctx.shadowBlur = 18;
+            ctx.strokeStyle = 'rgba(255, 240, 160, 1)';
+            ctx.lineWidth = 4;
             ctx.strokeRect(sx - length / 2, sy - thickness, length, thickness * 2);
             ctx.strokeRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            ctx.shadowBlur = 0;
+            // 中心の十字閃光
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.9 * (1 - pg)})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 24 + (1 - pg) * 12, 0, Math.PI * 2);
+            ctx.fill();
+            // 先端ビームトレイル
+            for (let dir = -1; dir <= 1; dir += 2) {
+              for (let i = 0; i < 4; i++) {
+                const t = i / 4;
+                const a = `rgba(255, 230, 160, ${0.6 * (1 - pg) * (1 - t)})`;
+                // 横
+                ctx.fillStyle = a;
+                ctx.fillRect(sx + dir * (length / 2 - 60 - i * 28), sy - 3, 22, 6);
+                // 縦
+                ctx.fillRect(sx - 3, sy + dir * (length / 2 - 60 - i * 28), 6, 22);
+              }
+            }
             break;
           }
-          case 'pullTelegraph':
-          case 'pullActive': {
+          case 'pullTelegraph': {
             const radius = h.radius ?? 300;
-            ctx.strokeStyle = isTelegraph ? 'rgba(120, 200, 255, 0.7)' : 'rgba(80, 180, 255, 1)';
-            ctx.fillStyle = 'rgba(40, 120, 200, 0.12)';
-            ctx.lineWidth = 2;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            // 青いガス渦のような予兆
+            const aura = ctx.createRadialGradient(sx, sy, 10, sx, sy, radius);
+            aura.addColorStop(0, 'rgba(140, 220, 255, 0.45)');
+            aura.addColorStop(0.6, 'rgba(60, 140, 220, 0.22)');
+            aura.addColorStop(1, 'rgba(20, 60, 120, 0)');
+            ctx.fillStyle = aura;
             ctx.beginPath();
             ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.fill();
+            // 外縁点線
+            ctx.setLineDash([12, 8]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.stroke();
+            ctx.setLineDash([]);
+            // 吸い込みの渦巻線（アルキメデス螺旋）
+            for (let spiral = 0; spiral < 3; spiral++) {
+              ctx.strokeStyle = `rgba(180, 230, 255, ${0.6 - spiral * 0.15})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              const offset = (nowMs / 900 + spiral * (Math.PI * 2) / 3);
+              const turns = 2.5;
+              const steps = 120;
+              for (let i = 0; i <= steps; i++) {
+                const t = i / steps;
+                const a = offset + t * Math.PI * 2 * turns;
+                const r = radius * t;
+                const px = sx + Math.cos(a) * r;
+                const py = sy + Math.sin(a) * r;
+                if (i === 0) ctx.moveTo(px, py);
+                else ctx.lineTo(px, py);
+              }
+              ctx.stroke();
+            }
+            // 内向きに吸い込まれる光点
+            for (let i = 0; i < 10; i++) {
+              const phase = ((nowMs / 1100 + i * 0.1) % 1);
+              const a = (i / 10) * Math.PI * 2 + nowMs / 1400;
+              const r = radius * (1 - phase);
+              const alpha = phase * 0.9;
+              ctx.fillStyle = `rgba(200, 235, 255, ${alpha})`;
+              ctx.beginPath();
+              ctx.arc(sx + Math.cos(a) * r, sy + Math.sin(a) * r, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // 収縮リング
+            const shrinkR = radius * (1 - pg * 0.5);
+            ctx.strokeStyle = `rgba(255, 255, 255, 0.7)`;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, shrinkR, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+          }
+          case 'pullActive': {
+            const radius = h.radius ?? 300;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            // 強い青白い吸引パルス
+            const pulse = 0.4 + Math.sin(nowMs / 80) * 0.6;
+            const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+            grad.addColorStop(0, `rgba(220, 240, 255, ${0.7 * (1 - pg)})`);
+            grad.addColorStop(0.4, `rgba(120, 200, 255, ${0.55 * (1 - pg)})`);
+            grad.addColorStop(1, 'rgba(20, 60, 150, 0)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            // 強めのリング輪郭
+            ctx.shadowColor = 'rgba(140, 220, 255, 1)';
+            ctx.shadowBlur = 20;
+            ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 + 0.2 * pulse})`;
+            ctx.lineWidth = 5;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            // 内向きに激しく吸い込まれる光跡（線）
+            for (let i = 0; i < 16; i++) {
+              const phase = ((nowMs / 280 + i * 0.062) % 1);
+              const a = (i / 16) * Math.PI * 2 + nowMs / 350;
+              const r1 = radius * (1 - phase);
+              const r2 = radius * Math.max(0, 1 - phase - 0.18);
+              ctx.strokeStyle = `rgba(220, 240, 255, ${0.85 * (1 - phase)})`;
+              ctx.lineWidth = 2;
+              ctx.beginPath();
+              ctx.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1);
+              ctx.lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2);
+              ctx.stroke();
+            }
+            // 中心の輝き
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.85})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 16 + pulse * 8, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = `rgba(140, 220, 255, 0.7)`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 28 + pulse * 10, 0, Math.PI * 2);
+            ctx.fill();
             break;
           }
           case 'bloodPool': {

@@ -31,14 +31,6 @@ interface SurvivalGameOverProps {
   onNextStage?: () => void;
 }
 
-const DIFFICULTY_COLORS: Record<SurvivalDifficulty, string> = {
-  veryeasy: 'text-emerald-300',
-  easy: 'text-green-400',
-  normal: 'text-blue-400',
-  hard: 'text-orange-400',
-  extreme: 'text-red-400',
-};
-
 const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   result,
   difficulty,
@@ -234,11 +226,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                       : `WAVE ${finalWave || 1} のノルマを達成できませんでした`}
                   </div>
                 </div>
-              ) : (
-                <div className={cn('text-lg font-sans', DIFFICULTY_COLORS[difficulty])}>
-                  {difficulty.toUpperCase()}
-                </div>
-              )}
+              ) : null}
 
               {stageDefinition && (
                 <div className="mt-2 px-4 py-2 bg-red-900/30 rounded-lg border border-red-500/30">
