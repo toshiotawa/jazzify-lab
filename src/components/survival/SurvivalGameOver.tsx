@@ -11,7 +11,7 @@ import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
 import { upsertSurvivalHighScore, upsertSurvivalStageClear } from '@/platform/supabaseSurvival';
 import { clearUserStatsCache } from '@/platform/supabaseUserStats';
-import { StageDefinition, TOTAL_STAGES, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
+import { StageDefinition, TOTAL_STAGES, STAGE_KILL_QUOTA, isBlockLastStage } from './SurvivalStageDefinitions';
 import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
 
 interface SurvivalGameOverProps {
@@ -64,6 +64,7 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
   const isStageMode = !!stageDefinition;
   const isStageClear = result.isStageClear === true && isStageMode && !hintMode;
   const isStageClearHint = result.isStageClear === true && isStageMode && hintMode;
+  const isBossStage = isStageMode && isBlockLastStage(stageDefinition!.stageNumber);
 
   const handleBackToSelect = () => {
     if (isIOSWebView()) { sendGameCallback('gameEnd'); return; }
@@ -173,7 +174,9 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
                   {isEnglishCopy ? stageDefinition!.nameEn : stageDefinition!.name}
                 </div>
                 <div className="text-xs text-gray-400 mt-1">
-                  {isEnglishCopy ? '90 seconds survived!' : '90秒間生存達成！'}
+                  {isBossStage
+                    ? (isEnglishCopy ? 'Boss defeated!' : 'ボス撃破達成！')
+                    : (isEnglishCopy ? '90 seconds survived!' : '90秒間生存達成！')}
                 </div>
               </div>
             </>
