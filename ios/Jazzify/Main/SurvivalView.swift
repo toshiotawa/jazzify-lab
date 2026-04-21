@@ -3,8 +3,8 @@ import SwiftUI
 /// サバイバルタブ（魔王城降下）のネイティブ実装。
 ///
 /// 仕様:
-/// - iPhone (compact): 1 カラムの階層リスト。ステージタップで詳細モーダル (sheet)
-/// - iPad (regular): 2 カラム（左 階層リスト / 右 階層内ステージ一覧 + ステージ詳細）
+/// - iPhone / iPad 共通: 画面全体を降下マップで覆う 1 カラム構成 (縦向き前提)。
+///   ステージをタップすると下からの詳細シート (`sheet`) が開く。
 /// - 無料プランは **第一階層全体 (Major 1〜5)** が遊べる。それ以外はステージをタップすると
 ///   `SubscriptionView` に誘導する。
 /// - ステージはクリア状況によりアンロック。1 ステージ目は常時解放、
@@ -14,7 +14,6 @@ import SwiftUI
 ///   更新されるため、閉じたタイミングで再読み込みする。
 struct SurvivalView: View {
     @EnvironmentObject var appState: AppState
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
 
     @State private var currentStageNumber: Int = 1
     @State private var clearedStages: Set<Int> = []
@@ -31,8 +30,6 @@ struct SurvivalView: View {
     private let freeStageNumbers: Set<Int> = SurvivalStageCatalog.freeTierStageNumbers
 
     private var locale: AppLocale { appState.locale }
-
-    private var isRegular: Bool { horizontalSizeClass == .regular }
 
     /// 第一階層のクリア状況から「プレミアムがロックされている無料ユーザー」の表示フラグ。
     private var playLockedForUpsell: Bool { !appState.isPremium }
@@ -122,47 +119,6 @@ struct SurvivalView: View {
 
     @ViewBuilder
     private var content: some View {
-        if isRegular {
-            iPadLayout
-        } else {
-            iPhoneLayout
-        }
-    }
-
-    private var iPadLayout: some View {
-        HStack(spacing: 0) {
-            descentMap
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-            Divider()
-                .background(Color.white.opacity(0.05))
-
-            VStack(alignment: .leading, spacing: 12) {
-                if let bannerKind = appState.paymentIssueBannerKind {
-                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                }
-                if playLockedForUpsell {
-                    upsellBanner
-                }
-
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 14) {
-                        if let stage = selectedStage, let block = selectedStageBlock {
-                            stageDetailPanel(stage: stage, block: block)
-                        } else {
-                            emptyStageDetail
-                        }
-                    }
-                    .padding(.vertical, 4)
-                }
-            }
-            .padding(12)
-            .frame(width: 360)
-            .background(Color(hex: "0b1220"))
-        }
-    }
-
-    private var iPhoneLayout: some View {
         VStack(spacing: 8) {
             if let bannerKind = appState.paymentIssueBannerKind {
                 PaymentIssueBannerView(kind: bannerKind, locale: locale)
@@ -197,61 +153,10 @@ struct SurvivalView: View {
     private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
         selectedStageNumber = stage.stageNumber
         hintMode = false
-        if isRegular {
-            return
-        }
         showMobileDetail = true
     }
 
-    // MARK: - Detail panel & sheet
-
-    private var emptyStageDetail: some View {
-        Text(locale == .ja ? "ステージをタップすると詳細が表示されます。" : "Tap a stage to see details.")
-            .font(.caption)
-            .foregroundStyle(.gray)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(16)
-            .background(Color(hex: "1e293b"))
-            .cornerRadius(12)
-    }
-
-    private func stageDetailPanel(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
-        VStack(alignment: .leading, spacing: 16) {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(stage.localizedName(locale))
-                        .font(.title3.bold())
-                        .foregroundStyle(.white)
-                    Spacer()
-                    if clearedStages.contains(stage.stageNumber) {
-                        Text(locale == .ja ? "クリア済" : "Cleared")
-                            .font(.caption.bold())
-                            .foregroundStyle(.green)
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .background(Color.green.opacity(0.2))
-                            .cornerRadius(999)
-                    }
-                }
-                HStack(spacing: 8) {
-                    difficultyBadge(stage.difficulty)
-                    Text(stage.localizedRootPattern(locale))
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                    Spacer()
-                }
-            }
-
-            stageChordPreview(stage: stage)
-
-            hintToggle(stage: stage)
-
-            startControls(stage: stage)
-        }
-        .padding(18)
-        .background(Color(hex: "1e293b"))
-        .cornerRadius(16)
-    }
+    // MARK: - Detail sheet
 
     private func stageDetailSheet(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
         NavigationStack {

@@ -47,6 +47,10 @@ struct SurvivalDescentView: View {
         block.localizedLabel(locale)
     }
 
+    private func depthLabel(for blockIndex: Int) -> String {
+        locale == .en ? "FLOOR \(blockIndex + 1)" : "第\(blockIndex + 1)階層"
+    }
+
     private func block(at index: Int) -> SurvivalBlockMeta? {
         guard index >= 0, index < blocks.count else { return nil }
         return blocks[index]
@@ -54,6 +58,10 @@ struct SurvivalDescentView: View {
 
     private func isMixed(_ stageNumber: Int) -> Bool {
         SurvivalStageCatalog.stage(byNumber: stageNumber)?.isMixedStage ?? false
+    }
+
+    private func blockAllCleared(_ meta: SurvivalBlockMeta) -> Bool {
+        !meta.stageNumbers.isEmpty && meta.stageNumbers.allSatisfy { clearedStages.contains($0) }
     }
 
     // MARK: - Body
@@ -94,21 +102,41 @@ struct SurvivalDescentView: View {
 
     @ViewBuilder
     private func mapBody(worldWidth: CGFloat, worldHeight: CGFloat, scale: CGFloat) -> some View {
+        // 論理座標 0..logicalWidth を worldWidth の中央に寄せるための横オフセット
+        let horizontalOffset = (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2
+
         ZStack(alignment: .topLeading) {
             SurvivalDescentBackgroundView(widthPx: worldWidth, heightPx: worldHeight)
 
+            // ブロック区間のテーマ色オーバーレイ (全ブロック)
             ForEach(Array(layout.blocks.enumerated()), id: \.element.blockKey) { idx, blockLayout in
+                let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
+                let locked = blockLayout.blockIndex > accessibleBlockIndex
+                SurvivalDescentBlockTintOverlay(
+                    startY: blockLayout.startY,
+                    endY: blockLayout.endY,
+                    widthPx: worldWidth,
+                    scale: scale,
+                    theme: theme,
+                    dim: locked
+                )
+                .id("tint-\(idx)")
+            }
+
+            // 装飾＋踊り場＋階段＋ステージノード
+            ForEach(Array(layout.blocks.enumerated()), id: \.element.blockKey) { _, blockLayout in
                 if let meta = block(at: blockLayout.blockIndex) {
                     blockContent(
                         meta: meta,
                         layout: blockLayout,
-                        index: idx,
                         scale: scale,
+                        horizontalOffset: horizontalOffset,
                         worldWidth: worldWidth
                     )
                 }
             }
 
+            // 未解放ブロックの暗幕
             ForEach(layout.blocks) { blockLayout in
                 if blockLayout.blockIndex > accessibleBlockIndex {
                     SurvivalDescentDimVeil(
@@ -120,9 +148,10 @@ struct SurvivalDescentView: View {
                 }
             }
 
+            // フロンティア位置のキャラクター
             if let frontierPos = layout.position(for: frontierStageNumber) {
                 SurvivalDescentCharacterView(
-                    xPx: frontierPos.x * scale + (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2,
+                    xPx: frontierPos.x * scale + horizontalOffset,
                     yPx: frontierPos.y * scale,
                     scale: scale
                 )
@@ -137,22 +166,103 @@ struct SurvivalDescentView: View {
     private func blockContent(
         meta: SurvivalBlockMeta,
         layout blockLayout: SurvivalDescentBlockLayout,
-        index _: Int,
         scale: CGFloat,
+        horizontalOffset: CGFloat,
         worldWidth: CGFloat
     ) -> some View {
-        let horizontalOffset = (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2
+        let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
         let locked = blockLayout.blockIndex > accessibleBlockIndex
+        let cleared = blockAllCleared(meta)
 
-        SurvivalDescentBlockHeaderPlate(
-            label: blockLabel(for: meta),
-            difficulty: meta.difficulty,
-            blockIndex: blockLayout.blockIndex,
-            locked: locked,
-            widthPx: worldWidth,
-            yPx: blockLayout.headerY * scale
+        // 階段コネクタ (踊り場間)
+        ForEach(Array(stairConnectors(in: blockLayout).enumerated()), id: \.offset) { _, pair in
+            SurvivalDescentStairConnector(
+                from: CGPoint(
+                    x: pair.from.x + horizontalOffset / scale,
+                    y: pair.from.y
+                ),
+                to: CGPoint(
+                    x: pair.to.x + horizontalOffset / scale,
+                    y: pair.to.y
+                ),
+                scale: scale,
+                theme: theme,
+                highlighted: pair.highlighted,
+                dim: locked
+            )
+        }
+
+        // 踊り場
+        ForEach(blockLayout.stages) { stage in
+            SurvivalDescentLandingPlatform(
+                type: stage.landingType == .big ? .big : .small,
+                xPx: stage.x * scale + horizontalOffset,
+                yPx: stage.y * scale,
+                scale: scale,
+                theme: theme,
+                dim: locked
+            )
+        }
+
+        // 両脇の篝火 (ヘッダーの左右)
+        let headerCenterX = SurvivalDescentLayoutConstants.laneCenterX * scale + horizontalOffset
+        let lanternY = blockLayout.headerY * scale + 6 * scale
+        let lanternOffsetX = max(110, 150 * scale)
+        SurvivalDescentBlockLantern(
+            xPx: headerCenterX - lanternOffsetX,
+            yPx: lanternY,
+            scale: scale,
+            theme: theme,
+            lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
+            dim: locked
+        )
+        SurvivalDescentBlockLantern(
+            xPx: headerCenterX + lanternOffsetX,
+            yPx: lanternY,
+            scale: scale,
+            theme: theme,
+            lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
+            dim: locked
         )
 
+        // ヘッダープレート
+        SurvivalDescentBlockHeaderPlate(
+            label: blockLabel(for: meta),
+            depthLabel: depthLabel(for: blockLayout.blockIndex),
+            theme: theme,
+            locked: locked,
+            cleared: cleared,
+            xPx: headerCenterX,
+            yPx: blockLayout.headerY * scale,
+            scale: scale
+        )
+
+        // 大踊り場 (ブロック末尾) の上に封印魔法陣
+        if let bigStage = blockLayout.stages.last {
+            SurvivalDescentBlockSeal(
+                xPx: bigStage.x * scale + horizontalOffset,
+                yPx: (bigStage.y - 70) * scale,
+                scale: scale,
+                theme: theme,
+                opened: cleared,
+                dim: locked
+            )
+        }
+
+        // ブロック末尾の扉 (次ブロックが存在する時のみ)
+        if blockLayout.blockIndex + 1 < blocks.count, let bigStage = blockLayout.stages.last {
+            let doorLocked = !cleared
+            SurvivalDescentDoorView(
+                xPx: bigStage.x * scale + horizontalOffset,
+                yPx: (bigStage.y - 60) * scale,
+                scale: scale,
+                theme: theme,
+                opened: !doorLocked,
+                dim: locked
+            )
+        }
+
+        // ステージノード (最前面)
         ForEach(blockLayout.stages) { stage in
             let unlocked = isStageUnlocked(stage.stageNumber)
             let cleared = clearedStages.contains(stage.stageNumber)
@@ -160,14 +270,11 @@ struct SurvivalDescentView: View {
             let requiresPremium = playLockedForUpsell && !freeAllowed
 
             SurvivalDescentStageNode(
-                stage: SurvivalDescentStagePosition(
-                    stageNumber: stage.stageNumber,
-                    x: stage.x * scale + horizontalOffset,
-                    y: stage.y * scale,
-                    lane: stage.lane,
-                    landingType: stage.landingType,
-                    blockKey: stage.blockKey
-                ),
+                stageNumber: stage.stageNumber,
+                xPx: stage.x * scale + horizontalOffset,
+                yPx: stage.y * scale,
+                scale: scale,
+                theme: theme,
                 isCurrent: stage.stageNumber == frontierStageNumber,
                 isCleared: cleared,
                 isUnlocked: unlocked,
@@ -175,7 +282,6 @@ struct SurvivalDescentView: View {
                 requiresPremium: requiresPremium,
                 isMixed: isMixed(stage.stageNumber),
                 dim: locked,
-                scale: scale,
                 onTap: {
                     if let def = SurvivalStageCatalog.stage(byNumber: stage.stageNumber) {
                         selectedStageNumber = stage.stageNumber
@@ -184,22 +290,40 @@ struct SurvivalDescentView: View {
                 }
             )
         }
+    }
 
-        if blockLayout.blockIndex + 1 < blocks.count {
-            let doorLocked = (blockLayout.blockIndex + 1) > accessibleBlockIndex
-            SurvivalDescentDoorView(
-                widthPx: worldWidth,
-                yPx: blockLayout.doorY,
-                scale: scale,
-                locked: doorLocked
+    // MARK: - Helpers
+
+    private struct StairPair {
+        let from: CGPoint
+        let to: CGPoint
+        let highlighted: Bool
+    }
+
+    /// ブロック内の踊り場間コネクタのペアを列挙 (論理座標のまま返す)
+    private func stairConnectors(in blockLayout: SurvivalDescentBlockLayout) -> [StairPair] {
+        var pairs: [StairPair] = []
+        let stages = blockLayout.stages
+        for i in 0..<max(0, stages.count - 1) {
+            let a = stages[i]
+            let b = stages[i + 1]
+            let highlighted = clearedStages.contains(a.stageNumber)
+                && !clearedStages.contains(b.stageNumber)
+                && isStageUnlocked(b.stageNumber)
+            pairs.append(
+                StairPair(
+                    from: CGPoint(x: a.x, y: a.y),
+                    to: CGPoint(x: b.x, y: b.y),
+                    highlighted: highlighted
+                )
             )
         }
+        return pairs
     }
 
     // MARK: - Scroll
 
     /// フロンティア (現在のステージ) を中央に合わせるスクロールを要求する。
-    /// 進行が深くなるほど大きな Y へスクロールする必要がある (下方降下マップ)。
     private func requestScrollToFrontier(scale: CGFloat, animated: Bool) {
         let target = frontierStageNumber
         let targetY: CGFloat = {
