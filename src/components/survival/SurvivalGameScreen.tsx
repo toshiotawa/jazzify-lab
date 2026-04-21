@@ -2155,7 +2155,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               onLessonStageClear?.();
               onMissionStageClear?.();
             }
-            FantasySoundManager.playStageClear().catch(() => {});
+            try { FantasySoundManager.playStageClear(); } catch { /* noop */ }
           } else if (bossState.result === 'lose' || bossState.player.hp <= 0) {
             newState.isGameOver = true;
             newState.isPlaying = false;
