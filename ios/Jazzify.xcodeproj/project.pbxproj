@@ -26,6 +26,9 @@
 		503403BE5DE2BF26F4357330 /* Lesson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FE7F0D800E5DA8E1F04443 /* Lesson.swift */; };
 		526A15ED93FC35AA024F047E /* OrientationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 710661B97325754204CE9621 /* OrientationManager.swift */; };
 		537268253B9AB86886F57E47 /* SurvivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE637ADB172B5C753918491 /* SurvivalView.swift */; };
+		A1A1A1A1A1A1A1A1A1A1A1A1 /* SurvivalDescentLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = B1B1B1B1B1B1B1B1B1B1B1B1 /* SurvivalDescentLayout.swift */; };
+		A2A2A2A2A2A2A2A2A2A2A2A2 /* SurvivalDescentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B2B2B2B2B2B2B2B2B2B2B2B2 /* SurvivalDescentView.swift */; };
+		A3A3A3A3A3A3A3A3A3A3A3A3 /* SurvivalDescentViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = B3B3B3B3B3B3B3B3B3B3B3B3 /* SurvivalDescentViewComponents.swift */; };
 		54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */; };
 		56798F7B79D567C225C5CB37 /* TopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034080E04C73977D21BFCEC /* TopView.swift */; };
 		607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */; };
@@ -82,6 +85,9 @@
 		8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerifyView.swift; sourceTree = "<group>"; };
 		8497DA09733314AB9BE43767 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
 		8AE637ADB172B5C753918491 /* SurvivalView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalView.swift; sourceTree = "<group>"; };
+		B1B1B1B1B1B1B1B1B1B1B1B1 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
+		B2B2B2B2B2B2B2B2B2B2B2B2 /* SurvivalDescentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentView.swift; sourceTree = "<group>"; };
+		B3B3B3B3B3B3B3B3B3B3B3B3 /* SurvivalDescentViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentViewComponents.swift; sourceTree = "<group>"; };
 		8CA9A84AB9F7B849C9301F99 /* FantasyStageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FantasyStageView.swift; sourceTree = "<group>"; };
 		9287B850DB97CA095340096F /* SubscriptionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SubscriptionView.swift; sourceTree = "<group>"; };
 		9598C9898C52B457C3447906 /* SurvivalStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageDefinition.swift; sourceTree = "<group>"; };
@@ -258,6 +264,9 @@
 				F831419566658890CA84E9E6 /* LessonListView.swift */,
 				1873118CEEB8C7B4341EDE19 /* MainTabView.swift */,
 				F5FB42EB0BEA73D79132F739 /* SettingsView.swift */,
+				B1B1B1B1B1B1B1B1B1B1B1B1 /* SurvivalDescentLayout.swift */,
+				B2B2B2B2B2B2B2B2B2B2B2B2 /* SurvivalDescentView.swift */,
+				B3B3B3B3B3B3B3B3B3B3B3B3 /* SurvivalDescentViewComponents.swift */,
 				8AE637ADB172B5C753918491 /* SurvivalView.swift */,
 				F034080E04C73977D21BFCEC /* TopView.swift */,
 			);
@@ -388,6 +397,9 @@
 				07EF4E8FAA12B796E5EA12E1 /* SupabaseService.swift in Sources */,
 				FA647ACA3357F39ACAF18F3B /* SurvivalModels.swift in Sources */,
 				B3B7F00C2BE2665277EE54BC /* SurvivalStageDefinition.swift in Sources */,
+				A1A1A1A1A1A1A1A1A1A1A1A1 /* SurvivalDescentLayout.swift in Sources */,
+				A2A2A2A2A2A2A2A2A2A2A2A2 /* SurvivalDescentView.swift in Sources */,
+				A3A3A3A3A3A3A3A3A3A3A3A3 /* SurvivalDescentViewComponents.swift in Sources */,
 				537268253B9AB86886F57E47 /* SurvivalView.swift in Sources */,
 				56798F7B79D567C225C5CB37 /* TopView.swift in Sources */,
 				ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */,

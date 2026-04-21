@@ -19,8 +19,6 @@ struct SurvivalView: View {
     @State private var currentStageNumber: Int = 1
     @State private var clearedStages: Set<Int> = []
     @State private var isLoading: Bool = true
-    @State private var expandedBlockKey: SurvivalBlockKey?
-    @State private var selectedBlockKey: SurvivalBlockKey?
     @State private var selectedStageNumber: Int?
     @State private var hintMode: Bool = false
     @State private var launchStage: SurvivalStageDefinition?
@@ -39,14 +37,14 @@ struct SurvivalView: View {
     /// 第一階層のクリア状況から「プレミアムがロックされている無料ユーザー」の表示フラグ。
     private var playLockedForUpsell: Bool { !appState.isPremium }
 
-    private var selectedBlock: SurvivalBlockMeta? {
-        guard let key = selectedBlockKey else { return blocks.first }
-        return blocks.first { $0.blockKey == key } ?? blocks.first
-    }
-
     private var selectedStage: SurvivalStageDefinition? {
         guard let stageNumber = selectedStageNumber else { return nil }
         return SurvivalStageCatalog.stage(byNumber: stageNumber)
+    }
+
+    private var selectedStageBlock: SurvivalBlockMeta? {
+        guard let stage = selectedStage else { return nil }
+        return SurvivalStageCatalog.block(forStage: stage.stageNumber)
     }
 
     var body: some View {
@@ -82,7 +80,7 @@ struct SurvivalView: View {
                 SubscriptionView()
             }
             .sheet(isPresented: $showMobileDetail) {
-                if let stage = selectedStage, let block = SurvivalStageCatalog.block(forStage: stage.stageNumber) {
+                if let stage = selectedStage, let block = selectedStageBlock {
                     stageDetailSheet(stage: stage, block: block)
                         .presentationDetents([.medium, .large])
                         .presentationDragIndicator(.visible)
@@ -133,136 +131,79 @@ struct SurvivalView: View {
 
     private var iPadLayout: some View {
         HStack(spacing: 0) {
-            blockListColumn
-                .frame(width: 320)
-                .background(Color(hex: "0b1220"))
+            descentMap
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
             Divider()
                 .background(Color.white.opacity(0.05))
 
-            if let block = selectedBlock {
-                blockDetailColumn(block: block)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                emptyState
+            VStack(alignment: .leading, spacing: 12) {
+                if let bannerKind = appState.paymentIssueBannerKind {
+                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                }
+                if playLockedForUpsell {
+                    upsellBanner
+                }
+
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        if let stage = selectedStage, let block = selectedStageBlock {
+                            stageDetailPanel(stage: stage, block: block)
+                        } else {
+                            emptyStageDetail
+                        }
+                    }
+                    .padding(.vertical, 4)
+                }
             }
+            .padding(12)
+            .frame(width: 360)
+            .background(Color(hex: "0b1220"))
         }
     }
 
     private var iPhoneLayout: some View {
-        ScrollView {
-            LazyVStack(spacing: 12) {
-                if let bannerKind = appState.paymentIssueBannerKind {
-                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                }
-                if playLockedForUpsell {
-                    upsellBanner
-                }
-                ForEach(blocks) { block in
-                    accordionBlockRow(block: block)
-                }
+        VStack(spacing: 8) {
+            if let bannerKind = appState.paymentIssueBannerKind {
+                PaymentIssueBannerView(kind: bannerKind, locale: locale)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 8)
             }
-            .padding()
+            if playLockedForUpsell {
+                upsellBanner
+                    .padding(.horizontal, 12)
+            }
+            descentMap
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
-    // MARK: - iPad columns
+    // MARK: - Descent map
 
-    private var blockListColumn: some View {
-        ScrollView {
-            LazyVStack(spacing: 0) {
-                if let bannerKind = appState.paymentIssueBannerKind {
-                    PaymentIssueBannerView(kind: bannerKind, locale: locale)
-                        .padding(12)
-                }
-                if playLockedForUpsell {
-                    upsellBanner
-                        .padding(.horizontal, 12)
-                        .padding(.top, 4)
-                }
-                ForEach(blocks) { block in
-                    blockListRow(block: block)
-                }
+    private var descentMap: some View {
+        SurvivalDescentView(
+            currentStageNumber: currentStageNumber,
+            clearedStages: clearedStages,
+            selectedStageNumber: $selectedStageNumber,
+            freeStageNumbers: freeStageNumbers,
+            playLockedForUpsell: playLockedForUpsell,
+            onStageSelect: { stage in
+                handleDescentStageSelect(stage: stage)
             }
-            .padding(.vertical, 8)
-        }
+        )
+        .environmentObject(appState)
     }
 
-    private func blockListRow(block: SurvivalBlockMeta) -> some View {
-        let isSelected = selectedBlock?.blockKey == block.blockKey
-        let blockUnlocked = isBlockUnlocked(block)
-        let clearedCount = block.stageNumbers.filter { clearedStages.contains($0) }.count
-        let totalCount = block.stageNumbers.count
-
-        return Button {
-            selectBlock(block)
-        } label: {
-            HStack(alignment: .center, spacing: 10) {
-                statusIndicator(
-                    isUnlocked: blockUnlocked,
-                    isCompleted: clearedCount == totalCount && totalCount > 0
-                )
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack(spacing: 6) {
-                        Text(blockTitle(block))
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
-                        difficultyBadge(block.difficulty)
-                    }
-                    Text(blockProgressLabel(cleared: clearedCount, total: totalCount))
-                        .font(.caption2)
-                        .foregroundStyle(.gray)
-                }
-                Spacer()
-                if !blockUnlocked && !playLockedForUpsell {
-                    Image(systemName: "lock.fill")
-                        .font(.caption)
-                        .foregroundStyle(.gray)
-                }
-            }
-            .padding(.horizontal, 14)
-            .padding(.vertical, 12)
-            .background(isSelected ? Color.purple.opacity(0.18) : Color.clear)
-            .overlay(alignment: .leading) {
-                if isSelected {
-                    Rectangle()
-                        .fill(Color.purple)
-                        .frame(width: 3)
-                }
-            }
+    private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
+        selectedStageNumber = stage.stageNumber
+        hintMode = false
+        if isRegular {
+            return
         }
-        .buttonStyle(.plain)
+        showMobileDetail = true
     }
 
-    private func blockDetailColumn(block: SurvivalBlockMeta) -> some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
-                blockHeader(block: block)
-
-                stageGrid(block: block)
-
-                if let stage = selectedStage,
-                   let stageBlock = SurvivalStageCatalog.block(forStage: stage.stageNumber),
-                   stageBlock.blockKey == block.blockKey {
-                    stageDetailPanel(stage: stage, block: stageBlock)
-                } else {
-                    emptyStageDetail
-                }
-            }
-            .padding(18)
-        }
-    }
-
-    private var emptyState: some View {
-        VStack(spacing: 12) {
-            Image(systemName: "flame.fill")
-                .font(.system(size: 48))
-                .foregroundStyle(.orange.opacity(0.7))
-            Text(locale == .ja ? "階層を選択してください" : "Select a tier")
-                .foregroundStyle(.gray)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
+    // MARK: - Detail panel & sheet
 
     private var emptyStageDetail: some View {
         Text(locale == .ja ? "ステージをタップすると詳細が表示されます。" : "Tap a stage to see details.")
@@ -272,214 +213,6 @@ struct SurvivalView: View {
             .padding(16)
             .background(Color(hex: "1e293b"))
             .cornerRadius(12)
-    }
-
-    // MARK: - iPhone accordion
-
-    private func accordionBlockRow(block: SurvivalBlockMeta) -> some View {
-        let blockUnlocked = isBlockUnlocked(block)
-        let isExpanded = expandedBlockKey == block.blockKey
-        let clearedCount = block.stageNumbers.filter { clearedStages.contains($0) }.count
-        let totalCount = block.stageNumbers.count
-
-        return VStack(spacing: 0) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.18)) {
-                    expandedBlockKey = isExpanded ? nil : block.blockKey
-                }
-            } label: {
-                HStack(spacing: 12) {
-                    statusIndicator(
-                        isUnlocked: blockUnlocked,
-                        isCompleted: clearedCount == totalCount && totalCount > 0
-                    )
-                    VStack(alignment: .leading, spacing: 4) {
-                        HStack(spacing: 6) {
-                            Text(blockTitle(block))
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                            difficultyBadge(block.difficulty)
-                        }
-                        Text(blockProgressLabel(cleared: clearedCount, total: totalCount))
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                    }
-                    Spacer()
-                    if !blockUnlocked && !playLockedForUpsell {
-                        Image(systemName: "lock.fill")
-                            .foregroundStyle(.gray)
-                    } else {
-                        Image(systemName: isExpanded ? "chevron.up" : "chevron.down")
-                            .foregroundStyle(.gray)
-                    }
-                }
-                .padding(16)
-            }
-            .buttonStyle(.plain)
-
-            if isExpanded {
-                stageList(block: block)
-                    .padding(.horizontal, 12)
-                    .padding(.bottom, 12)
-            }
-        }
-        .background(Color(hex: "1e293b"))
-        .cornerRadius(12)
-    }
-
-    private func stageList(block: SurvivalBlockMeta) -> some View {
-        VStack(spacing: 8) {
-            ForEach(block.stageNumbers, id: \.self) { stageNumber in
-                if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber) {
-                    stageListRow(stage: stage, block: block)
-                }
-            }
-        }
-    }
-
-    private func stageListRow(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
-        let stageUnlocked = isStageUnlocked(stage.stageNumber)
-        let stageCleared = clearedStages.contains(stage.stageNumber)
-        let isSelected = selectedStageNumber == stage.stageNumber
-        let freeAllowed = freeStageNumbers.contains(stage.stageNumber)
-        let requiresPremium = playLockedForUpsell && !freeAllowed
-
-        return Button {
-            handleStageTap(stage: stage, block: block)
-        } label: {
-            HStack(spacing: 12) {
-                stageStatusIcon(
-                    isUnlocked: stageUnlocked,
-                    isCleared: stageCleared,
-                    isMixed: stage.isMixedStage,
-                    requiresPremium: requiresPremium
-                )
-                VStack(alignment: .leading, spacing: 4) {
-                    Text(stage.localizedName(locale))
-                        .font(.subheadline.bold())
-                        .foregroundStyle(stageUnlocked ? .white : .gray)
-                    HStack(spacing: 6) {
-                        if stage.isMixedStage {
-                            Text(locale == .ja ? "ミックス" : "Mixed")
-                                .font(.caption2.bold())
-                                .foregroundStyle(.yellow)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.yellow.opacity(0.18))
-                                .cornerRadius(4)
-                        }
-                        Text(stage.localizedRootPattern(locale))
-                            .font(.caption2)
-                            .foregroundStyle(.gray)
-                    }
-                }
-                Spacer()
-                if requiresPremium {
-                    premiumTag
-                } else if !stageUnlocked {
-                    Image(systemName: "lock.fill")
-                        .foregroundStyle(.gray)
-                }
-            }
-            .padding(12)
-            .background(isSelected ? Color.purple.opacity(0.2) : Color(hex: "334155"))
-            .cornerRadius(10)
-            .opacity(stageUnlocked ? 1 : 0.6)
-        }
-        .buttonStyle(.plain)
-    }
-
-    // MARK: - Detail panel & sheet
-
-    private func blockHeader(block: SurvivalBlockMeta) -> some View {
-        let clearedCount = block.stageNumbers.filter { clearedStages.contains($0) }.count
-        return VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 8) {
-                Text(blockTitle(block))
-                    .font(.title2.bold())
-                    .foregroundStyle(.white)
-                difficultyBadge(block.difficulty)
-                Spacer()
-                Text(blockProgressLabel(cleared: clearedCount, total: block.stageNumbers.count))
-                    .font(.caption.bold())
-                    .foregroundStyle(clearedCount == block.stageNumbers.count ? .green : .gray)
-            }
-
-            if !isBlockUnlocked(block) && !playLockedForUpsell {
-                Text(locale == .ja
-                     ? "前の階層をすべてクリアすると解放されます。"
-                     : "Clear the previous tier to unlock.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-            }
-        }
-    }
-
-    private func stageGrid(block: SurvivalBlockMeta) -> some View {
-        let columns: [GridItem] = [
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10),
-            GridItem(.flexible(), spacing: 10)
-        ]
-
-        return LazyVGrid(columns: columns, spacing: 10) {
-            ForEach(block.stageNumbers, id: \.self) { stageNumber in
-                if let stage = SurvivalStageCatalog.stage(byNumber: stageNumber) {
-                    stageGridCell(stage: stage, block: block)
-                }
-            }
-        }
-    }
-
-    private func stageGridCell(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
-        let stageUnlocked = isStageUnlocked(stage.stageNumber)
-        let stageCleared = clearedStages.contains(stage.stageNumber)
-        let isSelected = selectedStageNumber == stage.stageNumber
-        let freeAllowed = freeStageNumbers.contains(stage.stageNumber)
-        let requiresPremium = playLockedForUpsell && !freeAllowed
-
-        return Button {
-            selectedStageNumber = stage.stageNumber
-        } label: {
-            VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(locale == .ja ? "\(stage.stageNumber)" : "#\(stage.stageNumber)")
-                        .font(.caption.bold())
-                        .foregroundStyle(.purple)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color.purple.opacity(0.18))
-                        .cornerRadius(4)
-                    Spacer()
-                    stageStatusIcon(
-                        isUnlocked: stageUnlocked,
-                        isCleared: stageCleared,
-                        isMixed: stage.isMixedStage,
-                        requiresPremium: requiresPremium
-                    )
-                }
-                Text(stage.isMixedStage
-                     ? (locale == .ja ? "ミックス" : "Mixed")
-                     : stage.localizedChordDisplay(locale))
-                    .font(.caption.bold())
-                    .foregroundStyle(stageUnlocked ? .white : .gray)
-                    .lineLimit(1)
-                Text(stage.localizedRootPattern(locale))
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-                    .lineLimit(1)
-            }
-            .frame(maxWidth: .infinity, minHeight: 74, alignment: .topLeading)
-            .padding(10)
-            .background(isSelected ? Color.purple.opacity(0.28) : Color(hex: "334155"))
-            .cornerRadius(10)
-            .overlay(
-                RoundedRectangle(cornerRadius: 10)
-                    .stroke(isSelected ? Color.purple : Color.clear, lineWidth: 1)
-            )
-            .opacity(stageUnlocked ? 1 : 0.55)
-        }
-        .buttonStyle(.plain)
     }
 
     private func stageDetailPanel(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
@@ -709,56 +442,6 @@ struct SurvivalView: View {
         .buttonStyle(.plain)
     }
 
-    private var premiumTag: some View {
-        Text(locale == .ja ? "プレミアム" : "Premium")
-            .font(.caption2.bold())
-            .foregroundStyle(.yellow)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(Color.yellow.opacity(0.2))
-            .cornerRadius(4)
-    }
-
-    private func statusIndicator(isUnlocked: Bool, isCompleted: Bool) -> some View {
-        Group {
-            if isCompleted {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if isUnlocked {
-                Image(systemName: "flame.fill")
-                    .foregroundStyle(.orange)
-            } else {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.gray)
-            }
-        }
-        .font(.title3)
-    }
-
-    private func stageStatusIcon(
-        isUnlocked: Bool,
-        isCleared: Bool,
-        isMixed: Bool,
-        requiresPremium: Bool
-    ) -> some View {
-        Group {
-            if requiresPremium {
-                Image(systemName: "crown.fill")
-                    .foregroundStyle(.yellow)
-            } else if isCleared {
-                Image(systemName: "checkmark.circle.fill")
-                    .foregroundStyle(.green)
-            } else if isUnlocked {
-                Image(systemName: isMixed ? "sparkles" : "play.circle.fill")
-                    .foregroundStyle(isMixed ? .yellow : .purple)
-            } else {
-                Image(systemName: "lock.fill")
-                    .foregroundStyle(.gray)
-            }
-        }
-        .font(.subheadline)
-    }
-
     private func difficultyBadge(_ difficulty: SurvivalDifficulty) -> some View {
         let color: Color = {
             switch difficulty {
@@ -784,41 +467,11 @@ struct SurvivalView: View {
             : "Tier \(index) · \(block.localizedLabel(locale))"
     }
 
-    private func blockProgressLabel(cleared: Int, total: Int) -> String {
-        locale == .ja ? "\(cleared)/\(total) クリア" : "\(cleared)/\(total) cleared"
-    }
-
     // MARK: - Logic
-
-    private func isBlockUnlocked(_ block: SurvivalBlockMeta) -> Bool {
-        guard block.blockIndex > 0 else { return true }
-        guard block.blockIndex - 1 < blocks.count else { return false }
-        let previous = blocks[block.blockIndex - 1]
-        return previous.stageNumbers.allSatisfy { clearedStages.contains($0) }
-    }
 
     private func isStageUnlocked(_ stageNumber: Int) -> Bool {
         if stageNumber == 1 { return true }
         return clearedStages.contains(stageNumber - 1)
-    }
-
-    private func selectBlock(_ block: SurvivalBlockMeta) {
-        selectedBlockKey = block.blockKey
-        let preferredStage = block.stageNumbers.first { isStageUnlocked($0) && !clearedStages.contains($0) }
-            ?? block.stageNumbers.first
-        selectedStageNumber = preferredStage
-        hintMode = false
-    }
-
-    private func handleStageTap(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) {
-        selectedStageNumber = stage.stageNumber
-        selectedBlockKey = block.blockKey
-        hintMode = false
-        if isRegular {
-            // iPad は右パネルで詳細表示する
-            return
-        }
-        showMobileDetail = true
     }
 
     private func startStage(_ stage: SurvivalStageDefinition) {
@@ -860,15 +513,11 @@ struct SurvivalView: View {
         currentStageNumber = progress?.currentStageNumber ?? 1
         clearedStages = Set(clears.map { $0.stageNumber })
 
-        if selectedBlockKey == nil {
+        if selectedStageNumber == nil {
             if let frontierBlock = SurvivalStageCatalog.block(forStage: currentStageNumber) {
-                selectedBlockKey = frontierBlock.blockKey
-                expandedBlockKey = frontierBlock.blockKey
                 selectedStageNumber = frontierBlock.stageNumbers.first { isStageUnlocked($0) && !clearedStages.contains($0) }
                     ?? frontierBlock.stageNumbers.first
             } else {
-                selectedBlockKey = blocks.first?.blockKey
-                expandedBlockKey = blocks.first?.blockKey
                 selectedStageNumber = blocks.first?.stageNumbers.first
             }
         }

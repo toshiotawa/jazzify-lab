@@ -214,7 +214,11 @@ struct LessonJourneyView: View {
 
             ScrollViewReader { scrollProxy in
                 ScrollView(.vertical, showsIndicators: false) {
-                    ZStack(alignment: .topLeading) {
+                    VStack(spacing: 0) {
+                        // 上スペーサー: scrollTo(anchor: .center) が端でも中央に揃うよう viewport の半分だけ追加する
+                        Color.clear.frame(height: height / 2)
+
+                        ZStack(alignment: .topLeading) {
                         // 背景
                         LessonJourneyBackgroundView(
                             widthPx: width,
@@ -333,8 +337,15 @@ struct LessonJourneyView: View {
                         width: width,
                         height: layout.totalHeight * scale
                     )
+
+                        // 下スペーサー: 同上
+                        Color.clear.frame(height: height / 2)
+                    }
                 }
                 .onAppear {
+                    scrollToFrontier(scrollProxy: scrollProxy, viewportHeight: height, scale: scale)
+                }
+                .onChange(of: layout.totalHeight) { _ in
                     scrollToFrontier(scrollProxy: scrollProxy, viewportHeight: height, scale: scale)
                 }
                 .onChange(of: scrollTargetLessonId) { target in
@@ -407,10 +418,17 @@ struct LessonJourneyView: View {
     private func scrollToFrontier(scrollProxy: ScrollViewProxy, viewportHeight _: CGFloat, scale _: CGFloat) {
         // ロード時は現在地へ「アニメーションなし」で瞬時に移動する
         // (Web 実装と同様に、マップの下端からスクロールアップする演出を避ける)
-        guard let id = frontierLessonId else { return }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05) {
+        // フロンティアが特定できない場合は最終ブロックの先頭レッスン (= コース最奥) にフォールバックする
+        let targetId = frontierLessonId
+            ?? layout.blocks.last?.lessonNodes.first?.lessonId
+            ?? layout.allNodes.first(where: { $0.kind == .lesson })?.lessonId
+        guard let id = targetId else { return }
+        let performScroll: () -> Void = {
             scrollProxy.scrollTo("lesson-\(id.uuidString)", anchor: .center)
         }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.05, execute: performScroll)
+        // レイアウト確定前に発火したケースをカバーするため、遅延付きでもう一度呼ぶ
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3, execute: performScroll)
     }
 
     private func bandYPx(for block: LessonJourneyBlockLayout, scale: CGFloat) -> CGFloat {
