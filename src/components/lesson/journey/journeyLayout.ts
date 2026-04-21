@@ -14,37 +14,64 @@ export const JOURNEY_LOGICAL_WIDTH = 360;
 /** レイアウトチューニング定数 */
 export const JOURNEY_CONSTANTS = {
   /** ノード同士の最小間隔 */
-  NODE_SPACING: 96,
+  NODE_SPACING: 78,
   /** 曲線の左右揺れ振幅 */
-  AMPLITUDE: 88,
+  AMPLITUDE: 72,
   /** 1ノードあたりのサインの角度 (ラジアン) */
   SINE_FREQUENCY: 0.58,
   /** ブロック上部の余白 (帯の下端と最初のノードの間) */
-  BLOCK_TOP_PAD: 96,
+  BLOCK_TOP_PAD: 72,
   /** ブロック下部の余白 (ブロック帯とその下のブロック終端との間) */
-  BLOCK_BOTTOM_PAD: 56,
-  /** milestone の追加オフセット */
-  MILESTONE_OFFSET: 110,
+  BLOCK_BOTTOM_PAD: 40,
+  /** ブロック間の追加オフセット (まとめノード廃止後の隙間) */
+  BLOCK_GAP: 40,
   /** コースゴールの上部余白 */
-  GOAL_TOP_PAD: 140,
+  GOAL_TOP_PAD: 240,
   /** マップ全体の最上端余白 (ゴールの上、ここでスクロールが止まる) */
   TOP_MARGIN: 120,
   /** マップ全体の最下端余白 (スタート地点下) */
   BOTTOM_MARGIN: 180,
 } as const;
 
-export type JourneyNodeKind = 'lesson' | 'milestone' | 'goal';
+/**
+ * ブロック毎のストーリー性カラーテーマ。
+ * blockIndex % BLOCK_THEMES.length で割り当てられる。
+ * 「下から上へ」進むため、配列順に深夜→夜明け→朝→昼→夕→星空。
+ */
+export interface BlockTheme {
+  /** 主色相 (HSL) */
+  hue: number;
+  /** 二次色相 (グラデの上端用) */
+  hueAlt: number;
+  /** ラベル/識別子 */
+  label: 'midnight' | 'dawn' | 'morning' | 'noon' | 'dusk' | 'starlight';
+}
+
+export const BLOCK_THEMES: BlockTheme[] = [
+  { hue: 262, hueAlt: 280, label: 'midnight' },
+  { hue: 325, hueAlt: 345, label: 'dawn' },
+  { hue: 200, hueAlt: 215, label: 'morning' },
+  { hue: 45, hueAlt: 30, label: 'noon' },
+  { hue: 18, hueAlt: 5, label: 'dusk' },
+  { hue: 250, hueAlt: 230, label: 'starlight' },
+];
+
+export const getBlockTheme = (blockIndex: number): BlockTheme => {
+  return BLOCK_THEMES[blockIndex % BLOCK_THEMES.length];
+};
+
+export type JourneyNodeKind = 'lesson' | 'goal';
 
 export interface JourneyNode {
-  /** レッスン ID (milestone/goal の場合は仮想 ID) */
+  /** レッスン ID (goal の場合は仮想 ID) */
   id: string;
-  /** ブロック内のレッスン順(1始まり)。milestone/goal は 0 */
+  /** ブロック内のレッスン順(1始まり)。goal は 0 */
   number: number;
   x: number;
   y: number;
   kind: JourneyNodeKind;
   blockIndex: number;
-  /** milestone/goal 以外: 元の Lesson への参照 index */
+  /** goal 以外: 元の Lesson への参照 index */
   lessonIndex?: number;
 }
 
@@ -54,15 +81,13 @@ export interface JourneyBlockLayout {
   blockNameEn?: string | null;
   /** 0 始まりの順序 */
   blockIndex: number;
-  /** 0..1 に正規化した色相のバリエーション用 */
-  accent: number;
+  /** ブロック毎のカラーテーマ */
+  theme: BlockTheme;
   /** ブロックの範囲 (上端 = topY, 下端 = bottomY) */
   topY: number;
   bottomY: number;
   /** 最初のレッスンノード y */
   firstLessonY: number;
-  /** ブロック終端 milestone 座標 */
-  milestone: JourneyNode;
   /** ブロック内のレッスンノード */
   lessonNodes: JourneyNode[];
 }
@@ -163,7 +188,7 @@ export const buildJourneyLayout = (
     NODE_SPACING,
     BLOCK_TOP_PAD,
     BLOCK_BOTTOM_PAD,
-    MILESTONE_OFFSET,
+    BLOCK_GAP,
     GOAL_TOP_PAD,
     TOP_MARGIN,
     BOTTOM_MARGIN,
@@ -192,7 +217,7 @@ export const buildJourneyLayout = (
   const blockHeights: number[] = grouped.map(g => {
     const n = g.lessons.length;
     const lessonsHeight = Math.max(1, n) * NODE_SPACING;
-    return BLOCK_TOP_PAD + lessonsHeight + MILESTONE_OFFSET + BLOCK_BOTTOM_PAD;
+    return BLOCK_TOP_PAD + lessonsHeight + BLOCK_GAP + BLOCK_BOTTOM_PAD;
   });
   const blocksTotalHeight = blockHeights.reduce((acc, v) => acc + v, 0);
   const totalHeight = TOP_MARGIN + GOAL_TOP_PAD + blocksTotalHeight + BOTTOM_MARGIN;
@@ -227,27 +252,15 @@ export const buildJourneyLayout = (
       return node;
     });
 
-    const milestoneY = firstLessonY - group.lessons.length * NODE_SPACING - MILESTONE_OFFSET * 0.4;
-    const milestone: JourneyNode = {
-      id: `__milestone_${group.blockNumber}__`,
-      number: 0,
-      x: logicalWidth / 2,
-      y: milestoneY,
-      kind: 'milestone',
-      blockIndex,
-    };
-    allNodes.push(milestone);
-
     blocks.push({
       blockNumber: group.blockNumber,
       blockName: group.blockName || defaultBlockName(group.blockNumber, isEnglish),
       blockNameEn: group.blockNameEn ?? undefined,
       blockIndex,
-      accent: (blockIndex % 6) / 6,
+      theme: getBlockTheme(blockIndex),
       topY: blockTopY,
       bottomY: blockBottomY,
       firstLessonY,
-      milestone,
       lessonNodes,
     });
 

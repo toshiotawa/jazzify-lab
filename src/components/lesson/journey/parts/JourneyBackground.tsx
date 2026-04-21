@@ -113,7 +113,9 @@ export const JourneyBackground: React.FC<JourneyBackgroundProps> = ({ widthPx, h
             style={{
               opacity: Math.min(1, s.opacity + 0.15),
               filter: 'blur(0.3px)',
-              animation: `journey-twinkle ${s.duration * 0.9}s ease-in-out ${s.delay + 0.5}s infinite`,
+              transformBox: 'fill-box',
+              transformOrigin: 'center',
+              animation: `journey-star-breath ${(s.duration * 1.2).toFixed(2)}s ease-in-out ${s.delay + 0.3}s infinite`,
             }}
           />
         ))}

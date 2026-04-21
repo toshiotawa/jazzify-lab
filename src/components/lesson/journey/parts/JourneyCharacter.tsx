@@ -8,8 +8,8 @@ interface JourneyCharacterProps {
 }
 
 export const JourneyCharacter: React.FC<JourneyCharacterProps> = ({ xPx, yPx, scale, facing }) => {
-  const size = Math.round(76 * scale);
-  const offsetY = Math.round(size * 0.72); // ノードより少し上に浮かせる
+  const size = Math.round(60 * scale);
+  const offsetY = Math.round(size * 0.78); // ノードより少し上に浮かせる
   const flip = facing === 'left' ? 'scaleX(-1)' : 'scaleX(1)';
 
   return (

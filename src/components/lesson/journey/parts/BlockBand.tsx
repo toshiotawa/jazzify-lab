@@ -1,4 +1,5 @@
 import React from 'react';
+import { BlockTheme } from '../journeyLayout';
 
 interface BlockBandProps {
   widthPx: number;
@@ -6,7 +7,7 @@ interface BlockBandProps {
   scale: number;
   label: string;
   sublabel?: string;
-  accent: number;
+  theme: BlockTheme;
   dim?: boolean;
 }
 
@@ -16,11 +17,12 @@ export const BlockBand: React.FC<BlockBandProps> = ({
   scale,
   label,
   sublabel,
-  accent,
+  theme,
   dim,
 }) => {
   const height = Math.round(44 * scale);
-  const hue = 262 + accent * 40;
+  const hue = theme.hue;
+  const hueAlt = theme.hueAlt;
 
   return (
     <div
@@ -37,16 +39,16 @@ export const BlockBand: React.FC<BlockBandProps> = ({
       <div
         className="absolute inset-0"
         style={{
-          background: `linear-gradient(to right, rgba(0,0,0,0), hsla(${hue}, 55%, 22%, 0.45) 25%, hsla(${hue + 10}, 55%, 28%, 0.55) 50%, hsla(${hue}, 55%, 22%, 0.45) 75%, rgba(0,0,0,0))`,
-          borderTop: `1px solid hsla(${hue}, 55%, 55%, 0.35)`,
-          borderBottom: `1px solid hsla(${hue}, 55%, 55%, 0.35)`,
-          boxShadow: `0 0 16px hsla(${hue}, 65%, 35%, 0.4)`,
+          background: `linear-gradient(to right, rgba(0,0,0,0), hsla(${hue}, 60%, 22%, 0.5) 25%, hsla(${hueAlt}, 65%, 32%, 0.6) 50%, hsla(${hue}, 60%, 22%, 0.5) 75%, rgba(0,0,0,0))`,
+          borderTop: `1px solid hsla(${hueAlt}, 70%, 60%, 0.4)`,
+          borderBottom: `1px solid hsla(${hueAlt}, 70%, 60%, 0.4)`,
+          boxShadow: `0 0 18px hsla(${hue}, 70%, 35%, 0.45)`,
         }}
       />
       <div
         className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-center px-4 whitespace-nowrap"
         style={{
-          color: `hsla(${hue + 20}, 85%, 92%, 0.98)`,
+          color: `hsla(${hueAlt}, 90%, 92%, 0.98)`,
           textShadow: '0 2px 10px rgba(0,0,0,0.7)',
         }}
       >

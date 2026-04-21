@@ -26,6 +26,7 @@ import JourneyBackground from './parts/JourneyBackground';
 import JourneyCharacter from './parts/JourneyCharacter';
 import CourseGoalNode from './parts/CourseGoalNode';
 import BlockDimVeil from './parts/BlockDimVeil';
+import BlockThemeOverlay from './parts/BlockThemeOverlay';
 import LessonListPanel, { LessonListPanelItemState } from './parts/LessonListPanel';
 import LessonDetailCard from './parts/LessonDetailCard';
 import { useJourneyCamera } from './useJourneyCamera';
@@ -287,7 +288,8 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     const block = layout.blocks[frontierNode.blockIndex];
     if (!block) return 'center';
     const indexInBlock = block.lessonNodes.findIndex(n => n.id === frontierNode.id);
-    const next = block.lessonNodes[indexInBlock + 1] ?? block.milestone;
+    const nextBlock = layout.blocks[frontierNode.blockIndex + 1];
+    const next = block.lessonNodes[indexInBlock + 1] ?? nextBlock?.lessonNodes[0] ?? layout.goal;
     if (!next) return 'center';
     if (next.x > frontierNode.x + 1) return 'right';
     if (next.x < frontierNode.x - 1) return 'left';
@@ -384,6 +386,14 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
           0%, 100% { opacity: 0.4; }
           50% { opacity: 1; }
         }
+        @keyframes journey-star-breath {
+          0%, 100% { transform: scale(1); opacity: 0.55; }
+          50% { transform: scale(1.55); opacity: 1; }
+        }
+        @keyframes journey-goal-breath {
+          0%, 100% { transform: scale(1); opacity: 0.85; }
+          50% { transform: scale(1.08); opacity: 1; }
+        }
       `}</style>
 
       <div className="mx-auto grid w-full max-w-[1700px] grid-cols-1 gap-3 md:grid-cols-[minmax(0,1fr)_320px]">
@@ -415,10 +425,26 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                 transform: 'translateX(-50%)',
               }}
             >
+              {layout.blocks.map(block => {
+                const dim = block.blockIndex > accessibleBlockIndex;
+                return (
+                  <BlockThemeOverlay
+                    key={`theme-${block.blockNumber}`}
+                    topY={block.topY}
+                    bottomY={block.bottomY}
+                    widthPx={mapWidthPx}
+                    scale={scale}
+                    theme={block.theme}
+                    dim={dim}
+                  />
+                );
+              })}
+
               {layout.blocks.map((block, idx) => {
                 const dim = block.blockIndex > accessibleBlockIndex;
                 const nextBlock = layout.blocks[idx + 1];
                 const nextFirst = nextBlock?.lessonNodes[0];
+                const isLast = idx === layout.blocks.length - 1;
                 return (
                   <JourneyBlock
                     key={block.blockNumber}
@@ -428,8 +454,9 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                     selectedLessonId={selectedLessonId}
                     frontierLessonId={frontierLessonId}
                     dim={dim}
-                    isEnglishCopy={isEnglishCopy}
                     nextBlockFirstNode={nextFirst}
+                    goalNode={isLast ? layout.goal : undefined}
+                    bandTopOffsetPx={isLast ? 64 : 28}
                     isLessonCleared={isLessonCleared}
                     isLessonUnlocked={isLessonUnlocked}
                     onSelectLesson={handleSelectLesson}

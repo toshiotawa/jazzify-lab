@@ -1,6 +1,5 @@
 import React from 'react';
 import { FaCrown } from 'react-icons/fa';
-import { cn } from '@/utils/cn';
 
 interface CourseGoalNodeProps {
   xPx: number;
@@ -11,7 +10,7 @@ interface CourseGoalNodeProps {
 }
 
 export const CourseGoalNode: React.FC<CourseGoalNodeProps> = ({ xPx, yPx, scale, cleared, label }) => {
-  const size = Math.round(112 * scale);
+  const size = Math.round(96 * scale);
 
   return (
     <div
@@ -25,35 +24,39 @@ export const CourseGoalNode: React.FC<CourseGoalNodeProps> = ({ xPx, yPx, scale,
         zIndex: 24,
       }}
     >
-      {/* 星のようなハロー */}
+      {/* 星のようなハロー (クリア時のみ強く光る) */}
       <div
-        className={cn('absolute inset-0 rounded-full', cleared && 'animate-pulse')}
+        className="absolute inset-0 rounded-full"
         style={{
-          background:
-            'radial-gradient(circle at 50% 50%, rgba(255,240,180,0.6), rgba(255,200,110,0.25) 45%, rgba(0,0,0,0) 70%)',
+          background: cleared
+            ? 'radial-gradient(circle at 50% 50%, rgba(255,240,180,0.65), rgba(255,200,110,0.3) 45%, rgba(0,0,0,0) 70%)'
+            : 'radial-gradient(circle at 50% 50%, rgba(120,100,170,0.18), rgba(60,40,110,0.08) 50%, rgba(0,0,0,0) 75%)',
           filter: 'blur(1px)',
+          animation: cleared ? 'journey-goal-breath 3.2s ease-in-out infinite' : undefined,
         }}
       />
-      {/* 光線 */}
-      <svg
-        className="absolute inset-0"
-        viewBox="0 0 100 100"
-        style={{ transform: 'translate(0,0)', opacity: 0.85 }}
-      >
-        {[0, 45, 90, 135].map((deg, i) => (
-          <line
-            key={i}
-            x1="50"
-            y1="5"
-            x2="50"
-            y2="95"
-            stroke="rgba(255,230,160,0.55)"
-            strokeWidth="1.2"
-            strokeLinecap="round"
-            style={{ transformOrigin: '50% 50%', transform: `rotate(${deg}deg)` }}
-          />
-        ))}
-      </svg>
+      {/* 光線 (クリア時のみ表示) */}
+      {cleared && (
+        <svg
+          className="absolute inset-0"
+          viewBox="0 0 100 100"
+          style={{ transform: 'translate(0,0)', opacity: 0.85 }}
+        >
+          {[0, 45, 90, 135].map((deg, i) => (
+            <line
+              key={i}
+              x1="50"
+              y1="5"
+              x2="50"
+              y2="95"
+              stroke="rgba(255,230,160,0.55)"
+              strokeWidth="1.2"
+              strokeLinecap="round"
+              style={{ transformOrigin: '50% 50%', transform: `rotate(${deg}deg)` }}
+            />
+          ))}
+        </svg>
+      )}
       {/* コア */}
       <div
         className="absolute flex items-center justify-center rounded-full"
@@ -62,25 +65,31 @@ export const CourseGoalNode: React.FC<CourseGoalNodeProps> = ({ xPx, yPx, scale,
           top: size * 0.18,
           width: size * 0.64,
           height: size * 0.64,
-          background:
-            'radial-gradient(circle at 35% 30%, #fffce3 0%, #ffd76a 55%, #c99a3c 100%)',
-          boxShadow:
-            '0 0 36px rgba(255,220,150,0.9), inset 0 0 22px rgba(255,255,200,0.7)',
-          border: '2px solid rgba(255,240,190,0.9)',
+          background: cleared
+            ? 'radial-gradient(circle at 35% 30%, #fffce3 0%, #ffd76a 55%, #c99a3c 100%)'
+            : 'radial-gradient(circle at 35% 30%, #4c3a6b 0%, #2a1d47 70%, #1a0f33 100%)',
+          boxShadow: cleared
+            ? '0 0 36px rgba(255,220,150,0.9), inset 0 0 22px rgba(255,255,200,0.7)'
+            : 'inset 0 0 14px rgba(0,0,0,0.55)',
+          border: cleared
+            ? '2px solid rgba(255,240,190,0.9)'
+            : '1.5px solid rgba(160,140,210,0.35)',
         }}
       >
         <FaCrown
-          className="text-amber-900"
-          style={{ fontSize: Math.max(22, 36 * scale) }}
+          style={{
+            fontSize: Math.max(20, 32 * scale),
+            color: cleared ? '#7a4a0d' : 'rgba(140,130,180,0.55)',
+          }}
         />
       </div>
       <div
         className="absolute left-1/2 -translate-x-1/2 text-center whitespace-nowrap"
         style={{
-          top: size + 8,
+          top: size + 12,
           fontSize: Math.max(11, 12 * scale),
           letterSpacing: '0.08em',
-          color: 'rgba(255,236,180,0.95)',
+          color: cleared ? 'rgba(255,236,180,0.95)' : 'rgba(200,190,230,0.8)',
           textShadow: '0 2px 10px rgba(0,0,0,0.7)',
           fontWeight: 700,
         }}

@@ -2,7 +2,6 @@ import React, { useMemo } from 'react';
 import { JourneyBlockLayout, JourneyNode } from './journeyLayout';
 import PathConnector from './parts/PathConnector';
 import LessonNode, { LessonNodeState } from './parts/LessonNode';
-import MilestoneNode from './parts/MilestoneNode';
 import BlockBand from './parts/BlockBand';
 
 interface JourneyBlockProps {
@@ -12,9 +11,14 @@ interface JourneyBlockProps {
   selectedLessonId: string | null;
   frontierLessonId: string | null;
   dim: boolean;
-  isEnglishCopy: boolean;
-  /** 次ブロック先頭レッスンとのブロック間接続用 (このブロックの milestone から次ブロック先頭へ) */
+  /** 次ブロック先頭レッスン (このブロックの最後のレッスンから直接繋ぐ) */
   nextBlockFirstNode?: JourneyNode;
+  /** 最終ブロックの最後のレッスンから繋ぐ goal ノード */
+  goalNode?: JourneyNode;
+  /** 帯表示位置 (最終ブロックではコース名と被らないようオフセット可) */
+  bandTopOffsetPx?: number;
+  /** 帯ラベルを表示するか */
+  showBlockBand?: boolean;
   isLessonCleared: (lessonId: string) => boolean;
   isLessonUnlocked: (lessonId: string) => boolean;
   onSelectLesson: (lessonId: string) => void;
@@ -28,8 +32,10 @@ export const JourneyBlock: React.FC<JourneyBlockProps> = ({
   selectedLessonId,
   frontierLessonId,
   dim,
-  isEnglishCopy,
   nextBlockFirstNode,
+  goalNode,
+  bandTopOffsetPx,
+  showBlockBand = true,
   isLessonCleared,
   isLessonUnlocked,
   onSelectLesson,
@@ -52,63 +58,66 @@ export const JourneyBlock: React.FC<JourneyBlockProps> = ({
         state: pathState(a.id, b.id, isLessonCleared, isLessonUnlocked),
       });
     }
-    // last lesson → milestone
-    if (block.lessonNodes.length > 0) {
+    // 最終レッスン → 次ブロック先頭レッスン
+    if (block.lessonNodes.length > 0 && nextBlockFirstNode) {
       const last = block.lessonNodes[block.lessonNodes.length - 1];
       pairs.push({
         from: last,
-        to: block.milestone,
+        to: nextBlockFirstNode,
         state: isLessonCleared(last.id)
-          ? blockCleared
-            ? 'cleared'
-            : 'active'
+          ? isLessonUnlocked(nextBlockFirstNode.id)
+            ? isLessonCleared(nextBlockFirstNode.id)
+              ? 'cleared'
+              : 'active'
+            : 'locked'
           : 'locked',
       });
     }
-    // milestone → next block first lesson
-    if (nextBlockFirstNode) {
+    // 最終ブロックの最終レッスン → goal
+    if (block.lessonNodes.length > 0 && goalNode && !nextBlockFirstNode) {
+      const last = block.lessonNodes[block.lessonNodes.length - 1];
       pairs.push({
-        from: block.milestone,
-        to: nextBlockFirstNode,
-        state: blockCleared ? 'active' : 'locked',
+        from: last,
+        to: goalNode,
+        state: blockCleared ? 'cleared' : isLessonCleared(last.id) ? 'active' : 'locked',
       });
     }
     return pairs;
-  }, [block.lessonNodes, block.milestone, nextBlockFirstNode, isLessonCleared, isLessonUnlocked, blockCleared]);
+  }, [
+    block.lessonNodes,
+    nextBlockFirstNode,
+    goalNode,
+    isLessonCleared,
+    isLessonUnlocked,
+    blockCleared,
+  ]);
+
+  const bandY = block.topY * scale + (bandTopOffsetPx ?? 28);
 
   return (
     <div aria-label={`journey-block-${block.blockNumber}`}>
-      <BlockBand
-        widthPx={logicalWidthPx}
-        yPx={block.topY * scale + 28}
-        scale={scale}
-        label={block.blockName}
-        sublabel={block.blockNameEn ?? undefined}
-        accent={block.accent}
-        dim={dim}
-      />
+      {showBlockBand && (
+        <BlockBand
+          widthPx={logicalWidthPx}
+          yPx={bandY}
+          scale={scale}
+          label={block.blockName}
+          sublabel={block.blockNameEn ?? undefined}
+          theme={block.theme}
+          dim={dim}
+        />
+      )}
 
       {connectors.map((pair, i) => (
         <PathConnector
           key={`c-${block.blockNumber}-${i}`}
-          from={{ x: pair.from.x * scale, y: pair.from.y * scale }}
-          to={{ x: pair.to.x * scale, y: pair.to.y * scale }}
+          from={{ x: pair.from.x, y: pair.from.y }}
+          to={{ x: pair.to.x, y: pair.to.y }}
           scale={scale}
           state={dim ? 'locked' : pair.state}
-          accent={block.accent}
+          theme={block.theme}
         />
       ))}
-
-      <MilestoneNode
-        xPx={block.milestone.x * scale}
-        yPx={block.milestone.y * scale}
-        scale={scale}
-        cleared={blockCleared}
-        dim={dim}
-        label={block.blockName}
-        sublabel={isEnglishCopy ? 'Milestone' : 'まとめ'}
-        accent={block.accent}
-      />
 
       {block.lessonNodes.map(node => {
         const cleared = isLessonCleared(node.id);

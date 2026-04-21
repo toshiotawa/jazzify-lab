@@ -1,4 +1,5 @@
 import React from 'react';
+import { BlockTheme } from '../journeyLayout';
 
 interface Point {
   x: number;
@@ -10,12 +11,12 @@ interface PathConnectorProps {
   to: Point;
   scale: number;
   state: 'cleared' | 'active' | 'locked';
-  accent: number;
+  theme: BlockTheme;
 }
 
 const PADDING = 36;
 
-export const PathConnector: React.FC<PathConnectorProps> = ({ from, to, scale, state, accent }) => {
+export const PathConnector: React.FC<PathConnectorProps> = ({ from, to, scale, state, theme }) => {
   const minX = Math.min(from.x, to.x) - PADDING;
   const maxX = Math.max(from.x, to.x) + PADDING;
   const minY = Math.min(from.y, to.y) - PADDING * 0.5;
@@ -35,18 +36,18 @@ export const PathConnector: React.FC<PathConnectorProps> = ({ from, to, scale, s
 
   const d = `M ${localFrom.x} ${localFrom.y} C ${ctrl1.x} ${ctrl1.y}, ${ctrl2.x} ${ctrl2.y}, ${localTo.x} ${localTo.y}`;
 
-  const hue = 262 + accent * 30; // 紫〜青紫
+  const hue = theme.hue;
   const mainStroke =
     state === 'cleared'
-      ? `hsla(${hue}, 55%, 62%, 0.9)`
+      ? `hsla(${hue}, 65%, 62%, 0.9)`
       : state === 'active'
-        ? `hsla(${hue + 8}, 82%, 72%, 0.95)`
-        : `hsla(${hue}, 25%, 40%, 0.45)`;
+        ? `hsla(${theme.hueAlt}, 88%, 74%, 0.95)`
+        : `hsla(${hue}, 30%, 45%, 0.5)`;
   const glowColor =
     state === 'active'
-      ? `hsla(${hue + 15}, 90%, 74%, 0.75)`
+      ? `hsla(${theme.hueAlt}, 90%, 74%, 0.75)`
       : state === 'cleared'
-        ? `hsla(${hue}, 60%, 60%, 0.4)`
+        ? `hsla(${hue}, 70%, 60%, 0.4)`
         : 'rgba(80,80,120,0.25)';
   const strokeWidth = Math.max(2.6, (state === 'active' ? 4.2 : 3.2) * scale);
   const dashArray = state === 'locked' ? `${Math.max(6, 8 * scale)} ${Math.max(6, 10 * scale)}` : undefined;

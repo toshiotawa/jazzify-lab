@@ -32,17 +32,18 @@ describe('buildJourneyLayout', () => {
     expect(layout.allNodes).toHaveLength(0);
   });
 
-  it('N=1 ブロック(1レッスン)でも milestone と goal を生成する', () => {
+  it('N=1 ブロック(1レッスン)でも goal を生成し、ブロック範囲内にノードが収まる', () => {
     const layout = buildJourneyLayout([makeLesson('l1', 1, 0, 0)]);
     expect(layout.blocks).toHaveLength(1);
     const block = layout.blocks[0];
     expect(block.lessonNodes).toHaveLength(1);
-    expect(block.milestone.kind).toBe('milestone');
     expect(layout.goal.kind).toBe('goal');
     // ノードはブロック範囲内に収まる
     expect(block.lessonNodes[0].y).toBeLessThanOrEqual(block.bottomY);
     expect(block.lessonNodes[0].y).toBeGreaterThanOrEqual(block.topY);
-    expect(block.milestone.y).toBeLessThan(block.lessonNodes[0].y);
+    // ブロック毎にカラーテーマが付与される
+    expect(block.theme).toBeTruthy();
+    expect(typeof block.theme.hue).toBe('number');
   });
 
   it('N=5 のブロックで、ノードが下から上へ等間隔に並ぶ', () => {
