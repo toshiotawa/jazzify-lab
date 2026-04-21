@@ -157,14 +157,6 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
               </div>
             </dl>
 
-            {selectedStage.isMixedStage && (
-              <div className="mb-3 rounded-md border border-amber-500/25 bg-amber-950/25 p-2 text-[11px] text-amber-200">
-                {isEnglishCopy
-                  ? 'Mixed: all chord types in this block.'
-                  : 'ミックス: このブロック全コードタイプ'}
-              </div>
-            )}
-
             <label
               className={cn(
                 'mb-3 flex cursor-pointer items-center gap-3 rounded-md border border-yellow-500/25 bg-black/40 p-2.5',
