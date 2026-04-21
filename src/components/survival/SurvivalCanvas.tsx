@@ -179,6 +179,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const particlesRef = useRef<BackgroundParticle[]>([]);
   const playerImageRef = useRef<HTMLImageElement | null>(null);
   const playerImageLoadedRef = useRef(false);
+  // スプライトを赤く染めるためのオフスクリーンキャンバス（透明部分は染めない）
+  const playerTintCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const bossImagesRef = useRef<Record<BossType, HTMLImageElement | null>>({ A: null, B: null, C: null });
   const bossImagesLoadedRef = useRef<Record<BossType, boolean>>({ A: false, B: false, C: false });
 
@@ -552,33 +554,47 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const playerDamageFlash = bossBattle && bossBattle.active
       && performance.now() < bossBattle.player.iFramesUntil;
     if (playerImageRef.current && playerImageLoadedRef.current) {
-      // 画像が読み込まれている場合は画像を描画
       ctx.save();
       ctx.translate(playerScreenX, playerScreenY);
       
-      // プレイヤーの向きに応じて画像を反転
       if (player.direction === 'left' || player.direction === 'up-left' || player.direction === 'down-left') {
         ctx.scale(-1, 1);
       }
       
-      // 画像を中心に配置
-      ctx.drawImage(
-        playerImageRef.current,
-        -PLAYER_SIZE / 2,
-        -PLAYER_SIZE / 2,
-        PLAYER_SIZE,
-        PLAYER_SIZE
-      );
-      // 被弾フラッシュ（source-atop で描画済みピクセルのみ赤く染める）
       if (playerDamageFlash) {
-        const blink = Math.floor(performance.now() / 80) % 2 === 0;
-        ctx.globalCompositeOperation = 'source-atop';
-        ctx.fillStyle = `rgba(255, 40, 40, ${blink ? 0.75 : 0.4})`;
-        ctx.fillRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+        // オフスクリーンにスプライトを描画し、source-atop で本体ピクセルのみ赤く染める
+        if (!playerTintCanvasRef.current) {
+          const c = document.createElement('canvas');
+          c.width = PLAYER_SIZE;
+          c.height = PLAYER_SIZE;
+          playerTintCanvasRef.current = c;
+        }
+        const tc = playerTintCanvasRef.current;
+        const tctx = tc.getContext('2d');
+        if (tctx) {
+          tctx.clearRect(0, 0, PLAYER_SIZE, PLAYER_SIZE);
+          tctx.drawImage(playerImageRef.current, 0, 0, PLAYER_SIZE, PLAYER_SIZE);
+          const blink = Math.floor(performance.now() / 80) % 2 === 0;
+          tctx.globalCompositeOperation = 'source-atop';
+          tctx.fillStyle = `rgba(255, 40, 40, ${blink ? 0.85 : 0.5})`;
+          tctx.fillRect(0, 0, PLAYER_SIZE, PLAYER_SIZE);
+          tctx.globalCompositeOperation = 'source-over';
+          ctx.drawImage(tc, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2);
+        } else {
+          ctx.drawImage(playerImageRef.current, -PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+        }
+      } else {
+        ctx.drawImage(
+          playerImageRef.current,
+          -PLAYER_SIZE / 2,
+          -PLAYER_SIZE / 2,
+          PLAYER_SIZE,
+          PLAYER_SIZE
+        );
       }
       ctx.restore();
     } else {
-      // フォールバック: 絵文字で描画
+      // フォールバック: 絵文字で描画（文字色を直接赤く）
       ctx.save();
       ctx.font = `32px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
