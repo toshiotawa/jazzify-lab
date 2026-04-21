@@ -67,7 +67,7 @@ export const BOSS_C_PARAMS = {
   speedFactor: 0.6,
   ring: { cdMs: 6500, windupMs: 1000, activeMs: 220, innerRadius: 140, outerRadius: 280, damage: 100 },
   cross: { cdMs: 8000, windupMs: 1200, activeMs: 250, length: 900, thickness: 46, damage: 140 },
-  pull: { cdMs: 10000, windupMs: 800, activeMs: 200, range: 360, damage: 40 },
+  pull: { cdMs: 10000, windupMs: 800, activeMs: 260, range: 560, damage: 40 },
 } as const;
 
 // ===== ユーティリティ =====
@@ -541,6 +541,11 @@ const triggerActive = (state: BossBattleState, ctx: BossTickContext): void => {
       });
       boss.action = { kind: 'active', skill, startAt: now, durationMs: p.activeMs };
       boss.nextSkillAt.pull = now + p.cdMs;
+      // 吸引は他の 2 種（リング / 十字）のリロードをリフレッシュし、
+      // 引き寄せ後すぐに追撃させる
+      const postPullDelay = p.activeMs + 200;
+      boss.nextSkillAt.shockRing = Math.min(boss.nextSkillAt.shockRing, now + postPullDelay);
+      boss.nextSkillAt.crossBlast = Math.min(boss.nextSkillAt.crossBlast, now + postPullDelay);
       return;
     }
     default:
@@ -899,7 +904,7 @@ const applyPullForce = (
     const life = Math.max(1, h.endAt - h.startAt);
     const elapsed = Math.max(0, ctx.now - h.startAt);
     const progress = Math.min(1, elapsed / life);
-    const baseStrength = isActive ? 220 : 70 + 90 * progress; // 予兆: 70→160, 発動: 220
+    const baseStrength = isActive ? 420 : 160 + 180 * progress; // 予兆: 160→340, 発動: 420
     const strength = baseStrength * (ctx.deltaMs / 1000);
     const { nx, ny } = normalizedVectorTo(ctx.player.x, ctx.player.y, h.x, h.y);
     dx += nx * strength;
