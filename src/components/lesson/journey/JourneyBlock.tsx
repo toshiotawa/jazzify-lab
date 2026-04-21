@@ -19,6 +19,8 @@ interface JourneyBlockProps {
   bandTopOffsetPx?: number;
   /** 帯ラベルを表示するか */
   showBlockBand?: boolean;
+  /** 英語UIかどうか。帯ラベルの主・副言語の並びに影響する */
+  isEnglishCopy?: boolean;
   isLessonCleared: (lessonId: string) => boolean;
   isLessonUnlocked: (lessonId: string) => boolean;
   onSelectLesson: (lessonId: string) => void;
@@ -36,11 +38,21 @@ export const JourneyBlock: React.FC<JourneyBlockProps> = ({
   goalNode,
   bandTopOffsetPx,
   showBlockBand = true,
+  isEnglishCopy = false,
   isLessonCleared,
   isLessonUnlocked,
   onSelectLesson,
   lessonAriaLabel,
 }) => {
+  // 帯ラベル: 表示言語に応じて主・副を入れ替える。
+  // - 英語UI: EN を主、JA を副 (EN 無指定なら JA のみ)
+  // - 日本語UI: JA を主、EN を副
+  const bandLabel = isEnglishCopy
+    ? (block.blockNameEn && block.blockNameEn.length > 0 ? block.blockNameEn : block.blockName)
+    : block.blockName;
+  const bandSublabel = isEnglishCopy
+    ? (block.blockNameEn && block.blockNameEn.length > 0 && block.blockNameEn !== block.blockName ? block.blockName : undefined)
+    : (block.blockNameEn ?? undefined);
   const blockCleared = useMemo(
     () => block.lessonNodes.every(n => isLessonCleared(n.id)),
     [block.lessonNodes, isLessonCleared],
@@ -101,8 +113,8 @@ export const JourneyBlock: React.FC<JourneyBlockProps> = ({
           widthPx={logicalWidthPx}
           yPx={bandY}
           scale={scale}
-          label={block.blockName}
-          sublabel={block.blockNameEn ?? undefined}
+          label={bandLabel}
+          sublabel={bandSublabel}
           theme={block.theme}
           dim={dim}
         />

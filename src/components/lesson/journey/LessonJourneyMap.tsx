@@ -476,6 +476,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
                     nextBlockFirstNode={nextFirst}
                     goalNode={isLast ? layout.goal : undefined}
                     bandTopOffsetPx={isLast ? 64 : 28}
+                    isEnglishCopy={isEnglishCopy}
                     isLessonCleared={isLessonCleared}
                     isLessonUnlocked={isLessonUnlocked}
                     onSelectLesson={handleSelectLesson}

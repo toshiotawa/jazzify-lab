@@ -249,11 +249,12 @@ struct LessonJourneyView: View {
 
                             // 帯
                             ForEach(layout.blocks) { block in
+                                let labels = bandLabels(for: block)
                                 LessonJourneyBandView(
                                     widthPx: layout.logicalWidth * scale,
                                     yPx: bandYPx(for: block, scale: scale),
-                                    label: block.blockName,
-                                    sublabel: locale == .en ? nil : block.blockNameEn,
+                                    label: labels.main,
+                                    sublabel: labels.sub,
                                     theme: block.theme,
                                     dim: block.blockIndex > accessibleBlockIndex
                                 )
@@ -378,6 +379,21 @@ struct LessonJourneyView: View {
         if let name = lesson.blockName, !name.isEmpty { return name }
         let bn = lesson.blockNumber ?? 1
         return locale == .ja ? "ブロック \(bn)" : "Block \(bn)"
+    }
+
+    /// 帯ラベル: 表示言語に応じて主・副を入れ替える。
+    /// - 英語UI: EN を主、JA を副 (EN が無ければ JA のみ)
+    /// - 日本語UI: JA を主、EN を副
+    private func bandLabels(for block: LessonJourneyBlockLayout) -> (main: String, sub: String?) {
+        let en = block.blockNameEn?.isEmpty == false ? block.blockNameEn : nil
+        if locale == .en {
+            if let en {
+                let sub: String? = (block.blockName != en) ? block.blockName : nil
+                return (main: en, sub: sub)
+            }
+            return (main: block.blockName, sub: nil)
+        }
+        return (main: block.blockName, sub: en)
     }
 
     private func handleSelect(_ lesson: Lesson) {
