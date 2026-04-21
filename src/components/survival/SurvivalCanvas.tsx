@@ -17,6 +17,12 @@ import {
   MAP_CONFIG,
   SHOCKWAVE_EXPAND_RATIO,
 } from './SurvivalTypes';
+import {
+  BossBattleState,
+  BossType,
+  BOSS_SPRITE_PATH,
+  BOSS_DISPLAY_SIZE,
+} from './boss/SurvivalBossTypes';
 
 // 方向から角度を取得するヘルパー
 const getDirectionAngle = (direction: Direction): number => {
@@ -51,6 +57,10 @@ interface SurvivalCanvasProps {
   shockwaves?: ShockwaveEffect[];
   lightningEffects?: LightningEffect[];
   characterAvatarUrl?: string;
+  /** ボス戦状態（ボス戦中のみ非 null） */
+  bossBattle?: BossBattleState | null;
+  /** ボス戦 UI の再描画トリガ */
+  bossUiTick?: number;
 }
 
 // ===== 色定義 =====
@@ -162,11 +172,15 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   shockwaves = [],
   lightningEffects = [],
   characterAvatarUrl,
+  bossBattle = null,
+  bossUiTick = 0,
 }) => {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const particlesRef = useRef<BackgroundParticle[]>([]);
   const playerImageRef = useRef<HTMLImageElement | null>(null);
   const playerImageLoadedRef = useRef(false);
+  const bossImagesRef = useRef<Record<BossType, HTMLImageElement | null>>({ A: null, B: null, C: null });
+  const bossImagesLoadedRef = useRef<Record<BossType, boolean>>({ A: false, B: false, C: false });
 
   // 描画スケール時の論理ビューポート（大きいほど広い範囲を表示）
   const logicalWidth = viewportWidth / contentScale;
@@ -185,6 +199,21 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     };
     img.src = avatarSrc;
   }, [characterAvatarUrl]);
+
+  // ボススプライトをプリロード
+  useEffect(() => {
+    (['A', 'B', 'C'] as BossType[]).forEach(type => {
+      const img = new Image();
+      img.onload = () => {
+        bossImagesRef.current[type] = img;
+        bossImagesLoadedRef.current[type] = true;
+      };
+      img.onerror = () => {
+        bossImagesLoadedRef.current[type] = false;
+      };
+      img.src = BOSS_SPRITE_PATH[type];
+    });
+  }, []);
 
   // カメラ位置（プレイヤー中心・論理ビューポート使用）
   const getCameraOffset = useCallback((player: PlayerState) => {
@@ -594,6 +623,244 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       });
     }
 
+    // ===== ボス戦レイヤ =====
+    if (bossBattle && bossBattle.active) {
+      const nowMs = performance.now();
+      // ハザード（予兆→発動）
+      bossBattle.hazards.forEach(h => {
+        if (nowMs < h.startAt || nowMs > h.endAt) return;
+        const isTelegraph =
+          h.kind === 'fanTelegraph' ||
+          h.kind === 'chargeTelegraph' ||
+          h.kind === 'ringTelegraph' ||
+          h.kind === 'crossTelegraph' ||
+          h.kind === 'pullTelegraph';
+        const isPool = h.kind === 'bloodPool' || h.kind === 'acidPool';
+        const isBomb = h.kind === 'bombExplosion';
+
+        const sx = h.x - camera.x;
+        const sy = h.y - camera.y;
+        ctx.save();
+        switch (h.kind) {
+          case 'fanTelegraph':
+          case 'fanActive': {
+            const angle = h.angle ?? 0;
+            const spread = h.spread ?? Math.PI / 2;
+            const radius = h.radius ?? 120;
+            ctx.fillStyle = isTelegraph ? 'rgba(255, 80, 80, 0.25)' : 'rgba(255, 40, 40, 0.55)';
+            ctx.strokeStyle = isTelegraph ? 'rgba(255, 80, 80, 0.9)' : 'rgba(255, 220, 80, 1)';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.arc(sx, sy, radius, angle - spread / 2, angle + spread / 2);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            break;
+          }
+          case 'chargeTelegraph':
+          case 'chargeActive': {
+            const angle = h.angle ?? 0;
+            const length = h.length ?? 400;
+            const thickness = h.thickness ?? 40;
+            ctx.translate(sx, sy);
+            ctx.rotate(angle);
+            ctx.fillStyle = isTelegraph ? 'rgba(255, 80, 80, 0.25)' : 'rgba(255, 60, 60, 0.6)';
+            ctx.strokeStyle = isTelegraph ? 'rgba(255, 80, 80, 0.9)' : 'rgba(255, 220, 80, 1)';
+            ctx.lineWidth = 3;
+            ctx.fillRect(0, -thickness, length, thickness * 2);
+            ctx.strokeRect(0, -thickness, length, thickness * 2);
+            break;
+          }
+          case 'ringTelegraph':
+          case 'ringActive': {
+            const outer = h.radius ?? 200;
+            const inner = h.innerRadius ?? 120;
+            ctx.strokeStyle = isTelegraph ? 'rgba(180, 120, 255, 0.85)' : 'rgba(255, 220, 80, 1)';
+            ctx.lineWidth = 4;
+            ctx.fillStyle = isTelegraph ? 'rgba(180, 120, 255, 0.12)' : 'rgba(255, 60, 60, 0.4)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, outer, 0, Math.PI * 2);
+            ctx.arc(sx, sy, inner, 0, Math.PI * 2, true);
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(sx, sy, outer, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(sx, sy, inner, 0, Math.PI * 2);
+            ctx.stroke();
+            break;
+          }
+          case 'crossTelegraph':
+          case 'crossActive': {
+            const length = h.length ?? 500;
+            const thickness = h.thickness ?? 40;
+            ctx.fillStyle = isTelegraph ? 'rgba(180, 80, 255, 0.22)' : 'rgba(255, 60, 60, 0.55)';
+            ctx.strokeStyle = isTelegraph ? 'rgba(180, 80, 255, 0.9)' : 'rgba(255, 220, 80, 1)';
+            ctx.lineWidth = 3;
+            ctx.fillRect(sx - length / 2, sy - thickness, length, thickness * 2);
+            ctx.fillRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            ctx.strokeRect(sx - length / 2, sy - thickness, length, thickness * 2);
+            ctx.strokeRect(sx - thickness, sy - length / 2, thickness * 2, length);
+            break;
+          }
+          case 'pullTelegraph':
+          case 'pullActive': {
+            const radius = h.radius ?? 300;
+            ctx.strokeStyle = isTelegraph ? 'rgba(120, 200, 255, 0.7)' : 'rgba(80, 180, 255, 1)';
+            ctx.fillStyle = 'rgba(40, 120, 200, 0.12)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            break;
+          }
+          case 'bloodPool': {
+            ctx.fillStyle = 'rgba(170, 20, 30, 0.55)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, h.radius ?? 60, 0, Math.PI * 2);
+            ctx.fill();
+            break;
+          }
+          case 'acidPool': {
+            ctx.fillStyle = 'rgba(100, 200, 40, 0.45)';
+            ctx.beginPath();
+            ctx.arc(sx, sy, h.radius ?? 60, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = 'rgba(140, 240, 40, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            break;
+          }
+          case 'bombExplosion': {
+            const t = (nowMs - h.startAt) / Math.max(1, h.endAt - h.startAt);
+            const scale = 0.6 + t * 1.2;
+            ctx.fillStyle = `rgba(255, 140, 40, ${Math.max(0, 0.75 * (1 - t))})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, (h.radius ?? 50) * scale, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.font = `${36 * scale}px ${EMOJI_FONT_FALLBACK}`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('💥', sx, sy);
+            break;
+          }
+          default:
+            break;
+        }
+        ctx.restore();
+        // 使用しない変数の警告を抑えるため参照
+        void isPool;
+        void isBomb;
+      });
+
+      // ボス弾
+      bossBattle.projectiles.forEach(p => {
+        const sx = p.x - camera.x;
+        const sy = p.y - camera.y;
+        if (sx < -40 || sx > logicalWidth + 40 || sy < -40 || sy > logicalHeight + 40) return;
+        ctx.save();
+        ctx.fillStyle = 'rgba(100, 220, 60, 0.9)';
+        ctx.shadowColor = 'rgba(100, 220, 60, 0.9)';
+        ctx.shadowBlur = 10;
+        ctx.beginPath();
+        ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      });
+
+      // 雑魚（自爆ボム）
+      bossBattle.minions.forEach(m => {
+        const sx = m.x - camera.x;
+        const sy = m.y - camera.y;
+        if (sx < -40 || sx > logicalWidth + 40 || sy < -40 || sy > logicalHeight + 40) return;
+        const isFused = m.fuseStartedAt !== null;
+        const blink = isFused && Math.floor((nowMs - (m.fuseStartedAt ?? 0)) / 100) % 2 === 0;
+        ctx.save();
+        if (isFused && blink) {
+          ctx.fillStyle = 'rgba(255, 80, 80, 0.55)';
+          ctx.beginPath();
+          ctx.arc(sx, sy, 26, 0, Math.PI * 2);
+          ctx.fill();
+        }
+        ctx.font = `32px ${EMOJI_FONT_FALLBACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('💣', sx, sy);
+        // HP バー
+        const ratio = Math.max(0, m.hp / m.maxHp);
+        if (ratio < 1) {
+          ctx.fillStyle = '#222';
+          ctx.fillRect(sx - 16, sy - 24, 32, 3);
+          ctx.fillStyle = '#f87171';
+          ctx.fillRect(sx - 16, sy - 24, 32 * ratio, 3);
+        }
+        ctx.restore();
+      });
+
+      // ボス本体
+      const boss = bossBattle.boss;
+      const bsx = boss.x - camera.x;
+      const bsy = boss.y - camera.y;
+      const bossImg = bossImagesRef.current[boss.bossType];
+      const imgLoaded = bossImagesLoadedRef.current[boss.bossType];
+      ctx.save();
+      ctx.translate(bsx, bsy);
+      if (boss.facing === 'left') ctx.scale(-1, 1);
+      if (bossImg && imgLoaded) {
+        ctx.drawImage(
+          bossImg,
+          -BOSS_DISPLAY_SIZE / 2,
+          -BOSS_DISPLAY_SIZE / 2,
+          BOSS_DISPLAY_SIZE,
+          BOSS_DISPLAY_SIZE
+        );
+      } else {
+        ctx.font = `${BOSS_DISPLAY_SIZE}px ${EMOJI_FONT_FALLBACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('👹', 0, 0);
+      }
+      ctx.restore();
+
+      // ボス頭上の HP バー
+      const bossRatio = Math.max(0, boss.hp / boss.maxHp);
+      const bossBarWidth = 120;
+      const bossBarHeight = 6;
+      const bossBarY = bsy - BOSS_DISPLAY_SIZE / 2 - 16;
+      ctx.fillStyle = '#111';
+      ctx.fillRect(bsx - bossBarWidth / 2, bossBarY, bossBarWidth, bossBarHeight);
+      ctx.fillStyle = bossRatio > 0.7 ? '#ef4444' : bossRatio > 0.35 ? '#f59e0b' : '#dc2626';
+      ctx.fillRect(bsx - bossBarWidth / 2, bossBarY, bossBarWidth * bossRatio, bossBarHeight);
+      ctx.strokeStyle = 'rgba(255,255,255,0.4)';
+      ctx.lineWidth = 1;
+      ctx.strokeRect(bsx - bossBarWidth / 2, bossBarY, bossBarWidth, bossBarHeight);
+      const phaseMarkers = [0.35, 0.7];
+      phaseMarkers.forEach(m => {
+        const x = bsx - bossBarWidth / 2 + bossBarWidth * m;
+        ctx.beginPath();
+        ctx.moveTo(x, bossBarY);
+        ctx.lineTo(x, bossBarY + bossBarHeight);
+        ctx.strokeStyle = 'rgba(255,255,255,0.7)';
+        ctx.stroke();
+      });
+
+      // プレイヤー iFrames 中の点滅（後描画用に alpha を戻す）
+      if (performance.now() < bossBattle.player.iFramesUntil) {
+        ctx.save();
+        ctx.globalAlpha = 0.45;
+        ctx.fillStyle = 'rgba(255,255,255,0.3)';
+        ctx.beginPath();
+        ctx.arc(player.x - camera.x, player.y - camera.y, 30, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+      }
+
+      // 使用しない変数警告を抑止
+      void bossUiTick;
+    }
+
     // 衝撃波エフェクト描画（前方向のみ）
     shockwaves.forEach(sw => {
       const elapsed = now - sw.startTime;
@@ -737,7 +1004,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     if (contentScale !== 1) {
       ctx.restore();
     }
-  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles]);
+  }, [gameState, logicalWidth, logicalHeight, contentScale, getCameraOffset, shockwaves, lightningEffects, initParticles, bossBattle, bossUiTick]);
 
   // 方向ベクトル取得
   const getDirectionVector = (direction: Direction): { x: number; y: number } => {

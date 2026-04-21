@@ -197,3 +197,47 @@ export function getDifficultyForStage(stageNumber: number): SurvivalDifficulty {
   const stage = getStageByNumber(stageNumber);
   return stage?.difficulty ?? 'easy';
 }
+
+/** 指定ステージが所属ブロックの最終ステージ（扉の敵＝ボス戦）かを判定する */
+export function isBlockLastStage(stageNumber: number): boolean {
+  const current = getStageByNumber(stageNumber);
+  if (!current) return false;
+  const next = getStageByNumber(stageNumber + 1);
+  if (!next) return true;
+  return next.blockKey !== current.blockKey;
+}
+
+/** ブロックキーの出現順（21 要素） */
+const BLOCK_ORDER: BlockKey[] = [
+  'major',
+  'minor',
+  'M7',
+  'm7',
+  '7',
+  'm7b5',
+  'mM7',
+  'dim7',
+  'aug7',
+  '6',
+  'm6',
+  'M7_9',
+  'm7_9',
+  '7_9_13',
+  '7_b9_b13',
+  '6_9',
+  'm6_9',
+  '7_b9_13',
+  '7_sharp9_b13',
+  'm7b5_11',
+  'dimM7',
+];
+
+export type SurvivalBossType = 'A' | 'B' | 'C';
+
+/** ブロック順にボスタイプ A→B→C をローテーション */
+export function getBossTypeForBlock(blockKey: BlockKey): SurvivalBossType {
+  const index = BLOCK_ORDER.indexOf(blockKey);
+  const safeIndex = index < 0 ? 0 : index;
+  const types: SurvivalBossType[] = ['A', 'B', 'C'];
+  return types[((safeIndex % 3) + 3) % 3];
+}

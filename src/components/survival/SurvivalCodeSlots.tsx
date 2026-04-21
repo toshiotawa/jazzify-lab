@@ -19,6 +19,8 @@ interface SurvivalCodeSlotsProps {
   isAMagicSlot?: boolean;
   isBMagicSlot?: boolean;
   isStageMode?: boolean;
+  /** ボス戦時は C/D 列を封印表示にする */
+  isBossStage?: boolean;
 }
 
 // ===== スロットタイプの色設定 =====
@@ -64,6 +66,7 @@ interface SlotDisplayProps {
   isHinted: boolean;
   isMagicOnCooldown?: boolean;  // 対象列の魔法がクールダウン中か
   isMagicSlot?: boolean;        // この列が魔法スロットか
+  isSealed?: boolean;           // ボス戦中の C/D 封印表示
 }
 
 const SlotDisplay: React.FC<SlotDisplayProps> = ({
@@ -72,6 +75,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
   isHinted,
   isMagicOnCooldown = false,
   isMagicSlot = false,
+  isSealed = false,
 }) => {
   const colors = SLOT_COLORS[slot.type];
   
@@ -98,7 +102,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           slot.isCompleted && `shadow-lg ${colors.glow}`,
           isHinted && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-black',
           !slot.isEnabled && 'opacity-50 grayscale',
-          isDisabledByCooldown && 'opacity-50 grayscale'
+          isDisabledByCooldown && 'opacity-50 grayscale',
+          isSealed && 'opacity-40 grayscale'
         )}
       >
         {/* ラベル */}
@@ -108,7 +113,11 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
         
         {/* コード名 */}
         <div className="flex items-center justify-center h-full px-1">
-          {slot.isEnabled ? (
+          {isSealed ? (
+            <span className="text-lg text-red-300 font-sans" aria-label="封印中">
+              ⛔
+            </span>
+          ) : slot.isEnabled ? (
             <span className={cn(
               'font-bold font-sans leading-tight text-center break-all',
               (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-[10px] md:text-xs' :
@@ -187,6 +196,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
   isAMagicSlot = false,
   isBMagicSlot = false,
   isStageMode = false,
+  isBossStage = false,
 }) => {
   // 各スロットのクールダウン状態を判定
   const getSlotCooldown = (index: number): boolean => {
@@ -211,6 +221,8 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
       <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
           if (isStageMode && index >= 3) return null;
+          // ボス戦では D 列を非表示、C 列は封印アイコンで表示
+          if (isBossStage && index === 3) return null;
           return (
             <SlotDisplay
               key={slot.type}
@@ -219,6 +231,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
               isHinted={hintSlotIndex === index}
               isMagicOnCooldown={getSlotCooldown(index)}
               isMagicSlot={isSlotMagic(index)}
+              isSealed={isBossStage && index >= 2}
             />
           );
         })}

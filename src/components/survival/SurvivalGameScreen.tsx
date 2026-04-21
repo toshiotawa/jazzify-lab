@@ -66,8 +66,22 @@ import {
   spawnStageEnemy,
   getStageSpawnConfig,
 } from './SurvivalGameEngine';
-import { WAVE_DURATION } from './SurvivalTypes';
-import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA } from './SurvivalStageDefinitions';
+import { WAVE_DURATION, DroppedItem, Projectile as SurvivalProjectile } from './SurvivalTypes';
+import { STAGE_TIME_LIMIT_SECONDS, STAGE_KILL_QUOTA, isBlockLastStage, getBossTypeForBlock } from './SurvivalStageDefinitions';
+import {
+  createBossBattleState,
+  tickBossBattle,
+  applyPlayerProjectileToBoss,
+  applyPlayerMeleeToBossBattle,
+  applyBossPlayerMotion,
+  healPlayerByAmount,
+  drainPendingDrops,
+} from './boss/SurvivalBossEngine';
+import {
+  BossBattleState,
+  BOSS_PLAYER_MAX_HP,
+  HEALING_AMOUNT,
+} from './boss/SurvivalBossTypes';
 import SurvivalCanvas from './SurvivalCanvas';
 import SurvivalCodeSlots from './SurvivalCodeSlots';
 import SurvivalLevelUp from './SurvivalLevelUp';
@@ -255,10 +269,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const initPromiseRef = useRef<Promise<void> | null>(null);
   
   const isStageMode = !!stageDefinition;
+  const isBossStage = !!stageDefinition && isBlockLastStage(stageDefinition.stageNumber);
+  const bossType = isBossStage && stageDefinition ? getBossTypeForBlock(stageDefinition.blockKey) : null;
+
+  // ボス戦状態（ref 管理: 毎フレーム破壊的に更新するため）
+  const bossBattleRef = useRef<BossBattleState | null>(null);
+  // ボス戦 UI 更新用の強制再レンダリングトリガ（HP バー等）
+  const [bossUiTick, setBossUiTick] = useState(0);
 
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
     const initial = createInitialGameState(difficulty, config, isStageMode);
+    if (isBossStage) {
+      initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
+      initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+      initial.codeSlots.current[2].isEnabled = false;
+      initial.codeSlots.current[3].isEnabled = false;
+      initial.codeSlots.next[2].isEnabled = false;
+      initial.codeSlots.next[3].isEnabled = false;
+    }
     // ステージモード時: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
       initial.player.statusEffects = [
@@ -986,6 +1015,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setGameState(prev => {
       const hasMagic = Object.values(prev.player.magics).some(l => l > 0);
       const codeSlots = initializeCodeSlots(config.allowedChords, hasMagic, isStageMode);
+      if (isBossStage) {
+        codeSlots.current[2].isEnabled = false;
+        codeSlots.current[3].isEnabled = false;
+        codeSlots.next[2].isEnabled = false;
+        codeSlots.next[3].isEnabled = false;
+      }
       
       return {
         ...prev,
@@ -993,10 +1028,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         codeSlots,
       };
     });
-    
+
+    if (isBossStage && bossType) {
+      bossBattleRef.current = createBossBattleState(bossType, performance.now());
+    } else {
+      bossBattleRef.current = null;
+    }
+
     lastUpdateRef.current = performance.now();
     spawnTimerRef.current = 0;
-  }, [config.allowedChords, isStageMode]);
+  }, [config.allowedChords, isStageMode, isBossStage, bossType]);
   
   // ゲーム開始（初回）
   useEffect(() => {
@@ -1008,8 +1049,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const charNoMagic = character?.noMagic;
   const isLiraMagicMode = character?.name === 'リラ' || character?.nameEn === 'Lira';
   const isAbColumnMagicMode = character?.abColumnMagic ?? false;
-  const isAMagicSlot = isAbColumnMagicMode;
-  const isBMagicSlot = isLiraMagicMode || isAbColumnMagicMode;
+  // ボス戦中は A/B 列を常に通常攻撃扱いにする
+  const isAMagicSlot = isAbColumnMagicMode && !isBossStage;
+  const isBMagicSlot = (isLiraMagicMode || isAbColumnMagicMode) && !isBossStage;
 
   // レベルアップボーナス選択処理（異名同音対応: 複数ボーナス一括適用）
   const handleLevelUpBonusSelect = useCallback((options: LevelUpBonus[]) => {
@@ -1294,7 +1336,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
           
           const knockbackForce = 150 + prev.player.skills.bKnockbackBonus * 50;
-          
+
+          // ボス戦時: ボス/雑魚への近接ダメージを同時適用
+          if (isBossStage && bossBattleRef.current?.active) {
+            const condMultBoss = getConditionalSkillMultipliers(prev.player);
+            const bossDamage = Math.floor(calculateBMeleeDamage(prev.player.stats.bAtk) * condMultBoss.atkMultiplier);
+            const meleeRes = applyPlayerMeleeToBossBattle(
+              bossBattleRef.current,
+              attackX,
+              attackY,
+              totalRange,
+              bossDamage,
+              prev.player.x,
+              prev.player.y
+            );
+            if (meleeRes.bossDamage > 0) {
+              newState.damageTexts = [...newState.damageTexts, createDamageText(
+                bossBattleRef.current.boss.x,
+                bossBattleRef.current.boss.y - 30,
+                meleeRes.bossDamage,
+                false
+              )];
+            }
+            for (const m of meleeRes.minionKills) {
+              newState.damageTexts = [...newState.damageTexts, createDamageText(m.x, m.y - 10, bossDamage, false)];
+            }
+            if (meleeRes.drops.length > 0) {
+              newState.items = [...newState.items, ...meleeRes.drops];
+            }
+          }
+
           newState.enemies = newState.enemies.map(enemy => {
             const dx = enemy.x - attackX;
             const dy = enemy.y - attackY;
@@ -1425,11 +1496,41 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     return enemy;
                   });
                   
+                  let updatedItems = gs.items;
+                  if (isBossStage && bossBattleRef.current?.active) {
+                    const condMultBoss = getConditionalSkillMultipliers(gs.player);
+                    const bossDamage = Math.floor(calculateBMeleeDamage(gs.player.stats.bAtk) * condMultBoss.atkMultiplier);
+                    const meleeRes = applyPlayerMeleeToBossBattle(
+                      bossBattleRef.current,
+                      bAttackX,
+                      bAttackY,
+                      bTotalRange,
+                      bossDamage,
+                      gs.player.x,
+                      gs.player.y
+                    );
+                    if (meleeRes.bossDamage > 0) {
+                      newDamageTexts.push(createDamageText(
+                        bossBattleRef.current.boss.x,
+                        bossBattleRef.current.boss.y - 30,
+                        meleeRes.bossDamage,
+                        false
+                      ));
+                    }
+                    for (const m of meleeRes.minionKills) {
+                      newDamageTexts.push(createDamageText(m.x, m.y - 10, bossDamage, false));
+                    }
+                    if (meleeRes.drops.length > 0) {
+                      updatedItems = [...updatedItems, ...meleeRes.drops];
+                    }
+                  }
+
                   return {
                     ...gs,
                     enemies: updatedEnemies,
                     enemyProjectiles: updatedEnemyProjectiles,
                     damageTexts: newDamageTexts,
+                    items: updatedItems,
                   };
                 });
               
@@ -1888,7 +1989,193 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         if (!prev.isPlaying || prev.isPaused || prev.isGameOver) {
           return prev;
         }
-        
+
+        // ===== ボス戦ループ（通常ループを完全に置き換える） =====
+        if (isBossStage && bossBattleRef.current) {
+          const bossState = bossBattleRef.current;
+          const newState = {
+            ...prev,
+            player: {
+              ...prev.player,
+              stats: { ...prev.player.stats },
+              statusEffects: [...prev.player.statusEffects],
+            },
+            projectiles: [...prev.projectiles],
+            damageTexts: [...prev.damageTexts],
+            items: [...prev.items],
+          };
+          newState.elapsedTime = prev.elapsedTime + deltaTime;
+
+          // プレイヤー移動
+          const movedPlayerBoss = updatePlayerPosition(prev.player, combinedKeys, deltaTime, analogForMove);
+          newState.player.x = movedPlayerBoss.x;
+          newState.player.y = movedPlayerBoss.y;
+          newState.player.direction = movedPlayerBoss.direction;
+
+          // ボスAI・ハザード・弾・被ダメ処理
+          const tickRes = tickBossBattle(bossState, deltaTime * 1000, newState.player);
+          const adjusted = applyBossPlayerMotion(
+            bossState,
+            newState.player.x,
+            newState.player.y,
+            deltaTime * 1000,
+            tickRes.pulledPlayerDelta
+          );
+          newState.player.x = adjusted.x;
+          newState.player.y = adjusted.y;
+
+          // プレイヤー弾の更新とボス/雑魚への当たり判定
+          newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
+          const remainingProjs: SurvivalProjectile[] = [];
+          for (const p of newState.projectiles) {
+            const condMultA = getConditionalSkillMultipliers(prev.player);
+            const effectiveDamage = Math.floor(p.damage * condMultA.atkMultiplier);
+            const hitBoss = applyPlayerProjectileToBoss(bossState, p.x, p.y, effectiveDamage);
+            if (hitBoss.hitBoss) {
+              newState.damageTexts.push(createDamageText(
+                bossState.boss.x,
+                bossState.boss.y - 30,
+                effectiveDamage,
+                false
+              ));
+              if (p.penetrating) {
+                p.hitEnemies.add(bossState.boss.id);
+                remainingProjs.push(p);
+              }
+              continue;
+            }
+            if (hitBoss.hitMinionId) {
+              newState.damageTexts.push(createDamageText(p.x, p.y, effectiveDamage, false));
+              if (hitBoss.drops.length > 0) {
+                newState.items = [...newState.items, ...hitBoss.drops];
+              }
+              if (p.penetrating) {
+                p.hitEnemies.add(hitBoss.hitMinionId);
+                remainingProjs.push(p);
+              }
+              continue;
+            }
+            remainingProjs.push(p);
+          }
+          newState.projectiles = remainingProjs;
+
+          // 自爆雑魚由来の pending drops をアイテム化
+          const pendingDrops = drainPendingDrops(bossState);
+          if (pendingDrops.length > 0) {
+            newState.items = [...newState.items, ...pendingDrops];
+          }
+
+          // アイテム（ハート）のピックアップ
+          const HEART_PICKUP_RADIUS = 28;
+          const keptItems: DroppedItem[] = [];
+          for (const item of newState.items) {
+            const dx = item.x - newState.player.x;
+            const dy = item.y - newState.player.y;
+            const d = Math.sqrt(dx * dx + dy * dy);
+            if (item.type === 'heart' && d < HEART_PICKUP_RADIUS) {
+              healPlayerByAmount(bossState, HEALING_AMOUNT);
+              continue;
+            }
+            keptItems.push(item);
+          }
+          newState.items = keptItems;
+
+          // プレイヤー HP をボス戦 HP にミラー
+          newState.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+          newState.player.stats.hp = bossState.player.hp;
+
+          // スロットタイマー更新（A/B 列のみ）
+          newState.codeSlots = {
+            current: newState.codeSlots.current.map((slot, slotIndex) => {
+              if (!slot.isEnabled) return slot;
+              if (slotIndex >= 2) return slot; // C/D 封印
+              if (slot.isCompleted) {
+                if (!slot.completedTime) return { ...slot, completedTime: Date.now() };
+                if (Date.now() - slot.completedTime > 500) {
+                  let nextChord = newState.codeSlots.next[slotIndex]?.chord;
+                  if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
+                  const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+                  newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                    i === slotIndex ? { ...ns, chord: newNextChord } : ns
+                  ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+                  return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, timer: SLOT_TIMEOUT, completedTime: undefined };
+                }
+                return slot;
+              }
+              if (!slot.chord) {
+                const newChord = selectRandomChord(config.allowedChords);
+                if (newChord) {
+                  return { ...slot, chord: newChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
+                }
+                return slot;
+              }
+              const newTimer = slot.timer - deltaTime;
+              if (newTimer <= 0) {
+                let nextChord = newState.codeSlots.next[slotIndex]?.chord;
+                if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
+                const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
+                newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
+                  i === slotIndex ? { ...ns, chord: newNextChord } : ns
+                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
+                return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
+              }
+              return { ...slot, timer: newTimer };
+            }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+            next: newState.codeSlots.next,
+          };
+
+          // A/B クールダウン更新
+          if (newState.aSlotCooldown > 0) newState.aSlotCooldown = Math.max(0, newState.aSlotCooldown - deltaTime);
+          if (newState.bSlotCooldown > 0) newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
+
+          // ダメージテキストのクリーンアップ
+          const bossNow = Date.now();
+          newState.damageTexts = newState.damageTexts.filter(d => bossNow - d.startTime < d.duration);
+
+          // UI 側の HP バー等を再レンダリングさせるためのトリガ
+          setBossUiTick(t => (t + 1) & 0x7fffffff);
+
+          // 勝敗判定
+          if (bossState.result === 'win') {
+            newState.isGameOver = true;
+            newState.isPlaying = false;
+            const clearResult: SurvivalGameResult = {
+              survivalTime: newState.elapsedTime,
+              finalLevel: newState.player.level,
+              enemiesDefeated: 1,
+              playerStats: newState.player.stats,
+              skills: newState.player.skills,
+              magics: newState.player.magics,
+              earnedXp: 0,
+              isStageClear: true,
+              isHintMode: hintMode,
+            };
+            setResult(clearResult);
+            if (!hintMode) {
+              onLessonStageClear?.();
+              onMissionStageClear?.();
+            }
+            FantasySoundManager.playStageClear().catch(() => {});
+          } else if (bossState.result === 'lose' || bossState.player.hp <= 0) {
+            newState.isGameOver = true;
+            newState.isPlaying = false;
+            const loseResult: SurvivalGameResult = {
+              survivalTime: newState.elapsedTime,
+              finalLevel: newState.player.level,
+              enemiesDefeated: 0,
+              playerStats: newState.player.stats,
+              skills: newState.player.skills,
+              magics: newState.player.magics,
+              earnedXp: 0,
+              isStageClear: false,
+              isHintMode: hintMode,
+            };
+            setResult(loseResult);
+          }
+
+          return newState;
+        }
+
         const newState = { ...prev };
         
         // 時間更新
@@ -2647,7 +2934,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, hintMode, onLessonStageClear, onMissionStageClear]);
   
   // リトライ
   const handleRetry = useCallback(() => {
@@ -2658,7 +2945,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     setSkillNotifications([]);
     setLevelUpCorrectNotes(emptyCorrectNotes());
     stagePowerUpTriggeredRef.current = false;
+    bossBattleRef.current = null;
     const initial = createInitialGameState(difficulty, config, isStageMode);
+    if (isBossStage) {
+      initial.player.stats.hp = BOSS_PLAYER_MAX_HP;
+      initial.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
+      initial.codeSlots.current[2].isEnabled = false;
+      initial.codeSlots.current[3].isEnabled = false;
+      initial.codeSlots.next[2].isEnabled = false;
+      initial.codeSlots.next[3].isEnabled = false;
+    }
     // ステージモード: HINTモードなら永続ヒントエフェクト付与
     if (isStageMode && hintMode) {
       initial.player.statusEffects = [
@@ -2770,7 +3066,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     }
     setGameState(initial);
     startGame();
-  }, [difficulty, config, startGame, debugSettings]);
+  }, [difficulty, config, startGame, debugSettings, isStageMode, isBossStage, character, hintMode]);
   
   // ヒントスロット追跡（ローテーション用）
   const lastHintSlotRef = useRef<number>(0);
@@ -3053,6 +3349,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         >
           {/* ヘッダー（ゲーム画面上部にオーバーレイ・レイアウトを圧迫しない・safe-area対応） */}
           <div className="absolute top-0 left-0 right-0 z-10 px-2 pt-[max(4px,env(safe-area-inset-top))] pb-1 bg-gradient-to-b from-black/70 to-transparent pointer-events-none">
+            {/* ボス戦 HP バー（画面最上部） */}
+            {isBossStage && bossBattleRef.current && (
+              <div className="flex flex-col gap-0.5 mb-1">
+                <div className="flex justify-between items-center text-[10px] md:text-xs font-sans">
+                  <span className="text-red-300 font-bold tracking-wide shrink-0">
+                    BOSS{bossType ? ` ${bossType}` : ''}
+                  </span>
+                  <span className="text-white tabular-nums shrink-0">
+                    {Math.floor(bossBattleRef.current.boss.hp)}/{bossBattleRef.current.boss.maxHp}
+                  </span>
+                </div>
+                <div className="w-full h-2 md:h-2.5 bg-gray-800/80 rounded-full overflow-hidden border border-red-900/70">
+                  <div
+                    className="h-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400 transition-[width] duration-150"
+                    style={{ width: `${Math.max(0, (bossBattleRef.current.boss.hp / bossBattleRef.current.boss.maxHp) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <div className="flex flex-col gap-0.5">
               {!isStageMode && (
                 <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
@@ -3067,7 +3382,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   {!isStageMode && (
                     <span className="bg-yellow-600/60 px-1 py-0.5 rounded font-bold text-yellow-200 shrink-0">W{gameState.wave.currentWave}</span>
                   )}
-                  {isStageMode ? (
+                  {isBossStage ? (
+                    <span className="font-bold shrink-0 text-white">{formatTime(gameState.elapsedTime)}</span>
+                  ) : isStageMode ? (
                     <span className={cn('font-bold shrink-0', Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime) < 30 ? 'text-red-400' : 'text-white')}>
                       {formatTime(Math.max(0, STAGE_TIME_LIMIT_SECONDS - gameState.elapsedTime))}
                     </span>
@@ -3080,7 +3397,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   )}
                 </div>
                 <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0">
-                  {isStageMode ? (
+                  {isBossStage ? null : isStageMode ? (
                     <span className={cn('font-bold', gameState.enemiesDefeated >= STAGE_KILL_QUOTA ? 'text-green-400' : 'text-white')}>
                       {gameState.enemiesDefeated}/{STAGE_KILL_QUOTA}
                     </span>
@@ -3141,6 +3458,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             shockwaves={shockwaves}
             lightningEffects={lightningEffects}
             characterAvatarUrl={character?.avatarUrl}
+            bossBattle={bossBattleRef.current}
+            bossUiTick={bossUiTick}
           />
           
           {/* ポーズ画面（全画面モーダル・PAUSEDを確実に表示） */}
@@ -3296,6 +3615,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           isAMagicSlot={isAMagicSlot}
           isBMagicSlot={isBMagicSlot}
           isStageMode={isStageMode}
+          isBossStage={isBossStage}
         />
       </div>
       
