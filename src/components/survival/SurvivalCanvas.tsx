@@ -329,13 +329,17 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       if (screenX < -50 || screenX > logicalWidth + 50 ||
           screenY < -50 || screenY > logicalHeight + 50) return;
       
-      ctx.fillStyle = COLORS.item[item.type] || '#fff';
-      ctx.beginPath();
-      ctx.arc(screenX, screenY, 12, 0, Math.PI * 2);
-      ctx.fill();
+      // ハートは絵文字のみ（赤丸背景なし）。それ以外は従来通り背景円を描画
+      if (item.type !== 'heart') {
+        ctx.fillStyle = COLORS.item[item.type] || '#fff';
+        ctx.beginPath();
+        ctx.arc(screenX, screenY, 12, 0, Math.PI * 2);
+        ctx.fill();
+      }
       
       // アイコン
-      ctx.font = `16px ${EMOJI_FONT_FALLBACK}`;
+      const iconSize = item.type === 'heart' ? 24 : 16;
+      ctx.font = `${iconSize}px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.fillText(
@@ -780,13 +784,99 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             break;
           }
           case 'acidPool': {
-            ctx.fillStyle = 'rgba(100, 200, 40, 0.45)';
+            const radius = h.radius ?? 60;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const elapsed = nowMs - h.startAt;
+            const ageT = Math.min(1, Math.max(0, elapsed / life));
+            // 消滅直前フェード
+            const fadeAlpha = ageT > 0.85 ? Math.max(0, 1 - (ageT - 0.85) / 0.15) : 1;
+            // 濃い緑のハロー（外周の毒気）
+            const haloGrad = ctx.createRadialGradient(sx, sy, radius * 0.2, sx, sy, radius * 1.35);
+            haloGrad.addColorStop(0, `rgba(60, 140, 30, ${0.0 * fadeAlpha})`);
+            haloGrad.addColorStop(0.6, `rgba(80, 180, 40, ${0.18 * fadeAlpha})`);
+            haloGrad.addColorStop(1, `rgba(80, 180, 40, 0)`);
+            ctx.fillStyle = haloGrad;
             ctx.beginPath();
-            ctx.arc(sx, sy, h.radius ?? 60, 0, Math.PI * 2);
+            ctx.arc(sx, sy, radius * 1.35, 0, Math.PI * 2);
             ctx.fill();
-            ctx.strokeStyle = 'rgba(140, 240, 40, 0.8)';
-            ctx.lineWidth = 2;
+            // 毒沼の本体（不規則な縁）
+            const wobbleSeed = (h.startAt | 0) * 0.0017;
+            const wobbleT = nowMs * 0.0015 + wobbleSeed;
+            const edgeSegments = 28;
+            const baseR = radius;
+            ctx.beginPath();
+            for (let i = 0; i <= edgeSegments; i++) {
+              const a = (i / edgeSegments) * Math.PI * 2;
+              const noise =
+                Math.sin(a * 3 + wobbleT * 1.8) * 0.06 +
+                Math.sin(a * 5 - wobbleT * 2.3) * 0.035 +
+                Math.cos(a * 2 + wobbleT) * 0.04;
+              const r = baseR * (1 + noise);
+              const px = sx + Math.cos(a) * r;
+              const py = sy + Math.sin(a) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            const bodyGrad = ctx.createRadialGradient(sx, sy, 0, sx, sy, baseR);
+            bodyGrad.addColorStop(0, `rgba(150, 230, 80, ${0.62 * fadeAlpha})`);
+            bodyGrad.addColorStop(0.55, `rgba(90, 190, 40, ${0.6 * fadeAlpha})`);
+            bodyGrad.addColorStop(1, `rgba(40, 110, 20, ${0.78 * fadeAlpha})`);
+            ctx.fillStyle = bodyGrad;
+            ctx.fill();
+            // 毒々しい縁
+            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = `rgba(180, 255, 90, ${0.85 * fadeAlpha})`;
             ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = `rgba(40, 80, 10, ${0.7 * fadeAlpha})`;
+            ctx.stroke();
+            // 内部の暗いハイライト（沈んだ毒）
+            ctx.beginPath();
+            ctx.arc(sx + baseR * 0.15, sy + baseR * 0.2, baseR * 0.55, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(20, 60, 10, ${0.25 * fadeAlpha})`;
+            ctx.fill();
+            // 泡（ブクブク）
+            const bubbleCount = 6;
+            const idHash =
+              (h.id.charCodeAt(0) | 0) +
+              (h.id.charCodeAt(1) | 0) * 7 +
+              (h.id.charCodeAt(2) | 0) * 13;
+            for (let i = 0; i < bubbleCount; i++) {
+              const seed = idHash * 0.113 + i * 1.732;
+              const bx = sx + Math.cos(seed * 4.2) * baseR * 0.55;
+              const by = sy + Math.sin(seed * 3.7) * baseR * 0.5;
+              const phase = (nowMs * 0.0018 + seed) % 1;
+              const rise = phase; // 0→1 で浮上・膨らむ
+              const br = baseR * (0.06 + rise * 0.12);
+              const alpha = (1 - rise) * 0.75 * fadeAlpha;
+              if (alpha <= 0) continue;
+              ctx.beginPath();
+              ctx.arc(bx, by - rise * 2, br, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(210, 255, 140, ${alpha * 0.6})`;
+              ctx.fill();
+              ctx.lineWidth = 1.2;
+              ctx.strokeStyle = `rgba(160, 230, 60, ${alpha})`;
+              ctx.stroke();
+              // 泡のハイライト
+              ctx.beginPath();
+              ctx.arc(bx - br * 0.35, by - rise * 2 - br * 0.35, br * 0.3, 0, Math.PI * 2);
+              ctx.fillStyle = `rgba(240, 255, 200, ${alpha * 0.8})`;
+              ctx.fill();
+            }
+            // 立ち昇る毒気のチラつき
+            for (let i = 0; i < 3; i++) {
+              const seed = idHash * 0.071 + i * 2.17;
+              const phase = (nowMs * 0.0009 + seed) % 1;
+              const gx = sx + Math.cos(seed * 5.3) * baseR * 0.4;
+              const gyTop = sy - phase * baseR * 1.2;
+              const alpha = (1 - phase) * 0.22 * fadeAlpha;
+              if (alpha <= 0) continue;
+              ctx.fillStyle = `rgba(170, 230, 90, ${alpha})`;
+              ctx.beginPath();
+              ctx.ellipse(gx, gyTop, baseR * 0.12, baseR * 0.28, 0, 0, Math.PI * 2);
+              ctx.fill();
+            }
             break;
           }
           case 'bombExplosion': {
@@ -817,12 +907,107 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         const sy = p.y - camera.y;
         if (sx < -40 || sx > logicalWidth + 40 || sy < -40 || sy > logicalHeight + 40) return;
         ctx.save();
-        ctx.fillStyle = 'rgba(100, 220, 60, 0.9)';
-        ctx.shadowColor = 'rgba(100, 220, 60, 0.9)';
-        ctx.shadowBlur = 10;
-        ctx.beginPath();
-        ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
-        ctx.fill();
+        if (p.leavesAcidPool) {
+          // 毒弾（ブヨブヨ揺れる不定形な液滴＋毒のオーラと軌跡）
+          const idHash =
+            (p.id.charCodeAt(0) | 0) +
+            (p.id.charCodeAt(1) | 0) * 7 +
+            (p.id.charCodeAt(2) | 0) * 13;
+          const t = nowMs * 0.008 + idHash * 0.17;
+          // 外側の毒オーラ
+          const aura = ctx.createRadialGradient(sx, sy, p.radius * 0.3, sx, sy, p.radius * 2.1);
+          aura.addColorStop(0, 'rgba(160, 240, 80, 0.55)');
+          aura.addColorStop(0.5, 'rgba(110, 210, 50, 0.25)');
+          aura.addColorStop(1, 'rgba(80, 180, 40, 0)');
+          ctx.fillStyle = aura;
+          ctx.beginPath();
+          ctx.arc(sx, sy, p.radius * 2.1, 0, Math.PI * 2);
+          ctx.fill();
+          // 軌跡（進行方向の逆に伸びる毒しずく）
+          const len = Math.sqrt(p.dx * p.dx + p.dy * p.dy) || 1;
+          const ndx = p.dx / len;
+          const ndy = p.dy / len;
+          const trailGrad = ctx.createLinearGradient(
+            sx - ndx * p.radius * 2.6,
+            sy - ndy * p.radius * 2.6,
+            sx,
+            sy
+          );
+          trailGrad.addColorStop(0, 'rgba(120, 200, 40, 0)');
+          trailGrad.addColorStop(1, 'rgba(150, 230, 70, 0.65)');
+          ctx.fillStyle = trailGrad;
+          ctx.beginPath();
+          ctx.ellipse(
+            sx - ndx * p.radius * 1.2,
+            sy - ndy * p.radius * 1.2,
+            p.radius * 2.2,
+            p.radius * 0.9,
+            Math.atan2(ndy, ndx),
+            0,
+            Math.PI * 2
+          );
+          ctx.fill();
+          // 本体（不定形な毒液滴）
+          ctx.shadowColor = 'rgba(120, 230, 60, 0.85)';
+          ctx.shadowBlur = 12;
+          ctx.beginPath();
+          const segs = 18;
+          for (let i = 0; i <= segs; i++) {
+            const a = (i / segs) * Math.PI * 2;
+            const wob =
+              Math.sin(a * 3 + t * 1.2) * 0.14 +
+              Math.sin(a * 5 - t * 1.8) * 0.08;
+            const r = p.radius * (1 + wob);
+            const px = sx + Math.cos(a) * r;
+            const py = sy + Math.sin(a) * r;
+            if (i === 0) ctx.moveTo(px, py);
+            else ctx.lineTo(px, py);
+          }
+          ctx.closePath();
+          const bodyGrad = ctx.createRadialGradient(
+            sx - p.radius * 0.3,
+            sy - p.radius * 0.3,
+            0,
+            sx,
+            sy,
+            p.radius * 1.2
+          );
+          bodyGrad.addColorStop(0, 'rgba(220, 255, 160, 0.95)');
+          bodyGrad.addColorStop(0.45, 'rgba(150, 230, 70, 0.95)');
+          bodyGrad.addColorStop(1, 'rgba(60, 130, 20, 0.95)');
+          ctx.fillStyle = bodyGrad;
+          ctx.fill();
+          ctx.shadowBlur = 0;
+          // 縁
+          ctx.lineWidth = 1.2;
+          ctx.strokeStyle = 'rgba(40, 90, 10, 0.85)';
+          ctx.stroke();
+          // ハイライト
+          ctx.beginPath();
+          ctx.arc(sx - p.radius * 0.35, sy - p.radius * 0.35, p.radius * 0.28, 0, Math.PI * 2);
+          ctx.fillStyle = 'rgba(240, 255, 200, 0.8)';
+          ctx.fill();
+          // しずく（落下滴）
+          for (let i = 0; i < 2; i++) {
+            const dripPhase = ((nowMs * 0.003 + idHash * 0.11 + i * 0.41) % 1);
+            const dripX = sx + (i === 0 ? -p.radius * 0.4 : p.radius * 0.4);
+            const dripY = sy + p.radius * 0.3 + dripPhase * p.radius * 1.2;
+            const dripR = p.radius * 0.18 * (1 - dripPhase * 0.4);
+            const dripAlpha = (1 - dripPhase) * 0.75;
+            if (dripR <= 0 || dripAlpha <= 0) continue;
+            ctx.beginPath();
+            ctx.ellipse(dripX, dripY, dripR, dripR * 1.4, 0, 0, Math.PI * 2);
+            ctx.fillStyle = `rgba(140, 220, 60, ${dripAlpha})`;
+            ctx.fill();
+          }
+        } else {
+          ctx.fillStyle = 'rgba(100, 220, 60, 0.9)';
+          ctx.shadowColor = 'rgba(100, 220, 60, 0.9)';
+          ctx.shadowBlur = 10;
+          ctx.beginPath();
+          ctx.arc(sx, sy, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
         ctx.restore();
       });
 

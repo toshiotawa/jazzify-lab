@@ -662,6 +662,7 @@ const updateMinions = (state: BossBattleState, ctx: BossTickContext): void => {
       continue;
     }
     // 既に爆発済み（explodeAt 過ぎ）の場合は破棄
+    // 自爆時はハートをドロップしない（プレイヤー撃破時のみドロップ）
     if (m.explodeAt !== null && now >= m.explodeAt) {
       state.hazards.push({
         id: nextId('hz'),
@@ -674,14 +675,6 @@ const updateMinions = (state: BossBattleState, ctx: BossTickContext): void => {
         damage: BOSS_B_PARAMS.explosionDamage,
         hitOnce: true,
       });
-      if (Math.random() < HEALING_DROP_RATE) {
-        state.pendingDrops.push({
-          id: nextId('drop'),
-          type: 'heart',
-          x: m.x,
-          y: m.y,
-        });
-      }
       continue;
     }
     // プレイヤーへ移動

@@ -178,7 +178,7 @@ export const KNOCKBACK_DURATION_MS = 150;
 export const KNOCKBACK_SPEED = 320; // px/s（接触時のみ適用）
 
 export const HEALING_DROP_RATE = 0.5;
-export const HEALING_AMOUNT = 150; // プレイヤー最大HPの15%
+export const HEALING_AMOUNT = 40; // プレイヤー最大HPの4%
 
 // ===== 画像パス（public 配下） =====
 export const BOSS_SPRITE_PATH: Record<BossType, string> = {

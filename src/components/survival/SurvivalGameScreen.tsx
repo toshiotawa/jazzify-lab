@@ -399,6 +399,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         }
       }
     }
+    // ボス戦では背水の陣を強制的に無効化（HPが1000固定で常時発動してしまうため）
+    if (isBossStage) {
+      initial.player.skills.haisuiNoJin = false;
+      initial.player.skills.alwaysHaisuiNoJin = false;
+    }
     return initial;
   });
   const [result, setResult] = useState<SurvivalGameResult | null>(null);
@@ -3063,6 +3068,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           initial.player.skills.alwaysZekkouchou = skills.alwaysZekkouchou;
         }
       }
+    }
+    // ボス戦では背水の陣を強制的に無効化（HPが1000固定で常時発動してしまうため）
+    if (isBossStage) {
+      initial.player.skills.haisuiNoJin = false;
+      initial.player.skills.alwaysHaisuiNoJin = false;
     }
     setGameState(initial);
     startGame();
