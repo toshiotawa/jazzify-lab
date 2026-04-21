@@ -1996,11 +1996,22 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
                             ) : null /* 挑戦モードでは音名を非表示 */
                           ) : (
                             /* 通常コードモードの表示 */
-                            <div className={`text-yellow-300 font-bold text-center mb-1 truncate w-full ${
-                              monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl'
-                            }`}>
-                              {monster.chordTarget.displayName}
-                            </div>
+                            (() => {
+                              const displayText = monster.chordTarget.displayName;
+                              // 長いスケール名などはフォントを縮小し折り返し可能にする
+                              const isLongName = displayText.length > 8;
+                              const sizeClass = isLongName
+                                ? (monsterCount > 5 ? 'text-[10px]' : monsterCount > 3 ? 'text-xs' : 'text-sm')
+                                : (monsterCount > 5 ? 'text-sm' : monsterCount > 3 ? 'text-base' : 'text-xl');
+                              const wrapClass = isLongName
+                                ? 'break-words leading-tight'
+                                : 'truncate';
+                              return (
+                                <div className={`text-yellow-300 font-bold text-center mb-1 w-full ${sizeClass} ${wrapClass}`}>
+                                  {displayText}
+                                </div>
+                              );
+                            })()
                           )}
                           
                           {/* ヒント表示（楽譜モードでは非表示 - 単音なのでヒント不要） */}

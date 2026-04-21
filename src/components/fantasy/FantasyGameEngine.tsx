@@ -414,17 +414,21 @@ const getChordDefinition = (spec: ChordSpec, displayOpts?: DisplayOpts): ChordDe
     const octave = (typeof spec === 'object' && spec.octave) ? spec.octave : 4;
     const scaleNotes = buildScaleNotes(root, scaleType, octave);
     const scaleMidiNotes = buildScaleMidiNotes(root, scaleType, octave);
-    
-    // スケールの各音を単音として扱う（最初の音を返す）
-    // 実際のゲームでは、スケールの各音を個別に扱う必要がある場合は、
-    // allowed_chordsにスケール名を展開する必要がある
+
+    // スケール構成音すべてを targetChord.notes として要求する
+    // 判定は mod12 の集合一致（順不同）で行われるため、スケールの全音を押し切って初めて正解扱いとなる
     if (scaleNotes.length > 0 && scaleMidiNotes.length > 0) {
+      // scaleType の内部ID（例: "natural_minor"）を人間向け表示名（例: "Natural Minor"）に整形
+      const prettyScaleName = scaleType
+        .split('_')
+        .map(w => w.length > 0 ? w.charAt(0).toUpperCase() + w.slice(1) : w)
+        .join(' ');
       return {
         id: chordId,
-        displayName: `${root} ${scaleType}`,
-        notes: [scaleMidiNotes[0]], // 最初の音のみ（スケール全体を扱う場合は展開が必要）
-        noteNames: [scaleNotes[0]],
-        quality: 'single',
+        displayName: `${root} ${prettyScaleName}`,
+        notes: scaleMidiNotes,
+        noteNames: scaleNotes,
+        quality: 'scale',
         root
       };
     }
