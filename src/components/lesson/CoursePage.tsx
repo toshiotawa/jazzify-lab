@@ -17,6 +17,7 @@ import { LessonRequirementProgress, fetchAggregatedRequirementsProgress } from '
 import { clearNavigationCacheForCourse } from '@/utils/lessonNavigation';
 import { buildLessonAccessGraph, LessonAccessGraph } from '@/utils/lessonAccess';
 import LessonJourneyMap from './journey/LessonJourneyMap';
+import OrientationLandscapePrompt from '@/components/ui/OrientationLandscapePrompt';
 
 const CoursePage: React.FC = () => {
   const [open, setOpen] = useState(false);
@@ -305,6 +306,7 @@ const CoursePage: React.FC = () => {
           ) : null}
         </div>
       </div>
+      <OrientationLandscapePrompt isEnglishCopy={isEnglishCopy} />
     </div>
   );
 };
