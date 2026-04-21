@@ -36,6 +36,9 @@ import {
 /** プレイヤーの標準移動速度（update 側で decorate される速度と整合させるための基準値） */
 const PLAYER_REF_SPEED_PX_PER_S = 300;
 
+/** 開戦直後の猶予時間（ms）。この間ボスは移動もスキルも行わない。 */
+const BOSS_OPENING_GRACE_MS = 2000;
+
 export const BOSS_A_PARAMS = {
   speedFactor: 0.65,
   chargeSpeedFactor: 2.0,
@@ -569,6 +572,8 @@ const pickNextSkill = (state: BossBattleState, ctx: BossTickContext): void => {
   const boss = state.boss;
   const now = ctx.now;
   if (boss.action.kind !== 'idle') return;
+  // 開戦直後の猶予時間中はスキル発動しない
+  if (now - state.startedAt < BOSS_OPENING_GRACE_MS) return;
 
   switch (boss.bossType) {
     case 'A': {
@@ -616,6 +621,14 @@ const moveBoss = (state: BossBattleState, ctx: BossTickContext): void => {
 
   // 向きをプレイヤーに合わせる
   boss.facing = ctx.player.x < boss.x ? 'left' : 'right';
+
+  // 開戦直後の猶予時間中は移動しない（突進などの進行中アクションは除外）
+  if (
+    now - state.startedAt < BOSS_OPENING_GRACE_MS &&
+    !(boss.action.kind === 'active' && boss.action.skill === 'charge')
+  ) {
+    return;
+  }
 
   if (boss.action.kind === 'active' && boss.action.skill === 'charge') {
     const data = boss.action.data ?? {};
@@ -959,19 +972,24 @@ export const applyPlayerProjectileToBoss = (
   state: BossBattleState,
   projX: number,
   projY: number,
-  damage: number
+  damage: number,
+  alreadyHitIds?: ReadonlySet<string>
 ): { hitBoss: boolean; hitMinionId: string | null; drops: DroppedItem[] } => {
   const result = { hitBoss: false, hitMinionId: null as string | null, drops: [] as DroppedItem[] };
   if (!state.active || state.result !== 'ongoing') return result;
 
   const boss = state.boss;
-  const d = distanceBetween(projX, projY, boss.x, boss.y);
-  if (d < BOSS_HITBOX_RADIUS) {
-    boss.hp = Math.max(0, boss.hp - damage);
-    result.hitBoss = true;
-    return result;
+  const bossAlreadyHit = alreadyHitIds?.has(boss.id) ?? false;
+  if (!bossAlreadyHit) {
+    const d = distanceBetween(projX, projY, boss.x, boss.y);
+    if (d < BOSS_HITBOX_RADIUS) {
+      boss.hp = Math.max(0, boss.hp - damage);
+      result.hitBoss = true;
+      return result;
+    }
   }
   for (const m of state.minions) {
+    if (alreadyHitIds?.has(m.id)) continue;
     const dm = distanceBetween(projX, projY, m.x, m.y);
     if (dm < BOSS_MINION_RADIUS) {
       m.hp -= damage;

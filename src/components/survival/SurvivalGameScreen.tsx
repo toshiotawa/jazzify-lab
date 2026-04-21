@@ -2030,7 +2030,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           for (const p of newState.projectiles) {
             const condMultA = getConditionalSkillMultipliers(prev.player);
             const effectiveDamage = Math.floor(p.damage * condMultA.atkMultiplier);
-            const hitBoss = applyPlayerProjectileToBoss(bossState, p.x, p.y, effectiveDamage);
+            const hitBoss = applyPlayerProjectileToBoss(bossState, p.x, p.y, effectiveDamage, p.hitEnemies);
             if (hitBoss.hitBoss) {
               newState.damageTexts.push(createDamageText(
                 bossState.boss.x,

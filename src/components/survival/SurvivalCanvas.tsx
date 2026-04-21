@@ -642,20 +642,76 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         const sy = h.y - camera.y;
         ctx.save();
         switch (h.kind) {
-          case 'fanTelegraph':
-          case 'fanActive': {
+          case 'fanTelegraph': {
             const angle = h.angle ?? 0;
             const spread = h.spread ?? Math.PI / 2;
             const radius = h.radius ?? 120;
-            ctx.fillStyle = isTelegraph ? 'rgba(255, 80, 80, 0.25)' : 'rgba(255, 40, 40, 0.55)';
-            ctx.strokeStyle = isTelegraph ? 'rgba(255, 80, 80, 0.9)' : 'rgba(255, 220, 80, 1)';
-            ctx.lineWidth = 3;
+            // 予兆: 淡い赤 + 点線ボーダー + 内部の細いガイドライン
+            const telegraphAlpha = 0.18 + Math.sin(nowMs / 120) * 0.06;
+            ctx.fillStyle = `rgba(255, 90, 90, ${telegraphAlpha})`;
+            ctx.strokeStyle = 'rgba(255, 120, 120, 0.8)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
             ctx.beginPath();
             ctx.moveTo(sx, sy);
             ctx.arc(sx, sy, radius, angle - spread / 2, angle + spread / 2);
             ctx.closePath();
             ctx.fill();
             ctx.stroke();
+            ctx.setLineDash([]);
+            break;
+          }
+          case 'fanActive': {
+            const angle = h.angle ?? 0;
+            const spread = h.spread ?? Math.PI / 2;
+            const radius = h.radius ?? 120;
+            const elapsed = nowMs - h.startAt;
+            const duration = Math.max(1, h.endAt - h.startAt);
+            const progress = Math.min(1, elapsed / duration);
+            // 本攻撃: 放射グラデーション + スラッシュ軌跡 + 白いエッジ
+            const grad = ctx.createRadialGradient(sx, sy, 10, sx, sy, radius);
+            grad.addColorStop(0, 'rgba(255, 255, 255, 0.95)');
+            grad.addColorStop(0.25, 'rgba(255, 200, 80, 0.85)');
+            grad.addColorStop(0.7, 'rgba(255, 40, 20, 0.75)');
+            grad.addColorStop(1, 'rgba(180, 0, 0, 0.35)');
+            ctx.fillStyle = grad;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.arc(sx, sy, radius, angle - spread / 2, angle + spread / 2);
+            ctx.closePath();
+            ctx.fill();
+            // 外縁をゴールドで縁取り
+            ctx.strokeStyle = 'rgba(255, 240, 120, 1)';
+            ctx.lineWidth = 5;
+            ctx.shadowColor = 'rgba(255, 200, 60, 1)';
+            ctx.shadowBlur = 12;
+            ctx.beginPath();
+            ctx.arc(sx, sy, radius, angle - spread / 2, angle + spread / 2);
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+            // スラッシュ軌跡（扇内を横切る白い弧）
+            const slashAngle = angle - spread / 2 + spread * progress;
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.lineWidth = 8;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            ctx.lineTo(sx + Math.cos(slashAngle) * radius, sy + Math.sin(slashAngle) * radius);
+            ctx.stroke();
+            // 先端スパーク
+            for (let i = 0; i < 6; i += 1) {
+              const t = i / 6;
+              const a = angle - spread / 2 + spread * t;
+              const r = radius * (0.85 + Math.sin(nowMs / 40 + i) * 0.08);
+              ctx.fillStyle = 'rgba(255, 255, 200, 0.9)';
+              ctx.beginPath();
+              ctx.arc(sx + Math.cos(a) * r, sy + Math.sin(a) * r, 5, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // 中心の衝撃閃光
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.8 * (1 - progress)})`;
+            ctx.beginPath();
+            ctx.arc(sx, sy, 18 + progress * 14, 0, Math.PI * 2);
+            ctx.fill();
             break;
           }
           case 'chargeTelegraph':
@@ -823,6 +879,37 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         ctx.fillText('👹', 0, 0);
       }
       ctx.restore();
+
+      // 予備動作中は ⚠️ をボス頭上に表示
+      if (boss.action.kind === 'windup') {
+        const wElapsed = nowMs - boss.action.startAt;
+        const wDuration = Math.max(1, boss.action.durationMs);
+        const wProgress = Math.min(1, wElapsed / wDuration);
+        const pulse = 1 + Math.sin(nowMs / 80) * 0.18;
+        const warnY = bsy - BOSS_DISPLAY_SIZE / 2 - 40;
+        ctx.save();
+        // 背景の警告リング
+        ctx.beginPath();
+        ctx.arc(bsx, warnY, 22 * pulse, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(0, 0, 0, 0.55)`;
+        ctx.fill();
+        ctx.strokeStyle = `rgba(255, 80, 80, ${0.6 + wProgress * 0.4})`;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        // ⚠️ アイコン
+        ctx.font = `${28 * pulse}px ${EMOJI_FONT_FALLBACK}`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('⚠️', bsx, warnY);
+        // 予備動作ゲージ（残時間バー）
+        const gaugeW = 60;
+        const gaugeH = 4;
+        ctx.fillStyle = '#111';
+        ctx.fillRect(bsx - gaugeW / 2, warnY + 20, gaugeW, gaugeH);
+        ctx.fillStyle = '#ef4444';
+        ctx.fillRect(bsx - gaugeW / 2, warnY + 20, gaugeW * wProgress, gaugeH);
+        ctx.restore();
+      }
 
       // ボス頭上の HP バー
       const bossRatio = Math.max(0, boss.hp / boss.maxHp);

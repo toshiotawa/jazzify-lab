@@ -66,7 +66,7 @@ interface SlotDisplayProps {
   isHinted: boolean;
   isMagicOnCooldown?: boolean;  // 対象列の魔法がクールダウン中か
   isMagicSlot?: boolean;        // この列が魔法スロットか
-  isSealed?: boolean;           // ボス戦中の C/D 封印表示
+  isWide?: boolean;             // ボス戦中は A/B のみで幅を太く
 }
 
 const SlotDisplay: React.FC<SlotDisplayProps> = ({
@@ -75,7 +75,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
   isHinted,
   isMagicOnCooldown = false,
   isMagicSlot = false,
-  isSealed = false,
+  isWide = false,
 }) => {
   const colors = SLOT_COLORS[slot.type];
   
@@ -94,7 +94,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 現在のスロット */}
       <div
         className={cn(
-          'relative w-full h-14 md:h-20 rounded-lg border-2 overflow-hidden transition-all',
+          'relative w-full rounded-lg border-2 overflow-hidden transition-all',
+          isWide ? 'h-20 md:h-28' : 'h-14 md:h-20',
           colors.border,
           'bg-gradient-to-br',
           colors.bg,
@@ -102,27 +103,31 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           slot.isCompleted && `shadow-lg ${colors.glow}`,
           isHinted && 'ring-2 ring-yellow-400 ring-offset-2 ring-offset-black',
           !slot.isEnabled && 'opacity-50 grayscale',
-          isDisabledByCooldown && 'opacity-50 grayscale',
-          isSealed && 'opacity-40 grayscale'
+          isDisabledByCooldown && 'opacity-50 grayscale'
         )}
       >
         {/* ラベル */}
-        <div className="absolute top-1 left-1 text-xs font-sans opacity-70">
+        <div className={cn(
+          'absolute top-1 left-1 font-sans opacity-70',
+          isWide ? 'text-sm md:text-base' : 'text-xs'
+        )}>
           {slotLabel}
         </div>
         
         {/* コード名 */}
         <div className="flex items-center justify-center h-full px-1">
-          {isSealed ? (
-            <span className="text-lg text-red-300 font-sans" aria-label="封印中">
-              ⛔
-            </span>
-          ) : slot.isEnabled ? (
+          {slot.isEnabled ? (
             <span className={cn(
               'font-bold font-sans leading-tight text-center break-all',
-              (slot.chord?.displayName?.length ?? 0) > 10 ? 'text-[10px] md:text-xs' :
-              (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-xs md:text-sm' :
-              (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-sm md:text-lg' : 'text-base md:text-2xl',
+              isWide
+                ? ((slot.chord?.displayName?.length ?? 0) > 10 ? 'text-sm md:text-base'
+                    : (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-base md:text-lg'
+                    : (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-xl md:text-2xl'
+                    : 'text-2xl md:text-4xl')
+                : ((slot.chord?.displayName?.length ?? 0) > 10 ? 'text-[10px] md:text-xs'
+                    : (slot.chord?.displayName?.length ?? 0) > 6 ? 'text-xs md:text-sm'
+                    : (slot.chord?.displayName?.length ?? 0) > 4 ? 'text-sm md:text-lg'
+                    : 'text-base md:text-2xl'),
               slot.isCompleted ? 'text-yellow-300' : 'text-white',
               isDisabledByCooldown && 'text-gray-500'
             )}>
@@ -161,7 +166,8 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
       {/* 次のスロット（見やすく大きめ表示） */}
       <div
         className={cn(
-          'w-full h-8 md:h-10 rounded-lg border-2 flex flex-col items-center justify-center',
+          'w-full rounded-lg border-2 flex flex-col items-center justify-center',
+          isWide ? 'h-12 md:h-14' : 'h-8 md:h-10',
           'bg-gradient-to-br from-gray-800/80 to-gray-900/80',
           colors.border,
           'border-opacity-50',
@@ -169,11 +175,18 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
           isDisabledByCooldown && 'opacity-30'
         )}
       >
-        <span className="text-[10px] font-sans text-gray-500 leading-none">NEXT</span>
+        <span className={cn(
+          'font-sans text-gray-500 leading-none',
+          isWide ? 'text-xs' : 'text-[10px]'
+        )}>NEXT</span>
         <span className={cn(
           'font-bold font-sans leading-tight text-center break-all',
-          (nextSlot.chord?.displayName?.length ?? 0) > 8 ? 'text-[10px]' :
-          (nextSlot.chord?.displayName?.length ?? 0) > 5 ? 'text-xs' : 'text-base',
+          isWide
+            ? ((nextSlot.chord?.displayName?.length ?? 0) > 8 ? 'text-xs md:text-sm'
+                : (nextSlot.chord?.displayName?.length ?? 0) > 5 ? 'text-sm md:text-base'
+                : 'text-lg md:text-xl')
+            : ((nextSlot.chord?.displayName?.length ?? 0) > 8 ? 'text-[10px]'
+                : (nextSlot.chord?.displayName?.length ?? 0) > 5 ? 'text-xs' : 'text-base'),
           colors.text
         )}>
           {slot.isEnabled && !isDisabledByCooldown ? (nextSlot.chord?.displayName ?? '---') : '---'}
@@ -221,8 +234,8 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
       <div className="flex gap-1 md:gap-2 w-full justify-center">
         {currentSlots.map((slot, index) => {
           if (isStageMode && index >= 3) return null;
-          // ボス戦では D 列を非表示、C 列は封印アイコンで表示
-          if (isBossStage && index === 3) return null;
+          // ボス戦では C/D 列を完全非表示（A/B 列のみ）
+          if (isBossStage && index >= 2) return null;
           return (
             <SlotDisplay
               key={slot.type}
@@ -231,7 +244,7 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
               isHinted={hintSlotIndex === index}
               isMagicOnCooldown={getSlotCooldown(index)}
               isMagicSlot={isSlotMagic(index)}
-              isSealed={isBossStage && index >= 2}
+              isWide={isBossStage}
             />
           );
         })}
