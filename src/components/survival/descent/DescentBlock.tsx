@@ -12,6 +12,7 @@ import StairConnector from './parts/StairConnector';
 import StageNode, { StageNodeState } from './parts/StageNode';
 import BlockHeaderPlate from './parts/BlockHeaderPlate';
 import BlockDoor from './parts/BlockDoor';
+import BlockBossFigure from './parts/BlockBossFigure';
 import BlockSeal from './parts/BlockSeal';
 import BlockLantern from './parts/BlockLantern';
 import FloatingEmber from './parts/FloatingEmber';
@@ -152,6 +153,14 @@ export const DescentBlock: React.FC<DescentBlockProps> = ({
         opened={doorOpened}
         dim={dim}
         doorFilter={blockFilter.door}
+      />
+      <BlockBossFigure
+        xPx={lastStage.x * scale}
+        yPx={(lastStage.y - 8) * scale}
+        scale={scale}
+        blockKey={layout.blockKey}
+        opened={doorOpened}
+        dim={dim}
       />
       <BlockSeal
         xPx={lastStage.x * scale}
