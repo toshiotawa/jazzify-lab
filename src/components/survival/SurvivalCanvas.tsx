@@ -181,6 +181,10 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
   const playerImageLoadedRef = useRef(false);
   // スプライトを赤く染めるためのオフスクリーンキャンバス（透明部分は染めない）
   const playerTintCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  // 通常モード用: HP減少を検知して被弾フラッシュを発動するためのトラッカー
+  const prevPlayerHpRef = useRef<number | null>(null);
+  const prevPlayerMaxHpRef = useRef<number | null>(null);
+  const damageFlashUntilRef = useRef<number>(0);
   const bossImagesRef = useRef<Record<BossType, HTMLImageElement | null>>({ A: null, B: null, C: null });
   const bossImagesLoadedRef = useRef<Record<BossType, boolean>>({ A: false, B: false, C: false });
 
@@ -550,9 +554,29 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       }
     }
     
+    // HP 減少を検知して被弾フラッシュを発動（通常モード用、無敵は付与しない）
+    const currentHp = player.stats.hp;
+    const currentMaxHp = player.stats.maxHp;
+    if (
+      prevPlayerHpRef.current === null ||
+      prevPlayerMaxHpRef.current !== currentMaxHp
+    ) {
+      // 初期化 / ステージ遷移 (maxHp 変化) 時はフラッシュを発動しない
+      prevPlayerHpRef.current = currentHp;
+      prevPlayerMaxHpRef.current = currentMaxHp;
+    } else if (currentHp < prevPlayerHpRef.current) {
+      damageFlashUntilRef.current = performance.now() + 300;
+      prevPlayerHpRef.current = currentHp;
+    } else {
+      prevPlayerHpRef.current = currentHp;
+    }
+
     // プレイヤー本体（アバター画像で描画）
-    const playerDamageFlash = bossBattle && bossBattle.active
-      && performance.now() < bossBattle.player.iFramesUntil;
+    const nowForFlash = performance.now();
+    const inBossIFrames = !!(bossBattle && bossBattle.active
+      && nowForFlash < bossBattle.player.iFramesUntil);
+    const inNormalDamageFlash = nowForFlash < damageFlashUntilRef.current;
+    const playerDamageFlash = inBossIFrames || inNormalDamageFlash;
     if (playerImageRef.current && playerImageLoadedRef.current) {
       ctx.save();
       ctx.translate(playerScreenX, playerScreenY);
