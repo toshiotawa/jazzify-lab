@@ -60,6 +60,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
   const [isMobileDetailOpen, setIsMobileDetailOpen] = useState(false);
   const [soundMuted, setSoundMuted] = useState<boolean>(() => LessonMapAudio.isMuted());
   const [didInitialFocus, setDidInitialFocus] = useState(false);
+  const [didMeasureViewport, setDidMeasureViewport] = useState(false);
 
   // --- Layout 計算 -------------------------------------------------------
   const journeyInputs = useMemo<JourneyLessonInput[]>(() => {
@@ -103,7 +104,10 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     if (!el) return;
     const update = (): void => {
       const rect = el.getBoundingClientRect();
-      setViewport({ width: rect.width, height: rect.height });
+      if (rect.width > 0 && rect.height > 0) {
+        setViewport({ width: rect.width, height: rect.height });
+        setDidMeasureViewport(true);
+      }
     };
     update();
     const ro = new ResizeObserver(update);
@@ -173,21 +177,36 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     return map;
   }, [layout]);
 
-  const { cameraY, focusCamera, adjustCamera } = useJourneyCamera({
+  const { cameraY, focusCamera, adjustCamera, setCamera } = useJourneyCamera({
     viewportHeight: viewport.height,
     scale,
     mapLogicalHeight: layout.totalHeight,
   });
 
-  // 初期フォーカス: フロンティアを画面中央に
+  // 初期フォーカス: viewport 実計測後にフロンティア (= 現在地) を画面中央へ即座配置
   useEffect(() => {
     if (didInitialFocus) return;
+    if (!didMeasureViewport) return;
     if (layout.blocks.length === 0) return;
     const targetNode = frontierLessonId ? nodeByLessonId.get(frontierLessonId) : null;
-    const y = targetNode ? targetNode.y : layout.blocks[0].lessonNodes[0]?.y ?? layout.totalHeight;
-    focusCamera(y);
+    const firstLessonY = layout.blocks[0].lessonNodes[0]?.y ?? layout.totalHeight;
+    const y = targetNode ? targetNode.y : firstLessonY;
+    const rawTargetPx = y * scale - viewport.height * 0.5;
+    const totalPx = layout.totalHeight * scale;
+    const maxCameraY = Math.max(0, totalPx - viewport.height);
+    const clamped = Math.max(0, Math.min(maxCameraY, rawTargetPx));
+    setCamera(clamped);
     setDidInitialFocus(true);
-  }, [didInitialFocus, frontierLessonId, layout, nodeByLessonId, focusCamera]);
+  }, [
+    didInitialFocus,
+    didMeasureViewport,
+    frontierLessonId,
+    layout,
+    nodeByLessonId,
+    scale,
+    viewport.height,
+    setCamera,
+  ]);
 
   // --- 操作 --------------------------------------------------------------
   const handleSelectLesson = useCallback(
