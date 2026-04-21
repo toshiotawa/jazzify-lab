@@ -28,6 +28,26 @@ struct SurvivalDescentBlockTheme: Sendable {
     let tintBottom: Color
 }
 
+/// 背景テクスチャ / 踊り場 / 扉の画像に掛ける色フィルター値。
+/// Web 版 `blockTheme.ts` の `BLOCK_FILTERS` をブロック単位で移植。
+/// SwiftUI の `.hueRotation` / `.saturation` / `.brightness` に相当する。
+struct SurvivalDescentBlockFilter: Sendable {
+    /// 背景テクスチャ用 (hue 度, saturation, brightness)
+    let backgroundHueDeg: Double
+    let backgroundSaturation: Double
+    let backgroundBrightness: Double
+    /// 踊り場画像用
+    let platformHueDeg: Double
+    let platformSaturation: Double
+    let platformBrightness: Double
+    /// 扉画像用
+    let doorHueDeg: Double
+    let doorSaturation: Double
+    let doorBrightness: Double
+    /// 階段コネクタの色相 (highlighted でない線用)
+    let connectorHueDeg: Double
+}
+
 enum SurvivalDescentThemeCatalog {
     private static let moss = SurvivalDescentBlockTheme(
         tier: .moss,
@@ -144,5 +164,98 @@ enum SurvivalDescentThemeCatalog {
         case 13...16: return crimson
         default: return abyss
         }
+    }
+
+    /// Web 版 `BLOCK_FILTERS` と同順で 21 ブロック分の画像フィルター定義。
+    private static let filters: [SurvivalDescentBlockFilter] = [
+        .init(backgroundHueDeg: 90, backgroundSaturation: 1.3, backgroundBrightness: -0.08,
+              platformHueDeg: 80, platformSaturation: 1.2, platformBrightness: -0.03,
+              doorHueDeg: 80, doorSaturation: 1.2, doorBrightness: 0.0,
+              connectorHueDeg: 130),
+        .init(backgroundHueDeg: 110, backgroundSaturation: 1.1, backgroundBrightness: -0.14,
+              platformHueDeg: 100, platformSaturation: 1.1, platformBrightness: -0.05,
+              doorHueDeg: 100, doorSaturation: 1.05, doorBrightness: 0.0,
+              connectorHueDeg: 145),
+        .init(backgroundHueDeg: -10, backgroundSaturation: 0.6, backgroundBrightness: 0.0,
+              platformHueDeg: -8, platformSaturation: 0.7, platformBrightness: 0.02,
+              doorHueDeg: 0, doorSaturation: 0.8, doorBrightness: 0.0,
+              connectorHueDeg: 0),
+        .init(backgroundHueDeg: 20, backgroundSaturation: 0.55, backgroundBrightness: -0.05,
+              platformHueDeg: 18, platformSaturation: 0.7, platformBrightness: -0.02,
+              doorHueDeg: 10, doorSaturation: 0.8, doorBrightness: 0.0,
+              connectorHueDeg: 20),
+        .init(backgroundHueDeg: -50, backgroundSaturation: 1.2, backgroundBrightness: -0.08,
+              platformHueDeg: -40, platformSaturation: 1.2, platformBrightness: -0.03,
+              doorHueDeg: -30, doorSaturation: 1.15, doorBrightness: 0.0,
+              connectorHueDeg: -30),
+        .init(backgroundHueDeg: -35, backgroundSaturation: 1.0, backgroundBrightness: -0.18,
+              platformHueDeg: -30, platformSaturation: 1.05, platformBrightness: -0.1,
+              doorHueDeg: -20, doorSaturation: 1.0, doorBrightness: 0.0,
+              connectorHueDeg: -20),
+        .init(backgroundHueDeg: -60, backgroundSaturation: 1.3, backgroundBrightness: -0.1,
+              platformHueDeg: -50, platformSaturation: 1.25, platformBrightness: -0.05,
+              doorHueDeg: -40, doorSaturation: 1.2, doorBrightness: 0.0,
+              connectorHueDeg: -40),
+        .init(backgroundHueDeg: -110, backgroundSaturation: 1.3, backgroundBrightness: -0.18,
+              platformHueDeg: -100, platformSaturation: 1.2, platformBrightness: -0.1,
+              doorHueDeg: -90, doorSaturation: 1.15, doorBrightness: 0.0,
+              connectorHueDeg: -90),
+        .init(backgroundHueDeg: -130, backgroundSaturation: 1.5, backgroundBrightness: -0.1,
+              platformHueDeg: -120, platformSaturation: 1.4, platformBrightness: -0.05,
+              doorHueDeg: -110, doorSaturation: 1.3, doorBrightness: 0.0,
+              connectorHueDeg: -110),
+        .init(backgroundHueDeg: -150, backgroundSaturation: 1.3, backgroundBrightness: -0.12,
+              platformHueDeg: -140, platformSaturation: 1.3, platformBrightness: -0.05,
+              doorHueDeg: -130, doorSaturation: 1.2, doorBrightness: 0.0,
+              connectorHueDeg: -130),
+        .init(backgroundHueDeg: 40, backgroundSaturation: 1.1, backgroundBrightness: -0.02,
+              platformHueDeg: 40, platformSaturation: 1.1, platformBrightness: 0.02,
+              doorHueDeg: 40, doorSaturation: 1.1, doorBrightness: 0.0,
+              connectorHueDeg: 60),
+        .init(backgroundHueDeg: 30, backgroundSaturation: 0.9, backgroundBrightness: 0.03,
+              platformHueDeg: 30, platformSaturation: 0.9, platformBrightness: 0.05,
+              doorHueDeg: 30, doorSaturation: 0.9, doorBrightness: 0.02,
+              connectorHueDeg: 50),
+        .init(backgroundHueDeg: 55, backgroundSaturation: 1.3, backgroundBrightness: -0.15,
+              platformHueDeg: 55, platformSaturation: 1.25, platformBrightness: -0.08,
+              doorHueDeg: 55, doorSaturation: 1.2, doorBrightness: 0.0,
+              connectorHueDeg: 70),
+        .init(backgroundHueDeg: -70, backgroundSaturation: 1.6, backgroundBrightness: -0.18,
+              platformHueDeg: -60, platformSaturation: 1.5, platformBrightness: -0.1,
+              doorHueDeg: -50, doorSaturation: 1.4, doorBrightness: 0.0,
+              connectorHueDeg: -50),
+        .init(backgroundHueDeg: -80, backgroundSaturation: 1.7, backgroundBrightness: -0.22,
+              platformHueDeg: -70, platformSaturation: 1.55, platformBrightness: -0.12,
+              doorHueDeg: -60, doorSaturation: 1.45, doorBrightness: 0.0,
+              connectorHueDeg: -60),
+        .init(backgroundHueDeg: -90, backgroundSaturation: 1.5, backgroundBrightness: -0.15,
+              platformHueDeg: -80, platformSaturation: 1.4, platformBrightness: -0.08,
+              doorHueDeg: -70, doorSaturation: 1.35, doorBrightness: 0.0,
+              connectorHueDeg: -70),
+        .init(backgroundHueDeg: -100, backgroundSaturation: 1.4, backgroundBrightness: -0.28,
+              platformHueDeg: -90, platformSaturation: 1.35, platformBrightness: -0.15,
+              doorHueDeg: -80, doorSaturation: 1.3, doorBrightness: 0.0,
+              connectorHueDeg: -80),
+        .init(backgroundHueDeg: -40, backgroundSaturation: 0.8, backgroundBrightness: -0.32,
+              platformHueDeg: -30, platformSaturation: 1.0, platformBrightness: -0.18,
+              doorHueDeg: -30, doorSaturation: 1.1, doorBrightness: -0.05,
+              connectorHueDeg: -20),
+        .init(backgroundHueDeg: -20, backgroundSaturation: 0.6, backgroundBrightness: -0.4,
+              platformHueDeg: -20, platformSaturation: 0.9, platformBrightness: -0.22,
+              doorHueDeg: -20, doorSaturation: 1.05, doorBrightness: -0.08,
+              connectorHueDeg: -10),
+        .init(backgroundHueDeg: -30, backgroundSaturation: 1.0, backgroundBrightness: -0.42,
+              platformHueDeg: -25, platformSaturation: 1.1, platformBrightness: -0.2,
+              doorHueDeg: -25, doorSaturation: 1.2, doorBrightness: -0.04,
+              connectorHueDeg: -15),
+        .init(backgroundHueDeg: -160, backgroundSaturation: 1.0, backgroundBrightness: -0.48,
+              platformHueDeg: -150, platformSaturation: 1.05, platformBrightness: -0.22,
+              doorHueDeg: -140, doorSaturation: 1.2, doorBrightness: -0.04,
+              connectorHueDeg: -150),
+    ]
+
+    static func filter(for blockIndex: Int) -> SurvivalDescentBlockFilter {
+        let clamped = max(0, min(filters.count - 1, blockIndex))
+        return filters[clamped]
     }
 }

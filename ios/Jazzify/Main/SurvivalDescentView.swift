@@ -64,6 +64,24 @@ struct SurvivalDescentView: View {
         !meta.stageNumbers.isEmpty && meta.stageNumbers.allSatisfy { clearedStages.contains($0) }
     }
 
+    /// フロンティアキャラクターの向き (次に進むステージの方向を見る)
+    private var frontierFacing: SurvivalDescentCharacterView.Facing {
+        let current = frontierStageNumber
+        guard let currentPos = layout.position(for: current) else { return .right }
+        if let nextPos = layout.position(for: current + 1) {
+            // 大踊り場 (stage 5) は中央
+            if abs(nextPos.x - SurvivalDescentLayoutConstants.laneCenterX) < 0.5 {
+                return .center
+            }
+            if nextPos.x > currentPos.x + 0.5 { return .right }
+            if nextPos.x < currentPos.x - 0.5 { return .left }
+        }
+        if abs(currentPos.x - SurvivalDescentLayoutConstants.laneCenterX) < 0.5 {
+            return .center
+        }
+        return .right
+    }
+
     // MARK: - Body
 
     var body: some View {
@@ -105,8 +123,12 @@ struct SurvivalDescentView: View {
         // 論理座標 0..logicalWidth を worldWidth の中央に寄せるための横オフセット
         let horizontalOffset = (worldWidth - SurvivalDescentLayoutConstants.logicalWidth * scale) / 2
 
+        let bands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)] = layout.blocks.map { b in
+            (b.startY, b.endY, SurvivalDescentThemeCatalog.filter(for: b.blockIndex))
+        }
+
         ZStack(alignment: .topLeading) {
-            SurvivalDescentBackgroundView(widthPx: worldWidth, heightPx: worldHeight)
+            SurvivalDescentBackgroundView(widthPx: worldWidth, heightPx: worldHeight, blockBands: bands, scale: scale)
 
             // ブロック区間のテーマ色オーバーレイ (全ブロック)
             ForEach(Array(layout.blocks.enumerated()), id: \.element.blockKey) { idx, blockLayout in
@@ -148,12 +170,26 @@ struct SurvivalDescentView: View {
                 }
             }
 
+            // フロンティアブロックに漂う火の粉
+            if let frontierBlock = layout.blocks.first(where: { $0.blockIndex == accessibleBlockIndex }) {
+                let theme = SurvivalDescentThemeCatalog.theme(for: frontierBlock.blockIndex)
+                SurvivalDescentFloatingEmber(
+                    startY: frontierBlock.startY,
+                    endY: frontierBlock.endY,
+                    widthPx: worldWidth,
+                    scale: scale,
+                    color: theme.lanternCore,
+                    count: 6
+                )
+            }
+
             // フロンティア位置のキャラクター
             if let frontierPos = layout.position(for: frontierStageNumber) {
                 SurvivalDescentCharacterView(
                     xPx: frontierPos.x * scale + horizontalOffset,
                     yPx: frontierPos.y * scale,
-                    scale: scale
+                    scale: scale,
+                    facing: frontierFacing
                 )
             }
         }
@@ -171,6 +207,7 @@ struct SurvivalDescentView: View {
         worldWidth: CGFloat
     ) -> some View {
         let theme = SurvivalDescentThemeCatalog.theme(for: blockLayout.blockIndex)
+        let filter = SurvivalDescentThemeCatalog.filter(for: blockLayout.blockIndex)
         let locked = blockLayout.blockIndex > accessibleBlockIndex
         let cleared = blockAllCleared(meta)
 
@@ -200,6 +237,7 @@ struct SurvivalDescentView: View {
                 yPx: stage.y * scale,
                 scale: scale,
                 theme: theme,
+                filter: filter,
                 dim: locked
             )
         }
@@ -214,7 +252,8 @@ struct SurvivalDescentView: View {
             scale: scale,
             theme: theme,
             lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
-            dim: locked
+            dim: locked,
+            side: .left
         )
         SurvivalDescentBlockLantern(
             xPx: headerCenterX + lanternOffsetX,
@@ -222,7 +261,8 @@ struct SurvivalDescentView: View {
             scale: scale,
             theme: theme,
             lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
-            dim: locked
+            dim: locked,
+            side: .right
         )
 
         // ヘッダープレート
@@ -249,14 +289,24 @@ struct SurvivalDescentView: View {
             )
         }
 
-        // ブロック末尾の扉 (次ブロックが存在する時のみ)
+        // ブロック末尾の扉 (次ブロックが存在する時のみ) + 扉前のボス
         if blockLayout.blockIndex + 1 < blocks.count, let bigStage = blockLayout.stages.last {
             let doorLocked = !cleared
             SurvivalDescentDoorView(
                 xPx: bigStage.x * scale + horizontalOffset,
-                yPx: (bigStage.y - 60) * scale,
+                yPx: (bigStage.y - 10) * scale,
                 scale: scale,
                 theme: theme,
+                filter: filter,
+                opened: !doorLocked,
+                dim: locked
+            )
+
+            SurvivalDescentBossFigure(
+                xPx: bigStage.x * scale + horizontalOffset,
+                yPx: (bigStage.y - 14) * scale,
+                scale: scale,
+                bossIndex: blockLayout.blockIndex,
                 opened: !doorLocked,
                 dim: locked
             )

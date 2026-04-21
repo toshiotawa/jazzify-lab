@@ -1,10 +1,12 @@
 import SwiftUI
+import UIKit
 
 /// サバイバルタブ（魔王城降下）のネイティブ実装。
 ///
 /// 仕様:
-/// - iPhone / iPad 共通: 画面全体を降下マップで覆う 1 カラム構成 (縦向き前提)。
-///   ステージをタップすると下からの詳細シート (`sheet`) が開く。
+/// - iPhone: 画面全体を降下マップで覆う 1 カラム構成。ステージタップでボトムシート表示。
+/// - iPad: 左マップ + 右サイドパネル (固定 320pt) の 2 カラム構成で、選択したステージ詳細
+///   がサイドパネルに表示される。Web 版 (`SurvivalDescentMap.tsx`) と同一レイアウト。
 /// - 無料プランは **第一階層全体 (Major 1〜5)** が遊べる。それ以外はステージをタップすると
 ///   `SubscriptionView` に誘導する。
 /// - ステージはクリア状況によりアンロック。1 ステージ目は常時解放、
@@ -12,6 +14,7 @@ import SwiftUI
 /// - ステージ起動時は既存の `GameWebView(.survivalStage(...))` を `fullScreenCover` で表示する。
 ///   ゲームクリア後は Supabase の `survival_stage_clears` / `survival_stage_progress` が
 ///   更新されるため、閉じたタイミングで再読み込みする。
+/// - BGM: `SurvivalMapAudio` を onAppear で再生開始、onDisappear / ゲーム起動時に停止。
 struct SurvivalView: View {
     @EnvironmentObject var appState: AppState
 
@@ -25,11 +28,17 @@ struct SurvivalView: View {
     @State private var showSubscription: Bool = false
     @State private var showMobileDetail: Bool = false
     @State private var showSurvivalInfo: Bool = false
+    @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
 
     private let blocks: [SurvivalBlockMeta] = SurvivalStageCatalog.blocks
     private let freeStageNumbers: Set<Int> = SurvivalStageCatalog.freeTierStageNumbers
 
     private var locale: AppLocale { appState.locale }
+
+    /// iPad のみ 2 カラムで表示 (iPhone Max 系は 1 カラム固定)
+    private var useSplitLayout: Bool {
+        UIDevice.current.userInterfaceIdiom == .pad
+    }
 
     /// 第一階層のクリア状況から「プレミアムがロックされている無料ユーザー」の表示フラグ。
     private var playLockedForUpsell: Bool { !appState.isPremium }
@@ -42,6 +51,17 @@ struct SurvivalView: View {
     private var selectedStageBlock: SurvivalBlockMeta? {
         guard let stage = selectedStage else { return nil }
         return SurvivalStageCatalog.block(forStage: stage.stageNumber)
+    }
+
+    /// サイドパネル用: 選択ステージが無ければ現ブロック、無ければ先頭ブロック。
+    private var panelBlock: SurvivalBlockMeta? {
+        let refStage = selectedStage?.stageNumber ?? max(1, min(SurvivalStageCatalog.totalStages, currentStageNumber))
+        return SurvivalStageCatalog.block(forStage: refStage) ?? blocks.first
+    }
+
+    private var panelBlockClearedCount: Int {
+        guard let b = panelBlock else { return 0 }
+        return b.stageNumbers.filter { clearedStages.contains($0) }.count
     }
 
     var body: some View {
@@ -63,9 +83,19 @@ struct SurvivalView: View {
             .toolbarBackground(.visible, for: .navigationBar)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button { showSurvivalInfo = true } label: {
-                        Image(systemName: "info.circle")
-                            .foregroundStyle(.gray)
+                    HStack(spacing: 12) {
+                        Button {
+                            let muted = SurvivalMapAudio.shared.toggleMuted()
+                            isSoundMuted = muted
+                            if !muted { SurvivalMapAudio.shared.play() }
+                        } label: {
+                            Image(systemName: isSoundMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .foregroundStyle(.white)
+                        }
+                        Button { showSurvivalInfo = true } label: {
+                            Image(systemName: "info.circle")
+                                .foregroundStyle(.gray)
+                        }
                     }
                 }
             }
@@ -73,14 +103,56 @@ struct SurvivalView: View {
             .onChange(of: appState.profile?.id) { _ in
                 Task { await loadProgress() }
             }
+            .onAppear {
+                if !SurvivalMapAudio.shared.isMuted {
+                    SurvivalMapAudio.shared.play()
+                }
+            }
+            .onDisappear {
+                SurvivalMapAudio.shared.stop()
+            }
             .sheet(isPresented: $showSubscription) {
                 SubscriptionView()
             }
             .sheet(isPresented: $showMobileDetail) {
-                if let stage = selectedStage, let block = selectedStageBlock {
-                    stageDetailSheet(stage: stage, block: block)
-                        .presentationDetents([.medium, .large])
-                        .presentationDragIndicator(.visible)
+                if selectedStage != nil {
+                    NavigationStack {
+                        SurvivalDescentSidePanel(
+                            locale: locale,
+                            totalClearedCount: clearedStages.count,
+                            totalStages: SurvivalStageCatalog.totalStages,
+                            activeBlock: panelBlock,
+                            blockClearedCount: panelBlockClearedCount,
+                            selectedStage: selectedStage,
+                            selectedStageIsUnlocked: selectedStage.map { isStageUnlocked($0.stageNumber) } ?? false,
+                            selectedStageIsCleared: selectedStage.map { clearedStages.contains($0.stageNumber) } ?? false,
+                            hintMode: $hintMode,
+                            playLocked: playLockedForUpsell && !(selectedStage.map { freeStageNumbers.contains($0.stageNumber) } ?? false),
+                            onStart: {
+                                if let stage = selectedStage {
+                                    startStage(stage)
+                                }
+                            },
+                            onRequestUpgrade: {
+                                showMobileDetail = false
+                                showSubscription = true
+                            }
+                        )
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color(hex: "050308").ignoresSafeArea())
+                        .navigationBarTitleDisplayMode(.inline)
+                        .toolbar {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button(locale == .ja ? "閉じる" : "Close") {
+                                    showMobileDetail = false
+                                }
+                                .foregroundStyle(.purple)
+                            }
+                        }
+                    }
+                    .presentationDetents([.large])
+                    .presentationDragIndicator(.visible)
                 }
             }
             .sheet(isPresented: $showSurvivalInfo) {
@@ -110,6 +182,9 @@ struct SurvivalView: View {
             .onChange(of: launchStage == nil) { isNil in
                 if isNil {
                     Task { await loadProgress() }
+                    if !SurvivalMapAudio.shared.isMuted {
+                        SurvivalMapAudio.shared.play()
+                    }
                 }
             }
         }
@@ -129,8 +204,36 @@ struct SurvivalView: View {
                 upsellBanner
                     .padding(.horizontal, 12)
             }
-            descentMap
+
+            if useSplitLayout {
+                HStack(spacing: 12) {
+                    descentMap
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    SurvivalDescentSidePanel(
+                        locale: locale,
+                        totalClearedCount: clearedStages.count,
+                        totalStages: SurvivalStageCatalog.totalStages,
+                        activeBlock: panelBlock,
+                        blockClearedCount: panelBlockClearedCount,
+                        selectedStage: selectedStage,
+                        selectedStageIsUnlocked: selectedStage.map { isStageUnlocked($0.stageNumber) } ?? false,
+                        selectedStageIsCleared: selectedStage.map { clearedStages.contains($0.stageNumber) } ?? false,
+                        hintMode: $hintMode,
+                        playLocked: playLockedForUpsell && !(selectedStage.map { freeStageNumbers.contains($0.stageNumber) } ?? false),
+                        onStart: {
+                            if let stage = selectedStage { startStage(stage) }
+                        },
+                        onRequestUpgrade: { showSubscription = true }
+                    )
+                    .frame(width: 320)
+                    .padding(.trailing, 12)
+                    .padding(.vertical, 8)
+                }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                descentMap
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         }
     }
 
@@ -153,162 +256,8 @@ struct SurvivalView: View {
     private func handleDescentStageSelect(stage: SurvivalStageDefinition) {
         selectedStageNumber = stage.stageNumber
         hintMode = false
-        showMobileDetail = true
-    }
-
-    // MARK: - Detail sheet
-
-    private func stageDetailSheet(stage: SurvivalStageDefinition, block: SurvivalBlockMeta) -> some View {
-        NavigationStack {
-            ScrollView {
-                VStack(alignment: .leading, spacing: 16) {
-                    VStack(alignment: .leading, spacing: 4) {
-                        Text(blockTitle(block))
-                            .font(.caption.bold())
-                            .foregroundStyle(.purple)
-                        Text(stage.localizedName(locale))
-                            .font(.title3.bold())
-                            .foregroundStyle(.white)
-                    }
-                    HStack(spacing: 8) {
-                        difficultyBadge(stage.difficulty)
-                        Text(stage.localizedRootPattern(locale))
-                            .font(.caption)
-                            .foregroundStyle(.gray)
-                        Spacer()
-                        if clearedStages.contains(stage.stageNumber) {
-                            Text(locale == .ja ? "クリア済" : "Cleared")
-                                .font(.caption.bold())
-                                .foregroundStyle(.green)
-                                .padding(.horizontal, 10)
-                                .padding(.vertical, 4)
-                                .background(Color.green.opacity(0.2))
-                                .cornerRadius(999)
-                        }
-                    }
-
-                    stageChordPreview(stage: stage)
-
-                    hintToggle(stage: stage)
-
-                    startControls(stage: stage)
-                }
-                .padding(20)
-            }
-            .background(Color(hex: "0f172a").ignoresSafeArea())
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button(locale == .ja ? "閉じる" : "Close") {
-                        showMobileDetail = false
-                    }
-                    .foregroundStyle(.purple)
-                }
-            }
-        }
-    }
-
-    private func stageChordPreview(stage: SurvivalStageDefinition) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text(locale == .ja ? "出題されるコード" : "Chords")
-                .font(.caption.bold())
-                .foregroundStyle(.gray)
-
-            let preview = stage.allowedChords.prefix(16)
-            FlowLayoutChips(items: Array(preview))
-
-            if stage.allowedChords.count > preview.count {
-                Text(locale == .ja
-                     ? "ほか \(stage.allowedChords.count - preview.count) 種"
-                     : "+\(stage.allowedChords.count - preview.count) more")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-            }
-        }
-        .padding(12)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(Color(hex: "0f172a").opacity(0.6))
-        .cornerRadius(10)
-    }
-
-    private func hintToggle(stage: SurvivalStageDefinition) -> some View {
-        Toggle(isOn: $hintMode) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(locale == .ja ? "ヒントモード" : "Hint mode")
-                    .font(.subheadline.bold())
-                    .foregroundStyle(.white)
-                Text(locale == .ja
-                     ? "構成音を表示する代わりにクリア記録は付きません。"
-                     : "Show chord tones, but clears won't be recorded.")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-            }
-        }
-        .tint(.purple)
-        .padding(12)
-        .background(Color(hex: "0f172a").opacity(0.6))
-        .cornerRadius(10)
-    }
-
-    private func startControls(stage: SurvivalStageDefinition) -> some View {
-        let stageUnlocked = isStageUnlocked(stage.stageNumber)
-        let freeAllowed = freeStageNumbers.contains(stage.stageNumber)
-        let requiresPremium = playLockedForUpsell && !freeAllowed
-
-        return VStack(spacing: 10) {
-            if requiresPremium {
-                Button {
-                    showMobileDetail = false
-                    showSubscription = true
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "crown.fill")
-                        Text(locale == .ja ? "プレミアムに登録してプレイ" : "Subscribe to Premium to play")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(
-                        LinearGradient(
-                            colors: [.purple, .pink],
-                            startPoint: .leading,
-                            endPoint: .trailing
-                        )
-                    )
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-                Text(locale == .ja
-                     ? "第一階層（Major 1〜5）は無料プランでも遊べます。"
-                     : "Major 1–5 (first tier) is playable on the Free plan.")
-                    .font(.caption2)
-                    .foregroundStyle(.gray)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else if !stageUnlocked {
-                Text(locale == .ja
-                     ? "前のステージをクリアすると解放されます。"
-                     : "Clear the previous stage to unlock.")
-                    .font(.caption)
-                    .foregroundStyle(.orange)
-                    .frame(maxWidth: .infinity, alignment: .center)
-            } else {
-                Button {
-                    startStage(stage)
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "play.fill")
-                        Text(locale == .ja ? "スタート" : "Start")
-                    }
-                    .font(.headline)
-                    .foregroundStyle(.white)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background(Color.purple)
-                    .cornerRadius(12)
-                }
-                .buttonStyle(.plain)
-            }
+        if !useSplitLayout {
+            showMobileDetail = true
         }
     }
 
@@ -347,31 +296,6 @@ struct SurvivalView: View {
         .buttonStyle(.plain)
     }
 
-    private func difficultyBadge(_ difficulty: SurvivalDifficulty) -> some View {
-        let color: Color = {
-            switch difficulty {
-            case .easy: return .green
-            case .normal: return .blue
-            case .hard: return .orange
-            case .extreme: return .red
-            }
-        }()
-        return Text(difficulty.displayName(locale))
-            .font(.caption2.bold())
-            .foregroundStyle(color)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 2)
-            .background(color.opacity(0.18))
-            .cornerRadius(999)
-    }
-
-    private func blockTitle(_ block: SurvivalBlockMeta) -> String {
-        let index = block.blockIndex + 1
-        return locale == .ja
-            ? "階層 \(index) ・ \(block.localizedLabel(locale))"
-            : "Tier \(index) · \(block.localizedLabel(locale))"
-    }
-
     // MARK: - Logic
 
     private func isStageUnlocked(_ stageNumber: Int) -> Bool {
@@ -394,6 +318,7 @@ struct SurvivalView: View {
         guard isStageUnlocked(stage.stageNumber) else { return }
         launchHintMode = hintMode
         showMobileDetail = false
+        SurvivalMapAudio.shared.stop()
         launchStage = stage
     }
 
@@ -425,75 +350,6 @@ struct SurvivalView: View {
             } else {
                 selectedStageNumber = blocks.first?.stageNumbers.first
             }
-        }
-    }
-}
-
-// MARK: - Chip flow layout
-
-/// コード候補を折り返し表示するためのシンプルなフローコンテナ。
-private struct FlowLayoutChips: View {
-    let items: [String]
-
-    var body: some View {
-        FlowLayout(spacing: 6) {
-            ForEach(items, id: \.self) { chord in
-                Text(chord)
-                    .font(.caption2.monospaced())
-                    .foregroundStyle(.white)
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(Color.purple.opacity(0.2))
-                    .overlay(
-                        RoundedRectangle(cornerRadius: 6)
-                            .stroke(Color.purple.opacity(0.35), lineWidth: 1)
-                    )
-                    .cornerRadius(6)
-            }
-        }
-    }
-}
-
-private struct FlowLayout: Layout {
-    var spacing: CGFloat = 6
-
-    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
-        let maxWidth = proposal.width ?? .infinity
-        var totalHeight: CGFloat = 0
-        var currentLineWidth: CGFloat = 0
-        var currentLineHeight: CGFloat = 0
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if currentLineWidth + size.width > maxWidth {
-                totalHeight += currentLineHeight + spacing
-                currentLineWidth = size.width + spacing
-                currentLineHeight = size.height
-            } else {
-                currentLineWidth += size.width + spacing
-                currentLineHeight = max(currentLineHeight, size.height)
-            }
-        }
-        totalHeight += currentLineHeight
-        return CGSize(width: proposal.width ?? currentLineWidth, height: totalHeight)
-    }
-
-    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x: CGFloat = bounds.minX
-        var y: CGFloat = bounds.minY
-        var lineHeight: CGFloat = 0
-        let maxX = bounds.maxX
-
-        for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
-            if x + size.width > maxX {
-                x = bounds.minX
-                y += lineHeight + spacing
-                lineHeight = 0
-            }
-            subview.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + spacing
-            lineHeight = max(lineHeight, size.height)
         }
     }
 }

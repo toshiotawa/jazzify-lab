@@ -6,70 +6,110 @@ import SwiftUI
 
 // MARK: - Background
 
-/// マップの縦長背景。石壁風グラデ＋うっすらレンガ目地＋左右の暗い縁。
+/// マップの縦長背景。石壁画像 (`background` in Asset Catalog) をタイル貼りし、
+/// ブロック区間ごとに hue/saturation/brightness を変えて 21 ブロック分の雰囲気を出す。
 struct SurvivalDescentBackgroundView: View {
+    let widthPx: CGFloat
+    let heightPx: CGFloat
+    /// ブロック (startY, endY, filter) のタプル一覧。
+    let blockBands: [(startY: CGFloat, endY: CGFloat, filter: SurvivalDescentBlockFilter)]
+    let scale: CGFloat
+
+    var body: some View {
+        ZStack(alignment: .topLeading) {
+            Rectangle()
+                .fill(Color(hex: "09070f"))
+                .frame(width: widthPx, height: heightPx)
+
+            ForEach(Array(blockBands.enumerated()), id: \.offset) { _, band in
+                let bandHeight = max(0, (band.endY - band.startY) * scale)
+                brickTile(filter: band.filter)
+                    .frame(width: widthPx, height: bandHeight)
+                    .clipped()
+                    .offset(y: band.startY * scale)
+                    .allowsHitTesting(false)
+            }
+
+            // 全体にかぶせる暗色グラデーション (奥行き)
+            LinearGradient(
+                colors: [
+                    Color(red: 18 / 255, green: 22 / 255, blue: 40 / 255).opacity(0.25),
+                    Color(red: 18 / 255, green: 16 / 255, blue: 38 / 255).opacity(0.4),
+                    Color(red: 28 / 255, green: 14 / 255, blue: 48 / 255).opacity(0.55),
+                    Color(red: 12 / 255, green: 8 / 255, blue: 22 / 255).opacity(0.75),
+                    Color(red: 4 / 255, green: 2 / 255, blue: 10 / 255).opacity(0.9),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .frame(width: widthPx, height: heightPx)
+            .allowsHitTesting(false)
+
+            // 中央のヴィネット
+            RadialGradient(
+                colors: [Color.clear, Color.black.opacity(0.45)],
+                center: .center,
+                startRadius: widthPx * 0.35,
+                endRadius: max(widthPx, heightPx) * 0.7
+            )
+            .frame(width: widthPx, height: heightPx)
+            .allowsHitTesting(false)
+        }
+        .frame(width: widthPx, height: heightPx)
+        .clipped()
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func brickTile(filter: SurvivalDescentBlockFilter) -> some View {
+        let tile = max(160, 256 * scale)
+        TiledImage(
+            imageName: "background",
+            tileSize: tile,
+            widthPx: widthPx,
+            heightPx: max(0, heightPx)
+        )
+        .hueRotation(.degrees(filter.backgroundHueDeg))
+        .saturation(filter.backgroundSaturation)
+        .brightness(filter.backgroundBrightness)
+        .overlay(
+            // ブロックのテーマ色をオーバーレイで混ぜる (Web 版の mix-blend-mode: overlay 相当)
+            LinearGradient(
+                colors: [
+                    Color(red: 80 / 255, green: 60 / 255, blue: 120 / 255).opacity(0.25),
+                    Color(red: 20 / 255, green: 10 / 255, blue: 40 / 255).opacity(0.35),
+                ],
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .blendMode(.overlay)
+        )
+    }
+}
+
+/// 画像を (widthPx × heightPx) の領域にタイル敷きする View。
+private struct TiledImage: View {
+    let imageName: String
+    let tileSize: CGFloat
     let widthPx: CGFloat
     let heightPx: CGFloat
 
     var body: some View {
-        ZStack {
-            LinearGradient(
-                colors: [
-                    Color(hex: "0b0616"),
-                    Color(hex: "1a0f2c"),
-                    Color(hex: "0a0514"),
-                    Color(hex: "050308"),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-
-            // レンガ目地っぽい横帯
-            VStack(spacing: 0) {
-                ForEach(0..<max(1, Int(heightPx / 90)), id: \.self) { index in
-                    Rectangle()
-                        .fill(
-                            index.isMultiple(of: 2)
-                                ? Color.white.opacity(0.015)
-                                : Color.black.opacity(0.14)
-                        )
-                        .frame(height: 90)
+        let cols = max(1, Int((widthPx / tileSize).rounded(.up)))
+        let rows = max(1, Int((heightPx / tileSize).rounded(.up)))
+        VStack(spacing: 0) {
+            ForEach(0..<rows, id: \.self) { _ in
+                HStack(spacing: 0) {
+                    ForEach(0..<cols, id: \.self) { _ in
+                        Image(imageName)
+                            .resizable()
+                            .interpolation(.medium)
+                            .frame(width: tileSize, height: tileSize)
+                    }
                 }
             }
-            .allowsHitTesting(false)
-
-            // 中央のぼんやりした縦ライト
-            LinearGradient(
-                colors: [
-                    Color(red: 170 / 255, green: 130 / 255, blue: 220 / 255).opacity(0.05),
-                    .clear,
-                    Color(red: 255 / 255, green: 180 / 255, blue: 120 / 255).opacity(0.03),
-                ],
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .blendMode(.screen)
-            .allowsHitTesting(false)
-
-            // 左右の暗い縁で奥行き感
-            HStack(spacing: 0) {
-                LinearGradient(
-                    colors: [Color.black.opacity(0.55), .clear],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: 80)
-                Spacer()
-                LinearGradient(
-                    colors: [.clear, Color.black.opacity(0.55)],
-                    startPoint: .leading,
-                    endPoint: .trailing
-                )
-                .frame(width: 80)
-            }
-            .allowsHitTesting(false)
         }
-        .frame(width: widthPx, height: heightPx)
+        .frame(width: widthPx, height: heightPx, alignment: .topLeading)
         .clipped()
         .allowsHitTesting(false)
     }
@@ -171,15 +211,24 @@ struct SurvivalDescentBlockLantern: View {
     let theme: SurvivalDescentBlockTheme
     let lit: Bool
     let dim: Bool
+    /// left/right でアニメーション位相をずらす
+    var side: Side = .left
+
+    enum Side { case left, right }
+
+    @State private var flicker: Bool = false
+    @State private var glowPulse: Bool = false
 
     var body: some View {
         let bodyWidth = max(10, 14 * scale)
         let bodyHeight = max(18, 22 * scale)
         let flameHeight = max(14, 18 * scale)
+        let animating = lit && !dim
+        let delay: Double = side == .left ? 0 : 0.7
 
         ZStack(alignment: .center) {
             // 灯火グロー
-            if lit, !dim {
+            if animating {
                 Circle()
                     .fill(
                         RadialGradient(
@@ -191,6 +240,8 @@ struct SurvivalDescentBlockLantern: View {
                     )
                     .frame(width: max(44, 64 * scale), height: max(44, 64 * scale))
                     .blendMode(.screen)
+                    .scaleEffect(glowPulse ? 1.12 : 0.88)
+                    .opacity(glowPulse ? 0.95 : 0.55)
             }
 
             VStack(spacing: 0) {
@@ -204,7 +255,8 @@ struct SurvivalDescentBlockLantern: View {
                         )
                     )
                     .frame(width: bodyWidth * 0.7, height: flameHeight)
-                    .opacity(lit && !dim ? 0.95 : 0.35)
+                    .opacity(animating ? (flicker ? 0.95 : 0.75) : 0.35)
+                    .scaleEffect(x: flicker ? 1.08 : 0.92, y: flicker ? 1.12 : 0.88, anchor: .bottom)
                     .blendMode(.screen)
                     .offset(y: bodyHeight * 0.1)
 
@@ -227,12 +279,23 @@ struct SurvivalDescentBlockLantern: View {
         .opacity(dim ? 0.25 : 1.0)
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
+        .onAppear {
+            guard animating else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                withAnimation(.easeInOut(duration: 1.3).repeatForever(autoreverses: true)) {
+                    flicker = true
+                }
+                withAnimation(.easeInOut(duration: 2.4).repeatForever(autoreverses: true)) {
+                    glowPulse = true
+                }
+            }
+        }
     }
 }
 
 // MARK: - Landing platform (踊り場)
 
-/// 石の踊り場。small / big で見た目を変える。
+/// 石の踊り場。small / big で画像 (`odoriba` / `big_odoriba`) を貼り分ける。
 struct SurvivalDescentLandingPlatform: View {
     enum LandingType { case small, big }
 
@@ -241,75 +304,26 @@ struct SurvivalDescentLandingPlatform: View {
     let yPx: CGFloat
     let scale: CGFloat
     let theme: SurvivalDescentBlockTheme
+    let filter: SurvivalDescentBlockFilter
     let dim: Bool
 
     var body: some View {
-        let widthLogical: CGFloat = type == .big ? 220 : 124
-        let heightLogical: CGFloat = type == .big ? 90 : 56
+        let widthLogical: CGFloat = type == .big ? 240 : 128
+        let heightLogical: CGFloat = type == .big ? 96 : 60
         let width = widthLogical * scale
         let height = heightLogical * scale
 
-        ZStack {
-            // 奥影
-            RoundedRectangle(cornerRadius: max(4, 6 * scale))
-                .fill(Color.black.opacity(0.55))
-                .frame(width: width, height: height)
-                .offset(x: 0, y: 6 * scale)
-                .blur(radius: 4 * scale)
-
-            // 石ブロック本体
-            RoundedRectangle(cornerRadius: max(4, 6 * scale))
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hex: "4a4256"),
-                            Color(hex: "2a2338"),
-                            Color(hex: "16101f"),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
-                .overlay(
-                    // 上面ハイライト
-                    LinearGradient(
-                        colors: [Color.white.opacity(0.15), .clear],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                    .frame(height: height * 0.35)
-                    .offset(y: -height * 0.325)
-                    .blendMode(.screen)
-                )
-                .overlay(
-                    // テーマ色のうっすらティント
-                    Rectangle()
-                        .fill(theme.tintTop)
-                        .blendMode(.overlay)
-                        .opacity(0.45)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: max(4, 6 * scale))
-                        .stroke(theme.plateBorder.opacity(0.55), lineWidth: 0.8)
-                )
-                .frame(width: width, height: height)
-                .shadow(color: .black.opacity(0.45), radius: 5, x: 0, y: 4)
-
-            // 石材の目地 (縦線を 3 本)
-            HStack(spacing: width / 3.2) {
-                ForEach(0..<2, id: \.self) { _ in
-                    Rectangle()
-                        .fill(Color.black.opacity(0.28))
-                        .frame(width: 1, height: height * 0.72)
-                }
-            }
+        Image(type == .big ? "big_odoriba" : "odoriba")
+            .resizable()
+            .interpolation(.medium)
+            .frame(width: width, height: height)
+            .hueRotation(.degrees(filter.platformHueDeg))
+            .saturation(filter.platformSaturation)
+            .brightness(filter.platformBrightness + (dim ? -0.35 : 0.05))
+            .opacity(dim ? 0.5 : 1.0)
+            .shadow(color: .black.opacity(0.55), radius: 6, x: 0, y: 6)
+            .position(x: xPx, y: yPx)
             .allowsHitTesting(false)
-        }
-        .opacity(dim ? 0.45 : 1.0)
-        .saturation(dim ? 0.5 : 1.0)
-        .frame(width: width, height: height)
-        .position(x: xPx, y: yPx)
-        .allowsHitTesting(false)
     }
 }
 
@@ -407,6 +421,9 @@ struct SurvivalDescentBlockSeal: View {
     let opened: Bool
     let dim: Bool
 
+    @State private var rotation: Double = 0
+    @State private var glowPulse: Bool = false
+
     var body: some View {
         let size = max(50, 80 * scale)
         ZStack {
@@ -418,7 +435,7 @@ struct SurvivalDescentBlockSeal: View {
                 .stroke(theme.sealStroke.opacity(0.55), lineWidth: 0.8)
                 .frame(width: size * 0.72, height: size * 0.72)
 
-            // 六芒星を回転させて表現
+            // 六芒星を回転させて表現 (開封時にゆっくり回る)
             ZStack {
                 Triangle()
                     .stroke(theme.sealStroke.opacity(0.85), lineWidth: 1.2)
@@ -428,6 +445,7 @@ struct SurvivalDescentBlockSeal: View {
                     .frame(width: size * 0.85, height: size * 0.85)
                     .rotationEffect(.degrees(180))
             }
+            .rotationEffect(.degrees(rotation))
 
             if opened {
                 Circle()
@@ -441,12 +459,23 @@ struct SurvivalDescentBlockSeal: View {
                     )
                     .frame(width: size * 1.3, height: size * 1.3)
                     .blendMode(.screen)
+                    .scaleEffect(glowPulse ? 1.15 : 0.9)
+                    .opacity(glowPulse ? 1.0 : 0.6)
             }
         }
         .frame(width: size, height: size)
         .opacity(dim ? 0.3 : (opened ? 1.0 : 0.75))
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
+        .onAppear {
+            guard opened, !dim else { return }
+            withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
+                rotation = 360
+            }
+            withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
+                glowPulse = true
+            }
+        }
     }
 }
 
@@ -464,86 +493,43 @@ private struct Triangle: Shape {
 
 // MARK: - Door
 
-/// ブロック境界の扉 (施錠/開放)
+/// ブロック境界の扉 (施錠/開放)。Web 版 `BlockDoor` と同じ `door.png` を貼る。
 struct SurvivalDescentDoorView: View {
     let xPx: CGFloat
     let yPx: CGFloat
     let scale: CGFloat
     let theme: SurvivalDescentBlockTheme
+    let filter: SurvivalDescentBlockFilter
     let opened: Bool
     let dim: Bool
 
     var body: some View {
-        let width = max(48, 64 * scale)
-        let height = max(70, 96 * scale)
+        let width = max(80, 140 * scale)
+        let height = max(110, 200 * scale)
+        let brightnessAdj: Double = dim ? -0.5 : (opened ? 0.15 : -0.15)
 
         ZStack {
-            // 扉の影 (奥)
-            RoundedRectangle(cornerRadius: 4 * scale)
-                .fill(Color.black.opacity(0.65))
-                .frame(width: width + 6, height: height + 6)
-                .blur(radius: 3)
-
-            // 扉本体 (木目風)
-            RoundedRectangle(cornerRadius: 4 * scale)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color(hex: "5a3620"),
-                            Color(hex: "3a210f"),
-                            Color(hex: "1e120a"),
-                        ],
-                        startPoint: .top,
-                        endPoint: .bottom
-                    )
-                )
+            Image("door")
+                .resizable()
+                .interpolation(.medium)
                 .frame(width: width, height: height)
-                .overlay(
-                    // 縦の板目
-                    HStack(spacing: width / 4) {
-                        ForEach(0..<3, id: \.self) { _ in
-                            Rectangle()
-                                .fill(Color.black.opacity(0.35))
-                                .frame(width: 1)
-                        }
-                    }
-                )
-                .overlay(
-                    // テーマ色オーバーレイ (開放時はより強く)
-                    Rectangle()
-                        .fill(theme.tintTop)
-                        .blendMode(.overlay)
-                        .opacity(opened ? 0.7 : 0.3)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 4 * scale)
-                        .stroke(
-                            opened ? theme.plateClearedGlow : theme.plateBorder.opacity(0.6),
-                            lineWidth: opened ? 1.5 : 1.0
-                        )
-                )
+                .hueRotation(.degrees(filter.doorHueDeg))
+                .saturation(filter.doorSaturation * (dim ? 0.4 : 1.0))
+                .brightness(filter.doorBrightness + brightnessAdj)
 
-            // ドアノブ
-            Circle()
-                .fill(Color(hex: "fde68a"))
-                .frame(width: 6 * scale, height: 6 * scale)
-                .offset(x: width * 0.28)
-
-            // 施錠マーク
-            if !opened {
+            if !opened && !dim {
                 Image(systemName: "lock.fill")
-                    .font(.system(size: max(16, 22 * scale), weight: .bold))
-                    .foregroundStyle(Color.black.opacity(0.7))
-                    .shadow(color: .white.opacity(0.15), radius: 1)
+                    .font(.system(size: max(18, 26 * scale), weight: .bold))
+                    .foregroundStyle(Color.black.opacity(0.65))
+                    .shadow(color: .white.opacity(0.2), radius: 1)
             }
         }
         .shadow(
-            color: opened ? theme.plateClearedGlow.opacity(0.5) : .black.opacity(0.4),
-            radius: opened ? 10 : 4
+            color: opened ? theme.plateClearedGlow.opacity(0.6) : .black.opacity(0.55),
+            radius: opened ? 12 : 5
         )
-        .opacity(dim ? 0.35 : 1.0)
-        .saturation(dim ? 0.4 : 1.0)
-        .position(x: xPx, y: yPx)
+        .opacity(dim ? 0.4 : 1.0)
+        .position(x: xPx, y: yPx - height / 2)
         .allowsHitTesting(false)
     }
 }
@@ -566,6 +552,8 @@ struct SurvivalDescentStageNode: View {
     let dim: Bool
     let onTap: () -> Void
 
+    @State private var pulse: Bool = false
+
     var body: some View {
         let diameter = max(40, 52 * scale)
 
@@ -574,6 +562,8 @@ struct SurvivalDescentStageNode: View {
                 Circle()
                     .stroke(Color(red: 1, green: 214 / 255, blue: 96 / 255).opacity(0.55), lineWidth: 2)
                     .frame(width: diameter * 1.55, height: diameter * 1.55)
+                    .scaleEffect(pulse ? 1.08 : 0.96)
+                    .opacity(pulse ? 0.55 : 0.95)
                     .shadow(color: Color(red: 1, green: 196 / 255, blue: 80 / 255).opacity(0.5), radius: 8)
             }
 
@@ -615,6 +605,12 @@ struct SurvivalDescentStageNode: View {
         .opacity(dim ? 0.45 : 1.0)
         .saturation(dim ? 0.4 : 1.0)
         .position(x: xPx, y: yPx)
+        .onAppear {
+            guard isCurrent, !dim else { return }
+            withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                pulse = true
+            }
+        }
     }
 
     private var fillGradient: LinearGradient {
@@ -695,37 +691,215 @@ struct SurvivalDescentStageNode: View {
 
 // MARK: - Character (フロンティア位置のプレイヤー)
 
+/// キャラクター立ち絵 (デフォルトアバター)。踊り場の進行方向側に立ち、呼吸アニメで揺らぐ。
 struct SurvivalDescentCharacterView: View {
     let xPx: CGFloat
     let yPx: CGFloat
     let scale: CGFloat
+    /// 'right' → 右を向く (通常) / 'left' → 左を向く / 'center' → 大踊り場で正面
+    var facing: Facing = .right
+
+    enum Facing { case left, right, center }
+
+    @State private var breathe: Bool = false
 
     var body: some View {
-        let size = max(26, 34 * scale)
-        VStack(spacing: -4 * scale) {
-            ZStack {
+        let size = max(56, 88 * scale)
+        let offsetX: CGFloat = {
+            switch facing {
+            case .center: return 0
+            case .right: return 28 * scale
+            case .left: return -28 * scale
+            }
+        }()
+        let flip: CGFloat = facing == .left ? -1 : 1
+
+        ZStack(alignment: .bottom) {
+            // 足元の柔らかい光
+            Ellipse()
+                .fill(
+                    RadialGradient(
+                        colors: [Color(red: 1, green: 224 / 255, blue: 160 / 255).opacity(0.45), .clear],
+                        center: .center,
+                        startRadius: 0,
+                        endRadius: size * 0.45
+                    )
+                )
+                .frame(width: size * 0.9, height: size * 0.3)
+                .blendMode(.screen)
+                .offset(y: size * 0.05)
+
+            Image("default_avater")
+                .resizable()
+                .interpolation(.medium)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .scaleEffect(x: flip, y: 1, anchor: .center)
+                .shadow(color: .black.opacity(0.55), radius: 6, x: 0, y: 6)
+        }
+        .frame(width: size, height: size)
+        .offset(y: breathe ? -2 * scale : 2 * scale)
+        .position(
+            x: xPx + offsetX,
+            y: yPx - size * 0.5 - 10 * scale
+        )
+        .allowsHitTesting(false)
+        .onAppear {
+            withAnimation(.easeInOut(duration: 2.2).repeatForever(autoreverses: true)) {
+                breathe = true
+            }
+        }
+    }
+}
+
+// MARK: - Boss figure (ブロック末尾の扉前に立つボス)
+
+/// ブロック境界扉の前に立つボスシルエット。
+struct SurvivalDescentBossFigure: View {
+    let xPx: CGFloat
+    let yPx: CGFloat
+    let scale: CGFloat
+    /// 0: boss_a, 1: boss_b, 2: boss_c
+    let bossIndex: Int
+    /// クリア済みならシルエットとして残す
+    let opened: Bool
+    /// ブロック未解放なら極薄
+    let dim: Bool
+
+    @State private var bob: Bool = false
+    @State private var pulse: Bool = false
+
+    private var assetName: String {
+        switch ((bossIndex % 3) + 3) % 3 {
+        case 0: return "boss_a"
+        case 1: return "boss_b"
+        default: return "boss_c"
+        }
+    }
+
+    var body: some View {
+        let size = max(80, 150 * scale)
+        let opacity: Double = dim ? 0.18 : (opened ? 0.3 : 0.7)
+        let saturation: Double = dim ? 0.3 : (opened ? 0.5 : 0.9)
+        let brightnessAdj: Double = dim ? -0.4 : (opened ? -0.3 : -0.05)
+
+        ZStack {
+            if !dim && !opened {
                 Circle()
                     .fill(
                         RadialGradient(
-                            colors: [Color(red: 1, green: 1, blue: 1, opacity: 0.25), .clear],
+                            colors: [Color.red.opacity(0.35), .clear],
                             center: .center,
                             startRadius: 0,
-                            endRadius: size * 0.9
+                            endRadius: size * 0.55
                         )
                     )
-                    .frame(width: size * 1.6, height: size * 1.6)
+                    .frame(width: size * 1.2, height: size * 1.2)
+                    .scaleEffect(pulse ? 1.08 : 0.9)
+                    .opacity(pulse ? 0.75 : 0.35)
                     .blendMode(.screen)
-
-                Image(systemName: "figure.walk.circle.fill")
-                    .font(.system(size: size, weight: .bold))
-                    .foregroundStyle(Color(hex: "fde68a"))
-                    .shadow(color: .orange.opacity(0.7), radius: 5)
             }
-            Image(systemName: "arrowtriangle.down.fill")
-                .font(.system(size: max(8, 10 * scale), weight: .bold))
-                .foregroundStyle(Color(hex: "fde68a").opacity(0.8))
+
+            Image(assetName)
+                .resizable()
+                .interpolation(.medium)
+                .aspectRatio(contentMode: .fit)
+                .frame(width: size, height: size)
+                .saturation(saturation)
+                .brightness(brightnessAdj)
+                .shadow(color: .black.opacity(opened ? 0.4 : 0.6), radius: 8, x: 0, y: 6)
         }
-        .position(x: xPx, y: yPx - size * 0.55)
+        .opacity(opacity)
+        .offset(y: bob ? -3 * scale : 3 * scale)
+        .position(x: xPx, y: yPx - size * 0.5)
+        .allowsHitTesting(false)
+        .onAppear {
+            guard !dim else { return }
+            withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
+                bob = true
+            }
+            if !opened {
+                withAnimation(.easeInOut(duration: 1.8).repeatForever(autoreverses: true)) {
+                    pulse = true
+                }
+            }
+        }
+    }
+}
+
+// MARK: - Floating ember (フロンティアブロックの火の粉)
+
+/// フロンティアブロックに漂うパーティクル (火の粉)
+struct SurvivalDescentFloatingEmber: View {
+    let startY: CGFloat
+    let endY: CGFloat
+    let widthPx: CGFloat
+    let scale: CGFloat
+    let color: Color
+    var count: Int = 6
+
+    private struct Particle: Identifiable {
+        let id = UUID()
+        let leftPct: Double
+        let startYPct: Double
+        let size: CGFloat
+        let duration: Double
+        let delay: Double
+    }
+
+    private let particles: [Particle]
+
+    init(startY: CGFloat, endY: CGFloat, widthPx: CGFloat, scale: CGFloat, color: Color, count: Int = 6) {
+        self.startY = startY
+        self.endY = endY
+        self.widthPx = widthPx
+        self.scale = scale
+        self.color = color
+        self.count = count
+        var items: [Particle] = []
+        for i in 0..<count {
+            let seed = (i * 31 + 7) % 100
+            items.append(
+                Particle(
+                    leftPct: 12 + Double((seed * 7) % 76),
+                    startYPct: Double((seed * 11) % 100),
+                    size: CGFloat(2 + ((seed * 3) % 4)),
+                    duration: 4.0 + Double((seed * 2) % 6),
+                    delay: Double(seed % 10) * 0.5
+                )
+            )
+        }
+        self.particles = items
+    }
+
+    var body: some View {
+        let height = max(0, (endY - startY) * scale)
+        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
+            let t = timeline.date.timeIntervalSinceReferenceDate
+            ZStack(alignment: .topLeading) {
+                ForEach(particles) { p in
+                    let phase = (t - p.delay).truncatingRemainder(dividingBy: p.duration) / p.duration
+                    let clamped = phase < 0 ? phase + 1 : phase
+                    let yProgress = 1 - clamped
+                    let xWave = sin(clamped * .pi * 2) * 12 * scale
+                    let alpha = sin(clamped * .pi) * 0.9
+
+                    Circle()
+                        .fill(color)
+                        .frame(width: p.size * scale, height: p.size * scale)
+                        .shadow(color: color, radius: p.size * 1.2)
+                        .opacity(alpha)
+                        .blendMode(.screen)
+                        .position(
+                            x: CGFloat(p.leftPct / 100) * widthPx + xWave,
+                            y: CGFloat(p.startYPct / 100) * height * CGFloat(yProgress)
+                        )
+                }
+            }
+            .frame(width: widthPx, height: height, alignment: .topLeading)
+        }
+        .frame(width: widthPx, height: height, alignment: .topLeading)
+        .offset(y: startY * scale)
         .allowsHitTesting(false)
     }
 }
