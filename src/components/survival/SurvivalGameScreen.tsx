@@ -3362,10 +3362,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             {/* ボス戦 HP バー（画面最上部） */}
             {isBossStage && bossBattleRef.current && (
               <div className="flex flex-col gap-0.5 mb-1">
-                <div className="flex justify-between items-center text-[10px] md:text-xs font-sans">
-                  <span className="text-red-300 font-bold tracking-wide shrink-0">
-                    BOSS{bossType ? ` ${bossType}` : ''}
-                  </span>
+                <div className="flex justify-end items-center text-[10px] md:text-xs font-sans">
                   <span className="text-white tabular-nums shrink-0">
                     {Math.floor(bossBattleRef.current.boss.hp)}/{bossBattleRef.current.boss.maxHp}
                   </span>

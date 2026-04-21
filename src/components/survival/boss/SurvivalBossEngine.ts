@@ -889,11 +889,18 @@ const applyPullForce = (
   let dx = 0;
   let dy = 0;
   for (const h of state.hazards) {
-    if (h.kind !== 'pullActive') continue;
+    const isActive = h.kind === 'pullActive';
+    const isTelegraph = h.kind === 'pullTelegraph';
+    if (!isActive && !isTelegraph) continue;
     if (ctx.now < h.startAt || ctx.now > h.endAt) continue;
     const d = distanceBetween(ctx.player.x, ctx.player.y, h.x, h.y);
     if (d > (h.radius ?? 0) || d < 4) continue;
-    const strength = 220 * (ctx.deltaMs / 1000);
+    // 予兆中は弱く、発動中は強く吸引（予兆段階から徐々に引き寄せが強まる）
+    const life = Math.max(1, h.endAt - h.startAt);
+    const elapsed = Math.max(0, ctx.now - h.startAt);
+    const progress = Math.min(1, elapsed / life);
+    const baseStrength = isActive ? 220 : 70 + 90 * progress; // 予兆: 70→160, 発動: 220
+    const strength = baseStrength * (ctx.deltaMs / 1000);
     const { nx, ny } = normalizedVectorTo(ctx.player.x, ctx.player.y, h.x, h.y);
     dx += nx * strength;
     dy += ny * strength;

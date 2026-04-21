@@ -549,6 +549,8 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     }
     
     // プレイヤー本体（アバター画像で描画）
+    const playerDamageFlash = bossBattle && bossBattle.active
+      && performance.now() < bossBattle.player.iFramesUntil;
     if (playerImageRef.current && playerImageLoadedRef.current) {
       // 画像が読み込まれている場合は画像を描画
       ctx.save();
@@ -567,13 +569,28 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         PLAYER_SIZE,
         PLAYER_SIZE
       );
+      // 被弾フラッシュ（source-atop で描画済みピクセルのみ赤く染める）
+      if (playerDamageFlash) {
+        const blink = Math.floor(performance.now() / 80) % 2 === 0;
+        ctx.globalCompositeOperation = 'source-atop';
+        ctx.fillStyle = `rgba(255, 40, 40, ${blink ? 0.75 : 0.4})`;
+        ctx.fillRect(-PLAYER_SIZE / 2, -PLAYER_SIZE / 2, PLAYER_SIZE, PLAYER_SIZE);
+      }
       ctx.restore();
     } else {
       // フォールバック: 絵文字で描画
+      ctx.save();
       ctx.font = `32px ${EMOJI_FONT_FALLBACK}`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
+      if (playerDamageFlash) {
+        const blink = Math.floor(performance.now() / 80) % 2 === 0;
+        ctx.fillStyle = `rgba(255, ${blink ? 40 : 90}, ${blink ? 40 : 90}, 1)`;
+      } else {
+        ctx.fillStyle = '#fff';
+      }
       ctx.fillText('🧙', playerScreenX, playerScreenY);
+      ctx.restore();
     }
     
     // 方向インジケーター（矢印アイコン）- 向きに応じて回転
@@ -633,14 +650,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
       // ハザード（予兆→発動）
       bossBattle.hazards.forEach(h => {
         if (nowMs < h.startAt || nowMs > h.endAt) return;
-        const isTelegraph =
-          h.kind === 'fanTelegraph' ||
-          h.kind === 'chargeTelegraph' ||
-          h.kind === 'ringTelegraph' ||
-          h.kind === 'crossTelegraph' ||
-          h.kind === 'pullTelegraph';
-        const isPool = h.kind === 'bloodPool' || h.kind === 'acidPool';
-        const isBomb = h.kind === 'bombExplosion';
 
         const sx = h.x - camera.x;
         const sy = h.y - camera.y;
@@ -718,18 +727,118 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             ctx.fill();
             break;
           }
-          case 'chargeTelegraph':
+          case 'chargeTelegraph': {
+            const angle = h.angle ?? 0;
+            const length = h.length ?? 400;
+            const thickness = h.thickness ?? 40;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
+            const pulse = 0.5 + Math.sin(nowMs / 90) * 0.5;
+            ctx.translate(sx, sy);
+            ctx.rotate(angle);
+            // 予兆帯（淡赤のグラデ＋破線）
+            const telegraphGrad = ctx.createLinearGradient(0, 0, length, 0);
+            telegraphGrad.addColorStop(0, `rgba(255, 80, 80, ${0.25 + 0.12 * pulse})`);
+            telegraphGrad.addColorStop(1, 'rgba(255, 80, 80, 0.05)');
+            ctx.fillStyle = telegraphGrad;
+            ctx.fillRect(0, -thickness, length, thickness * 2);
+            ctx.setLineDash([10, 7]);
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(255, 140, 140, ${0.85})`;
+            ctx.strokeRect(0, -thickness, length, thickness * 2);
+            ctx.setLineDash([]);
+            // 中央の走る閃光（予兆が進むほど速く/遠くへ）
+            const flashX = length * pg;
+            const flashGrad = ctx.createRadialGradient(flashX, 0, 0, flashX, 0, thickness * 1.2);
+            flashGrad.addColorStop(0, 'rgba(255, 240, 180, 0.9)');
+            flashGrad.addColorStop(1, 'rgba(255, 120, 80, 0)');
+            ctx.fillStyle = flashGrad;
+            ctx.beginPath();
+            ctx.arc(flashX, 0, thickness * 1.2, 0, Math.PI * 2);
+            ctx.fill();
+            // 先端の矢印マーカー
+            ctx.fillStyle = `rgba(255, 220, 80, ${0.75 + 0.25 * pulse})`;
+            ctx.beginPath();
+            ctx.moveTo(length, 0);
+            ctx.lineTo(length - 18, -thickness * 0.9);
+            ctx.lineTo(length - 18, thickness * 0.9);
+            ctx.closePath();
+            ctx.fill();
+            // 起点の警告スパーク
+            for (let i = 0; i < 3; i++) {
+              const t = (nowMs / 90 + i * 0.3) % 1;
+              ctx.fillStyle = `rgba(255, 220, 120, ${(1 - t) * 0.8})`;
+              ctx.beginPath();
+              ctx.arc(20 + t * 30, 0, 3 + t * 4, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            break;
+          }
           case 'chargeActive': {
             const angle = h.angle ?? 0;
             const length = h.length ?? 400;
             const thickness = h.thickness ?? 40;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const pg = Math.min(1, (nowMs - h.startAt) / life);
             ctx.translate(sx, sy);
             ctx.rotate(angle);
-            ctx.fillStyle = isTelegraph ? 'rgba(255, 80, 80, 0.25)' : 'rgba(255, 60, 60, 0.6)';
-            ctx.strokeStyle = isTelegraph ? 'rgba(255, 80, 80, 0.9)' : 'rgba(255, 220, 80, 1)';
-            ctx.lineWidth = 3;
+            // 疾走帯（中央が明るい速度線の集合）
+            const bodyGrad = ctx.createLinearGradient(0, -thickness, 0, thickness);
+            bodyGrad.addColorStop(0, 'rgba(255, 100, 60, 0.1)');
+            bodyGrad.addColorStop(0.5, `rgba(255, 230, 120, ${0.85 * (1 - pg * 0.2)})`);
+            bodyGrad.addColorStop(1, 'rgba(255, 100, 60, 0.1)');
+            ctx.fillStyle = bodyGrad;
             ctx.fillRect(0, -thickness, length, thickness * 2);
+            // 白い中芯
+            ctx.fillStyle = `rgba(255, 255, 255, ${0.85 * (1 - pg * 0.3)})`;
+            ctx.fillRect(0, -thickness * 0.25, length, thickness * 0.5);
+            // 外縁をゴールド縁取り＋発光
+            ctx.shadowColor = 'rgba(255, 200, 80, 1)';
+            ctx.shadowBlur = 16;
+            ctx.strokeStyle = 'rgba(255, 240, 160, 1)';
+            ctx.lineWidth = 4;
             ctx.strokeRect(0, -thickness, length, thickness * 2);
+            ctx.shadowBlur = 0;
+            // 疾走線（スピードライン）
+            for (let i = 0; i < 7; i++) {
+              const t = ((nowMs / 200 + i * 0.14) % 1);
+              const lx = t * length;
+              const ly = ((i % 2 === 0) ? -1 : 1) * thickness * (0.3 + (i % 3) * 0.25);
+              ctx.strokeStyle = `rgba(255, 255, 255, ${0.4 + 0.4 * (1 - t)})`;
+              ctx.lineWidth = 3;
+              ctx.beginPath();
+              ctx.moveTo(lx - 40, ly);
+              ctx.lineTo(lx + 20, ly);
+              ctx.stroke();
+            }
+            // 先端の衝撃（爆発的な光）
+            const tipX = length;
+            const tipGrad = ctx.createRadialGradient(tipX, 0, 0, tipX, 0, thickness * 2);
+            tipGrad.addColorStop(0, `rgba(255, 255, 220, ${0.9 * (1 - pg)})`);
+            tipGrad.addColorStop(0.5, `rgba(255, 180, 80, ${0.7 * (1 - pg)})`);
+            tipGrad.addColorStop(1, 'rgba(255, 80, 40, 0)');
+            ctx.fillStyle = tipGrad;
+            ctx.beginPath();
+            ctx.arc(tipX, 0, thickness * 2, 0, Math.PI * 2);
+            ctx.fill();
+            // 先端の飛散スパーク
+            for (let i = 0; i < 8; i++) {
+              const sa = (i / 8) * Math.PI * 2;
+              const sr = thickness * (1 + pg * 1.5) + Math.sin(nowMs / 60 + i) * 4;
+              ctx.fillStyle = `rgba(255, 220, 100, ${0.85 * (1 - pg)})`;
+              ctx.beginPath();
+              ctx.arc(tipX + Math.cos(sa) * sr, Math.sin(sa) * sr, 3, 0, Math.PI * 2);
+              ctx.fill();
+            }
+            // 地面の衝撃痕（帯に沿った細かい土煙）
+            for (let i = 0; i < 6; i++) {
+              const px = (i / 6) * length + ((nowMs / 120) % (length / 6));
+              const py = (Math.sin(nowMs / 50 + i) * thickness * 0.6);
+              ctx.fillStyle = `rgba(180, 120, 70, ${0.35 * (1 - pg)})`;
+              ctx.beginPath();
+              ctx.arc(px, py, 4 + (i % 3) * 2, 0, Math.PI * 2);
+              ctx.fill();
+            }
             break;
           }
           case 'ringTelegraph': {
@@ -1035,10 +1144,72 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             break;
           }
           case 'bloodPool': {
-            ctx.fillStyle = 'rgba(170, 20, 30, 0.55)';
+            const radius = h.radius ?? 60;
+            const life = Math.max(1, h.endAt - h.startAt);
+            const ageT = Math.min(1, Math.max(0, (nowMs - h.startAt) / life));
+            const fadeAlpha = ageT > 0.85 ? Math.max(0, 1 - (ageT - 0.85) / 0.15) : 1;
+            // 暗い外周ハロー
+            const halo = ctx.createRadialGradient(sx, sy, radius * 0.2, sx, sy, radius * 1.3);
+            halo.addColorStop(0, `rgba(100, 10, 20, 0)`);
+            halo.addColorStop(0.6, `rgba(90, 10, 15, ${0.2 * fadeAlpha})`);
+            halo.addColorStop(1, 'rgba(80, 10, 10, 0)');
+            ctx.fillStyle = halo;
             ctx.beginPath();
-            ctx.arc(sx, sy, h.radius ?? 60, 0, Math.PI * 2);
+            ctx.arc(sx, sy, radius * 1.3, 0, Math.PI * 2);
             ctx.fill();
+            // 不規則な血溜まりの縁
+            const wobbleT = nowMs * 0.0012 + (h.startAt | 0) * 0.0017;
+            const segs = 28;
+            ctx.beginPath();
+            for (let i = 0; i <= segs; i++) {
+              const a = (i / segs) * Math.PI * 2;
+              const noise =
+                Math.sin(a * 3 + wobbleT * 1.2) * 0.07 +
+                Math.sin(a * 5 - wobbleT * 1.6) * 0.04 +
+                Math.cos(a * 2 + wobbleT * 0.8) * 0.05;
+              const r = radius * (1 + noise);
+              const px = sx + Math.cos(a) * r;
+              const py = sy + Math.sin(a) * r;
+              if (i === 0) ctx.moveTo(px, py);
+              else ctx.lineTo(px, py);
+            }
+            ctx.closePath();
+            // 本体: 鮮やかな赤→深紅のグラデ
+            const body = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
+            body.addColorStop(0, `rgba(220, 50, 50, ${0.75 * fadeAlpha})`);
+            body.addColorStop(0.55, `rgba(170, 20, 30, ${0.72 * fadeAlpha})`);
+            body.addColorStop(1, `rgba(90, 0, 10, ${0.85 * fadeAlpha})`);
+            ctx.fillStyle = body;
+            ctx.fill();
+            // 光沢ハイライト（濡れた質感）
+            ctx.fillStyle = `rgba(255, 130, 130, ${0.25 * fadeAlpha})`;
+            ctx.beginPath();
+            ctx.ellipse(sx - radius * 0.25, sy - radius * 0.3, radius * 0.45, radius * 0.22, 0, 0, Math.PI * 2);
+            ctx.fill();
+            // 縁: 暗赤で二重に
+            ctx.lineWidth = 2;
+            ctx.strokeStyle = `rgba(60, 0, 10, ${0.85 * fadeAlpha})`;
+            ctx.stroke();
+            ctx.lineWidth = 1;
+            ctx.strokeStyle = `rgba(220, 40, 40, ${0.6 * fadeAlpha})`;
+            ctx.stroke();
+            // 飛び散った血滴
+            const idHash =
+              (h.id.charCodeAt(0) | 0) +
+              (h.id.charCodeAt(1) | 0) * 7 +
+              (h.id.charCodeAt(2) | 0) * 13;
+            for (let i = 0; i < 7; i++) {
+              const seed = idHash * 0.097 + i * 1.73;
+              const sa = (seed * 5.7) % (Math.PI * 2);
+              const sr = radius * (0.95 + (i % 3) * 0.1);
+              const ssx = sx + Math.cos(sa) * sr;
+              const ssy = sy + Math.sin(sa) * sr;
+              const size = 2 + (i % 3) * 1.5;
+              ctx.fillStyle = `rgba(150, 10, 20, ${0.75 * fadeAlpha})`;
+              ctx.beginPath();
+              ctx.arc(ssx, ssy, size, 0, Math.PI * 2);
+              ctx.fill();
+            }
             break;
           }
           case 'acidPool': {
@@ -1154,9 +1325,6 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             break;
         }
         ctx.restore();
-        // 使用しない変数の警告を抑えるため参照
-        void isPool;
-        void isBomb;
       });
 
       // ボス弾
@@ -1376,15 +1544,23 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
         ctx.stroke();
       });
 
-      // プレイヤー iFrames 中の点滅（後描画用に alpha を戻す）
-      if (performance.now() < bossBattle.player.iFramesUntil) {
-        ctx.save();
-        ctx.globalAlpha = 0.45;
-        ctx.fillStyle = 'rgba(255,255,255,0.3)';
-        ctx.beginPath();
-        ctx.arc(player.x - camera.x, player.y - camera.y, 30, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.restore();
+      // 被弾直後の赤い血飛沫風の光彩（被弾から最初の 200ms だけ外側にも広がる）
+      {
+        const remain = bossBattle.player.iFramesUntil - performance.now();
+        if (remain > 0 && remain > 400) {
+          const px = player.x - camera.x;
+          const py = player.y - camera.y;
+          ctx.save();
+          const pulse = 0.6 + Math.sin(performance.now() / 50) * 0.4;
+          const outer = ctx.createRadialGradient(px, py, PLAYER_SIZE * 0.3, px, py, PLAYER_SIZE * 0.9);
+          outer.addColorStop(0, `rgba(255, 50, 50, ${0.55 * pulse})`);
+          outer.addColorStop(1, 'rgba(255, 50, 50, 0)');
+          ctx.fillStyle = outer;
+          ctx.beginPath();
+          ctx.arc(px, py, PLAYER_SIZE * 0.9, 0, Math.PI * 2);
+          ctx.fill();
+          ctx.restore();
+        }
       }
 
       // 使用しない変数警告を抑止
