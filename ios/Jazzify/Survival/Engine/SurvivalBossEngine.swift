@@ -49,6 +49,7 @@ struct SurvivalBossHazard: Identifiable, Sendable {
         case ringActive(innerRadius: CGFloat, outerRadius: CGFloat, damage: Int)
         case crossTelegraph(length: CGFloat, thickness: CGFloat)
         case crossActive(length: CGFloat, thickness: CGFloat, damage: Int)
+        case pullTelegraph(range: CGFloat)
         case pullField(range: CGFloat, damage: Int)
         case acidPool(radius: CGFloat, dps: Int)
     }
@@ -455,6 +456,12 @@ enum SurvivalBossEngine {
             return true
         case .pull:
             state.boss.action = .windup(skill: .pull, startAt: now, durationMs: BossCParams.pullWindupMs)
+            state.hazards.append(SurvivalBossHazard(
+                kind: .pullTelegraph(range: BossCParams.pullRange),
+                x: boss.x, y: boss.y,
+                startAt: now,
+                endAt: now + BossCParams.pullWindupMs / 1000.0
+            ))
             state.boss.nextSkillAt[.pull] = now + BossCParams.pullCdMs / 1000.0
             return true
         case .bloodPool:
@@ -664,7 +671,7 @@ enum SurvivalBossEngine {
                         hazard.playerLastHitAt = now
                     }
                 }
-            case .fanTelegraph, .lineTelegraph, .ringTelegraph, .crossTelegraph, .eggTelegraph:
+            case .fanTelegraph, .lineTelegraph, .ringTelegraph, .crossTelegraph, .eggTelegraph, .pullTelegraph:
                 break
             }
             state.hazards[idx] = hazard

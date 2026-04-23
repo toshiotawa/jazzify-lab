@@ -30,10 +30,11 @@ final class SurvivalScene: SKScene {
     private var itemNodes: [UUID: SKNode] = [:]
     private var coinNodes: [UUID: SKNode] = [:]
     private var floatingTextNodes: [UUID: SKNode] = [:]
-    private var hazardNodes: [UUID: SKNode] = [:]
+    private var hazardNodes: [UUID: SKSpriteNode] = [:]
     private var minionNodes: [UUID: SKNode] = [:]
     private var bossNode: SKSpriteNode?
-    private var bossHpRing: SKShapeNode?
+    private var bossHpBarNode: SKSpriteNode?
+    private var bossWindupNode: SKSpriteNode?
     private var bossProjectileNodes: [UUID: SKNode] = [:]
 
     init(size: CGSize, controller: SurvivalGameController) {
@@ -365,8 +366,10 @@ final class SurvivalScene: SKScene {
     private func removeBossNodesIfAny() {
         bossNode?.removeFromParent()
         bossNode = nil
-        bossHpRing?.removeFromParent()
-        bossHpRing = nil
+        bossHpBarNode?.removeFromParent()
+        bossHpBarNode = nil
+        bossWindupNode?.removeFromParent()
+        bossWindupNode = nil
         for (_, node) in bossProjectileNodes { node.removeFromParent() }
         bossProjectileNodes.removeAll()
         for (_, node) in minionNodes { node.removeFromParent() }
@@ -376,6 +379,9 @@ final class SurvivalScene: SKScene {
     }
 
     private func renderBoss(state: SurvivalBossBattleState) {
+        let nowMs = CACurrentMediaTime() * 1000.0
+
+        // MARK: ボス本体 スプライト
         if bossNode == nil {
             let imageName = Self.bossImageName(type: state.boss.bossType)
             let sprite: SKSpriteNode
@@ -397,170 +403,182 @@ final class SurvivalScene: SKScene {
             sprite.zPosition = 120
             entitiesNode.addChild(sprite)
             bossNode = sprite
-
-            let ring = SKShapeNode(circleOfRadius: SurvivalConstants.bossHitboxRadius * 1.3)
-            ring.fillColor = .clear
-            ring.strokeColor = UIColor(red: 1, green: 0.2, blue: 0.2, alpha: 0.7)
-            ring.lineWidth = 4
-            ring.zPosition = 119
-            entitiesNode.addChild(ring)
-            bossHpRing = ring
         }
-        bossNode?.position = toScenePoint(x: state.boss.x, y: state.boss.y)
-        bossHpRing?.position = toScenePoint(x: state.boss.x, y: state.boss.y)
+        let bossPos = toScenePoint(x: state.boss.x, y: state.boss.y)
+        bossNode?.position = bossPos
         let hpRatio = CGFloat(state.boss.hp) / CGFloat(max(1, state.boss.maxHp))
-        bossHpRing?.alpha = hpRatio
         bossNode?.alpha = 0.6 + hpRatio * 0.4
 
+        // MARK: ボス頭上 HP バー
+        if bossHpBarNode == nil {
+            let n = SKSpriteNode()
+            n.zPosition = 125
+            entitiesNode.addChild(n)
+            bossHpBarNode = n
+        }
+        if let barNode = bossHpBarNode {
+            let img = SurvivalBossEffectRenderer.renderBossHpBar(ratio: hpRatio)
+            let tex = SKTexture(image: img)
+            tex.filteringMode = .linear
+            barNode.texture = tex
+            barNode.size = img.size
+            // ボススプライト上端の少し上に配置
+            let bossTop = bossPos.y + SurvivalConstants.bossHitboxRadius * 1.5
+            barNode.position = CGPoint(x: bossPos.x, y: bossTop + 16)
+        }
+
+        // MARK: ボス予備動作 警告 (⚠️ + ゲージ)
+        if case .windup(_, let startAt, let durationMs) = state.boss.action {
+            let progress = min(1, max(0, (CACurrentMediaTime() - startAt) / (durationMs / 1000.0)))
+            if bossWindupNode == nil {
+                let n = SKSpriteNode()
+                n.zPosition = 135
+                entitiesNode.addChild(n)
+                bossWindupNode = n
+            }
+            if let n = bossWindupNode {
+                let img = SurvivalBossEffectRenderer.renderBossWindupWarning(progress: progress, nowMs: nowMs)
+                n.texture = SKTexture(image: img)
+                n.size = img.size
+                let bossTop = bossPos.y + SurvivalConstants.bossHitboxRadius * 1.5
+                n.position = CGPoint(x: bossPos.x, y: bossTop + 48)
+            }
+        } else {
+            bossWindupNode?.removeFromParent()
+            bossWindupNode = nil
+        }
+
+        // MARK: 雑魚 (自爆ボム) 💣 + HP バー + 接近点滅
         syncNodes(
             nodeMap: &minionNodes,
             ids: state.minions.map { $0.id },
             create: { [entitiesNode] _ in
-                let label = SKLabelNode(text: "🐛")
-                label.fontSize = 36
+                let container = SKNode()
+                container.zPosition = 95
+
+                let ring = SKShapeNode(circleOfRadius: 26)
+                ring.name = "fuseRing"
+                ring.fillColor = UIColor(red: 1, green: 0.3, blue: 0.3, alpha: 0.55)
+                ring.strokeColor = .clear
+                ring.alpha = 0
+                container.addChild(ring)
+
+                let label = SKLabelNode(text: "💣")
+                label.name = "emoji"
+                label.fontSize = 32
                 label.verticalAlignmentMode = .center
                 label.horizontalAlignmentMode = .center
-                label.zPosition = 95
-                entitiesNode.addChild(label)
-                return label
+                container.addChild(label)
+
+                let hpBg = SKShapeNode(rect: CGRect(x: -16, y: 22, width: 32, height: 3))
+                hpBg.name = "hpBg"
+                hpBg.fillColor = UIColor(white: 0.1, alpha: 1)
+                hpBg.strokeColor = .clear
+                container.addChild(hpBg)
+
+                let hpFill = SKShapeNode(rect: CGRect(x: -16, y: 22, width: 32, height: 3))
+                hpFill.name = "hpFill"
+                hpFill.fillColor = UIColor(red: 248.0/255, green: 113.0/255, blue: 113.0/255, alpha: 1)
+                hpFill.strokeColor = .clear
+                container.addChild(hpFill)
+
+                entitiesNode.addChild(container)
+                return container
             },
             update: { id, node in
-                guard let minion = state.minions.first(where: { $0.id == id }), let label = node as? SKLabelNode else { return }
-                label.position = self.toScenePoint(x: minion.x, y: minion.y)
-                label.fontSize = minion.isExploding ? 46 : 36
-                label.alpha = minion.isExploding ? 0.85 : 1.0
+                guard let minion = state.minions.first(where: { $0.id == id }) else { return }
+                node.position = self.toScenePoint(x: minion.x, y: minion.y)
+                // プレイヤー距離から導火線点滅を推定 (トリガー距離の 1.6 倍以内で点滅開始)
+                let dx = self.controller?.runtime.player.x ?? minion.x
+                let dy = self.controller?.runtime.player.y ?? minion.y
+                let dist = hypot(minion.x - dx, minion.y - dy)
+                let fused = dist <= minion.triggerRange * 1.6 || minion.isExploding
+                if let ring = node.childNode(withName: "fuseRing") {
+                    if fused {
+                        let blink = Int(nowMs / 100) % 2 == 0
+                        ring.alpha = blink ? 0.55 : 0.0
+                    } else {
+                        ring.alpha = 0
+                    }
+                }
+                if let label = node.childNode(withName: "emoji") as? SKLabelNode {
+                    label.fontSize = minion.isExploding ? 46 : 32
+                }
+                // HP バー (spores ミニオンの maxHp は BossBParams.minionHp 固定)
+                let maxHp: CGFloat = CGFloat(max(1, 35))
+                let ratio = max(0, min(1, CGFloat(minion.hp) / maxHp))
+                if let hpFill = node.childNode(withName: "hpFill") as? SKShapeNode {
+                    hpFill.xScale = ratio
+                    hpFill.alpha = ratio < 1 ? 1 : 0
+                }
+                if let hpBg = node.childNode(withName: "hpBg") {
+                    hpBg.alpha = ratio < 1 ? 1 : 0
+                }
             }
         )
 
+        // MARK: ハザード (Web 版相当のリッチエフェクト)
         syncNodes(
             nodeMap: &hazardNodes,
             ids: state.hazards.map { $0.id },
             create: { [telegraphsNode] _ in
-                let node = SKNode()
-                telegraphsNode.addChild(node)
-                return node
+                let sprite = SKSpriteNode()
+                sprite.zPosition = 90
+                telegraphsNode.addChild(sprite)
+                return sprite
             },
-            update: { id, node in
+            update: { id, sprite in
                 guard let hazard = state.hazards.first(where: { $0.id == id }) else { return }
-                node.removeAllChildren()
-                node.position = self.toScenePoint(x: hazard.x, y: hazard.y)
-                self.addHazardShape(to: node, kind: hazard.kind)
+                let idHash = id.hashValue
+                guard let output = SurvivalBossEffectRenderer.renderHazard(
+                    kind: hazard.kind,
+                    startAt: hazard.startAt,
+                    endAt: hazard.endAt,
+                    nowMs: nowMs,
+                    idHash: idHash
+                ) else {
+                    return
+                }
+                let tex = SKTexture(image: output.image)
+                tex.filteringMode = .linear
+                sprite.texture = tex
+                sprite.size = output.image.size
+                sprite.anchorPoint = output.anchorPoint
+                sprite.zRotation = output.rotation
+                sprite.position = self.toScenePoint(x: hazard.x, y: hazard.y)
             }
         )
 
+        // MARK: ボス弾 (毒弾 or 通常弾)
         syncNodes(
             nodeMap: &bossProjectileNodes,
             ids: state.projectiles.map { $0.id },
             create: { [effectsNode] _ in
-                let node = SKShapeNode(circleOfRadius: 12)
-                node.fillColor = UIColor(red: 0.5, green: 1, blue: 0.4, alpha: 1)
-                node.strokeColor = .black
-                node.zPosition = 80
-                effectsNode.addChild(node)
-                return node
+                let sprite = SKSpriteNode()
+                sprite.zPosition = 80
+                effectsNode.addChild(sprite)
+                return sprite
             },
             update: { id, node in
-                guard let proj = state.projectiles.first(where: { $0.id == id }) else { return }
-                node.position = self.toScenePoint(x: proj.x, y: proj.y)
+                guard let proj = state.projectiles.first(where: { $0.id == id }),
+                      let sprite = node as? SKSpriteNode else { return }
+                sprite.position = self.toScenePoint(x: proj.x, y: proj.y)
+                // 現仕様では全て毒弾 (spawnsPoolOnLand=true)
+                // レンダラ内は CG y-down 基準で軌跡を描くため、engine の vy をそのまま渡す。
+                // SKTexture 適用時の y-flip が自動で表示方向 (画面 y-up) へ補正してくれる。
+                let img = SurvivalBossEffectRenderer.renderAcidProjectile(
+                    radius: 14,
+                    dx: proj.vx,
+                    dy: proj.vy,
+                    nowMs: nowMs,
+                    idHash: id.hashValue
+                )
+                let tex = SKTexture(image: img)
+                tex.filteringMode = .linear
+                sprite.texture = tex
+                sprite.size = img.size
             }
         )
-    }
-
-    private func addHazardShape(to node: SKNode, kind: SurvivalBossHazard.Kind) {
-        switch kind {
-        case .fanTelegraph(let angle, let spread, let radius):
-            node.addChild(makeFanShape(angle: angle, spread: spread, radius: radius, color: UIColor.red.withAlphaComponent(0.22), stroke: UIColor.red.withAlphaComponent(0.8)))
-        case .fanActive(let angle, let spread, let radius, _):
-            node.addChild(makeFanShape(angle: angle, spread: spread, radius: radius, color: UIColor.red.withAlphaComponent(0.55), stroke: .red))
-        case .lineTelegraph(let angle, let length, let thickness):
-            node.addChild(makeLineShape(angle: angle, length: length, thickness: thickness, color: UIColor.orange.withAlphaComponent(0.25), stroke: UIColor.orange.withAlphaComponent(0.8)))
-        case .lineActive(let angle, let length, let thickness, _):
-            node.addChild(makeLineShape(angle: angle, length: length, thickness: thickness, color: UIColor.orange.withAlphaComponent(0.65), stroke: UIColor.orange))
-        case .bloodPool(let radius, _):
-            let pool = SKShapeNode(circleOfRadius: radius)
-            pool.fillColor = UIColor(red: 0.6, green: 0, blue: 0.1, alpha: 0.5)
-            pool.strokeColor = UIColor(red: 0.8, green: 0, blue: 0.2, alpha: 0.9)
-            node.addChild(pool)
-        case .acidPool(let radius, _):
-            let pool = SKShapeNode(circleOfRadius: radius)
-            pool.fillColor = UIColor(red: 0.3, green: 0.9, blue: 0.3, alpha: 0.45)
-            pool.strokeColor = .green
-            node.addChild(pool)
-        case .eggTelegraph(let radius):
-            let egg = SKShapeNode(circleOfRadius: radius)
-            egg.fillColor = UIColor(red: 0.7, green: 0.8, blue: 0.3, alpha: 0.4)
-            egg.strokeColor = UIColor.yellow
-            node.addChild(egg)
-        case .ringTelegraph(let inner, let outer):
-            node.addChild(makeRingShape(innerRadius: inner, outerRadius: outer, color: UIColor.cyan.withAlphaComponent(0.25), stroke: UIColor.cyan.withAlphaComponent(0.8)))
-        case .ringActive(let inner, let outer, _):
-            node.addChild(makeRingShape(innerRadius: inner, outerRadius: outer, color: UIColor.cyan.withAlphaComponent(0.6), stroke: UIColor.cyan))
-        case .crossTelegraph(let length, let thickness):
-            node.addChild(makeCrossShape(length: length, thickness: thickness, color: UIColor.magenta.withAlphaComponent(0.25), stroke: UIColor.magenta.withAlphaComponent(0.8)))
-        case .crossActive(let length, let thickness, _):
-            node.addChild(makeCrossShape(length: length, thickness: thickness, color: UIColor.magenta.withAlphaComponent(0.65), stroke: UIColor.magenta))
-        case .pullField(let range, _):
-            let field = SKShapeNode(circleOfRadius: range)
-            field.fillColor = UIColor(white: 1, alpha: 0.05)
-            field.strokeColor = UIColor(white: 0.8, alpha: 0.5)
-            field.lineWidth = 2
-            node.addChild(field)
-        }
-    }
-
-    // MARK: - Shape helpers
-
-    private func makeFanShape(angle: CGFloat, spread: CGFloat, radius: CGFloat, color: UIColor, stroke: UIColor) -> SKShapeNode {
-        let path = CGMutablePath()
-        path.move(to: .zero)
-        path.addArc(center: .zero, radius: radius, startAngle: -angle - spread / 2, endAngle: -angle + spread / 2, clockwise: false)
-        path.closeSubpath()
-        let shape = SKShapeNode(path: path)
-        shape.fillColor = color
-        shape.strokeColor = stroke
-        shape.lineWidth = 2
-        return shape
-    }
-
-    private func makeLineShape(angle: CGFloat, length: CGFloat, thickness: CGFloat, color: UIColor, stroke: UIColor) -> SKShapeNode {
-        let rect = CGRect(x: 0, y: -thickness, width: length, height: thickness * 2)
-        let path = CGPath(rect: rect, transform: nil)
-        let shape = SKShapeNode(path: path)
-        shape.fillColor = color
-        shape.strokeColor = stroke
-        shape.lineWidth = 2
-        shape.zRotation = -angle
-        return shape
-    }
-
-    private func makeRingShape(innerRadius: CGFloat, outerRadius: CGFloat, color: UIColor, stroke: UIColor) -> SKNode {
-        let container = SKNode()
-        let outer = SKShapeNode(circleOfRadius: outerRadius)
-        outer.fillColor = color
-        outer.strokeColor = stroke
-        outer.lineWidth = 2
-        container.addChild(outer)
-        let inner = SKShapeNode(circleOfRadius: innerRadius)
-        inner.fillColor = .black
-        inner.strokeColor = stroke
-        inner.lineWidth = 2
-        container.addChild(inner)
-        return container
-    }
-
-    private func makeCrossShape(length: CGFloat, thickness: CGFloat, color: UIColor, stroke: UIColor) -> SKNode {
-        let container = SKNode()
-        let horiz = SKShapeNode(rect: CGRect(x: -length / 2, y: -thickness, width: length, height: thickness * 2))
-        horiz.fillColor = color
-        horiz.strokeColor = stroke
-        horiz.lineWidth = 2
-        container.addChild(horiz)
-        let vert = SKShapeNode(rect: CGRect(x: -thickness, y: -length / 2, width: thickness * 2, height: length))
-        vert.fillColor = color
-        vert.strokeColor = stroke
-        vert.lineWidth = 2
-        container.addChild(vert)
-        return container
     }
 
     // MARK: - Node synchronization helper
