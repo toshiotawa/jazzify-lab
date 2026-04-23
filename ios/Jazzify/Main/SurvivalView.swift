@@ -169,12 +169,10 @@ struct SurvivalView: View {
                 .presentationDragIndicator(.visible)
             }
             .fullScreenCover(item: $launchStage) { stage in
-                GameWebView(
-                    mode: .survivalStage(
-                        stageNumber: stage.stageNumber,
-                        characterId: "fai",
-                        hintMode: launchHintMode
-                    ),
+                SurvivalGameView(
+                    stage: stage,
+                    hintMode: launchHintMode,
+                    characterId: "fai",
                     locale: locale,
                     onClose: { launchStage = nil }
                 )

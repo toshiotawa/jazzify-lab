@@ -457,6 +457,53 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    /// 全カラムを取得して `SurvivalStageConfig` を構築する。
+    /// ステージモードでは難易度 (`easy` / `normal` / `hard` / `extreme`) ごとの BGM と倍率を参照する。
+    func fetchSurvivalStageConfigs() async throws -> [SurvivalStageConfig] {
+        let rows: [SurvivalDifficultyDetailRow] = try await client
+            .from("survival_difficulty_settings")
+            .select("*")
+            .order("difficulty")
+            .execute()
+            .value
+        return rows.map { $0.toConfig() }
+    }
+
+    /// 指定難易度の `SurvivalStageConfig` を取得。見つからなければ `nil`。
+    func fetchSurvivalStageConfig(difficulty: String) async throws -> SurvivalStageConfig? {
+        let rows: [SurvivalDifficultyDetailRow] = try await client
+            .from("survival_difficulty_settings")
+            .select("*")
+            .eq("difficulty", value: difficulty)
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.toConfig()
+    }
+
+    /// 全カラムを取得して `SurvivalCharacterProfile` を構築する。
+    func fetchSurvivalCharacterProfiles() async throws -> [SurvivalCharacterProfile] {
+        let rows: [SurvivalCharacterDetailRow] = try await client
+            .from("survival_characters")
+            .select("*")
+            .order("sort_order")
+            .execute()
+            .value
+        return rows.map { $0.toProfile() }
+    }
+
+    /// 主人公ファイのプロフィールを取得 (見つからない場合は `defaultFai`)
+    func fetchFaiProfile() async throws -> SurvivalCharacterProfile {
+        let rows: [SurvivalCharacterDetailRow] = try await client
+            .from("survival_characters")
+            .select("*")
+            .eq("id", value: "fai")
+            .limit(1)
+            .execute()
+            .value
+        return rows.first?.toProfile() ?? SurvivalCharacterProfile.defaultFai
+    }
+
     // MARK: - Survival Stage Clears
 
     func fetchSurvivalStageClears(userId: UUID) async throws -> [SurvivalStageClearRow] {
@@ -478,6 +525,99 @@ final class SupabaseService: Sendable {
             .execute()
             .value
         return rows.first
+    }
+
+    // MARK: - Survival Stage Clear Upsert
+
+    /// Web 版 `upsertSurvivalStageClear` (`src/platform/supabaseSurvival.ts` L444-503) を移植。
+    /// - 既存行の有無を確認して初回クリアかどうかを判定
+    /// - `survival_stage_clears` に upsert (user_id + stage_number の複合ユニーク)
+    /// - 初回クリア時のみ `survival_stage_progress` を進行させる
+    func upsertSurvivalStageClear(
+        userId: UUID,
+        stageNumber: Int,
+        survivalTimeSeconds: Int,
+        finalLevel: Int,
+        enemiesDefeated: Int,
+        characterId: String?,
+        totalStages: Int
+    ) async throws {
+        struct ExistingRow: Decodable { let id: UUID }
+        struct ClearUpsert: Encodable {
+            let user_id: UUID
+            let stage_number: Int
+            let character_id: String?
+            let survival_time_seconds: Int
+            let final_level: Int
+            let enemies_defeated: Int
+            let cleared_at: String
+        }
+        struct ProgressRow: Decodable {
+            let current_stage_number: Int
+            let total_cleared_stages: Int
+        }
+        struct ProgressUpsert: Encodable {
+            let user_id: UUID
+            let current_stage_number: Int
+            let total_cleared_stages: Int
+            let updated_at: String
+        }
+
+        let existing: [ExistingRow] = try await client
+            .from("survival_stage_clears")
+            .select("id")
+            .eq("user_id", value: userId.uuidString)
+            .eq("stage_number", value: stageNumber)
+            .limit(1)
+            .execute()
+            .value
+        let isFirstClear = existing.isEmpty
+        let nowIso = ISO8601DateFormatter().string(from: Date())
+
+        try await client
+            .from("survival_stage_clears")
+            .upsert(
+                ClearUpsert(
+                    user_id: userId,
+                    stage_number: stageNumber,
+                    character_id: characterId,
+                    survival_time_seconds: survivalTimeSeconds,
+                    final_level: finalLevel,
+                    enemies_defeated: enemiesDefeated,
+                    cleared_at: nowIso
+                ),
+                onConflict: "user_id,stage_number"
+            )
+            .execute()
+
+        guard isFirstClear else { return }
+
+        let progressRows: [ProgressRow] = try await client
+            .from("survival_stage_progress")
+            .select("current_stage_number, total_cleared_stages")
+            .eq("user_id", value: userId.uuidString)
+            .limit(1)
+            .execute()
+            .value
+        let currentMax = progressRows.first?.current_stage_number ?? 1
+        let currentTotal = progressRows.first?.total_cleared_stages ?? 0
+        let nextStage = stageNumber + 1
+        let newTotal = max(stageNumber, 0)
+        let updatedCurrent = min(max(nextStage, currentMax), totalStages)
+        let updatedTotal = max(newTotal, currentTotal)
+
+        try await client
+            .from("survival_stage_progress")
+            .upsert(
+                ProgressUpsert(
+                    user_id: userId,
+                    current_stage_number: updatedCurrent,
+                    total_cleared_stages: updatedTotal,
+                    updated_at: nowIso
+                ),
+                onConflict: "user_id"
+            )
+            .execute()
     }
 
     // MARK: - Daily Challenge Records

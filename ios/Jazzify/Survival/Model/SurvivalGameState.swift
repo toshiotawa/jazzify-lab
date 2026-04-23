@@ -1,0 +1,497 @@
+import Foundation
+import CoreGraphics
+
+// MARK: - Map / Constants
+
+/// Web 版 `MAP_CONFIG` と同じ広さ (3200 x 2400)。SpriteKit 側では y を反転して表示する。
+enum SurvivalMap {
+    static let width: CGFloat = 3200
+    static let height: CGFloat = 2400
+}
+
+enum SurvivalConstants {
+    static let playerSize: CGFloat = 36
+    static let enemySize: CGFloat = 40
+    static let projectileSize: CGFloat = 14
+    /// プレイヤーのベース移動速度 (px/sec)
+    static let playerSpeed: CGFloat = 260
+    /// 敵のベース移動速度 (Web 版 `BASE_ENEMY_SPEED`)
+    static let baseEnemySpeed: CGFloat = 55
+    /// 敵の最高速度 (Web 版 `MAX_ENEMY_SPEED`)
+    static let maxEnemySpeed: CGFloat = 250
+    /// A 弾速度 (px/sec)
+    static let projectileSpeed: CGFloat = 500
+    /// A 弾最大射程 (px)
+    static let projectileMaxRange: CGFloat = 900
+    /// ステージ制限時間 (秒)
+    static let stageTimeLimitSec: TimeInterval = 90
+    /// ステージクリアに必要な撃破数 (WEB 版 `STAGE_KILL_QUOTA` = 300)
+    static let stageEnemyQuota: Int = 300
+    /// 残り時間しきい値 (秒) - これ以下で BGM 偶数フェーズへ
+    static let bgmPhaseSwitchThresholdSec: TimeInterval = 30
+    /// コードスロット切替タイマー (秒)
+    static let slotTimeoutSec: TimeInterval = 10
+    /// 近接衝撃波の半径 (B 攻撃)
+    static let meleeShockwaveRadius: CGFloat = 180
+    /// B 攻撃のノックバック速度
+    static let meleeKnockbackSpeed: CGFloat = 420
+    /// ボスステージのプレイヤー HP
+    static let bossPlayerMaxHp: Int = 1000
+    /// ボス HP 上限
+    static let bossMaxHp: Int = 15000
+    /// ボス判定円半径
+    static let bossHitboxRadius: CGFloat = 72
+    /// ボスミニオン半径
+    static let bossMinionRadius: CGFloat = 28
+    /// 接触 i-frame (秒)
+    static let iFrameContact: TimeInterval = 0.6
+    /// ハザード i-frame (秒)
+    static let iFrameHazard: TimeInterval = 0.8
+    /// ノックバック持続
+    static let knockbackDuration: TimeInterval = 0.25
+    /// ノックバック速度
+    static let knockbackSpeed: CGFloat = 420
+    /// アイテムサイズ
+    static let itemSize: CGFloat = 28
+    /// コインサイズ
+    static let coinSize: CGFloat = 22
+    /// 敵弾サイズ
+    static let enemyProjectileSize: CGFloat = 14
+    /// 被弾フラッシュ持続秒
+    static let playerDamageFlashSec: TimeInterval = 0.18
+}
+
+// MARK: - Directions
+
+public enum SurvivalDirection8: String, CaseIterable, Sendable {
+    case up, down, left, right
+    case upLeft = "up-left"
+    case upRight = "up-right"
+    case downLeft = "down-left"
+    case downRight = "down-right"
+
+    var vector: CGVector {
+        switch self {
+        case .up: return CGVector(dx: 0, dy: -1)
+        case .down: return CGVector(dx: 0, dy: 1)
+        case .left: return CGVector(dx: -1, dy: 0)
+        case .right: return CGVector(dx: 1, dy: 0)
+        case .upLeft: return CGVector(dx: -0.707, dy: -0.707)
+        case .upRight: return CGVector(dx: 0.707, dy: -0.707)
+        case .downLeft: return CGVector(dx: -0.707, dy: 0.707)
+        case .downRight: return CGVector(dx: 0.707, dy: 0.707)
+        }
+    }
+
+    /// Web 版 `getDirectionAngle` (Y 軸は 0,0=左上の画面座標系基準)
+    var angle: CGFloat {
+        switch self {
+        case .up: return -.pi / 2
+        case .down: return .pi / 2
+        case .left: return .pi
+        case .right: return 0
+        case .upLeft: return -.pi * 3 / 4
+        case .upRight: return -.pi / 4
+        case .downLeft: return .pi * 3 / 4
+        case .downRight: return .pi / 4
+        }
+    }
+
+    static func fromVector(dx: CGFloat, dy: CGFloat) -> SurvivalDirection8? {
+        if abs(dx) < 0.001 && abs(dy) < 0.001 { return nil }
+        if dx > 0.5 {
+            if dy < -0.5 { return .upRight }
+            if dy > 0.5 { return .downRight }
+            return .right
+        }
+        if dx < -0.5 {
+            if dy < -0.5 { return .upLeft }
+            if dy > 0.5 { return .downLeft }
+            return .left
+        }
+        return dy < 0 ? .up : .down
+    }
+}
+
+// MARK: - Player
+
+/// WEB 版 `PlayerStats` 相当 (スキル外の攻撃/速度/防御など基礎ステータス)
+public struct SurvivalPlayerStats: Sendable, Equatable {
+    public var aAtk: Int
+    public var bAtk: Int
+    public var cAtk: Int
+    public var reloadMagic: Int
+    public var time: Int
+    public var luck: Int
+    public var def: Int
+
+    public static let defaultStage: SurvivalPlayerStats = SurvivalPlayerStats(
+        aAtk: 51, bAtk: 49, cAtk: 20, reloadMagic: 5, time: 10, luck: 5, def: 10
+    )
+
+    static func fromJson(_ json: [String: JsonValue]) -> SurvivalPlayerStats {
+        func intVal(_ key: String, default defaultValue: Int) -> Int {
+            json[key]?.asInt ?? defaultValue
+        }
+        return SurvivalPlayerStats(
+            aAtk: intVal("aAtk", default: 51),
+            bAtk: intVal("bAtk", default: 49),
+            cAtk: intVal("cAtk", default: 20),
+            reloadMagic: intVal("reloadMagic", default: 5),
+            time: intVal("time", default: 10),
+            luck: intVal("luck", default: 5),
+            def: intVal("def", default: 10)
+        )
+    }
+}
+
+public struct SurvivalPlayerSkills: Sendable, Equatable {
+    public var aBulletCount: Int
+    public var aPenetration: Bool
+    public var bDeflect: Bool
+    public var multiHitLevel: Int
+    public var bKnockbackBonusLevel: Int
+    public var bRangeBonusLevel: Int
+    public var haisuiNoJin: Bool
+    public var zekkouchou: Bool
+    public var alwaysHaisuiNoJin: Bool
+    public var alwaysZekkouchou: Bool
+
+    /// WEB 版 `SurvivalGameEngine.ts` の INITIAL_PLAYER.skills と同じ「素の状態」。
+    /// レベルアップや永続強化で個別に上書きされる。
+    public static let defaultStage: SurvivalPlayerSkills = SurvivalPlayerSkills(
+        aBulletCount: 1,
+        aPenetration: false,
+        bDeflect: false,
+        multiHitLevel: 0,
+        bKnockbackBonusLevel: 0,
+        bRangeBonusLevel: 0,
+        haisuiNoJin: false,
+        zekkouchou: false,
+        alwaysHaisuiNoJin: false,
+        alwaysZekkouchou: false
+    )
+
+    static func fromJson(_ json: [String: JsonValue]) -> SurvivalPlayerSkills {
+        func intVal(_ key: String, default defaultValue: Int) -> Int {
+            json[key]?.asInt ?? defaultValue
+        }
+        func boolVal(_ key: String, default defaultValue: Bool) -> Bool {
+            json[key]?.asBool ?? defaultValue
+        }
+        return SurvivalPlayerSkills(
+            aBulletCount: intVal("aBulletCount", default: 1),
+            aPenetration: boolVal("aPenetration", default: false),
+            bDeflect: boolVal("bDeflect", default: false),
+            multiHitLevel: intVal("multiHitLevel", default: 0),
+            bKnockbackBonusLevel: intVal("bKnockbackBonus", default: 0),
+            bRangeBonusLevel: intVal("bRangeBonus", default: 0),
+            haisuiNoJin: boolVal("haisuiNoJin", default: false),
+            zekkouchou: boolVal("zekkouchou", default: false),
+            alwaysHaisuiNoJin: boolVal("alwaysHaisuiNoJin", default: false),
+            alwaysZekkouchou: boolVal("alwaysZekkouchou", default: false)
+        )
+    }
+}
+
+struct SurvivalPlayerState: Sendable {
+    public var x: CGFloat
+    public var y: CGFloat
+    public var direction: SurvivalDirection8 = .down
+    public var hp: Int
+    public var maxHp: Int
+    public var stats: SurvivalPlayerStats
+    public var skills: SurvivalPlayerSkills
+    /// 無敵が切れる時刻 (CACurrentMediaTime)
+    public var iFramesUntil: TimeInterval = 0
+    /// ボス戦用ノックバック
+    public var knockbackVx: CGFloat = 0
+    public var knockbackVy: CGFloat = 0
+    public var knockbackUntil: TimeInterval = 0
+    public var hintMode: Bool = false
+    /// 被弾フラッシュが切れる時刻 (描画側で利用)
+    public var damageFlashUntil: TimeInterval = 0
+}
+
+// MARK: - Enemies (10 種 : WEB 版準拠)
+
+public enum SurvivalEnemyType: String, Sendable, CaseIterable {
+    case slime, goblin, skeleton, zombie, bat, ghost, orc, demon, dragon, boss
+
+    /// 描画用絵文字 (WEB 版 `SurvivalCanvas.tsx` と同じフォールバック絵文字)
+    public var emoji: String {
+        switch self {
+        case .slime: return "🫠"
+        case .goblin: return "👺"
+        case .skeleton: return "💀"
+        case .zombie: return "🧟"
+        case .bat: return "🦇"
+        case .ghost: return "👻"
+        case .orc: return "👹"
+        case .demon: return "😈"
+        case .dragon: return "🐲"
+        case .boss: return "👑"
+        }
+    }
+}
+
+public struct SurvivalEnemyStats: Sendable {
+    public var atk: Int
+    public var def: Int
+    public var hp: Int
+    public var maxHp: Int
+    /// WEB 版同様 speedFactor (baseEnemySpeed に乗算)
+    public var speed: CGFloat
+    /// 獲得経験値 / 撃破報酬
+    public var exp: Int
+}
+
+public struct SurvivalEnemy: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var type: SurvivalEnemyType
+    public var x: CGFloat
+    public var y: CGFloat
+    public var stats: SurvivalEnemyStats
+    public var knockbackVx: CGFloat = 0
+    public var knockbackVy: CGFloat = 0
+    public var lastContactTime: TimeInterval = 0
+    /// 最後に弾を撃った時刻 (射撃する敵のみ)
+    public var lastShotAt: TimeInterval = 0
+}
+
+// MARK: - Projectiles / Effects
+
+public struct SurvivalProjectile: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var x: CGFloat
+    public var y: CGFloat
+    /// ラジアン
+    public var angle: CGFloat
+    public var damage: Int
+    public var remainingRange: CGFloat
+    public var penetrating: Bool
+    public var hitEnemyIds: Set<UUID> = []
+}
+
+/// 敵からの弾 (WEB 版 `EnemyProjectile`)
+public struct SurvivalEnemyProjectile: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var x: CGFloat
+    public var y: CGFloat
+    public var vx: CGFloat
+    public var vy: CGFloat
+    public var damage: Int
+    public var expireAt: TimeInterval
+}
+
+public struct SurvivalShockwave: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var x: CGFloat
+    public var y: CGFloat
+    public var radius: CGFloat
+    public var maxRadius: CGFloat
+    public var createdAt: TimeInterval
+    public var lifetime: TimeInterval
+    public var damage: Int
+    public var hitEnemyIds: Set<UUID> = []
+    /// 色バリエーション (多段ヒット時に変化)
+    public var colorLevel: Int = 0
+}
+
+public struct SurvivalFloatingText: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var text: String
+    public var x: CGFloat
+    public var y: CGFloat
+    public var createdAt: TimeInterval
+    public var lifetime: TimeInterval = 0.8
+    public var color: SurvivalFloatingTextColor
+}
+
+public enum SurvivalFloatingTextColor: Sendable {
+    case damage
+    case heal
+    case warn
+    case exp
+}
+
+// MARK: - Items / Coins (WEB 版 `SurvivalTypes.ts` の DroppedItem)
+
+public enum SurvivalDroppedItemKind: String, Sendable, CaseIterable {
+    case heart          // 🫀 HP 回復
+    case angelShoes     // 👟 スピードアップ
+    case vest           // 🦺 DEF アップ
+    case aAtkBoost      // 🔫 A 列火力強化
+    case bAtkBoost      // 👊 B 列火力強化
+    case cAtkBoost      // 🪄 C 列火力強化
+
+    public var emoji: String {
+        switch self {
+        case .heart: return "🫀"
+        case .angelShoes: return "👟"
+        case .vest: return "🦺"
+        case .aAtkBoost: return "🔫"
+        case .bAtkBoost: return "👊"
+        case .cAtkBoost: return "🪄"
+        }
+    }
+}
+
+public struct SurvivalDroppedItem: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var kind: SurvivalDroppedItemKind
+    public var x: CGFloat
+    public var y: CGFloat
+    public var expireAt: TimeInterval
+}
+
+public struct SurvivalCoin: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var x: CGFloat
+    public var y: CGFloat
+    public var exp: Int
+    public var expireAt: TimeInterval
+}
+
+// MARK: - Status Effects (WEB 版 `StatusEffect`)
+
+public enum SurvivalStatusEffectKind: String, Sendable, Hashable {
+    case fire
+    case ice
+    case buffer
+    case debuffer
+    case aAtkUp = "a_atk_up"
+    case bAtkUp = "b_atk_up"
+    case cAtkUp = "c_atk_up"
+    case hint
+    case speedUp = "speed_up"
+    case defUp = "def_up"
+    case haisui
+    case zekkouchou
+
+    public var systemIcon: String {
+        switch self {
+        case .fire: return "flame.fill"
+        case .ice: return "snowflake"
+        case .buffer: return "arrow.up.circle.fill"
+        case .debuffer: return "arrow.down.circle.fill"
+        case .aAtkUp: return "a.circle.fill"
+        case .bAtkUp: return "b.circle.fill"
+        case .cAtkUp: return "c.circle.fill"
+        case .hint: return "lightbulb.fill"
+        case .speedUp: return "hare.fill"
+        case .defUp: return "shield.fill"
+        case .haisui: return "heart.slash.fill"
+        case .zekkouchou: return "sparkles"
+        }
+    }
+}
+
+public struct SurvivalStatusEffect: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var kind: SurvivalStatusEffectKind
+    public var level: Int
+    public var expireAt: TimeInterval
+    public var appliedAt: TimeInterval
+}
+
+// MARK: - Magic
+
+public enum SurvivalMagicKind: String, Sendable, CaseIterable {
+    case thunder
+    case ice
+    case fire
+    case heal
+    case buffer
+    case hint
+}
+
+public struct SurvivalMagicEffect: Identifiable, Sendable {
+    public let id: UUID = UUID()
+    public var kind: SurvivalMagicKind
+    public var x: CGFloat
+    public var y: CGFloat
+    public var createdAt: TimeInterval
+    public var lifetime: TimeInterval
+}
+
+// MARK: - Code Slot
+
+public enum SurvivalSlotIndex: Int, CaseIterable, Sendable {
+    case A = 0, B = 1, C = 2, D = 3
+    public var label: String {
+        switch self {
+        case .A: return "A"
+        case .B: return "B"
+        case .C: return "C"
+        case .D: return "D"
+        }
+    }
+}
+
+struct SurvivalCodeSlot: Sendable {
+    public let label: String
+    public var chord: SurvivalResolvedChord?
+    /// WEB 版 `nextSlots` 相当。スロット完成時 / タイマー切れ時に `chord` が `nextChord` に置換され、
+    /// 新しい `nextChord` が抽選される。
+    public var nextChord: SurvivalResolvedChord?
+    public var timer: TimeInterval
+    public var isEnabled: Bool
+    /// 入力中のピッチクラス (重複除去済み)
+    public var inputPitchClasses: [Int] = []
+
+    /// 現在コード構成音のうち、入力済みに含まれる数 (重複除去済み)
+    var correctCount: Int {
+        guard let chord else { return 0 }
+        return SurvivalChordResolver.correctNotes(
+            inputPitchClasses: inputPitchClasses,
+            target: chord
+        ).count
+    }
+
+    /// 現在コードの構成音数 (0 のときは未設定)
+    var totalNotes: Int {
+        chord?.pitchClasses.count ?? 0
+    }
+
+    /// 進捗 (0.0 - 1.0)。構成音未設定時は 0
+    var progressRatio: Double {
+        guard totalNotes > 0 else { return 0 }
+        return Double(correctCount) / Double(totalNotes)
+    }
+}
+
+// MARK: - Stage mode state
+
+public enum SurvivalStagePhase: Sendable, Equatable {
+    case playing
+    case cleared
+    case gameOver
+}
+
+/// 通常ステージ全体の状態。ボス戦は別で管理 (SurvivalBossBattleState) するが、
+/// プレイヤー座標や入力は Controller 側で共通管理する。
+struct SurvivalStageRuntime: Sendable {
+    public var stage: SurvivalStageDefinition
+    public var hintMode: Bool
+    public var player: SurvivalPlayerState
+    public var enemies: [SurvivalEnemy] = []
+    public var projectiles: [SurvivalProjectile] = []
+    public var enemyProjectiles: [SurvivalEnemyProjectile] = []
+    public var shockwaves: [SurvivalShockwave] = []
+    public var magicEffects: [SurvivalMagicEffect] = []
+    public var floatingTexts: [SurvivalFloatingText] = []
+    public var droppedItems: [SurvivalDroppedItem] = []
+    public var coins: [SurvivalCoin] = []
+    public var statusEffects: [SurvivalStatusEffect] = []
+    public var slots: [SurvivalCodeSlot]
+    public var elapsedSeconds: TimeInterval = 0
+    public var remainingSeconds: TimeInterval = SurvivalConstants.stageTimeLimitSec
+    public var enemiesDefeated: Int = 0
+    public var totalExp: Int = 0
+    public var phase: SurvivalStagePhase = .playing
+    /// 敵スポーンアキュムレータ
+    public var spawnAccumulator: TimeInterval = 0
+    /// プレイヤーがまだ一度も敵と出会っていない (最初のスポーンを特別にする) 用フラグ
+    public var hasSpawnedAny: Bool = false
+}
