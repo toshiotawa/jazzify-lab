@@ -25,6 +25,9 @@ struct SurvivalView: View {
     @State private var hintMode: Bool = false
     @State private var launchStage: SurvivalStageDefinition?
     @State private var launchHintMode: Bool = false
+    /// リトライ / 次ステージ遷移のために `launchStage` を一時的に nil にしている最中かどうか。
+    /// 真の間は `onChange(of: launchStage == nil)` の進捗リロード処理をスキップする。
+    @State private var isTransitioningStage: Bool = false
     @State private var showSubscription: Bool = false
     @State private var showMobileDetail: Bool = false
     @State private var showSurvivalInfo: Bool = false
@@ -174,11 +177,20 @@ struct SurvivalView: View {
                     hintMode: launchHintMode,
                     characterId: "fai",
                     locale: locale,
-                    onClose: { launchStage = nil }
+                    onClose: { launchStage = nil },
+                    onRequestReplay: { newHintMode in
+                        replayCurrentStage(stage: stage, hintMode: newHintMode)
+                    },
+                    onRequestNextStage: SurvivalStageCatalog.stage(byNumber: stage.stageNumber + 1) != nil
+                        ? { advanceToNextStage(from: stage) }
+                        : nil
                 )
             }
             .onChange(of: launchStage == nil) { isNil in
                 if isNil {
+                    // リトライ / 次ステージ遷移中は一時的に nil にしてから再提示するため、
+                    // その中継では進捗再読込と BGM 再生を行わない。
+                    guard !isTransitioningStage else { return }
                     Task { await loadProgress() }
                     if !SurvivalMapAudio.shared.isMuted {
                         SurvivalMapAudio.shared.play()
@@ -318,6 +330,39 @@ struct SurvivalView: View {
         showMobileDetail = false
         SurvivalMapAudio.shared.stop()
         launchStage = stage
+    }
+
+    /// リザルトの「リトライ」「ヒントあり/なしで再挑戦」から呼ばれる。
+    /// 同一 `launchStage` のまま `hintMode` のみを差し替えても SwiftUI の `fullScreenCover(item:)`
+    /// は再提示しないため、一旦 nil にして dismiss させた後に再設定する。
+    private func replayCurrentStage(stage: SurvivalStageDefinition, hintMode newHintMode: Bool) {
+        isTransitioningStage = true
+        launchStage = nil
+        // fullScreenCover の dismiss アニメーション完了を待ってから再提示する
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            SurvivalMapAudio.shared.stop()
+            launchHintMode = newHintMode
+            launchStage = stage
+            isTransitioningStage = false
+        }
+    }
+
+    /// リザルトの「次のステージに進む」から呼ばれる。HINT なしクリア時のみ利用される。
+    /// 次ステージが存在しない (最終ステージ) 場合はマップへ戻す。
+    private func advanceToNextStage(from stage: SurvivalStageDefinition) {
+        let nextNumber = stage.stageNumber + 1
+        guard let next = SurvivalStageCatalog.stage(byNumber: nextNumber) else {
+            launchStage = nil
+            return
+        }
+        isTransitioningStage = true
+        launchStage = nil
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            SurvivalMapAudio.shared.stop()
+            launchHintMode = false
+            launchStage = next
+            isTransitioningStage = false
+        }
     }
 
     private func loadProgress() async {

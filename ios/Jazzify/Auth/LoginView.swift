@@ -11,6 +11,8 @@ struct LoginView: View {
     @State private var showOTPVerify = false
     @State private var authMode: AuthMode = .login
     @State private var showDemoLP = false
+    /// デモサバイバルの起動時 `hintMode`。リザルトからの「ヒントなしで挑戦」等で書き換える。
+    @State private var demoSurvivalHintMode: Bool = true
     @State private var showDemoFantasy = false
 
     private var locale: AppLocale { appState.locale }
@@ -75,12 +77,22 @@ struct LoginView: View {
             .fullScreenCover(isPresented: $showDemoLP) {
                 SurvivalGameView(
                     stage: SurvivalDemoStage.definition,
-                    hintMode: true,
+                    hintMode: demoSurvivalHintMode,
                     characterId: "fai",
                     locale: locale,
                     onClose: { showDemoLP = false },
                     isDemo: true,
-                    configOverride: SurvivalDemoStage.config
+                    configOverride: SurvivalDemoStage.config,
+                    // デモもログイン後と同じくリザルトからのリトライ / ヒント切替に対応する。
+                    // `showDemoLP` を一旦 false にして dismiss を待ち、新しい hintMode で再提示する。
+                    onRequestReplay: { newHintMode in
+                        showDemoLP = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                            demoSurvivalHintMode = newHintMode
+                            showDemoLP = true
+                        }
+                    }
+                    // デモには「次のステージ」は存在しないため onRequestNextStage は渡さない
                 )
             }
             .fullScreenCover(isPresented: $showDemoFantasy) {
@@ -254,6 +266,7 @@ struct LoginView: View {
 
             HStack(spacing: 12) {
                 Button {
+                    demoSurvivalHintMode = true
                     showDemoLP = true
                 } label: {
                     Label(

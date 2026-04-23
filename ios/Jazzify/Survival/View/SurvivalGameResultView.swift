@@ -1,18 +1,26 @@
 import SwiftUI
 
 /// クリア / ゲームオーバー モーダル。WEB 版 `SurvivalGameOver.tsx` 準拠。
+///
 /// 表示項目:
 /// - ステージ名 (日本語/英語)
-/// - 結果タイトル (クリア/失敗)
-/// - 生存時間 / 撃破数 / 残 HP / 獲得 EXP
-/// - ヒントモード時の注記 (記録されない旨)
-/// - リトライ / マップへ戻る
+/// - 結果タイトル (クリア / HINT クリア / ゲームオーバー)
+/// - 撃破数 (通常ステージのみ) / 生存時間 / HP
+/// - HINT モード時は「クリア記録に反映されない」旨の注記
+///
+/// アクションボタンは状況別に切り替わる (Web 版 `SurvivalGameOver.tsx` の分岐に揃える):
+/// - HINT なしクリア:  [次のステージに進む?] + [マップに戻る]
+/// - HINT ありクリア:  [ヒントなしで挑戦?] + [マップに戻る]
+/// - HINT なし失敗:    [リトライ] + [ヒントありで再挑戦?] + [マップに戻る]
+/// - HINT あり失敗:    [リトライ] + [マップに戻る]
+///
+/// `?` 付きの項目は対応するクロージャが渡されている場合のみ表示。
+/// (例: 最終ステージなら `onNextStage = nil` で「次のステージ」ボタンを出さない)
 struct SurvivalGameResultView: View {
     let isCleared: Bool
     let stage: SurvivalStageDefinition
     let enemiesDefeated: Int
     let elapsedSeconds: Int
-    let totalExp: Int
     let playerHp: Int
     let playerMaxHp: Int
     let hintMode: Bool
@@ -20,8 +28,16 @@ struct SurvivalGameResultView: View {
     let locale: AppLocale
     let clearReportInFlight: Bool
     let clearReportError: String?
+    /// 「リトライ」: 同ステージ・同 hintMode で再起動する。
     let onRetry: () -> Void
+    /// 「マップに戻る」: ゲーム画面を閉じる。
     let onExit: () -> Void
+    /// 「ヒントありで再挑戦」: HINT なしで失敗したときに表示する。
+    var onRetryWithHint: (() -> Void)? = nil
+    /// 「ヒントなしで挑戦」: HINT ありでクリアしたときに表示する。
+    var onRetryWithoutHint: (() -> Void)? = nil
+    /// 「次のステージに進む」: HINT なしクリア かつ 次ステージが存在する場合に表示する。
+    var onNextStage: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 20) {
@@ -35,9 +51,6 @@ struct SurvivalGameResultView: View {
                 }
                 resultRow(label: locale == .ja ? "生存時間" : "Survived", value: timeLabel)
                 resultRow(label: "HP", value: "\(playerHp) / \(playerMaxHp)")
-                if totalExp > 0 {
-                    resultRow(label: "EXP", value: String(totalExp))
-                }
             }
 
             if hintMode {
@@ -51,26 +64,7 @@ struct SurvivalGameResultView: View {
                 saveStatusView
             }
 
-            VStack(spacing: 10) {
-                Button(action: onRetry) {
-                    Text(locale == .ja ? "リトライ" : "Retry")
-                        .font(.headline)
-                        .foregroundStyle(.white)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.purple)
-                        .cornerRadius(10)
-                }
-                Button(action: onExit) {
-                    Text(locale == .ja ? "マップに戻る" : "Back to Map")
-                        .font(.headline)
-                        .foregroundStyle(.purple)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.white)
-                        .cornerRadius(10)
-                }
-            }
+            actionButtons
         }
         .padding(24)
         .background(
@@ -84,16 +78,35 @@ struct SurvivalGameResultView: View {
         .padding(32)
     }
 
+    // MARK: - Header
+
     private var header: some View {
         VStack(spacing: 6) {
             Image(systemName: isCleared ? "trophy.fill" : "xmark.octagon.fill")
                 .font(.system(size: 36))
-                .foregroundStyle(isCleared ? Color.yellow : Color.red)
+                .foregroundStyle(headerIconColor)
             Text(title)
                 .font(.title.bold())
                 .foregroundStyle(.white)
         }
     }
+
+    private var headerIconColor: Color {
+        if isCleared {
+            // HINT クリアは Web 版に合わせ黄色系で警告ニュアンスを残す
+            return hintMode ? Color.yellow : Color.green
+        }
+        return Color.red
+    }
+
+    private var title: String {
+        if isCleared {
+            return locale == .ja ? "ステージクリア!" : "Stage Clear!"
+        }
+        return locale == .ja ? "ゲームオーバー" : "Game Over"
+    }
+
+    // MARK: - Save status
 
     @ViewBuilder
     private var saveStatusView: some View {
@@ -116,12 +129,86 @@ struct SurvivalGameResultView: View {
         }
     }
 
-    private var title: String {
-        if isCleared {
-            return locale == .ja ? "ステージクリア!" : "Stage Clear!"
+    // MARK: - Action buttons
+
+    @ViewBuilder
+    private var actionButtons: some View {
+        VStack(spacing: 10) {
+            if isCleared && !hintMode {
+                // HINT なしクリア: 次のステージへ進めるなら誘導 / それ以外はマップに戻るのみ
+                if let onNextStage {
+                    primaryButton(
+                        label: locale == .ja ? "次のステージに進む" : "Next Stage",
+                        background: Color.green,
+                        action: onNextStage
+                    )
+                }
+            } else if isCleared && hintMode {
+                // HINT ありクリア: ヒントなしで本クリアを促す
+                if let onRetryWithoutHint {
+                    primaryButton(
+                        label: locale == .ja ? "ヒントなしで挑戦" : "Try Without Hints",
+                        background: Color.blue,
+                        action: onRetryWithoutHint
+                    )
+                }
+            } else {
+                // 失敗: リトライ + (HINT なし時のみ) ヒントありで再挑戦
+                primaryButton(
+                    label: locale == .ja ? "リトライ" : "Retry",
+                    background: Color.red,
+                    action: onRetry
+                )
+                if !hintMode, let onRetryWithHint {
+                    primaryButton(
+                        label: locale == .ja ? "ヒントありで再挑戦" : "Retry With Hints",
+                        background: Color.yellow,
+                        textColor: Color.black,
+                        action: onRetryWithHint
+                    )
+                }
+            }
+
+            secondaryButton(
+                label: locale == .ja ? "マップに戻る" : "Back to Map",
+                action: onExit
+            )
         }
-        return locale == .ja ? "ゲームオーバー" : "Game Over"
     }
+
+    private func primaryButton(
+        label: String,
+        background: Color,
+        textColor: Color = .white,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.headline)
+                .foregroundStyle(textColor)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(background)
+                .cornerRadius(10)
+        }
+    }
+
+    private func secondaryButton(
+        label: String,
+        action: @escaping () -> Void
+    ) -> some View {
+        Button(action: action) {
+            Text(label)
+                .font(.headline)
+                .foregroundStyle(.purple)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.white)
+                .cornerRadius(10)
+        }
+    }
+
+    // MARK: - Helpers
 
     private var timeLabel: String {
         String(format: "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60)

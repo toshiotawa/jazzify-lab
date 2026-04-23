@@ -32,6 +32,8 @@ final class SurvivalGameController: ObservableObject {
     private let profile: SurvivalCharacterProfile
     private let config: SurvivalStageConfig
     private let onExit: (_ isCleared: Bool) -> Void
+    /// ログイン前デモ中は Supabase への書込みを完全にスキップするために true になる。
+    private let isDemo: Bool
     private let supabase = SupabaseService.shared
 
     // MARK: - 内部
@@ -50,7 +52,8 @@ final class SurvivalGameController: ObservableObject {
         characterId: String,
         profile: SurvivalCharacterProfile = .defaultFai,
         config: SurvivalStageConfig = .default,
-        onExit: @escaping (_ isCleared: Bool) -> Void
+        onExit: @escaping (_ isCleared: Bool) -> Void,
+        isDemo: Bool = false
     ) {
         self.stage = stage
         self.hintMode = hintMode
@@ -58,6 +61,7 @@ final class SurvivalGameController: ObservableObject {
         self.profile = profile
         self.config = config
         self.onExit = onExit
+        self.isDemo = isDemo
         let isBoss = SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
         self.isBossStage = isBoss
 
@@ -449,18 +453,7 @@ final class SurvivalGameController: ObservableObject {
                     with: pickup.newStatusEffects
                 )
             }
-            runtime.totalExp += pickup.gainedExp
-            if pickup.gainedExp > 0 {
-                runtime.floatingTexts.append(
-                    SurvivalFloatingText(
-                        text: "+\(pickup.gainedExp)exp",
-                        x: runtime.player.x,
-                        y: runtime.player.y - SurvivalConstants.playerSize - 12,
-                        createdAt: now,
-                        color: .exp
-                    )
-                )
-            }
+            // EXP 獲得は行わない (iOS ステージモードでは経験値システム自体を非有効化)
             if !pickup.pickedItemIds.isEmpty {
                 SurvivalGameAudio.shared.playEffect(.itemPickup)
             }
@@ -535,6 +528,7 @@ final class SurvivalGameController: ObservableObject {
         runtime.enemies = updated
 
         // ドロップ処理
+        // iOS ステージモード (デモ含む) では EXP 獲得を行わないため、コイン (EXP) は生成しない。
         for enemy in defeatedEnemies {
             let drop = SurvivalItemEngine.rollDrop(
                 enemy: enemy,
@@ -543,7 +537,6 @@ final class SurvivalGameController: ObservableObject {
                 now: now
             )
             if let item = drop.item { runtime.droppedItems.append(item) }
-            if let coin = drop.coin { runtime.coins.append(coin) }
         }
     }
 
@@ -752,7 +745,8 @@ final class SurvivalGameController: ObservableObject {
     // MARK: - クリア処理 (Supabase 書込み)
 
     private func finalizeStage(cleared: Bool) {
-        guard cleared, !hintMode else { return }
+        // HINT モード / デモ (未ログイン) 中はクリア記録を Supabase に送らない。
+        guard cleared, !hintMode, !isDemo else { return }
         guard !clearReportInFlight else { return }
         clearReportInFlight = true
         let stageNumber = stage.stageNumber

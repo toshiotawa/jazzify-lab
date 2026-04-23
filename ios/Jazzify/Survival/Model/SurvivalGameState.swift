@@ -515,6 +515,8 @@ struct SurvivalStageRuntime: Sendable {
     public var elapsedSeconds: TimeInterval = 0
     public var remainingSeconds: TimeInterval = SurvivalConstants.stageTimeLimitSec
     public var enemiesDefeated: Int = 0
+    /// 互換目的で残しているが iOS ステージモードでは EXP を獲得しないため常に 0。
+    /// Web 版のサバイバルが参照するフィールドと対応している。
     public var totalExp: Int = 0
     public var phase: SurvivalStagePhase = .playing
     /// 敵スポーンアキュムレータ
