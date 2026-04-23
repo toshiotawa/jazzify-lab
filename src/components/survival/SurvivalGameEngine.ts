@@ -231,11 +231,11 @@ export const applyLevel10Bonuses = (
       }
       case 'a_atk':
         p.stats.aAtk += bonus.value;
-        messages.push(`A ATK +${bonus.value}`);
+        messages.push(`Shot ATK +${bonus.value}`);
         break;
       case 'b_atk':
         p.stats.bAtk += bonus.value;
-        messages.push(`B ATK +${bonus.value}`);
+        messages.push(`Punch ATK +${bonus.value}`);
         break;
       case 'c_atk':
         p.stats.cAtk += bonus.value;
@@ -1133,15 +1133,15 @@ type BonusDefinition = {
 
 const ALL_BONUSES: BonusDefinition[] = [
   // ステータス系
-  { type: 'a_atk', displayName: '遠距離 ATK +1', displayNameEn: 'Ranged ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', descriptionEn: 'Ranged attack power up (+10 damage)', icon: '🔫' },
-  { type: 'b_atk', displayName: '近接 ATK +1', displayNameEn: 'Melee ATK +1', description: '近接攻撃力アップ（+10ダメージ）', descriptionEn: 'Melee attack power up (+10 damage)', icon: '👊' },
-  { type: 'c_atk', displayName: '魔法 ATK +1', displayNameEn: 'Magic ATK +1', description: '魔法攻撃力アップ（+10ダメージ）', descriptionEn: 'Magic attack power up (+10 damage)', icon: '🪄' },
+  { type: 'a_atk', displayName: 'Shot ATK +1', displayNameEn: 'Shot ATK +1', description: '遠距離攻撃力アップ（+10ダメージ）', descriptionEn: 'Ranged attack power up (+10 damage)', icon: '🔫' },
+  { type: 'b_atk', displayName: 'Punch ATK +1', displayNameEn: 'Punch ATK +1', description: '近接攻撃力アップ（+10ダメージ）', descriptionEn: 'Melee attack power up (+10 damage)', icon: '👊' },
+  { type: 'c_atk', displayName: 'Magic ATK +1', displayNameEn: 'Magic ATK +1', description: '魔法攻撃力アップ（+10ダメージ）', descriptionEn: 'Magic attack power up (+10 damage)', icon: '🪄' },
   { type: 'speed', displayName: 'SPEED +1', displayNameEn: 'SPEED +1', description: '移動速度アップ', descriptionEn: 'Movement speed up', icon: '👟' },
   { type: 'reload_magic', displayName: 'RELOAD +1', displayNameEn: 'RELOAD +1', description: '魔法リロード短縮', descriptionEn: 'Magic cooldown reduction', icon: '⏱️', maxLevel: 20 },
   { type: 'max_hp', displayName: 'HP +20%', displayNameEn: 'HP +20%', description: '最大HPアップ', descriptionEn: 'Max HP up', icon: '❤️' },
   { type: 'def', displayName: 'DEF +1', displayNameEn: 'DEF +1', description: '防御力アップ', descriptionEn: 'Defense up', icon: '🛡️' },
   { type: 'time', displayName: 'TIME +1', displayNameEn: 'TIME +1', description: '効果時間+2秒', descriptionEn: 'Effect duration +2s', icon: '⏰' },
-  { type: 'a_bullet', displayName: '遠距離弾数 +2', displayNameEn: 'Bullets +2', description: '時計方向に弾を追加', descriptionEn: 'Add clockwise bullets', icon: '💫' },
+  { type: 'a_bullet', displayName: 'Shot 弾数 +2', displayNameEn: 'Shot Bullets +2', description: '時計方向に弾を追加', descriptionEn: 'Add clockwise bullets', icon: '💫' },
   { type: 'luck_pendant', displayName: '幸運のペンダント', displayNameEn: 'Lucky Pendant', description: '運+0.5%（幸運効果の発動率UP）', descriptionEn: 'Luck +0.5% (higher lucky trigger chance)', icon: '🍀', maxLevel: 40 },
   // 特殊系
   { type: 'a_penetration', displayName: '貫通', displayNameEn: 'Penetration', description: '遠距離弾が敵を貫通', descriptionEn: 'Ranged bullets pierce enemies', icon: '➡️', maxLevel: 1 },

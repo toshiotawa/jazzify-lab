@@ -3329,13 +3329,13 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               onClick={() => handleTapSkillActivation(0)}
               className="w-16 h-16 bg-blue-600/80 hover:bg-blue-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-blue-400 active:scale-95 transition-transform"
             >
-              🔫 A
+              🔫 Shot
             </button>
             <button
               onClick={() => handleTapSkillActivation(1)}
               className="w-16 h-16 bg-orange-600/80 hover:bg-orange-500 rounded-lg font-bold text-white text-xl shadow-lg border-2 border-orange-400 active:scale-95 transition-transform"
             >
-              👊 B
+              👊 Punch
             </button>
             <button
               onClick={() => handleTapSkillActivation(2)}
@@ -3347,7 +3347,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   : "bg-gray-600/50 border-gray-500 cursor-not-allowed opacity-50"
               )}
             >
-              🪄 C
+              🪄 Magic
             </button>
           </div>
         )}
@@ -3490,15 +3490,15 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   {/* ステータス */}
                   <div className="grid grid-cols-2 gap-x-4 gap-y-1 mb-2 pb-2 border-b border-gray-700">
                     <div className="flex justify-between">
-                      <span className="text-blue-400 font-sans">🔫 A ATK</span>
+                      <span className="text-blue-400 font-sans">🔫 Shot ATK</span>
                       <span className="text-white font-sans">{gameState.player.stats.aAtk}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-orange-400 font-sans">👊 B ATK</span>
+                      <span className="text-orange-400 font-sans">👊 Punch ATK</span>
                       <span className="text-white font-sans">{gameState.player.stats.bAtk}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-purple-400 font-sans">🔮 C ATK</span>
+                      <span className="text-purple-400 font-sans">🔮 Magic ATK</span>
                       <span className="text-white font-sans">{gameState.player.stats.cAtk}</span>
                     </div>
                     <div className="flex justify-between">
@@ -3522,7 +3522,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                       <span className="text-white font-sans">{gameState.player.stats.reloadMagic}</span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-blue-300 font-sans">💎 {isEnglishCopy ? 'A Bullets' : 'A弾数'}</span>
+                      <span className="text-blue-300 font-sans">💎 {isEnglishCopy ? 'Shot Bullets' : 'Shot弾数'}</span>
                       <span className="text-white font-sans">{gameState.player.stats.aBulletCount}</span>
                     </div>
                   </div>

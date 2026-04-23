@@ -625,8 +625,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </div>
             <p className="mt-2 text-xs text-gray-400 font-sans">
               {isEnglishCopy
-                ? 'Complete a chord shown in a slot (A/B/C/D) to trigger its skill. Each slot has a 10-second timer - unfinished chords reset automatically.'
-                : '画面下のスロット（A/B/C/D列）に表示されたコードの構成音をすべて弾くとスキルが発動します。各スロットには10秒のタイマーがあり、時間切れで自動リセットされます。'}
+                ? 'Complete a chord shown in a slot (Shot/Punch/Magic) to trigger its skill. Each slot has a 10-second timer - unfinished chords reset automatically.'
+                : '画面下のスロット（Shot/Punch/Magic）に表示されたコードの構成音をすべて弾くとスキルが発動します。各スロットには10秒のタイマーがあり、時間切れで自動リセットされます。'}
             </p>
           </div>
 
@@ -657,34 +657,34 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
           {/* 4スロットシステム */}
           <div className="bg-gradient-to-br from-gray-800/60 to-gray-900/60 rounded-xl p-4 border border-purple-500/30">
             <h3 className="text-base font-bold text-purple-400 mb-3 font-sans flex items-center gap-2">
-              🎵 {isEnglishCopy ? 'Slot System (A/B/C/D)' : 'スロットシステム（A/B/C/D列）'}
+              🎵 {isEnglishCopy ? 'Slot System (Shot/Punch/Magic)' : 'スロットシステム（Shot/Punch/Magic）'}
             </h3>
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs font-sans">
               <div className="bg-blue-900/30 rounded-lg p-2 border border-blue-500/20">
-                <div className="font-bold text-blue-400 mb-1">🔫 A列</div>
+                <div className="font-bold text-blue-400 mb-1">🔫 Shot</div>
                 <div className="text-gray-300">{isEnglishCopy ? 'Ranged shots' : '遠距離弾'}</div>
                 <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Clockwise bullets' : '時計方向に弾を発射'}</div>
               </div>
               <div className="bg-orange-900/30 rounded-lg p-2 border border-orange-500/20">
-                <div className="font-bold text-orange-400 mb-1">👊 B列</div>
+                <div className="font-bold text-orange-400 mb-1">👊 Punch</div>
                 <div className="text-gray-300">{isEnglishCopy ? 'Melee attack' : '近接攻撃'}</div>
                 <div className="text-gray-500 mt-1">{isEnglishCopy ? 'AoE + knockback' : '範囲攻撃＋ノックバック'}</div>
               </div>
               <div className="bg-purple-900/30 rounded-lg p-2 border border-purple-500/20">
-                <div className="font-bold text-purple-400 mb-1">🪄 C列</div>
+                <div className="font-bold text-purple-400 mb-1">🪄 Magic</div>
                 <div className="text-gray-300">{isEnglishCopy ? 'Magic (unlockable)' : '魔法（解放制）'}</div>
                 <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Random magic' : 'ランダム魔法発動'}</div>
               </div>
               <div className="bg-pink-900/30 rounded-lg p-2 border border-pink-500/20">
-                <div className="font-bold text-pink-400 mb-1">✨ D列</div>
+                <div className="font-bold text-pink-400 mb-1">✨ Magic</div>
                 <div className="text-gray-300">{isEnglishCopy ? 'Magic (unlockable)' : '魔法（解放制）'}</div>
                 <div className="text-gray-500 mt-1">{isEnglishCopy ? 'Random magic' : 'ランダム魔法発動'}</div>
               </div>
             </div>
             <p className="mt-2 text-xs text-gray-400 font-sans">
               {isEnglishCopy
-                ? 'C/D slots unlock when you acquire magic skills via level-up. Some characters convert A/B slots to magic too.'
-                : 'C/D列はレベルアップで魔法を取得すると解放されます。キャラクターによってはA/B列も魔法化されます。魔法スロットにはクールダウンがあります（基本10秒、RELOAD値で短縮）。'}
+                ? 'Magic slots unlock when you acquire magic skills via level-up. Some characters convert Shot/Punch slots to magic too.'
+                : 'Magicスロットはレベルアップで魔法を取得すると解放されます。キャラクターによってはShot/Punchスロットも魔法化されます。魔法スロットにはクールダウンがあります（基本10秒、RELOAD値で短縮）。'}
             </p>
           </div>
 
@@ -695,15 +695,15 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs font-sans">
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
-                <span className="text-blue-400 font-bold min-w-[80px]">A ATK</span>
+                <span className="text-blue-400 font-bold min-w-[80px]">Shot ATK</span>
                 <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 ranged damage' : '+1ごとに遠距離ダメージ+10'}</span>
               </div>
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
-                <span className="text-orange-400 font-bold min-w-[80px]">B ATK</span>
+                <span className="text-orange-400 font-bold min-w-[80px]">Punch ATK</span>
                 <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 melee damage' : '+1ごとに近接ダメージ+10'}</span>
               </div>
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
-                <span className="text-purple-400 font-bold min-w-[80px]">C ATK</span>
+                <span className="text-purple-400 font-bold min-w-[80px]">Magic ATK</span>
                 <span className="text-gray-300">{isEnglishCopy ? '+1 = +10 magic damage, boosts Buffer/Debuffer' : '+1ごとに魔法ダメージ+10。バフ・デバフ効果も強化'}</span>
               </div>
               <div className="flex items-start gap-2 bg-black/30 rounded-lg p-2">
@@ -774,7 +774,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <div className="flex items-center gap-1 mb-1">
                   <span>⚡</span><span className="font-bold text-yellow-400">THUNDER</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Hits ALL enemies. Damage: 30/50/70 + C ATK' : '全敵にダメージ。威力: 30/50/70＋C ATKボーナス'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Hits ALL enemies. Damage: 30/50/70 + Magic ATK' : '全敵にダメージ。威力: 30/50/70＋Magic ATKボーナス'}</div>
               </div>
               <div className="bg-cyan-900/20 rounded-lg p-2 border border-cyan-500/20">
                 <div className="flex items-center gap-1 mb-1">
@@ -786,7 +786,7 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <div className="flex items-center gap-1 mb-1">
                   <span>🔥</span><span className="font-bold text-red-400">FIRE</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Flame vortex around you. AoE: 130/160/190px. Damage: 25/40/55 + C ATK' : '周囲に炎の渦。範囲: 130/160/190px。威力: 25/40/55＋C ATK'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Flame vortex around you. AoE: 130/160/190px. Damage: 25/40/55 + Magic ATK' : '周囲に炎の渦。範囲: 130/160/190px。威力: 25/40/55＋Magic ATK'}</div>
               </div>
               <div className="bg-green-900/20 rounded-lg p-2 border border-green-500/20">
                 <div className="flex items-center gap-1 mb-1">
@@ -798,13 +798,13 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
                 <div className="flex items-center gap-1 mb-1">
                   <span>⬆️</span><span className="font-bold text-blue-400">BUFFER</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Damage multiplier: 1.4x/1.8x/2.2x + capped C ATK bonus' : '攻撃倍率: 1.4/1.8/2.2倍＋C ATK補正（上限あり）'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Damage multiplier: 1.4x/1.8x/2.2x + capped Magic ATK bonus' : '攻撃倍率: 1.4/1.8/2.2倍＋Magic ATK補正（上限あり）'}</div>
               </div>
               <div className="bg-violet-900/20 rounded-lg p-2 border border-violet-500/20">
                 <div className="flex items-center gap-1 mb-1">
                   <span>⬇️</span><span className="font-bold text-violet-400">DEBUFFER</span>
                 </div>
-                <div className="text-gray-300">{isEnglishCopy ? 'Reduce enemy DEF and boost damage. Scales with level + C ATK (capped).' : '敵DEF低下＋与ダメ増加。レベルとC ATKで強化（上限あり）。'}</div>
+                <div className="text-gray-300">{isEnglishCopy ? 'Reduce enemy DEF and boost damage. Scales with level + Magic ATK (capped).' : '敵DEF低下＋与ダメ増加。レベルとMagic ATKで強化（上限あり）。'}</div>
               </div>
               <div className="bg-amber-900/20 rounded-lg p-2 border border-amber-500/20 sm:col-span-2">
                 <div className="flex items-center gap-1 mb-1">

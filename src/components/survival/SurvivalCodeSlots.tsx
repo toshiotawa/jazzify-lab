@@ -1,6 +1,6 @@
 /**
  * サバイバルモード コードスロットUI
- * A/B/C列のコードスロットと進捗表示
+ * Shot/Punch/Magic 列のコードスロットと進捗表示
  */
 
 import React from 'react';
@@ -30,7 +30,7 @@ const SLOT_COLORS = {
     border: 'border-blue-400',
     text: 'text-blue-300',
     glow: 'shadow-blue-500/50',
-    label: '🔫 A',
+    label: '🔫 Shot',
     description: '遠距離弾',
   },
   B: {
@@ -38,7 +38,7 @@ const SLOT_COLORS = {
     border: 'border-orange-400',
     text: 'text-orange-300',
     glow: 'shadow-orange-500/50',
-    label: '👊 B',
+    label: '👊 Punch',
     description: '近接攻撃',
   },
   C: {
@@ -46,7 +46,7 @@ const SLOT_COLORS = {
     border: 'border-purple-400',
     text: 'text-purple-300',
     glow: 'shadow-purple-500/50',
-    label: '🪄 C',
+    label: '🪄 Magic',
     description: '魔法',
   },
   D: {
@@ -54,7 +54,7 @@ const SLOT_COLORS = {
     border: 'border-pink-400',
     text: 'text-pink-300',
     glow: 'shadow-pink-500/50',
-    label: '✨ D',
+    label: '✨ Magic',
     description: '魔法',
   },
 };
@@ -87,7 +87,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
   // 魔法スロット化されたA/B列、またはC/D列でクールダウン中の場合は灰色表示
   const isDisabledByCooldown =
     ((slot.type === 'C' || slot.type === 'D' || isMagicSlot) && slot.isEnabled && isMagicOnCooldown);
-  const slotLabel = isMagicSlot ? `🪄 ${slot.type}` : colors.label;
+  const slotLabel = isMagicSlot ? '🪄 Magic' : colors.label;
   
   return (
     <div className="flex flex-col items-center gap-1 flex-1 min-w-0">

@@ -289,15 +289,15 @@ const SurvivalGameOver: React.FC<SurvivalGameOverProps> = ({
               </div>
               <div className="grid grid-cols-2 gap-2 text-sm font-sans">
                 <div className="flex justify-between">
-                  <span className="text-gray-400">{isEnglishCopy ? 'Ranged ATK' : '遠距離ATK'}</span>
+                  <span className="text-gray-400">Shot ATK</span>
                   <span className="text-blue-400">{result.playerStats.aAtk}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">{isEnglishCopy ? 'Melee ATK' : '近接ATK'}</span>
+                  <span className="text-gray-400">Punch ATK</span>
                   <span className="text-orange-400">{result.playerStats.bAtk}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-400">{isEnglishCopy ? 'Magic ATK' : '魔法ATK'}</span>
+                  <span className="text-gray-400">Magic ATK</span>
                   <span className="text-purple-400">{result.playerStats.cAtk}</span>
                 </div>
                 <div className="flex justify-between">
