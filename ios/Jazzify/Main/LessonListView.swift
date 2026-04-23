@@ -135,15 +135,15 @@ struct LessonListView: View {
                 Spacer()
 
                 if let lessons = lessonsMap[course.id],
-                   let completed = progressMap[course.id] {
+                   let completed = progressMap[course.id],
+                   lessons.count > 0 {
                     let total = lessons.count
-                    let done = completed.count
-                    if total > 0 {
-                        Text("\(done)/\(total)")
-                            .font(.caption.bold())
-                            .foregroundStyle(done == total ? .green : .gray)
-                            .padding(.trailing, 4)
-                    }
+                    let done = min(completed.count, total)
+                    let percent = Int((Double(done) / Double(total) * 100).rounded())
+                    Text("\(percent)%")
+                        .font(.caption.bold())
+                        .foregroundStyle(progressColor(percent: percent))
+                        .padding(.trailing, 4)
                 }
 
                 if !appState.isPremium && course.premiumOnly == true && course.isTutorial != true {
@@ -206,6 +206,52 @@ struct LessonListView: View {
             courses = []
         }
         isLoading = false
+        await prefetchAllCourseProgress()
+    }
+
+    private func prefetchAllCourseProgress() async {
+        let userId = appState.profile?.id
+        let targetCourses = courses
+        await withTaskGroup(of: (UUID, [Lesson], Set<UUID>?).self) { group in
+            for course in targetCourses {
+                group.addTask {
+                    let lessons = (try? await SupabaseService.shared.fetchLessons(courseId: course.id)) ?? []
+                    var completed: Set<UUID>? = nil
+                    if let userId {
+                        if let progress = try? await SupabaseService.shared.fetchLessonProgress(
+                            courseId: course.id,
+                            userId: userId
+                        ) {
+                            completed = Set(progress.filter(\.completed).map(\.lessonId))
+                        }
+                    }
+                    return (course.id, lessons, completed)
+                }
+            }
+
+            for await (courseId, lessons, completed) in group {
+                let sorted = lessons.sorted { lhs, rhs in
+                    let leftBlock = lhs.blockNumber ?? 1
+                    let rightBlock = rhs.blockNumber ?? 1
+                    if leftBlock != rightBlock {
+                        return leftBlock < rightBlock
+                    }
+                    return lhs.orderIndex < rhs.orderIndex
+                }
+                lessonsMap[courseId] = sorted
+                if let completed {
+                    progressMap[courseId] = completed
+                } else if progressMap[courseId] == nil {
+                    progressMap[courseId] = []
+                }
+            }
+        }
+    }
+
+    private func progressColor(percent: Int) -> Color {
+        if percent >= 100 { return .green }
+        if percent > 0 { return .purple }
+        return .gray
     }
 
     private func reloadAllProgress() async {
