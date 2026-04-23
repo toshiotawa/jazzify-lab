@@ -254,6 +254,20 @@ final class SurvivalGameController: ObservableObject {
         let rootMidi = 36 + chord.rootPitchClass
         SurvivalGameAudio.shared.playNote(rootMidi, velocity: 100, duration: 0.45, asPiano: true)
 
+        // 完成コード名をプレイヤー頭上にフローティング表示 (Shot / Punch 発動時)
+        if slotIndex == SurvivalSlotIndex.A.rawValue || slotIndex == SurvivalSlotIndex.B.rawValue {
+            runtime.floatingTexts.append(
+                SurvivalFloatingText(
+                    text: chord.displayName,
+                    x: runtime.player.x,
+                    y: runtime.player.y - SurvivalConstants.playerSize - 12,
+                    createdAt: now,
+                    lifetime: 1.0,
+                    color: .chord
+                )
+            )
+        }
+
         // 現在コードは次コード (プリロード済) に入れ替え、新しい次コードを抽選する (WEB 版 `nextSlots` 準拠)
         let upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
         let newNextChord = SurvivalChordResolver.resolve(

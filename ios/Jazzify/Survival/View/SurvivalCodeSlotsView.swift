@@ -55,7 +55,7 @@ struct SurvivalCodeSlotsView: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     Text(style.label)
-                        .font(isWide ? .caption.bold() : .caption2.bold())
+                        .font(isWide ? .subheadline.bold() : .caption.bold())
                         .foregroundStyle(style.textColor.opacity(slot.isEnabled ? 1.0 : 0.4))
                     Spacer()
                     if slot.isEnabled {

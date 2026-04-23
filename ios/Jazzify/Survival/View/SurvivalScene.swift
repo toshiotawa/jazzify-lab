@@ -683,6 +683,7 @@ final class SurvivalScene: SKScene {
         case .heal: return .green
         case .warn: return .red
         case .exp: return UIColor(red: 0.6, green: 0.9, blue: 1, alpha: 1)
+        case .chord: return UIColor(red: 0.85, green: 0.95, blue: 1, alpha: 1)
         }
     }
 }

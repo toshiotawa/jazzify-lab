@@ -338,6 +338,8 @@ public enum SurvivalFloatingTextColor: Sendable {
     case heal
     case warn
     case exp
+    /// スロット発動時の完成コード名表示用 (プレイヤー頭上)
+    case chord
 }
 
 // MARK: - Items / Coins (WEB 版 `SurvivalTypes.ts` の DroppedItem)
