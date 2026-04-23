@@ -40,7 +40,7 @@ const PLAYER_REF_SPEED_PX_PER_S = 300;
 const BOSS_OPENING_GRACE_MS = 2000;
 
 export const BOSS_A_PARAMS = {
-  speedFactor: 0.65,
+  speedFactor: 0.52,
   chargeSpeedFactor: 2.0,
   sweep: { cdMs: 4500, windupMs: 900, activeMs: 200, recoveryMs: 300, radius: BOSS_HITBOX_RADIUS * 2.5, spreadRad: Math.PI / 2, damage: 80 },
   charge: { cdMs: 7000, windupMs: 1100, travelMs: 450, recoveryMs: 800, distance: 520, thickness: BOSS_HITBOX_RADIUS, damage: 110 },
@@ -50,21 +50,21 @@ export const BOSS_A_PARAMS = {
 } as const;
 
 export const BOSS_B_PARAMS = {
-  speedFactor: 0.55,
+  speedFactor: 0.44,
   spores: { cdMs: 6000, windupMs: 800, activeMs: 150, hatchMs: 2200, radius: 90 },
   acidShot: { cdMs: 5000, windupMs: 700, activeMs: 100, speed: 260, damage: 60, spread: 0.25, count: 3, poolMs: 2500, poolRadius: 60 },
   eggLimitPhase1: 3,
   eggLimitPhase2: 4,
   minionLimit: 8,
   minionHp: 35,
-  minionSpeedFactor: 0.8,
+  minionSpeedFactor: 0.64,
   minionFuseMs: 900,
   minionTriggerRange: 72,
   explosionDamage: 120,
 } as const;
 
 export const BOSS_C_PARAMS = {
-  speedFactor: 0.6,
+  speedFactor: 0.48,
   ring: { cdMs: 6500, windupMs: 1000, activeMs: 220, innerRadius: 140, outerRadius: 280, damage: 100 },
   cross: { cdMs: 8000, windupMs: 1200, activeMs: 250, length: 900, thickness: 46, damage: 140 },
   pull: { cdMs: 10000, windupMs: 800, activeMs: 260, range: 560, damage: 40 },
