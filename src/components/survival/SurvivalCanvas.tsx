@@ -1767,24 +1767,30 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     return vectors[direction];
   };
 
-  // 描画ループ
+  // Canvas バッファサイズ設定（viewport/dpr 変更時のみ）
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
-    
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    
-    // 高DPIディスプレイ対応
+
     const dpr = window.devicePixelRatio || 1;
     canvas.width = viewportWidth * dpr;
     canvas.height = viewportHeight * dpr;
     canvas.style.width = `${viewportWidth}px`;
     canvas.style.height = `${viewportHeight}px`;
-    ctx.scale(dpr, dpr);
-    
+  }, [viewportWidth, viewportHeight]);
+
+  // 描画ループ（draw 更新時のみ。毎フレームの canvas.width 再設定を回避）
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    const dpr = window.devicePixelRatio || 1;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw(ctx);
-  }, [draw, viewportWidth, viewportHeight]);
+  }, [draw]);
 
   return (
     <canvas

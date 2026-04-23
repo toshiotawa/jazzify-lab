@@ -944,7 +944,33 @@
 .fantasy-game-screen * {
   font-family: 'Kaisei Opti', 'Apple Color Emoji', 'Segoe UI Emoji', 'Noto Color Emoji', serif !important;
   font-weight: normal !important;
-} 
+}
 
+/*
+ * iOS WKWebView での GPU 合成負荷軽減
+ * backdrop-filter は iOS WebKit で非常に高コストなため、
+ * .ios-no-backdrop-blur 配下の子要素から blur を打ち消す。
+ */
+.ios-no-backdrop-blur,
+.ios-no-backdrop-blur * {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/*
+ * サバイバル: スキル取得通知のフェードアウト
+ * 旧実装は requestAnimationFrame 連動で毎フレーム Date.now() 基準に opacity を計算していたため、
+ * React 再レンダーのたびに再計算が走っていた。CSS アニメーション化して描画パイプライン側に委譲する。
+ * 2秒で完全に消える（SKILL_NOTIFICATION_DURATION と同期）。
+ */
+@keyframes survival-skill-notify-fade {
+  0%   { opacity: 1; }
+  75%  { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+.survival-skill-notify {
+  animation: survival-skill-notify-fade 2s linear forwards;
+}
 
 

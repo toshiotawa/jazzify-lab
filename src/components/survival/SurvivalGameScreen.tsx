@@ -3,7 +3,7 @@
  * ゲームループ、入力処理、UI統合
  */
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { cn } from '@/utils/cn';
 import {
   SurvivalGameState,
@@ -95,7 +95,7 @@ import { useAuthStore } from '@/stores/authStore';
 import { useGameStore } from '@/stores/gameStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 import { useGeoStore } from '@/stores/geoStore';
-import { isIOSWebView, sendGameCallback } from '@/utils/iosbridge';
+import { isIOSWebView, sendGameCallback, getIOSParam } from '@/utils/iosbridge';
 import {
   SURVIVAL_STICK_DEAD_ZONE_FRACTION,
   SURVIVAL_STICK_SMOOTHING_LAMBDA,
@@ -276,6 +276,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   const bossBattleRef = useRef<BossBattleState | null>(null);
   // ボス戦 UI 更新用の強制再レンダリングトリガ（HP バー等）
   const [bossUiTick, setBossUiTick] = useState(0);
+  // 毎フレーム setBossUiTick を呼ぶと React コミットが頻発するので 100ms 間引き
+  const lastBossUiFlushRef = useRef(0);
 
   // ゲーム状態
   const [gameState, setGameState] = useState<SurvivalGameState>(() => {
@@ -417,6 +419,18 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   // 衝撃波エフェクト
   const [shockwaves, setShockwaves] = useState<ShockwaveEffect[]>([]);
   const pendingShockwavesRef = useRef<ShockwaveEffect[]>([]);
+  // gameLoop 内で setShockwaves 呼び出しの要否を判定するためのカウント ref
+  const shockwavesCountRef = useRef(0);
+  useEffect(() => { shockwavesCountRef.current = shockwaves.length; }, [shockwaves]);
+
+  // B 列マルチヒットの遅延発火キュー（setTimeout 連打を避け gameLoop で集約処理）
+  const pendingMultiHitCallbacksRef = useRef<Array<{ scheduledAt: number; exec: () => void }>>([]);
+
+  // 性能計測用 HUD（iOS URL param ?perfHud=true でのみ有効）
+  const perfHudEnabled = useMemo(() => getIOSParam('perfHud') === 'true', []);
+  const perfFrameCountRef = useRef(0);
+  const perfLastSampleAtRef = useRef(0);
+  const [perfHud, setPerfHud] = useState<{ fps: number }>({ fps: 0 });
   
   // B列多段攻撃のN回目ごとの色（1回目=オレンジ, 2回目=赤, ...）
   const B_HIT_COLORS = [
@@ -433,6 +447,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
   
   // 雷エフェクト
   const [lightningEffects, setLightningEffects] = useState<LightningEffect[]>([]);
+  // gameLoop 内で setLightningEffects 呼び出しの要否を判定するためのカウント ref
+  const lightningEffectsCountRef = useRef(0);
+  useEffect(() => { lightningEffectsCountRef.current = lightningEffects.length; }, [lightningEffects]);
   const appendThunderEffectsFromDamageTexts = useCallback((damageTexts: SurvivalGameState['damageTexts']) => {
     if (damageTexts.length === 0) {
       return;
@@ -465,6 +482,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     startTime: number;
   }
   const [skillNotifications, setSkillNotifications] = useState<SkillNotification[]>([]);
+  // gameLoop 内で setSkillNotifications 呼び出しの要否を判定するためのカウント ref
+  const skillNotificationsCountRef = useRef(0);
+  useEffect(() => { skillNotificationsCountRef.current = skillNotifications.length; }, [skillNotifications]);
   
   // ステージモード: 残り30秒パワーアップ済みフラグ
   const stagePowerUpTriggeredRef = useRef(false);
@@ -1416,11 +1436,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           });
           
           // 多段攻撃処理（B列）- N回目ごとに色変化
+          // 以前は setTimeout で個別に setGameState + setShockwaves を呼んでいたため、
+          // ヒット回数だけ React コミットが増え、連打中に UI が固まる原因になっていた。
+          // ここでは遅延発火キューへ積み、gameLoop で一括処理する。
           const bMultiHitLevel = prev.player.skills.multiHitLevel;
           if (bMultiHitLevel > 0) {
             for (let hit = 1; hit <= bMultiHitLevel; hit++) {
               const hitColor = B_HIT_COLORS[Math.min(hit, B_HIT_COLORS.length - 1)];
-              setTimeout(() => {
+              pendingMultiHitCallbacksRef.current.push({ scheduledAt: Date.now() + hit * 200, exec: () => {
                 const multiShockwave: ShockwaveEffect = {
                   id: `shock_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
                   x: 0, y: 0, radius: 0, maxRadius: 0,
@@ -1428,7 +1451,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   direction: 'right' as Direction,
                   color: hitColor,
                 };
-                
+
                 setGameState(gs => {
                   if (gs.isPaused || gs.isGameOver) return gs;
                   
@@ -1538,9 +1561,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                     items: updatedItems,
                   };
                 });
-              
-                setShockwaves(sw => [...sw, multiShockwave]);
-              }, hit * 200);
+
+                // setShockwaves は gameLoop 集約経路に統一して追加の React コミットを避ける
+                pendingShockwavesRef.current.push(multiShockwave);
+              } });
             }
           }
         }
@@ -1809,7 +1833,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       if (tapBMultiHitLevel > 0) {
         for (let hit = 1; hit <= tapBMultiHitLevel; hit++) {
           const tapHitColor = B_HIT_COLORS[Math.min(hit, B_HIT_COLORS.length - 1)];
-          setTimeout(() => {
+          // setTimeout 連打 → gameLoop 側のキュー集約へ変更
+          pendingMultiHitCallbacksRef.current.push({ scheduledAt: Date.now() + hit * 200, exec: () => {
             const multiShockwave: ShockwaveEffect = {
               id: `shock_tap_multi_${Date.now()}_${hit}_${Math.random().toString(36).slice(2, 8)}`,
               x: 0, y: 0, radius: 0, maxRadius: 0,
@@ -1897,9 +1922,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 damageTexts: newDamageTexts,
               };
             });
-            
-            setShockwaves(sw => [...sw, multiShockwave]);
-          }, hit * 200);
+
+            // setShockwaves は gameLoop 集約経路に統一
+            pendingShockwavesRef.current.push(multiShockwave);
+          } });
         }
       }
       }
@@ -1976,7 +2002,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     const gameLoop = (timestamp: number) => {
       const deltaTime = Math.min((timestamp - lastUpdateRef.current) / 1000, 0.1);
       lastUpdateRef.current = timestamp;
-      
+
+      // perfHud: 1 秒ごとに fps を集計して表示する
+      if (perfHudEnabled) {
+        perfFrameCountRef.current += 1;
+        if (perfLastSampleAtRef.current === 0) perfLastSampleAtRef.current = timestamp;
+        const elapsed = timestamp - perfLastSampleAtRef.current;
+        if (elapsed >= 1000) {
+          const fps = Math.round((perfFrameCountRef.current * 1000) / elapsed);
+          perfFrameCountRef.current = 0;
+          perfLastSampleAtRef.current = timestamp;
+          setPerfHud({ fps });
+        }
+      }
+
+      // B 列マルチヒットの遅延キューを消化（setTimeout 連打の代替）
+      if (pendingMultiHitCallbacksRef.current.length > 0) {
+        const nowMs = Date.now();
+        const remaining: typeof pendingMultiHitCallbacksRef.current = [];
+        const due: typeof pendingMultiHitCallbacksRef.current = [];
+        for (const cb of pendingMultiHitCallbacksRef.current) {
+          if (cb.scheduledAt <= nowMs) due.push(cb);
+          else remaining.push(cb);
+        }
+        if (due.length > 0) {
+          pendingMultiHitCallbacksRef.current = remaining;
+          // 同一 rAF 内で連続発火 → React 18 自動バッチングで 1 コミットに集約される
+          for (const cb of due) cb.exec();
+        }
+      }
+
       virtualAnalogSmoothedRef.current = smoothAnalogToward(
         virtualAnalogSmoothedRef.current,
         virtualAnalogTargetRef.current,
@@ -2032,9 +2087,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           // プレイヤー弾の更新とボス/雑魚への当たり判定
           newState.projectiles = updateProjectiles(prev.projectiles, deltaTime);
           const remainingProjs: SurvivalProjectile[] = [];
+          const condMultBossProj = getConditionalSkillMultipliers(prev.player);
           for (const p of newState.projectiles) {
-            const condMultA = getConditionalSkillMultipliers(prev.player);
-            const effectiveDamage = Math.floor(p.damage * condMultA.atkMultiplier);
+            const effectiveDamage = Math.floor(p.damage * condMultBossProj.atkMultiplier);
             const hitBoss = applyPlayerProjectileToBoss(bossState, p.x, p.y, effectiveDamage, p.hitEnemies);
             if (hitBoss.hitBoss) {
               newState.damageTexts.push(createDamageText(
@@ -2137,8 +2192,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const bossNow = Date.now();
           newState.damageTexts = newState.damageTexts.filter(d => bossNow - d.startTime < d.duration);
 
-          // UI 側の HP バー等を再レンダリングさせるためのトリガ
-          setBossUiTick(t => (t + 1) & 0x7fffffff);
+          // UI 側の HP バー等を再レンダリングさせるためのトリガ（100ms 間引き）
+          {
+            const nowMs = Date.now();
+            if (nowMs - lastBossUiFlushRef.current >= 100) {
+              lastBossUiFlushRef.current = nowMs;
+              setBossUiTick(t => (t + 1) & 0x7fffffff);
+            }
+          }
 
           // 勝敗判定
           if (bossState.result === 'win') {
@@ -2204,44 +2265,67 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         // 弾丸と敵の当たり判定（イミュータブル）
         const hitResults: { enemyId: string; damage: number; projId: string; isLucky: boolean; knockbackX: number; knockbackY: number }[] = [];
         const hitEnemyUpdates = new Set<string>();
+        // ループ外で 1 回だけ計算（プレイヤー状態はフレーム内で不変）
+        const condMultProjLoop = getConditionalSkillMultipliers(prev.player);
+        const playerHasBufferLoop = prev.player.statusEffects.some(e => e.type === 'buffer');
+        const playerBufferLvLoop = getBufferLevel(prev.player.statusEffects);
+        // O(P*E) 全探索を避けるために簡易セル空間分割で敵をバケット化する
+        const COLLISION_CELL_SIZE = 64;
+        const COLLISION_HIT_RADIUS_SQ = 25 * 25;
+        const enemyGrid = new Map<string, typeof newState.enemies>();
+        for (const enemy of newState.enemies) {
+          const cx = Math.floor(enemy.x / COLLISION_CELL_SIZE);
+          const cy = Math.floor(enemy.y / COLLISION_CELL_SIZE);
+          const key = `${cx}|${cy}`;
+          const bucket = enemyGrid.get(key);
+          if (bucket) bucket.push(enemy);
+          else enemyGrid.set(key, [enemy]);
+        }
         newState.projectiles.forEach(proj => {
-          newState.enemies.forEach(enemy => {
-            if (proj.hitEnemies.has(enemy.id)) return;
-            
-            const dx = enemy.x - proj.x;
-            const dy = enemy.y - proj.y;
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            
-            if (dist < 25) {
-              const condMultA = getConditionalSkillMultipliers(prev.player);
-              const effectiveADamage = Math.floor(proj.damage * condMultA.atkMultiplier);
-              const luckResultHit = checkLuck(prev.player.stats.luck);
-              
-              const damage = calculateDamage(
-                effectiveADamage,
-                0,
-                enemy.stats.def,
-                prev.player.statusEffects.some(e => e.type === 'buffer'),
-                enemy.statusEffects.some(e => e.type === 'debuffer'),
-                getBufferLevel(prev.player.statusEffects),
-                getDebufferLevel(enemy.statusEffects),
-                prev.player.stats.cAtk,
-                luckResultHit.doubleDamage
-              );
-              const dirVec = getDirectionVector(proj.direction);
-              const knockbackForce = 80;
-              hitResults.push({
-                enemyId: enemy.id,
-                damage,
-                projId: proj.id,
-                isLucky: luckResultHit.doubleDamage,
-                knockbackX: dirVec.x * knockbackForce,
-                knockbackY: dirVec.y * knockbackForce,
-              });
-              hitEnemyUpdates.add(enemy.id);
-              proj.hitEnemies.add(enemy.id);
+          const pcx = Math.floor(proj.x / COLLISION_CELL_SIZE);
+          const pcy = Math.floor(proj.y / COLLISION_CELL_SIZE);
+          for (let ox = -1; ox <= 1; ox++) {
+            for (let oy = -1; oy <= 1; oy++) {
+              const bucket = enemyGrid.get(`${pcx + ox}|${pcy + oy}`);
+              if (!bucket) continue;
+              for (const enemy of bucket) {
+                if (proj.hitEnemies.has(enemy.id)) continue;
+
+                const dx = enemy.x - proj.x;
+                const dy = enemy.y - proj.y;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq < COLLISION_HIT_RADIUS_SQ) {
+                  const effectiveADamage = Math.floor(proj.damage * condMultProjLoop.atkMultiplier);
+                  const luckResultHit = checkLuck(prev.player.stats.luck);
+
+                  const damage = calculateDamage(
+                    effectiveADamage,
+                    0,
+                    enemy.stats.def,
+                    playerHasBufferLoop,
+                    enemy.statusEffects.some(e => e.type === 'debuffer'),
+                    playerBufferLvLoop,
+                    getDebufferLevel(enemy.statusEffects),
+                    prev.player.stats.cAtk,
+                    luckResultHit.doubleDamage
+                  );
+                  const dirVec = getDirectionVector(proj.direction);
+                  const knockbackForce = 80;
+                  hitResults.push({
+                    enemyId: enemy.id,
+                    damage,
+                    projId: proj.id,
+                    isLucky: luckResultHit.doubleDamage,
+                    knockbackX: dirVec.x * knockbackForce,
+                    knockbackY: dirVec.y * knockbackForce,
+                  });
+                  hitEnemyUpdates.add(enemy.id);
+                  proj.hitEnemies.add(enemy.id);
+                }
+              }
             }
-          });
+          }
         });
         
         // ダメージ適用（イミュータブルに新しいオブジェクトを生成）
@@ -2312,18 +2396,20 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 敵の攻撃（体当たり）- イミュータブルに蓄積
         let contactDamageTotal = 0;
+        // ループ外で 1 回だけ計算（プレイヤー防御計算はフレーム内で不変）
+        const contactCondMult = getConditionalSkillMultipliers(newState.player);
+        const contactDefMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
+        const contactEffectiveDef = contactCondMult.defOverride !== null ? contactCondMult.defOverride : newState.player.stats.def;
+        const contactLuckBase = newState.player.stats.luck;
         newState.enemies.forEach(enemy => {
           const dx = enemy.x - newState.player.x;
           const dy = enemy.y - newState.player.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          if (dist < 30) {
-            const luckResultContact = checkLuck(newState.player.stats.luck);
+          const distSq = dx * dx + dy * dy;
+
+          if (distSq < 900) { // 30^2
+            const luckResultContact = checkLuck(contactLuckBase);
             if (!luckResultContact.noDamageTaken) {
-              const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-              const condMult = getConditionalSkillMultipliers(newState.player);
-              const effectiveDef = condMult.defOverride !== null ? condMult.defOverride : newState.player.stats.def;
-              const damage = Math.max(1, Math.floor(enemy.stats.atk - effectiveDef * defMultiplier * 0.5));
+              const damage = Math.max(1, Math.floor(enemy.stats.atk - contactEffectiveDef * contactDefMultiplier * 0.5));
               contactDamageTotal += damage * deltaTime * 2;
             }
           }
@@ -2366,23 +2452,26 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         
         // 敵の弾丸とプレイヤーの当たり判定（小さめ）- イミュータブル
         const ENEMY_PROJECTILE_HIT_RADIUS = 15;
+        const ENEMY_PROJECTILE_HIT_RADIUS_SQ = ENEMY_PROJECTILE_HIT_RADIUS * ENEMY_PROJECTILE_HIT_RADIUS;
         let projDamageTotal = 0;
+        // ループ外で 1 回だけ計算（プレイヤー防御計算はフレーム内で不変）
+        const projCondMult = getConditionalSkillMultipliers(newState.player);
+        const projDefMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
+        const projEffectiveDef = projCondMult.defOverride !== null ? projCondMult.defOverride : newState.player.stats.def;
+        const projLuckBase = newState.player.stats.luck;
         newState.enemyProjectiles = newState.enemyProjectiles.filter(proj => {
           const dx = proj.x - newState.player.x;
           const dy = proj.y - newState.player.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          
-          if (dist < ENEMY_PROJECTILE_HIT_RADIUS) {
-            const luckResultProj = checkLuck(newState.player.stats.luck);
+          const distSq = dx * dx + dy * dy;
+
+          if (distSq < ENEMY_PROJECTILE_HIT_RADIUS_SQ) {
+            const luckResultProj = checkLuck(projLuckBase);
             if (luckResultProj.noDamageTaken) {
               newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, 0, false, '#ffd700'));
               return false;
             }
-            
-            const defMultiplier = newState.player.statusEffects.some(e => e.type === 'def_up') ? 2 : 1;
-            const condMultProj = getConditionalSkillMultipliers(newState.player);
-            const effectiveDefProj = condMultProj.defOverride !== null ? condMultProj.defOverride : newState.player.stats.def;
-            const damage = Math.max(1, Math.floor(proj.damage - effectiveDefProj * defMultiplier * 0.3));
+
+            const damage = Math.max(1, Math.floor(proj.damage - projEffectiveDef * projDefMultiplier * 0.3));
             projDamageTotal += damage;
             newState.damageTexts.push(createDamageText(newState.player.x, newState.player.y, damage));
             return false;
@@ -2915,21 +3004,36 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         return newState;
       });
       
-      // 衝撃波エフェクトの更新
+      // 衝撃波エフェクトの更新（対象がある場合のみ setState）
       const newShockwaves = pendingShockwavesRef.current;
-      pendingShockwavesRef.current = [];
-      setShockwaves(sw => {
-        const now = Date.now();
-        const active = sw.filter(s => now - s.startTime < s.duration);
-        return newShockwaves.length > 0 ? [...active, ...newShockwaves] : active;
-      });
-      
-      // 雷エフェクトの更新
-      setLightningEffects(le => le.filter(l => Date.now() - l.startTime < l.duration));
-      
-      // スキル通知の更新（2秒後に消える）
+      if (newShockwaves.length > 0) pendingShockwavesRef.current = [];
+      if (newShockwaves.length > 0 || shockwavesCountRef.current > 0) {
+        setShockwaves(sw => {
+          const now = Date.now();
+          const active = sw.filter(s => now - s.startTime < s.duration);
+          if (newShockwaves.length === 0 && active.length === sw.length) return sw;
+          return newShockwaves.length > 0 ? [...active, ...newShockwaves] : active;
+        });
+      }
+
+      // 雷エフェクトの更新（対象がある場合のみ setState）
+      if (lightningEffectsCountRef.current > 0) {
+        setLightningEffects(le => {
+          const now = Date.now();
+          const active = le.filter(l => now - l.startTime < l.duration);
+          return active.length === le.length ? le : active;
+        });
+      }
+
+      // スキル通知の更新（2秒後に消える。対象がある場合のみ setState）
       const SKILL_NOTIFICATION_DURATION = 2000;
-      setSkillNotifications(sn => sn.filter(n => Date.now() - n.startTime < SKILL_NOTIFICATION_DURATION));
+      if (skillNotificationsCountRef.current > 0) {
+        setSkillNotifications(sn => {
+          const now = Date.now();
+          const active = sn.filter(n => now - n.startTime < SKILL_NOTIFICATION_DURATION);
+          return active.length === sn.length ? sn : active;
+        });
+      }
       
       animationFrameRef.current = requestAnimationFrame(gameLoop);
     };
@@ -2939,13 +3043,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
     return () => {
       cancelAnimationFrame(animationFrameRef.current);
     };
-  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, hintMode, onLessonStageClear, onMissionStageClear]);
+  }, [gameState.isPlaying, gameState.isPaused, gameState.isGameOver, config, isBossStage, hintMode, onLessonStageClear, onMissionStageClear, perfHudEnabled]);
   
   // リトライ
   const handleRetry = useCallback(() => {
     setResult(null);
     setShockwaves([]);
     pendingShockwavesRef.current = [];
+    pendingMultiHitCallbacksRef.current = [];
     setLightningEffects([]);
     setSkillNotifications([]);
     setLevelUpCorrectNotes(emptyCorrectNotes());
@@ -3229,9 +3334,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       className={cn(
         'bg-gradient-to-b from-gray-900 via-purple-900 to-black flex flex-col fantasy-game-screen',
         embeddedFullHeight ? 'flex-1 min-h-0 overflow-hidden' : 'min-h-[var(--dvh,100dvh)]',
-        isIOSWebView() && 'overflow-x-hidden max-w-full'
+        isIOSWebView() && 'overflow-x-hidden max-w-full ios-no-backdrop-blur'
       )}
     >
+      {/* 性能計測 HUD（iOS URL param ?perfHud=true でのみ表示） */}
+      {perfHudEnabled && (
+        <div className="fixed top-2 right-2 z-[60] px-2 py-1 rounded bg-black/60 text-green-300 font-mono text-[10px] pointer-events-none tabular-nums">
+          {perfHud.fps} fps
+        </div>
+      )}
+
       {/* 初期化エラー表示（閉じられるトースト） */}
       {initError && (
         <div className="fixed top-20 left-1/2 -translate-x-1/2 z-50 max-w-md">
@@ -3251,25 +3363,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       {skillNotifications.length > 0 && (
         <div className="fixed top-24 left-1/2 -translate-x-1/2 z-40 flex flex-col items-center gap-2">
           {skillNotifications.map((notification, index) => {
-            const now = Date.now();
-            const elapsed = now - notification.startTime;
-            // 表示開始前は非表示
-            if (elapsed < 0) return null;
-            // フェードアウト計算（1.5秒後からフェード開始）
-            const fadeStart = 1500;
-            const fadeDuration = 500;
-            const opacity = elapsed < fadeStart ? 1 : Math.max(0, 1 - (elapsed - fadeStart) / fadeDuration);
-            // Y方向のオフセット（重ならないように）
+            // opacity フェードは CSS アニメーション（survival-skill-notify-fade）に委譲し、
+            // gameLoop 由来の再レンダーで毎回 Date.now() が再計算されるのを避ける。
             const yOffset = index * 50;
-            
+
             return (
               <div
                 key={notification.id}
-                className="bg-gradient-to-r from-yellow-600/90 to-amber-600/90 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-400/50 shadow-lg animate-bounce"
+                className="survival-skill-notify bg-gradient-to-r from-yellow-600/90 to-amber-600/90 backdrop-blur-sm rounded-lg px-4 py-2 border border-yellow-400/50 shadow-lg animate-bounce"
                 style={{
-                  opacity,
                   transform: `translateY(${yOffset}px)`,
-                  transition: 'opacity 0.3s ease-out',
                 }}
               >
                 <div className="flex items-center gap-2">
@@ -3369,7 +3472,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 </div>
                 <div className="w-full h-2 md:h-2.5 bg-gray-800/80 rounded-full overflow-hidden border border-red-900/70">
                   <div
-                    className="h-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400 transition-[width] duration-150"
+                    className="h-full bg-gradient-to-r from-red-700 via-red-500 to-orange-400"
                     style={{ width: `${Math.max(0, (bossBattleRef.current.boss.hp / bossBattleRef.current.boss.maxHp) * 100)}%` }}
                   />
                 </div>
@@ -3379,7 +3482,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               {!isStageMode && (
                 <div className="w-full h-1 md:h-1.5 bg-gray-700/60 rounded-full overflow-hidden">
                   <div
-                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500 transition-all duration-200"
+                    className="h-full bg-gradient-to-r from-purple-500 to-pink-500"
                     style={{ width: `${(gameState.player.exp / gameState.player.expToNextLevel) * 100}%` }}
                   />
                 </div>
@@ -3425,7 +3528,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                   <div className="w-10 md:w-16 h-1.5 md:h-2 bg-gray-700 rounded-full overflow-hidden">
                     <div
                       className={cn(
-                        'h-full transition-all duration-200',
+                        'h-full',
                         gameState.player.stats.hp / gameState.player.stats.maxHp > 0.5 ? 'bg-green-500' :
                         gameState.player.stats.hp / gameState.player.stats.maxHp > 0.25 ? 'bg-yellow-500' : 'bg-red-500'
                       )}

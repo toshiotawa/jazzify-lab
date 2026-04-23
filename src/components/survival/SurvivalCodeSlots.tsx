@@ -69,7 +69,7 @@ interface SlotDisplayProps {
   isWide?: boolean;             // ボス戦中は A/B のみで幅を太く
 }
 
-const SlotDisplay: React.FC<SlotDisplayProps> = ({
+const SlotDisplayComponent: React.FC<SlotDisplayProps> = ({
   slot,
   nextSlot,
   isHinted,
@@ -144,7 +144,7 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
         {slot.isEnabled && !slot.isCompleted && !isDisabledByCooldown && (
           <div className="absolute bottom-0 left-0 right-0 h-1.5 bg-black/40">
             <div
-              className="h-full bg-green-400 transition-all duration-100"
+              className="h-full bg-green-400"
               style={{ width: `${progressPercent}%` }}
             />
           </div>
@@ -196,8 +196,28 @@ const SlotDisplay: React.FC<SlotDisplayProps> = ({
   );
 };
 
+// SlotDisplay の表示は slot の「型・コード・正解数・完了・有効」のみに依存する。
+// gameLoop で毎フレーム変化する `timer` / `completedTime` は表示に使っていないので比較から除外する。
+const isSlotVisualEqual = (a: CodeSlot, b: CodeSlot): boolean =>
+  a === b || (
+    a.type === b.type &&
+    a.chord === b.chord &&
+    a.correctNotes.length === b.correctNotes.length &&
+    a.isCompleted === b.isCompleted &&
+    a.isEnabled === b.isEnabled
+  );
+
+const SlotDisplay = React.memo(SlotDisplayComponent, (prev, next) =>
+  prev.isHinted === next.isHinted &&
+  prev.isMagicOnCooldown === next.isMagicOnCooldown &&
+  prev.isMagicSlot === next.isMagicSlot &&
+  prev.isWide === next.isWide &&
+  isSlotVisualEqual(prev.slot, next.slot) &&
+  isSlotVisualEqual(prev.nextSlot, next.nextSlot)
+);
+
 // ===== メインコンポーネント =====
-const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
+const SurvivalCodeSlotsComponent: React.FC<SurvivalCodeSlotsProps> = ({
   currentSlots,
   nextSlots,
   hintSlotIndex,
@@ -252,5 +272,27 @@ const SurvivalCodeSlots: React.FC<SurvivalCodeSlotsProps> = ({
     </div>
   );
 };
+
+// 外側コンポーネントも同様に「表示に影響する差分」だけを比較し、毎フレームの timer 更新での再レンダーを回避する。
+const areSlotsVisualEqual = (
+  a: readonly [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
+  b: readonly [CodeSlot, CodeSlot, CodeSlot, CodeSlot]
+): boolean => a === b || a.every((slot, i) => isSlotVisualEqual(slot, b[i]));
+
+const SurvivalCodeSlots = React.memo(SurvivalCodeSlotsComponent, (prev, next) =>
+  prev.hintSlotIndex === next.hintSlotIndex &&
+  prev.hasMagic === next.hasMagic &&
+  prev.isAMagicSlot === next.isAMagicSlot &&
+  prev.isBMagicSlot === next.isBMagicSlot &&
+  prev.isStageMode === next.isStageMode &&
+  prev.isBossStage === next.isBossStage &&
+  // クールダウンは「> 0 か否か」だけが表示に影響するため真偽値で比較する
+  (prev.aSlotCooldown > 0) === (next.aSlotCooldown > 0) &&
+  (prev.bSlotCooldown > 0) === (next.bSlotCooldown > 0) &&
+  (prev.cSlotCooldown > 0) === (next.cSlotCooldown > 0) &&
+  (prev.dSlotCooldown > 0) === (next.dSlotCooldown > 0) &&
+  areSlotsVisualEqual(prev.currentSlots, next.currentSlots) &&
+  areSlotsVisualEqual(prev.nextSlots, next.nextSlots)
+);
 
 export default SurvivalCodeSlots;
