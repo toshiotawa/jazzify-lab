@@ -23,10 +23,11 @@ struct SurvivalView: View {
     @State private var isLoading: Bool = true
     @State private var selectedStageNumber: Int?
     @State private var hintMode: Bool = false
-    @State private var launchStage: SurvivalStageDefinition?
-    @State private var launchHintMode: Bool = false
-    /// リトライ / 次ステージ遷移のために `launchStage` を一時的に nil にしている最中かどうか。
-    /// 真の間は `onChange(of: launchStage == nil)` の進捗リロード処理をスキップする。
+    /// `fullScreenCover(item:)` は `SurvivalStageDefinition.id == stageNumber` のため同一ステージ再開時に
+    /// 子ビューが再利用され、`SurvivalGameController` がリセットされない。セッションごとに一意の UUID で包む。
+    @State private var stageLaunchSession: StageLaunchSession?
+    /// リトライ / 次ステージ遷移のためにセッションを一時的に nil にしている最中かどうか。
+    /// 真の間は `onChange(of: stageLaunchSession == nil)` の進捗リロード処理をスキップする。
     @State private var isTransitioningStage: Bool = false
     @State private var showSubscription: Bool = false
     @State private var showMobileDetail: Bool = false
@@ -171,22 +172,19 @@ struct SurvivalView: View {
                 .presentationDetents([.medium])
                 .presentationDragIndicator(.visible)
             }
-            .fullScreenCover(item: $launchStage) { stage in
+            .fullScreenCover(item: $stageLaunchSession) { session in
                 SurvivalGameView(
-                    stage: stage,
-                    hintMode: launchHintMode,
+                    stage: session.stage,
+                    hintMode: session.hintMode,
                     characterId: "fai",
                     locale: locale,
-                    onClose: { launchStage = nil },
-                    onRequestReplay: { newHintMode in
-                        replayCurrentStage(stage: stage, hintMode: newHintMode)
-                    },
-                    onRequestNextStage: SurvivalStageCatalog.stage(byNumber: stage.stageNumber + 1) != nil
-                        ? { advanceToNextStage(from: stage) }
-                        : nil
+                    onClose: { stageLaunchSession = nil },
+                    onRequestReplay: {
+                        replayCurrentStage(stage: session.stage, hintMode: session.hintMode)
+                    }
                 )
             }
-            .onChange(of: launchStage == nil) { isNil in
+            .onChange(of: stageLaunchSession == nil) { isNil in
                 if isNil {
                     // リトライ / 次ステージ遷移中は一時的に nil にしてから再提示するため、
                     // その中継では進捗再読込と BGM 再生を行わない。
@@ -326,41 +324,21 @@ struct SurvivalView: View {
             return
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
-        launchHintMode = hintMode
         showMobileDetail = false
         SurvivalMapAudio.shared.stop()
-        launchStage = stage
+        stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }
 
-    /// リザルトの「リトライ」「ヒントあり/なしで再挑戦」から呼ばれる。
-    /// 同一 `launchStage` のまま `hintMode` のみを差し替えても SwiftUI の `fullScreenCover(item:)`
-    /// は再提示しないため、一旦 nil にして dismiss させた後に再設定する。
-    private func replayCurrentStage(stage: SurvivalStageDefinition, hintMode newHintMode: Bool) {
+    /// リザルトの「リトライ」から呼ばれる。
+    /// 同一ステージでも `StageLaunchSession` を新規 UUID で差し替え、`SurvivalGameView` を必ず再生成する。
+    /// HINT モードは開始時と同じ値を維持する (ヒント切り替えはマップ画面側で行う想定)。
+    private func replayCurrentStage(stage: SurvivalStageDefinition, hintMode currentHintMode: Bool) {
         isTransitioningStage = true
-        launchStage = nil
+        stageLaunchSession = nil
         // fullScreenCover の dismiss アニメーション完了を待ってから再提示する
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
             SurvivalMapAudio.shared.stop()
-            launchHintMode = newHintMode
-            launchStage = stage
-            isTransitioningStage = false
-        }
-    }
-
-    /// リザルトの「次のステージに進む」から呼ばれる。HINT なしクリア時のみ利用される。
-    /// 次ステージが存在しない (最終ステージ) 場合はマップへ戻す。
-    private func advanceToNextStage(from stage: SurvivalStageDefinition) {
-        let nextNumber = stage.stageNumber + 1
-        guard let next = SurvivalStageCatalog.stage(byNumber: nextNumber) else {
-            launchStage = nil
-            return
-        }
-        isTransitioningStage = true
-        launchStage = nil
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-            SurvivalMapAudio.shared.stop()
-            launchHintMode = false
-            launchStage = next
+            stageLaunchSession = StageLaunchSession(stage: stage, hintMode: currentHintMode)
             isTransitioningStage = false
         }
     }
@@ -397,8 +375,10 @@ struct SurvivalView: View {
     }
 }
 
-// MARK: - Identifiable helper for fullScreenCover
+// MARK: - fullScreenCover セッション（ステージ ID だけでは再マウントされない問題の回避）
 
-extension SurvivalStageDefinition {
-    // `Identifiable` は既に `id: Int` を持つため `fullScreenCover(item:)` で直接利用できる
+private struct StageLaunchSession: Identifiable {
+    let id = UUID()
+    let stage: SurvivalStageDefinition
+    let hintMode: Bool
 }

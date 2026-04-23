@@ -624,14 +624,15 @@ enum SurvivalGameEngine {
     }
 
     /// プレイヤー ↔ 敵接触ダメージ (WEB 版準拠: 無敵時間 / ノックバック無し、deltaTime 乗算の DOT 型)
-    /// WEB: `damage = max(1, enemy.atk - def * 0.5) * deltaTime * 2` を全ての接触敵について加算
+    /// WEB: `damage = max(1, floor(atk - def * 0.5)) * deltaTime * 2` を全ての接触敵について加算し HP を小数で減算。
+    /// iOS は HP が整数のため呼び出し側で小数を累積してから整数ダメージに変換する。
     /// 接触範囲は WEB 版と同じ `distSq < 900 (= 30^2)` 相当。
     static func enemyContactDamageDOT(
-        player: SurvivalPlayerState,
+        _ player: SurvivalPlayerState,
         enemies: [SurvivalEnemy],
         defenderDef: Int,
         deltaTime: TimeInterval
-    ) -> Int {
+    ) -> Double {
         let contactRadius: CGFloat = 30
         let sq = contactRadius * contactRadius
         var totalDamage: Double = 0
@@ -639,11 +640,12 @@ enum SurvivalGameEngine {
             let dx = enemy.x - player.x
             let dy = enemy.y - player.y
             if dx * dx + dy * dy < sq {
-                let per = max(1.0, Double(enemy.stats.atk) - Double(defenderDef) * 0.5)
+                let raw = Double(enemy.stats.atk) - Double(defenderDef) * 0.5
+                let per = max(1.0, floor(raw))
                 totalDamage += per * deltaTime * 2
             }
         }
-        return Int(totalDamage)
+        return totalDamage
     }
 
     // MARK: - haisuiNoJin / zekkouchou ダメージ倍率

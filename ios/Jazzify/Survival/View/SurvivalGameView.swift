@@ -19,13 +19,9 @@ struct SurvivalGameView: View {
     /// Supabase から取得する代わりに使用する `SurvivalStageConfig` (デモや固定難易度用)。
     /// `nil` の場合は従来通り `SupabaseService.fetchSurvivalStageConfig` を呼び出す。
     var configOverride: SurvivalStageConfig? = nil
-    /// リトライ / HINT 切替リプレイ要求。引数は新しい `hintMode`。
-    /// 呼び出し側 (例: `SurvivalView`) で `launchStage` を一度閉じて再提示することで再起動する。
-    /// `nil` の場合はリトライ系のボタンを結果モーダルに出さない (マップに戻るのみ)。
-    var onRequestReplay: ((Bool) -> Void)? = nil
-    /// 次ステージへ進む要求。HINT なしクリアかつ次ステージがある場合に `SurvivalGameResultView` から呼ばれる。
-    /// `nil` の場合は「次のステージに進む」ボタンを非表示にする。
-    var onRequestNextStage: (() -> Void)? = nil
+    /// リトライ要求。呼び出し側 (例: `SurvivalView`) で `launchStage` を一度閉じて再提示することで再起動する。
+    /// `nil` の場合はリトライボタンの代わりにマップに戻る挙動にフォールバックする。
+    var onRequestReplay: (() -> Void)? = nil
 
     /// `@State` は値の差し替えしか観測できず、`SurvivalGameController` 内部の
     /// `@Published` プロパティ (`runtime.phase` 等) の変化を SwiftUI が再描画しない。
@@ -45,8 +41,7 @@ struct SurvivalGameView: View {
                     hintMode: hintMode,
                     locale: locale,
                     onClose: onClose,
-                    onRequestReplay: onRequestReplay,
-                    onRequestNextStage: onRequestNextStage
+                    onRequestReplay: onRequestReplay
                 )
             } else if isLoading {
                 loadingView
@@ -169,8 +164,7 @@ private struct SurvivalGameContent: View {
     let hintMode: Bool
     let locale: AppLocale
     let onClose: () -> Void
-    let onRequestReplay: ((Bool) -> Void)?
-    let onRequestNextStage: (() -> Void)?
+    let onRequestReplay: (() -> Void)?
 
     var body: some View {
         ZStack(alignment: .top) {
@@ -232,21 +226,14 @@ private struct SurvivalGameContent: View {
 
     private var resultOverlay: some View {
         let isCleared = controller.runtime.phase == .cleared
-        // 失敗時のリトライ (同 hintMode) は `onRequestReplay` が提供されている場合のみ有効。
+        // リトライ (同 hintMode) は `onRequestReplay` が提供されている場合のみ有効。
+        // 渡されていない場合はマップに戻す挙動にフォールバックする。
         let retry: () -> Void = {
             if let onRequestReplay {
-                onRequestReplay(hintMode)
+                onRequestReplay()
             } else {
-                // フォールバック: リトライが実装されていなければマップへ戻す
                 controller.requestExit()
             }
-        }
-        // HINT 切替リトライは `onRequestReplay` があれば有効。
-        let retryWithHint: (() -> Void)? = onRequestReplay.map { replay in
-            { replay(true) }
-        }
-        let retryWithoutHint: (() -> Void)? = onRequestReplay.map { replay in
-            { replay(false) }
         }
         return ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
@@ -263,10 +250,7 @@ private struct SurvivalGameContent: View {
                 clearReportInFlight: controller.clearReportInFlight,
                 clearReportError: controller.clearReportError,
                 onRetry: retry,
-                onExit: { controller.requestExit() },
-                onRetryWithHint: retryWithHint,
-                onRetryWithoutHint: retryWithoutHint,
-                onNextStage: onRequestNextStage
+                onExit: { controller.requestExit() }
             )
         }
     }

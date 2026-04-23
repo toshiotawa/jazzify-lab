@@ -83,16 +83,14 @@ struct LoginView: View {
                     onClose: { showDemoLP = false },
                     isDemo: true,
                     configOverride: SurvivalDemoStage.config,
-                    // デモもログイン後と同じくリザルトからのリトライ / ヒント切替に対応する。
-                    // `showDemoLP` を一旦 false にして dismiss を待ち、新しい hintMode で再提示する。
-                    onRequestReplay: { newHintMode in
+                    // デモもログイン後と同じくリザルトからのリトライに対応する。
+                    // `showDemoLP` を一旦 false にして dismiss を待ち、同じ hintMode で再提示する。
+                    onRequestReplay: {
                         showDemoLP = false
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
-                            demoSurvivalHintMode = newHintMode
                             showDemoLP = true
                         }
                     }
-                    // デモには「次のステージ」は存在しないため onRequestNextStage は渡さない
                 )
             }
             .fullScreenCover(isPresented: $showDemoFantasy) {

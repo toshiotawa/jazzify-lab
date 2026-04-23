@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// クリア / ゲームオーバー モーダル。WEB 版 `SurvivalGameOver.tsx` 準拠。
+/// クリア / ゲームオーバー モーダル。
 ///
 /// 表示項目:
 /// - ステージ名 (日本語/英語)
@@ -8,14 +8,9 @@ import SwiftUI
 /// - 撃破数 (通常ステージのみ) / 生存時間 / HP
 /// - HINT モード時は「クリア記録に反映されない」旨の注記
 ///
-/// アクションボタンは状況別に切り替わる (Web 版 `SurvivalGameOver.tsx` の分岐に揃える):
-/// - HINT なしクリア:  [次のステージに進む?] + [マップに戻る]
-/// - HINT ありクリア:  [ヒントなしで挑戦?] + [マップに戻る]
-/// - HINT なし失敗:    [リトライ] + [ヒントありで再挑戦?] + [マップに戻る]
-/// - HINT あり失敗:    [リトライ] + [マップに戻る]
-///
-/// `?` 付きの項目は対応するクロージャが渡されている場合のみ表示。
-/// (例: 最終ステージなら `onNextStage = nil` で「次のステージ」ボタンを出さない)
+/// アクションボタンはクリア / ゲームオーバーのいずれでも共通で
+/// [リトライ] + [マップに戻る] の 2 つのみを表示する。
+/// (ヒント切り替えや次ステージ遷移はマップ画面側で行う想定)
 struct SurvivalGameResultView: View {
     let isCleared: Bool
     let stage: SurvivalStageDefinition
@@ -32,12 +27,6 @@ struct SurvivalGameResultView: View {
     let onRetry: () -> Void
     /// 「マップに戻る」: ゲーム画面を閉じる。
     let onExit: () -> Void
-    /// 「ヒントありで再挑戦」: HINT なしで失敗したときに表示する。
-    var onRetryWithHint: (() -> Void)? = nil
-    /// 「ヒントなしで挑戦」: HINT ありでクリアしたときに表示する。
-    var onRetryWithoutHint: (() -> Void)? = nil
-    /// 「次のステージに進む」: HINT なしクリア かつ 次ステージが存在する場合に表示する。
-    var onNextStage: (() -> Void)? = nil
 
     var body: some View {
         VStack(spacing: 20) {
@@ -93,7 +82,7 @@ struct SurvivalGameResultView: View {
 
     private var headerIconColor: Color {
         if isCleared {
-            // HINT クリアは Web 版に合わせ黄色系で警告ニュアンスを残す
+            // HINT クリアは黄色系で警告ニュアンスを残す
             return hintMode ? Color.yellow : Color.green
         }
         return Color.red
@@ -134,40 +123,11 @@ struct SurvivalGameResultView: View {
     @ViewBuilder
     private var actionButtons: some View {
         VStack(spacing: 10) {
-            if isCleared && !hintMode {
-                // HINT なしクリア: 次のステージへ進めるなら誘導 / それ以外はマップに戻るのみ
-                if let onNextStage {
-                    primaryButton(
-                        label: locale == .ja ? "次のステージに進む" : "Next Stage",
-                        background: Color.green,
-                        action: onNextStage
-                    )
-                }
-            } else if isCleared && hintMode {
-                // HINT ありクリア: ヒントなしで本クリアを促す
-                if let onRetryWithoutHint {
-                    primaryButton(
-                        label: locale == .ja ? "ヒントなしで挑戦" : "Try Without Hints",
-                        background: Color.blue,
-                        action: onRetryWithoutHint
-                    )
-                }
-            } else {
-                // 失敗: リトライ + (HINT なし時のみ) ヒントありで再挑戦
-                primaryButton(
-                    label: locale == .ja ? "リトライ" : "Retry",
-                    background: Color.red,
-                    action: onRetry
-                )
-                if !hintMode, let onRetryWithHint {
-                    primaryButton(
-                        label: locale == .ja ? "ヒントありで再挑戦" : "Retry With Hints",
-                        background: Color.yellow,
-                        textColor: Color.black,
-                        action: onRetryWithHint
-                    )
-                }
-            }
+            primaryButton(
+                label: locale == .ja ? "リトライ" : "Retry",
+                background: isCleared ? Color.green : Color.red,
+                action: onRetry
+            )
 
             secondaryButton(
                 label: locale == .ja ? "マップに戻る" : "Back to Map",

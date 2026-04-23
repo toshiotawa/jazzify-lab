@@ -42,11 +42,6 @@ struct SurvivalHUDView: View {
 
     private var topRow: some View {
         HStack(spacing: 12) {
-            Button(action: { controller.requestExit() }) {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.system(size: 28))
-                    .foregroundStyle(.white.opacity(0.9))
-            }
             VStack(alignment: .leading, spacing: 2) {
                 Text(stage.localizedName(locale))
                     .font(.caption.bold())

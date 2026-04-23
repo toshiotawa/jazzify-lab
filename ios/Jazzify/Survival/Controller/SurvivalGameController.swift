@@ -43,6 +43,8 @@ final class SurvivalGameController: ObservableObject {
     private var bgmPhaseEven: Bool = false
     private var hpRegenAccumulator: Double = 0
     private var fireDotAccumulator: Double = 0
+    /// WEB 版は接触 DOT を小数 HP として減算。整数 HP との整合のため端数を蓄積する。
+    private var contactDamageAccumulator: Double = 0
 
     // MARK: - Init
 
@@ -358,14 +360,16 @@ final class SurvivalGameController: ObservableObject {
         )
 
         // プレイヤー接触ダメ (WEB 版準拠: 無敵時間 / ノックバック無し / DOT 型)
-        let contactDamage = SurvivalGameEngine.enemyContactDamageDOT(
-            player: runtime.player,
+        contactDamageAccumulator += SurvivalGameEngine.enemyContactDamageDOT(
+            runtime.player,
             enemies: runtime.enemies,
             defenderDef: effectiveStats.def,
             deltaTime: deltaTime
         )
-        if contactDamage > 0 {
-            runtime.player.hp = max(0, runtime.player.hp - contactDamage)
+        while contactDamageAccumulator >= 1 {
+            let dmg = Int(contactDamageAccumulator)
+            contactDamageAccumulator -= Double(dmg)
+            runtime.player.hp = max(0, runtime.player.hp - dmg)
         }
 
         // 敵弾 × プレイヤー (WEB 版準拠: 無敵時間 / ノックバック無し)
