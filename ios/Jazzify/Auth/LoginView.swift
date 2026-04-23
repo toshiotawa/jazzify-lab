@@ -73,7 +73,15 @@ struct LoginView: View {
                 OTPVerifyView(email: normalizedEmail)
             }
             .fullScreenCover(isPresented: $showDemoLP) {
-                GameWebView(mode: .demoLP, locale: locale, onClose: { showDemoLP = false })
+                SurvivalGameView(
+                    stage: SurvivalDemoStage.definition,
+                    hintMode: true,
+                    characterId: "fai",
+                    locale: locale,
+                    onClose: { showDemoLP = false },
+                    isDemo: true,
+                    configOverride: SurvivalDemoStage.config
+                )
             }
             .fullScreenCover(isPresented: $showDemoFantasy) {
                 GameWebView(mode: .demoFantasy, locale: locale, onClose: { showDemoFantasy = false })

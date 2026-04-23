@@ -17,6 +17,7 @@
 		1204C8CCAC980ABD9602476C /* OTPVerifyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */; };
 		126BBBE0A2505EED7F86A0C5 /* SurvivalGameController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CA4EBC03A3D0D8A3AF9C77A /* SurvivalGameController.swift */; };
 		16211B9367C30153C3C16D13 /* LessonListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F831419566658890CA84E9E6 /* LessonListView.swift */; };
+		1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */; };
 		24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12AAB7776B432313249D043C /* FantasyStage.swift */; };
 		284CFF5C6B5540D6CFF63CA3 /* LessonJourneyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */; };
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
@@ -138,6 +139,7 @@
 		B4665837C213B33E7EA39A7E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BF8ECC214ED50933CFC7AC74 /* SurvivalGameResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameResultView.swift; sourceTree = "<group>"; };
+		C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDemoStage.swift; sourceTree = "<group>"; };
 		C6E97E7B4C255D270BD5BC8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameView.swift; sourceTree = "<group>"; };
 		CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameAudio.swift; sourceTree = "<group>"; };
@@ -175,6 +177,7 @@
 			children = (
 				0043E2CB3BFFBDF67BBB17F2 /* SurvivalCharacterProfile.swift */,
 				99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */,
+				C48D6B8D97E8A70D77DF8DDE /* SurvivalDemoStage.swift */,
 				7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */,
 				69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */,
 			);
@@ -521,6 +524,7 @@
 				0FD918D7197C061E71DA139C /* SurvivalChordPadView.swift in Sources */,
 				6BB2DD43768BDCC704621AE3 /* SurvivalChordResolver.swift in Sources */,
 				ECDD4AEEC0BF75CC475742CB /* SurvivalCodeSlotsView.swift in Sources */,
+				1A3685F8B461FBABFE4C6D1E /* SurvivalDemoStage.swift in Sources */,
 				C486A818677755413CF73152 /* SurvivalDescentLayout.swift in Sources */,
 				A5CC91823BDC89DD52B2BB6A /* SurvivalDescentSidePanel.swift in Sources */,
 				AD6F15149CCDCAF9944C414B /* SurvivalDescentTheme.swift in Sources */,

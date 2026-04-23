@@ -13,6 +13,12 @@ struct SurvivalGameView: View {
     let characterId: String
     let locale: AppLocale
     let onClose: () -> Void
+    /// ログイン前のデモプレイで true にする。Supabase 問い合わせをスキップし、
+    /// `configOverride` と `SurvivalCharacterProfile.defaultFai` をそのまま使用する。
+    var isDemo: Bool = false
+    /// Supabase から取得する代わりに使用する `SurvivalStageConfig` (デモや固定難易度用)。
+    /// `nil` の場合は従来通り `SupabaseService.fetchSurvivalStageConfig` を呼び出す。
+    var configOverride: SurvivalStageConfig? = nil
 
     /// `@State` は値の差し替えしか観測できず、`SurvivalGameController` 内部の
     /// `@Published` プロパティ (`runtime.phase` 等) の変化を SwiftUI が再描画しない。
@@ -87,20 +93,30 @@ struct SurvivalGameView: View {
         isLoading = true
         loadError = nil
 
-        let supabase = SupabaseService.shared
-        async let profileTask: SurvivalCharacterProfile = {
-            (try? await supabase.fetchFaiProfile()) ?? SurvivalCharacterProfile.defaultFai
-        }()
-        async let configTask: SurvivalStageConfig = {
-            let difficulty = stage.difficulty.rawValue
-            if let fetched = try? await supabase.fetchSurvivalStageConfig(difficulty: difficulty) {
-                return fetched
-            }
-            return SurvivalStageConfig.default
-        }()
+        let profile: SurvivalCharacterProfile
+        let config: SurvivalStageConfig
 
-        let profile = await profileTask
-        let config = await configTask
+        if isDemo {
+            // 未ログイン状態でも動くよう Supabase 問い合わせを完全に回避する。
+            profile = SurvivalCharacterProfile.defaultFai
+            config = configOverride ?? SurvivalStageConfig.default
+        } else {
+            let supabase = SupabaseService.shared
+            async let profileTask: SurvivalCharacterProfile = {
+                (try? await supabase.fetchFaiProfile()) ?? SurvivalCharacterProfile.defaultFai
+            }()
+            async let configTask: SurvivalStageConfig = {
+                if let override = configOverride { return override }
+                let difficulty = stage.difficulty.rawValue
+                if let fetched = try? await supabase.fetchSurvivalStageConfig(difficulty: difficulty) {
+                    return fetched
+                }
+                return SurvivalStageConfig.default
+            }()
+
+            profile = await profileTask
+            config = await configTask
+        }
 
         let created = SurvivalGameController(
             stage: stage,
