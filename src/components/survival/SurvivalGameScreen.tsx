@@ -651,6 +651,25 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
     };
   }, []);
+
+  // ステージクリア音をボス戦／通常ステージ共通で単一経路から再生
+  // setGameState のアップデータ内部で副作用として呼んでいた経路を廃止し、
+  // result.isStageClear の遷移を監視して一度だけ鳴らすことで一貫性を確保。
+  const stageClearSoundPlayedRef = useRef(false);
+  useEffect(() => {
+    if (result?.isStageClear === true) {
+      if (!stageClearSoundPlayedRef.current) {
+        stageClearSoundPlayedRef.current = true;
+        // BGM を即座にフェードアウトさせ、クリア音を確実に聴かせる
+        if (bgmAudioRef.current) {
+          try { bgmAudioRef.current.pause(); } catch { /* noop */ }
+        }
+        try { FantasySoundManager.playStageClear(); } catch { /* noop */ }
+      }
+    } else {
+      stageClearSoundPlayedRef.current = false;
+    }
+  }, [result]);
   
   // MIDIコントローラー初期化（ファンタジーモードと同様の挙動）
   useEffect(() => {
@@ -2270,7 +2289,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               onLessonStageClear?.();
               onMissionStageClear?.();
             }
-            try { FantasySoundManager.playStageClear(); } catch { /* noop */ }
+            // クリア音は result の変化を監視する useEffect で一括再生（通常ステージと同一経路）
           } else if (bossState.result === 'lose' || bossState.player.hp <= 0) {
             newState.isGameOver = true;
             newState.isPlaying = false;
@@ -2971,9 +2990,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.isPlaying = false;
             const earnedXp = Math.floor(newState.elapsedTime / 60) * EXP_PER_MINUTE;
             const cleared = newState.enemiesDefeated >= STAGE_KILL_QUOTA;
-            if (cleared) {
-              FantasySoundManager.playStageClear();
-            }
+            // クリア音は result の変化を監視する useEffect で一括再生（ボス戦と同一経路）
             setResult({
               survivalTime: newState.elapsedTime,
               finalLevel: newState.player.level,
