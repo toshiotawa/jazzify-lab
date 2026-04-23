@@ -975,6 +975,27 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
 
     const FLOATING_STICK_MAX_RADIUS_PX = 44;
 
+    // touchmove は iOS で 60〜120Hz 発火する。毎回 setFloatingStick すると
+    // SurvivalGameScreen 全体が再レンダーされ、タッチ演奏と競合して重くなる。
+    // 位置は ref に即時反映し、React state の更新は rAF で 1 フレーム 1 回に間引く。
+    let pendingStickUpdate: { stickX: number; stickY: number } | null = null;
+    let stickRafId: number | null = null;
+    const flushStickUpdate = (): void => {
+      stickRafId = null;
+      if (!pendingStickUpdate) return;
+      const { stickX, stickY } = pendingStickUpdate;
+      pendingStickUpdate = null;
+      setFloatingStick(prev => {
+        if (prev.stickX === stickX && prev.stickY === stickY) return prev;
+        return { ...prev, stickX, stickY };
+      });
+    };
+    const scheduleStickUpdate = (stickX: number, stickY: number): void => {
+      pendingStickUpdate = { stickX, stickY };
+      if (stickRafId !== null) return;
+      stickRafId = requestAnimationFrame(flushStickUpdate);
+    };
+
     const onTouchStart = (e: TouchEvent) => {
       if (!isTouchDevice.current || e.touches.length === 0) return;
       if (isInteractiveElement(e.target)) return;
@@ -983,6 +1004,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       floatingStickRef.current = { baseX: touch.clientX, baseY: touch.clientY };
       virtualAnalogSmoothedRef.current = { x: 0, y: 0 };
       virtualAnalogTargetRef.current = { x: 0, y: 0 };
+      pendingStickUpdate = null;
       setFloatingStick({
         baseX: touch.clientX, baseY: touch.clientY,
         stickX: 0, stickY: 0, visible: true,
@@ -998,26 +1020,32 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       let dy = touch.clientY - base.baseY;
 
       const maxRadius = FLOATING_STICK_MAX_RADIUS_PX;
-      const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist > maxRadius) {
+      const distSq = dx * dx + dy * dy;
+      const maxSq = maxRadius * maxRadius;
+      if (distSq > maxSq) {
+        const dist = Math.sqrt(distSq);
         dx = (dx / dist) * maxRadius;
         dy = (dy / dist) * maxRadius;
       }
 
-      setFloatingStick(prev => ({
-        ...prev, stickX: dx, stickY: dy,
-      }));
-
+      // analog target はゲームループから読まれるので ref に即時反映、
+      // UI 側のスティック位置は rAF 間引きで React コミット数を削減する
       virtualAnalogTargetRef.current = computeAnalogFromOffset(
         dx,
         dy,
         maxRadius,
         SURVIVAL_STICK_DEAD_ZONE_FRACTION
       );
+      scheduleStickUpdate(dx, dy);
     };
 
     const onTouchEnd = () => {
       floatingStickRef.current = null;
+      if (stickRafId !== null) {
+        cancelAnimationFrame(stickRafId);
+        stickRafId = null;
+      }
+      pendingStickUpdate = null;
       setFloatingStick(prev => ({ ...prev, visible: false }));
       virtualAnalogTargetRef.current = { x: 0, y: 0 };
     };
@@ -1032,6 +1060,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       wrapper.removeEventListener('touchmove', onTouchMove);
       wrapper.removeEventListener('touchend', onTouchEnd);
       wrapper.removeEventListener('touchcancel', onTouchEnd);
+      if (stickRafId !== null) {
+        cancelAnimationFrame(stickRafId);
+        stickRafId = null;
+      }
     };
   }, []);
   
@@ -1195,6 +1227,40 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
       }
       
       // 通常のコード入力処理（レベルアップ中も実行）
+      const noteMod12 = note % 12;
+      const availableMagicsForSlot = getAvailableMagics(prev.player);
+
+      // ===== 事前判定: このノートで変化が起きるか =====
+      // 変化しない場合は React コミットを避けるため `prev` を返す。
+      // iOS WebView では 1 コミットの節約がタッチ演奏の滑らかさに直結する。
+      const slotAcceptsNote = (slot: CodeSlot, index: number): boolean => {
+        if (!slot.isEnabled || !slot.chord) return false;
+        if (slot.isCompleted || slot.completedTime) return false;
+        if (index === 0 && isAMagicSlot && prev.aSlotCooldown > 0) return false;
+        if (index === 1 && isBMagicSlot && prev.bSlotCooldown > 0) return false;
+        if (index === 2 && prev.cSlotCooldown > 0) return false;
+        if (index === 3 && prev.dSlotCooldown > 0) return false;
+        const isMagicSlot = (index === 0 && isAMagicSlot) || (index === 1 && isBMagicSlot) || index === 2 || index === 3;
+        if (isMagicSlot && availableMagicsForSlot.length === 0) return false;
+        if (slot.correctNotes.includes(noteMod12)) return false;
+        // targetNotes に含まれるかチェック（アロケーション最小化のため Set を作らない）
+        const notes = slot.chord.notes;
+        let matched = false;
+        for (let k = 0; k < notes.length; k += 1) {
+          if ((notes[k] % 12) === noteMod12) { matched = true; break; }
+        }
+        return matched;
+      };
+
+      let anyAccepts = false;
+      for (let i = 0; i < prev.codeSlots.current.length; i += 1) {
+        if (slotAcceptsNote(prev.codeSlots.current[i], i)) { anyAccepts = true; break; }
+      }
+      // どのスロットも受け付けない場合は何もしない（ gameState を変更しない）。
+      // レベルアップ中の正解ノート表示は levelUpCorrectNotesRef + setLevelUpCorrectNotes
+      // 経由で既に更新済みのため、ここで setGameState をコミットする必要はない。
+      if (!anyAccepts) return prev;
+
       const newState = {
         ...prev,
         codeSlots: {
@@ -1205,43 +1271,37 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         projectiles: [...prev.projectiles],
         enemyProjectiles: [...prev.enemyProjectiles],
       };
-      const noteMod12 = note % 12;
-      
+
       // 各スロットをチェック - 完了したすべてのスロットを追跡
       const completedSlotIndices: number[] = [];
-      const availableMagicsForSlot = getAvailableMagics(prev.player);
-      
+
       newState.codeSlots.current = newState.codeSlots.current.map((slot, index) => {
         if (!slot.isEnabled || !slot.chord) return slot;
-        // 既に完了済み or リセット待ち中のスロットはスキップ
         if (slot.isCompleted || slot.completedTime) return slot;
-        
-        // 魔法スロットのクールダウンをチェック（A/B/C/Dで独立）
         if (index === 0 && isAMagicSlot && prev.aSlotCooldown > 0) return slot;
         if (index === 1 && isBMagicSlot && prev.bSlotCooldown > 0) return slot;
         if (index === 2 && prev.cSlotCooldown > 0) return slot;
         if (index === 3 && prev.dSlotCooldown > 0) return slot;
-        
+
         const isMagicSlot = (index === 0 && isAMagicSlot) || (index === 1 && isBMagicSlot) || index === 2 || index === 3;
         if (isMagicSlot && availableMagicsForSlot.length === 0) return slot;
-        
+
         const targetNotes = [...new Set(slot.chord.notes.map(n => n % 12))];
         if (!targetNotes.includes(noteMod12)) return slot;
         if (slot.correctNotes.includes(noteMod12)) return slot;
-        
+
         const newCorrectNotes = [...slot.correctNotes, noteMod12];
         const isComplete = newCorrectNotes.length >= targetNotes.length;
-        
-        // 完了したスロットをすべて記録
+
         if (isComplete) {
           completedSlotIndices.push(index);
         }
-        
+
         return {
           ...slot,
           correctNotes: newCorrectNotes,
           isCompleted: isComplete,
-          completedTime: isComplete ? Date.now() : undefined,  // 完了時刻を設定
+          completedTime: isComplete ? Date.now() : undefined,
         };
       }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
       
@@ -1631,31 +1691,11 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           }
         }
         
-        // スロットをリセット（短い遅延でスムーズに次のコードへ）
-        // クロージャでインデックスをキャプチャ
-        const slotIdxToReset = completedSlotIndex;
-        setTimeout(() => {
-          setGameState(gs => {
-            const nextChord = gs.codeSlots.next[slotIdxToReset].chord;
-            const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
-            
-            return {
-              ...gs,
-              codeSlots: {
-                current: gs.codeSlots.current.map((slot, i) => 
-                  i === slotIdxToReset 
-                    ? { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT }
-                    : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
-                next: gs.codeSlots.next.map((slot, i) =>
-                  i === slotIdxToReset
-                    ? { ...slot, chord: newNextChord }
-                    : slot
-                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
-              },
-            };
-          });
-        }, 50);  // 50msで素早くリセット
+        // スロットのリセットは gameLoop のフォールバック経路に委譲する。
+        // 以前は setTimeout(50ms) で setGameState を直接呼んでいたが、
+        // 毎スキル発動につき React コミットが追加で発生し、iOS WebView で
+        // タッチ操作が重くなる原因になっていた。
+        // completedTime は上で設定済みのため、gameLoop が次フレームで自動リセットする。
       }
       
       return newState;
@@ -2153,7 +2193,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
               if (slotIndex >= 2) return slot; // C/D 封印
               if (slot.isCompleted) {
                 if (!slot.completedTime) return { ...slot, completedTime: Date.now() };
-                if (Date.now() - slot.completedTime > 500) {
+                // 50ms 経過でリセット。以前は 500ms だったが、handleNoteInput の
+                // setTimeout(50ms) 経路を撤去したので、ここで素早くリセットする。
+                if (Date.now() - slot.completedTime >= 50) {
                   let nextChord = newState.codeSlots.next[slotIndex]?.chord;
                   if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
                   const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
@@ -2764,14 +2806,16 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
         newState.codeSlots.current = newState.codeSlots.current.map((slot, slotIndex) => {
           if (!slot.isEnabled) return slot;
           
-          // 完了状態のスロットは一定時間後に自動リセット（setTimeoutが失敗した場合のフォールバック）
+          // 完了状態のスロットは一定時間後に自動リセット
+          // （handleNoteInput の setTimeout(50ms) 経路を撤去したため、
+          //   ここで 50ms 経過後にリセットする）
           if (slot.isCompleted) {
             // completedTimeが設定されていない場合は設定
             if (!slot.completedTime) {
               return { ...slot, completedTime: Date.now() };
             }
-            // 500ms以上経過していたら強制リセット
-            if (Date.now() - slot.completedTime > 500) {
+            // 50ms以上経過していたらリセット
+            if (Date.now() - slot.completedTime >= 50) {
               let nextChord = newState.codeSlots.next[slotIndex]?.chord;
               if (!nextChord) {
                 nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
