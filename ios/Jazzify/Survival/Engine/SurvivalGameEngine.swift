@@ -450,24 +450,39 @@ enum SurvivalGameEngine {
         }
     }
 
-    // MARK: - 衝撃波 (B 攻撃)
+    // MARK: - 衝撃波 (B 攻撃) - Web 版 SurvivalGameScreen.tsx の `newShockwave` と同等仕様
 
+    /// Web 版と同様に衝撃波を生成する。
+    /// - プレイヤー位置から向きベクトル方向へ `meleeAttackForwardOffset` (= 40px) だけオフセットした
+    ///   位置を中心として、ベース半径 `meleeShockwaveBaseRadius` (= 80px)、
+    ///   +20/レベルの射程ボーナスを持つ円形衝撃波を作る。
+    /// - ダメージは発射時のプレイヤー座標を基準に適用したいので、
+    ///   `colorLevel` で 0 (初撃) / 1..3 (多段) を区別しておく。
     static func createShockwave(
         from player: SurvivalPlayerState,
         effectiveBAtk: Int,
-        now: TimeInterval
+        now: TimeInterval,
+        colorLevel: Int = 0
     ) -> SurvivalShockwave {
         let damage = calculateBMeleeDamage(bAtk: effectiveBAtk)
-        let rangeBonus = CGFloat(player.skills.bRangeBonusLevel) * 30
-        let maxRadius = SurvivalConstants.meleeShockwaveRadius + rangeBonus
+        let baseRadius = SurvivalConstants.meleeShockwaveBaseRadius
+        let rangeBonus = CGFloat(player.skills.bRangeBonusLevel) * 20
+        let maxRadius = baseRadius + rangeBonus
+        let offset = SurvivalConstants.meleeAttackForwardOffset
+        let dirVec = player.direction.vector
+        let centerX = player.x + dirVec.dx * offset
+        let centerY = player.y + dirVec.dy * offset
         return SurvivalShockwave(
-            x: player.x,
-            y: player.y,
+            x: centerX,
+            y: centerY,
             radius: 20,
             maxRadius: maxRadius,
+            baseRadius: baseRadius,
+            direction: player.direction,
             createdAt: now,
-            lifetime: 0.32,
-            damage: damage
+            lifetime: SurvivalConstants.meleeShockwaveLifetime,
+            damage: damage,
+            colorLevel: colorLevel
         )
     }
 
@@ -531,37 +546,52 @@ enum SurvivalGameEngine {
         return hits
     }
 
+    /// 衝撃波 × 敵のヒット判定。Web 版 `newShockwave` 生成直後のループと同じ仕様:
+    /// - 中心座標から敵までの距離と、プレイヤー向きとの内積で `isInFront` を判定
+    /// - 正面は `maxRadius` (= baseRadius + 20 * bRangeBonus)、背後は `baseRadius` を使用
+    /// - ダメージは Web 版と同じく 1 衝撃波につき 1 敵 1 回 (`hitEnemyIds` でデデュープ)
+    /// - ノックバック速度は `150 + bKnockbackBonusLevel * 50`
+    /// - 1 発の衝撃波でダメージ計算が完結するため、多段ヒットは呼び出し側で
+    ///   `SurvivalPendingShockwave` を積んで時差発火する。
     static func resolveShockwaveHits(
         shockwaves: inout [SurvivalShockwave],
         enemies: [SurvivalEnemy],
-        multiHitLevel: Int,
+        player: SurvivalPlayerState,
         knockbackBonusLevel: Int,
         haisuiMultiplier: Double
     ) -> [ShockwaveHit] {
         var hits: [ShockwaveHit] = []
-        let knockbackScale: CGFloat = 1.0 + CGFloat(knockbackBonusLevel) * 0.3
+        let knockbackForce = SurvivalConstants.meleeKnockbackBase
+            + CGFloat(knockbackBonusLevel) * SurvivalConstants.meleeKnockbackPerLevel
+
         for idx in shockwaves.indices {
             var wave = shockwaves[idx]
+            let dirVec = wave.direction.vector
             for enemy in enemies {
                 if wave.hitEnemyIds.contains(enemy.id) { continue }
-                let dx = wave.x - enemy.x
-                let dy = wave.y - enemy.y
-                let combined = wave.radius + SurvivalConstants.enemySize / 2
-                if dx * dx + dy * dy <= combined * combined {
+                let dx = enemy.x - wave.x
+                let dy = enemy.y - wave.y
+                let distSq = dx * dx + dy * dy
+
+                // isInFront 判定: プレイヤー中心 → 敵 のベクトルと向きの内積
+                let toEnemyX = enemy.x - player.x
+                let toEnemyY = enemy.y - player.y
+                let dot = toEnemyX * dirVec.dx + toEnemyY * dirVec.dy
+                let isInFront = dot > 0
+                let effectiveRange = isInFront ? wave.maxRadius : wave.baseRadius
+
+                if distSq <= effectiveRange * effectiveRange {
                     wave.hitEnemyIds.insert(enemy.id)
-                    let multiplier = 1.0 + Double(multiHitLevel) * 0.25
-                    let scaled = Int(Double(wave.damage) * multiplier * haisuiMultiplier)
+                    let scaled = Int(Double(wave.damage) * haisuiMultiplier)
                     let dmg = calculateAttackDamage(baseDamage: scaled, attackerAtk: 0, defenderDef: enemy.stats.def)
                     let distance = max(1, hypot(dx, dy))
-                    let kb = SurvivalConstants.meleeKnockbackSpeed * knockbackScale
                     hits.append(ShockwaveHit(
                         shockwaveId: wave.id,
                         enemyId: enemy.id,
                         damage: dmg,
-                        knockbackVx: -dx / distance * kb,
-                        knockbackVy: -dy / distance * kb
+                        knockbackVx: dx / distance * knockbackForce,
+                        knockbackVy: dy / distance * knockbackForce
                     ))
-                    wave.colorLevel = min(3, wave.colorLevel + 1)
                 }
             }
             shockwaves[idx] = wave

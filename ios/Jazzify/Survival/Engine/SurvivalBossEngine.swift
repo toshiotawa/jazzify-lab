@@ -90,6 +90,9 @@ struct SurvivalBossProjectile: Identifiable, Sendable {
 }
 
 struct SurvivalBoss: Sendable {
+    /// 衝撃波・弾の多段ヒット抑制 (`SurvivalShockwave.hitEnemyIds` / `SurvivalProjectile.hitEnemyIds`) 用の安定 ID。
+    /// ボス戦ライフサイクルを跨いで同一ボスを識別するため、生成時に一度だけ UUID を割り当てる。
+    let id: UUID = UUID()
     var bossType: SurvivalBossType
     var x: CGFloat
     var y: CGFloat
@@ -287,8 +290,9 @@ enum SurvivalBossEngine {
         updateHazards(state: &state, player: &player, now: now, result: &result)
         updateProjectiles(state: &state, now: now, deltaTime: deltaTime, player: &player, result: &result)
 
-        // ボス本体との接触ダメージ (WEB 版 `checkContactDamage` 相当)
-        checkBossContactDamage(state: &state, player: &player, now: now, result: &result)
+        // ボス本体との接触ダメージは無効化 (WEB 版と仕様を揃える)。
+        // 弾・ハザードは従来どおり判定するので、プレイヤーはボスに重なっても
+        // 直接のダメージを受けない。
 
         // 勝敗
         if state.boss.hp <= 0 {
@@ -737,31 +741,8 @@ enum SurvivalBossEngine {
 
     // MARK: - ボス本体との接触ダメージ
 
-    /// WEB 版 `checkContactDamage` 相当。
-    /// プレイヤーがボスのヒットボックスに触れた時、ボスタイプごとのダメージ + ノックバック + 無敵時間を適用。
-    private static func checkBossContactDamage(
-        state: inout SurvivalBossBattleState,
-        player: inout SurvivalPlayerState,
-        now: TimeInterval,
-        result: inout BossTickResult
-    ) {
-        let boss = state.boss
-        let dx = boss.x - player.x
-        let dy = boss.y - player.y
-        let dist = hypot(dx, dy)
-        // WEB: BOSS_HITBOX_RADIUS + 18 (プレイヤー半径)
-        let hitRadius = SurvivalConstants.bossHitboxRadius + SurvivalConstants.playerSize / 2
-        guard dist < hitRadius else { return }
-        guard now >= player.iFramesUntil else { return }
-        let damage: Int
-        switch boss.bossType {
-        case .A: damage = 80
-        case .B: damage = 60
-        case .C: damage = 70
-        }
-        applyPlayerDamage(&player, damage: damage, now: now, iFrame: SurvivalConstants.iFrameContact, result: &result)
-        applyKnockbackAway(player: &player, from: CGPoint(x: boss.x, y: boss.y), now: now)
-    }
+    // NOTE: 旧 `checkBossContactDamage` はボス本体との接触ダメージ仕様変更に伴い削除。
+    // WEB 版 `SurvivalBossEngine.ts` と同様にボス体への接触では直接ダメージを与えない。
 
     // MARK: - プレイヤーへのダメージ適用
 
@@ -806,16 +787,29 @@ enum SurvivalBossEngine {
     }
 
     /// プレイヤー弾・衝撃波によるボスダメージ適用。呼び出し側で Controller から呼ぶ。
+    /// - Parameter alreadyHitIds: 既に当該攻撃 (弾丸 or 衝撃波) がヒット済みのエンティティ ID 集合。
+    ///   含まれているボス / ミニオンには今回はダメージを適用しない (Web 版 `applyPlayerProjectileToBoss` 準拠)。
     @discardableResult
-    static func applyPlayerAttack(state: inout SurvivalBossBattleState, damage: Int, atPoint point: CGPoint, radius: CGFloat) -> PlayerAttackResolution {
+    static func applyPlayerAttack(
+        state: inout SurvivalBossBattleState,
+        damage: Int,
+        atPoint point: CGPoint,
+        radius: CGFloat,
+        alreadyHitIds: Set<UUID> = []
+    ) -> PlayerAttackResolution {
         var result = PlayerAttackResolution()
-        if hypot(point.x - state.boss.x, point.y - state.boss.y) <= (radius + SurvivalConstants.bossHitboxRadius) {
+        if !alreadyHitIds.contains(state.boss.id),
+           hypot(point.x - state.boss.x, point.y - state.boss.y) <= (radius + SurvivalConstants.bossHitboxRadius) {
             state.boss.hp = max(0, state.boss.hp - damage)
             result.bossHitDamage = damage
             result.bossHitPoint = CGPoint(x: state.boss.x, y: state.boss.y)
         }
         for idx in state.minions.indices {
             var minion = state.minions[idx]
+            if alreadyHitIds.contains(minion.id) {
+                state.minions[idx] = minion
+                continue
+            }
             if hypot(point.x - minion.x, point.y - minion.y) <= (radius + SurvivalConstants.bossMinionRadius) {
                 minion.hp -= damage
                 result.minionHits.append((id: minion.id, damage: damage, point: CGPoint(x: minion.x, y: minion.y)))

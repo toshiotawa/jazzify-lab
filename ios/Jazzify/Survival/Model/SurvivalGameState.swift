@@ -31,10 +31,18 @@ enum SurvivalConstants {
     static let bgmPhaseSwitchThresholdSec: TimeInterval = 30
     /// コードスロット切替タイマー (秒)
     static let slotTimeoutSec: TimeInterval = 10
-    /// 近接衝撃波の半径 (B 攻撃)
-    static let meleeShockwaveRadius: CGFloat = 180
-    /// B 攻撃のノックバック速度
-    static let meleeKnockbackSpeed: CGFloat = 420
+    /// 近接衝撃波のベース半径 (B 攻撃、Web 版 baseRange = 80 と一致)
+    static let meleeShockwaveBaseRadius: CGFloat = 80
+    /// B 攻撃の前方オフセット (Web 版準拠: プレイヤー位置 + 向きベクトル * 40)
+    static let meleeAttackForwardOffset: CGFloat = 40
+    /// B 攻撃の衝撃波寿命 (秒) (Web 版 SHOCKWAVE_DURATION = 350ms と一致)
+    static let meleeShockwaveLifetime: TimeInterval = 0.35
+    /// B 攻撃の多段ヒット間隔 (Web 版と同じ 200ms)
+    static let meleeMultiHitIntervalSec: TimeInterval = 0.20
+    /// B 攻撃のベース ノックバック量 (Web 版: `150 + bKnockbackBonus * 50` の定数項)
+    static let meleeKnockbackBase: CGFloat = 150
+    /// B 攻撃の ノックバック ボーナス 1 レベルあたりの加算量
+    static let meleeKnockbackPerLevel: CGFloat = 50
     /// ボスステージのプレイヤー HP
     static let bossPlayerMaxHp: Int = 1000
     /// ボス HP 上限
@@ -157,16 +165,19 @@ public struct SurvivalPlayerSkills: Sendable, Equatable {
     public var alwaysHaisuiNoJin: Bool
     public var alwaysZekkouchou: Bool
 
-    /// WEB 版 `SurvivalGameEngine.ts` の INITIAL_PLAYER.skills と同じ「素の状態」。
-    /// レベルアップや永続強化で個別に上書きされる。
+    /// WEB 版 `SurvivalGameEngine.ts` の `createStageInitialPlayerState().skills` と同じステージ用初期値。
+    /// ボス戦を含むステージモードはこの値からスタートする (ファイのキャラ定義で上書き可能)。
+    /// - `multiHitLevel = 2`: 1 回の Punch で初撃 + 200ms 間隔で 2 発の追加衝撃波 = 計 3 ヒット。
+    ///   以前はボス戦のデデュープバグで実質 20 ヒット超えていたため暫定的に 0 に下げていたが、
+    ///   `SurvivalGameController.tickBoss` の `hitEnemyIds` デデュープ修正完了に伴い Web 版同値へ復帰。
     public static let defaultStage: SurvivalPlayerSkills = SurvivalPlayerSkills(
-        aBulletCount: 1,
-        aPenetration: false,
-        bDeflect: false,
-        multiHitLevel: 0,
-        bKnockbackBonusLevel: 0,
-        bRangeBonusLevel: 0,
-        haisuiNoJin: false,
+        aBulletCount: 5,
+        aPenetration: true,
+        bDeflect: true,
+        multiHitLevel: 2,
+        bKnockbackBonusLevel: 5,
+        bRangeBonusLevel: 5,
+        haisuiNoJin: true,
         zekkouchou: false,
         alwaysHaisuiNoJin: false,
         alwaysZekkouchou: false
@@ -179,17 +190,18 @@ public struct SurvivalPlayerSkills: Sendable, Equatable {
         func boolVal(_ key: String, default defaultValue: Bool) -> Bool {
             json[key]?.asBool ?? defaultValue
         }
+        let base = SurvivalPlayerSkills.defaultStage
         return SurvivalPlayerSkills(
-            aBulletCount: intVal("aBulletCount", default: 1),
-            aPenetration: boolVal("aPenetration", default: false),
-            bDeflect: boolVal("bDeflect", default: false),
-            multiHitLevel: intVal("multiHitLevel", default: 0),
-            bKnockbackBonusLevel: intVal("bKnockbackBonus", default: 0),
-            bRangeBonusLevel: intVal("bRangeBonus", default: 0),
-            haisuiNoJin: boolVal("haisuiNoJin", default: false),
-            zekkouchou: boolVal("zekkouchou", default: false),
-            alwaysHaisuiNoJin: boolVal("alwaysHaisuiNoJin", default: false),
-            alwaysZekkouchou: boolVal("alwaysZekkouchou", default: false)
+            aBulletCount: intVal("aBulletCount", default: base.aBulletCount),
+            aPenetration: boolVal("aPenetration", default: base.aPenetration),
+            bDeflect: boolVal("bDeflect", default: base.bDeflect),
+            multiHitLevel: intVal("multiHitLevel", default: base.multiHitLevel),
+            bKnockbackBonusLevel: intVal("bKnockbackBonus", default: base.bKnockbackBonusLevel),
+            bRangeBonusLevel: intVal("bRangeBonus", default: base.bRangeBonusLevel),
+            haisuiNoJin: boolVal("haisuiNoJin", default: base.haisuiNoJin),
+            zekkouchou: boolVal("zekkouchou", default: base.zekkouchou),
+            alwaysHaisuiNoJin: boolVal("alwaysHaisuiNoJin", default: base.alwaysHaisuiNoJin),
+            alwaysZekkouchou: boolVal("alwaysZekkouchou", default: base.alwaysZekkouchou)
         )
     }
 }
@@ -290,12 +302,25 @@ public struct SurvivalShockwave: Identifiable, Sendable {
     public var y: CGFloat
     public var radius: CGFloat
     public var maxRadius: CGFloat
+    /// Web 版 `baseRange` (= 80)。プレイヤーの後方に居る敵はこの距離しか当たらない。
+    public var baseRadius: CGFloat
+    /// 衝撃波を発射した時点でのプレイヤー向き (isInFront 判定用)
+    public var direction: SurvivalDirection8
     public var createdAt: TimeInterval
     public var lifetime: TimeInterval
     public var damage: Int
     public var hitEnemyIds: Set<UUID> = []
     /// 色バリエーション (多段ヒット時に変化)
     public var colorLevel: Int = 0
+}
+
+/// 多段ヒット用に遅延発火される衝撃波のプラン。
+/// 発射時点でのプレイヤー座標/向き/ダメージを保持し、
+/// 指定時刻 (`fireAt`) に実際の衝撃波として生成される。
+public struct SurvivalPendingShockwave: Sendable {
+    public var fireAt: TimeInterval
+    public var damage: Int
+    public var colorLevel: Int
 }
 
 public struct SurvivalFloatingText: Identifiable, Sendable {
@@ -479,6 +504,8 @@ struct SurvivalStageRuntime: Sendable {
     public var projectiles: [SurvivalProjectile] = []
     public var enemyProjectiles: [SurvivalEnemyProjectile] = []
     public var shockwaves: [SurvivalShockwave] = []
+    /// 多段ヒット用 遅延発火キュー
+    public var pendingShockwaves: [SurvivalPendingShockwave] = []
     public var magicEffects: [SurvivalMagicEffect] = []
     public var floatingTexts: [SurvivalFloatingText] = []
     public var droppedItems: [SurvivalDroppedItem] = []

@@ -363,15 +363,23 @@ struct SurvivalDescentSidePanel: View {
     }
 
     private func timeLimitText(stage: SurvivalStageDefinition) -> String {
-        if stage.isMixedStage { return "—" }
+        if isBossStage(stage) { return "—" }
         return "\(SurvivalStageCatalog.stageTimeLimitSeconds)s"
     }
 
     private func clearConditionText(stage: SurvivalStageDefinition) -> String {
-        if stage.isMixedStage {
+        if isBossStage(stage) {
             return isEnglishCopy ? "Boss x1" : "ボス x1"
         }
         return isEnglishCopy ? "90s + 300 Kills" : "90秒 + 300体"
+    }
+
+    /// ボス戦 (= 各ブロック最終ステージ) かどうか。`SurvivalGameController` と同じ
+    /// `SurvivalBossEngine.isBlockLastStage(stageNumber:)` を参照して判定を揃える。
+    /// `isMixedStage` はブロックに `trailingMixedGroup` がある場合のみ true になるため、
+    /// `trailingMixedGroup=nil` のブロック末尾 (例: Major-5 / M7-5 など) を拾えない。
+    private func isBossStage(_ stage: SurvivalStageDefinition) -> Bool {
+        SurvivalBossEngine.isBlockLastStage(stageNumber: stage.stageNumber)
     }
 }
 

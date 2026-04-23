@@ -20,6 +20,7 @@
 		24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12AAB7776B432313249D043C /* FantasyStage.swift */; };
 		284CFF5C6B5540D6CFF63CA3 /* LessonJourneyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */; };
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
+		799CE8735EF04B50A2D4EA26 /* SurvivalPauseSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE6697B863264539935FB0C0 /* SurvivalPauseSettingsSheet.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
 		343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5FE9128F8E93AC30291509CF /* Supabase */; };
@@ -112,6 +113,7 @@
 		6F8BFE37B198C035761B13AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		710661B97325754204CE9621 /* OrientationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationManager.swift; sourceTree = "<group>"; };
 		748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalHUDView.swift; sourceTree = "<group>"; };
+		BE6697B863264539935FB0C0 /* SurvivalPauseSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPauseSettingsSheet.swift; sourceTree = "<group>"; };
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
 		7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameState.swift; sourceTree = "<group>"; };
 		7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJoystickView.swift; sourceTree = "<group>"; };
@@ -308,6 +310,7 @@
 				C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */,
 				748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */,
 				7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */,
+				BE6697B863264539935FB0C0 /* SurvivalPauseSettingsSheet.swift */,
 				66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */,
 			);
 			path = View;
@@ -526,6 +529,7 @@
 				4F9D6961758AF400ED975795 /* SurvivalGameState.swift in Sources */,
 				D852F87150F3CD5F7A7A3142 /* SurvivalGameView.swift in Sources */,
 				28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */,
+				799CE8735EF04B50A2D4EA26 /* SurvivalPauseSettingsSheet.swift in Sources */,
 				F37CC0E92DB50C43CD5F4A1B /* SurvivalItemEngine.swift in Sources */,
 				A897865FDFA86F5BDD5C104A /* SurvivalJoystickView.swift in Sources */,
 				B850C3429F3472F06A1109B2 /* SurvivalMagicEngine.swift in Sources */,

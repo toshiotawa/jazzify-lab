@@ -24,7 +24,6 @@ import {
   BOSS_HITBOX_RADIUS,
   BOSS_MINION_RADIUS,
   BOSS_MINION_EXPLOSION_RADIUS,
-  I_FRAME_CONTACT_MS,
   I_FRAME_PROJECTILE_MS,
   I_FRAME_HAZARD_MS,
   KNOCKBACK_DURATION_MS,
@@ -776,25 +775,8 @@ const applyDamageToPlayer = (
   }
 };
 
-const checkContactDamage = (state: BossBattleState, ctx: BossTickContext): void => {
-  const boss = state.boss;
-  const dist = distanceBetween(boss.x, boss.y, ctx.player.x, ctx.player.y);
-  const hitRadius = BOSS_HITBOX_RADIUS + 18; // プレイヤー半径
-  if (dist < hitRadius) {
-    const contactDamage =
-      boss.bossType === 'A' ? 80 : boss.bossType === 'B' ? 60 : 70;
-    applyDamageToPlayer(
-      state,
-      contactDamage,
-      ctx.now,
-      I_FRAME_CONTACT_MS,
-      boss.x,
-      boss.y,
-      ctx.player.x,
-      ctx.player.y
-    );
-  }
-};
+// NOTE: ボス本体との接触ダメージは iOS ネイティブ版との仕様合わせで無効化済み。
+// 復活させる場合は `tickBossBattle` 内で呼び出しを戻すこと (実装は git 履歴参照)。
 
 const checkProjectileDamage = (state: BossBattleState, ctx: BossTickContext): void => {
   const remaining: BossProjectile[] = [];
@@ -961,7 +943,8 @@ export const tickBossBattle = (
   updateBossProjectiles(state, ctx);
   updateHazards(state, ctx);
 
-  checkContactDamage(state, ctx);
+  // ボス本体との接触ダメージは無効化 (iOS ネイティブ版と仕様を揃える)。
+  // 弾・ハザードは従来通り判定する。
   checkProjectileDamage(state, ctx);
   checkHazardDamage(state, ctx);
 

@@ -56,7 +56,7 @@ struct SurvivalCodeSlotsView: View {
             VStack(spacing: 0) {
                 HStack(alignment: .top) {
                     Text(style.label)
-                        .font(isWide ? .subheadline.bold() : .caption.bold())
+                        .font(isWide ? .caption.bold() : .caption2.bold())
                         .foregroundStyle(style.textColor.opacity(slot.isEnabled ? 1.0 : 0.4))
                     Spacer()
                     if slot.isEnabled {
@@ -65,8 +65,8 @@ struct SurvivalCodeSlotsView: View {
                             .foregroundStyle(.white.opacity(0.75))
                     }
                 }
-                .padding(.horizontal, isWide ? 12 : 8)
-                .padding(.top, isWide ? 8 : 6)
+                .padding(.horizontal, isWide ? 10 : 6)
+                .padding(.top, isWide ? 4 : 3)
 
                 Spacer(minLength: 0)
 
@@ -77,7 +77,7 @@ struct SurvivalCodeSlotsView: View {
                     Text(chord.pitchClasses.map { SurvivalCodeSlotsView.pitchLabel($0) }.joined(separator: " "))
                         .font(.caption2)
                         .foregroundStyle(.white.opacity(0.85))
-                        .padding(.bottom, 4)
+                        .padding(.bottom, 2)
                 }
             }
 
@@ -106,7 +106,7 @@ struct SurvivalCodeSlotsView: View {
                 .padding(.bottom, 2)
             }
         }
-        .frame(height: isWide ? 104 : 68)
+        .frame(height: isWide ? 72 : 48)
         .overlay(
             RoundedRectangle(cornerRadius: 10)
                 .stroke(slot.isEnabled ? style.borderColor : Color.gray.opacity(0.4), lineWidth: 1.5)
@@ -143,7 +143,7 @@ struct SurvivalCodeSlotsView: View {
         }()
         return VStack(spacing: 0) {
             Text("NEXT")
-                .font(.system(size: isWide ? 10 : 9, weight: .semibold))
+                .font(.system(size: isWide ? 9 : 8, weight: .semibold))
                 .foregroundStyle(.gray)
             Text(display)
                 .font(.system(size: Self.nextFontSize(length: display.count, isWide: isWide), weight: .bold))
@@ -152,7 +152,7 @@ struct SurvivalCodeSlotsView: View {
                 .minimumScaleFactor(0.5)
         }
         .frame(maxWidth: .infinity)
-        .frame(height: isWide ? 44 : 30)
+        .frame(height: isWide ? 30 : 22)
         .background(
             RoundedRectangle(cornerRadius: 10)
                 .fill(
@@ -214,27 +214,27 @@ struct SurvivalCodeSlotsView: View {
 
     private static func chordFontSize(length: Int, isWide: Bool) -> CGFloat {
         if isWide {
-            if length > 10 { return 14 }
-            if length > 6 { return 18 }
-            if length > 4 { return 22 }
-            return 28
+            if length > 10 { return 12 }
+            if length > 6 { return 15 }
+            if length > 4 { return 18 }
+            return 22
         } else {
-            if length > 10 { return 11 }
-            if length > 6 { return 13 }
-            if length > 4 { return 16 }
-            return 20
+            if length > 10 { return 10 }
+            if length > 6 { return 12 }
+            if length > 4 { return 14 }
+            return 17
         }
     }
 
     private static func nextFontSize(length: Int, isWide: Bool) -> CGFloat {
         if isWide {
-            if length > 8 { return 11 }
-            if length > 5 { return 14 }
-            return 18
-        } else {
             if length > 8 { return 10 }
-            if length > 5 { return 11 }
+            if length > 5 { return 12 }
             return 14
+        } else {
+            if length > 8 { return 9 }
+            if length > 5 { return 10 }
+            return 12
         }
     }
 

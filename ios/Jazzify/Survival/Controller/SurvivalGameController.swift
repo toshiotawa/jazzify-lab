@@ -153,12 +153,27 @@ final class SurvivalGameController: ObservableObject {
             )
             runtime.projectiles.append(contentsOf: projectiles)
         case .B?:
-            let wave = SurvivalGameEngine.createShockwave(
+            let initialWave = SurvivalGameEngine.createShockwave(
                 from: runtime.player,
                 effectiveBAtk: effectiveStats.bAtk,
-                now: now
+                now: now,
+                colorLevel: 0
             )
-            runtime.shockwaves.append(wave)
+            runtime.shockwaves.append(initialWave)
+            // 多段ヒット: Web 版と同様に 200ms 間隔で追加衝撃波をスケジュール
+            let multiHitLevel = max(0, runtime.player.skills.multiHitLevel)
+            if multiHitLevel > 0 {
+                let baseDamage = SurvivalGameEngine.calculateBMeleeDamage(bAtk: effectiveStats.bAtk)
+                for hit in 1...multiHitLevel {
+                    runtime.pendingShockwaves.append(
+                        SurvivalPendingShockwave(
+                            fireAt: now + SurvivalConstants.meleeMultiHitIntervalSec * Double(hit),
+                            damage: baseDamage,
+                            colorLevel: min(3, hit)
+                        )
+                    )
+                }
+            }
         case .C?, .D?:
             if !profile.noMagic {
                 let kind: SurvivalMagicKind = slotIndex == SurvivalSlotIndex.C.rawValue
@@ -303,6 +318,9 @@ final class SurvivalGameController: ObservableObject {
         )
         runtime.shockwaves = SurvivalGameEngine.updateShockwaves(shockwaves: runtime.shockwaves, now: now)
 
+        // 多段ヒット: 予約済みの衝撃波を発火時刻になったら生成
+        flushPendingShockwaves(effectiveBAtk: effectiveStats.bAtk, now: now)
+
         // プレイヤー弾 × 敵
         let offensiveMul = SurvivalGameEngine.offensiveMultiplier(player: runtime.player)
         let projHits = SurvivalGameEngine.resolveProjectileHits(
@@ -317,11 +335,11 @@ final class SurvivalGameController: ObservableObject {
             runtime.projectiles.removeAll { removedProjectileIds.contains($0.id) }
         }
 
-        // 衝撃波 × 敵
+        // 衝撃波 × 敵 (Web 版と同じく 1 発 1 敵 1 回 / isInFront 判定付き)
         let waveHits = SurvivalGameEngine.resolveShockwaveHits(
             shockwaves: &runtime.shockwaves,
             enemies: runtime.enemies,
-            multiHitLevel: runtime.player.skills.multiHitLevel,
+            player: runtime.player,
             knockbackBonusLevel: runtime.player.skills.bKnockbackBonusLevel,
             haisuiMultiplier: offensiveMul
         )
@@ -499,7 +517,7 @@ final class SurvivalGameController: ObservableObject {
                 modified.stats.hp = max(0, modified.stats.hp - dmg)
                 runtime.floatingTexts.append(
                     SurvivalFloatingText(
-                        text: "-\(dmg)",
+                        text: "\(dmg)",
                         x: modified.x,
                         y: modified.y - SurvivalConstants.enemySize,
                         createdAt: now,
@@ -527,6 +545,28 @@ final class SurvivalGameController: ObservableObject {
             if let item = drop.item { runtime.droppedItems.append(item) }
             if let coin = drop.coin { runtime.coins.append(coin) }
         }
+    }
+
+    /// `triggerSlot(.B)` で積まれた多段ヒット用の予約衝撃波を、発火時刻を過ぎたぶん生成する。
+    /// Web 版と同じく各ウェーブは「発火時点のプレイヤー座標 / 向き」でダメージを計算する。
+    private func flushPendingShockwaves(effectiveBAtk: Int, now: TimeInterval) {
+        guard !runtime.pendingShockwaves.isEmpty else { return }
+        var remaining: [SurvivalPendingShockwave] = []
+        remaining.reserveCapacity(runtime.pendingShockwaves.count)
+        for pending in runtime.pendingShockwaves {
+            if now >= pending.fireAt {
+                let wave = SurvivalGameEngine.createShockwave(
+                    from: runtime.player,
+                    effectiveBAtk: effectiveBAtk,
+                    now: now,
+                    colorLevel: pending.colorLevel
+                )
+                runtime.shockwaves.append(wave)
+            } else {
+                remaining.append(pending)
+            }
+        }
+        runtime.pendingShockwaves = remaining
     }
 
     private func applyKnockbackToEnemies(hits: [SurvivalGameEngine.ShockwaveHit]) {
@@ -585,6 +625,9 @@ final class SurvivalGameController: ObservableObject {
         )
         runtime.shockwaves = SurvivalGameEngine.updateShockwaves(shockwaves: runtime.shockwaves, now: now)
 
+        // 多段ヒット: 予約済みの衝撃波を発火時刻になったら生成 (ボス戦でも同仕様)
+        flushPendingShockwaves(effectiveBAtk: effectiveStats.bAtk, now: now)
+
         guard var boss = bossBattle else { return }
         _ = SurvivalBossEngine.tick(
             state: &boss,
@@ -593,25 +636,32 @@ final class SurvivalGameController: ObservableObject {
             now: now
         )
 
-        // プレイヤー弾はボスに当たったら削除 (貫通でない限り、WEB 版準拠で 1 発 1 ヒット)
+        // プレイヤー弾 × ボス / ミニオン
+        // - 貫通弾 (`aPenetration`) は 1 発で複数エンティティを同時に貫ける一方、
+        //   同一エンティティに対しては 1 回しかダメージを与えない (WEB 版 `applyPlayerProjectileToBoss`
+        //   の `alreadyHitIds` 準拠)。そのため弾ごとの `hitEnemyIds` でデデュープする。
+        // - 非貫通弾 (貫通 false) は初ヒット時に消滅する。
         var consumedProjectileIds: Set<UUID> = []
-        for proj in runtime.projectiles {
+        for idx in runtime.projectiles.indices {
+            var proj = runtime.projectiles[idx]
             let res = SurvivalBossEngine.applyPlayerAttack(
                 state: &boss,
                 damage: proj.damage,
                 atPoint: CGPoint(x: proj.x, y: proj.y),
-                radius: SurvivalConstants.projectileSize / 2
+                radius: SurvivalConstants.projectileSize / 2,
+                alreadyHitIds: proj.hitEnemyIds
             )
             if res.bossHitDamage > 0, let p = res.bossHitPoint {
                 runtime.floatingTexts.append(
                     SurvivalFloatingText(
-                        text: "-\(res.bossHitDamage)",
+                        text: "\(res.bossHitDamage)",
                         x: p.x,
                         y: p.y - SurvivalConstants.bossHitboxRadius,
                         createdAt: now,
                         color: .damage
                     )
                 )
+                proj.hitEnemyIds.insert(boss.boss.id)
                 if !proj.penetrating {
                     consumedProjectileIds.insert(proj.id)
                 }
@@ -619,50 +669,61 @@ final class SurvivalGameController: ObservableObject {
             for m in res.minionHits {
                 runtime.floatingTexts.append(
                     SurvivalFloatingText(
-                        text: "-\(m.damage)",
+                        text: "\(m.damage)",
                         x: m.point.x,
                         y: m.point.y - SurvivalConstants.bossMinionRadius,
                         createdAt: now,
                         color: .damage
                     )
                 )
+                proj.hitEnemyIds.insert(m.id)
                 if !proj.penetrating {
                     consumedProjectileIds.insert(proj.id)
                 }
             }
+            runtime.projectiles[idx] = proj
         }
         if !consumedProjectileIds.isEmpty {
             runtime.projectiles.removeAll { consumedProjectileIds.contains($0.id) }
         }
-        for wave in runtime.shockwaves {
+        // 衝撃波 × ボス / ミニオン
+        // WEB 版は `applyPlayerMeleeToBossBattle` を衝撃波生成時に 1 度だけ呼んでダメージを確定させる。
+        // iOS では視覚表示のためライフタイム中 shockwaves 配列に残す必要があるが、ダメージは 1 回きり。
+        // `wave.hitEnemyIds` で「この衝撃波で既にヒット済み」なボス/ミニオンをスキップし、多段ヒットを防ぐ。
+        for idx in runtime.shockwaves.indices {
+            var wave = runtime.shockwaves[idx]
             let res = SurvivalBossEngine.applyPlayerAttack(
                 state: &boss,
                 damage: Int(Double(wave.damage) * 0.6),
                 atPoint: CGPoint(x: wave.x, y: wave.y),
-                radius: wave.radius
+                radius: wave.maxRadius,
+                alreadyHitIds: wave.hitEnemyIds
             )
             if res.bossHitDamage > 0, let p = res.bossHitPoint {
                 runtime.floatingTexts.append(
                     SurvivalFloatingText(
-                        text: "-\(res.bossHitDamage)",
+                        text: "\(res.bossHitDamage)",
                         x: p.x,
                         y: p.y - SurvivalConstants.bossHitboxRadius,
                         createdAt: now,
                         color: .damage
                     )
                 )
+                wave.hitEnemyIds.insert(boss.boss.id)
             }
             for m in res.minionHits {
                 runtime.floatingTexts.append(
                     SurvivalFloatingText(
-                        text: "-\(m.damage)",
+                        text: "\(m.damage)",
                         x: m.point.x,
                         y: m.point.y - SurvivalConstants.bossMinionRadius,
                         createdAt: now,
                         color: .damage
                     )
                 )
+                wave.hitEnemyIds.insert(m.id)
             }
+            runtime.shockwaves[idx] = wave
         }
 
         bossBattle = boss

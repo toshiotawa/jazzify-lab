@@ -14,6 +14,10 @@ struct SurvivalGameView: View {
     let locale: AppLocale
     let onClose: () -> Void
 
+    /// `@State` は値の差し替えしか観測できず、`SurvivalGameController` 内部の
+    /// `@Published` プロパティ (`runtime.phase` 等) の変化を SwiftUI が再描画しない。
+    /// そのため `controller` が生成された後は `SurvivalGameContent` に委譲し、
+    /// そちらの `@ObservedObject` 経由で画面を更新する。
     @State private var controller: SurvivalGameController?
     @State private var isLoading: Bool = true
     @State private var loadError: String?
@@ -22,7 +26,13 @@ struct SurvivalGameView: View {
     var body: some View {
         ZStack {
             if let controller = controller {
-                gameContent(controller: controller)
+                SurvivalGameContent(
+                    controller: controller,
+                    stage: stage,
+                    hintMode: hintMode,
+                    locale: locale,
+                    onClose: onClose
+                )
             } else if isLoading {
                 loadingView
             } else {
@@ -65,52 +75,6 @@ struct SurvivalGameView: View {
                     .padding(.vertical, 10)
                     .background(Color.yellow)
                     .cornerRadius(8)
-            }
-        }
-    }
-
-    @ViewBuilder
-    private func gameContent(controller: SurvivalGameController) -> some View {
-        ZStack(alignment: .top) {
-            SurvivalSceneContainer(controller: controller)
-                .ignoresSafeArea()
-
-            VStack(spacing: 0) {
-                SurvivalHUDView(
-                    controller: controller,
-                    stage: stage,
-                    locale: locale
-                )
-                SurvivalCodeSlotsView(controller: controller)
-                    .padding(.top, 4)
-                Spacer()
-            }
-
-            // 左半分タップ領域 = ジョイスティック（タップ位置に出現）
-            GeometryReader { proxy in
-                HStack(spacing: 0) {
-                    SurvivalJoystickView { analog in
-                        controller.analogInput = analog
-                    }
-                    .frame(width: proxy.size.width * 0.4)
-                    Spacer(minLength: 0)
-                }
-            }
-            .allowsHitTesting(controller.runtime.phase == .playing && !controller.isPaused)
-
-            VStack {
-                Spacer()
-                SurvivalChordPadView(controller: controller)
-                    .padding(.horizontal, 8)
-                    .padding(.bottom, 8)
-            }
-
-            if controller.isPaused && controller.runtime.phase == .playing {
-                pauseOverlay(controller: controller)
-            }
-
-            if controller.runtime.phase != .playing {
-                resultOverlay(controller: controller)
             }
         }
     }
@@ -164,33 +128,81 @@ struct SurvivalGameView: View {
         }
     }
 
-    // MARK: - Overlays
+}
 
-    private func pauseOverlay(controller: SurvivalGameController) -> some View {
-        ZStack {
-            Color.black.opacity(0.5).ignoresSafeArea()
-            VStack(spacing: 20) {
-                Text(locale == .ja ? "一時停止" : "Paused")
-                    .font(.title.bold())
-                    .foregroundStyle(.white)
-                Button(action: { controller.togglePause() }) {
-                    Text(locale == .ja ? "再開" : "Resume")
-                        .font(.headline)
-                        .foregroundStyle(.black)
-                        .padding(.horizontal, 32)
-                        .padding(.vertical, 12)
-                        .background(Color.yellow)
-                        .cornerRadius(10)
+// MARK: - Controller-observing content view
+
+/// `SurvivalGameController` を `@ObservedObject` として購読し、
+/// `runtime.phase` / `isPaused` の変化で自動再描画される子ビュー。
+/// これを分離しないと、親の `@State var controller: SurvivalGameController?`
+/// では Published プロパティの変化が SwiftUI に伝わらず、
+/// ゲームオーバー後の終了モーダルがアプリを一度バックグラウンドへ移してからでないと表示されない。
+private struct SurvivalGameContent: View {
+    @ObservedObject var controller: SurvivalGameController
+    let stage: SurvivalStageDefinition
+    let hintMode: Bool
+    let locale: AppLocale
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            SurvivalSceneContainer(controller: controller)
+                .ignoresSafeArea()
+
+            VStack(spacing: 0) {
+                SurvivalHUDView(
+                    controller: controller,
+                    stage: stage,
+                    locale: locale
+                )
+                SurvivalCodeSlotsView(controller: controller)
+                    .padding(.top, 4)
+                Spacer()
+            }
+
+            // 左半分タップ領域 = ジョイスティック（タップ位置に出現）
+            GeometryReader { proxy in
+                HStack(spacing: 0) {
+                    SurvivalJoystickView { analog in
+                        controller.analogInput = analog
+                    }
+                    .frame(width: proxy.size.width * 0.4)
+                    Spacer(minLength: 0)
                 }
-                Button(action: { controller.requestExit() }) {
-                    Text(locale == .ja ? "マップに戻る" : "Back to Map")
-                        .foregroundStyle(.white)
-                }
+            }
+            .allowsHitTesting(controller.runtime.phase == .playing && !controller.isPaused)
+
+            VStack {
+                Spacer()
+                SurvivalChordPadView(controller: controller)
+                    .padding(.horizontal, 8)
+                    .padding(.bottom, 8)
+            }
+
+            if controller.isPaused && controller.runtime.phase == .playing {
+                pauseOverlay
+            }
+
+            if controller.runtime.phase != .playing {
+                resultOverlay
             }
         }
     }
 
-    private func resultOverlay(controller: SurvivalGameController) -> some View {
+    // MARK: - Overlays
+
+    private var pauseOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.6).ignoresSafeArea()
+            SurvivalPauseSettingsSheet(
+                locale: locale,
+                onResume: { controller.togglePause() },
+                onExit: { controller.requestExit() }
+            )
+        }
+    }
+
+    private var resultOverlay: some View {
         ZStack {
             Color.black.opacity(0.6).ignoresSafeArea()
             SurvivalGameResultView(

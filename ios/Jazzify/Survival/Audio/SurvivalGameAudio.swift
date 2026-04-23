@@ -105,6 +105,39 @@ final class SurvivalGameAudio {
         return newValue
     }
 
+    func setMuted(_ muted: Bool) {
+        guard muted != isMuted else { return }
+        userDefaults.set(muted, forKey: mutedKey)
+        bgmPlayer.volume = effectiveBgmVolume()
+        engine.mainMixerNode.outputVolume = effectiveSfxVolume()
+    }
+
+    /// 保存されている SFX 音量 (0.0 - 1.0)。ミュート中でも保存値をそのまま返す。
+    var sfxVolume: Float {
+        if userDefaults.object(forKey: sfxVolumeKey) == nil { return defaultSfxVolume }
+        return max(0, min(1, userDefaults.float(forKey: sfxVolumeKey)))
+    }
+
+    /// 保存されている BGM 音量 (0.0 - 1.0)。
+    var bgmVolume: Float {
+        if userDefaults.object(forKey: bgmVolumeKey) == nil { return defaultBgmVolume }
+        return max(0, min(1, userDefaults.float(forKey: bgmVolumeKey)))
+    }
+
+    /// SFX 音量を設定。ミュート中でも保存値は更新し、再生音量はミュート解除時に反映される。
+    func setSfxVolume(_ volume: Float) {
+        let v = max(0, min(1, volume))
+        userDefaults.set(v, forKey: sfxVolumeKey)
+        engine.mainMixerNode.outputVolume = effectiveSfxVolume()
+    }
+
+    /// BGM 音量を設定。
+    func setBgmVolume(_ volume: Float) {
+        let v = max(0, min(1, volume))
+        userDefaults.set(v, forKey: bgmVolumeKey)
+        bgmPlayer.volume = effectiveBgmVolume()
+    }
+
     /// 指定 MIDI ノートを短時間再生 (ルート音鳴動用)
     func playNote(_ note: Int, velocity: Int = 90, duration: TimeInterval = 0.5) {
         startEngineIfNeeded()
