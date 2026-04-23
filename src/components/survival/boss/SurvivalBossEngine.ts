@@ -734,7 +734,20 @@ const updateBossProjectiles = (state: BossBattleState, ctx: BossTickContext): vo
 
 // ===== ハザード更新 =====
 const updateHazards = (state: BossBattleState, ctx: BossTickContext): void => {
-  state.hazards = state.hazards.filter(h => h.endAt > ctx.now);
+  // 変化がない間は配列を置き換えないことでアロケーションを抑制
+  let firstExpiredIndex = -1;
+  for (let i = 0; i < state.hazards.length; i += 1) {
+    if (state.hazards[i].endAt <= ctx.now) {
+      firstExpiredIndex = i;
+      break;
+    }
+  }
+  if (firstExpiredIndex < 0) return;
+  const alive: BossHazard[] = [];
+  for (let i = 0; i < state.hazards.length; i += 1) {
+    if (state.hazards[i].endAt > ctx.now) alive.push(state.hazards[i]);
+  }
+  state.hazards = alive;
 };
 
 // ===== プレイヤー被弾処理 =====

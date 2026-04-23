@@ -23,6 +23,35 @@ import {
   BOSS_SPRITE_PATH,
   BOSS_DISPLAY_SIZE,
 } from './boss/SurvivalBossTypes';
+import { isIOSWebView } from '../../utils/iosbridge';
+
+/**
+ * iOS WebKit では shadowBlur が極端に重い（1 回で数 ms）。
+ * ボス戦の 1 フレームには 20 回以上 shadowBlur が呼ばれることがあり、
+ * これだけでフレーム落ちの原因になる。
+ * iOS では一律 0 に固定する。
+ */
+const applyIOSCanvasOptimizations = (ctx: CanvasRenderingContext2D): void => {
+  if (!isIOSWebView()) return;
+  try {
+    Object.defineProperty(ctx, 'shadowBlur', {
+      configurable: true,
+      get: () => 0,
+      set: () => { /* noop: iOS では shadowBlur 無効化 */ },
+    });
+  } catch { /* ignore */ }
+};
+
+/**
+ * iOS の Retina 画面は dpr が 2〜3 に達するため、フルスクリーン Canvas の
+ * ピクセル数が 4〜9 倍に跳ね上がる。これがボス戦の描画負荷を支配するため
+ * iOS WebView では 1.5 を上限としてダウンサンプリングする。
+ */
+const getEffectiveDpr = (): number => {
+  const raw = typeof window !== 'undefined' ? (window.devicePixelRatio || 1) : 1;
+  if (isIOSWebView()) return Math.min(raw, 1.5);
+  return raw;
+};
 
 // 方向から角度を取得するヘルパー
 const getDirectionAngle = (direction: Direction): number => {
@@ -1772,11 +1801,18 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const canvas = canvasRef.current;
     if (!canvas) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getEffectiveDpr();
     canvas.width = viewportWidth * dpr;
     canvas.height = viewportHeight * dpr;
     canvas.style.width = `${viewportWidth}px`;
     canvas.style.height = `${viewportHeight}px`;
+
+    // コンテキスト生成直後に iOS 向けの shadowBlur 無効化を適用
+    const ctx = canvas.getContext('2d');
+    if (ctx) {
+      applyIOSCanvasOptimizations(ctx);
+      ctx.imageSmoothingEnabled = false;
+    }
   }, [viewportWidth, viewportHeight]);
 
   // 描画ループ（draw 更新時のみ。毎フレームの canvas.width 再設定を回避）
@@ -1787,7 +1823,7 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    const dpr = window.devicePixelRatio || 1;
+    const dpr = getEffectiveDpr();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     draw(ctx);
   }, [draw]);

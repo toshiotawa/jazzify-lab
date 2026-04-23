@@ -2125,20 +2125,22 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             newState.items = [...newState.items, ...pendingDrops];
           }
 
-          // アイテム（ハート）のピックアップ
+          // アイテム（ハート）のピックアップ（変化なしなら元配列を維持）
           const HEART_PICKUP_RADIUS = 28;
+          const HEART_PICKUP_RADIUS_SQ = HEART_PICKUP_RADIUS * HEART_PICKUP_RADIUS;
+          let itemsChanged = false;
           const keptItems: DroppedItem[] = [];
           for (const item of newState.items) {
             const dx = item.x - newState.player.x;
             const dy = item.y - newState.player.y;
-            const d = Math.sqrt(dx * dx + dy * dy);
-            if (item.type === 'heart' && d < HEART_PICKUP_RADIUS) {
+            if (item.type === 'heart' && dx * dx + dy * dy < HEART_PICKUP_RADIUS_SQ) {
               healPlayerByAmount(bossState, HEALING_AMOUNT);
+              itemsChanged = true;
               continue;
             }
             keptItems.push(item);
           }
-          newState.items = keptItems;
+          if (itemsChanged) newState.items = keptItems;
 
           // プレイヤー HP をボス戦 HP にミラー
           newState.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
@@ -2188,9 +2190,14 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           if (newState.aSlotCooldown > 0) newState.aSlotCooldown = Math.max(0, newState.aSlotCooldown - deltaTime);
           if (newState.bSlotCooldown > 0) newState.bSlotCooldown = Math.max(0, newState.bSlotCooldown - deltaTime);
 
-          // ダメージテキストのクリーンアップ
-          const bossNow = Date.now();
-          newState.damageTexts = newState.damageTexts.filter(d => bossNow - d.startTime < d.duration);
+          // ダメージテキストのクリーンアップ（変化なしなら元配列を維持）
+          if (newState.damageTexts.length > 0) {
+            const bossNow = Date.now();
+            const filtered = newState.damageTexts.filter(d => bossNow - d.startTime < d.duration);
+            if (filtered.length !== newState.damageTexts.length) {
+              newState.damageTexts = filtered;
+            }
+          }
 
           // UI 側の HP バー等を再レンダリングさせるためのトリガ（100ms 間引き）
           {
