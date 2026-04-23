@@ -15,6 +15,7 @@ struct SurvivalPauseSettingsSheet: View {
 
     @State private var bgmVolume: Float = SurvivalGameAudio.shared.bgmVolume
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
+    @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
     @State private var isMuted: Bool = SurvivalGameAudio.shared.isMuted
 
     var body: some View {
@@ -45,6 +46,12 @@ struct SurvivalPauseSettingsSheet: View {
                     icon: "waveform",
                     label: locale == .ja ? "効果音" : "SFX",
                     value: sfxBinding
+                )
+
+                volumeRow(
+                    icon: "pianokeys",
+                    label: locale == .ja ? "ピアノ" : "Piano",
+                    value: pianoBinding
                 )
             }
             .padding(.horizontal, 18)
@@ -108,6 +115,16 @@ struct SurvivalPauseSettingsSheet: View {
             set: { newValue in
                 sfxVolume = newValue
                 SurvivalGameAudio.shared.setSfxVolume(newValue)
+            }
+        )
+    }
+
+    private var pianoBinding: Binding<Float> {
+        Binding(
+            get: { pianoVolume },
+            set: { newValue in
+                pianoVolume = newValue
+                SurvivalGameAudio.shared.setPianoVolume(newValue)
             }
         )
     }

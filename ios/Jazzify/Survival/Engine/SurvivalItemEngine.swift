@@ -23,7 +23,8 @@ enum SurvivalItemEngine {
 
     static func rollItem(at pos: CGPoint, dropRate: Double, now: TimeInterval) -> SurvivalDroppedItem? {
         guard Double.random(in: 0...1) < dropRate else { return nil }
-        let kinds = SurvivalDroppedItemKind.allCases
+        // iOS では Magic (C 列) を廃止しているため、C 攻撃強化 🪄 は出現させない。
+        let kinds = SurvivalDroppedItemKind.allCases.filter { $0 != .cAtkBoost }
         guard let kind = kinds.randomElement() else { return nil }
         return SurvivalDroppedItem(
             kind: kind,

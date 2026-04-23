@@ -4,7 +4,8 @@ import SwiftUI
 /// - タップで `SurvivalGameController.handleNoteOn/Off` を呼ぶ
 /// - 同時押しに対応するため `DragGesture(minimumDistance: 0)` を鍵ごとに付与
 /// - 黒鍵は白鍵レイヤの上に絶対配置し、白鍵の境界に正しく乗るよう座標計算で描画
-/// - ヒントモード中は `controller.currentHintPitchClasses` に含まれる pitch class の鍵を緑グロー表示
+/// - ヒントモード中は `controller.currentHintHighlightMidis` に含まれる MIDI の鍵だけを緑グロー表示
+///   (Web 版と同じく C4 起点で単一オクターブ分のみをハイライト)
 struct SurvivalChordPadView: View {
     @ObservedObject var controller: SurvivalGameController
 
@@ -24,7 +25,7 @@ struct SurvivalChordPadView: View {
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
             let whites = whiteMidiNotes
             let totalWidth = CGFloat(whites.count) * whiteKeyWidth
-            let hintPitchClasses = controller.currentHintPitchClasses
+            let hintMidis = controller.currentHintHighlightMidis
 
             ScrollViewReader { scrollProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -36,7 +37,7 @@ struct SurvivalChordPadView: View {
                                     midi: midi,
                                     label: SurvivalChordPadView.shouldLabelC(midi: midi) ? SurvivalChordPadView.midiLabel(midi) : "",
                                     isBlack: false,
-                                    isHinted: hintPitchClasses.contains(SurvivalChordPadView.pitchClass(midi)),
+                                    isHinted: hintMidis.contains(midi),
                                     width: whiteKeyWidth,
                                     height: keyboardHeight,
                                     onPress: { controller.handleNoteOn($0) },
@@ -54,7 +55,7 @@ struct SurvivalChordPadView: View {
                                 midi: midi,
                                 label: "",
                                 isBlack: true,
-                                isHinted: hintPitchClasses.contains(SurvivalChordPadView.pitchClass(midi)),
+                                isHinted: hintMidis.contains(midi),
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
                                 onPress: { controller.handleNoteOn($0) },
@@ -115,10 +116,6 @@ struct SurvivalChordPadView: View {
         let pc = ((midi % 12) + 12) % 12
         let octave = midi / 12 - 1
         return "\(labels[pc])\(octave)"
-    }
-
-    fileprivate static func pitchClass(_ midi: Int) -> Int {
-        ((midi % 12) + 12) % 12
     }
 }
 

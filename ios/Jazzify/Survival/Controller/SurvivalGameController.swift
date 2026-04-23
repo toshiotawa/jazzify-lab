@@ -120,10 +120,12 @@ final class SurvivalGameController: ObservableObject {
 
     // MARK: - ヒント
 
-    /// 現在のヒント対象スロットのコード構成音 (pitch class の集合)。
-    /// ヒントモード OFF、あるいはヒント対象スロットにコードが割り当てられていない場合は空。
-    /// 鍵盤ビューはこの pitch class (0..11) に一致する鍵を緑でハイライトする。
-    var currentHintPitchClasses: Set<Int> {
+    /// 現在のヒント対象スロットのコード構成音を、Web 版と同じアルゴリズムで
+    /// C4 (MIDI 60) 起点の昇順の MIDI 番号に展開したもの。
+    /// 全オクターブではなく単一オクターブ内（1 つの pitch class あたり 1 鍵）のみをハイライトするため、
+    /// 鍵盤ビューは MIDI 完全一致で判定する。
+    /// 参考: Web 版 `SurvivalGameScreen.tsx` の HINT ハイライト (`baseOctave = 4`)。
+    var currentHintHighlightMidis: Set<Int> {
         guard runtime.hintMode,
               let idx = currentHintSlotIndex,
               runtime.slots.indices.contains(idx),
@@ -131,7 +133,25 @@ final class SurvivalGameController: ObservableObject {
               let chord = runtime.slots[idx].chord else {
             return []
         }
-        return Set(chord.pitchClasses)
+        let baseOctave = 4
+        // 入力順を維持したまま pitch class をユニーク化
+        var seen = Set<Int>()
+        var uniquePitchClasses: [Int] = []
+        for pc in chord.pitchClasses {
+            let norm = ((pc % 12) + 12) % 12
+            if seen.insert(norm).inserted {
+                uniquePitchClasses.append(norm)
+            }
+        }
+        var result = Set<Int>()
+        var lastMidi = 0
+        for pc in uniquePitchClasses {
+            var midi = pc + baseOctave * 12
+            while midi <= lastMidi { midi += 12 }
+            result.insert(midi)
+            lastMidi = midi
+        }
+        return result
     }
 
     /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
@@ -173,8 +193,8 @@ final class SurvivalGameController: ObservableObject {
                 triggerSlot(atIndex: idx, chord: target)
             }
         }
-        // 鍵盤タップのフィードバック音（軽め）
-        SurvivalGameAudio.shared.playNote(note, velocity: 70, duration: 0.18)
+        // 鍵盤タップのフィードバック音（軽め）。ピアノ音量スライダーに従う。
+        SurvivalGameAudio.shared.playNote(note, velocity: 70, duration: 0.18, asPiano: true)
     }
 
     private func triggerSlot(atIndex slotIndex: Int, chord: SurvivalResolvedChord) {
@@ -230,9 +250,9 @@ final class SurvivalGameController: ObservableObject {
             break
         }
 
-        // WEB 版準拠: 正解時はルート音 (C2 = 36 起点) を鳴らす
+        // WEB 版準拠: 正解時はルート音 (C2 = 36 起点) を鳴らす。ピアノ音量スライダーに従う。
         let rootMidi = 36 + chord.rootPitchClass
-        SurvivalGameAudio.shared.playNote(rootMidi, velocity: 100, duration: 0.45)
+        SurvivalGameAudio.shared.playNote(rootMidi, velocity: 100, duration: 0.45, asPiano: true)
 
         // 現在コードは次コード (プリロード済) に入れ替え、新しい次コードを抽選する (WEB 版 `nextSlots` 準拠)
         let upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
@@ -568,15 +588,18 @@ final class SurvivalGameController: ObservableObject {
         runtime.enemies = updated
 
         // ドロップ処理
-        // iOS ステージモード (デモ含む) では EXP 獲得を行わないため、コイン (EXP) は生成しない。
-        for enemy in defeatedEnemies {
-            let drop = SurvivalItemEngine.rollDrop(
-                enemy: enemy,
-                itemDropRate: config.itemDropRate,
-                expMultiplier: config.expMultiplier,
-                now: now
-            )
-            if let item = drop.item { runtime.droppedItems.append(item) }
+        // - iOS ステージモードでは EXP 獲得を行わないため、コイン (EXP) は生成しない。
+        // - デモ (未ログイン体験) ではアイテム系ドロップも行わない。
+        if !isDemo {
+            for enemy in defeatedEnemies {
+                let drop = SurvivalItemEngine.rollDrop(
+                    enemy: enemy,
+                    itemDropRate: config.itemDropRate,
+                    expMultiplier: config.expMultiplier,
+                    now: now
+                )
+                if let item = drop.item { runtime.droppedItems.append(item) }
+            }
         }
     }
 
