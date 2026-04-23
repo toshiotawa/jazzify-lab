@@ -4,6 +4,7 @@ import SwiftUI
 /// - タップで `SurvivalGameController.handleNoteOn/Off` を呼ぶ
 /// - 同時押しに対応するため `DragGesture(minimumDistance: 0)` を鍵ごとに付与
 /// - 黒鍵は白鍵レイヤの上に絶対配置し、白鍵の境界に正しく乗るよう座標計算で描画
+/// - ヒントモード中は `controller.currentHintPitchClasses` に含まれる pitch class の鍵を緑グロー表示
 struct SurvivalChordPadView: View {
     @ObservedObject var controller: SurvivalGameController
 
@@ -23,6 +24,7 @@ struct SurvivalChordPadView: View {
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
             let whites = whiteMidiNotes
             let totalWidth = CGFloat(whites.count) * whiteKeyWidth
+            let hintPitchClasses = controller.currentHintPitchClasses
 
             ScrollViewReader { scrollProxy in
                 ScrollView(.horizontal, showsIndicators: false) {
@@ -34,6 +36,7 @@ struct SurvivalChordPadView: View {
                                     midi: midi,
                                     label: SurvivalChordPadView.shouldLabelC(midi: midi) ? SurvivalChordPadView.midiLabel(midi) : "",
                                     isBlack: false,
+                                    isHinted: hintPitchClasses.contains(SurvivalChordPadView.pitchClass(midi)),
                                     width: whiteKeyWidth,
                                     height: keyboardHeight,
                                     onPress: { controller.handleNoteOn($0) },
@@ -51,6 +54,7 @@ struct SurvivalChordPadView: View {
                                 midi: midi,
                                 label: "",
                                 isBlack: true,
+                                isHinted: hintPitchClasses.contains(SurvivalChordPadView.pitchClass(midi)),
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
                                 onPress: { controller.handleNoteOn($0) },
@@ -112,12 +116,18 @@ struct SurvivalChordPadView: View {
         let octave = midi / 12 - 1
         return "\(labels[pc])\(octave)"
     }
+
+    fileprivate static func pitchClass(_ midi: Int) -> Int {
+        ((midi % 12) + 12) % 12
+    }
 }
 
 private struct PianoKeyButton: View {
     let midi: Int
     let label: String
     let isBlack: Bool
+    /// ヒント対象 pitch class に一致する場合 true。緑のグロー枠で強調表示する。
+    let isHinted: Bool
     let width: CGFloat
     let height: CGFloat
     let onPress: (Int) -> Void
@@ -132,6 +142,11 @@ private struct PianoKeyButton: View {
                 .overlay(
                     RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
                         .stroke(Color.black.opacity(0.85), lineWidth: 1)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: isBlack ? 2 : 4)
+                        .stroke(Color.green, lineWidth: isHinted ? 3 : 0)
+                        .shadow(color: isHinted ? Color.green.opacity(0.85) : .clear, radius: isHinted ? 4 : 0)
                 )
             if !label.isEmpty {
                 Text(label)
@@ -161,8 +176,18 @@ private struct PianoKeyButton: View {
 
     private var fillColor: Color {
         if isBlack {
+            if isHinted {
+                return isPressing
+                    ? Color(red: 0.15, green: 0.55, blue: 0.25)
+                    : Color(red: 0.10, green: 0.40, blue: 0.18)
+            }
             return isPressing ? Color(white: 0.35) : Color.black
         } else {
+            if isHinted {
+                return isPressing
+                    ? Color(red: 0.55, green: 0.90, blue: 0.55)
+                    : Color(red: 0.75, green: 1.0, blue: 0.75)
+            }
             return isPressing ? Color(white: 0.78) : Color.white
         }
     }

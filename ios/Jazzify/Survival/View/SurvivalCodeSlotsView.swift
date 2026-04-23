@@ -1,9 +1,8 @@
 import SwiftUI
 
 /// コードスロット UI。WEB 版 `SurvivalCodeSlots.tsx` と同仕様。
-/// - ステージモード(通常バトル): A/B/C の 3 スロット表示 (D は非表示)
-/// - ボスステージ: A/B の 2 スロットのみ（幅を広く、高さを太く）
-/// - ラベル: A=🔫 Shot, B=👊 Punch, C=🪄 Magic, D=✨ Magic
+/// - 通常ステージ / ボスステージ共に A/B の 2 スロット表示 (C / D は非表示)
+/// - ラベル: A=🔫 Shot, B=👊 Punch
 /// - 現コード表示 + 構成音の正解進捗バー + タイマー + 次コード (NEXT) を同時表示
 /// - ヒント時は構成音を pitch class 表示 + 黄色リングで強調
 struct SurvivalCodeSlotsView: View {
@@ -11,7 +10,7 @@ struct SurvivalCodeSlotsView: View {
 
     var body: some View {
         let isBoss = controller.isBossStage
-        let lastIndex = isBoss ? 1 : 2  // 通常=0..2(3枠), ボス=0..1(2枠)
+        let lastIndex = 1 // A / B の 2 枠のみ表示 (通常・ボス共通)
 
         return HStack(spacing: isBoss ? 12 : 8) {
             ForEach(0...lastIndex, id: \.self) { idx in

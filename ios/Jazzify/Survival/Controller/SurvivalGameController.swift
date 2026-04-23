@@ -20,6 +20,10 @@ final class SurvivalGameController: ObservableObject {
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var clearReportInFlight: Bool = false
     @Published private(set) var clearReportError: String?
+    /// ヒントモード中にピアノ鍵盤をハイライトする対象スロットの index (A=0, B=1)。
+    /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様 A↔B を交互に切り替える。
+    /// `runtime.hintMode` が false の場合は nil。
+    @Published private(set) var currentHintSlotIndex: Int? = 0
 
     /// アナログ入力 (仮想スティック) x,y は [-1, 1] 正規化
     var analogInput: CGVector = .zero
@@ -84,6 +88,9 @@ final class SurvivalGameController: ObservableObject {
             slots: slots
         )
 
+        // ヒントモード時のみ鍵盤ハイライト対象スロットを設定 (最初は A 列)
+        self.currentHintSlotIndex = hintMode ? 0 : nil
+
         if isBoss {
             let bossType = SurvivalBossEngine.bossType(for: stage.blockKey)
             self.bossBattle = SurvivalBossEngine.createBossBattleState(
@@ -109,6 +116,32 @@ final class SurvivalGameController: ObservableObject {
     func requestExit() {
         stopAudio()
         onExit(runtime.phase == .cleared)
+    }
+
+    // MARK: - ヒント
+
+    /// 現在のヒント対象スロットのコード構成音 (pitch class の集合)。
+    /// ヒントモード OFF、あるいはヒント対象スロットにコードが割り当てられていない場合は空。
+    /// 鍵盤ビューはこの pitch class (0..11) に一致する鍵を緑でハイライトする。
+    var currentHintPitchClasses: Set<Int> {
+        guard runtime.hintMode,
+              let idx = currentHintSlotIndex,
+              runtime.slots.indices.contains(idx),
+              runtime.slots[idx].isEnabled,
+              let chord = runtime.slots[idx].chord else {
+            return []
+        }
+        return Set(chord.pitchClasses)
+    }
+
+    /// ヒント対象を「A/B のうち有効かつ反対側」へ切り替える。
+    /// 次の候補も無効/未割当なら現状維持する。
+    private func advanceHintSlotIndex(triggeredIndex: Int) {
+        guard runtime.hintMode else { return }
+        guard triggeredIndex == 0 || triggeredIndex == 1 else { return }
+        let next = triggeredIndex == 0 ? 1 : 0
+        guard runtime.slots.indices.contains(next), runtime.slots[next].isEnabled else { return }
+        currentHintSlotIndex = next
     }
 
     // MARK: - 入力
@@ -210,6 +243,9 @@ final class SurvivalGameController: ObservableObject {
         runtime.slots[slotIndex].nextChord = newNextChord
         runtime.slots[slotIndex].timer = SurvivalConstants.slotTimeoutSec
         runtime.slots[slotIndex].inputPitchClasses = []
+
+        // ヒント対象スロットを A↔B 交互に切り替える (Web 版と同挙動)
+        advanceHintSlotIndex(triggeredIndex: slotIndex)
     }
 
     private func applyMagicOutcome(_ outcome: SurvivalMagicEngine.MagicOutcome, now: TimeInterval) {
