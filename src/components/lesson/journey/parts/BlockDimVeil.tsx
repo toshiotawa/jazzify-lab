@@ -19,8 +19,7 @@ export const BlockDimVeil: React.FC<BlockDimVeilProps> = ({ topY, bottomY, width
         width: widthPx,
         height: heightPx,
         background:
-          'linear-gradient(to top, rgba(6,4,20,0.78) 0%, rgba(6,4,20,0.62) 45%, rgba(6,4,20,0.82) 100%)',
-        backdropFilter: 'blur(1.5px)',
+          'linear-gradient(to top, rgba(6,4,20,0.32) 0%, rgba(6,4,20,0.22) 45%, rgba(6,4,20,0.36) 100%)',
         zIndex: 40,
       }}
     />
