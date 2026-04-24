@@ -17,84 +17,199 @@ struct SurvivalPauseSettingsSheet: View {
     @State private var sfxVolume: Float = SurvivalGameAudio.shared.sfxVolume
     @State private var pianoVolume: Float = SurvivalGameAudio.shared.pianoVolume
     @State private var isMuted: Bool = SurvivalGameAudio.shared.isMuted
+    @StateObject private var midiManager = MIDIManager.shared
 
     var body: some View {
-        VStack(spacing: 18) {
-            Text(locale == .ja ? "一時停止 / 設定" : "Paused / Settings")
-                .font(.title3.bold())
-                .foregroundStyle(.white)
+        ScrollView {
+            VStack(spacing: 18) {
+                Text(locale == .ja ? "一時停止 / 設定" : "Paused / Settings")
+                    .font(.title3.bold())
+                    .foregroundStyle(.white)
 
-            VStack(alignment: .leading, spacing: 14) {
-                Toggle(isOn: muteBinding) {
-                    HStack(spacing: 8) {
-                        Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
-                            .foregroundStyle(.white)
-                        Text(locale == .ja ? "ミュート" : "Mute")
-                            .foregroundStyle(.white)
+                VStack(alignment: .leading, spacing: 14) {
+                    Toggle(isOn: muteBinding) {
+                        HStack(spacing: 8) {
+                            Image(systemName: isMuted ? "speaker.slash.fill" : "speaker.wave.2.fill")
+                                .foregroundStyle(.white)
+                            Text(locale == .ja ? "ミュート" : "Mute")
+                                .foregroundStyle(.white)
+                                .font(.subheadline)
+                        }
+                    }
+                    .tint(.yellow)
+
+                    volumeRow(
+                        icon: "music.note",
+                        label: locale == .ja ? "BGM" : "Music",
+                        value: bgmBinding
+                    )
+
+                    volumeRow(
+                        icon: "waveform",
+                        label: locale == .ja ? "効果音" : "SFX",
+                        value: sfxBinding
+                    )
+
+                    volumeRow(
+                        icon: "pianokeys",
+                        label: locale == .ja ? "ピアノ" : "Piano",
+                        value: pianoBinding
+                    )
+                }
+                .padding(.horizontal, 18)
+                .padding(.vertical, 14)
+                .background(
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.white.opacity(0.08))
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 14)
+                        .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+
+                midiSection
+
+                VStack(spacing: 10) {
+                    Button(action: onResume) {
+                        Text(locale == .ja ? "再開" : "Resume")
+                            .font(.headline)
+                            .foregroundStyle(.black)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 12)
+                            .background(Color.yellow)
+                            .cornerRadius(10)
+                    }
+
+                    Button(action: onExit) {
+                        Text(locale == .ja ? "マップに戻る" : "Back to Map")
                             .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.85))
                     }
                 }
-                .tint(.yellow)
-
-                volumeRow(
-                    icon: "music.note",
-                    label: locale == .ja ? "BGM" : "Music",
-                    value: bgmBinding
-                )
-
-                volumeRow(
-                    icon: "waveform",
-                    label: locale == .ja ? "効果音" : "SFX",
-                    value: sfxBinding
-                )
-
-                volumeRow(
-                    icon: "pianokeys",
-                    label: locale == .ja ? "ピアノ" : "Piano",
-                    value: pianoBinding
-                )
             }
-            .padding(.horizontal, 18)
-            .padding(.vertical, 14)
+            .padding(22)
+            .frame(maxWidth: 360)
             .background(
-                RoundedRectangle(cornerRadius: 14)
-                    .fill(Color.white.opacity(0.08))
+                RoundedRectangle(cornerRadius: 18)
+                    .fill(Color(red: 0.08, green: 0.09, blue: 0.14).opacity(0.95))
             )
             .overlay(
-                RoundedRectangle(cornerRadius: 14)
-                    .stroke(Color.white.opacity(0.18), lineWidth: 1)
+                RoundedRectangle(cornerRadius: 18)
+                    .stroke(Color.yellow.opacity(0.4), lineWidth: 1)
             )
+            .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 20)
+        }
+        .onAppear {
+            // モーダル表示時に最新のデバイス一覧を取り直す (バックグラウンドで接続変更があった場合の対策)。
+            midiManager.refreshDevices()
+        }
+    }
 
-            VStack(spacing: 10) {
-                Button(action: onResume) {
-                    Text(locale == .ja ? "再開" : "Resume")
-                        .font(.headline)
-                        .foregroundStyle(.black)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 12)
-                        .background(Color.yellow)
-                        .cornerRadius(10)
-                }
+    // MARK: - MIDI Section
 
-                Button(action: onExit) {
-                    Text(locale == .ja ? "マップに戻る" : "Back to Map")
+    private var midiSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                Image(systemName: "pianokeys.inverse")
+                    .foregroundStyle(.white)
+                Text(locale == .ja ? "MIDI キーボード" : "MIDI Keyboard")
+                    .foregroundStyle(.white)
+                    .font(.subheadline.bold())
+                Spacer()
+                Button {
+                    midiManager.refreshDevices()
+                } label: {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundStyle(.white.opacity(0.7))
                         .font(.subheadline)
-                        .foregroundStyle(.white.opacity(0.85))
+                }
+                .buttonStyle(.plain)
+            }
+
+            if midiManager.availableDevices.isEmpty {
+                Text(locale == .ja
+                     ? "MIDI デバイスが見つかりません。キーボードを接続してください。"
+                     : "No MIDI devices found. Connect a keyboard.")
+                    .font(.caption)
+                    .foregroundStyle(.white.opacity(0.6))
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(midiManager.availableDevices, id: \.uniqueID) { device in
+                        midiDeviceRow(device: device)
+                    }
+
+                    if midiManager.selectedDeviceID != nil {
+                        Button {
+                            midiManager.selectDevice(uniqueID: nil)
+                        } label: {
+                            Text(locale == .ja ? "接続を解除" : "Disconnect")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.7))
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 6)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 8)
+                                        .stroke(Color.white.opacity(0.25), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
             }
         }
-        .padding(22)
-        .frame(maxWidth: 360)
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
         .background(
-            RoundedRectangle(cornerRadius: 18)
-                .fill(Color(red: 0.08, green: 0.09, blue: 0.14).opacity(0.95))
+            RoundedRectangle(cornerRadius: 14)
+                .fill(Color.white.opacity(0.08))
         )
         .overlay(
-            RoundedRectangle(cornerRadius: 18)
-                .stroke(Color.yellow.opacity(0.4), lineWidth: 1)
+            RoundedRectangle(cornerRadius: 14)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.4), radius: 12, x: 0, y: 6)
-        .padding(.horizontal, 24)
+    }
+
+    private func midiDeviceRow(device: MIDIDeviceInfo) -> some View {
+        let isSelected = midiManager.selectedDeviceID == device.uniqueID
+        return Button {
+            if isSelected {
+                midiManager.selectDevice(uniqueID: nil)
+            } else {
+                midiManager.selectDevice(uniqueID: device.uniqueID)
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: isSelected ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(isSelected ? Color.yellow : Color.white.opacity(0.5))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(device.displayName)
+                        .font(.caption.bold())
+                        .foregroundStyle(.white)
+                        .lineLimit(1)
+                    if !device.manufacturer.isEmpty {
+                        Text(device.manufacturer)
+                            .font(.caption2)
+                            .foregroundStyle(.white.opacity(0.6))
+                            .lineLimit(1)
+                    }
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(isSelected ? Color.yellow.opacity(0.15) : Color.white.opacity(0.05))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(isSelected ? Color.yellow.opacity(0.5) : Color.white.opacity(0.12), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
     }
 
     // MARK: - Bindings (SurvivalGameAudio へ即時反映)

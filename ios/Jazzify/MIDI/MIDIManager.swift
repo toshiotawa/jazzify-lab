@@ -19,10 +19,18 @@ final class MIDIManager: ObservableObject {
     private var midiClient = MIDIClientRef()
     private var inputPort = MIDIPortRef()
     private var isSetup = false
+    private var connectedSource: MIDIEndpointRef?
+
+    /// UserDefaults に保存された最後に選択した MIDI デバイスの uniqueID。
+    /// アプリ再起動後に同じデバイスが存在すれば自動接続する。
+    private static let selectedDeviceDefaultsKey = "jazzify.midi.selectedDeviceID"
 
     var onMIDIEvent: ((UInt8, UInt8, UInt8) -> Void)?
 
     private init() {
+        if let saved = UserDefaults.standard.object(forKey: Self.selectedDeviceDefaultsKey) as? NSNumber {
+            self.selectedDeviceID = saved.int32Value
+        }
         setupMIDI()
     }
 
@@ -79,9 +87,12 @@ final class MIDIManager: ObservableObject {
 
         self.availableDevices = devices
 
-        if let selectedID = selectedDeviceID,
-           !devices.contains(where: { $0.uniqueID == selectedID }) {
-            selectedDeviceID = nil
+        // 保存済みの選択 ID に一致するデバイスが (再) 出現したら自動接続する。
+        // これにより、設定タブで選んだキーボードがアプリ再起動後やサバイバル画面でもそのまま使える。
+        if let selectedID = selectedDeviceID {
+            if devices.contains(where: { $0.uniqueID == selectedID }) {
+                ensureConnected(to: selectedID)
+            }
         }
     }
 
@@ -89,9 +100,13 @@ final class MIDIManager: ObservableObject {
         disconnectCurrent()
 
         selectedDeviceID = uniqueID
+        persistSelectedDeviceID(uniqueID)
 
         guard let targetID = uniqueID else { return }
+        ensureConnected(to: targetID)
+    }
 
+    private func ensureConnected(to targetID: Int32) {
         let sourceCount = MIDIGetNumberOfSources()
         for i in 0..<sourceCount {
             let source = MIDIGetSource(i)
@@ -99,17 +114,36 @@ final class MIDIManager: ObservableObject {
             MIDIObjectGetIntegerProperty(source, kMIDIPropertyUniqueID, &srcID)
 
             if srcID == targetID {
-                MIDIPortConnectSource(inputPort, source, nil)
-                break
+                if connectedSource == source { return }
+                disconnectCurrent()
+                let status = MIDIPortConnectSource(inputPort, source, nil)
+                if status == noErr {
+                    connectedSource = source
+                }
+                return
             }
         }
     }
 
     private func disconnectCurrent() {
+        if let source = connectedSource {
+            MIDIPortDisconnectSource(inputPort, source)
+            connectedSource = nil
+            return
+        }
         let sourceCount = MIDIGetNumberOfSources()
         for i in 0..<sourceCount {
             let source = MIDIGetSource(i)
             MIDIPortDisconnectSource(inputPort, source)
+        }
+    }
+
+    private func persistSelectedDeviceID(_ uniqueID: Int32?) {
+        let defaults = UserDefaults.standard
+        if let uniqueID {
+            defaults.set(NSNumber(value: uniqueID), forKey: Self.selectedDeviceDefaultsKey)
+        } else {
+            defaults.removeObject(forKey: Self.selectedDeviceDefaultsKey)
         }
     }
 
