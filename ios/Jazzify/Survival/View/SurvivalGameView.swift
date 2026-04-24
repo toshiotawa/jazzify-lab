@@ -40,6 +40,7 @@ struct SurvivalGameView: View {
                     stage: stage,
                     hintMode: hintMode,
                     locale: locale,
+                    isDemo: isDemo,
                     onClose: onClose,
                     onRequestReplay: onRequestReplay
                 )
@@ -163,6 +164,7 @@ private struct SurvivalGameContent: View {
     let stage: SurvivalStageDefinition
     let hintMode: Bool
     let locale: AppLocale
+    let isDemo: Bool
     let onClose: () -> Void
     let onRequestReplay: (() -> Void)?
 
@@ -170,6 +172,14 @@ private struct SurvivalGameContent: View {
         ZStack(alignment: .top) {
             SurvivalSceneContainer(controller: controller)
                 .ignoresSafeArea()
+
+            // 仮想スティックの出現領域。ゲーム画面のどこをタップしてもその位置に
+            // スティックが出現するよう、ヒット領域はビュー全体に拡大する。
+            // HUD / 鍵盤より下に置くことで、上部の一時停止ボタンや鍵盤タップを阻害しない。
+            SurvivalJoystickView(hitMask: .full) { analog in
+                controller.analogInput = analog
+            }
+            .allowsHitTesting(controller.runtime.phase == .playing && !controller.isPaused)
 
             VStack(spacing: 0) {
                 SurvivalHUDView(
@@ -182,22 +192,12 @@ private struct SurvivalGameContent: View {
                 Spacer()
             }
 
-            // 左半分タップ領域 = ジョイスティック（タップ位置に出現）
-            GeometryReader { proxy in
-                HStack(spacing: 0) {
-                    SurvivalJoystickView { analog in
-                        controller.analogInput = analog
-                    }
-                    .frame(width: proxy.size.width * 0.4)
-                    Spacer(minLength: 0)
-                }
-            }
-            .allowsHitTesting(controller.runtime.phase == .playing && !controller.isPaused)
-
             VStack {
                 Spacer()
+                // 鍵盤の最低 C / 最高 C もタップできるよう左右の余白を取らず、
+                // ノッチ付き端末の横向きでもセーフエリア無視で画面幅いっぱいに敷き詰める。
                 SurvivalChordPadView(controller: controller)
-                    .padding(.horizontal, 8)
+                    .ignoresSafeArea(.container, edges: .horizontal)
                     .padding(.bottom, 8)
             }
 
@@ -218,6 +218,7 @@ private struct SurvivalGameContent: View {
             Color.black.opacity(0.6).ignoresSafeArea()
             SurvivalPauseSettingsSheet(
                 locale: locale,
+                isDemo: isDemo,
                 onResume: { controller.togglePause() },
                 onExit: { controller.requestExit() }
             )
@@ -249,6 +250,7 @@ private struct SurvivalGameContent: View {
                 locale: locale,
                 clearReportInFlight: controller.clearReportInFlight,
                 clearReportError: controller.clearReportError,
+                isDemo: isDemo,
                 onRetry: retry,
                 onExit: { controller.requestExit() }
             )

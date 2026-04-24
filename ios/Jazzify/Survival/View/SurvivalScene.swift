@@ -5,7 +5,7 @@ import QuartzCore
 
 /// サバイバル ゲーム世界描画用の SKScene。
 /// - プレイヤー (SKSpriteNode `default-avater`) / 敵・弾・アイテム・コイン (絵文字 SKLabelNode)
-/// - ボスは `SurvivalMap/boss_a|b|c` スプライトで描画
+/// - ボスは `boss_a|b|c` スプライト (Assets.xcassets の SurvivalMap 配下) で描画
 /// - ハザード (扇 / 直線 / リング / 十字 / 引力) は SKShapeNode 群
 /// - `update(_:)` で `SurvivalGameController.tick` を呼び出し、そこで更新された状態を反映
 final class SurvivalScene: SKScene {
@@ -37,6 +37,29 @@ final class SurvivalScene: SKScene {
     private var bossWindupNode: SKSpriteNode?
     private var bossProjectileNodes: [UUID: SKNode] = [:]
 
+    /// B ボス戦で UIImage/SKTexture 再生成を抑えるための差分更新キャッシュ。
+    /// 毎フレーム CoreGraphics 描画していたのが B ボス戦で特に重い原因だったため、
+    /// 「前回との差が閾値未満なら描き直さない」節約を入れる。
+    private var bossHpBarLastRatio: CGFloat = -1
+    /// ハザード毎の最終描画 progress (0.0〜1.0)。閾値以上変化したときだけ再描画する。
+    private var hazardLastProgress: [UUID: Double] = [:]
+    /// ボス弾毎の最終描画時刻 (ms)。一定間隔未満では再描画しない。
+    private var bossProjectileLastDrawnAt: [UUID: Double] = [:]
+
+    /// 衝撃波発動時のカメラ シェイク管理。
+    /// 前フレームで加えた offset を記録しておき、次フレームで差し引いてから
+    /// lerp を適用し、新しい offset を足すことで shake を確実に表示する。
+    private var cameraShakeStartAt: TimeInterval = 0
+    private let cameraShakeDuration: TimeInterval = 0.22
+    private var cameraPreviousShakeOffset: CGPoint = .zero
+
+    /// 初回フレームでカメラをプレイヤー位置に即時スナップするためのフラグ。
+    /// 放置すると SKCameraNode.position = (0, 0) から `lerp: 0.18` で指数追従するため、
+    /// プレイヤー初期位置 (マップ中央 1600, 1200) に到達するまで ~0.5 秒は
+    /// プレイヤーが画面外 (左下相当) に描画されて「左隅ポップ・移動できない」様に見える。
+    /// 初回だけ lerp をスキップしてマップ中央をキャプチャする。
+    private var hasInitializedCameraPosition: Bool = false
+
     init(size: CGSize, controller: SurvivalGameController) {
         self.controller = controller
         super.init(size: size)
@@ -57,6 +80,7 @@ final class SurvivalScene: SKScene {
         worldNode.addChild(effectsNode)
         worldNode.addChild(entitiesNode)
         drawBackground()
+        drawMapBoundary()
         addParticleStars()
         buildPlayer()
 
@@ -110,6 +134,62 @@ final class SurvivalScene: SKScene {
         }
     }
 
+    /// マップ境界を視覚的に分かりやすく描画する。
+    /// - マップ外側に赤黒い「立入禁止帯」を敷いて進入不可領域を明示
+    /// - マップ枠 (3200 × 2400) に二重のネオン風ラインを引く
+    private func drawMapBoundary() {
+        let mapWidth = SurvivalMap.width
+        let mapHeight = SurvivalMap.height
+        let boundary = SKNode()
+        boundary.zPosition = -50
+        backgroundNode.addChild(boundary)
+
+        // 1. 外側の「立入禁止帯」(マップ外) を 4 辺ぶんの矩形で赤黒く塗る。
+        //    SKShapeNode は `fillRule` を持たないため、`evenOdd` 抜き型ではなく
+        //    4 面を個別に配置する。
+        let outerMargin: CGFloat = 240
+        let danger = UIColor(red: 0.14, green: 0.04, blue: 0.06, alpha: 0.9)
+        let outsideRects: [CGRect] = [
+            CGRect(x: -outerMargin, y: -outerMargin, width: mapWidth + outerMargin * 2, height: outerMargin),
+            CGRect(x: -outerMargin, y: mapHeight, width: mapWidth + outerMargin * 2, height: outerMargin),
+            CGRect(x: -outerMargin, y: 0, width: outerMargin, height: mapHeight),
+            CGRect(x: mapWidth, y: 0, width: outerMargin, height: mapHeight)
+        ]
+        for rect in outsideRects {
+            let node = SKShapeNode(rect: rect)
+            node.fillColor = danger
+            node.strokeColor = .clear
+            node.position = toScenePoint(x: 0, y: mapHeight)
+            boundary.addChild(node)
+        }
+
+        // 2. マップ全体を囲む太めのネオンフレーム (外側)
+        let outerFrame = SKShapeNode(rect: CGRect(x: 0, y: 0, width: mapWidth, height: mapHeight))
+        outerFrame.fillColor = .clear
+        outerFrame.strokeColor = UIColor(red: 1.0, green: 0.35, blue: 0.45, alpha: 0.95)
+        outerFrame.lineWidth = 14
+        outerFrame.glowWidth = 10
+        outerFrame.position = toScenePoint(x: 0, y: mapHeight)
+        boundary.addChild(outerFrame)
+
+        // 3. 少し内側に白い細線を引いて二重線感を出す
+        let innerFrameInset: CGFloat = 10
+        let innerFrame = SKShapeNode(
+            rect: CGRect(
+                x: innerFrameInset,
+                y: innerFrameInset,
+                width: mapWidth - innerFrameInset * 2,
+                height: mapHeight - innerFrameInset * 2
+            )
+        )
+        innerFrame.fillColor = .clear
+        innerFrame.strokeColor = UIColor(white: 1.0, alpha: 0.55)
+        innerFrame.lineWidth = 2
+        innerFrame.glowWidth = 0
+        innerFrame.position = toScenePoint(x: 0, y: mapHeight)
+        boundary.addChild(innerFrame)
+    }
+
     /// 背景に ほんの薄い星 (小さな白い点) を散りばめる
     private func addParticleStars() {
         let starCount = 60
@@ -148,14 +228,62 @@ final class SurvivalScene: SKScene {
     private func updateCamera(controller: SurvivalGameController) {
         guard let camera else { return }
         let target = toScenePoint(x: controller.cameraTargetX, y: controller.cameraTargetY)
+
+        // 初回のみプレイヤー位置へ即時スナップ (lerp 追従による画面端からの遅延描画を防ぐ)。
+        if !hasInitializedCameraPosition {
+            camera.position = target
+            cameraPreviousShakeOffset = .zero
+            hasInitializedCameraPosition = true
+            return
+        }
+
         let lerp: CGFloat = 0.18
-        camera.position.x += (target.x - camera.position.x) * lerp
-        camera.position.y += (target.y - camera.position.y) * lerp
+
+        // 前フレームの shake offset を取り除き、「本来の lerp ベース位置」で追従計算する。
+        let basePosX = camera.position.x - cameraPreviousShakeOffset.x
+        let basePosY = camera.position.y - cameraPreviousShakeOffset.y
+        let newBaseX = basePosX + (target.x - basePosX) * lerp
+        let newBaseY = basePosY + (target.y - basePosY) * lerp
+
+        // 新しい shake offset を計算 (高周波ノイズ + 線形減衰)。
+        let now = CACurrentMediaTime()
+        let elapsed = now - cameraShakeStartAt
+        var shakeOffset: CGPoint = .zero
+        if cameraShakeStartAt > 0, elapsed < cameraShakeDuration {
+            let decay = 1 - CGFloat(elapsed / cameraShakeDuration)
+            let amp: CGFloat = 4.0 * decay
+            let t = CGFloat(elapsed)
+            shakeOffset = CGPoint(
+                x: sin(t * 85) * amp + sin(t * 143) * amp * 0.4,
+                y: cos(t * 97) * amp * 0.9 + sin(t * 181) * amp * 0.5
+            )
+        }
+
+        camera.position = CGPoint(x: newBaseX + shakeOffset.x, y: newBaseY + shakeOffset.y)
+        cameraPreviousShakeOffset = shakeOffset
+    }
+
+    /// 近接攻撃 (衝撃波) 発動時に呼び出してカメラを軽く揺らす。
+    private func triggerCameraShake() {
+        cameraShakeStartAt = CACurrentMediaTime()
     }
 
     private func renderState(controller: SurvivalGameController) {
         let runtime = controller.runtime
         let now = CACurrentMediaTime()
+
+        // O(n^2) 検索を避けるため、この 1 フレームで参照するエンティティは
+        // 事前に id -> 本体 の辞書に展開してから syncNodes に渡す。
+        // コード完成時 (triggerSlot) に大量の弾 / 衝撃波 / フローティングテキストが
+        // 同時に追加されるとメインスレッドの一瞬のブロックに繋がるため。
+        let enemyById = Dictionary(uniqueKeysWithValues: runtime.enemies.map { ($0.id, $0) })
+        let projectileById = Dictionary(uniqueKeysWithValues: runtime.projectiles.map { ($0.id, $0) })
+        let enemyProjectileById = Dictionary(uniqueKeysWithValues: runtime.enemyProjectiles.map { ($0.id, $0) })
+        let shockwaveById = Dictionary(uniqueKeysWithValues: runtime.shockwaves.map { ($0.id, $0) })
+        let magicEffectById = Dictionary(uniqueKeysWithValues: runtime.magicEffects.map { ($0.id, $0) })
+        let droppedItemById = Dictionary(uniqueKeysWithValues: runtime.droppedItems.map { ($0.id, $0) })
+        let coinById = Dictionary(uniqueKeysWithValues: runtime.coins.map { ($0.id, $0) })
+        let floatingTextById = Dictionary(uniqueKeysWithValues: runtime.floatingTexts.map { ($0.id, $0) })
 
         // プレイヤー
         if let playerNode, let sprite = playerSprite {
@@ -187,7 +315,7 @@ final class SurvivalScene: SKScene {
                 return node
             },
             update: { id, node in
-                guard let enemy = runtime.enemies.first(where: { $0.id == id }) else { return }
+                guard let enemy = enemyById[id] else { return }
                 node.position = self.toScenePoint(x: enemy.x, y: enemy.y)
                 Self.updateEnemyNode(node: node, enemy: enemy)
             }
@@ -207,7 +335,7 @@ final class SurvivalScene: SKScene {
                 return label
             },
             update: { id, node in
-                guard let proj = runtime.projectiles.first(where: { $0.id == id }) else { return }
+                guard let proj = projectileById[id] else { return }
                 node.position = self.toScenePoint(x: proj.x, y: proj.y)
             }
         )
@@ -226,32 +354,147 @@ final class SurvivalScene: SKScene {
                 return node
             },
             update: { id, node in
-                guard let proj = runtime.enemyProjectiles.first(where: { $0.id == id }) else { return }
+                guard let proj = enemyProjectileById[id] else { return }
                 node.position = self.toScenePoint(x: proj.x, y: proj.y)
             }
         )
 
-        // 衝撃波 (ダメージ毎に色変化)
+        // 衝撃波 (Web 版 `SurvivalCanvas` と揃えて前方 144° の半円アークで描画)
+        // - zPosition 130: プレイヤー (100) / 敵 (90-125) より前面に描画し、
+        //   Web 版同様「殴った拳の先から前方に広がる」見た目にする。
+        // - 半径は作成から 15% の時間 (≒52ms) で maxRadius まで一気に拡大し、
+        //   残りの時間で透明度 / 線幅を減衰させる (Web `SHOCKWAVE_EXPAND_RATIO`)。
+        // - 視覚効果として扇形塗り + 前縁アーク + 中心インパクト 💥 + 放射スパーク を重ね、
+        //   発動時にはカメラを軽く振って打撃感を出す。
         syncNodes(
             nodeMap: &shockwaveNodes,
             ids: runtime.shockwaves.map { $0.id },
-            create: { [effectsNode] _ in
-                let node = SKShapeNode(circleOfRadius: 10)
-                node.strokeColor = UIColor(red: 0.7, green: 0.95, blue: 1, alpha: 0.9)
-                node.lineWidth = 3
-                node.zPosition = 55
-                effectsNode.addChild(node)
-                return node
+            create: { [effectsNode, weak self] _ in
+                let container = SKNode()
+                container.zPosition = 130
+
+                // 内部塗り (半透明扇形)
+                let fan = SKShapeNode()
+                fan.strokeColor = .clear
+                fan.name = "fan"
+                fan.zPosition = 0
+                container.addChild(fan)
+
+                // 前縁アーク (ネオンストローク)
+                let arc = SKShapeNode()
+                arc.fillColor = .clear
+                arc.lineWidth = 8
+                arc.lineCap = .round
+                arc.name = "arc"
+                arc.zPosition = 1
+                container.addChild(arc)
+
+                // 中心インパクト 💥 (瞬間フラッシュ)
+                let impact = SKLabelNode(text: "💥")
+                impact.fontSize = 36
+                impact.verticalAlignmentMode = .center
+                impact.horizontalAlignmentMode = .center
+                impact.name = "impact"
+                impact.zPosition = 3
+                container.addChild(impact)
+
+                // 放射スパーク (小円 × 5)。扇形の前縁に沿って並べ、時間と共に飛び散る。
+                for i in 0..<5 {
+                    let spark = SKShapeNode(circleOfRadius: 3)
+                    spark.strokeColor = .white.withAlphaComponent(0.8)
+                    spark.lineWidth = 1
+                    spark.name = "spark_\(i)"
+                    spark.zPosition = 2
+                    container.addChild(spark)
+                }
+
+                effectsNode.addChild(container)
+
+                // 新規衝撃波生成時にカメラを軽く揺らして打撃感を出す。
+                self?.triggerCameraShake()
+
+                return container
             },
             update: { id, node in
-                guard let wave = runtime.shockwaves.first(where: { $0.id == id }), let shape = node as? SKShapeNode else { return }
-                shape.position = self.toScenePoint(x: wave.x, y: wave.y)
-                let scale = wave.radius / 10
-                shape.setScale(scale)
-                let progress = (now - wave.createdAt) / wave.lifetime
-                shape.alpha = max(0, 1 - progress)
-                shape.fillColor = Self.shockwaveFillColor(level: wave.colorLevel).withAlphaComponent(0.3)
-                shape.strokeColor = Self.shockwaveFillColor(level: wave.colorLevel)
+                guard let wave = shockwaveById[id] else { return }
+                node.position = self.toScenePoint(x: wave.x, y: wave.y)
+
+                let rawProgress = CGFloat((now - wave.createdAt) / wave.lifetime)
+                let progress = min(max(rawProgress, 0), 1)
+                // Web 版 SHOCKWAVE_EXPAND_RATIO = 0.15。最初の 15% で一気に広げる。
+                let expandProgress = min(1, progress / 0.15)
+                let currentRadius = max(1, wave.maxRadius * expandProgress)
+
+                // direction.vector は Web 座標系 (Y+ が下) なので、
+                // SpriteKit (Y+ が上) 用に dy を反転してから角度を取る。
+                let gameVec = wave.direction.vector
+                let baseAngle = atan2(-gameVec.dy, gameVec.dx)
+                let arcSpread = CGFloat.pi * 0.8 // 前方 144° の扇形
+                let color = Self.shockwaveFillColor(level: wave.colorLevel)
+
+                // 前縁アーク
+                if let arc = node.childNode(withName: "arc") as? SKShapeNode {
+                    let path = CGMutablePath()
+                    path.addArc(
+                        center: .zero,
+                        radius: currentRadius,
+                        startAngle: baseAngle - arcSpread / 2,
+                        endAngle: baseAngle + arcSpread / 2,
+                        clockwise: false
+                    )
+                    arc.path = path
+                    arc.strokeColor = color
+                    arc.lineWidth = max(1, 10 * (1 - progress))
+                    arc.alpha = max(0, 1 - progress) * 0.95
+                }
+
+                // 内部塗り扇形 (中心→前縁)
+                if let fan = node.childNode(withName: "fan") as? SKShapeNode {
+                    let path = CGMutablePath()
+                    path.move(to: .zero)
+                    path.addArc(
+                        center: .zero,
+                        radius: currentRadius,
+                        startAngle: baseAngle - arcSpread / 2,
+                        endAngle: baseAngle + arcSpread / 2,
+                        clockwise: false
+                    )
+                    path.closeSubpath()
+                    fan.path = path
+                    fan.fillColor = color.withAlphaComponent(0.32)
+                    fan.alpha = max(0, 1 - progress * 1.1) * 0.85
+                }
+
+                // 中心インパクト: 最初の 25% だけ可視、急拡大 → 消失
+                if let impact = node.childNode(withName: "impact") as? SKLabelNode {
+                    let impactProgress = min(1, progress / 0.25)
+                    let scale = 0.6 + impactProgress * 1.3
+                    impact.setScale(scale)
+                    impact.alpha = max(0, 1 - impactProgress)
+                    // 拳の少し前方にシフトして置く
+                    let forward: CGFloat = 14
+                    impact.position = CGPoint(
+                        x: cos(baseAngle) * forward,
+                        y: sin(baseAngle) * forward
+                    )
+                }
+
+                // 放射スパーク: 扇形の前縁に沿って 5 方向に配置 + 時間で外側へ飛ぶ
+                for i in 0..<5 {
+                    guard let spark = node.childNode(withName: "spark_\(i)") as? SKShapeNode else { continue }
+                    let angleOffset = (CGFloat(i) - 2) * (arcSpread * 0.33)
+                    let sparkAngle = baseAngle + angleOffset
+                    // 基本位置は前縁。progress に応じてさらに外へ飛ばす。
+                    let fly = currentRadius * (0.82 + CGFloat(i % 3) * 0.08 + progress * 0.35)
+                    spark.position = CGPoint(
+                        x: cos(sparkAngle) * fly,
+                        y: sin(sparkAngle) * fly
+                    )
+                    spark.fillColor = color
+                    let fade = max(0, 1 - progress * 1.3)
+                    spark.alpha = fade * 0.95
+                    spark.setScale(max(0.35, 1 - progress * 0.7))
+                }
             }
         )
 
@@ -269,7 +512,7 @@ final class SurvivalScene: SKScene {
                 return label
             },
             update: { id, node in
-                guard let fx = runtime.magicEffects.first(where: { $0.id == id }), let label = node as? SKLabelNode else { return }
+                guard let fx = magicEffectById[id], let label = node as? SKLabelNode else { return }
                 label.text = Self.magicEmoji(kind: fx.kind)
                 label.position = self.toScenePoint(x: fx.x, y: fx.y)
                 let age = now - fx.createdAt
@@ -291,7 +534,7 @@ final class SurvivalScene: SKScene {
                 return label
             },
             update: { id, node in
-                guard let item = runtime.droppedItems.first(where: { $0.id == id }), let label = node as? SKLabelNode else { return }
+                guard let item = droppedItemById[id], let label = node as? SKLabelNode else { return }
                 label.text = item.kind.emoji
                 label.position = self.toScenePoint(x: item.x, y: item.y)
             }
@@ -311,7 +554,7 @@ final class SurvivalScene: SKScene {
                 return label
             },
             update: { id, node in
-                guard let coin = runtime.coins.first(where: { $0.id == id }) else { return }
+                guard let coin = coinById[id] else { return }
                 node.position = self.toScenePoint(x: coin.x, y: coin.y)
             }
         )
@@ -339,7 +582,7 @@ final class SurvivalScene: SKScene {
                 return label
             },
             update: { id, node in
-                guard let ft = runtime.floatingTexts.first(where: { $0.id == id }), let label = node as? SKLabelNode else { return }
+                guard let ft = floatingTextById[id], let label = node as? SKLabelNode else { return }
                 label.text = ft.text
                 let age = now - ft.createdAt
                 label.position = self.toScenePoint(x: ft.x, y: ft.y - CGFloat(age) * 40)
@@ -368,18 +611,26 @@ final class SurvivalScene: SKScene {
         bossNode = nil
         bossHpBarNode?.removeFromParent()
         bossHpBarNode = nil
+        bossHpBarLastRatio = -1
         bossWindupNode?.removeFromParent()
         bossWindupNode = nil
         for (_, node) in bossProjectileNodes { node.removeFromParent() }
         bossProjectileNodes.removeAll()
+        bossProjectileLastDrawnAt.removeAll()
         for (_, node) in minionNodes { node.removeFromParent() }
         minionNodes.removeAll()
         for (_, node) in hazardNodes { node.removeFromParent() }
+        hazardLastProgress.removeAll()
         hazardNodes.removeAll()
     }
 
     private func renderBoss(state: SurvivalBossBattleState) {
         let nowMs = CACurrentMediaTime() * 1000.0
+
+        // O(n^2) 検索を避ける辞書化 (renderState と同じ狙い)
+        let minionById = Dictionary(uniqueKeysWithValues: state.minions.map { ($0.id, $0) })
+        let hazardById = Dictionary(uniqueKeysWithValues: state.hazards.map { ($0.id, $0) })
+        let bossProjectileById = Dictionary(uniqueKeysWithValues: state.projectiles.map { ($0.id, $0) })
 
         // MARK: ボス本体 スプライト
         if bossNode == nil {
@@ -417,12 +668,17 @@ final class SurvivalScene: SKScene {
             bossHpBarNode = n
         }
         if let barNode = bossHpBarNode {
-            let img = SurvivalBossEffectRenderer.renderBossHpBar(ratio: hpRatio)
-            let tex = SKTexture(image: img)
-            tex.filteringMode = .linear
-            barNode.texture = tex
-            barNode.size = img.size
-            // ボススプライト上端の少し上に配置
+            // HP が変化したときだけ UIImage/SKTexture を作り直す (毎フレーム再生成は CPU 負担大)。
+            // 1/255 (≒ 0.004) 以上の差があれば再描画。
+            if abs(hpRatio - bossHpBarLastRatio) > 1.0 / 255.0 {
+                let img = SurvivalBossEffectRenderer.renderBossHpBar(ratio: hpRatio)
+                let tex = SKTexture(image: img)
+                tex.filteringMode = .linear
+                barNode.texture = tex
+                barNode.size = img.size
+                bossHpBarLastRatio = hpRatio
+            }
+            // ボススプライト上端の少し上に配置 (位置のみは毎フレーム追随)
             let bossTop = bossPos.y + SurvivalConstants.bossHitboxRadius * 1.5
             barNode.position = CGPoint(x: bossPos.x, y: bossTop + 16)
         }
@@ -486,7 +742,7 @@ final class SurvivalScene: SKScene {
                 return container
             },
             update: { id, node in
-                guard let minion = state.minions.first(where: { $0.id == id }) else { return }
+                guard let minion = minionById[id] else { return }
                 node.position = self.toScenePoint(x: minion.x, y: minion.y)
                 // プレイヤー距離から導火線点滅を推定 (トリガー距離の 1.6 倍以内で点滅開始)
                 let dx = self.controller?.runtime.player.x ?? minion.x
@@ -518,6 +774,9 @@ final class SurvivalScene: SKScene {
         )
 
         // MARK: ハザード (Web 版相当のリッチエフェクト)
+        //   - 持続ハザード (acidPool = 2.5s, bloodPool = 3s) が複数同時に出ると、
+        //     毎フレーム CoreGraphics → UIImage → SKTexture の再生成で CPU が跳ねる。
+        //   - progress が 2% 以上変化したときだけテクスチャを差し替える差分更新を導入。
         syncNodes(
             nodeMap: &hazardNodes,
             ids: state.hazards.map { $0.id },
@@ -527,8 +786,18 @@ final class SurvivalScene: SKScene {
                 telegraphsNode.addChild(sprite)
                 return sprite
             },
-            update: { id, sprite in
-                guard let hazard = state.hazards.first(where: { $0.id == id }) else { return }
+            update: { [weak self] id, sprite in
+                guard let self = self else { return }
+                guard let hazard = hazardById[id] else { return }
+                // 位置は毎フレーム追随 (安い操作)。
+                sprite.position = self.toScenePoint(x: hazard.x, y: hazard.y)
+                // progress (= 0〜1) を算出し、前回との差が十分あるときだけテクスチャ再生成。
+                let duration = max(0.001, hazard.endAt - hazard.startAt)
+                let progress = min(1.0, max(0.0, (nowMs / 1000.0 - hazard.startAt) / duration))
+                let last = self.hazardLastProgress[id]
+                if let last, abs(progress - last) < 0.02, sprite.texture != nil {
+                    return
+                }
                 let idHash = id.hashValue
                 guard let output = SurvivalBossEffectRenderer.renderHazard(
                     kind: hazard.kind,
@@ -545,11 +814,20 @@ final class SurvivalScene: SKScene {
                 sprite.size = output.image.size
                 sprite.anchorPoint = output.anchorPoint
                 sprite.zRotation = output.rotation
-                sprite.position = self.toScenePoint(x: hazard.x, y: hazard.y)
+                self.hazardLastProgress[id] = progress
             }
         )
+        // 消えたハザードのキャッシュエントリを掃除 (メモリリーク防止)
+        if hazardLastProgress.count > hazardNodes.count {
+            let liveIds = Set(hazardNodes.keys)
+            hazardLastProgress = hazardLastProgress.filter { liveIds.contains($0.key) }
+        }
 
         // MARK: ボス弾 (毒弾 or 通常弾)
+        //   弾の見た目アニメは 100ms 前後の周期で十分なめらかに見えるため、
+        //   毎フレームのテクスチャ再生成は避け、~80ms おきに更新する。
+        //   位置は毎フレーム更新するので視覚上の遅延は発生しない。
+        let bossProjectileTextureIntervalMs: Double = 80
         syncNodes(
             nodeMap: &bossProjectileNodes,
             ids: state.projectiles.map { $0.id },
@@ -559,10 +837,15 @@ final class SurvivalScene: SKScene {
                 effectsNode.addChild(sprite)
                 return sprite
             },
-            update: { id, node in
-                guard let proj = state.projectiles.first(where: { $0.id == id }),
+            update: { [weak self] id, node in
+                guard let self = self else { return }
+                guard let proj = bossProjectileById[id],
                       let sprite = node as? SKSpriteNode else { return }
                 sprite.position = self.toScenePoint(x: proj.x, y: proj.y)
+                let last = self.bossProjectileLastDrawnAt[id]
+                if let last, nowMs - last < bossProjectileTextureIntervalMs, sprite.texture != nil {
+                    return
+                }
                 // 現仕様では全て毒弾 (spawnsPoolOnLand=true)
                 // レンダラ内は CG y-down 基準で軌跡を描くため、engine の vy をそのまま渡す。
                 // SKTexture 適用時の y-flip が自動で表示方向 (画面 y-up) へ補正してくれる。
@@ -577,8 +860,14 @@ final class SurvivalScene: SKScene {
                 tex.filteringMode = .linear
                 sprite.texture = tex
                 sprite.size = img.size
+                self.bossProjectileLastDrawnAt[id] = nowMs
             }
         )
+        // 消えた弾のキャッシュエントリを掃除 (メモリリーク防止)
+        if bossProjectileLastDrawnAt.count > bossProjectileNodes.count {
+            let liveIds = Set(bossProjectileNodes.keys)
+            bossProjectileLastDrawnAt = bossProjectileLastDrawnAt.filter { liveIds.contains($0.key) }
+        }
     }
 
     // MARK: - Node synchronization helper
@@ -618,13 +907,6 @@ final class SurvivalScene: SKScene {
         label.horizontalAlignmentMode = .center
         label.name = "emoji"
         container.addChild(label)
-
-        let hpRing = SKShapeNode(circleOfRadius: SurvivalConstants.enemySize / 2 + 4)
-        hpRing.fillColor = .clear
-        hpRing.strokeColor = UIColor.red.withAlphaComponent(0.75)
-        hpRing.lineWidth = 2
-        hpRing.name = "hpRing"
-        container.addChild(hpRing)
         return container
     }
 
@@ -632,21 +914,20 @@ final class SurvivalScene: SKScene {
         if let label = node.childNode(withName: "emoji") as? SKLabelNode {
             label.text = enemy.type.emoji
         }
-        if let ring = node.childNode(withName: "hpRing") as? SKShapeNode {
-            let ratio = CGFloat(enemy.stats.hp) / CGFloat(max(1, enemy.stats.maxHp))
-            ring.alpha = max(0.2, ratio)
-            ring.strokeColor = ratio > 0.5
-                ? UIColor(red: 1, green: 0.9, blue: 0.3, alpha: 0.8)
-                : UIColor(red: 1, green: 0.3, blue: 0.3, alpha: 0.9)
-        }
     }
 
+    /// Web 版 `B_HIT_COLORS` (SurvivalGameScreen.tsx) と揃えた衝撃波色。
+    /// 多段ヒット回数 (0 始まり) ごとに色相が変わる。
     private static func shockwaveFillColor(level: Int) -> UIColor {
         switch level {
-        case 0: return UIColor(red: 0.6, green: 0.9, blue: 1, alpha: 1)
-        case 1: return UIColor(red: 0.9, green: 0.7, blue: 1, alpha: 1)
-        case 2: return UIColor(red: 1.0, green: 0.6, blue: 0.8, alpha: 1)
-        default: return UIColor(red: 1.0, green: 0.4, blue: 0.4, alpha: 1)
+        case 0: return UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1) // #f97316 orange
+        case 1: return UIColor(red: 0.937, green: 0.267, blue: 0.267, alpha: 1) // #ef4444 red
+        case 2: return UIColor(red: 0.925, green: 0.282, blue: 0.600, alpha: 1) // #ec4899 magenta
+        case 3: return UIColor(red: 0.659, green: 0.333, blue: 0.969, alpha: 1) // #a855f7 purple
+        case 4: return UIColor(red: 0.231, green: 0.510, blue: 0.965, alpha: 1) // #3b82f6 blue
+        case 5: return UIColor(red: 0.024, green: 0.714, blue: 0.831, alpha: 1) // #06b6d4 cyan
+        case 6: return UIColor(red: 0.133, green: 0.773, blue: 0.369, alpha: 1) // #22c55e green
+        default: return UIColor(red: 0.918, green: 0.702, blue: 0.031, alpha: 1) // #eab308 gold
         }
     }
 
@@ -662,10 +943,12 @@ final class SurvivalScene: SKScene {
     }
 
     private static func bossImageName(type: SurvivalBossType) -> String {
+        // Assets.xcassets/SurvivalMap/Contents.json は provides-namespace: false のため
+        // フォルダ名は参照パスに含まれず、imageset 名だけで検索する必要がある。
         switch type {
-        case .A: return "SurvivalMap/boss_a"
-        case .B: return "SurvivalMap/boss_b"
-        case .C: return "SurvivalMap/boss_c"
+        case .A: return "boss_a"
+        case .B: return "boss_b"
+        case .C: return "boss_c"
         }
     }
 

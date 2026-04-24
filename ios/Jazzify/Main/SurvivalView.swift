@@ -30,7 +30,12 @@ struct SurvivalView: View {
     /// 真の間は `onChange(of: stageLaunchSession == nil)` の進捗リロード処理をスキップする。
     @State private var isTransitioningStage: Bool = false
     @State private var showSubscription: Bool = false
-    @State private var showMobileDetail: Bool = false
+    /// 1 カラム (iPhone) 表示時にステージ詳細シートを出すためのバインド。
+    /// 以前は `showMobileDetail: Bool` + computed `selectedStage` で参照していたが、
+    /// `.sheet(isPresented:)` + `@State` 同時更新だと初回タップ時に
+    /// `selectedStage` が前フレームの値 (現在地 / frontier) で評価されてしまう問題があったため、
+    /// `.sheet(item:)` にリファクタして必ず「タップされたステージ自身」を渡すようにした。
+    @State private var mobileDetailStage: SurvivalStageDefinition?
     @State private var showSurvivalInfo: Bool = false
     @State private var isSoundMuted: Bool = SurvivalMapAudio.shared.isMuted
 
@@ -118,46 +123,46 @@ struct SurvivalView: View {
             .sheet(isPresented: $showSubscription) {
                 SubscriptionView()
             }
-            .sheet(isPresented: $showMobileDetail) {
-                if selectedStage != nil {
-                    NavigationStack {
-                        SurvivalDescentSidePanel(
-                            locale: locale,
-                            totalClearedCount: clearedStages.count,
-                            totalStages: SurvivalStageCatalog.totalStages,
-                            activeBlock: panelBlock,
-                            blockClearedCount: panelBlockClearedCount,
-                            selectedStage: selectedStage,
-                            selectedStageIsUnlocked: selectedStage.map { isStageUnlocked($0.stageNumber) } ?? false,
-                            selectedStageIsCleared: selectedStage.map { clearedStages.contains($0.stageNumber) } ?? false,
-                            hintMode: $hintMode,
-                            playLocked: playLockedForUpsell && !(selectedStage.map { freeStageNumbers.contains($0.stageNumber) } ?? false),
-                            onStart: {
-                                if let stage = selectedStage {
-                                    startStage(stage)
-                                }
-                            },
-                            onRequestUpgrade: {
-                                showMobileDetail = false
-                                showSubscription = true
+            .sheet(item: $mobileDetailStage) { stage in
+                // `.sheet(item:)` によりシート表示時点のステージ本体が直接クロージャに渡されるため、
+                // `@State` の反映タイミング揺らぎで「現在地」の詳細が表示されてしまうバグを回避できる。
+                let block = SurvivalStageCatalog.block(forStage: stage.stageNumber) ?? blocks.first
+                let blockClearedCount = block?.stageNumbers.filter { clearedStages.contains($0) }.count ?? 0
+                NavigationStack {
+                    SurvivalDescentSidePanel(
+                        locale: locale,
+                        totalClearedCount: clearedStages.count,
+                        totalStages: SurvivalStageCatalog.totalStages,
+                        activeBlock: block,
+                        blockClearedCount: blockClearedCount,
+                        selectedStage: stage,
+                        selectedStageIsUnlocked: isStageUnlocked(stage.stageNumber),
+                        selectedStageIsCleared: clearedStages.contains(stage.stageNumber),
+                        hintMode: $hintMode,
+                        playLocked: playLockedForUpsell && !freeStageNumbers.contains(stage.stageNumber),
+                        onStart: {
+                            startStage(stage)
+                        },
+                        onRequestUpgrade: {
+                            mobileDetailStage = nil
+                            showSubscription = true
+                        }
+                    )
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 8)
+                    .background(Color(hex: "050308").ignoresSafeArea())
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .topBarTrailing) {
+                            Button(locale == .ja ? "閉じる" : "Close") {
+                                mobileDetailStage = nil
                             }
-                        )
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color(hex: "050308").ignoresSafeArea())
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarTrailing) {
-                                Button(locale == .ja ? "閉じる" : "Close") {
-                                    showMobileDetail = false
-                                }
-                                .foregroundStyle(.purple)
-                            }
+                            .foregroundStyle(.purple)
                         }
                     }
-                    .presentationDetents([.large])
-                    .presentationDragIndicator(.visible)
                 }
+                .presentationDetents([.large])
+                .presentationDragIndicator(.visible)
             }
             .sheet(isPresented: $showSurvivalInfo) {
                 FeatureInfoModal(
@@ -265,7 +270,7 @@ struct SurvivalView: View {
         selectedStageNumber = stage.stageNumber
         hintMode = false
         if !useSplitLayout {
-            showMobileDetail = true
+            mobileDetailStage = stage
         }
     }
 
@@ -314,7 +319,7 @@ struct SurvivalView: View {
     private func startStage(_ stage: SurvivalStageDefinition) {
         let freeAllowed = freeStageNumbers.contains(stage.stageNumber)
         if playLockedForUpsell && !freeAllowed {
-            showMobileDetail = false
+            mobileDetailStage = nil
             Task {
                 let premium = await appState.ensureFreshBilling()
                 if !premium {
@@ -324,7 +329,7 @@ struct SurvivalView: View {
             return
         }
         guard isStageUnlocked(stage.stageNumber) else { return }
-        showMobileDetail = false
+        mobileDetailStage = nil
         SurvivalMapAudio.shared.stop()
         stageLaunchSession = StageLaunchSession(stage: stage, hintMode: hintMode)
     }

@@ -23,9 +23,11 @@ struct SurvivalGameResultView: View {
     let locale: AppLocale
     let clearReportInFlight: Bool
     let clearReportError: String?
+    /// デモプレイ中は「タイトルに戻る」表記にする。
+    var isDemo: Bool = false
     /// 「リトライ」: 同ステージ・同 hintMode で再起動する。
     let onRetry: () -> Void
-    /// 「マップに戻る」: ゲーム画面を閉じる。
+    /// 「マップに戻る」(または「タイトルに戻る"): ゲーム画面を閉じる。
     let onExit: () -> Void
 
     var body: some View {
@@ -130,7 +132,7 @@ struct SurvivalGameResultView: View {
             )
 
             secondaryButton(
-                label: locale == .ja ? "マップに戻る" : "Back to Map",
+                label: exitLabel,
                 action: onExit
             )
         }
@@ -169,6 +171,14 @@ struct SurvivalGameResultView: View {
     }
 
     // MARK: - Helpers
+
+    /// デモ中はマップ画面へ戻れないため、タイトル画面への遷移として表示する。
+    private var exitLabel: String {
+        if isDemo {
+            return locale == .ja ? "タイトルに戻る" : "Back to Title"
+        }
+        return locale == .ja ? "マップに戻る" : "Back to Map"
+    }
 
     private var timeLabel: String {
         String(format: "%02d:%02d", elapsedSeconds / 60, elapsedSeconds % 60)

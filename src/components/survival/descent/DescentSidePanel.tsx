@@ -152,7 +152,7 @@ export const DescentSidePanel: React.FC<DescentSidePanelProps> = ({
                 <dd className="mt-0.5 text-[11px] font-bold text-emerald-300">
                   {isBlockLastStage(selectedStage.stageNumber)
                     ? (isEnglishCopy ? 'Boss x1' : 'ボス x1')
-                    : (isEnglishCopy ? '90s + 300 Kills' : '90秒 + 300体')}
+                    : (isEnglishCopy ? '90s + 150 Kills' : '90秒 + 150体')}
                 </dd>
               </div>
             </dl>

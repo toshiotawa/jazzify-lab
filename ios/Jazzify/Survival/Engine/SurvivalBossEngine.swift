@@ -52,6 +52,8 @@ struct SurvivalBossHazard: Identifiable, Sendable {
         case pullTelegraph(range: CGFloat)
         case pullField(range: CGFloat, damage: Int)
         case acidPool(radius: CGFloat, dps: Int)
+        /// B ボス ミニオン自爆時の爆風ハザード。短命 (約 0.28 秒) で 1 度だけダメージ + ノックバックする。
+        case bombExplosion(radius: CGFloat, damage: Int)
     }
 
     let id: UUID = UUID()
@@ -73,8 +75,17 @@ struct SurvivalBossMinion: Identifiable, Sendable {
     var triggerRange: CGFloat
     var explosionRadius: CGFloat
     var explosionDamage: Int
-    var isExploding: Bool = false
+    /// fuse 点火時刻。プレイヤーが `triggerRange` に入った瞬間に `now` が入る。
+    /// `nil` のあいだは起爆していない (まだ「時限爆弾」ではない)。
+    /// Web 版 `SurvivalBossEngine.ts` の `fuseStartedAt` に相当する。
+    var fuseStartedAt: TimeInterval? = nil
+    /// fuse 点火後、この時刻に爆発ハザードへ変換される。`fuseStartedAt + minionFuseMs/1000`。
+    var explodeAt: TimeInterval? = nil
     var spawnedAt: TimeInterval
+
+    /// 点火済みかどうか。Scene 側の点滅判定や既存コード互換のため提供する。
+    /// プレイヤー攻撃でのハートドロップ判定には用いない (fuse 中でも攻撃で倒せばハートは落とす)。
+    var isExploding: Bool { fuseStartedAt != nil }
 }
 
 struct SurvivalBossProjectile: Identifiable, Sendable {
@@ -168,6 +179,13 @@ enum SurvivalBossEngine {
         static let minionTriggerRange: CGFloat = 72
         static let minionExplosionRadius: CGFloat = 120
         static let explosionDamage: Int = 120
+        /// 1 回の spores 発動で生成するミニオン数 (Web 版 `eggLimitPhase1` 相当)
+        static let eggLimitPhase1: Int = 3
+        /// 1 回の spores 発動で生成するミニオン数 (Web 版 `eggLimitPhase2` 相当。フェーズ 2 以降)
+        static let eggLimitPhase2: Int = 4
+        /// ミニオン総数の上限 (Web 版 `minionLimit` 相当)。
+        /// armUntil 自動消滅を廃した関係で、これが無いとミニオンが雪だるま式に増えて重くなる。
+        static let minionLimit: Int = 8
     }
 
     struct BossCParams {
@@ -252,6 +270,37 @@ enum SurvivalBossEngine {
         return .three
     }
 
+    /// Web 版 `updatePhase` 相当。
+    /// HP 割合からフェーズを再計算し、`遷移した瞬間` にボスタイプ別の解禁スキルを
+    /// 近い時刻にセットする。これをやらないと `initialNextSkillAt` で `far` (99_999s)
+    /// 固定のスキル (B: acidShot / C: crossBlast・pull 等) が永遠に発動せず、
+    /// B ボスが spores しか撃たないバグになる。
+    private static func updatePhase(state: inout SurvivalBossBattleState, now: TimeInterval) {
+        let newPhase = computePhase(hp: state.boss.hp, maxHp: state.boss.maxHp)
+        guard newPhase != state.boss.phase else {
+            state.boss.phase = newPhase
+            return
+        }
+        state.boss.phase = newPhase
+        switch newPhase {
+        case .two:
+            switch state.boss.bossType {
+            case .A:
+                state.boss.nextSkillAt[.charge] = now + 0.8
+            case .B:
+                state.boss.nextSkillAt[.acidShot] = now + 0.8
+            case .C:
+                state.boss.nextSkillAt[.crossBlast] = now + 0.8
+            }
+        case .three:
+            if state.boss.bossType == .C {
+                state.boss.nextSkillAt[.pull] = now + 1.2
+            }
+        case .one:
+            break
+        }
+    }
+
     // MARK: - メインアップデート
 
     /// ボス戦 1 フレームの進行。戻り値はプレイヤーのダメージや即時 HP 更新などを返す。
@@ -269,8 +318,8 @@ enum SurvivalBossEngine {
         var result = BossTickResult()
         guard state.result == .ongoing else { return result }
 
-        // フェーズ更新
-        state.boss.phase = computePhase(hp: state.boss.hp, maxHp: state.boss.maxHp)
+        // フェーズ更新 (遷移時はスキル解禁を走らせる)
+        updatePhase(state: &state, now: now)
 
         // 開幕グレース
         let sinceStart = (now - state.startedAt) * 1000.0
@@ -486,6 +535,21 @@ enum SurvivalBossEngine {
                 endAt: now + BossAParams.sweepActiveMs / 1000.0
             )
             state.hazards.append(active)
+            // フェーズ 2 以上では sweep に合わせて血溜まりを設置する。
+            // Web 版 (`SurvivalBossEngine.ts`) と同じく「ボス位置から攻撃方向に sweepRadius * 0.6 離れた地点」
+            // に置き、プレイヤーの現在地直下には生成しない (以前のプレイヤー直下生成は回避不能だった)。
+            if state.boss.phase.rawValue >= 2 {
+                let poolOffset = BossAParams.sweepRadius * 0.6
+                let poolX = clampX(boss.x + cos(angle) * poolOffset)
+                let poolY = clampY(boss.y + sin(angle) * poolOffset)
+                let pool = SurvivalBossHazard(
+                    kind: .bloodPool(radius: BossAParams.bloodPoolRadius, dps: BossAParams.bloodPoolDps),
+                    x: poolX, y: poolY,
+                    startAt: now,
+                    endAt: now + BossAParams.bloodPoolMs / 1000.0
+                )
+                state.hazards.append(pool)
+            }
         case .charge:
             // 予告時に計算した角度を流用。存在しない場合のみフォールバックでプレイヤー方向を再計算する。
             let angle = state.boss.pendingChargeAngle ?? atan2(player.y - boss.y, player.x - boss.x)
@@ -499,8 +563,16 @@ enum SurvivalBossEngine {
             )
             state.hazards.append(line)
         case .spores:
-            // 3 体の自爆ミニオン召喚
-            for _ in 0..<3 {
+            // Web 版 `spores` 準拠:
+            //   - フェーズ 1 は `eggLimitPhase1` (3) 体、フェーズ 2 以降は `eggLimitPhase2` (4) 体まで生成
+            //   - `minionLimit` (8) を超える場合は打ち止め
+            // 以前の「毎回無条件で 3 体追加」では armUntil 自動消滅を廃した際に雪だるま式に
+            // 増えて重くなっていたため、Web 版と同等の個数制限を導入する。
+            let eggLimit = state.boss.phase == .one
+                ? BossBParams.eggLimitPhase1
+                : BossBParams.eggLimitPhase2
+            for _ in 0..<eggLimit {
+                if state.minions.count >= BossBParams.minionLimit { break }
                 let offsetX = CGFloat.random(in: -160...160)
                 let offsetY = CGFloat.random(in: -160...160)
                 let spawnX = clampX(boss.x + offsetX)
@@ -571,16 +643,9 @@ enum SurvivalBossEngine {
         player: SurvivalPlayerState,
         now: TimeInterval
     ) {
-        // ボス A の sweep 後に確率でブラッドプール
-        if skill == .sweep && state.boss.bossType == .A && state.boss.phase.rawValue >= 2 {
-            let pool = SurvivalBossHazard(
-                kind: .bloodPool(radius: BossAParams.bloodPoolRadius, dps: BossAParams.bloodPoolDps),
-                x: player.x, y: player.y,
-                startAt: now,
-                endAt: now + BossAParams.bloodPoolMs / 1000.0
-            )
-            state.hazards.append(pool)
-        }
+        // 以前はここで sweep リカバリ時にプレイヤー直下へ血溜まりを生成していたが、
+        // 完全回避不能になるため `onSkillActivate` の `.sweep` 側に統合した。
+        _ = (state, skill, player, now)
     }
 
     // MARK: - ボス移動
@@ -671,6 +736,16 @@ enum SurvivalBossEngine {
                         hazard.playerLastHitAt = now
                     }
                 }
+            case .bombExplosion(let radius, let damage):
+                // Web 版 `SurvivalBossEngine.ts` の `hitOnce: true` 相当。
+                // 0.28 秒の短命ハザードだが、同一ハザードで複数回ヒットさせないよう
+                // `playerLastHitAt != 0` でガードする (= 1 度だけダメージ + ノックバック)。
+                let d = hypot(player.x - hazard.x, player.y - hazard.y)
+                if d <= radius && hazard.playerLastHitAt == 0 {
+                    applyPlayerDamage(&player, damage: damage, now: now, iFrame: SurvivalConstants.iFrameHazard, result: &result)
+                    applyKnockbackAway(player: &player, from: CGPoint(x: hazard.x, y: hazard.y), now: now)
+                    hazard.playerLastHitAt = now
+                }
             case .fanTelegraph, .lineTelegraph, .ringTelegraph, .crossTelegraph, .eggTelegraph, .pullTelegraph:
                 break
             }
@@ -685,28 +760,52 @@ enum SurvivalBossEngine {
         deltaTime: TimeInterval,
         result: inout BossTickResult
     ) {
+        // Web 版 `SurvivalBossEngine.ts` の `updateMinions` 準拠:
+        // 1. fuse 点火済みで `explodeAt` を過ぎたミニオンは `bombExplosion` ハザードへ変換して削除 (ハートはドロップしない)
+        // 2. プレイヤーへ追尾移動
+        // 3. 未点火ミニオンが `triggerRange` に入ったら fuse を点火 (900ms 後に爆発)
+        // 4. HP 0 は破棄
+        // 即時爆発 (以前の挙動) ではなく 900ms の fuse を挟むため、プレイヤーが fuse 中に攻撃して倒せばハートを落とせる。
+        // NOTE: かつて存在した `armUntil` による自動消滅は Web 版に無い独自挙動で、
+        //       「fuse 点火後に離れると爆発がキャンセルされる」バグの原因となっていたため削除した。
+        //       点火後は距離に関係なく必ず `explodeAt` で `bombExplosion` ハザードに変換される。
+        _ = player // 現状の iOS 実装は爆発ダメージをハザード経由で与えるためここでは使用しない。
+        _ = result
         var remaining: [SurvivalBossMinion] = []
         let dt = CGFloat(deltaTime)
+        let speed: CGFloat = 120
         for var minion in state.minions {
+            // 1. 爆発タイミング到来 → bombExplosion ハザードを生成して削除
+            if let explodeAt = minion.explodeAt, now >= explodeAt {
+                let explosion = SurvivalBossHazard(
+                    kind: .bombExplosion(radius: minion.explosionRadius, damage: minion.explosionDamage),
+                    x: minion.x,
+                    y: minion.y,
+                    startAt: now,
+                    endAt: now + 0.28
+                )
+                state.hazards.append(explosion)
+                continue
+            }
+
+            // 2. プレイヤーへ追尾 (fuse 点火後も追尾継続)
             let dx = player.x - minion.x
             let dy = player.y - minion.y
             let dist = hypot(dx, dy)
-            let speed: CGFloat = 120
             if dist > 1 {
                 minion.x = clampX(minion.x + (dx / dist) * speed * dt)
                 minion.y = clampY(minion.y + (dy / dist) * speed * dt)
             }
-            if dist <= minion.triggerRange && !minion.isExploding {
-                minion.isExploding = true
-                // 近距離爆発：即時ダメージ
-                let hitDist = hypot(player.x - minion.x, player.y - minion.y)
-                if hitDist <= minion.explosionRadius {
-                    applyPlayerDamage(&player, damage: minion.explosionDamage, now: now, iFrame: SurvivalConstants.iFrameHazard, result: &result)
-                }
-                continue // 削除
+
+            // 3. fuse 点火判定 (未点火かつ triggerRange 内)
+            if minion.fuseStartedAt == nil && dist <= minion.triggerRange {
+                minion.fuseStartedAt = now
+                minion.explodeAt = now + BossBParams.minionFuseMs / 1000.0
             }
+
+            // 4. HP 0 は破棄 (armUntil による自動消滅は Web 版準拠で無効化)
             if minion.hp <= 0 { continue }
-            if now > minion.armUntil { continue } // 時間切れで消失
+
             remaining.append(minion)
         }
         state.minions = remaining
@@ -787,10 +886,13 @@ enum SurvivalBossEngine {
     /// - `bossHitDamage`: ボス本体に当たった合計ダメージ (フローティングテキスト表示用)
     /// - `bossHitPoint`: ボスにヒットした位置 (表示座標)
     /// - `minionHits`: ミニオンごとの (id, dmg, hitPoint)
+    /// - `killedMinions`: 今回の攻撃で HP 0 に到達して消滅するミニオン (id, 最終位置)。
+    ///   呼び出し側はこれを受けてドロップアイテム生成などに利用する。
     struct PlayerAttackResolution {
         var bossHitDamage: Int = 0
         var bossHitPoint: CGPoint? = nil
         var minionHits: [(id: UUID, damage: Int, point: CGPoint)] = []
+        var killedMinions: [(id: UUID, point: CGPoint)] = []
     }
 
     /// プレイヤー弾・衝撃波によるボスダメージ適用。呼び出し側で Controller から呼ぶ。
@@ -823,7 +925,16 @@ enum SurvivalBossEngine {
             }
             state.minions[idx] = minion
         }
-        state.minions.removeAll { $0.hp <= 0 && !$0.isExploding }
+        // プレイヤー攻撃で倒したミニオンを検出してから配列から除去する。
+        // fuse 点火中 (isExploding == true) であっても自爆ハザードに変換される前 =
+        // まだ `state.minions` に残っている状態なので、この時点で HP 0 なら
+        // 「プレイヤー撃破」として heart ドロップの対象にする (Web 版準拠)。
+        // 実際に自爆したミニオンは `updateMinions` で先に配列から除去されているため、
+        // ここで判定対象になることはない。
+        for minion in state.minions where minion.hp <= 0 {
+            result.killedMinions.append((id: minion.id, point: CGPoint(x: minion.x, y: minion.y)))
+        }
+        state.minions.removeAll { $0.hp <= 0 }
         return result
     }
 

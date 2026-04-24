@@ -29,6 +29,8 @@ targets:
       - path: Jazzify
     resources:
       - path: Jazzify/Assets.xcassets
+      - path: Jazzify/Resources/piano
+        type: folder
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: jp.jazzify.app

@@ -10,6 +10,8 @@ import SwiftUI
 /// 変更毎に `SurvivalGameAudio` の set API を呼ぶ。
 struct SurvivalPauseSettingsSheet: View {
     let locale: AppLocale
+    /// デモプレイ中は「タイトルに戻る」表記にする。
+    var isDemo: Bool = false
     let onResume: () -> Void
     let onExit: () -> Void
 
@@ -81,7 +83,7 @@ struct SurvivalPauseSettingsSheet: View {
                     }
 
                     Button(action: onExit) {
-                        Text(locale == .ja ? "マップに戻る" : "Back to Map")
+                        Text(exitLabel)
                             .font(.subheadline)
                             .foregroundStyle(.white.opacity(0.85))
                     }
@@ -210,6 +212,16 @@ struct SurvivalPauseSettingsSheet: View {
             )
         }
         .buttonStyle(.plain)
+    }
+
+    // MARK: - Exit label
+
+    /// デモ中はマップ画面が存在しないためタイトル画面への戻りとなる。
+    private var exitLabel: String {
+        if isDemo {
+            return locale == .ja ? "タイトルに戻る" : "Back to Title"
+        }
+        return locale == .ja ? "マップに戻る" : "Back to Map"
     }
 
     // MARK: - Bindings (SurvivalGameAudio へ即時反映)

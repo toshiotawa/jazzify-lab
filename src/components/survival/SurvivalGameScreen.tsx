@@ -2205,7 +2205,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.player.stats.maxHp = BOSS_PLAYER_MAX_HP;
           newState.player.stats.hp = bossState.player.hp;
 
-          // スロットタイマー更新（A/B 列のみ）
+          // スロット状態更新（A/B 列のみ、時間切れによる自動切替えは廃止）
           newState.codeSlots = {
             current: newState.codeSlots.current.map((slot, slotIndex) => {
               if (!slot.isEnabled) return slot;
@@ -2232,17 +2232,8 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
                 }
                 return slot;
               }
-              const newTimer = slot.timer - deltaTime;
-              if (newTimer <= 0) {
-                let nextChord = newState.codeSlots.next[slotIndex]?.chord;
-                if (!nextChord) nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
-                const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
-                newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
-                  i === slotIndex ? { ...ns, chord: newNextChord } : ns
-                ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
-                return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
-              }
-              return { ...slot, timer: newTimer };
+              // コードはスキル発動するまで保持し、時間切れで差し替えない。
+              return slot;
             }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot],
             next: newState.codeSlots.next,
           };
@@ -2821,10 +2812,10 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.projectiles = newState.projectiles.slice(-MAX_PROJECTILES);
         }
         
-        // スロットタイマー更新
+        // スロット状態更新（時間切れによる自動切替えは廃止）
         newState.codeSlots.current = newState.codeSlots.current.map((slot, slotIndex) => {
           if (!slot.isEnabled) return slot;
-          
+
           // 完了状態のスロットは一定時間後に自動リセット
           // （handleNoteInput の setTimeout(50ms) 経路を撤去したため、
           //   ここで 50ms 経過後にリセットする）
@@ -2847,7 +2838,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             return slot;
           }
-          
+
           // コードが空の場合、新しいコードを生成
           if (!slot.chord) {
             const newChord = selectRandomChord(config.allowedChords);
@@ -2856,24 +2847,9 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
             return slot;
           }
-          
-          const newTimer = slot.timer - deltaTime;
-          if (newTimer <= 0) {
-            // 次のコードを取得し、無ければ新しく生成
-            let nextChord = newState.codeSlots.next[slotIndex]?.chord;
-            if (!nextChord) {
-              nextChord = selectRandomChord(config.allowedChords, slot.chord?.id);
-            }
-            
-            // 次のスロットのコードも更新
-            const newNextChord = selectRandomChord(config.allowedChords, nextChord?.id);
-            newState.codeSlots.next = newState.codeSlots.next.map((ns, i) =>
-              i === slotIndex ? { ...ns, chord: newNextChord } : ns
-            ) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
-            
-            return { ...slot, chord: nextChord, correctNotes: [], isCompleted: false, completedTime: undefined, timer: SLOT_TIMEOUT };
-          }
-          return { ...slot, timer: newTimer };
+
+          // コードはスキル発動するまで保持し、時間切れで差し替えない。
+          return slot;
         }) as [CodeSlot, CodeSlot, CodeSlot, CodeSlot];
         
         // 魔法クールダウン更新（A/B/C/D列で独立）
@@ -2980,7 +2956,7 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
             }
           }
 
-          // ステージモード: 90秒生存 + 撃破ノルマ300体
+          // ステージモード: 90秒生存 + 撃破ノルマ150体
           if (newState.wave.waveKills >= STAGE_KILL_QUOTA && !newState.wave.waveCompleted) {
             newState.wave = { ...newState.wave, waveCompleted: true };
           }

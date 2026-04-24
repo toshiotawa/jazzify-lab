@@ -67,6 +67,8 @@ enum SurvivalBossEffectRenderer {
             return renderAcidPool(radius: radius, nowMs: nowMs, progress: progress, idHash: idHash)
         case .eggTelegraph(let radius):
             return renderEggTelegraph(radius: radius, nowMs: nowMs)
+        case .bombExplosion(let radius, _):
+            return renderBombExplosion(radius: radius, progress: progress)
         }
     }
 
@@ -876,6 +878,59 @@ enum SurvivalBossEffectRenderer {
             cg.setStrokeColor(red: 1, green: 1, blue: 0.3, alpha: 0.9)
             cg.setLineWidth(2)
             cg.strokeEllipse(in: CGRect(x: cx - radius, y: cy - radius, width: radius * 2, height: radius * 2))
+        }
+        return Output(image: img, anchorPoint: CGPoint(x: 0.5, y: 0.5), rotation: 0)
+    }
+
+    // MARK: - 爆弾ミニオン 爆発 (Web 版 `SurvivalCanvas.tsx` の `bombExplosion` 描画準拠)
+
+    /// B ボス ミニオン自爆時の爆風。時間経過で半径 `0.6 → 1.8` に拡大しながらフェードアウトし、
+    /// 中央に 💥 のインパクト絵文字を置く。色合いは Web 版と同じ暖色系 (オレンジ) に揃える。
+    private static func renderBombExplosion(radius: CGFloat, progress: Double) -> Output {
+        // ハザード自体の range は一定 (`SurvivalBossHazard.kind.bombExplosion(radius)`) だが、
+        // 演出としては `scaleFactor * radius` をキャンバスの中心に描く。
+        // キャンバスサイズは最大スケール (`1.8`) + 余白ぶん確保する。
+        let pad: CGFloat = 12
+        let maxScale: CGFloat = 1.8
+        let canvas = radius * 2 * maxScale + pad * 2
+        let size = CGSize(width: canvas, height: canvas)
+        let renderer = makeRenderer(size: size)
+        let t = CGFloat(max(0, min(1, progress)))
+        let scale = 0.6 + t * 1.2
+        let alpha = CGFloat(0.75) * (1 - t)
+        let img = renderer.image { ctx in
+            let cg = ctx.cgContext
+            let cx = size.width / 2
+            let cy = size.height / 2
+            let r = radius * scale
+
+            // 外側ハロー (淡い黄色) で爆発感を強調。
+            if let halo = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
+                                     colors: [
+                                        UIColor(red: 1.0, green: 230.0/255, blue: 140.0/255, alpha: alpha * 0.9).cgColor,
+                                        UIColor(red: 1.0, green: 150.0/255, blue: 40.0/255, alpha: alpha * 0.55).cgColor,
+                                        UIColor(red: 1.0, green: 90.0/255, blue: 20.0/255, alpha: 0).cgColor
+                                     ] as CFArray, locations: [0, 0.55, 1]) {
+                cg.drawRadialGradient(halo, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: r, options: [])
+            }
+
+            // 主爆風 (Web 版 `rgba(255, 140, 40, alpha)` 相当) をベタ塗り。
+            cg.setFillColor(red: 1.0, green: 140.0/255, blue: 40.0/255, alpha: alpha)
+            cg.fillEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+
+            // 縁ライン (焦げる輪郭) でクッキリさせる。
+            cg.setStrokeColor(red: 1.0, green: 200.0/255, blue: 80.0/255, alpha: CGFloat(0.85) * (1 - t))
+            cg.setLineWidth(3)
+            cg.strokeEllipse(in: CGRect(x: cx - r, y: cy - r, width: r * 2, height: r * 2))
+
+            // 💥 インパクト絵文字 (Web 版と同サイズ比)
+            let impact = "💥" as NSString
+            let font = UIFont.systemFont(ofSize: 36 * scale)
+            let attr: [NSAttributedString.Key: Any] = [
+                .font: font
+            ]
+            let textSize = impact.size(withAttributes: attr)
+            impact.draw(at: CGPoint(x: cx - textSize.width / 2, y: cy - textSize.height / 2), withAttributes: attr)
         }
         return Output(image: img, anchorPoint: CGPoint(x: 0.5, y: 0.5), rotation: 0)
     }

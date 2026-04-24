@@ -625,8 +625,8 @@ const SurvivalStageSelect: React.FC<SurvivalStageSelectProps> = ({
             </div>
             <p className="mt-2 text-xs text-gray-400 font-sans">
               {isEnglishCopy
-                ? 'Complete a chord shown in a slot (Shot/Punch/Magic) to trigger its skill. Each slot has a 10-second timer - unfinished chords reset automatically.'
-                : '画面下のスロット（Shot/Punch/Magic）に表示されたコードの構成音をすべて弾くとスキルが発動します。各スロットには10秒のタイマーがあり、時間切れで自動リセットされます。'}
+                ? 'Complete a chord shown in a slot (Shot/Punch/Magic) to trigger its skill. Chords stay on screen until you finish them.'
+                : '画面下のスロット（Shot/Punch/Magic）に表示されたコードの構成音をすべて弾くとスキルが発動します。コードは発動するまでスロットに残り続けます。'}
             </p>
           </div>
 

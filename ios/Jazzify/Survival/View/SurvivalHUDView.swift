@@ -66,7 +66,7 @@ struct SurvivalHUDView: View {
             }
             Spacer()
             if controller.runtime.hintMode {
-                Text(locale == .ja ? "ヒント" : "HINT")
+                Text(locale == .ja ? "ヒント ON" : "HINT ON")
                     .font(.caption2.bold())
                     .foregroundStyle(.black)
                     .padding(.horizontal, 8)

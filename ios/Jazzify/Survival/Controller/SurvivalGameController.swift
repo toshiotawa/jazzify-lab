@@ -170,12 +170,16 @@ final class SurvivalGameController: ObservableObject {
     func handleNoteOn(_ note: Int) {
         let pc = ((note % 12) + 12) % 12
         activePressedPitchClasses.insert(pc)
+        // 鍵盤を押した時点で発音開始。`handleNoteOff` が呼ばれるまで鳴り続ける (Web 版挙動)。
+        SurvivalGameAudio.shared.pianoNoteOn(midi: note, velocity: 100)
         evaluateSlots(for: note)
     }
 
     func handleNoteOff(_ note: Int) {
         let pc = ((note % 12) + 12) % 12
         activePressedPitchClasses.remove(pc)
+        // 鍵盤を離したらリリースフェードへ
+        SurvivalGameAudio.shared.pianoNoteOff(midi: note)
     }
 
     private func evaluateSlots(for note: Int) {
@@ -193,8 +197,8 @@ final class SurvivalGameController: ObservableObject {
                 triggerSlot(atIndex: idx, chord: target)
             }
         }
-        // 鍵盤タップのフィードバック音（軽め）。ピアノ音量スライダーに従う。
-        SurvivalGameAudio.shared.playNote(note, velocity: 70, duration: 0.18, asPiano: true)
+        // 鍵盤タップのフィードバック音は `handleNoteOn` 側で既に発音済み。
+        // ここで追加の `playNote` は呼ばない (重複発音防止)。
     }
 
     private func triggerSlot(atIndex slotIndex: Int, chord: SurvivalResolvedChord) {
@@ -250,12 +254,30 @@ final class SurvivalGameController: ObservableObject {
             break
         }
 
-        // WEB 版準拠: 正解時はルート音 (C2 = 36 起点) を鳴らす。ピアノ音量スライダーに従う。
+        // WEB 版準拠: 正解時はシンセのベース ルート音 (C2 起点 / 三角波) を鳴らす。
+        // Web 版 `FantasySoundManager._playRootNote` と同じく、ピアノ鍵盤とは
+        // 音色を明確に区別するため低音のシンセ音を使用する。
         let rootMidi = 36 + chord.rootPitchClass
-        SurvivalGameAudio.shared.playNote(rootMidi, velocity: 100, duration: 0.45, asPiano: true)
+        SurvivalGameAudio.shared.playSynthBassRoot(midi: rootMidi)
 
-        // 完成コード名をプレイヤー頭上にフローティング表示 (Shot / Punch 発動時)
-        if slotIndex == SurvivalSlotIndex.A.rawValue || slotIndex == SurvivalSlotIndex.B.rawValue {
+        // 完成コード名をプレイヤー頭上にフローティング表示 + スロット入れ替えを
+        // 1 回の struct mutation にまとめることで `@Published runtime` の発火を
+        // 集約し、コード完成時の SwiftUI 再評価コストを抑える。
+        // (Shot / Punch の表示、次コード抽選、進捗リセット、triggerPulse 更新を一括適用)
+        let upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
+        let newNextChord = SurvivalChordResolver.resolve(
+            id: stage.allowedChords.randomElement() ?? chord.id
+        ) ?? upcomingChord
+        var slotUpdate = runtime.slots[slotIndex]
+        slotUpdate.chord = upcomingChord
+        slotUpdate.nextChord = newNextChord
+        slotUpdate.timer = SurvivalConstants.slotTimeoutSec
+        slotUpdate.inputPitchClasses = []
+        slotUpdate.triggerPulse &+= 1
+
+        let showChordFloat = slotIndex == SurvivalSlotIndex.A.rawValue
+            || slotIndex == SurvivalSlotIndex.B.rawValue
+        if showChordFloat {
             runtime.floatingTexts.append(
                 SurvivalFloatingText(
                     text: chord.displayName,
@@ -267,16 +289,7 @@ final class SurvivalGameController: ObservableObject {
                 )
             )
         }
-
-        // 現在コードは次コード (プリロード済) に入れ替え、新しい次コードを抽選する (WEB 版 `nextSlots` 準拠)
-        let upcomingChord = runtime.slots[slotIndex].nextChord ?? chord
-        let newNextChord = SurvivalChordResolver.resolve(
-            id: stage.allowedChords.randomElement() ?? chord.id
-        ) ?? upcomingChord
-        runtime.slots[slotIndex].chord = upcomingChord
-        runtime.slots[slotIndex].nextChord = newNextChord
-        runtime.slots[slotIndex].timer = SurvivalConstants.slotTimeoutSec
-        runtime.slots[slotIndex].inputPitchClasses = []
+        runtime.slots[slotIndex] = slotUpdate
 
         // ヒント対象スロットを A↔B 交互に切り替える (Web 版と同挙動)
         advanceHintSlotIndex(triggeredIndex: slotIndex)
@@ -549,18 +562,15 @@ final class SurvivalGameController: ObservableObject {
             SurvivalGameAudio.shared.switchWavePhase(useEven: true)
         }
 
-        // クリア判定
-        if runtime.enemiesDefeated >= SurvivalConstants.stageEnemyQuota {
-            runtime.phase = .cleared
-            SurvivalGameAudio.shared.playEffect(.stageClear)
-            finalizeStage(cleared: true)
-            return
-        }
+        // クリア判定 (Web 版 `SurvivalGameScreen` と同じく 90 秒経過時にのみ判定)
+        // - 撃破数が 150 に達してもゲームは止めず、残り時間まで継続させる。
+        // - これにより HUD / リザルトの撃破数分子が 150 で打ち止めにならず、
+        //   151 匹以上倒した場合は実際の撃破数がそのまま表示される。
         if runtime.remainingSeconds <= 0 {
-            // 時間切れはクリアとせずゲームオーバー (撃破ノルマ未達)
-            runtime.phase = .gameOver
-            SurvivalGameAudio.shared.playEffect(.stageGameOver)
-            finalizeStage(cleared: false)
+            let cleared = runtime.enemiesDefeated >= SurvivalConstants.stageEnemyQuota
+            runtime.phase = cleared ? .cleared : .gameOver
+            SurvivalGameAudio.shared.playEffect(cleared ? .stageClear : .stageGameOver)
+            finalizeStage(cleared: cleared)
             return
         }
 
@@ -577,7 +587,6 @@ final class SurvivalGameController: ObservableObject {
         }
         var updated: [SurvivalEnemy] = []
         updated.reserveCapacity(runtime.enemies.count)
-        var defeatedEnemies: [SurvivalEnemy] = []
         for enemy in runtime.enemies {
             var modified = enemy
             if let dmg = damageMap[enemy.id] {
@@ -595,26 +604,13 @@ final class SurvivalGameController: ObservableObject {
             if modified.stats.hp > 0 {
                 updated.append(modified)
             } else {
-                defeatedEnemies.append(modified)
                 runtime.enemiesDefeated += 1
             }
         }
         runtime.enemies = updated
 
-        // ドロップ処理
-        // - iOS ステージモードでは EXP 獲得を行わないため、コイン (EXP) は生成しない。
-        // - デモ (未ログイン体験) ではアイテム系ドロップも行わない。
-        if !isDemo {
-            for enemy in defeatedEnemies {
-                let drop = SurvivalItemEngine.rollDrop(
-                    enemy: enemy,
-                    itemDropRate: config.itemDropRate,
-                    expMultiplier: config.expMultiplier,
-                    now: now
-                )
-                if let item = drop.item { runtime.droppedItems.append(item) }
-            }
-        }
+        // 通常敵からのアイテム / コイン ドロップは廃止。
+        // プレイヤーが拾えるドロップはボス戦のミニオンからのハートのみとする。
     }
 
     /// `triggerSlot(.B)` で積まれた多段ヒット用の予約衝撃波を、発火時刻を過ぎたぶん生成する。
@@ -653,20 +649,11 @@ final class SurvivalGameController: ObservableObject {
     }
 
     private func tickSlotsTimer(deltaTime: TimeInterval) {
-        for idx in runtime.slots.indices where runtime.slots[idx].isEnabled {
-            runtime.slots[idx].timer -= deltaTime
-            if runtime.slots[idx].timer <= 0 {
-                let upcoming = runtime.slots[idx].nextChord
-                    ?? SurvivalChordResolver.resolve(id: stage.allowedChords.randomElement() ?? "")
-                let newNext = SurvivalChordResolver.resolve(
-                    id: stage.allowedChords.randomElement() ?? ""
-                )
-                runtime.slots[idx].chord = upcoming ?? runtime.slots[idx].chord
-                runtime.slots[idx].nextChord = newNext ?? upcoming
-                runtime.slots[idx].timer = SurvivalConstants.slotTimeoutSec
-                runtime.slots[idx].inputPitchClasses = []
-            }
-        }
+        // コードの時間切れ自動切替えは撤廃。
+        // プレイヤーがコードを完成させてスキル発動するまでスロットを保持する。
+        // (`triggerSlot` 内で `timer` を再セットする記述は残っているが、
+        //  このメソッドがデクリメントしないため事実上未使用となる。)
+        _ = deltaTime
     }
 
     // MARK: - ボスステージ 1 フレーム
@@ -751,6 +738,12 @@ final class SurvivalGameController: ObservableObject {
                     consumedProjectileIds.insert(proj.id)
                 }
             }
+            // プレイヤー弾で撃破したミニオンからハートをドロップ。
+            for killed in res.killedMinions {
+                runtime.droppedItems.append(
+                    SurvivalItemEngine.makeHeartDrop(at: killed.point, now: now)
+                )
+            }
             runtime.projectiles[idx] = proj
         }
         if !consumedProjectileIds.isEmpty {
@@ -793,10 +786,50 @@ final class SurvivalGameController: ObservableObject {
                 )
                 wave.hitEnemyIds.insert(m.id)
             }
+            // 衝撃波で撃破したミニオンからもハートをドロップ。
+            for killed in res.killedMinions {
+                runtime.droppedItems.append(
+                    SurvivalItemEngine.makeHeartDrop(at: killed.point, now: now)
+                )
+            }
             runtime.shockwaves[idx] = wave
         }
 
         bossBattle = boss
+
+        // ドロップ ハート × プレイヤーの接触ピックアップ + 期限切れ除去
+        // (通常ステージでは tickNormal 内で同等の処理を行っているが、ボス戦では
+        //  ミニオン ハートを導入するためここでも同じ流れを実行する)
+        let (remainingItems, _) = SurvivalItemEngine.pruneExpired(
+            items: runtime.droppedItems,
+            coins: runtime.coins,
+            now: now
+        )
+        runtime.droppedItems = remainingItems
+        let pickup = SurvivalItemEngine.applyPickups(
+            player: runtime.player,
+            items: runtime.droppedItems,
+            coins: [],
+            autoCollectExp: profile.autoCollectExp,
+            now: now
+        )
+        if !pickup.pickedItemIds.isEmpty {
+            runtime.droppedItems.removeAll { pickup.pickedItemIds.contains($0.id) }
+            if pickup.healAmount > 0 {
+                let healed = min(runtime.player.maxHp, runtime.player.hp + pickup.healAmount)
+                runtime.player.hp = healed
+                runtime.floatingTexts.append(
+                    SurvivalFloatingText(
+                        text: "+\(pickup.healAmount)",
+                        x: runtime.player.x,
+                        y: runtime.player.y - SurvivalConstants.playerSize,
+                        createdAt: now,
+                        color: .heal
+                    )
+                )
+            }
+            SurvivalGameAudio.shared.playEffect(.itemPickup)
+        }
 
         switch boss.result {
         case .win:

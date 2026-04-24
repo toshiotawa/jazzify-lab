@@ -371,7 +371,7 @@ struct SurvivalDescentSidePanel: View {
         if isBossStage(stage) {
             return isEnglishCopy ? "Boss x1" : "ボス x1"
         }
-        return isEnglishCopy ? "90s + 300 Kills" : "90秒 + 300体"
+        return isEnglishCopy ? "90s + 150 Kills" : "90秒 + 150体"
     }
 
     /// ボス戦 (= 各ブロック最終ステージ) かどうか。`SurvivalGameController` と同じ

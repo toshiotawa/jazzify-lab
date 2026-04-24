@@ -2,7 +2,9 @@ import Foundation
 import AVFoundation
 
 /// サバイバル ゲーム画面専用の軽量オーディオマネージャ。
-/// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で MIDI ノート再生
+/// - AVAudioEngine + AVAudioUnitSampler (SoundFont 無しの内蔵音色) で SE 用 MIDI ノート再生
+/// - ピアノ鍵盤 / 正解ルート音は `SurvivalPianoSampler` (Salamander サンプル) で再生し、
+///   Web 版のピアノ音色と揃える。ノート ON/OFF で発音時間を制御する。
 /// - BGM は 奇数フェーズ / 偶数フェーズの 2 URL を `AVQueuePlayer + AVPlayerLooper` で切替再生
 /// - SE (my_attack / enemy_attack / stage_clear / stage_gameover) は内蔵サンプラーで簡易再生
 final class SurvivalGameAudio {
@@ -31,12 +33,29 @@ final class SurvivalGameAudio {
     private let engine = AVAudioEngine()
     /// SFX (攻撃・被弾・ステージクリア等) 用サンプラー。`sfxMixer` 経由で音量制御される。
     private let sampler = AVAudioUnitSampler()
-    /// ピアノ鍵盤タップ / 正解ルート音専用サンプラー。`pianoMixer` 経由で音量制御される。
-    private let pianoSampler = AVAudioUnitSampler()
+    /// ピアノ鍵盤タップ音専用サンプラー。`pianoMixer` 経由で音量制御される。
+    /// Web 版 `Tone.Sampler` と同じ Salamander Grand Piano MP3 (C2-C7) を使って
+    /// ボイスプール方式で再生する。`init` で `self` 参照が必要なため `!` で遅延初期化。
+    private var pianoSampler: SurvivalPianoSampler!
+    /// ピアノサンプルのロード + ボイス接続を 1 回だけ行うためのフラグ。
+    private var isPianoPrepared = false
     /// SFX 音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let sfxMixer = AVAudioMixerNode()
     /// ピアノ音量を独立制御するためのミキサー (main mixer の手前に挟む)。
     private let pianoMixer = AVAudioMixerNode()
+    /// 正解時のシンセ ルート音 (Web 版 `FantasySoundManager._playRootNote` 相当) を
+    /// 鳴らすための `AVAudioPlayerNode`。三角波 + エンベロープを pre-rendered バッファで再生する。
+    /// `pianoMixer` 経由で音量制御される (ピアノ音量に連動)。
+    private let synthBassPlayer = AVAudioPlayerNode()
+    private let synthBassFormat: AVAudioFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
+    /// `AVAudioPlayerNode.play()` / `scheduleBuffer` をメインスレッドから逃がすためのキュー。
+    /// 移動中にスキル発動した際の 1 フレーム落ちを防ぐ。
+    private let synthBassQueue = DispatchQueue(label: "survival.synthbass", qos: .userInteractive)
+    /// MIDI ノートごとに 1 度だけ生成して使い回すシンセ ルート音バッファ。
+    /// プリウォーム (バックグラウンドスレッド) と再生 (main) の両方からアクセスされるため、
+    /// `synthBassCacheLock` で排他制御する。
+    private var synthBassBufferCache: [Int: AVAudioPCMBuffer] = [:]
+    private let synthBassCacheLock = NSLock()
     private var isEngineStarted = false
 
     private let bgmPlayer = AVQueuePlayer()
@@ -57,14 +76,16 @@ final class SurvivalGameAudio {
 
     private init() {
         engine.attach(sampler)
-        engine.attach(pianoSampler)
         engine.attach(sfxMixer)
         engine.attach(pianoMixer)
+        engine.attach(synthBassPlayer)
         engine.connect(sampler, to: sfxMixer, format: nil)
-        engine.connect(pianoSampler, to: pianoMixer, format: nil)
         engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
+        // 正解ルート音 (シンセ) は `pianoMixer` 経由にしてピアノ音量スライダーに連動させる。
+        engine.connect(synthBassPlayer, to: pianoMixer, format: synthBassFormat)
         bgmPlayer.actionAtItemEnd = .advance
+        self.pianoSampler = SurvivalPianoSampler(engine: engine, output: pianoMixer)
     }
 
     // MARK: - Public API
@@ -72,20 +93,49 @@ final class SurvivalGameAudio {
     /// ゲーム画面の onAppear で呼ぶ。オーディオセッション + BGM 起動
     func start() {
         configureAudioSession()
+        preparePianoIfNeeded()
         startEngineIfNeeded()
+        preWarmSynthBassBuffers()
         currentPhase = .odd
         playBgm(phase: .odd)
+    }
+
+    /// コード正解時のシンセ ベース ルート音 (C2 起点 12 音) を事前にレンダリングして
+    /// キャッシュする。初回発火時にバッファ生成 (約 17k サンプルの sin/asin ループ) で
+    /// メインスレッドが一瞬ブロックされるのを避ける。
+    /// - Note: キャラクターが移動中にスキル発動した際のフリーズ対策。
+    private func preWarmSynthBassBuffers() {
+        // 生成自体は重めなのでバックグラウンドで行う。再生時はキャッシュから即取り出すだけ。
+        let synthBassQueue = DispatchQueue.global(qos: .utility)
+        synthBassQueue.async { [weak self] in
+            guard let self else { return }
+            for midi in 36...47 {
+                _ = self.synthBassBuffer(midi: midi)
+            }
+        }
     }
 
     /// ゲーム画面の onDisappear で呼ぶ。BGM / エンジンを停止
     func stop() {
         stopBgm()
+        pianoSampler.stopAll()
+        if synthBassPlayer.isPlaying {
+            synthBassPlayer.stop()
+        }
         // 遅延コールバック (arpeggio / stopNote) がまだキューに残っていても、
         // `isEngineStarted == false` により `sampler` 操作をスキップさせる。
         isEngineStarted = false
         if engine.isRunning {
             engine.stop()
         }
+    }
+
+    /// ピアノサンプルの事前ロード + エンジン接続。初回のみ実行される。
+    private func preparePianoIfNeeded() {
+        guard !isPianoPrepared else { return }
+        _ = pianoSampler.loadBundledSamples()
+        pianoSampler.attachToEngine()
+        isPianoPrepared = true
     }
 
     /// ステージ難易度から BGM URL を注入 (未指定時はデフォルト URL を維持)
@@ -166,20 +216,129 @@ final class SurvivalGameAudio {
     }
 
     /// 指定 MIDI ノートを短時間再生する。
-    /// - Parameter asPiano: `true` のときはピアノ専用サンプラー (ピアノ音量) で鳴らす。
-    ///   `false` (デフォルト) は SFX サンプラーで鳴らし、効果音音量スライダーに従う。
+    /// - Parameter asPiano: `true` のときはピアノサンプラー (ピアノ音量) で鳴らす。
+    ///   `false` (デフォルト) は SFX サンプラー (AVAudioUnitSampler / 内蔵音色) で鳴らし、
+    ///   効果音音量スライダーに従う。
     func playNote(_ note: Int, velocity: Int = 90, duration: TimeInterval = 0.5, asPiano: Bool = false) {
+        if asPiano {
+            pianoOneShot(midi: note, duration: duration, velocity: velocity)
+            return
+        }
         startEngineIfNeeded()
-        // エンジンが未起動なら sampler 操作はクラッシュするためスキップ
         guard isEngineStarted, engine.isRunning else { return }
         let clamped = UInt8(max(0, min(127, note)))
         let vel = UInt8(max(1, min(127, velocity)))
-        let target = asPiano ? pianoSampler : sampler
-        target.startNote(clamped, withVelocity: vel, onChannel: 0)
+        sampler.startNote(clamped, withVelocity: vel, onChannel: 0)
         DispatchQueue.main.asyncAfter(deadline: .now() + duration) { [weak self] in
             guard let self, self.isEngineStarted, self.engine.isRunning else { return }
-            target.stopNote(clamped, onChannel: 0)
+            self.sampler.stopNote(clamped, onChannel: 0)
         }
+    }
+
+    /// ピアノ音の発音を開始する (サステイン)。`pianoNoteOff` が呼ばれるまで
+    /// サンプルの長さぶん鳴り続ける。Web 版の鍵盤押下時挙動に合わせる。
+    func pianoNoteOn(midi: Int, velocity: Int = 100) {
+        preparePianoIfNeeded()
+        startEngineIfNeeded()
+        guard isEngineStarted, engine.isRunning else { return }
+        pianoSampler.noteOn(midi: midi, velocity: velocity)
+    }
+
+    /// ピアノ音の発音を停止する (フェードアウト約 0.5 秒)。
+    func pianoNoteOff(midi: Int) {
+        guard isPianoPrepared else { return }
+        pianoSampler.noteOff(midi: midi)
+    }
+
+    /// ピアノ音を短時間だけ鳴らす (鍵盤プレビュー等のワンショット)。
+    /// 指定 duration 後にリリースフェードをかける。
+    /// - Note: noteOff の遅延ディスパッチはバックグラウンドキューで行い、
+    ///   main を絶対にブロックしない (ゲームループの 60fps を守るため)。
+    func pianoOneShot(midi: Int, duration: TimeInterval = 0.45, velocity: Int = 95) {
+        preparePianoIfNeeded()
+        startEngineIfNeeded()
+        guard isEngineStarted, engine.isRunning else { return }
+        pianoSampler.noteOn(midi: midi, velocity: velocity)
+        let release = max(0.1, min(0.6, duration))
+        DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + duration) { [weak self] in
+            self?.pianoSampler.noteOff(midi: midi, release: release)
+        }
+    }
+
+    /// コード正解時に鳴らすシンセ ルート音 (Web 版 `FantasySoundManager._playRootNote` 相当)。
+    /// 三角波オシレーター + エンベロープ (attack 10ms → decay 120ms → release 400ms) を
+    /// バッファにレンダリングして `AVAudioPlayerNode` に流し込むことで、メインスレッドを
+    /// 一切ブロックせずに低音を即時再生する。
+    /// - Parameter midi: ルート音のピッチクラス (0=C) を C2 起点で鳴らす MIDI ノート番号推奨。
+    func playSynthBassRoot(midi: Int) {
+        startEngineIfNeeded()
+        guard isEngineStarted, engine.isRunning else { return }
+        let clamped = max(0, min(127, midi))
+        // バッファ生成 (初回のみ重い) と scheduleBuffer/play はバックグラウンドで実行。
+        // 移動中にスキル発動してもメインスレッドを 1 フレームもブロックさせない。
+        synthBassQueue.async { [weak self] in
+            guard let self else { return }
+            guard let buffer = self.synthBassBuffer(midi: clamped) else { return }
+            guard self.engine.isRunning else { return }
+            if !self.synthBassPlayer.isPlaying {
+                self.synthBassPlayer.play()
+            }
+            self.synthBassPlayer.scheduleBuffer(buffer, at: nil, options: [.interrupts], completionHandler: nil)
+        }
+    }
+
+    /// MIDI ノートから三角波 + エンベロープ済み PCM バッファを生成 (初回のみ)。
+    /// 生成結果はキャッシュし、以降の同じノートでは再計算しない。
+    /// - Note: `preWarmSynthBassBuffers` のバックグラウンド生成と main からの再生が
+    ///   競合し得るため `synthBassCacheLock` で保護する。
+    private func synthBassBuffer(midi: Int) -> AVAudioPCMBuffer? {
+        synthBassCacheLock.lock()
+        if let cached = synthBassBufferCache[midi] {
+            synthBassCacheLock.unlock()
+            return cached
+        }
+        synthBassCacheLock.unlock()
+        let sampleRate = synthBassFormat.sampleRate
+        let totalDuration: Double = 0.42
+        let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: synthBassFormat, frameCapacity: frameCount) else { return nil }
+        buffer.frameLength = frameCount
+        let freq = 440.0 * pow(2.0, Double(midi - 69) / 12.0)
+        let attackEnd = Int(sampleRate * 0.01)
+        let decayEnd = Int(sampleRate * 0.12)
+        let releaseEnd = Int(sampleRate * 0.40)
+        let phaseInc = 2.0 * .pi * freq / sampleRate
+        var phase: Double = 0
+        let data = buffer.floatChannelData![0]
+        // 正解時のルート音が聞こえにくいという要望を受けて振幅を増やす。
+        // - 全体スケール: 0.5 → 0.85 (約 +4.6dB)
+        // - サステイン部 (decay 終端) : 0.3 → 0.65 まで持ち上げて持続音を太くする
+        // ピアノミキサー出力が 0dB を大きく超えないよう 0.85 で頭打ち。
+        let peakScale: Double = 0.85
+        let sustainLevel: Double = 0.65
+        for i in 0..<Int(frameCount) {
+            // 三角波 = 2/π * asin(sin(phase))
+            let sample = 2.0 / .pi * asin(sin(phase))
+            let env: Double
+            if i < attackEnd {
+                env = Double(i) / Double(max(1, attackEnd))
+            } else if i < decayEnd {
+                let t = Double(i - attackEnd) / Double(max(1, decayEnd - attackEnd))
+                env = 1.0 - (1.0 - sustainLevel) * t
+            } else if i < releaseEnd {
+                let t = Double(i - decayEnd) / Double(max(1, releaseEnd - decayEnd))
+                env = sustainLevel * (1.0 - t)
+            } else {
+                env = 0
+            }
+            data[i] = Float(sample * env * peakScale)
+            phase += phaseInc
+            if phase > 2.0 * .pi { phase -= 2.0 * .pi }
+        }
+        synthBassCacheLock.lock()
+        synthBassBufferCache[midi] = buffer
+        synthBassCacheLock.unlock()
+        return buffer
     }
 
     /// コード発動時のヒット音 (和音 2 音)

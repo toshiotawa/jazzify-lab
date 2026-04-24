@@ -73,7 +73,8 @@ struct SurvivalChordPadView: View {
                 }
             }
             .background(Color.black.opacity(0.55))
-            .clipShape(RoundedRectangle(cornerRadius: 10))
+            // 左右端の鍵 (最低 C / 最高 C 付近) をコーナーで欠けさせず、
+            // 画面幅いっぱいまでタップ可能にするため角丸クリップは使用しない。
         }
         .frame(height: keyboardHeight)
     }

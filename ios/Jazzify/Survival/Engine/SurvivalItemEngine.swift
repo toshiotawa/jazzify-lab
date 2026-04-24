@@ -8,39 +8,19 @@ enum SurvivalItemEngine {
     /// ドロップ有効期間 (秒)
     private static let itemLifetimeSec: TimeInterval = 12
 
-    /// 敵が撃破された際にアイテム or コインをドロップ判定する。
-    /// - Returns: (`droppedItem` - アイテムが落ちた場合, `coin` - コインが落ちた場合のどちらか/両方 nil 可)
-    static func rollDrop(
-        enemy: SurvivalEnemy,
-        itemDropRate: Double,
-        expMultiplier: Double,
-        now: TimeInterval
-    ) -> (item: SurvivalDroppedItem?, coin: SurvivalCoin?) {
-        let item = Self.rollItem(at: CGPoint(x: enemy.x, y: enemy.y), dropRate: itemDropRate, now: now)
-        let coin = Self.rollCoin(at: CGPoint(x: enemy.x, y: enemy.y), exp: enemy.stats.exp, expMultiplier: expMultiplier, now: now)
-        return (item, coin)
-    }
+    /// ハート取得時の回復量 (WEB 版 `HEALING_AMOUNT` = 40 と同値)。
+    /// プレイヤー最大 HP 1000 を基準に約 4% 回復。
+    static let heartHealAmount: Int = 40
 
-    static func rollItem(at pos: CGPoint, dropRate: Double, now: TimeInterval) -> SurvivalDroppedItem? {
-        guard Double.random(in: 0...1) < dropRate else { return nil }
-        // iOS では Magic (C 列) を廃止しているため、C 攻撃強化 🪄 は出現させない。
-        let kinds = SurvivalDroppedItemKind.allCases.filter { $0 != .cAtkBoost }
-        guard let kind = kinds.randomElement() else { return nil }
-        return SurvivalDroppedItem(
-            kind: kind,
+    /// ボスミニオンを倒した際にハート (❤️) を確定ドロップする用のヘルパー。
+    /// - Note: 通常敵のドロップは廃止しており、プレイヤーが拾えるアイテムは
+    ///   このミニオン ハートのみ (固定 `heartHealAmount` HP 回復)。
+    static func makeHeartDrop(at pos: CGPoint, now: TimeInterval) -> SurvivalDroppedItem {
+        SurvivalDroppedItem(
+            kind: .heart,
             x: pos.x,
             y: pos.y,
             expireAt: now + itemLifetimeSec
-        )
-    }
-
-    static func rollCoin(at pos: CGPoint, exp: Int, expMultiplier: Double, now: TimeInterval) -> SurvivalCoin? {
-        let scaledExp = max(1, Int(Double(exp) * expMultiplier))
-        return SurvivalCoin(
-            x: pos.x,
-            y: pos.y,
-            exp: scaledExp,
-            expireAt: now + itemLifetimeSec + 4
         )
     }
 
@@ -100,8 +80,7 @@ enum SurvivalItemEngine {
     ) {
         switch item.kind {
         case .heart:
-            let heal = max(1, Int(Double(player.maxHp) * 0.25))
-            out.healAmount += heal
+            out.healAmount += Self.heartHealAmount
         case .angelShoes:
             out.newStatusEffects.append(
                 SurvivalStatusEffect(

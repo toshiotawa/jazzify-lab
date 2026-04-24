@@ -25,8 +25,8 @@ enum SurvivalConstants {
     static let projectileMaxRange: CGFloat = 900
     /// ステージ制限時間 (秒)
     static let stageTimeLimitSec: TimeInterval = 90
-    /// ステージクリアに必要な撃破数 (WEB 版 `STAGE_KILL_QUOTA` = 300)
-    static let stageEnemyQuota: Int = 300
+    /// ステージクリアに必要な撃破数 (WEB 版 `STAGE_KILL_QUOTA` = 150)
+    static let stageEnemyQuota: Int = 150
     /// 残り時間しきい値 (秒) - これ以下で BGM 偶数フェーズへ
     static let bgmPhaseSwitchThresholdSec: TimeInterval = 30
     /// コードスロット切替タイマー (秒)
@@ -345,7 +345,7 @@ public enum SurvivalFloatingTextColor: Sendable {
 // MARK: - Items / Coins (WEB 版 `SurvivalTypes.ts` の DroppedItem)
 
 public enum SurvivalDroppedItemKind: String, Sendable, CaseIterable {
-    case heart          // 🫀 HP 回復
+    case heart          // ❤️ HP 回復
     case angelShoes     // 👟 スピードアップ
     case vest           // 🦺 DEF アップ
     case aAtkBoost      // 🔫 A 列火力強化
@@ -354,7 +354,7 @@ public enum SurvivalDroppedItemKind: String, Sendable, CaseIterable {
 
     public var emoji: String {
         switch self {
-        case .heart: return "🫀"
+        case .heart: return "❤️"
         case .angelShoes: return "👟"
         case .vest: return "🦺"
         case .aAtkBoost: return "🔫"
@@ -466,6 +466,9 @@ struct SurvivalCodeSlot: Sendable {
     public var isEnabled: Bool
     /// 入力中のピッチクラス (重複除去済み)
     public var inputPitchClasses: [Int] = []
+    /// 正解発動カウンタ。`triggerSlot` 呼び出しごとに +1 され、View が増加を検知して
+    /// 正解時のハイライト (枠ライトアップ) アニメーションをキックする。
+    public var triggerPulse: Int = 0
 
     /// 現在コード構成音のうち、入力済みに含まれる数 (重複除去済み)
     var correctCount: Int {
