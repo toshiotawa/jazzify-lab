@@ -35,9 +35,9 @@ export const BlockThemeOverlay: React.FC<BlockThemeOverlayProps> = ({
         top,
         width: widthPx,
         height,
-        opacity: dim ? 0.12 : 0.6,
+        opacity: dim ? 0.08 : 0.28,
         zIndex: 5,
-        background: `linear-gradient(to top, hsla(${hue}, 35%, 10%, 0.35) 0%, hsla(${hueAlt}, 40%, 18%, 0.22) 55%, hsla(${hue}, 30%, 12%, 0.14) 90%, rgba(0,0,0,0) 100%)`,
+        background: `linear-gradient(to top, hsla(${hue}, 45%, 22%, 0.28) 0%, hsla(${hueAlt}, 50%, 28%, 0.18) 55%, hsla(${hue}, 40%, 20%, 0.10) 90%, rgba(0,0,0,0) 100%)`,
         mixBlendMode: 'screen',
       }}
     />

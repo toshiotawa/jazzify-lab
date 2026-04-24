@@ -424,7 +424,7 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
           style={{
             width: '100%',
             height: isMobileLayout ? 'min(82vh, 100%)' : 'min(86vh, 960px)',
-            boxShadow: 'inset 0 0 80px 15px rgba(0,0,0,0.5), 0 20px 60px rgba(0,0,0,0.35)',
+            boxShadow: 'inset 0 0 40px 2px rgba(0,0,0,0.32), 0 20px 60px rgba(0,0,0,0.35)',
             cursor: 'grab',
           }}
         >
