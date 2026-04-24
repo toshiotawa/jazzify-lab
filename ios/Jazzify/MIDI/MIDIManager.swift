@@ -147,31 +147,79 @@ final class MIDIManager: ObservableObject {
         }
     }
 
+    /// CoreMIDI から届く UMP (Universal MIDI Packet) パケットリストを直接パースする。
+    /// - `MIDIEventPacket.words` は 64 × UInt32 の固定配列で、`wordCount` が有効ワード数。
+    ///   旧実装は `words.0` しか読まず、同時押し等で 1 パケットに複数メッセージが詰められた際に
+    ///   2 発目以降のイベントを取りこぼし "MIDI 反応が悪い" 主要因になっていた。
+    /// - UMP のメッセージタイプ (上位 4bit) によりワード長が 1/2/4 と異なるため、
+    ///   CVM (MIDI1.0 = MT 0x2, MIDI2.0 = MT 0x4) を識別して必要分だけ進める。
+    /// - `onMIDIEvent` はここから CoreMIDI スレッド上で直接呼ぶ。呼び出し側 (MIDIBridge /
+    ///   SurvivalGameView) で必要に応じて main にディスパッチすることで、
+    ///   SpriteKit 描画で混雑しがちなメインスレッドを待たない低レイテンシ経路を確保する。
     private func handleMIDIPacketList(_ eventList: UnsafePointer<MIDIEventList>) {
         let list = eventList.pointee
         var packet = list.packet
 
         for _ in 0..<list.numPackets {
-            let wordCount = Int(packet.wordCount)
-            if wordCount > 0 {
-                let word = packet.words.0
-                let status = UInt8((word >> 16) & 0xFF)
-                let data1 = UInt8((word >> 8) & 0xFF)
-                let data2 = UInt8(word & 0xFF)
-
-                let messageType = status & 0xF0
-                if messageType == 0x90 || messageType == 0x80 {
-                    let callback = self.onMIDIEvent
-                    DispatchQueue.main.async {
-                        callback?(status, data1, data2)
-                    }
-                }
-            }
+            processPacket(packet)
             var next = packet
             withUnsafePointer(to: &next) { ptr in
                 packet = MIDIEventPacketNext(ptr).pointee
             }
         }
+    }
+
+    private func processPacket(_ packet: MIDIEventPacket) {
+        let wordCount = Int(packet.wordCount)
+        guard wordCount > 0 else { return }
+        var mutablePacket = packet
+        withUnsafeBytes(of: &mutablePacket.words) { rawBuffer in
+            guard let base = rawBuffer.baseAddress?.assumingMemoryBound(to: UInt32.self) else { return }
+            var index = 0
+            while index < wordCount {
+                let word = base[index]
+                let messageType = UInt8((word >> 28) & 0x0F)
+                switch messageType {
+                case 0x0, 0x1: // Utility / System RealTime: 1 word、CVM ではないので無視
+                    index += 1
+                case 0x2: // MIDI 1.0 Channel Voice: 1 word
+                    dispatchMIDI1ChannelVoice(word: word)
+                    index += 1
+                case 0x3: // 7bit System/Data: 2 words (CVM ではない)
+                    index += 2
+                case 0x4: // MIDI 2.0 Channel Voice: 2 words
+                    dispatchMIDI2ChannelVoice(word0: word, word1: index + 1 < wordCount ? base[index + 1] : 0)
+                    index += 2
+                case 0x5: // 128bit Data / SysEx 8bit: 4 words
+                    index += 4
+                default:
+                    index += 1
+                }
+            }
+        }
+    }
+
+    private func dispatchMIDI1ChannelVoice(word: UInt32) {
+        let status = UInt8((word >> 16) & 0xFF)
+        let data1 = UInt8((word >> 8) & 0xFF)
+        let data2 = UInt8(word & 0xFF)
+        let messageType = status & 0xF0
+        guard messageType == 0x90 || messageType == 0x80 else { return }
+        onMIDIEvent?(status, data1, data2)
+    }
+
+    /// MIDI 2.0 CVM は UMP 2 ワード。Note On/Off は第 1 ワードに status/note、
+    /// 第 2 ワードに 16bit velocity (上位) + 16bit attribute が載る。
+    /// MIDIInputPortCreateWithProtocol(..., ._1_0, ...) で接続済みのため通常は届かないが、
+    /// キーボード側が UMP 2.0 で送ってくる環境に備えて 7bit velocity に縮めて通知する。
+    private func dispatchMIDI2ChannelVoice(word0: UInt32, word1: UInt32) {
+        let status = UInt8((word0 >> 16) & 0xFF)
+        let note = UInt8((word0 >> 8) & 0xFF)
+        let velocity16 = UInt16((word1 >> 16) & 0xFFFF)
+        let velocity7 = UInt8(min(127, Int(velocity16) >> 9))
+        let messageType = status & 0xF0
+        guard messageType == 0x90 || messageType == 0x80 else { return }
+        onMIDIEvent?(status, note, velocity7)
     }
 
     private func handleMIDINotification(_ notification: UnsafePointer<MIDINotification>) {

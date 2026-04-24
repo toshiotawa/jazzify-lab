@@ -166,20 +166,32 @@ final class SurvivalGameController: ObservableObject {
 
     // MARK: - 入力
 
-    /// ピアノ鍵盤タップ or MIDI Note On
-    func handleNoteOn(_ note: Int) {
+    /// ピアノ鍵盤タップ or MIDI Note On。
+    /// - Parameters:
+    ///   - note: MIDI ノート番号
+    ///   - velocity: 0〜127。MIDI 入力からは打鍵強度をそのまま渡す (Web 版 MIDI コントローラー同等)。
+    ///     タップ入力の場合はデフォルト 100。
+    ///   - playAudio: `true` の場合はこのメソッド内でピアノ発音する (デフォルト)。
+    ///     MIDI 入力経路で既に `SurvivalGameAudio.pianoNoteOnRealtime` を呼んで
+    ///     低レイテンシ再生している場合は `false` を渡して二重発音を避ける。
+    func handleNoteOn(_ note: Int, velocity: Int = 100, playAudio: Bool = true) {
         let pc = ((note % 12) + 12) % 12
         activePressedPitchClasses.insert(pc)
-        // 鍵盤を押した時点で発音開始。`handleNoteOff` が呼ばれるまで鳴り続ける (Web 版挙動)。
-        SurvivalGameAudio.shared.pianoNoteOn(midi: note, velocity: 100)
+        if playAudio {
+            SurvivalGameAudio.shared.pianoNoteOn(midi: note, velocity: velocity)
+        }
         evaluateSlots(for: note)
     }
 
-    func handleNoteOff(_ note: Int) {
+    /// ピアノ鍵盤離し or MIDI Note Off。
+    /// `playAudio` を `false` にすると発音停止の処理をスキップする (MIDI 経路で先に
+    /// `pianoNoteOffRealtime` を呼んだ場合の二重停止を避ける用途)。
+    func handleNoteOff(_ note: Int, playAudio: Bool = true) {
         let pc = ((note % 12) + 12) % 12
         activePressedPitchClasses.remove(pc)
-        // 鍵盤を離したらリリースフェードへ
-        SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+        if playAudio {
+            SurvivalGameAudio.shared.pianoNoteOff(midi: note)
+        }
     }
 
     private func evaluateSlots(for note: Int) {

@@ -45,8 +45,12 @@ final class SurvivalGameAudio {
     private let pianoMixer = AVAudioMixerNode()
     /// 正解時のシンセ ルート音 (Web 版 `FantasySoundManager._playRootNote` 相当) を
     /// 鳴らすための `AVAudioPlayerNode`。三角波 + エンベロープを pre-rendered バッファで再生する。
-    /// `pianoMixer` 経由で音量制御される (ピアノ音量に連動)。
+    /// Web 版はルート音専用の AudioContext + master gain で独立音量制御されているため、
+    /// iOS もピアノ音量スライダーの影響を受けない専用ミキサー `rootBassMixer` を挟む。
+    /// これにより「コード正解時のルート音が埋もれて聞こえにくい」要望に対し、
+    /// ピアノ音量とは独立して大きめに鳴らせる。
     private let synthBassPlayer = AVAudioPlayerNode()
+    private let rootBassMixer = AVAudioMixerNode()
     private let synthBassFormat: AVAudioFormat = AVAudioFormat(standardFormatWithSampleRate: 44100, channels: 1)!
     /// `AVAudioPlayerNode.play()` / `scheduleBuffer` をメインスレッドから逃がすためのキュー。
     /// 移動中にスキル発動した際の 1 フレーム落ちを防ぐ。
@@ -79,11 +83,15 @@ final class SurvivalGameAudio {
         engine.attach(sfxMixer)
         engine.attach(pianoMixer)
         engine.attach(synthBassPlayer)
+        engine.attach(rootBassMixer)
         engine.connect(sampler, to: sfxMixer, format: nil)
         engine.connect(sfxMixer, to: engine.mainMixerNode, format: nil)
         engine.connect(pianoMixer, to: engine.mainMixerNode, format: nil)
-        // 正解ルート音 (シンセ) は `pianoMixer` 経由にしてピアノ音量スライダーに連動させる。
-        engine.connect(synthBassPlayer, to: pianoMixer, format: synthBassFormat)
+        // 正解ルート音 (シンセ) は専用ミキサー経由にし、ピアノ音量に影響されない独立音量制御にする。
+        // Web 版 `FantasySoundManager._playRootNote` の master gain (0.3 + effectiveVolume * 0.7)
+        // 相当をここで再現する (`applyVolumesToNodes` で反映)。
+        engine.connect(synthBassPlayer, to: rootBassMixer, format: synthBassFormat)
+        engine.connect(rootBassMixer, to: engine.mainMixerNode, format: synthBassFormat)
         bgmPlayer.actionAtItemEnd = .advance
         self.pianoSampler = SurvivalPianoSampler(engine: engine, output: pianoMixer)
     }
@@ -250,6 +258,23 @@ final class SurvivalGameAudio {
         pianoSampler.noteOff(midi: midi)
     }
 
+    /// `pianoNoteOn` のリアルタイム経路 (任意スレッドから呼び出し可)。
+    /// CoreMIDI コールバックから直接呼ぶことでメインスレッド混雑時の遅延を回避するため、
+    /// `preparePianoIfNeeded` / `startEngineIfNeeded` など内部フラグの mutation 伴う
+    /// 初期化処理をスキップする。代わりに `start()` が main から呼ばれている前提とする。
+    /// - 前提: ゲーム開始時の `SurvivalGameController.start()` にて engine / sampler 初期化済み。
+    /// - 実体: `SurvivalPianoSampler.noteOn` は内部で `audioQueue.async` に逃がすため
+    ///   この経路自体は呼び出しスレッドをブロックしない。
+    func pianoNoteOnRealtime(midi: Int, velocity: Int) {
+        guard isPianoPrepared, isEngineStarted else { return }
+        pianoSampler.noteOn(midi: midi, velocity: velocity)
+    }
+
+    func pianoNoteOffRealtime(midi: Int) {
+        guard isPianoPrepared else { return }
+        pianoSampler.noteOff(midi: midi)
+    }
+
     /// ピアノ音を短時間だけ鳴らす (鍵盤プレビュー等のワンショット)。
     /// 指定 duration 後にリリースフェードをかける。
     /// - Note: noteOff の遅延ディスパッチはバックグラウンドキューで行い、
@@ -299,7 +324,13 @@ final class SurvivalGameAudio {
         }
         synthBassCacheLock.unlock()
         let sampleRate = synthBassFormat.sampleRate
-        let totalDuration: Double = 0.42
+        // Web 版 `_playRootNote` と同じく total 400ms、linearRamp ベースのエンベロープに揃える。
+        // - 0 → 10ms: attack、ゲイン 0 → peakScale
+        // - 10ms → 120ms: decay、peakScale → sustainLevel (0.3)
+        // - 120ms → 400ms: release、sustainLevel → 0
+        // peakScale は Web 版 1.0 と同じ頭打ちにし、ミキサー (`rootBassMixer`) 側で
+        // 0.3 + pianoVolume * 0.7 の gain を掛けることで実効音量を確保する。
+        let totalDuration: Double = 0.40
         let frameCount = AVAudioFrameCount(sampleRate * totalDuration)
         guard let buffer = AVAudioPCMBuffer(pcmFormat: synthBassFormat, frameCapacity: frameCount) else { return nil }
         buffer.frameLength = frameCount
@@ -310,14 +341,9 @@ final class SurvivalGameAudio {
         let phaseInc = 2.0 * .pi * freq / sampleRate
         var phase: Double = 0
         let data = buffer.floatChannelData![0]
-        // 正解時のルート音が聞こえにくいという要望を受けて振幅を増やす。
-        // - 全体スケール: 0.5 → 0.85 (約 +4.6dB)
-        // - サステイン部 (decay 終端) : 0.3 → 0.65 まで持ち上げて持続音を太くする
-        // ピアノミキサー出力が 0dB を大きく超えないよう 0.85 で頭打ち。
-        let peakScale: Double = 0.85
-        let sustainLevel: Double = 0.65
+        let peakScale: Double = 1.0
+        let sustainLevel: Double = 0.3
         for i in 0..<Int(frameCount) {
-            // 三角波 = 2/π * asin(sin(phase))
             let sample = 2.0 / .pi * asin(sin(phase))
             let env: Double
             if i < attackEnd {
@@ -395,6 +421,17 @@ final class SurvivalGameAudio {
         engine.mainMixerNode.outputVolume = 1.0
         sfxMixer.outputVolume = effectiveSfxVolume()
         pianoMixer.outputVolume = effectivePianoVolume()
+        rootBassMixer.outputVolume = effectiveRootBassVolume()
+    }
+
+    /// 正解時ルート音の実効音量。
+    /// Web 版 `_syncRootBassVolume` と同じ「0.3 〜 1.0 の範囲へ持ち上げる」計算を踏襲し、
+    /// iOS ではピアノ音量スライダー (`pianoVolume`) を effectiveVolume として扱う。
+    /// ミュート時は 0 を返す。
+    private func effectiveRootBassVolume() -> Float {
+        if isMuted { return 0 }
+        let effective = max(pianoVolume, 0)
+        return 0.3 + min(1.0, effective) * 0.7
     }
 
     private func playBgm(phase: BgmPhase) {

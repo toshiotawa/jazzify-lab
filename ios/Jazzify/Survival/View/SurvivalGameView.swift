@@ -136,15 +136,36 @@ struct SurvivalGameView: View {
         self.isLoading = false
 
         created.start()
-        MIDIManager.shared.onMIDIEvent = { status, data1, data2 in
+        // MIDI コールバックは CoreMIDI スレッド上で直接呼ばれる (MIDIManager 側で
+        // `DispatchQueue.main.async` を挟まなくしたため)。ここで:
+        //   1. ピアノ音の発音は CoreMIDI スレッドから即時トリガー (main を経由しない)。
+        //      これにより SpriteKit 60fps 描画で main が忙しい時でも発音レイテンシが詰まらない。
+        //      `pianoNoteOnRealtime` は内部で `SurvivalPianoSampler.audioQueue` に逃がすため
+        //      呼び出しスレッドをブロックしない。
+        //   2. ゲームロジック (`handleNoteOn/Off`) は @Published な runtime を触るため main で実行。
+        //      `DispatchQueue.main.async` 1 段のみとし、旧実装の Task { @MainActor in } による
+        //      余計な Task スケジューリング hop を排除してレイテンシを削減する。
+        //   3. velocity (data2) を素通しし、Web 版 MIDI コントローラーと同じく打鍵強度を
+        //      ピアノ音量に反映させる (SurvivalPianoSampler 内で velocity/127 スケール)。
+        MIDIManager.shared.onMIDIEvent = { [weak created] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
             let velocity = Int(data2)
-            Task { @MainActor in
-                if messageType == 0x90 && velocity > 0 {
-                    created.handleNoteOn(note)
-                } else if messageType == 0x80 || (messageType == 0x90 && velocity == 0) {
-                    created.handleNoteOff(note)
+            let isNoteOn = messageType == 0x90 && velocity > 0
+            let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
+            if isNoteOn {
+                SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+            } else if isNoteOff {
+                SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+            } else {
+                return
+            }
+            DispatchQueue.main.async { [weak created] in
+                guard let created else { return }
+                if isNoteOn {
+                    created.handleNoteOn(note, velocity: velocity, playAudio: false)
+                } else {
+                    created.handleNoteOff(note, playAudio: false)
                 }
             }
         }
