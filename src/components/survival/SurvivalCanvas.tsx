@@ -1105,111 +1105,105 @@ const SurvivalCanvas: React.FC<SurvivalCanvasProps> = ({
             }
             break;
           }
-          case 'pullTelegraph': {
+          case 'healTelegraph': {
+            // C ボス自己回復スキルの予兆。緑のオーラと、湧き上がる光の粒子・中央十字マーク。
             const radius = h.radius ?? 300;
             const life = Math.max(1, h.endAt - h.startAt);
             const pg = Math.min(1, (nowMs - h.startAt) / life);
-            // 青いガス渦のような予兆
             const aura = ctx.createRadialGradient(sx, sy, 10, sx, sy, radius);
-            aura.addColorStop(0, 'rgba(140, 220, 255, 0.45)');
-            aura.addColorStop(0.6, 'rgba(60, 140, 220, 0.22)');
-            aura.addColorStop(1, 'rgba(20, 60, 120, 0)');
+            aura.addColorStop(0, 'rgba(140, 255, 160, 0.40)');
+            aura.addColorStop(0.6, 'rgba(60, 200, 110, 0.18)');
+            aura.addColorStop(1, 'rgba(10, 80, 40, 0)');
             ctx.fillStyle = aura;
             ctx.beginPath();
             ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.fill();
-            // 外縁点線
             ctx.setLineDash([12, 8]);
             ctx.lineWidth = 2;
-            ctx.strokeStyle = 'rgba(150, 220, 255, 0.9)';
+            ctx.strokeStyle = 'rgba(150, 255, 170, 0.85)';
             ctx.beginPath();
             ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
-            // 吸い込みの渦巻線（アルキメデス螺旋）
-            for (let spiral = 0; spiral < 3; spiral++) {
-              ctx.strokeStyle = `rgba(180, 230, 255, ${0.6 - spiral * 0.15})`;
-              ctx.lineWidth = 2;
+            // 上向きに湧き上がる光粒子 (回復の上昇感)
+            for (let i = 0; i < 14; i++) {
+              const phase = ((nowMs / 1300 + i * 0.07) % 1);
+              const ang = (i / 14) * Math.PI * 2 + nowMs / 2000;
+              const r = radius * (0.2 + phase * 0.8);
+              const alpha = (1 - phase) * 0.9;
+              ctx.fillStyle = `rgba(200, 255, 220, ${alpha})`;
               ctx.beginPath();
-              const offset = (nowMs / 900 + spiral * (Math.PI * 2) / 3);
-              const turns = 2.5;
-              const steps = 120;
-              for (let i = 0; i <= steps; i++) {
-                const t = i / steps;
-                const a = offset + t * Math.PI * 2 * turns;
-                const r = radius * t;
-                const px = sx + Math.cos(a) * r;
-                const py = sy + Math.sin(a) * r;
-                if (i === 0) ctx.moveTo(px, py);
-                else ctx.lineTo(px, py);
-              }
-              ctx.stroke();
-            }
-            // 内向きに吸い込まれる光点
-            for (let i = 0; i < 10; i++) {
-              const phase = ((nowMs / 1100 + i * 0.1) % 1);
-              const a = (i / 10) * Math.PI * 2 + nowMs / 1400;
-              const r = radius * (1 - phase);
-              const alpha = phase * 0.9;
-              ctx.fillStyle = `rgba(200, 235, 255, ${alpha})`;
-              ctx.beginPath();
-              ctx.arc(sx + Math.cos(a) * r, sy + Math.sin(a) * r, 3, 0, Math.PI * 2);
+              const px = sx + Math.cos(ang) * r;
+              const py = sy + Math.sin(ang) * r - phase * 30;
+              ctx.arc(px, py, 3, 0, Math.PI * 2);
               ctx.fill();
             }
+            // 中央回復クロス
+            const crossArm = radius * 0.18;
+            const crossThick = radius * 0.05;
+            const crossAlpha = 0.75 + 0.2 * Math.sin(nowMs / 220);
+            ctx.fillStyle = `rgba(255, 255, 255, ${crossAlpha})`;
+            ctx.fillRect(sx - crossArm, sy - crossThick / 2, crossArm * 2, crossThick);
+            ctx.fillRect(sx - crossThick / 2, sy - crossArm, crossThick, crossArm * 2);
             // 収縮リング
-            const shrinkR = radius * (1 - pg * 0.5);
-            ctx.strokeStyle = `rgba(255, 255, 255, 0.7)`;
+            const shrinkR = radius * (1 - pg * 0.4);
+            ctx.strokeStyle = 'rgba(220, 255, 230, 0.7)';
             ctx.lineWidth = 2;
             ctx.beginPath();
             ctx.arc(sx, sy, shrinkR, 0, Math.PI * 2);
             ctx.stroke();
             break;
           }
-          case 'pullActive': {
+          case 'healActive': {
+            // C ボス自己回復スキルの発動中。強い緑の光と外向き放射、中央に大きな十字マーク。
             const radius = h.radius ?? 300;
             const life = Math.max(1, h.endAt - h.startAt);
             const pg = Math.min(1, (nowMs - h.startAt) / life);
-            // 強い青白い吸引パルス
             const pulse = 0.4 + Math.sin(nowMs / 80) * 0.6;
             const grad = ctx.createRadialGradient(sx, sy, 0, sx, sy, radius);
-            grad.addColorStop(0, `rgba(220, 240, 255, ${0.7 * (1 - pg)})`);
-            grad.addColorStop(0.4, `rgba(120, 200, 255, ${0.55 * (1 - pg)})`);
-            grad.addColorStop(1, 'rgba(20, 60, 150, 0)');
+            grad.addColorStop(0, `rgba(220, 255, 230, ${0.75 * (1 - pg)})`);
+            grad.addColorStop(0.4, `rgba(120, 235, 150, ${0.55 * (1 - pg)})`);
+            grad.addColorStop(1, 'rgba(10, 100, 40, 0)');
             ctx.fillStyle = grad;
             ctx.beginPath();
             ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.fill();
-            // 強めのリング輪郭
-            ctx.shadowColor = 'rgba(140, 220, 255, 1)';
+            ctx.shadowColor = 'rgba(160, 255, 180, 1)';
             ctx.shadowBlur = 20;
-            ctx.strokeStyle = `rgba(255, 255, 255, ${0.8 + 0.2 * pulse})`;
+            ctx.strokeStyle = `rgba(200, 255, 210, ${0.8 + 0.2 * pulse})`;
             ctx.lineWidth = 5;
             ctx.beginPath();
             ctx.arc(sx, sy, radius, 0, Math.PI * 2);
             ctx.stroke();
             ctx.shadowBlur = 0;
-            // 内向きに激しく吸い込まれる光跡（線）
+            // 外向きに放射する光 (回復の溢れ出る感)
             for (let i = 0; i < 16; i++) {
-              const phase = ((nowMs / 280 + i * 0.062) % 1);
-              const a = (i / 16) * Math.PI * 2 + nowMs / 350;
-              const r1 = radius * (1 - phase);
-              const r2 = radius * Math.max(0, 1 - phase - 0.18);
-              ctx.strokeStyle = `rgba(220, 240, 255, ${0.85 * (1 - phase)})`;
+              const phase = ((nowMs / 320 + i * 0.062) % 1);
+              const a = (i / 16) * Math.PI * 2 + nowMs / 420;
+              const r1 = radius * phase;
+              const r2 = radius * Math.min(1, phase + 0.18);
+              ctx.strokeStyle = `rgba(220, 255, 235, ${0.85 * (1 - phase)})`;
               ctx.lineWidth = 2;
               ctx.beginPath();
               ctx.moveTo(sx + Math.cos(a) * r1, sy + Math.sin(a) * r1);
               ctx.lineTo(sx + Math.cos(a) * r2, sy + Math.sin(a) * r2);
               ctx.stroke();
             }
-            // 中心の輝き
-            ctx.fillStyle = `rgba(255, 255, 255, ${0.85})`;
+            // 中心の強い白+緑の輝き
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
             ctx.beginPath();
-            ctx.arc(sx, sy, 16 + pulse * 8, 0, Math.PI * 2);
+            ctx.arc(sx, sy, 18 + pulse * 8, 0, Math.PI * 2);
             ctx.fill();
-            ctx.fillStyle = `rgba(140, 220, 255, 0.7)`;
+            ctx.fillStyle = 'rgba(180, 255, 200, 0.75)';
             ctx.beginPath();
-            ctx.arc(sx, sy, 28 + pulse * 10, 0, Math.PI * 2);
+            ctx.arc(sx, sy, 32 + pulse * 10, 0, Math.PI * 2);
             ctx.fill();
+            // 大きめの回復十字マーク
+            const bigArm = radius * 0.22;
+            const bigThick = radius * 0.07;
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.95)';
+            ctx.fillRect(sx - bigArm, sy - bigThick / 2, bigArm * 2, bigThick);
+            ctx.fillRect(sx - bigThick / 2, sy - bigArm, bigThick, bigArm * 2);
             break;
           }
           case 'bloodPool': {

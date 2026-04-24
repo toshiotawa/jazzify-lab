@@ -24,7 +24,9 @@ enum SurvivalBossSkillId: String, Sendable {
     case acidShot
     case shockRing
     case crossBlast
-    case pull
+    /// C ボス 3 つ目のスキル。元は吸引 (pull) だったが、最大 HP の 5% を回復する
+    /// 自己回復スキルに変更した。プレイヤーを引き寄せず、ダメージも与えない。
+    case heal
 }
 
 enum SurvivalBossActionKind: Sendable {
@@ -49,8 +51,10 @@ struct SurvivalBossHazard: Identifiable, Sendable {
         case ringActive(innerRadius: CGFloat, outerRadius: CGFloat, damage: Int)
         case crossTelegraph(length: CGFloat, thickness: CGFloat)
         case crossActive(length: CGFloat, thickness: CGFloat, damage: Int)
-        case pullTelegraph(range: CGFloat)
-        case pullField(range: CGFloat, damage: Int)
+        /// 自己回復スキル予兆 (緑の光がボス周囲に広がる)。
+        case healTelegraph(range: CGFloat)
+        /// 自己回復スキル発動中 (緑の回復光、プレイヤーにダメージなし)。
+        case healField(range: CGFloat)
         case acidPool(radius: CGFloat, dps: Int)
         /// B ボス ミニオン自爆時の爆風ハザード。短命 (約 0.28 秒) で 1 度だけダメージ + ノックバックする。
         case bombExplosion(radius: CGFloat, damage: Int)
@@ -130,6 +134,10 @@ struct SurvivalBossBattleState: Sendable {
     var projectiles: [SurvivalBossProjectile] = []
     var result: SurvivalBossResult = .ongoing
     var startedAt: TimeInterval
+    /// ボス HP が 0 になった瞬間の時刻 (秒)。
+    /// 存在する場合、撃破演出中。`defeatAnimationSec` 経過で `result = .win` に遷移する。
+    /// iOS 独自の「ボスが消えてからクリア画面」を実現するため。
+    var defeatedAt: TimeInterval?
 }
 
 // MARK: - Boss Engine
@@ -190,40 +198,50 @@ enum SurvivalBossEngine {
 
     struct BossCParams {
         static let speedFactor: CGFloat = 0.48
-        static let ringCdMs: Double = 6500
+        // 攻撃スキル間隔を A ボス (sweep 4500ms / charge 7000ms) 相当に短縮。
+        // 従来値 (ring 6500 / cross 8000) だと C ボスは攻撃密度が低く感じられるため。
+        static let ringCdMs: Double = 4500
         static let ringWindupMs: Double = 1000
         static let ringActiveMs: Double = 220
         static let ringInnerRadius: CGFloat = 140
         static let ringOuterRadius: CGFloat = 280
         static let ringDamage: Int = 100
-        static let crossCdMs: Double = 8000
+        static let crossCdMs: Double = 7000
         static let crossWindupMs: Double = 1200
         static let crossActiveMs: Double = 250
         static let crossLength: CGFloat = 900
         static let crossThickness: CGFloat = 46
         static let crossDamage: Int = 140
-        static let pullCdMs: Double = 10000
-        static let pullWindupMs: Double = 800
-        static let pullActiveMs: Double = 260
-        static let pullRange: CGFloat = 560
-        static let pullDamage: Int = 40
+        /// 自己回復スキル (旧 pull)。最大 HP の `healRatio` を回復する。
+        /// プレイヤーへのダメージ・吸引は一切発生せず、視覚ハザード (`healTelegraph` / `healField`) のみ生成。
+        static let healCdMs: Double = 10000
+        static let healWindupMs: Double = 800
+        static let healActiveMs: Double = 260
+        static let healRange: CGFloat = 560
+        static let healRatio: Double = 0.05
     }
 
     /// 開幕グレース (ms) - ボスはこの間動かない。
     static let openingGraceMs: Double = 2000
+
+    /// ボス撃破演出の長さ (秒)。
+    /// この時間、ボスが画面上でフェードアウトしてからステージクリア画面に遷移する。
+    static let defeatAnimationSec: TimeInterval = 1.2
     /// プレイヤーが扇/直線/リング/十字に当たった時のノックバック速度
     static let hazardKnockbackSpeed: CGFloat = 520
 
     // MARK: - ブロックキー → ボスタイプ
 
+    /// ブロック順 (SurvivalStageCatalog.blocks の blockIndex) に沿って A → B → C を
+    /// ローテーションで割り当てる。Web 版 `getBossTypeForBlock` と同一実装。
+    /// 既存の固定マッピングでは、扉アイコン (ブロック毎のボス画像) と実戦で出現するボスが
+    /// ずれていた (例: `M7` ブロックの扉は C ボスなのに A ボスが出現する等) 不具合を解消する。
     static func bossType(for blockKey: SurvivalBlockKey) -> SurvivalBossType {
-        switch blockKey {
-        case .major, .M7, .mM7, .M7_9, .seven_b9_13:
-            return .A
-        case .minor, .m7, .dim7, .m7_9, .seven_sharp9_b13:
-            return .B
-        case .seven, .m7b5, .aug7, .six, .m6, .seven_9_13, .seven_b9_b13, .six_9, .m6_9, .m7b5_11, .dimM7:
-            return .C
+        let index = SurvivalStageCatalog.block(byKey: blockKey)?.blockIndex ?? 0
+        switch ((index % 3) + 3) % 3 {
+        case 0: return .A
+        case 1: return .B
+        default: return .C
         }
     }
 
@@ -257,7 +275,7 @@ enum SurvivalBossEngine {
             .acidShot: far,
             .shockRing: now + 2.0,
             .crossBlast: far,
-            .pull: far,
+            .heal: far,
         ]
     }
 
@@ -273,7 +291,7 @@ enum SurvivalBossEngine {
     /// Web 版 `updatePhase` 相当。
     /// HP 割合からフェーズを再計算し、`遷移した瞬間` にボスタイプ別の解禁スキルを
     /// 近い時刻にセットする。これをやらないと `initialNextSkillAt` で `far` (99_999s)
-    /// 固定のスキル (B: acidShot / C: crossBlast・pull 等) が永遠に発動せず、
+    /// 固定のスキル (B: acidShot / C: crossBlast・heal 等) が永遠に発動せず、
     /// B ボスが spores しか撃たないバグになる。
     private static func updatePhase(state: inout SurvivalBossBattleState, now: TimeInterval) {
         let newPhase = computePhase(hp: state.boss.hp, maxHp: state.boss.maxHp)
@@ -294,7 +312,7 @@ enum SurvivalBossEngine {
             }
         case .three:
             if state.boss.bossType == .C {
-                state.boss.nextSkillAt[.pull] = now + 1.2
+                state.boss.nextSkillAt[.heal] = now + 1.2
             }
         case .one:
             break
@@ -317,6 +335,18 @@ enum SurvivalBossEngine {
     ) -> BossTickResult {
         var result = BossTickResult()
         guard state.result == .ongoing else { return result }
+
+        // 撃破演出中: スキル・移動・新規生成は行わず、既存のミニオン/ハザード/弾は清掃。
+        // 演出時間を過ぎたら `.win` へ遷移し、コントローラ側で `phase = .cleared` が立つ。
+        if let defeatedAt = state.defeatedAt {
+            if !state.minions.isEmpty { state.minions.removeAll() }
+            if !state.hazards.isEmpty { state.hazards.removeAll() }
+            if !state.projectiles.isEmpty { state.projectiles.removeAll() }
+            if now - defeatedAt >= defeatAnimationSec {
+                state.result = .win
+            }
+            return result
+        }
 
         // フェーズ更新 (遷移時はスキル解禁を走らせる)
         updatePhase(state: &state, now: now)
@@ -344,9 +374,12 @@ enum SurvivalBossEngine {
         // 弾・ハザードは従来どおり判定するので、プレイヤーはボスに重なっても
         // 直接のダメージを受けない。
 
-        // 勝敗
+        // 勝敗判定
+        // - ボス HP 0: 即 `.win` ではなく撃破演出に入る (`defeatedAt` を記録)。
+        // - プレイヤー HP 0: 従来どおり `.lose`。
+        // - 同フレームで両者 HP 0 の場合はプレイヤー勝利を優先 (Web 版と同じ挙動)。
         if state.boss.hp <= 0 {
-            state.result = .win
+            state.defeatedAt = now
         } else if player.hp <= 0 {
             state.result = .lose
         }
@@ -399,7 +432,7 @@ enum SurvivalBossEngine {
         case .acidShot: return 100
         case .shockRing: return BossCParams.ringActiveMs
         case .crossBlast: return BossCParams.crossActiveMs
-        case .pull: return BossCParams.pullActiveMs
+        case .heal: return BossCParams.healActiveMs
         case .bloodPool: return 100
         }
     }
@@ -412,7 +445,7 @@ enum SurvivalBossEngine {
         case .acidShot: return 500
         case .shockRing: return 600
         case .crossBlast: return 800
-        case .pull: return 900
+        case .heal: return 400
         case .bloodPool: return 200
         }
     }
@@ -430,7 +463,7 @@ enum SurvivalBossEngine {
         switch state.boss.bossType {
         case .A: candidates = [.sweep, .charge]
         case .B: candidates = [.spores, .acidShot]
-        case .C: candidates = [.shockRing, .crossBlast, .pull]
+        case .C: candidates = [.shockRing, .crossBlast, .heal]
         }
 
         for skill in candidates {
@@ -503,15 +536,16 @@ enum SurvivalBossEngine {
             ))
             state.boss.nextSkillAt[.crossBlast] = now + BossCParams.crossCdMs / 1000.0
             return true
-        case .pull:
-            state.boss.action = .windup(skill: .pull, startAt: now, durationMs: BossCParams.pullWindupMs)
+        case .heal:
+            // 自己回復スキル (C ボス 3 つ目)。プレイヤーに害は無く、windup 終了後に HP を回復する。
+            state.boss.action = .windup(skill: .heal, startAt: now, durationMs: BossCParams.healWindupMs)
             state.hazards.append(SurvivalBossHazard(
-                kind: .pullTelegraph(range: BossCParams.pullRange),
+                kind: .healTelegraph(range: BossCParams.healRange),
                 x: boss.x, y: boss.y,
                 startAt: now,
-                endAt: now + BossCParams.pullWindupMs / 1000.0
+                endAt: now + BossCParams.healWindupMs / 1000.0
             ))
-            state.boss.nextSkillAt[.pull] = now + BossCParams.pullCdMs / 1000.0
+            state.boss.nextSkillAt[.heal] = now + BossCParams.healCdMs / 1000.0
             return true
         case .bloodPool:
             return false
@@ -624,12 +658,16 @@ enum SurvivalBossEngine {
                 endAt: now + BossCParams.crossActiveMs / 1000.0
             )
             state.hazards.append(active)
-        case .pull:
+        case .heal:
+            // 自己回復: 最大 HP の `healRatio` (5%) 分を即時回復。
+            // 視覚効果として `healField` ハザードを生成するが、プレイヤーには当たらない。
+            let healAmount = max(1, Int(Double(boss.maxHp) * BossCParams.healRatio))
+            state.boss.hp = min(boss.maxHp, boss.hp + healAmount)
             let active = SurvivalBossHazard(
-                kind: .pullField(range: BossCParams.pullRange, damage: BossCParams.pullDamage),
+                kind: .healField(range: BossCParams.healRange),
                 x: boss.x, y: boss.y,
                 startAt: now,
-                endAt: now + BossCParams.pullActiveMs / 1000.0
+                endAt: now + BossCParams.healActiveMs / 1000.0
             )
             state.hazards.append(active)
         case .bloodPool:
@@ -714,19 +752,9 @@ enum SurvivalBossEngine {
                 if isInsideCross(player.x, player.y, cx: hazard.x, cy: hazard.y, length: length, thickness: thickness) {
                     applyPlayerDamage(&player, damage: damage, now: now, iFrame: SurvivalConstants.iFrameHazard, result: &result)
                 }
-            case .pullField(let range, let damage):
-                let d = hypot(player.x - hazard.x, player.y - hazard.y)
-                if d < range {
-                    let pullStrength: CGFloat = 240
-                    let nx = (hazard.x - player.x) / max(1, d)
-                    let ny = (hazard.y - player.y) / max(1, d)
-                    player.x = clampX(player.x + nx * pullStrength * (1.0 / 60.0))
-                    player.y = clampY(player.y + ny * pullStrength * (1.0 / 60.0))
-                    if now - hazard.playerLastHitAt > 0.4 {
-                        applyPlayerDamage(&player, damage: damage, now: now, iFrame: 0.2, result: &result)
-                        hazard.playerLastHitAt = now
-                    }
-                }
+            case .healField:
+                // 自己回復スキルの発動中ハザードはビジュアル専用。プレイヤーへの影響なし。
+                break
             case .bloodPool(let radius, let dps), .acidPool(let radius, let dps):
                 let d = hypot(player.x - hazard.x, player.y - hazard.y)
                 if d < radius {
@@ -746,7 +774,7 @@ enum SurvivalBossEngine {
                     applyKnockbackAway(player: &player, from: CGPoint(x: hazard.x, y: hazard.y), now: now)
                     hazard.playerLastHitAt = now
                 }
-            case .fanTelegraph, .lineTelegraph, .ringTelegraph, .crossTelegraph, .eggTelegraph, .pullTelegraph:
+            case .fanTelegraph, .lineTelegraph, .ringTelegraph, .crossTelegraph, .eggTelegraph, .healTelegraph:
                 break
             }
             state.hazards[idx] = hazard

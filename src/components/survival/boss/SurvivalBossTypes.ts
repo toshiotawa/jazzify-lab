@@ -29,7 +29,7 @@ export type BossSkillId =
   | 'acidShot'     // B: 3way 腐液弾
   | 'shockRing'    // C: 衝撃輪（中距離危険）
   | 'crossBlast'   // C: 十字爆破予告
-  | 'pull';        // C: 引力パルス
+  | 'heal';        // C: 自己回復 (最大HPの5%)
 
 export interface BossActionState {
   kind: BossActionKind;
@@ -83,8 +83,8 @@ export type BossHazardKind =
   | 'ringActive'       // リング発動（中距離危険）
   | 'crossTelegraph'   // 十字予兆
   | 'crossActive'      // 十字発動
-  | 'pullTelegraph'    // 吸引予兆
-  | 'pullActive'       // 吸引中
+  | 'healTelegraph'    // 自己回復 予兆
+  | 'healActive'       // 自己回復 発動中
   | 'bombExplosion';   // 自爆雑魚の爆発
 
 export interface BossHazard {

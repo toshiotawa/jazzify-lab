@@ -50,7 +50,8 @@ final class SurvivalScene: SKScene {
     /// 前フレームで加えた offset を記録しておき、次フレームで差し引いてから
     /// lerp を適用し、新しい offset を足すことで shake を確実に表示する。
     private var cameraShakeStartAt: TimeInterval = 0
-    private let cameraShakeDuration: TimeInterval = 0.22
+    private var cameraShakeDuration: TimeInterval = 0.22
+    private var cameraShakeAmplitude: CGFloat = 4.0
     private var cameraPreviousShakeOffset: CGPoint = .zero
 
     /// 初回フレームでカメラをプレイヤー位置に即時スナップするためのフラグ。
@@ -59,6 +60,9 @@ final class SurvivalScene: SKScene {
     /// プレイヤーが画面外 (左下相当) に描画されて「左隅ポップ・移動できない」様に見える。
     /// 初回だけ lerp をスキップしてマップ中央をキャプチャする。
     private var hasInitializedCameraPosition: Bool = false
+
+    /// ボス撃破演出を既に発火済みか (カメラシェイク + 爆散エフェクトを 1 回だけトリガーするため)。
+    private var hasTriggeredBossDefeatFx: Bool = false
 
     init(size: CGSize, controller: SurvivalGameController) {
         self.controller = controller
@@ -251,7 +255,7 @@ final class SurvivalScene: SKScene {
         var shakeOffset: CGPoint = .zero
         if cameraShakeStartAt > 0, elapsed < cameraShakeDuration {
             let decay = 1 - CGFloat(elapsed / cameraShakeDuration)
-            let amp: CGFloat = 4.0 * decay
+            let amp: CGFloat = cameraShakeAmplitude * decay
             let t = CGFloat(elapsed)
             shakeOffset = CGPoint(
                 x: sin(t * 85) * amp + sin(t * 143) * amp * 0.4,
@@ -263,9 +267,60 @@ final class SurvivalScene: SKScene {
         cameraPreviousShakeOffset = shakeOffset
     }
 
-    /// 近接攻撃 (衝撃波) 発動時に呼び出してカメラを軽く揺らす。
-    private func triggerCameraShake() {
+    /// 近接攻撃 (衝撃波) 発動時やボス撃破時に呼び出してカメラを揺らす。
+    /// - Parameters:
+    ///   - intensity: 最大振幅 (デフォルト 4.0)
+    ///   - duration: 減衰時間 (デフォルト 0.22 秒)
+    private func triggerCameraShake(intensity: CGFloat = 4.0, duration: TimeInterval = 0.22) {
         cameraShakeStartAt = CACurrentMediaTime()
+        cameraShakeAmplitude = intensity
+        cameraShakeDuration = duration
+    }
+
+    /// ボス撃破時の爆散エフェクト。
+    /// 大型 💥 が一瞬拡大しながらフェードアウト、放射状に複数の小さな炎片が飛び散る。
+    /// `entitiesNode` にアタッチして、カメラ追従 & エンティティ z-order に乗せる。
+    private func spawnBossDefeatBurst(at position: CGPoint) {
+        let center = SKLabelNode(text: "💥")
+        center.fontSize = 64
+        center.verticalAlignmentMode = .center
+        center.horizontalAlignmentMode = .center
+        center.position = position
+        center.zPosition = 140
+        entitiesNode.addChild(center)
+        center.run(.sequence([
+            .group([
+                .scale(to: 2.8, duration: 0.6),
+                .fadeOut(withDuration: 0.6)
+            ]),
+            .removeFromParent()
+        ]))
+
+        // 放射状の小さな炎片 (8 方向)
+        let sparkCount = 8
+        for i in 0..<sparkCount {
+            let angle = (CGFloat(i) / CGFloat(sparkCount)) * .pi * 2
+            let spark = SKLabelNode(text: "🔥")
+            spark.fontSize = 28
+            spark.verticalAlignmentMode = .center
+            spark.horizontalAlignmentMode = .center
+            spark.position = position
+            spark.zPosition = 139
+            entitiesNode.addChild(spark)
+            let distance: CGFloat = 120
+            let destination = CGPoint(
+                x: position.x + cos(angle) * distance,
+                y: position.y + sin(angle) * distance
+            )
+            spark.run(.sequence([
+                .group([
+                    .move(to: destination, duration: 0.7),
+                    .fadeOut(withDuration: 0.7),
+                    .scale(to: 0.2, duration: 0.7)
+                ]),
+                .removeFromParent()
+            ]))
+        }
     }
 
     private func renderState(controller: SurvivalGameController) {
@@ -622,6 +677,8 @@ final class SurvivalScene: SKScene {
         for (_, node) in hazardNodes { node.removeFromParent() }
         hazardLastProgress.removeAll()
         hazardNodes.removeAll()
+        // 次のボス戦で再度演出を発火させるためリセット。
+        hasTriggeredBossDefeatFx = false
     }
 
     private func renderBoss(state: SurvivalBossBattleState) {
@@ -658,6 +715,29 @@ final class SurvivalScene: SKScene {
         let bossPos = toScenePoint(x: state.boss.x, y: state.boss.y)
         bossNode?.position = bossPos
         let hpRatio = CGFloat(state.boss.hp) / CGFloat(max(1, state.boss.maxHp))
+
+        // MARK: 撃破演出 (defeatedAt が立っている間の専用レンダ)
+        //   - ボススプライトを alpha / scale でフェードアウト & 縮小
+        //   - HP バー / windup は非表示 (途中でスキル挙動は止まっているのでロジック側も発動しない)
+        //   - 1 度だけカメラシェイク + 💥 爆散エフェクトを発火
+        if let defeatedAt = state.defeatedAt {
+            let elapsed = max(0, CACurrentMediaTime() - defeatedAt)
+            let progress = min(1, elapsed / SurvivalBossEngine.defeatAnimationSec)
+            bossNode?.alpha = max(0, 1 - progress)
+            bossNode?.setScale(max(0.05, 1 - progress * 0.6))
+            bossHpBarNode?.removeFromParent()
+            bossHpBarNode = nil
+            bossHpBarLastRatio = -1
+            bossWindupNode?.removeFromParent()
+            bossWindupNode = nil
+            if !hasTriggeredBossDefeatFx {
+                hasTriggeredBossDefeatFx = true
+                triggerCameraShake(intensity: 18, duration: 0.45)
+                spawnBossDefeatBurst(at: bossPos)
+            }
+            return
+        }
+
         bossNode?.alpha = 0.6 + hpRatio * 0.4
 
         // MARK: ボス頭上 HP バー

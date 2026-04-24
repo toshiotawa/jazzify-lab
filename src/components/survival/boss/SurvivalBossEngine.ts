@@ -62,11 +62,14 @@ export const BOSS_B_PARAMS = {
   explosionDamage: 120,
 } as const;
 
+// C ボスの攻撃スキル間隔を A ボス (sweep 4500ms / charge 7000ms) 相当に短縮。
+// 従来値 (ring 6500 / cross 8000) では攻撃密度が低く感じられたため。
+// `pull` (吸引) は廃止し、`heal` (自己回復: 最大HPの5%) に置換。
 export const BOSS_C_PARAMS = {
   speedFactor: 0.48,
-  ring: { cdMs: 6500, windupMs: 1000, activeMs: 220, innerRadius: 140, outerRadius: 280, damage: 100 },
-  cross: { cdMs: 8000, windupMs: 1200, activeMs: 250, length: 900, thickness: 46, damage: 140 },
-  pull: { cdMs: 10000, windupMs: 800, activeMs: 260, range: 560, damage: 40 },
+  ring: { cdMs: 4500, windupMs: 1000, activeMs: 220, innerRadius: 140, outerRadius: 280, damage: 100 },
+  cross: { cdMs: 7000, windupMs: 1200, activeMs: 250, length: 900, thickness: 46, damage: 140 },
+  heal: { cdMs: 10000, windupMs: 800, activeMs: 260, range: 560, healRatio: 0.05 },
 } as const;
 
 // ===== ユーティリティ =====
@@ -144,7 +147,7 @@ const initialNextSkillAt = (now: number): Record<BossSkillId, number> => ({
   acidShot: now + 99999999,
   shockRing: now + 2000,
   crossBlast: now + 99999999,
-  pull: now + 99999999,
+  heal: now + 99999999,
 });
 
 export const createBossBattleState = (
@@ -342,17 +345,17 @@ const tryStartSkill = (
       });
       return true;
     }
-    case 'pull': {
-      const p = BOSS_C_PARAMS.pull;
+    case 'heal': {
+      const p = BOSS_C_PARAMS.heal;
       boss.action = {
         kind: 'windup',
-        skill: 'pull',
+        skill: 'heal',
         startAt: now,
         durationMs: p.windupMs,
       };
       state.hazards.push({
         id: nextId('hz'),
-        kind: 'pullTelegraph',
+        kind: 'healTelegraph',
         x: boss.x,
         y: boss.y,
         radius: p.range,
@@ -526,25 +529,26 @@ const triggerActive = (state: BossBattleState, ctx: BossTickContext): void => {
       boss.nextSkillAt.crossBlast = now + p.cdMs;
       return;
     }
-    case 'pull': {
-      const p = BOSS_C_PARAMS.pull;
+    case 'heal': {
+      // 自己回復スキル: 最大 HP の `healRatio` (5%) 分を即時回復する。
+      // プレイヤーには害を与えず、視覚用ハザード (`healActive`) のみ発生。
+      // 注: 以前の `pull` にあった「発動後に他スキル CD を前倒しするリフレッシュ」は廃止。
+      //     各攻撃スキルは各自の cdMs に従って自然発動するだけにする。
+      const p = BOSS_C_PARAMS.heal;
+      const healAmount = Math.max(1, Math.floor(boss.maxHp * p.healRatio));
+      boss.hp = Math.min(boss.maxHp, boss.hp + healAmount);
       state.hazards.push({
         id: nextId('hz'),
-        kind: 'pullActive',
+        kind: 'healActive',
         x: boss.x,
         y: boss.y,
         radius: p.range,
         startAt: now,
         endAt: now + p.activeMs,
-        damage: p.damage,
+        damage: 0,
       });
       boss.action = { kind: 'active', skill, startAt: now, durationMs: p.activeMs };
-      boss.nextSkillAt.pull = now + p.cdMs;
-      // 吸引は他の 2 種（リング / 十字）のリロードをリフレッシュし、
-      // 引き寄せ後すぐに追撃させる
-      const postPullDelay = p.activeMs + 200;
-      boss.nextSkillAt.shockRing = Math.min(boss.nextSkillAt.shockRing, now + postPullDelay);
-      boss.nextSkillAt.crossBlast = Math.min(boss.nextSkillAt.crossBlast, now + postPullDelay);
+      boss.nextSkillAt.heal = now + p.cdMs;
       return;
     }
     default:
@@ -608,8 +612,8 @@ const pickNextSkill = (state: BossBattleState, ctx: BossTickContext): void => {
       if (boss.phase >= 2 && now >= boss.nextSkillAt.crossBlast) {
         if (tryStartSkill(state, 'crossBlast', now, ctx)) return;
       }
-      if (boss.phase >= 3 && now >= boss.nextSkillAt.pull) {
-        if (tryStartSkill(state, 'pull', now, ctx)) return;
+      if (boss.phase >= 3 && now >= boss.nextSkillAt.heal) {
+        if (tryStartSkill(state, 'heal', now, ctx)) return;
       }
       return;
     }
@@ -881,33 +885,6 @@ const checkHazardDamage = (state: BossBattleState, ctx: BossTickContext): void =
   }
 };
 
-// ===== 引力パルス =====
-const applyPullForce = (
-  state: BossBattleState,
-  ctx: BossTickContext
-): { dx: number; dy: number } => {
-  let dx = 0;
-  let dy = 0;
-  for (const h of state.hazards) {
-    const isActive = h.kind === 'pullActive';
-    const isTelegraph = h.kind === 'pullTelegraph';
-    if (!isActive && !isTelegraph) continue;
-    if (ctx.now < h.startAt || ctx.now > h.endAt) continue;
-    const d = distanceBetween(ctx.player.x, ctx.player.y, h.x, h.y);
-    if (d > (h.radius ?? 0) || d < 4) continue;
-    // 予兆中は弱く、発動中は強く吸引（予兆段階から徐々に引き寄せが強まる）
-    const life = Math.max(1, h.endAt - h.startAt);
-    const elapsed = Math.max(0, ctx.now - h.startAt);
-    const progress = Math.min(1, elapsed / life);
-    const baseStrength = isActive ? 420 : 160 + 180 * progress; // 予兆: 160→340, 発動: 420
-    const strength = baseStrength * (ctx.deltaMs / 1000);
-    const { nx, ny } = normalizedVectorTo(ctx.player.x, ctx.player.y, h.x, h.y);
-    dx += nx * strength;
-    dy += ny * strength;
-  }
-  return { dx, dy };
-};
-
 // ===== フェーズ遷移 =====
 const updatePhase = (state: BossBattleState, now: number): void => {
   const newPhase = computePhase(state.boss.hp, state.boss.maxHp);
@@ -919,7 +896,7 @@ const updatePhase = (state: BossBattleState, now: number): void => {
       if (state.boss.bossType === 'C') state.boss.nextSkillAt.crossBlast = now + 800;
     }
     if (newPhase === 3) {
-      if (state.boss.bossType === 'C') state.boss.nextSkillAt.pull = now + 1200;
+      if (state.boss.bossType === 'C') state.boss.nextSkillAt.heal = now + 1200;
     }
   }
 };
@@ -929,9 +906,9 @@ export const tickBossBattle = (
   state: BossBattleState,
   deltaMs: number,
   player: PlayerState
-): { state: BossBattleState; pulledPlayerDelta: { dx: number; dy: number } } => {
+): { state: BossBattleState } => {
   if (!state.active || state.result !== 'ongoing') {
-    return { state, pulledPlayerDelta: { dx: 0, dy: 0 } };
+    return { state };
   }
   const now = performance.now();
   const ctx: BossTickContext = { now, deltaMs, player };
@@ -958,8 +935,7 @@ export const tickBossBattle = (
     state.active = false;
   }
 
-  const pulledPlayerDelta = applyPullForce(state, ctx);
-  return { state, pulledPlayerDelta };
+  return { state };
 };
 
 // ===== プレイヤー攻撃の反映 =====
@@ -1066,17 +1042,16 @@ export const applyPlayerMeleeToBossBattle = (
   return result;
 };
 
-// ===== プレイヤー位置補正（ノックバック・吸引） =====
+// ===== プレイヤー位置補正（ノックバックのみ。旧吸引パルスは廃止） =====
 export const applyBossPlayerMotion = (
   state: BossBattleState,
   playerX: number,
   playerY: number,
-  deltaMs: number,
-  pulledDelta: { dx: number; dy: number }
+  deltaMs: number
 ): { x: number; y: number } => {
   const now = performance.now();
-  let x = playerX + pulledDelta.dx;
-  let y = playerY + pulledDelta.dy;
+  let x = playerX;
+  let y = playerY;
   if (now < state.player.knockbackUntil) {
     const dt = deltaMs / 1000;
     x += state.player.knockbackVx * dt;

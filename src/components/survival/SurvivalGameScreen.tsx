@@ -2132,13 +2132,12 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           newState.player.direction = movedPlayerBoss.direction;
 
           // ボスAI・ハザード・弾・被ダメ処理
-          const tickRes = tickBossBattle(bossState, deltaTime * 1000, newState.player);
+          tickBossBattle(bossState, deltaTime * 1000, newState.player);
           const adjusted = applyBossPlayerMotion(
             bossState,
             newState.player.x,
             newState.player.y,
-            deltaTime * 1000,
-            tickRes.pulledPlayerDelta
+            deltaTime * 1000
           );
           newState.player.x = adjusted.x;
           newState.player.y = adjusted.y;
