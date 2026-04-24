@@ -2,16 +2,44 @@ import SwiftUI
 
 // MARK: - Background
 
+/// レッスンマップ背景 (星空 + ネビュラ風グラデ)。
+///
+/// Web 実装 (`src/components/lesson/journey/parts/JourneyBackground.tsx`) と
+/// 視覚的・挙動的に揃える。iOS では以下の理由でスクロールビュー内部ではなく
+/// `LessonJourneyView.mapContent` の外側 (=viewport サイズ) に固定配置する:
+///
+/// - マップ全体 (contentHeight) は数千 pt に達するためCanvas 描画が破綻し、
+///   星が全く描かれないケースが発生していた
+/// - `TimelineView` + `Canvas` の毎フレーム CPU 描画が重かった
+///
+/// 実装は `ForEach` + `Circle` + Core Animation (`.repeatForever`) により
+/// GPU 合成で滑らかに瞬き/呼吸させる。
 struct LessonJourneyBackgroundView: View {
     let widthPx: CGFloat
     let heightPx: CGFloat
 
-    private var stars: [Star] {
-        Star.generate(
-            count: Int(min(200, max(80, (widthPx * heightPx) / 14000))),
+    private let farStars: [Star]
+    private let nearStars: [Star]
+
+    init(widthPx: CGFloat, heightPx: CGFloat) {
+        self.widthPx = widthPx
+        self.heightPx = heightPx
+        // Web 実装と同じ密度感に揃える: base (widthPx * heightPx) / 16000
+        let area = max(0, Double(widthPx) * Double(heightPx))
+        let baseCount = Int(min(180, max(60, area / 16000)))
+        self.farStars = Star.generate(
+            count: baseCount,
             width: widthPx,
             height: heightPx,
-            seed: 29_081
+            seed: 29_081,
+            breath: false
+        )
+        self.nearStars = Star.generate(
+            count: max(16, baseCount / 4),
+            width: widthPx,
+            height: heightPx,
+            seed: 104_729,
+            breath: true
         )
     }
 
@@ -41,42 +69,24 @@ struct LessonJourneyBackgroundView: View {
                 endRadius: widthPx * 0.7
             )
 
-            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: false)) { timeline in
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                Canvas { context, _ in
-                    for star in stars {
-                        let phase = ((t + star.phaseOffset) / star.duration)
-                            .truncatingRemainder(dividingBy: 1)
-                        let k = (1.0 - cos(phase * 2.0 * .pi)) / 2.0
-                        let radius: CGFloat
-                        let opacity: Double
-                        if star.breath {
-                            radius = star.radius * CGFloat(1.0 + 0.55 * k)
-                            opacity = 0.55 + 0.45 * k
-                        } else {
-                            radius = star.radius
-                            opacity = star.baseOpacity * (0.4 + 0.6 * k)
-                        }
-                        let rect = CGRect(
-                            x: star.x - radius,
-                            y: star.y - radius,
-                            width: radius * 2,
-                            height: radius * 2
-                        )
-                        context.fill(
-                            Path(ellipseIn: rect),
-                            with: .color(Color.white.opacity(opacity))
-                        )
-                    }
+            ZStack {
+                ForEach(farStars) { star in
+                    StarDotView(star: star, tintOpacity: 0.85, colorHex: "ffffff")
                 }
-                .frame(width: widthPx, height: heightPx)
+                ForEach(nearStars) { star in
+                    StarDotView(star: star, tintOpacity: 0.9, colorHex: "dcc8ff")
+                }
             }
+            .frame(width: widthPx, height: heightPx, alignment: .topLeading)
+            .blendMode(.screen)
             .allowsHitTesting(false)
         }
         .frame(width: widthPx, height: heightPx)
+        .clipped()
     }
 
-    private struct Star {
+    fileprivate struct Star: Identifiable {
+        let id: Int
         let x: CGFloat
         let y: CGFloat
         let radius: CGFloat
@@ -84,25 +94,32 @@ struct LessonJourneyBackgroundView: View {
         let breath: Bool
         /// 呼吸/瞬き 1 周期の長さ (秒)
         let duration: Double
-        /// 位相オフセット (秒)
+        /// 開始オフセット (秒)。アニメーション開始を少しずつずらす用途
         let phaseOffset: Double
 
-        static func generate(count: Int, width: CGFloat, height: CGFloat, seed: UInt64) -> [Star] {
+        static func generate(
+            count: Int,
+            width: CGFloat,
+            height: CGFloat,
+            seed: UInt64,
+            breath: Bool
+        ) -> [Star] {
             var rng = SeededGenerator(seed: seed)
             var arr: [Star] = []
             arr.reserveCapacity(count)
             for i in 0..<count {
                 let x = CGFloat.random(in: 0...max(1, width), using: &rng)
                 let y = CGFloat.random(in: 0...max(1, height), using: &rng)
-                let r = CGFloat.random(in: 0.6...2.0, using: &rng)
+                let r: CGFloat = breath
+                    ? CGFloat.random(in: 0.9...2.0, using: &rng)
+                    : CGFloat.random(in: 0.6...1.4, using: &rng)
                 let op = Double.random(in: 0.4...0.95, using: &rng)
-                // Web 実装の nearStars 相当: 概ね 1/4 程度を呼吸する星に
-                let breath = (i % 4 == 0)
                 let duration = breath
                     ? Double.random(in: 3.2...5.6, using: &rng)
-                    : Double.random(in: 2.0...4.6, using: &rng)
+                    : Double.random(in: 2.4...4.6, using: &rng)
                 let phase = Double.random(in: 0...duration, using: &rng)
                 arr.append(Star(
+                    id: i,
                     x: x, y: y, radius: r, baseOpacity: op,
                     breath: breath, duration: duration, phaseOffset: phase
                 ))
@@ -118,6 +135,45 @@ struct LessonJourneyBackgroundView: View {
             state = state &* 6_364_136_223_846_793_005 &+ 1_442_695_040_888_963_407
             return state
         }
+    }
+}
+
+/// 個別の星。`.onAppear` で `withAnimation(.easeInOut.repeatForever)` を仕掛け、
+/// 後は Core Animation (GPU) で opacity/scale が補間される。CPU 負荷はほぼゼロ。
+private struct StarDotView: View {
+    let star: LessonJourneyBackgroundView.Star
+    let tintOpacity: Double
+    let colorHex: String
+
+    @State private var animate: Bool = false
+
+    var body: some View {
+        let base = Color(hex: colorHex)
+        let opaque = base.opacity(tintOpacity)
+        Circle()
+            .fill(opaque)
+            .frame(width: star.radius * 2, height: star.radius * 2)
+            .scaleEffect(animate && star.breath ? 1.55 : 1.0)
+            .opacity(opacityValue)
+            .position(x: star.x, y: star.y)
+            .onAppear {
+                // 初期相をずらして全星が同時に瞬かないようにする
+                DispatchQueue.main.asyncAfter(deadline: .now() + star.phaseOffset * 0.25) {
+                    withAnimation(
+                        .easeInOut(duration: star.duration)
+                            .repeatForever(autoreverses: true)
+                    ) {
+                        animate = true
+                    }
+                }
+            }
+    }
+
+    private var opacityValue: Double {
+        if star.breath {
+            return animate ? 1.0 : 0.55
+        }
+        return animate ? star.baseOpacity : star.baseOpacity * 0.4
     }
 }
 

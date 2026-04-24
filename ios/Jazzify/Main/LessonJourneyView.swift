@@ -216,40 +216,44 @@ struct LessonJourneyView: View {
             let scale = min(max(0.7, width / LessonJourneyLayoutConstants.logicalWidth), 2.2)
             let contentHeight = layout.totalHeight * scale
 
-            UIKitVerticalScrollView(
-                contentSize: CGSize(width: width, height: contentHeight),
-                scrollTargetY: $scrollTargetY,
-                animated: scrollAnimated
-            ) {
-                mapContentBody(width: width, scale: scale, contentHeight: contentHeight)
-            }
-            .onAppear {
-                requestScrollToFrontier(scale: scale, animated: false)
-            }
-            .onChange(of: contentHeight) { _ in
-                if !didInitialScroll {
+            ZStack {
+                // 背景 (星空 + ネビュラ) は viewport 固定。
+                // contentHeight は数千 pt になりうるため、巨大な背景を
+                // スクロール内に置くと描画破綻 (星が出ない) と負荷増に直結する。
+                LessonJourneyBackgroundView(widthPx: width, heightPx: height)
+                    .allowsHitTesting(false)
+
+                UIKitVerticalScrollView(
+                    contentSize: CGSize(width: width, height: contentHeight),
+                    scrollTargetY: $scrollTargetY,
+                    animated: scrollAnimated
+                ) {
+                    mapContentBody(width: width, scale: scale, contentHeight: contentHeight)
+                }
+                .onAppear {
                     requestScrollToFrontier(scale: scale, animated: false)
                 }
-            }
-            .onChange(of: scrollTargetLessonId) { target in
-                guard let target,
-                      let node = layout.allNodes.first(where: { $0.lessonId == target })
-                else { return }
-                scrollAnimated = true
-                scrollTargetY = node.y * scale
+                .onChange(of: contentHeight) { _ in
+                    if !didInitialScroll {
+                        requestScrollToFrontier(scale: scale, animated: false)
+                    }
+                }
+                .onChange(of: scrollTargetLessonId) { target in
+                    guard let target,
+                          let node = layout.allNodes.first(where: { $0.lessonId == target })
+                    else { return }
+                    scrollAnimated = true
+                    scrollTargetY = node.y * scale
+                }
             }
         }
     }
 
     @ViewBuilder
     private func mapContentBody(width: CGFloat, scale: CGFloat, contentHeight: CGFloat) -> some View {
+        // 背景はスクロールの外 (viewport サイズ固定) に置いているため、
+        // ここではマップ本体 (経路・ブロック・ノード・キャラ等) のみを描く。
         ZStack(alignment: .topLeading) {
-            // 背景
-            LessonJourneyBackgroundView(
-                widthPx: width,
-                heightPx: contentHeight
-            )
-
             // 中央カラム
             ZStack(alignment: .topLeading) {
                 LessonJourneyPathCanvas(
