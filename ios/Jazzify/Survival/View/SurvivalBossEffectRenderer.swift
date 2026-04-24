@@ -535,119 +535,73 @@ enum SurvivalBossEffectRenderer {
         return Output(image: img, anchorPoint: CGPoint(x: 0.5, y: 0.5), rotation: 0)
     }
 
-    // MARK: - 自己回復 予兆
+    // MARK: - 自己回復 予兆 (控えめ版)
 
-    /// C ボス自己回復スキルの予兆。緑のオーラと回復十字 (➕) のリングが浮かぶ。
+    /// C ボス自己回復スキルの予兆。5% 回復に見合う控えめな演出:
+    ///   - ボス周囲の小さな緑オーラ (描画半径は最大 90px に制限)
+    ///   - ボス上方にふわっと浮かぶ小さな "+" マーク
+    /// `healRange` (560) はダメージ判定用の値なので、見た目は大きく離れないよう最大 90px にクランプする。
     private static func renderHealTelegraph(radius: CGFloat, nowMs: Double, progress: Double) -> Output {
-        let pad: CGFloat = 16
-        let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
+        _ = progress
+        let drawRadius: CGFloat = min(radius, 90)
+        let pad: CGFloat = 12
+        let size = CGSize(width: drawRadius * 2 + pad * 2, height: drawRadius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
         let img = renderer.image { ctx in
             let cg = ctx.cgContext
             let cx = size.width / 2
             let cy = size.height / 2
-            // 緑の回復オーラ
+            // 控えめな緑の回復オーラ
             if let aura = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                      colors: [
-                                        UIColor(red: 140.0/255, green: 1, blue: 160.0/255, alpha: 0.40).cgColor,
-                                        UIColor(red: 60.0/255, green: 200.0/255, blue: 110.0/255, alpha: 0.18).cgColor,
-                                        UIColor(red: 10.0/255, green: 80.0/255, blue: 40.0/255, alpha: 0).cgColor
-                                     ] as CFArray, locations: [0, 0.6, 1]) {
-                cg.drawRadialGradient(aura, startCenter: CGPoint(x: cx, y: cy), startRadius: 10, endCenter: CGPoint(x: cx, y: cy), endRadius: radius, options: [])
+                                        UIColor(red: 160.0/255, green: 1, blue: 180.0/255, alpha: 0.22).cgColor,
+                                        UIColor(red: 20.0/255, green: 120.0/255, blue: 60.0/255, alpha: 0).cgColor
+                                     ] as CFArray, locations: [0, 1]) {
+                cg.drawRadialGradient(aura, startCenter: CGPoint(x: cx, y: cy), startRadius: 2, endCenter: CGPoint(x: cx, y: cy), endRadius: drawRadius, options: [])
             }
-            // 外縁点線 (緑)
-            cg.setLineDash(phase: 0, lengths: [12, 8])
-            cg.setLineWidth(2)
-            cg.setStrokeColor(red: 150.0/255, green: 1, blue: 170.0/255, alpha: 0.85)
-            cg.beginPath()
-            cg.addArc(center: CGPoint(x: cx, y: cy), radius: radius, startAngle: 0, endAngle: .pi * 2, clockwise: false)
-            cg.strokePath()
-            cg.setLineDash(phase: 0, lengths: [])
-            // 上向きに湧き上がる光粒子 (回復の上昇感)
-            for i in 0..<14 {
-                let phase = (nowMs / 1300.0 + Double(i) * 0.07).truncatingRemainder(dividingBy: 1.0)
-                let ang = CGFloat(i) / 14 * .pi * 2 + CGFloat(nowMs) / 2000.0
-                let r = radius * CGFloat(0.2 + phase * 0.8)
-                let alpha = CGFloat((1 - phase) * 0.9)
-                cg.setFillColor(red: 200.0/255, green: 1, blue: 220.0/255, alpha: alpha)
-                // 下から上へ吹き上がる位置
-                let px = cx + cos(ang) * r
-                let py = cy + sin(ang) * r - CGFloat(phase) * 30
-                cg.fillEllipse(in: CGRect(x: px - 3, y: py - 3, width: 6, height: 6))
-            }
-            // 中央に回復クロス (十字マーク)
-            let crossArm = radius * 0.18
-            let crossThick = radius * 0.05
-            let crossAlpha: CGFloat = 0.75 + 0.2 * CGFloat(sin(nowMs / 220.0))
-            cg.setFillColor(red: 1, green: 1, blue: 1, alpha: crossAlpha)
-            cg.fill(CGRect(x: cx - crossArm, y: cy - crossThick / 2, width: crossArm * 2, height: crossThick))
-            cg.fill(CGRect(x: cx - crossThick / 2, y: cy - crossArm, width: crossThick, height: crossArm * 2))
-            // 収縮リング (仕込みの進行を視覚化)
-            let shrinkR = radius * CGFloat(1 - progress * 0.4)
-            cg.setStrokeColor(red: 220.0/255, green: 1, blue: 230.0/255, alpha: 0.7)
-            cg.setLineWidth(2)
-            cg.beginPath()
-            cg.addArc(center: CGPoint(x: cx, y: cy), radius: shrinkR, startAngle: 0, endAngle: .pi * 2, clockwise: false)
-            cg.strokePath()
+            // ボス上方にふわっと浮かぶ小さな "+"
+            let armLen: CGFloat = 10
+            let armThick: CGFloat = 3
+            let alpha: CGFloat = 0.55 + 0.2 * CGFloat(sin(nowMs / 260.0))
+            let mx = cx
+            let my = cy - 8
+            cg.setFillColor(red: 200.0/255, green: 1, blue: 210.0/255, alpha: alpha)
+            cg.fill(CGRect(x: mx - armLen, y: my - armThick / 2, width: armLen * 2, height: armThick))
+            cg.fill(CGRect(x: mx - armThick / 2, y: my - armLen, width: armThick, height: armLen * 2))
         }
         return Output(image: img, anchorPoint: CGPoint(x: 0.5, y: 0.5), rotation: 0)
     }
 
-    // MARK: - 自己回復 発動
+    // MARK: - 自己回復 発動 (控えめ版)
 
-    /// C ボス自己回復スキルの発動中。強い緑の光が放射し、中央に回復十字マーク。
+    /// C ボス自己回復スキルの発動中。小さな緑フラッシュと、少し強調される "+" マークのみ。
     private static func renderHealActive(radius: CGFloat, nowMs: Double, progress: Double) -> Output {
-        let pad: CGFloat = 24
-        let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
+        _ = nowMs
+        let drawRadius: CGFloat = min(radius, 90)
+        let pad: CGFloat = 12
+        let size = CGSize(width: drawRadius * 2 + pad * 2, height: drawRadius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
-        let pulse = 0.4 + sin(nowMs / 80.0) * 0.6
         let img = renderer.image { ctx in
             let cg = ctx.cgContext
             let cx = size.width / 2
             let cy = size.height / 2
-            // 強い緑の回復パルス
+            // 緑のフラッシュ (徐々にフェードアウト)
             if let grad = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(),
                                      colors: [
-                                        UIColor(red: 220.0/255, green: 1, blue: 230.0/255, alpha: CGFloat(0.75 * (1 - progress))).cgColor,
-                                        UIColor(red: 120.0/255, green: 235.0/255, blue: 150.0/255, alpha: CGFloat(0.55 * (1 - progress))).cgColor,
-                                        UIColor(red: 10.0/255, green: 100.0/255, blue: 40.0/255, alpha: 0).cgColor
-                                     ] as CFArray, locations: [0, 0.4, 1]) {
-                cg.drawRadialGradient(grad, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: radius, options: [])
+                                        UIColor(red: 210.0/255, green: 1, blue: 220.0/255, alpha: CGFloat(0.45 * (1 - progress))).cgColor,
+                                        UIColor(red: 20.0/255, green: 120.0/255, blue: 60.0/255, alpha: 0).cgColor
+                                     ] as CFArray, locations: [0, 1]) {
+                cg.drawRadialGradient(grad, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: drawRadius, options: [])
             }
-            // リング輪郭 + グロー
-            for (lw, a) in [(14.0, 0.30), (5.0, CGFloat(0.75 + 0.2 * pulse))] {
-                cg.setStrokeColor(red: 200.0/255, green: 1, blue: 210.0/255, alpha: a)
-                cg.setLineWidth(CGFloat(lw))
-                cg.beginPath()
-                cg.addArc(center: CGPoint(x: cx, y: cy), radius: radius, startAngle: 0, endAngle: .pi * 2, clockwise: false)
-                cg.strokePath()
-            }
-            // 外向きに放射する光 (回復の溢れ出る感)
-            for i in 0..<16 {
-                let phase = (nowMs / 320.0 + Double(i) * 0.062).truncatingRemainder(dividingBy: 1.0)
-                let a = CGFloat(i) / 16 * .pi * 2 + CGFloat(nowMs) / 420.0
-                let r1 = radius * CGFloat(phase)
-                let r2 = radius * CGFloat(min(1, phase + 0.18))
-                cg.setStrokeColor(red: 220.0/255, green: 1, blue: 235.0/255, alpha: CGFloat(0.85 * (1 - phase)))
-                cg.setLineWidth(2)
-                cg.beginPath()
-                cg.move(to: CGPoint(x: cx + cos(a) * r1, y: cy + sin(a) * r1))
-                cg.addLine(to: CGPoint(x: cx + cos(a) * r2, y: cy + sin(a) * r2))
-                cg.strokePath()
-            }
-            // 中央の強い白+緑の輝き
-            let r1 = 18 + CGFloat(pulse) * 8
-            cg.setFillColor(red: 1, green: 1, blue: 1, alpha: 0.9)
-            cg.fillEllipse(in: CGRect(x: cx - r1, y: cy - r1, width: r1 * 2, height: r1 * 2))
-            let r2 = 32 + CGFloat(pulse) * 10
-            cg.setFillColor(red: 180.0/255, green: 1, blue: 200.0/255, alpha: 0.75)
-            cg.fillEllipse(in: CGRect(x: cx - r2, y: cy - r2, width: r2 * 2, height: r2 * 2))
-            // 中央の大きめ回復クロス
-            let crossArm = radius * 0.22
-            let crossThick = radius * 0.07
-            cg.setFillColor(red: 1, green: 1, blue: 1, alpha: 0.95)
-            cg.fill(CGRect(x: cx - crossArm, y: cy - crossThick / 2, width: crossArm * 2, height: crossThick))
-            cg.fill(CGRect(x: cx - crossThick / 2, y: cy - crossArm, width: crossThick, height: crossArm * 2))
+            // 控えめな "+" (発動直後だけ少し拡大)
+            let scale = 1 + CGFloat(1 - progress) * 0.4
+            let armLen: CGFloat = 12 * scale
+            let armThick: CGFloat = 3.5 * scale
+            let mx = cx
+            let my = cy - 8
+            cg.setFillColor(red: 220.0/255, green: 1, blue: 230.0/255, alpha: CGFloat(0.8 * (1 - progress * 0.5)))
+            cg.fill(CGRect(x: mx - armLen, y: my - armThick / 2, width: armLen * 2, height: armThick))
+            cg.fill(CGRect(x: mx - armThick / 2, y: my - armLen, width: armThick, height: armLen * 2))
         }
         return Output(image: img, anchorPoint: CGPoint(x: 0.5, y: 0.5), rotation: 0)
     }
