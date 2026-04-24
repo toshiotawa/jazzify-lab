@@ -306,9 +306,11 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.ignoresSiblingOrder = true
         view.preferredFramesPerSecond = 60
-        // 描画を別スレッドに逃がし、メインスレッドが詰まっても update() のスケジューリング
-        // (= ゲームロジック) が途切れにくくする。
-        view.isAsynchronous = true
+        // `isAsynchronous = true` のとき `SKScene.update` が描画スレッドで走り得る。
+        // `SurvivalGameController` は @MainActor で @Published を更新するため、
+        // そのスレッドから tick → SwiftUI 観測が走ると間欠的にクラッシュする（ボス戦開始直後など）。
+        // メインスレッドで update を駆動するデフォルトに戻す。
+        view.isAsynchronous = false
         // presentScene 前に必ず isPaused=false を明示。
         // SwiftUI で表示直前に window が一時非アクティブだった場合、SKView のデフォルト挙動で
         // isPaused=true が残って永遠に update が呼ばれなくなる不具合を防ぐ。
