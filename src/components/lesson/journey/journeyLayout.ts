@@ -34,26 +34,27 @@ export const JOURNEY_CONSTANTS = {
 } as const;
 
 /**
- * ブロック毎のストーリー性カラーテーマ。
+ * ブロック毎のカラーテーマ。
  * blockIndex % BLOCK_THEMES.length で割り当てられる。
- * 「下から上へ」進むため、配列順に深夜→夜明け→朝→昼→夕→星空。
+ * 全ブロックで「星空」の世界観を維持するため、色相は紫〜青の
+ * 夜空系レンジ (225〜295) に統一し、微妙な識別性のみ残す。
  */
 export interface BlockTheme {
   /** 主色相 (HSL) */
   hue: number;
   /** 二次色相 (グラデの上端用) */
   hueAlt: number;
-  /** ラベル/識別子 */
+  /** ラベル/識別子 (歴史的理由で昼夜サイクル名を保持している) */
   label: 'midnight' | 'dawn' | 'morning' | 'noon' | 'dusk' | 'starlight';
 }
 
 export const BLOCK_THEMES: BlockTheme[] = [
-  { hue: 262, hueAlt: 280, label: 'midnight' },
-  { hue: 325, hueAlt: 345, label: 'dawn' },
-  { hue: 200, hueAlt: 215, label: 'morning' },
-  { hue: 45, hueAlt: 30, label: 'noon' },
-  { hue: 18, hueAlt: 5, label: 'dusk' },
-  { hue: 250, hueAlt: 230, label: 'starlight' },
+  { hue: 262, hueAlt: 282, label: 'midnight' },
+  { hue: 248, hueAlt: 268, label: 'dawn' },
+  { hue: 232, hueAlt: 252, label: 'morning' },
+  { hue: 278, hueAlt: 258, label: 'noon' },
+  { hue: 292, hueAlt: 272, label: 'dusk' },
+  { hue: 225, hueAlt: 245, label: 'starlight' },
 ];
 
 export const getBlockTheme = (blockIndex: number): BlockTheme => {

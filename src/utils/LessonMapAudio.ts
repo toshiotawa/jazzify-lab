@@ -54,11 +54,15 @@ const writeStored = (key: string, value: string): void => {
   }
 };
 
+/** コース切替時などの一時的な unmount/remount に備えた猶予時間(ms) */
+const STOP_GRACE_PERIOD_MS = 600;
+
 class LessonMapAudioImpl {
   private bgmAudio: HTMLAudioElement | null = null;
   private bgmFadeRaf: number | null = null;
   private bgmCurrentUrl = '';
   private bgmRequestedPlaying = false;
+  private pendingStopTimer: ReturnType<typeof setTimeout> | null = null;
 
   private bgmVolume: number = readStoredNumber(LS_BGM_VOLUME, DEFAULT_BGM_VOLUME);
   private muted: boolean = readStoredBool(LS_BGM_MUTE, false);
@@ -98,6 +102,7 @@ class LessonMapAudioImpl {
 
   async playBgm(url: string = DEFAULT_BGM_URL): Promise<void> {
     if (!url) return;
+    this.cancelPendingStop();
     this.bgmRequestedPlaying = true;
     const playUrl = toProxyUrl(url);
 
@@ -109,7 +114,7 @@ class LessonMapAudioImpl {
           /* ignore */
         }
       }
-      this.bgmAudio.volume = this.effectiveBgmVolume();
+      this.fadeTo(this.bgmAudio, this.effectiveBgmVolume(), 300);
       return;
     }
 
@@ -130,19 +135,55 @@ class LessonMapAudioImpl {
 
     try {
       await audio.play();
+      // await 中に別の audio へ置き換わっていた場合は中断する
+      if (this.bgmAudio !== audio) {
+        try { audio.pause(); } catch { /* ignore */ }
+        return;
+      }
       this.fadeTo(audio, this.effectiveBgmVolume(), 600);
     } catch {
       /* autoplay 失敗時は unlock 呼び出しで再試行 */
     }
   }
 
-  async stopBgm(): Promise<void> {
+  /**
+   * BGM を停止する。
+   * unmount/remount のような瞬間的な離脱では `playBgm` が猶予時間内に再呼び出し
+   * された場合に停止をキャンセルするため、コース切替時の再生成でも BGM が
+   * 途切れない。
+   */
+  stopBgm(): void {
+    this.bgmRequestedPlaying = false;
+    if (!this.bgmAudio) return;
+    if (this.pendingStopTimer !== null) return;
+    const target = this.bgmAudio;
+    this.pendingStopTimer = setTimeout(() => {
+      this.pendingStopTimer = null;
+      // 猶予時間内に playBgm が呼ばれた場合はスキップ
+      if (this.bgmRequestedPlaying) return;
+      if (this.bgmAudio !== target) return;
+      this.bgmAudio = null;
+      this.bgmCurrentUrl = '';
+      void this.fadeOutAndDispose(target).catch(() => { /* ignore */ });
+    }, STOP_GRACE_PERIOD_MS);
+  }
+
+  /** 即時に BGM を停止 (レッスン開始時など明確に離脱するケース向け) */
+  async stopBgmImmediately(): Promise<void> {
+    this.cancelPendingStop();
     this.bgmRequestedPlaying = false;
     if (!this.bgmAudio) return;
     const target = this.bgmAudio;
     this.bgmAudio = null;
     this.bgmCurrentUrl = '';
     await this.fadeOutAndDispose(target).catch(() => { /* ignore */ });
+  }
+
+  private cancelPendingStop(): void {
+    if (this.pendingStopTimer !== null) {
+      clearTimeout(this.pendingStopTimer);
+      this.pendingStopTimer = null;
+    }
   }
 
   async unlock(): Promise<void> {
@@ -159,6 +200,8 @@ class LessonMapAudioImpl {
   }
 
   private fadeTo(audio: HTMLAudioElement, target: number, durationMs: number): void {
+    // 既に別の audio に置き換わっていたら新しい fade を始めない
+    if (this.bgmAudio !== audio) return;
     if (this.bgmFadeRaf !== null) {
       try {
         cancelAnimationFrame(this.bgmFadeRaf);
@@ -170,6 +213,11 @@ class LessonMapAudioImpl {
     const from = audio.volume;
     const start = performance.now();
     const step = (now: number): void => {
+      // ステップ中に audio が置き換わった場合は中断
+      if (this.bgmAudio !== audio) {
+        this.bgmFadeRaf = null;
+        return;
+      }
       const t = Math.min(1, (now - start) / durationMs);
       audio.volume = from + (target - from) * t;
       if (t < 1) {

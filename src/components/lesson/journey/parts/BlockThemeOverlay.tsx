@@ -12,8 +12,8 @@ interface BlockThemeOverlayProps {
 
 /**
  * ブロック範囲に色味グラデを薄く重ねるオーバーレイ。
- * 「下から上へ深夜→夜明け→朝→昼→夕→星空」のストーリーを
- * 紫の夜空ベース上に色相変化として表現する。
+ * 星空ベースの統一感を壊さないよう、紫〜青の狭いレンジで
+ * 非常に控えめに重ねる。
  */
 export const BlockThemeOverlay: React.FC<BlockThemeOverlayProps> = ({
   topY,
@@ -35,9 +35,9 @@ export const BlockThemeOverlay: React.FC<BlockThemeOverlayProps> = ({
         top,
         width: widthPx,
         height,
-        opacity: dim ? 0.18 : 1,
+        opacity: dim ? 0.12 : 0.6,
         zIndex: 5,
-        background: `linear-gradient(to top, hsla(${hue}, 60%, 10%, 0.45) 0%, hsla(${hueAlt}, 70%, 24%, 0.28) 55%, hsla(${hue}, 50%, 14%, 0.18) 90%, rgba(0,0,0,0) 100%)`,
+        background: `linear-gradient(to top, hsla(${hue}, 35%, 10%, 0.35) 0%, hsla(${hueAlt}, 40%, 18%, 0.22) 55%, hsla(${hue}, 30%, 12%, 0.14) 90%, rgba(0,0,0,0) 100%)`,
         mixBlendMode: 'screen',
       }}
     />
