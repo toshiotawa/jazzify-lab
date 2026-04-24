@@ -214,8 +214,12 @@ enum SurvivalBossEngine {
         static let ringCdMs: Double = 4500
         static let ringWindupMs: Double = 1000
         static let ringActiveMs: Double = 220
-        static let ringInnerRadius: CGFloat = 140
-        static let ringOuterRadius: CGFloat = 280
+        /// shockRing は「ボスを中心とする円形」攻撃。
+        /// 以前は内側に `innerRadius` 分の死角 (安全地帯) が存在していたが、
+        /// ボスに張り付いてやり過ごせる抜け道になっていたため `0` (= 中心まで判定) に変更。
+        /// `ringOuterRadius` はその分だけ少し控えめに縮小 (280 → 240) してバランスを取る。
+        static let ringInnerRadius: CGFloat = 0
+        static let ringOuterRadius: CGFloat = 240
         static let ringDamage: Int = 100
         static let crossCdMs: Double = 7000
         static let crossWindupMs: Double = 1200
