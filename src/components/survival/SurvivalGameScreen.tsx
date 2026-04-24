@@ -76,10 +76,12 @@ import {
   applyBossPlayerMotion,
   healPlayerByAmount,
   drainPendingDrops,
+  drainBossHealTexts,
 } from './boss/SurvivalBossEngine';
 import {
   BossBattleState,
   BOSS_PLAYER_MAX_HP,
+  BOSS_HITBOX_RADIUS,
   HEALING_AMOUNT,
 } from './boss/SurvivalBossTypes';
 import SurvivalCanvas from './SurvivalCanvas';
@@ -2181,6 +2183,21 @@ const SurvivalGameScreen: React.FC<SurvivalGameScreenProps> = ({
           const pendingDrops = drainPendingDrops(bossState);
           if (pendingDrops.length > 0) {
             newState.items = [...newState.items, ...pendingDrops];
+          }
+
+          // C ボス自己回復の "+N" テキストを damageTexts に変換。
+          // heal スキル発動時に積まれたイベントを drain し、緑色で表示する。
+          const bossHealEvents = drainBossHealTexts(bossState);
+          for (const ev of bossHealEvents) {
+            const healText = createDamageText(
+              ev.x,
+              ev.y - BOSS_HITBOX_RADIUS,
+              ev.amount,
+              false,
+              '#4ade80'
+            );
+            healText.text = `+${ev.amount}`;
+            newState.damageTexts.push(healText);
           }
 
           // アイテム（ハート）のピックアップ（変化なしなら元配列を維持）

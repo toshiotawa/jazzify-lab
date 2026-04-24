@@ -13,6 +13,7 @@ import { PlayerState, MAP_CONFIG, DroppedItem } from '../SurvivalTypes';
 import {
   BossBattleState,
   BossHazard,
+  BossHealEvent,
   BossMinion,
   BossPhase,
   BossProjectile,
@@ -183,6 +184,7 @@ export const createBossBattleState = (
       knockbackUntil: 0,
     },
     pendingDrops: [],
+    pendingBossHealTexts: [],
     result: 'ongoing',
     startedAt: now,
   };
@@ -536,7 +538,18 @@ const triggerActive = (state: BossBattleState, ctx: BossTickContext): void => {
       //     各攻撃スキルは各自の cdMs に従って自然発動するだけにする。
       const p = BOSS_C_PARAMS.heal;
       const healAmount = Math.max(1, Math.floor(boss.maxHp * p.healRatio));
+      const before = boss.hp;
       boss.hp = Math.min(boss.maxHp, boss.hp + healAmount);
+      const actualHealed = boss.hp - before;
+      if (actualHealed > 0) {
+        // 実際に回復した量を `pendingBossHealTexts` に積む。
+        // UI 側で drainBossHealTexts で読み出し、緑色の "+N" テキストを表示する。
+        state.pendingBossHealTexts.push({
+          x: boss.x,
+          y: boss.y,
+          amount: actualHealed,
+        });
+      }
       state.hazards.push({
         id: nextId('hz'),
         kind: 'healActive',
@@ -1082,4 +1095,15 @@ export const drainPendingDrops = (state: BossBattleState): DroppedItem[] => {
   const drops = state.pendingDrops;
   state.pendingDrops = [];
   return drops;
+};
+
+// ===== pending ボス回復テキストイベント取得 =====
+/**
+ * C ボス自己回復スキル発動時に積まれた回復イベントを drain する。
+ * UI 側 (`SurvivalGameScreen`) が毎フレーム呼び出し、緑の "+N" テキストを damageTexts に追加する。
+ */
+export const drainBossHealTexts = (state: BossBattleState): BossHealEvent[] => {
+  const events = state.pendingBossHealTexts;
+  state.pendingBossHealTexts = [];
+  return events;
 };

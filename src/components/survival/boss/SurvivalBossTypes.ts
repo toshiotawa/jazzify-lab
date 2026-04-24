@@ -146,6 +146,13 @@ export interface BossPlayerState {
 // ===== ボス戦結果 =====
 export type BossBattleResult = 'ongoing' | 'win' | 'lose';
 
+// ===== ボス自身の回復イベント (C ボス heal スキル発動時に積まれ、UI 側で damageText に変換) =====
+export interface BossHealEvent {
+  x: number;
+  y: number;
+  amount: number;
+}
+
 // ===== ボス戦全体状態 =====
 export interface BossBattleState {
   active: boolean;
@@ -157,6 +164,8 @@ export interface BossBattleState {
   player: BossPlayerState;
   /** 撃破されたボムが落とすポーション（gameState.items と統合） */
   pendingDrops: DroppedItem[];
+  /** ボス自身の HP 回復イベント。エンジン側で積み、UI 側で drain → damageText 化する。 */
+  pendingBossHealTexts: BossHealEvent[];
   result: BossBattleResult;
   /** ボスが出現した絶対時刻（ログ/統計用） */
   startedAt: number;

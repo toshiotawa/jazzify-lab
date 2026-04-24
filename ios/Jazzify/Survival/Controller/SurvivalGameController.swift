@@ -795,6 +795,23 @@ final class SurvivalGameController: ObservableObject {
             runtime.shockwaves[idx] = wave
         }
 
+        // C ボス自己回復スキルの "+N" テキストを floatingTexts に変換。
+        // heal 発動時に積まれたイベントを drain し、緑色で表示する。
+        if !boss.pendingBossHealEvents.isEmpty {
+            for ev in boss.pendingBossHealEvents {
+                runtime.floatingTexts.append(
+                    SurvivalFloatingText(
+                        text: "+\(ev.amount)",
+                        x: ev.x,
+                        y: ev.y - SurvivalConstants.bossHitboxRadius,
+                        createdAt: now,
+                        color: .heal
+                    )
+                )
+            }
+            boss.pendingBossHealEvents.removeAll()
+        }
+
         bossBattle = boss
 
         // ドロップ ハート × プレイヤーの接触ピックアップ + 期限切れ除去

@@ -127,6 +127,14 @@ struct SurvivalBoss: Sendable {
 
 enum SurvivalBossResult: Sendable { case ongoing, win, lose }
 
+/// C ボス heal スキル発動時に積まれるボス自身の HP 回復イベント。
+/// `SurvivalGameController` が毎フレーム drain し、緑色の "+N" floating text に変換する。
+struct SurvivalBossHealEvent: Sendable {
+    var x: CGFloat
+    var y: CGFloat
+    var amount: Int
+}
+
 struct SurvivalBossBattleState: Sendable {
     var boss: SurvivalBoss
     var minions: [SurvivalBossMinion] = []
@@ -138,6 +146,9 @@ struct SurvivalBossBattleState: Sendable {
     /// 存在する場合、撃破演出中。`defeatAnimationSec` 経過で `result = .win` に遷移する。
     /// iOS 独自の「ボスが消えてからクリア画面」を実現するため。
     var defeatedAt: TimeInterval?
+    /// C ボス自己回復スキル発動時に積まれる HP 回復イベント。
+    /// UI 側 (`SurvivalGameController`) が drain して floating text を生成する。
+    var pendingBossHealEvents: [SurvivalBossHealEvent] = []
 }
 
 // MARK: - Boss Engine
@@ -662,7 +673,16 @@ enum SurvivalBossEngine {
             // 自己回復: 最大 HP の `healRatio` (5%) 分を即時回復。
             // 視覚効果として `healField` ハザードを生成するが、プレイヤーには当たらない。
             let healAmount = max(1, Int(Double(boss.maxHp) * BossCParams.healRatio))
+            let before = state.boss.hp
             state.boss.hp = min(boss.maxHp, boss.hp + healAmount)
+            let actualHealed = state.boss.hp - before
+            if actualHealed > 0 {
+                // 実際に回復した量を pendingBossHealEvents に積む。
+                // コントローラ側で drain し、緑色の "+N" floating text として表示する。
+                state.pendingBossHealEvents.append(
+                    SurvivalBossHealEvent(x: boss.x, y: boss.y, amount: actualHealed)
+                )
+            }
             let active = SurvivalBossHazard(
                 kind: .healField(range: BossCParams.healRange),
                 x: boss.x, y: boss.y,
