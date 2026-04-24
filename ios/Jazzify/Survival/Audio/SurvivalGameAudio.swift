@@ -61,6 +61,10 @@ final class SurvivalGameAudio {
     private var synthBassBufferCache: [Int: AVAudioPCMBuffer] = [:]
     private let synthBassCacheLock = NSLock()
     private var isEngineStarted = false
+    /// `stop()` 中 / 停止後のフラグ。MIDI コールバック (背景スレッド) から
+    /// `pianoNoteOnRealtime` が遅延で飛んできた際に停止済みエンジン操作を
+    /// 完全に遮断するための二重ガード。
+    private var isStopping: Bool = false
 
     private let bgmPlayer = AVQueuePlayer()
     private var bgmLooper: AVPlayerLooper?
@@ -125,6 +129,11 @@ final class SurvivalGameAudio {
 
     /// ゲーム画面の onDisappear で呼ぶ。BGM / エンジンを停止
     func stop() {
+        // 最初に isStopping を立てて以降の新規 noteOn を遮断する。
+        // MIDI コールバック (背景スレッド) がこの直後に `pianoNoteOnRealtime`
+        // を呼んでも `performNoteOn` 側で早期 return する。
+        isStopping = true
+        pianoSampler.setStopping(true)
         stopBgm()
         pianoSampler.stopAll()
         if synthBassPlayer.isPlaying {
@@ -138,12 +147,27 @@ final class SurvivalGameAudio {
         }
     }
 
-    /// ピアノサンプルの事前ロード + エンジン接続。初回のみ実行される。
+    /// ピアノサンプルの事前ロード (非同期) + エンジン接続。初回のみ実行される。
+    /// - Note: MP3 デコードで数百 ms main をブロックしないよう、ロード本体を
+    ///   バックグラウンドへ逃がす。ロードとボイス接続が完了するまで
+    ///   `isPianoReady == false` で noteOn を無音動作させてクラッシュを回避する。
     private func preparePianoIfNeeded() {
-        guard !isPianoPrepared else { return }
-        _ = pianoSampler.loadBundledSamples()
-        pianoSampler.attachToEngine()
+        guard !isPianoPrepared else {
+            // ステージリスタート等で再度呼ばれた場合、stop() で立てた停止フラグを解除する。
+            isStopping = false
+            pianoSampler.setStopping(false)
+            return
+        }
         isPianoPrepared = true
+        isStopping = false
+        pianoSampler.setStopping(false)
+        pianoSampler.loadBundledSamplesAsync { [weak self] _ in
+            // ロード完了後に main で接続 (共有フォーマットの取得に baseBuffers を見るため
+            // 必ず読み込み完了後に呼ぶ)。AVAudioEngine への attach/connect は
+            // `engine.isRunning` の状態を問わず動作するので順序は問題ない。
+            guard let self else { return }
+            self.pianoSampler.attachToEngine()
+        }
     }
 
     /// ステージ難易度から BGM URL を注入 (未指定時はデフォルト URL を維持)
@@ -228,6 +252,7 @@ final class SurvivalGameAudio {
     ///   `false` (デフォルト) は SFX サンプラー (AVAudioUnitSampler / 内蔵音色) で鳴らし、
     ///   効果音音量スライダーに従う。
     func playNote(_ note: Int, velocity: Int = 90, duration: TimeInterval = 0.5, asPiano: Bool = false) {
+        guard !isStopping else { return }
         if asPiano {
             pianoOneShot(midi: note, duration: duration, velocity: velocity)
             return
@@ -246,6 +271,7 @@ final class SurvivalGameAudio {
     /// ピアノ音の発音を開始する (サステイン)。`pianoNoteOff` が呼ばれるまで
     /// サンプルの長さぶん鳴り続ける。Web 版の鍵盤押下時挙動に合わせる。
     func pianoNoteOn(midi: Int, velocity: Int = 100) {
+        guard !isStopping else { return }
         preparePianoIfNeeded()
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
@@ -266,7 +292,7 @@ final class SurvivalGameAudio {
     /// - 実体: `SurvivalPianoSampler.noteOn` は内部で `audioQueue.async` に逃がすため
     ///   この経路自体は呼び出しスレッドをブロックしない。
     func pianoNoteOnRealtime(midi: Int, velocity: Int) {
-        guard isPianoPrepared, isEngineStarted else { return }
+        guard !isStopping, isPianoPrepared, isEngineStarted else { return }
         pianoSampler.noteOn(midi: midi, velocity: velocity)
     }
 
@@ -280,6 +306,7 @@ final class SurvivalGameAudio {
     /// - Note: noteOff の遅延ディスパッチはバックグラウンドキューで行い、
     ///   main を絶対にブロックしない (ゲームループの 60fps を守るため)。
     func pianoOneShot(midi: Int, duration: TimeInterval = 0.45, velocity: Int = 95) {
+        guard !isStopping else { return }
         preparePianoIfNeeded()
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
@@ -296,6 +323,7 @@ final class SurvivalGameAudio {
     /// 一切ブロックせずに低音を即時再生する。
     /// - Parameter midi: ルート音のピッチクラス (0=C) を C2 起点で鳴らす MIDI ノート番号推奨。
     func playSynthBassRoot(midi: Int) {
+        guard !isStopping else { return }
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
         let clamped = max(0, min(127, midi))
@@ -464,6 +492,7 @@ final class SurvivalGameAudio {
     }
 
     private func playChord(_ notes: [Int], velocity: Int, duration: TimeInterval) {
+        guard !isStopping else { return }
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
         let vel = UInt8(max(1, min(127, velocity)))
@@ -481,6 +510,7 @@ final class SurvivalGameAudio {
     }
 
     private func playArpeggio(_ notes: [Int], stepInterval: TimeInterval, velocity: Int, duration: TimeInterval) {
+        guard !isStopping else { return }
         startEngineIfNeeded()
         guard isEngineStarted, engine.isRunning else { return }
         for (idx, note) in notes.enumerated() {

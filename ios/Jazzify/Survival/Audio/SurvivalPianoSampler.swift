@@ -42,6 +42,10 @@ final class SurvivalPianoSampler {
     private var baseBuffers: [Int: AVAudioPCMBuffer] = [:]
     private var baseMidis: [Int] = []
     private var isEngineAttached = false
+    /// `stopAll` や外部 owner が「これ以上発音させない」ことを宣言するフラグ。
+    /// MIDI コールバック (背景スレッド) から `noteOn` が遅延で飛んでくることが
+    /// あるため、`performNoteOn` 側でも必ず参照する。
+    private var isStopping: Bool = false
     /// ノート ON/OFF 操作を main から逃がすための専用シリアルキュー。
     /// `AVAudioPlayerNode.stop()` / `play()` は数 ms ブロックする場合があり、
     /// ゲーム描画スレッド (main) でそのまま実行すると 1 フレームスキップの原因になる。
@@ -61,18 +65,47 @@ final class SurvivalPianoSampler {
 
     // MARK: - Public API
 
-    /// Salamander サンプルをバンドルの `piano/` フォルダからロードする。
-    /// - Parameter folderSubdirectory: Bundle 内のサブディレクトリ名。フォルダリファレンスで
-    ///   `piano` を追加している前提。
-    /// - Returns: 1 つでもサンプルを読み込めたかどうか。
+    /// Salamander サンプルをバンドルの `piano/` フォルダからロードする (同期)。
+    /// - Important: 呼び出しスレッドをブロックする。ステージ開始直後など main から
+    ///   呼ぶとウォッチドッグの対象になりうるため、可能な限り
+    ///   `loadBundledSamplesAsync` を使用すること。
     @discardableResult
     func loadBundledSamples(folderSubdirectory: String = "piano") -> Bool {
-        // C2=36, C3=48, C4=60, C5=72, C6=84, C7=96
+        let loaded = Self.readSamplesOnCurrentThread(folderSubdirectory: folderSubdirectory)
+        audioQueue.sync { self.applyLoadedBuffers(loaded) }
+        return !loaded.isEmpty
+    }
+
+    /// サンプルのロード・デコードをバックグラウンドで行い、完了後に audioQueue で反映する。
+    /// ロード完了前に `noteOn` が呼ばれた場合は `baseBuffers.isEmpty` により無音となる。
+    /// - Note: ステージ開始時の main ブロック (> 数百 ms) を回避するために使用する。
+    func loadBundledSamplesAsync(
+        folderSubdirectory: String = "piano",
+        completion: ((Bool) -> Void)? = nil
+    ) {
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let loaded = Self.readSamplesOnCurrentThread(folderSubdirectory: folderSubdirectory)
+            guard let self else { return }
+            self.audioQueue.async {
+                self.applyLoadedBuffers(loaded)
+                if let completion {
+                    let ok = !loaded.isEmpty
+                    DispatchQueue.main.async { completion(ok) }
+                }
+            }
+        }
+    }
+
+    /// self 非依存の純粋関数として MP3 を読み込む。バックグラウンド呼び出し可。
+    private static func readSamplesOnCurrentThread(
+        folderSubdirectory: String
+    ) -> [(midi: Int, buffer: AVAudioPCMBuffer)] {
         let pairs: [(midi: Int, name: String)] = [
             (36, "C2"), (48, "C3"), (60, "C4"),
             (72, "C5"), (84, "C6"), (96, "C7")
         ]
-        var loaded = 0
+        var out: [(midi: Int, buffer: AVAudioPCMBuffer)] = []
+        out.reserveCapacity(pairs.count)
         for (midi, name) in pairs {
             let url = Bundle.main.url(forResource: name, withExtension: "mp3", subdirectory: folderSubdirectory)
                 ?? Bundle.main.url(forResource: name, withExtension: "mp3")
@@ -85,15 +118,19 @@ final class SurvivalPianoSampler {
                     frameCapacity: AVAudioFrameCount(file.length)
                 ) else { continue }
                 try file.read(into: buffer)
-                baseBuffers[midi] = buffer
-                loaded += 1
+                out.append((midi, buffer))
             } catch {
-                // 1 つ読めなくても他が使えるなら継続
                 continue
             }
         }
+        return out
+    }
+
+    private func applyLoadedBuffers(_ loaded: [(midi: Int, buffer: AVAudioPCMBuffer)]) {
+        for (midi, buffer) in loaded {
+            baseBuffers[midi] = buffer
+        }
         baseMidis = baseBuffers.keys.sorted()
-        return loaded > 0
     }
 
     /// エンジンにボイスを接続する。エンジン `start()` 後でも呼んで OK。
@@ -116,6 +153,13 @@ final class SurvivalPianoSampler {
             engine.connect(voice.mixer, to: output, format: sharedFormat)
             voice.mixer.outputVolume = 1.0
             voices.append(voice)
+        }
+    }
+
+    /// 以降のノート ON を無視するモードにする/解除する (A4 レース対策)。
+    func setStopping(_ stopping: Bool) {
+        audioQueue.async { [weak self] in
+            self?.isStopping = stopping
         }
     }
 
@@ -144,8 +188,10 @@ final class SurvivalPianoSampler {
     }
 
     /// 全ボイスを即時停止する (ステージ終了やエンジン停止前に呼ぶ)。
+    /// 以降 `setStopping(false)` が呼ばれるまで `noteOn` は無視される。
     func stopAll() {
         audioQueue.sync {
+            isStopping = true
             for voice in voices {
                 voice.cancelFade()
                 voice.mixer.outputVolume = 0
@@ -158,6 +204,7 @@ final class SurvivalPianoSampler {
     // MARK: - Actual playback (audioQueue)
 
     private func performNoteOn(midi: Int, velocity: Int) {
+        guard !isStopping else { return }
         guard !baseBuffers.isEmpty else { return }
         guard engine.isRunning else { return }
         let clampedMidi = max(0, min(127, midi))

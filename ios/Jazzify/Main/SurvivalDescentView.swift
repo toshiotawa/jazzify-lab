@@ -210,6 +210,9 @@ struct SurvivalDescentView: View {
         let filter = SurvivalDescentThemeCatalog.filter(for: blockLayout.blockIndex)
         let locked = blockLayout.blockIndex > accessibleBlockIndex
         let cleared = blockAllCleared(meta)
+        // フロンティアブロックかどうか。炎/六芒星/ボスの `repeatForever` は
+        // 同時に 40〜80 個走らせると累積負荷が大きいため、現挑戦中ブロックのみ発火させる。
+        let isFrontierBlock = blockLayout.blockIndex == accessibleBlockIndex
 
         // 階段コネクタ (踊り場間)
         ForEach(Array(stairConnectors(in: blockLayout).enumerated()), id: \.offset) { _, pair in
@@ -253,7 +256,8 @@ struct SurvivalDescentView: View {
             theme: theme,
             lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
             dim: locked,
-            side: .left
+            side: .left,
+            animated: isFrontierBlock
         )
         SurvivalDescentBlockLantern(
             xPx: headerCenterX + lanternOffsetX,
@@ -262,7 +266,8 @@ struct SurvivalDescentView: View {
             theme: theme,
             lit: !locked && (cleared || blockLayout.blockIndex == accessibleBlockIndex),
             dim: locked,
-            side: .right
+            side: .right,
+            animated: isFrontierBlock
         )
 
         // ヘッダープレート
@@ -285,7 +290,8 @@ struct SurvivalDescentView: View {
                 scale: scale,
                 theme: theme,
                 opened: cleared,
-                dim: locked
+                dim: locked,
+                animated: isFrontierBlock
             )
         }
 
@@ -308,7 +314,8 @@ struct SurvivalDescentView: View {
                 scale: scale,
                 bossIndex: blockLayout.blockIndex,
                 opened: !doorLocked,
-                dim: locked
+                dim: locked,
+                animated: isFrontierBlock
             )
         }
 

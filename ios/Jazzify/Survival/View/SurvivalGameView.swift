@@ -288,7 +288,13 @@ private struct SurvivalSceneContainer: UIViewRepresentable {
         let view = SKView(frame: .zero)
         view.ignoresSiblingOrder = true
         view.preferredFramesPerSecond = 60
-        let scene = SurvivalScene(size: UIScreen.main.bounds.size, controller: controller)
+        // iPad の Split View / 回転直後は `UIScreen.main.bounds.size` が 0 だったり
+        // レイアウトと食い違うことがあるため、初期サイズはダミー (1,1) にして
+        // `scaleMode = .resizeFill` で親の bounds に自動追従させる。
+        // `didChangeSize` 側で各種初期化フラグをリセットしているので、
+        // 最初の layout 時に正しい画面サイズで再計算される。
+        let scene = SurvivalScene(size: CGSize(width: 1, height: 1), controller: controller)
+        scene.scaleMode = .resizeFill
         view.presentScene(scene)
         return view
     }

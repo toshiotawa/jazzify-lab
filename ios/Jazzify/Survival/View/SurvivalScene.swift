@@ -43,8 +43,18 @@ final class SurvivalScene: SKScene {
     private var bossHpBarLastRatio: CGFloat = -1
     /// ハザード毎の最終描画 progress (0.0〜1.0)。閾値以上変化したときだけ再描画する。
     private var hazardLastProgress: [UUID: Double] = [:]
-    /// ボス弾毎の最終描画時刻 (ms)。一定間隔未満では再描画しない。
-    private var bossProjectileLastDrawnAt: [UUID: Double] = [:]
+    /// ボス弾テクスチャの共有キャッシュ。進行方向を 8 分割して同方向の弾で
+    /// SKTexture を共有する。全弾で毎フレーム UIImage を生成していた旧実装より
+    /// CoreGraphics/メモリ負荷が ~1/(同時弾数) に減る。
+    private var bossProjectileTextureCache: [Int: SKTexture] = [:]
+    /// 上記キャッシュ方向バケットの最終更新時刻 (ms)。
+    /// この時刻を過ぎたら同バケットを次フレームで 1 度だけ再生成する。
+    private var bossProjectileTextureUpdatedAt: [Int: Double] = [:]
+    /// 各弾の現在割当て済み方向バケット。初期化 / 方向変更時のみテクスチャ適用する。
+    private var bossProjectileBucketById: [UUID: Int] = [:]
+    /// キャッシュ辞書 (hazardLastProgress / bossProjectileBucketById) の次回掃除予定 ms。
+    /// 毎フレームの `Set(…).filter` は無駄が多いので ~500ms 毎にまとめて実行する。
+    private var nextCacheSweepAtMs: Double = 0
 
     /// 衝撃波発動時のカメラ シェイク管理。
     /// 前フレームで加えた offset を記録しておき、次フレームで差し引いてから
@@ -124,29 +134,45 @@ final class SurvivalScene: SKScene {
         playerSprite = sprite
     }
 
+    /// 市松模様の背景を **単一 SKSpriteNode** として 1 枚描く。
+    /// 旧実装は 200px タイル × (width/200 + 1) × (height/200 + 1) = 200+ 枚の `SKShapeNode` を
+    /// 敷き詰めており、カメラが動く度にノード境界の再評価が発生して
+    /// boss 戦 / 通常戦どちらでも CPU 負担の大きな原因となっていた。
+    /// 2 色チェック柄のタイル画像を 1 枚 CoreGraphics で生成し、その `SKTexture` を
+    /// `centerRect` 指定でマップ全面に伸ばすことで描画コストをほぼ 0 にする。
     private func drawBackground() {
         let tileSize: CGFloat = 200
-        let colors: [UIColor] = [
-            UIColor(red: 0.08, green: 0.05, blue: 0.14, alpha: 1),
-            UIColor(red: 0.06, green: 0.04, blue: 0.10, alpha: 1)
-        ]
-        let cols = Int(SurvivalMap.width / tileSize) + 1
-        let rows = Int(SurvivalMap.height / tileSize) + 1
-        for r in 0..<rows {
-            for c in 0..<cols {
-                let rect = SKShapeNode(rect: CGRect(x: 0, y: 0, width: tileSize, height: tileSize))
-                rect.fillColor = colors[(r + c) % 2]
-                rect.strokeColor = .clear
-                rect.position = toScenePoint(
-                    x: CGFloat(c) * tileSize + tileSize / 2,
-                    y: CGFloat(r) * tileSize + tileSize / 2
-                )
-                rect.position.x -= tileSize / 2
-                rect.position.y -= tileSize / 2
-                rect.zPosition = -100
-                backgroundNode.addChild(rect)
-            }
+        let colorA = UIColor(red: 0.08, green: 0.05, blue: 0.14, alpha: 1)
+        let colorB = UIColor(red: 0.06, green: 0.04, blue: 0.10, alpha: 1)
+
+        // 2x2 分の市松タイル画像 (400 × 400) を一度だけ生成。
+        // スプライト側で `textureRect` + `anchorPoint` で引き伸ばして敷き詰める。
+        let checkerSize = CGSize(width: tileSize * 2, height: tileSize * 2)
+        let checkerImage = UIGraphicsImageRenderer(size: checkerSize).image { ctx in
+            let cg = ctx.cgContext
+            cg.setFillColor(colorA.cgColor)
+            cg.fill(CGRect(x: 0, y: 0, width: tileSize, height: tileSize))
+            cg.fill(CGRect(x: tileSize, y: tileSize, width: tileSize, height: tileSize))
+            cg.setFillColor(colorB.cgColor)
+            cg.fill(CGRect(x: tileSize, y: 0, width: tileSize, height: tileSize))
+            cg.fill(CGRect(x: 0, y: tileSize, width: tileSize, height: tileSize))
         }
+        let tileTexture = SKTexture(image: checkerImage)
+        tileTexture.filteringMode = .nearest
+
+        let mapSize = CGSize(width: SurvivalMap.width, height: SurvivalMap.height)
+        // `SKTexture(rect:in:)` でリピート用 UV を直接指定する。
+        // 画面全体 (mapSize) にタイルを敷き詰めるため、UV を
+        // (0,0) → (mapSize.width / tileTextureSize, mapSize.height / tileTextureSize) まで伸ばす。
+        let uRepeat = mapSize.width / checkerSize.width
+        let vRepeat = mapSize.height / checkerSize.height
+        let tiledTexture = SKTexture(rect: CGRect(x: 0, y: 0, width: uRepeat, height: vRepeat), in: tileTexture)
+
+        let node = SKSpriteNode(texture: tiledTexture, size: mapSize)
+        node.anchorPoint = CGPoint(x: 0, y: 0)
+        node.position = toScenePoint(x: 0, y: mapSize.height)
+        node.zPosition = -100
+        backgroundNode.addChild(node)
     }
 
     /// マップ境界を視覚的に分かりやすく描画する。
@@ -205,23 +231,37 @@ final class SurvivalScene: SKScene {
         boundary.addChild(innerFrame)
     }
 
-    /// 背景に ほんの薄い星 (小さな白い点) を散りばめる
+    /// 背景に ほんの薄い星 (小さな白い点) を散りばめる。
+    /// - 60 → 30 個に削減し、半数のみ twinkle アニメを走らせる。
+    /// - SKShapeNode から共有テクスチャ の SKSpriteNode に変更してドローコールを削減。
     private func addParticleStars() {
-        let starCount = 60
-        for _ in 0..<starCount {
-            let star = SKShapeNode(circleOfRadius: CGFloat.random(in: 1...2.2))
-            star.fillColor = UIColor(white: 1.0, alpha: CGFloat.random(in: 0.1...0.3))
-            star.strokeColor = .clear
+        let starCount = 30
+        let dotTextureSize = CGSize(width: 6, height: 6)
+        let dotImage = UIGraphicsImageRenderer(size: dotTextureSize).image { ctx in
+            let cg = ctx.cgContext
+            cg.setFillColor(UIColor.white.cgColor)
+            cg.fillEllipse(in: CGRect(origin: .zero, size: dotTextureSize))
+        }
+        let dotTexture = SKTexture(image: dotImage)
+        dotTexture.filteringMode = .linear
+
+        for i in 0..<starCount {
+            let radius = CGFloat.random(in: 1...2.2)
+            let star = SKSpriteNode(texture: dotTexture)
+            star.size = CGSize(width: radius * 2, height: radius * 2)
+            star.alpha = CGFloat.random(in: 0.1...0.3)
             let x = CGFloat.random(in: 0...SurvivalMap.width)
             let y = CGFloat.random(in: 0...SurvivalMap.height)
             star.position = toScenePoint(x: x, y: y)
             star.zPosition = -90
             backgroundNode.addChild(star)
-            let twinkle = SKAction.sequence([
-                SKAction.fadeAlpha(to: 0.05, duration: Double.random(in: 1.4...2.6)),
-                SKAction.fadeAlpha(to: 0.3, duration: Double.random(in: 1.4...2.6))
-            ])
-            star.run(SKAction.repeatForever(twinkle))
+            if i % 2 == 0 {
+                let twinkle = SKAction.sequence([
+                    SKAction.fadeAlpha(to: 0.05, duration: Double.random(in: 1.4...2.6)),
+                    SKAction.fadeAlpha(to: 0.3, duration: Double.random(in: 1.4...2.6))
+                ])
+                star.run(SKAction.repeatForever(twinkle))
+            }
         }
     }
 
@@ -344,16 +384,16 @@ final class SurvivalScene: SKScene {
 
         // O(n^2) 検索を避けるため、この 1 フレームで参照するエンティティは
         // 事前に id -> 本体 の辞書に展開してから syncNodes に渡す。
-        // コード完成時 (triggerSlot) に大量の弾 / 衝撃波 / フローティングテキストが
-        // 同時に追加されるとメインスレッドの一瞬のブロックに繋がるため。
-        let enemyById = Dictionary(uniqueKeysWithValues: runtime.enemies.map { ($0.id, $0) })
-        let projectileById = Dictionary(uniqueKeysWithValues: runtime.projectiles.map { ($0.id, $0) })
-        let enemyProjectileById = Dictionary(uniqueKeysWithValues: runtime.enemyProjectiles.map { ($0.id, $0) })
-        let shockwaveById = Dictionary(uniqueKeysWithValues: runtime.shockwaves.map { ($0.id, $0) })
-        let magicEffectById = Dictionary(uniqueKeysWithValues: runtime.magicEffects.map { ($0.id, $0) })
-        let droppedItemById = Dictionary(uniqueKeysWithValues: runtime.droppedItems.map { ($0.id, $0) })
-        let coinById = Dictionary(uniqueKeysWithValues: runtime.coins.map { ($0.id, $0) })
-        let floatingTextById = Dictionary(uniqueKeysWithValues: runtime.floatingTexts.map { ($0.id, $0) })
+        // `Dictionary(uniqueKeysWithValues:)` は都度 Array を生成してハッシュを計算するため、
+        // capacity 予約した Dictionary へ直接入れる形に変えてアロケーションを削減する。
+        let enemyById = Self.indexed(runtime.enemies, key: \.id)
+        let projectileById = Self.indexed(runtime.projectiles, key: \.id)
+        let enemyProjectileById = Self.indexed(runtime.enemyProjectiles, key: \.id)
+        let shockwaveById = Self.indexed(runtime.shockwaves, key: \.id)
+        let magicEffectById = Self.indexed(runtime.magicEffects, key: \.id)
+        let droppedItemById = Self.indexed(runtime.droppedItems, key: \.id)
+        let coinById = Self.indexed(runtime.coins, key: \.id)
+        let floatingTextById = Self.indexed(runtime.floatingTexts, key: \.id)
 
         // プレイヤー
         if let playerNode, let sprite = playerSprite {
@@ -686,7 +726,9 @@ final class SurvivalScene: SKScene {
         bossWindupNode = nil
         for (_, node) in bossProjectileNodes { node.removeFromParent() }
         bossProjectileNodes.removeAll()
-        bossProjectileLastDrawnAt.removeAll()
+        bossProjectileBucketById.removeAll()
+        bossProjectileTextureCache.removeAll()
+        bossProjectileTextureUpdatedAt.removeAll()
         for (_, node) in minionNodes { node.removeFromParent() }
         minionNodes.removeAll()
         for (_, node) in hazardNodes { node.removeFromParent() }
@@ -699,10 +741,11 @@ final class SurvivalScene: SKScene {
     private func renderBoss(state: SurvivalBossBattleState) {
         let nowMs = CACurrentMediaTime() * 1000.0
 
-        // O(n^2) 検索を避ける辞書化 (renderState と同じ狙い)
-        let minionById = Dictionary(uniqueKeysWithValues: state.minions.map { ($0.id, $0) })
-        let hazardById = Dictionary(uniqueKeysWithValues: state.hazards.map { ($0.id, $0) })
-        let bossProjectileById = Dictionary(uniqueKeysWithValues: state.projectiles.map { ($0.id, $0) })
+        // O(n^2) 検索を避ける辞書化 (renderState と同じ狙い)。
+        // capacity 予約付きの `Self.indexed` を使ってアロケーションを削減する。
+        let minionById = Self.indexed(state.minions, key: \.id)
+        let hazardById = Self.indexed(state.hazards, key: \.id)
+        let bossProjectileById = Self.indexed(state.projectiles, key: \.id)
 
         // MARK: ボス本体 スプライト
         if bossNode == nil {
@@ -912,17 +955,13 @@ final class SurvivalScene: SKScene {
                 self.hazardLastProgress[id] = progress
             }
         )
-        // 消えたハザードのキャッシュエントリを掃除 (メモリリーク防止)
-        if hazardLastProgress.count > hazardNodes.count {
-            let liveIds = Set(hazardNodes.keys)
-            hazardLastProgress = hazardLastProgress.filter { liveIds.contains($0.key) }
-        }
+        // 消えたハザードのキャッシュエントリを掃除は毎フレームではなく `sweepCachesIfDue()` でまとめて行う。
 
-        // MARK: ボス弾 (毒弾 or 通常弾)
-        //   弾の見た目アニメは 100ms 前後の周期で十分なめらかに見えるため、
-        //   毎フレームのテクスチャ再生成は避け、~80ms おきに更新する。
-        //   位置は毎フレーム更新するので視覚上の遅延は発生しない。
-        let bossProjectileTextureIntervalMs: Double = 80
+        // MARK: ボス弾 (毒弾)
+        //   進行方向を 8 バケットに量子化して SKTexture を共有する。
+        //   同じ方向の弾は同じ SKTexture を参照するため GPU テクスチャも 1 枚で済む。
+        //   バケット毎のテクスチャは ~160ms 周期で「アニメ更新のために」再生成するが、
+        //   画面上に 8 方向以上同時に出ないケースが多く、実質 1〜3 枚のリフレッシュに収束する。
         syncNodes(
             nodeMap: &bossProjectileNodes,
             ids: state.projectiles.map { $0.id },
@@ -937,32 +976,91 @@ final class SurvivalScene: SKScene {
                 guard let proj = bossProjectileById[id],
                       let sprite = node as? SKSpriteNode else { return }
                 sprite.position = self.toScenePoint(x: proj.x, y: proj.y)
-                let last = self.bossProjectileLastDrawnAt[id]
-                if let last, nowMs - last < bossProjectileTextureIntervalMs, sprite.texture != nil {
-                    return
+                let bucket = Self.bossProjectileBucket(dx: proj.vx, dy: proj.vy)
+                let tex = self.bossProjectileTexture(bucket: bucket, nowMs: nowMs)
+                // バケット / 方向が変わったとき、もしくはテクスチャが更新されたときだけ差し替え。
+                // SpriteKit は同 SKTexture の再代入を検知してスキップするが、
+                // 念のためポインタ比較を入れておく (SKTexture は class なので !== で十分)。
+                if sprite.texture !== tex {
+                    sprite.texture = tex
+                    sprite.size = tex.size()
+                    self.bossProjectileBucketById[id] = bucket
                 }
-                // 現仕様では全て毒弾 (spawnsPoolOnLand=true)
-                // レンダラ内は CG y-down 基準で軌跡を描くため、engine の vy をそのまま渡す。
-                // SKTexture 適用時の y-flip が自動で表示方向 (画面 y-up) へ補正してくれる。
-                let img = SurvivalBossEffectRenderer.renderAcidProjectile(
-                    radius: 14,
-                    dx: proj.vx,
-                    dy: proj.vy,
-                    nowMs: nowMs,
-                    idHash: id.hashValue
-                )
-                let tex = SKTexture(image: img)
-                tex.filteringMode = .linear
-                sprite.texture = tex
-                sprite.size = img.size
-                self.bossProjectileLastDrawnAt[id] = nowMs
             }
         )
-        // 消えた弾のキャッシュエントリを掃除 (メモリリーク防止)
-        if bossProjectileLastDrawnAt.count > bossProjectileNodes.count {
-            let liveIds = Set(bossProjectileNodes.keys)
-            bossProjectileLastDrawnAt = bossProjectileLastDrawnAt.filter { liveIds.contains($0.key) }
+        // 消えた弾/ハザードのキャッシュ掃除を 500ms 毎にまとめて実行。
+        sweepCachesIfDue(nowMs: nowMs)
+    }
+
+    /// 毎フレームの Set 構築 + filter は無駄が多いので、一定間隔おきにまとめて掃除する。
+    /// 掃除対象: `hazardLastProgress`, `bossProjectileBucketById`.
+    private func sweepCachesIfDue(nowMs: Double) {
+        guard nowMs >= nextCacheSweepAtMs else { return }
+        nextCacheSweepAtMs = nowMs + 500
+        if hazardLastProgress.count > hazardNodes.count {
+            let liveIds = Set(hazardNodes.keys)
+            hazardLastProgress = hazardLastProgress.filter { liveIds.contains($0.key) }
         }
+        if bossProjectileBucketById.count > bossProjectileNodes.count {
+            let liveIds = Set(bossProjectileNodes.keys)
+            bossProjectileBucketById = bossProjectileBucketById.filter { liveIds.contains($0.key) }
+        }
+    }
+
+    // MARK: - ボス弾テクスチャ共有
+
+    /// 進行ベクトルを 8 方向バケット (0..<8) に量子化する。
+    @inline(__always)
+    private static func bossProjectileBucket(dx: CGFloat, dy: CGFloat) -> Int {
+        let angle = atan2(Double(dy), Double(dx))
+        let normalized = (angle / (2 * .pi)) + 0.5
+        let bucket = Int(floor(normalized * 8)) % 8
+        return bucket < 0 ? bucket + 8 : bucket
+    }
+
+    /// バケット毎の共有テクスチャ。`refreshIntervalMs` ごとに再生成する。
+    private func bossProjectileTexture(bucket: Int, nowMs: Double) -> SKTexture {
+        let refreshIntervalMs: Double = 160
+        if let cached = bossProjectileTextureCache[bucket],
+           let updatedAt = bossProjectileTextureUpdatedAt[bucket],
+           nowMs - updatedAt < refreshIntervalMs {
+            return cached
+        }
+        let bucketAngle = (Double(bucket) / 8.0) * 2 * .pi - .pi
+        let bdx = CGFloat(cos(bucketAngle))
+        let bdy = CGFloat(sin(bucketAngle))
+        let img = SurvivalBossEffectRenderer.renderAcidProjectile(
+            radius: 14,
+            dx: bdx,
+            dy: bdy,
+            nowMs: nowMs,
+            idHash: bucket
+        )
+        let tex = SKTexture(image: img)
+        tex.filteringMode = .linear
+        bossProjectileTextureCache[bucket] = tex
+        bossProjectileTextureUpdatedAt[bucket] = nowMs
+        return tex
+    }
+
+    // MARK: - Indexing helper
+
+    /// `Dictionary(uniqueKeysWithValues:)` 相当だが、中間配列を作らず
+    /// capacity 予約した辞書へ直接挿入するため、毎フレーム 8+ 回呼ばれても
+    /// アロケーションコストを抑えられる。
+    /// - Note: `Value.id` が重複した場合は **後勝ち** になる (ランタイム側が
+    ///   UUID を生成しているので通常は重複しない)。
+    @inline(__always)
+    private static func indexed<Value, Key: Hashable>(
+        _ values: [Value],
+        key keyPath: KeyPath<Value, Key>
+    ) -> [Key: Value] {
+        var dict: [Key: Value] = [:]
+        dict.reserveCapacity(values.count)
+        for value in values {
+            dict[value[keyPath: keyPath]] = value
+        }
+        return dict
     }
 
     // MARK: - Node synchronization helper

@@ -63,11 +63,9 @@ struct SurvivalDescentBackgroundView: View {
     @ViewBuilder
     private func brickTile(filter: SurvivalDescentBlockFilter) -> some View {
         let tile = max(160, 256 * scale)
-        TiledImage(
+        TiledPatternImage(
             imageName: "background",
-            tileSize: tile,
-            widthPx: widthPx,
-            heightPx: max(0, heightPx)
+            tileSize: tile
         )
         .hueRotation(.degrees(filter.backgroundHueDeg))
         .saturation(filter.backgroundSaturation)
@@ -87,31 +85,55 @@ struct SurvivalDescentBackgroundView: View {
     }
 }
 
-/// 画像を (widthPx × heightPx) の領域にタイル敷きする View。
-private struct TiledImage: View {
+/// UIKit の `UIColor(patternImage:)` を使ってネイティブにタイル描画する View。
+/// SwiftUI の `ForEach + Image` で 500+ の UIImageView を並べていた旧 `TiledImage` を置き換える。
+/// CALayer 1 枚の `backgroundColor = patternColor` で済むため、
+/// タイル数が増えてもスクロール時のコミット負荷が一定になる。
+private struct TiledPatternImage: UIViewRepresentable {
     let imageName: String
     let tileSize: CGFloat
-    let widthPx: CGFloat
-    let heightPx: CGFloat
 
-    var body: some View {
-        let cols = max(1, Int((widthPx / tileSize).rounded(.up)))
-        let rows = max(1, Int((heightPx / tileSize).rounded(.up)))
-        VStack(spacing: 0) {
-            ForEach(0..<rows, id: \.self) { _ in
-                HStack(spacing: 0) {
-                    ForEach(0..<cols, id: \.self) { _ in
-                        Image(imageName)
-                            .resizable()
-                            .interpolation(.medium)
-                            .frame(width: tileSize, height: tileSize)
-                    }
-                }
-            }
+    func makeUIView(context: Context) -> TiledPatternView {
+        let view = TiledPatternView()
+        view.isUserInteractionEnabled = false
+        view.apply(imageName: imageName, tileSize: tileSize)
+        return view
+    }
+
+    func updateUIView(_ uiView: TiledPatternView, context: Context) {
+        uiView.apply(imageName: imageName, tileSize: tileSize)
+    }
+}
+
+/// タイルパターン UIImage をキャッシュして `layer.backgroundColor` に流し込む軽量 UIView。
+final class TiledPatternView: UIView {
+    private static var patternCache: [String: UIImage] = [:]
+    private var appliedKey: String = ""
+
+    func apply(imageName: String, tileSize: CGFloat) {
+        let px = max(32, Int(tileSize.rounded()))
+        let key = "\(imageName)@\(px)"
+        guard appliedKey != key else { return }
+        appliedKey = key
+        let image = Self.patternCache[key] ?? Self.makePattern(imageName: imageName, sizePx: CGFloat(px))
+        Self.patternCache[key] = image
+        if let image {
+            layer.contents = nil
+            backgroundColor = UIColor(patternImage: image)
+        } else {
+            backgroundColor = UIColor.black
         }
-        .frame(width: widthPx, height: heightPx, alignment: .topLeading)
-        .clipped()
-        .allowsHitTesting(false)
+    }
+
+    private static func makePattern(imageName: String, sizePx: CGFloat) -> UIImage? {
+        guard let src = UIImage(named: imageName) else { return nil }
+        let size = CGSize(width: sizePx, height: sizePx)
+        let format = UIGraphicsImageRendererFormat()
+        format.opaque = true
+        format.scale = 1
+        return UIGraphicsImageRenderer(size: size, format: format).image { _ in
+            src.draw(in: CGRect(origin: .zero, size: size))
+        }
     }
 }
 
@@ -213,6 +235,9 @@ struct SurvivalDescentBlockLantern: View {
     let dim: Bool
     /// left/right でアニメーション位相をずらす
     var side: Side = .left
+    /// フロンティア (現在挑戦中) ブロックかどうか。`true` のときだけ炎/グローのアニメーションを起動し、
+    /// それ以外のブロックでは静止画にすることで `repeatForever` の累積を防ぐ。
+    var animated: Bool = true
 
     enum Side { case left, right }
 
@@ -223,7 +248,7 @@ struct SurvivalDescentBlockLantern: View {
         let bodyWidth = max(10, 14 * scale)
         let bodyHeight = max(18, 22 * scale)
         let flameHeight = max(14, 18 * scale)
-        let animating = lit && !dim
+        let animating = lit && !dim && animated
         let delay: Double = side == .left ? 0 : 0.7
 
         ZStack(alignment: .center) {
@@ -420,6 +445,8 @@ struct SurvivalDescentBlockSeal: View {
     let theme: SurvivalDescentBlockTheme
     let opened: Bool
     let dim: Bool
+    /// フロンティアブロックのみ true。回転/グローの連続アニメを間引く。
+    var animated: Bool = true
 
     @State private var rotation: Double = 0
     @State private var glowPulse: Bool = false
@@ -468,7 +495,7 @@ struct SurvivalDescentBlockSeal: View {
         .position(x: xPx, y: yPx)
         .allowsHitTesting(false)
         .onAppear {
-            guard opened, !dim else { return }
+            guard opened, !dim, animated else { return }
             withAnimation(.linear(duration: 12).repeatForever(autoreverses: false)) {
                 rotation = 360
             }
@@ -765,6 +792,8 @@ struct SurvivalDescentBossFigure: View {
     let opened: Bool
     /// ブロック未解放なら極薄
     let dim: Bool
+    /// フロンティアブロックのみ true。bob / pulse の連続アニメを起動する。
+    var animated: Bool = true
 
     @State private var bob: Bool = false
     @State private var pulse: Bool = false
@@ -814,7 +843,7 @@ struct SurvivalDescentBossFigure: View {
         .position(x: xPx, y: yPx - size * 0.5)
         .allowsHitTesting(false)
         .onAppear {
-            guard !dim else { return }
+            guard !dim, animated else { return }
             withAnimation(.easeInOut(duration: 2.6).repeatForever(autoreverses: true)) {
                 bob = true
             }

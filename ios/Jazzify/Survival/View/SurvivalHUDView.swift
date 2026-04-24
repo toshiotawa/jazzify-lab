@@ -2,6 +2,12 @@ import SwiftUI
 
 /// 画面上部 HUD: 残り時間・撃破数・プレイヤー HP バー・終了ボタン・ボス HP バー (ボス戦のみ)
 /// WEB 版 `SurvivalGameOverlay` 準拠 (HP を緑/黄/赤で色分け、状態アイコンを横並び、ヒントバッジ)
+///
+/// パフォーマンス最適化:
+/// 親ビューで `controller.objectWillChange` が 60Hz で発火しても、
+/// 各サブビューは `Equatable` な値型のみ受け取り `.equatable()` 経由で差分比較されるため
+/// 実際の再描画は値が変わったときだけになる。`HP 120/120` や `03:42` 表示は
+/// 秒単位でしか変わらないため、SwiftUI ツリーの diff コストを大幅に削減できる。
 struct SurvivalHUDView: View {
     @ObservedObject var controller: SurvivalGameController
     let stage: SurvivalStageDefinition
@@ -16,16 +22,53 @@ struct SurvivalHUDView: View {
         return CGFloat(boss.boss.hp) / CGFloat(max(1, boss.boss.maxHp))
     }
 
+    private var timeLabel: String {
+        if controller.bossBattle != nil {
+            return locale == .ja ? "ボス戦" : "Boss"
+        }
+        let remaining = max(0, controller.runtime.remainingSeconds)
+        let totalSec = Int(remaining.rounded())
+        return String(format: "%02d:%02d", totalSec / 60, totalSec % 60)
+    }
+
     var body: some View {
         VStack(spacing: 6) {
-            topRow
+            SurvivalHUDTopRow(
+                stageName: stage.localizedName(locale),
+                timeLabel: timeLabel,
+                enemiesDefeated: controller.runtime.enemiesDefeated,
+                enemyQuota: SurvivalConstants.stageEnemyQuota,
+                isBossBattle: controller.bossBattle != nil,
+                hintMode: controller.runtime.hintMode,
+                isPaused: controller.isPaused,
+                locale: locale,
+                onTogglePause: { controller.togglePause() }
+            )
+            .equatable()
+
             if !controller.runtime.statusEffects.isEmpty || controller.runtime.hintMode {
-                statusEffectStrip
+                SurvivalHUDStatusStrip(effects: controller.runtime.statusEffects.map {
+                    .init(id: $0.id, icon: $0.kind.systemIcon, level: $0.level)
+                })
+                .equatable()
             }
+
             if let bossRatio = bossHpRatio {
-                bossHpBar(ratio: bossRatio)
+                SurvivalHUDBossHpBar(
+                    ratio: bossRatio,
+                    hp: controller.runtime.player.hp,
+                    maxHp: controller.runtime.player.maxHp,
+                    hpRatio: hpRatio,
+                    locale: locale
+                )
+                .equatable()
             } else {
-                playerHpBar
+                SurvivalHUDPlayerHpBar(
+                    hp: controller.runtime.player.hp,
+                    maxHp: controller.runtime.player.maxHp,
+                    ratio: hpRatio
+                )
+                .equatable()
             }
         }
         .padding(.horizontal, 12)
@@ -39,24 +82,46 @@ struct SurvivalHUDView: View {
             )
         )
     }
+}
 
-    private var topRow: some View {
+// MARK: - サブビュー (Equatable で差分更新)
+
+private struct SurvivalHUDTopRow: View, Equatable {
+    let stageName: String
+    let timeLabel: String
+    let enemiesDefeated: Int
+    let enemyQuota: Int
+    let isBossBattle: Bool
+    let hintMode: Bool
+    let isPaused: Bool
+    let locale: AppLocale
+    /// クロージャは Equatable できないため比較から除外する。
+    let onTogglePause: () -> Void
+
+    static func == (lhs: SurvivalHUDTopRow, rhs: SurvivalHUDTopRow) -> Bool {
+        lhs.stageName == rhs.stageName &&
+            lhs.timeLabel == rhs.timeLabel &&
+            lhs.enemiesDefeated == rhs.enemiesDefeated &&
+            lhs.enemyQuota == rhs.enemyQuota &&
+            lhs.isBossBattle == rhs.isBossBattle &&
+            lhs.hintMode == rhs.hintMode &&
+            lhs.isPaused == rhs.isPaused &&
+            lhs.locale == rhs.locale
+    }
+
+    var body: some View {
         HStack(spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(stage.localizedName(locale))
+                Text(stageName)
                     .font(.caption.bold())
                     .foregroundStyle(.white)
                 HStack(spacing: 10) {
-                    Label(
-                        timeLabel,
-                        systemImage: "clock.fill"
-                    )
-                    .font(.caption2)
-                    .foregroundStyle(.yellow)
-                    // ボス戦中は撃破数ではなくボス HP に集中するため非表示
-                    if controller.bossBattle == nil {
+                    Label(timeLabel, systemImage: "clock.fill")
+                        .font(.caption2)
+                        .foregroundStyle(.yellow)
+                    if !isBossBattle {
                         Label(
-                            "\(controller.runtime.enemiesDefeated) / \(SurvivalConstants.stageEnemyQuota)",
+                            "\(enemiesDefeated) / \(enemyQuota)",
                             systemImage: "bolt.fill"
                         )
                         .font(.caption2)
@@ -65,7 +130,7 @@ struct SurvivalHUDView: View {
                 }
             }
             Spacer()
-            if controller.runtime.hintMode {
+            if hintMode {
                 Text(locale == .ja ? "ヒント ON" : "HINT ON")
                     .font(.caption2.bold())
                     .foregroundStyle(.black)
@@ -74,8 +139,8 @@ struct SurvivalHUDView: View {
                     .background(Color.yellow)
                     .clipShape(Capsule())
             }
-            Button(action: { controller.togglePause() }) {
-                Image(systemName: controller.isPaused ? "play.fill" : "pause.fill")
+            Button(action: onTogglePause) {
+                Image(systemName: isPaused ? "play.fill" : "pause.fill")
                     .font(.system(size: 22))
                     .foregroundStyle(.white)
                     .frame(width: 40, height: 40)
@@ -84,12 +149,21 @@ struct SurvivalHUDView: View {
             }
         }
     }
+}
 
-    private var statusEffectStrip: some View {
+private struct SurvivalHUDStatusStrip: View, Equatable {
+    struct Effect: Equatable, Identifiable {
+        let id: UUID
+        let icon: String
+        let level: Int
+    }
+    let effects: [Effect]
+
+    var body: some View {
         HStack(spacing: 6) {
-            ForEach(controller.runtime.statusEffects) { effect in
+            ForEach(effects) { effect in
                 HStack(spacing: 3) {
-                    Image(systemName: effect.kind.systemIcon)
+                    Image(systemName: effect.icon)
                         .font(.caption2)
                         .foregroundStyle(.white)
                     if effect.level > 1 {
@@ -106,25 +180,42 @@ struct SurvivalHUDView: View {
             Spacer()
         }
     }
+}
 
-    private var timeLabel: String {
-        if controller.bossBattle != nil {
-            return locale == .ja ? "ボス戦" : "Boss"
+private struct SurvivalHUDPlayerHpBar: View, Equatable {
+    let hp: Int
+    let maxHp: Int
+    let ratio: CGFloat
+
+    var body: some View {
+        GeometryReader { geo in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+                Capsule()
+                    .fill(Self.hpColor(for: ratio))
+                    .frame(width: geo.size.width * max(0, min(1, ratio)))
+                HStack {
+                    Text("HP \(hp) / \(maxHp)")
+                        .font(.caption2.bold())
+                        .foregroundStyle(.white)
+                        .padding(.leading, 10)
+                    Spacer()
+                }
+            }
         }
-        let remaining = max(0, controller.runtime.remainingSeconds)
-        let totalSec = Int(remaining.rounded())
-        return String(format: "%02d:%02d", totalSec / 60, totalSec % 60)
+        .frame(height: 18)
     }
 
-    private var hpColor: LinearGradient {
-        if hpRatio < 0.25 {
+    static func hpColor(for ratio: CGFloat) -> LinearGradient {
+        if ratio < 0.25 {
             return LinearGradient(
                 colors: [Color.red, Color(red: 0.9, green: 0.25, blue: 0.25)],
                 startPoint: .leading,
                 endPoint: .trailing
             )
         }
-        if hpRatio < 0.5 {
+        if ratio < 0.5 {
             return LinearGradient(
                 colors: [Color.yellow, Color.orange],
                 startPoint: .leading,
@@ -137,28 +228,16 @@ struct SurvivalHUDView: View {
             endPoint: .trailing
         )
     }
+}
 
-    private var playerHpBar: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.white.opacity(0.2))
-                Capsule()
-                    .fill(hpColor)
-                    .frame(width: geo.size.width * max(0, min(1, hpRatio)))
-                HStack {
-                    Text("HP \(controller.runtime.player.hp) / \(controller.runtime.player.maxHp)")
-                        .font(.caption2.bold())
-                        .foregroundStyle(.white)
-                        .padding(.leading, 10)
-                    Spacer()
-                }
-            }
-        }
-        .frame(height: 18)
-    }
+private struct SurvivalHUDBossHpBar: View, Equatable {
+    let ratio: CGFloat
+    let hp: Int
+    let maxHp: Int
+    let hpRatio: CGFloat
+    let locale: AppLocale
 
-    private func bossHpBar(ratio: CGFloat) -> some View {
+    var body: some View {
         VStack(alignment: .leading, spacing: 2) {
             Text(locale == .ja ? "BOSS" : "BOSS")
                 .font(.caption2.bold())
@@ -179,7 +258,8 @@ struct SurvivalHUDView: View {
                 }
             }
             .frame(height: 14)
-            playerHpBar
+            SurvivalHUDPlayerHpBar(hp: hp, maxHp: maxHp, ratio: hpRatio)
+                .equatable()
         }
     }
 }

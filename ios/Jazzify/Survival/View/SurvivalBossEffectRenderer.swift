@@ -17,14 +17,31 @@ enum SurvivalBossEffectRenderer {
         let rotation: CGFloat
     }
 
-    /// 高解像度ディスプレイでも輪郭がぼやけないよう scale=2 固定。さらに上げるとメモリが増えるため抑制。
-    private static let imageScale: CGFloat = 2.0
+    /// 高解像度ディスプレイでも輪郭がぼやけないよう固定。
+    /// 2.0 だと crossActive など 1000px 級の境界面を持つ大型ハザードで
+    /// RGBA 2000×2000 (≒ 16MB) の UIImage を生成してしまい、同時に複数出ると
+    /// メモリ圧で OS に強制終了される。1.5 に下げることで面積 1/1.78 に抑制。
+    private static let imageScale: CGFloat = 1.5
+    /// 1 枚のテクスチャ辺長 (論理 px) の上限。
+    /// これ以上の `radius` / `length` は描画前にクランプする (`clampRadius` / `clampLength`)。
+    private static let maxHazardRadius: CGFloat = 320
+    private static let maxHazardLength: CGFloat = 600
 
     private static func makeRenderer(size: CGSize) -> UIGraphicsImageRenderer {
         let format = UIGraphicsImageRendererFormat()
         format.opaque = false
         format.scale = imageScale
         return UIGraphicsImageRenderer(size: size, format: format)
+    }
+
+    /// ハザード半径を描画サイズ上限にクランプする。
+    @inline(__always) private static func clampRadius(_ r: CGFloat) -> CGFloat {
+        min(max(r, 1), maxHazardRadius)
+    }
+
+    /// ハザード長 (直線 / 十字) を描画サイズ上限にクランプする。
+    @inline(__always) private static func clampLength(_ l: CGFloat) -> CGFloat {
+        min(max(l, 1), maxHazardLength)
     }
 
     // MARK: - Hazard 描画ディスパッチ
@@ -74,7 +91,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 扇形 予兆
 
-    private static func renderFanTelegraph(spread: CGFloat, radius: CGFloat, nowMs: Double, rotation: CGFloat) -> Output {
+    private static func renderFanTelegraph(spread: CGFloat, radius rawRadius: CGFloat, nowMs: Double, rotation: CGFloat) -> Output {
+        let radius = clampRadius(rawRadius)
         let pad: CGFloat = 8
         let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -107,7 +125,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 扇形 発動
 
-    private static func renderFanActive(spread: CGFloat, radius: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+    private static func renderFanActive(spread: CGFloat, radius rawRadius: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+        let radius = clampRadius(rawRadius)
         let pad: CGFloat = 24
         let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -169,7 +188,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 直線 (突進) 予兆
 
-    private static func renderChargeTelegraph(length: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+    private static func renderChargeTelegraph(length rawLength: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+        let length = clampLength(rawLength)
         let padX: CGFloat = 24
         let padY: CGFloat = thickness * 1.6 + 12
         let size = CGSize(width: length + padX * 2, height: padY * 2)
@@ -231,7 +251,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 直線 (突進) 発動
 
-    private static func renderChargeActive(length: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+    private static func renderChargeActive(length rawLength: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double, rotation: CGFloat) -> Output {
+        let length = clampLength(rawLength)
         let padX: CGFloat = 32
         let padY: CGFloat = thickness * 2.4 + 16
         let size = CGSize(width: length + padX * 2, height: padY * 2)
@@ -307,7 +328,9 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - リング 予兆
 
-    private static func renderRingTelegraph(innerRadius: CGFloat, outerRadius: CGFloat, nowMs: Double, progress: Double) -> Output {
+    private static func renderRingTelegraph(innerRadius rawInner: CGFloat, outerRadius rawOuter: CGFloat, nowMs: Double, progress: Double) -> Output {
+        let outerRadius = clampRadius(rawOuter)
+        let innerRadius = min(clampRadius(rawInner), outerRadius)
         let pad: CGFloat = 16
         let size = CGSize(width: outerRadius * 2 + pad * 2, height: outerRadius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -371,7 +394,9 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - リング 発動
 
-    private static func renderRingActive(innerRadius: CGFloat, outerRadius: CGFloat, nowMs: Double, progress: Double) -> Output {
+    private static func renderRingActive(innerRadius rawInner: CGFloat, outerRadius rawOuter: CGFloat, nowMs: Double, progress: Double) -> Output {
+        let outerRadius = clampRadius(rawOuter)
+        let innerRadius = min(clampRadius(rawInner), outerRadius)
         let pad: CGFloat = 24
         let size = CGSize(width: outerRadius * 2 + pad * 2, height: outerRadius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -428,7 +453,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 十字 予兆
 
-    private static func renderCrossTelegraph(length: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double) -> Output {
+    private static func renderCrossTelegraph(length rawLength: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double) -> Output {
+        let length = clampLength(rawLength)
         let pad: CGFloat = 16
         let size = CGSize(width: length + pad * 2, height: length + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -471,7 +497,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 十字 発動
 
-    private static func renderCrossActive(length: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double) -> Output {
+    private static func renderCrossActive(length rawLength: CGFloat, thickness: CGFloat, nowMs: Double, progress: Double) -> Output {
+        let length = clampLength(rawLength)
         let pad: CGFloat = 24
         let size = CGSize(width: length + pad * 2, height: length + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -608,7 +635,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 血溜まり
 
-    private static func renderBloodPool(radius: CGFloat, nowMs: Double, progress: Double, idHash: Int) -> Output {
+    private static func renderBloodPool(radius rawRadius: CGFloat, nowMs: Double, progress: Double, idHash: Int) -> Output {
+        let radius = clampRadius(rawRadius)
         let pad: CGFloat = radius * 0.5 + 8
         let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
@@ -702,7 +730,8 @@ enum SurvivalBossEffectRenderer {
 
     // MARK: - 毒沼
 
-    private static func renderAcidPool(radius: CGFloat, nowMs: Double, progress: Double, idHash: Int) -> Output {
+    private static func renderAcidPool(radius rawRadius: CGFloat, nowMs: Double, progress: Double, idHash: Int) -> Output {
+        let radius = clampRadius(rawRadius)
         let pad: CGFloat = radius * 0.5 + 12
         let size = CGSize(width: radius * 2 + pad * 2, height: radius * 2 + pad * 2)
         let renderer = makeRenderer(size: size)
