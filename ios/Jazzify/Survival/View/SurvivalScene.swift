@@ -76,6 +76,17 @@ final class SurvivalScene: SKScene {
         fatalError("init(coder:) has not been implemented")
     }
 
+    /// SKView の autoresize でシーン サイズが確定するタイミングでカメラ スナップを再実行する。
+    /// `SKView(frame: .zero).presentScene(scene)` → SwiftUI のレイアウト完了後に view.frame が変化
+    /// し、`scaleMode = .resizeFill` により scene.size も後から更新される。
+    /// その最初の update() 時に `hasInitializedCameraPosition` が true に確定してしまうと、
+    /// 以後の lerp 追従で「プレイヤーが左下隅にしか見えない」状態が数百 ms 残ってしまう。
+    /// `didChangeSize` で明示的にフラグをリセットすることで、確定後のサイズでスナップし直す。
+    override func didChangeSize(_ oldSize: CGSize) {
+        super.didChangeSize(oldSize)
+        hasInitializedCameraPosition = false
+    }
+
     private func setup() {
         addChild(worldNode)
         worldNode.addChild(backgroundNode)
@@ -234,7 +245,11 @@ final class SurvivalScene: SKScene {
         let target = toScenePoint(x: controller.cameraTargetX, y: controller.cameraTargetY)
 
         // 初回のみプレイヤー位置へ即時スナップ (lerp 追従による画面端からの遅延描画を防ぐ)。
+        // scene サイズ未確定 (SwiftUI layout 完了前) でスナップすると、以後の画面サイズ変化で
+        // 再スナップが効かずプレイヤーが画面外 (= 左隅ポップのように見える) 状態が残る。
+        // サイズ確定前 (100px 未満) は初回スナップを見送り、`didChangeSize` 後のフレームで再実行する。
         if !hasInitializedCameraPosition {
+            guard size.width > 100, size.height > 100 else { return }
             camera.position = target
             cameraPreviousShakeOffset = .zero
             hasInitializedCameraPosition = true

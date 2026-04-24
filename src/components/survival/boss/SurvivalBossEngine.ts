@@ -65,12 +65,13 @@ export const BOSS_B_PARAMS = {
 
 // C ボスの攻撃スキル間隔を A ボス (sweep 4500ms / charge 7000ms) 相当に短縮。
 // 従来値 (ring 6500 / cross 8000) では攻撃密度が低く感じられたため。
-// `pull` (吸引) は廃止し、`heal` (自己回復: 最大HPの5%) に置換。
+// `pull` (吸引) は廃止し、`heal` (自己回復: 最大HPの10%) に置換。
+// heal は回避不要なため windupMs: 0 (予兆なし・即時発動)。
 export const BOSS_C_PARAMS = {
   speedFactor: 0.48,
   ring: { cdMs: 4500, windupMs: 1000, activeMs: 220, innerRadius: 140, outerRadius: 280, damage: 100 },
   cross: { cdMs: 7000, windupMs: 1200, activeMs: 250, length: 900, thickness: 46, damage: 140 },
-  heal: { cdMs: 10000, windupMs: 800, activeMs: 260, range: 560, healRatio: 0.05 },
+  heal: { cdMs: 10000, windupMs: 0, activeMs: 260, range: 560, healRatio: 0.10 },
 } as const;
 
 // ===== ユーティリティ =====
@@ -355,16 +356,20 @@ const tryStartSkill = (
         startAt: now,
         durationMs: p.windupMs,
       };
-      state.hazards.push({
-        id: nextId('hz'),
-        kind: 'healTelegraph',
-        x: boss.x,
-        y: boss.y,
-        radius: p.range,
-        startAt: now,
-        endAt: now + p.windupMs,
-        damage: 0,
-      });
+      // heal は回避不要のため windupMs: 0 の場合は予兆ハザードを出さない。
+      // windupMs > 0 時のみ従来通り healTelegraph を表示する。
+      if (p.windupMs > 0) {
+        state.hazards.push({
+          id: nextId('hz'),
+          kind: 'healTelegraph',
+          x: boss.x,
+          y: boss.y,
+          radius: p.range,
+          startAt: now,
+          endAt: now + p.windupMs,
+          damage: 0,
+        });
+      }
       return true;
     }
     default:
@@ -532,7 +537,7 @@ const triggerActive = (state: BossBattleState, ctx: BossTickContext): void => {
       return;
     }
     case 'heal': {
-      // 自己回復スキル: 最大 HP の `healRatio` (5%) 分を即時回復する。
+      // 自己回復スキル: 最大 HP の `healRatio` (10%) 分を即時回復する。
       // プレイヤーには害を与えず、視覚用ハザード (`healActive`) のみ発生。
       // 注: 以前の `pull` にあった「発動後に他スキル CD を前倒しするリフレッシュ」は廃止。
       //     各攻撃スキルは各自の cdMs に従って自然発動するだけにする。

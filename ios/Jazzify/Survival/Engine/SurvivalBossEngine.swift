@@ -223,13 +223,14 @@ enum SurvivalBossEngine {
         static let crossLength: CGFloat = 900
         static let crossThickness: CGFloat = 46
         static let crossDamage: Int = 140
-        /// 自己回復スキル (旧 pull)。最大 HP の `healRatio` を回復する。
-        /// プレイヤーへのダメージ・吸引は一切発生せず、視覚ハザード (`healTelegraph` / `healField`) のみ生成。
+        /// 自己回復スキル (旧 pull)。最大 HP の `healRatio` (10%) を回復する。
+        /// プレイヤーへのダメージ・吸引は一切発生せず、視覚ハザード (`healField`) のみ生成。
+        /// 回避不要なため `healWindupMs = 0` (予兆なし・即時発動)。
         static let healCdMs: Double = 10000
-        static let healWindupMs: Double = 800
+        static let healWindupMs: Double = 0
         static let healActiveMs: Double = 260
         static let healRange: CGFloat = 560
-        static let healRatio: Double = 0.05
+        static let healRatio: Double = 0.10
     }
 
     /// 開幕グレース (ms) - ボスはこの間動かない。
@@ -549,13 +550,16 @@ enum SurvivalBossEngine {
             return true
         case .heal:
             // 自己回復スキル (C ボス 3 つ目)。プレイヤーに害は無く、windup 終了後に HP を回復する。
+            // 回避不要のため windupMs: 0 の場合は予兆ハザードを出さない。
             state.boss.action = .windup(skill: .heal, startAt: now, durationMs: BossCParams.healWindupMs)
-            state.hazards.append(SurvivalBossHazard(
-                kind: .healTelegraph(range: BossCParams.healRange),
-                x: boss.x, y: boss.y,
-                startAt: now,
-                endAt: now + BossCParams.healWindupMs / 1000.0
-            ))
+            if BossCParams.healWindupMs > 0 {
+                state.hazards.append(SurvivalBossHazard(
+                    kind: .healTelegraph(range: BossCParams.healRange),
+                    x: boss.x, y: boss.y,
+                    startAt: now,
+                    endAt: now + BossCParams.healWindupMs / 1000.0
+                ))
+            }
             state.boss.nextSkillAt[.heal] = now + BossCParams.healCdMs / 1000.0
             return true
         case .bloodPool:
@@ -670,7 +674,7 @@ enum SurvivalBossEngine {
             )
             state.hazards.append(active)
         case .heal:
-            // 自己回復: 最大 HP の `healRatio` (5%) 分を即時回復。
+            // 自己回復: 最大 HP の `healRatio` (10%) 分を即時回復。
             // 視覚効果として `healField` ハザードを生成するが、プレイヤーには当たらない。
             let healAmount = max(1, Int(Double(boss.maxHp) * BossCParams.healRatio))
             let before = state.boss.hp
