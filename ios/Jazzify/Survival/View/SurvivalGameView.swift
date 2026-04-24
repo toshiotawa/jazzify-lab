@@ -132,10 +132,15 @@ struct SurvivalGameView: View {
             onExit: { _ in onClose() },
             isDemo: isDemo
         )
+        // `start()` を `self.controller = created` より先に呼ぶ。
+        // 代入で SwiftUI が再レンダリングされ `SurvivalSceneContainer.makeUIView` →
+        // `SKView.presentScene` → 最初の `SKScene.update(_:)` が走り始める。
+        // start() で `lastNow = CACurrentMediaTime()` を presentScene 直前に確定させることで、
+        // 初回フレームの dt 計算基準とボス `startedAt` (= init 時刻) のズレを最小化する。
+        created.start()
         self.controller = created
         self.isLoading = false
 
-        created.start()
         // MIDI コールバックは CoreMIDI スレッド上で直接呼ばれる (MIDIManager 側で
         // `DispatchQueue.main.async` を挟まなくしたため)。ここで:
         //   1. ピアノ音の発音は CoreMIDI スレッドから即時トリガー (main を経由しない)。
@@ -147,6 +152,8 @@ struct SurvivalGameView: View {
         //      余計な Task スケジューリング hop を排除してレイテンシを削減する。
         //   3. velocity (data2) を素通しし、Web 版 MIDI コントローラーと同じく打鍵強度を
         //      ピアノ音量に反映させる (SurvivalPianoSampler 内で velocity/127 スケール)。
+        // 前画面の closure が残っているケースに備えて必ず nil 化してから差し替える。
+        MIDIManager.shared.onMIDIEvent = nil
         MIDIManager.shared.onMIDIEvent = { [weak created] status, data1, data2 in
             let messageType = status & 0xF0
             let note = Int(data1)
@@ -284,22 +291,93 @@ private struct SurvivalGameContent: View {
 private struct SurvivalSceneContainer: UIViewRepresentable {
     let controller: SurvivalGameController
 
+    func makeCoordinator() -> Coordinator {
+        Coordinator()
+    }
+
     func makeUIView(context: Context) -> SKView {
-        let view = SKView(frame: .zero)
+        // `SKView(frame: .zero)` で生成した直後に SwiftUI レイアウトや fullScreenCover の
+        // プレゼンテーション アニメーションが絡むと、render loop が起動せず
+        // 描画 (= SKScene.update) が呼ばれ始めるまで不安定 (数秒〜永久) に待機するケースがある。
+        // UIScreen のフルサイズで初期化し、autoresizingMask で親のレイアウトに追従させると
+        // 起動直後からフレーム駆動が安定して働く。
+        let initialFrame = UIScreen.main.bounds
+        let view = SKView(frame: initialFrame)
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.ignoresSiblingOrder = true
         view.preferredFramesPerSecond = 60
-        // iPad の Split View / 回転直後は `UIScreen.main.bounds.size` が 0 だったり
-        // レイアウトと食い違うことがあるため、初期サイズはダミー (1,1) にして
-        // `scaleMode = .resizeFill` で親の bounds に自動追従させる。
-        // `didChangeSize` 側で各種初期化フラグをリセットしているので、
-        // 最初の layout 時に正しい画面サイズで再計算される。
-        let scene = SurvivalScene(size: CGSize(width: 1, height: 1), controller: controller)
+        // 描画を別スレッドに逃がし、メインスレッドが詰まっても update() のスケジューリング
+        // (= ゲームロジック) が途切れにくくする。
+        view.isAsynchronous = true
+        // presentScene 前に必ず isPaused=false を明示。
+        // SwiftUI で表示直前に window が一時非アクティブだった場合、SKView のデフォルト挙動で
+        // isPaused=true が残って永遠に update が呼ばれなくなる不具合を防ぐ。
+        view.isPaused = false
+
+        let sceneSize = initialFrame.size.width > 0 && initialFrame.size.height > 0
+            ? initialFrame.size
+            : CGSize(width: 1, height: 1)
+        let scene = SurvivalScene(size: sceneSize, controller: controller)
         scene.scaleMode = .resizeFill
+        scene.isPaused = false
         view.presentScene(scene)
+
+        // バックグラウンド復帰時に SKView が isPaused=true のまま固着するケースを救済する。
+        // 起動直後に即 fullScreenCover を開く (= アプリライフサイクルと画面遷移が重なる)
+        // ユーザー操作で顕在化しやすい「一歩も動けない / HP が減らない」症状の主要因。
+        context.coordinator.attach(view: view, scene: scene)
         return view
     }
 
     func updateUIView(_ uiView: SKView, context: Context) {
         // SurvivalGameController の状態変化は scene.update で直接参照されるため、ここでは何もしない。
+    }
+
+    static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var view: SKView?
+        private weak var scene: SKScene?
+        private var activeObserver: NSObjectProtocol?
+        private var willResignObserver: NSObjectProtocol?
+
+        func attach(view: SKView, scene: SKScene) {
+            self.view = view
+            self.scene = scene
+            activeObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.resumeIfPausedExternally()
+            }
+            willResignObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.willResignActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                // resign 直後に SpriteKit が isPaused を自動セットすることを許容し、
+                // didBecomeActive 側で確実に再開するだけにとどめる。
+                _ = self
+            }
+        }
+
+        func detach() {
+            if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
+            if let o = willResignObserver { NotificationCenter.default.removeObserver(o) }
+            activeObserver = nil
+            willResignObserver = nil
+            view = nil
+            scene = nil
+        }
+
+        private func resumeIfPausedExternally() {
+            // 復帰直後のフレームで SKView / SKScene が暗黙に isPaused=true のままになる
+            // ケースを救済。明示的に false を書き戻すことで次の vsync で update() が再開する。
+            if let v = view, v.isPaused { v.isPaused = false }
+            if let s = scene, s.isPaused { s.isPaused = false }
+        }
     }
 }

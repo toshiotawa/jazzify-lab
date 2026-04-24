@@ -15,8 +15,12 @@ final class SurvivalGameController: ObservableObject {
     @Published private(set) var runtime: SurvivalStageRuntime
     @Published private(set) var bossBattle: SurvivalBossBattleState?
     @Published private(set) var isBossStage: Bool
-    @Published private(set) var cameraTargetX: CGFloat = SurvivalMap.width / 2
-    @Published private(set) var cameraTargetY: CGFloat = SurvivalMap.height / 2
+    /// SKScene からのみ参照されるカメラ追従先。SwiftUI のビュー更新に使われないため
+    /// `@Published` にはしない。毎フレーム更新される値を `objectWillChange.send()` で
+    /// 流すと、HUD / コードスロット / 鍵盤など 60Hz で body 評価が走りメインスレッドが
+    /// 飽和してしまい、最悪ボス戦で SKScene.update が間引かれる (= ゲームが進まない) 原因となる。
+    private(set) var cameraTargetX: CGFloat = SurvivalMap.width / 2
+    private(set) var cameraTargetY: CGFloat = SurvivalMap.height / 2
     @Published private(set) var isPaused: Bool = false
     @Published private(set) var clearReportInFlight: Bool = false
     @Published private(set) var clearReportError: String?
@@ -44,6 +48,12 @@ final class SurvivalGameController: ObservableObject {
 
     private var activePressedPitchClasses: Set<Int> = []
     private var lastNow: TimeInterval = CACurrentMediaTime()
+    /// 最初の SKScene.update で `lastNow` とボス戦 `startedAt` を SKScene の currentTime に
+    /// 揃え直すためのフラグ。CACurrentMediaTime() と SKScene currentTime は通常ほぼ同一だが、
+    /// init → presentScene → 初回 update の間に UIKit アニメーションが走ると
+    /// 数百 ms のズレが生じ得るため、ここで強制的に整合させてボス戦 openingGrace の
+    /// 誤作動 (= 開幕即ダメージ or 永遠に開幕しない) を防ぐ。
+    private var hasSyncedSceneClock: Bool = false
     private var bgmPhaseEven: Bool = false
     private var hpRegenAccumulator: Double = 0
     private var fireDotAccumulator: Double = 0
@@ -338,6 +348,30 @@ final class SurvivalGameController: ObservableObject {
     // MARK: - 毎フレーム更新 (SKScene から呼ばれる)
 
     func tick(currentTime: TimeInterval) {
+        // 初回 tick では `lastNow` (start() 時刻 = CACurrentMediaTime) と SKScene currentTime の
+        // 時間軸を揃え直し、ボス戦 openingGrace / スローン関連の時刻計算を SKScene 時計に統一する。
+        // これにより init → presentScene → 初回 update の間に遅延が発生しても
+        // 「開幕いきなりボスが動く」「openingGrace が永遠に抜けない」などを防げる。
+        if !hasSyncedSceneClock {
+            hasSyncedSceneClock = true
+            lastNow = currentTime
+            if var boss = bossBattle {
+                boss.startedAt = currentTime
+                bossBattle = boss
+            }
+            // 初回フレームは dt = 0 相当とし、これ以降のフレームから通常進行させる。
+            guard !isPaused else { return }
+            guard runtime.phase == .playing else { return }
+            if isBossStage {
+                tickBoss(deltaTime: 0, now: currentTime)
+            } else {
+                tickNormal(deltaTime: 0, now: currentTime)
+            }
+            cameraTargetX = runtime.player.x
+            cameraTargetY = runtime.player.y
+            return
+        }
+
         let dt = max(0, min(0.05, currentTime - lastNow))
         lastNow = currentTime
         guard !isPaused else { return }
