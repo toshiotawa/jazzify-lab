@@ -201,6 +201,11 @@ const parseDemoLoops = (text: string): number[] =>
 
 const roundSeconds = (value: number): number => Math.round(value * 1000) / 1000;
 
+const getFileIdentity = (file: File): string => `${file.name}:${file.size}:${file.lastModified}`;
+
+const sortAudioFiles = (files: File[]): File[] =>
+  files.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
 const getAudioDurationSec = (file: File): Promise<number> => new Promise(resolve => {
   const objectUrl = URL.createObjectURL(file);
   const audio = new Audio();
@@ -323,7 +328,15 @@ const EarTrainingStageManager: React.FC = () => {
     const selectedFiles = Array.from(files ?? [])
       .filter(file => /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg')
       .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
-    setImportAudioFiles(selectedFiles);
+    setImportAudioFiles(prev => {
+      const fileMap = new Map(prev.map(file => [getFileIdentity(file), file]));
+      selectedFiles.forEach(file => fileMap.set(getFileIdentity(file), file));
+      return sortAudioFiles(Array.from(fileMap.values()));
+    });
+  };
+
+  const removeAudioFileAt = (index: number) => {
+    setImportAudioFiles(prev => prev.filter((_, fileIndex) => fileIndex !== index));
   };
 
   const saveStage = async () => {
@@ -612,17 +625,51 @@ const EarTrainingStageManager: React.FC = () => {
                     {importMusicXmlFile && <span className="mt-1 block text-xs text-gray-400">{importMusicXmlFile.name}</span>}
                   </label>
                   <label className="block text-sm">
-                    <span className="mb-1 block text-gray-300">mp3ファイル（フレーズ分）</span>
+                    <span className="mb-1 block text-gray-300">mp3ファイルを追加（フレーズ分）</span>
                     <input
                       type="file"
                       accept=".mp3,audio/mpeg"
-                      multiple
+                      multiple={true}
                       className="file-input file-input-bordered file-input-sm w-full bg-slate-900"
-                      onChange={event => handleAudioFilesChange(event.target.files)}
+                      onChange={event => {
+                        handleAudioFilesChange(event.target.files);
+                        event.currentTarget.value = '';
+                      }}
                     />
-                    <span className="mt-1 block text-xs text-gray-400">ファイル名順でPhrase 1から割り当てます</span>
+                    <span className="mt-1 block text-xs text-gray-400">
+                      複数選択、または何回かに分けて追加できます。ファイル名順でPhrase 1から割り当てます。
+                    </span>
                   </label>
                 </div>
+
+                {importAudioFiles.length > 0 && (
+                  <div className="mt-4 rounded-lg bg-slate-900 p-3">
+                    <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-gray-200">選択済みmp3: {importAudioFiles.length}個</span>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-xs"
+                        onClick={() => setImportAudioFiles([])}
+                      >
+                        クリア
+                      </button>
+                    </div>
+                    <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">
+                      {importAudioFiles.map((file, index) => (
+                        <div key={getFileIdentity(file)} className="flex items-center justify-between gap-2 rounded bg-slate-800 px-2 py-1 text-xs text-gray-200">
+                          <span className="min-w-0 truncate">Phrase {index + 1}: {file.name}</span>
+                          <button
+                            type="button"
+                            className="btn btn-ghost btn-xs shrink-0"
+                            onClick={() => removeAudioFileAt(index)}
+                          >
+                            削除
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {importError && (
                   <div className="alert alert-error mt-4 py-2 text-sm">
