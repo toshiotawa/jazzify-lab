@@ -657,7 +657,112 @@ export interface LessonContext {
   lessonId: string;
   lessonSongId: string; // lesson_songs.id（進捗記録用）
   clearConditions: ClearConditions;
-  sourceType: 'song' | 'fantasy';
+  sourceType: 'song' | 'fantasy' | 'ear_training';
+}
+
+export type EarTrainingGameState =
+  | 'idle'
+  | 'countIn'
+  | 'playingPhrase'
+  | 'phraseComplete'
+  | 'phraseFail'
+  | 'transitionToNextPhrase'
+  | 'stageClear'
+  | 'gameOver';
+
+export type EarTrainingRank = 'Perfect' | 'Great' | 'Good' | 'Fail';
+
+export interface EarTrainingPhraseNote {
+  id: string;
+  phrase_id: string;
+  note_index: number;
+  pitch_midi: number;
+  pitch_class: number;
+  note_name: string;
+  octave?: number | null;
+  measure_number?: number | null;
+  beat_offset?: number | null;
+  tied_from_previous?: boolean;
+  created_at?: string;
+}
+
+export interface EarTrainingPhraseChord {
+  id: string;
+  phrase_id: string;
+  order_index: number;
+  chord_name: string;
+  measure_number?: number | null;
+  beat_offset?: number | null;
+  duration_beats?: number | null;
+  start_time_sec?: number | null;
+  end_time_sec?: number | null;
+  created_at?: string;
+}
+
+export interface EarTrainingPhraseDemoLoop {
+  phrase_id: string;
+  loop_number: number;
+  created_at?: string;
+}
+
+export interface EarTrainingPhrase {
+  id: string;
+  stage_id: string;
+  order_index: number;
+  title?: string | null;
+  title_en?: string | null;
+  music_xml_url?: string | null;
+  audio_url: string;
+  loop_duration_sec: number;
+  audio_duration_sec: number;
+  note_count: number;
+  created_at?: string;
+  updated_at?: string;
+  notes?: EarTrainingPhraseNote[];
+  chords?: EarTrainingPhraseChord[];
+  demo_loops?: EarTrainingPhraseDemoLoop[];
+}
+
+export interface EarTrainingStage {
+  id: string;
+  slug: string;
+  title: string;
+  title_en?: string | null;
+  description?: string | null;
+  description_en?: string | null;
+  bpm: number;
+  beats_per_measure: number;
+  beat_type: number;
+  loop_measures: number;
+  max_loops_per_phrase: number;
+  count_in_beats: number;
+  time_limit_sec: number;
+  player_hp: number;
+  enemy_hp: number;
+  per_correct_note_damage: number;
+  good_completion_damage: number;
+  great_completion_damage: number;
+  perfect_completion_damage: number;
+  miss_damage: number;
+  fail_damage: number;
+  perfect_max_misses: number;
+  great_max_misses: number;
+  background_theme: string;
+  is_active: boolean;
+  created_at?: string;
+  updated_at?: string;
+  phrases?: EarTrainingPhrase[];
+}
+
+export interface EarTrainingPhraseAttempt {
+  phraseId: string;
+  currentNoteIndex: number;
+  revealedNotes: string[];
+  missedNoteIndexes: Set<number>;
+  damagedNoteIndexes: Set<number>;
+  startedAtAudioTime: number;
+  completed: boolean;
+  failed: boolean;
 }
 
 export interface LessonSong {
@@ -665,8 +770,10 @@ export interface LessonSong {
   lesson_id: string;
   song_id: string | null;
   fantasy_stage_id: string | null;
+  ear_training_stage_id?: string | null;
   is_fantasy: boolean;
   is_survival?: boolean;
+  is_ear_training?: boolean;
   survival_allowed_chords?: string[];
   survival_stage_number?: number;
   clear_conditions?: ClearConditions;
@@ -676,6 +783,7 @@ export interface LessonSong {
   created_at: string;
   songs?: Pick<Song, 'id' | 'title' | 'artist'>;
   fantasy_stage?: FantasyStage;
+  ear_training_stage?: EarTrainingStage;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
 }

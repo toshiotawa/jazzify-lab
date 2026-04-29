@@ -121,6 +121,7 @@ const LessonDetailPage: React.FC = () => {
       taskFallback: (n: number) => (isEnglishCopy ? `Task ${n}` : `課題 ${n}`),
       tagSurvival: isEnglishCopy ? '[Survival]' : '[サバイバル]',
       tagFantasy: isEnglishCopy ? '[Fantasy]' : '[ファンタジー]',
+      tagEarTraining: isEnglishCopy ? '[Ear Training Battle]' : '[耳コピバトル]',
       progressLabel: isEnglishCopy ? 'Progress' : '進捗',
       dayLabel: (n: number) => (isEnglishCopy ? `Day ${n}` : `${n}日目`),
       todayCleared: isEnglishCopy ? "Today's goal: Cleared" : '本日の課題: クリア済み',
@@ -236,11 +237,14 @@ const LessonDetailPage: React.FC = () => {
           is_survival: ls.is_survival,
           survival_allowed_chords: ls.survival_allowed_chords,
           survival_stage_number: ls.survival_stage_number,
+          is_ear_training: ls.is_ear_training,
+          ear_training_stage: ls.ear_training_stage,
+          ear_training_stage_id: ls.ear_training_stage_id,
           fantasy_stage: ls.fantasy_stage,
           fantasy_stage_id: ls.fantasy_stage_id,
           title: ls.title,
           title_en: ls.title_en,
-        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
+        } as LessonRequirement & { is_fantasy?: boolean; is_survival?: boolean; is_ear_training?: boolean; survival_allowed_chords?: string[]; survival_stage_number?: number; fantasy_stage?: any; fantasy_stage_id?: string; ear_training_stage?: any; ear_training_stage_id?: string; lesson_song_id?: string; title?: string | null; title_en?: string | null }));
         setRequirements(requirementsFromLessonSongs);
       }
       
@@ -637,7 +641,7 @@ const LessonDetailPage: React.FC = () => {
                 <div className="space-y-4">
                   {requirements.map((req: any, index) => {
                     const progress = requirementsProgress.find(p => {
-                      if (req.is_fantasy || req.is_survival) {
+                      if (req.is_fantasy || req.is_survival || req.is_ear_training) {
                         return p.lesson_song_id === req.lesson_song_id;
                       }
                       return p.song_id === req.song_id;
@@ -653,9 +657,10 @@ const LessonDetailPage: React.FC = () => {
                     const requiresDays = req.clear_conditions?.requires_days || false;
                     const isFantasy = req.is_fantasy || false;
                     const isSurvival = req.is_survival || false;
+                    const isEarTraining = req.is_ear_training || false;
                     
                     return (
-                      <div key={`${req.lesson_id}-${req.song_id}`} className={`rounded-lg p-4 relative ${
+                      <div key={`${req.lesson_id}-${req.lesson_song_id ?? req.song_id}`} className={`rounded-lg p-4 relative ${
                         isCompleted ? 'bg-emerald-900/20 border-2 border-emerald-500' : 'bg-slate-700'
                       }`}>
                         {/* 完了マーク */}
@@ -672,9 +677,12 @@ const LessonDetailPage: React.FC = () => {
                               : practiceCopy.taskFallback(index + 1)}
                             {isSurvival && <span className="ml-2 text-xs text-red-400">{practiceCopy.tagSurvival}</span>}
                             {isFantasy && !isSurvival && <span className="ml-2 text-xs text-purple-400">{practiceCopy.tagFantasy}</span>}
+                            {isEarTraining && <span className="ml-2 text-xs text-cyan-300">{practiceCopy.tagEarTraining}</span>}
                           </h4>
                           {isSurvival ? (
                             <FaSkull className="w-4 h-4 text-red-400" />
+                          ) : isEarTraining ? (
+                            <FaMusic className="w-4 h-4 text-cyan-300" />
                           ) : isFantasy ? (
                             <FaDragon className="w-4 h-4 text-purple-400" />
                           ) : (
@@ -716,6 +724,18 @@ const LessonDetailPage: React.FC = () => {
                             </div>
                             <div className="text-gray-400 text-xs mt-1">
                               {req.fantasy_stage.description}
+                            </div>
+                          </div>
+                        )}
+
+                        {/* 耳コピバトル情報 */}
+                        {isEarTraining && req.ear_training_stage && (
+                          <div className="mb-3 text-sm">
+                            <div className="font-medium text-cyan-200">
+                              {req.ear_training_stage.title}
+                            </div>
+                            <div className="text-gray-400 text-xs mt-1">
+                              {req.ear_training_stage.description || '耳コピバトル課題'}
                             </div>
                           </div>
                         )}
@@ -863,7 +883,7 @@ const LessonDetailPage: React.FC = () => {
                         
                         <div className="space-y-2 text-sm">
                           <div className="grid grid-cols-2 gap-2">
-                            {!isFantasy && !isSurvival && (
+                            {!isFantasy && !isSurvival && !isEarTraining && (
                               <>
                                 <div>
                                   <span className="text-gray-400">{practiceCopy.keyLabel}</span>
@@ -897,6 +917,7 @@ const LessonDetailPage: React.FC = () => {
                           
                           {!isFantasy &&
                             !isSurvival &&
+                            !isEarTraining &&
                             (req.clear_conditions?.notation_setting === 'notes_chords' ||
                               req.clear_conditions?.notation_setting === 'chords_only') && (
                               <div className="mt-3">
@@ -923,7 +944,7 @@ const LessonDetailPage: React.FC = () => {
                             isCompleted ? 'btn-success' : 'btn-primary'
                           }`}
                           onClick={() => {
-                            if ((isFantasy || isSurvival) && !isPremiumMember) {
+                            if ((isFantasy || isSurvival || isEarTraining) && !isPremiumMember) {
                               toast.warning(
                                 isEnglishCopy
                                   ? 'This task requires Premium.'
@@ -931,7 +952,7 @@ const LessonDetailPage: React.FC = () => {
                               );
                               return;
                             }
-                            if (!isFantasy && !isSurvival && !isPremiumMember) {
+                            if (!isFantasy && !isSurvival && !isEarTraining && !isPremiumMember) {
                               const tier = courseDifficultyTier ? normalizeCourseDifficultyTier(courseDifficultyTier) : null;
                               if (tier !== 'tutorial') {
                                 toast.warning(
@@ -957,6 +978,13 @@ const LessonDetailPage: React.FC = () => {
                               params.set('clearConditions', JSON.stringify(req.clear_conditions));
                               const url = `#fantasy?${params.toString()}`;
                               window.location.hash = url;
+                            } else if (isEarTraining) {
+                              const params = new URLSearchParams();
+                              params.set('lessonId', req.lesson_id);
+                              params.set('lessonSongId', req.lesson_song_id);
+                              params.set('stageId', req.ear_training_stage?.id || req.ear_training_stage_id || '');
+                              params.set('clearConditions', JSON.stringify(req.clear_conditions));
+                              window.location.hash = `#ear-training-lesson?${params.toString()}`;
                             } else {
                               // 通常の楽曲の場合
                               const params = new URLSearchParams();

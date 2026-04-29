@@ -1,0 +1,302 @@
+import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
+import type {
+  EarTrainingPhrase,
+  EarTrainingPhraseChord,
+  EarTrainingPhraseDemoLoop,
+  EarTrainingPhraseNote,
+  EarTrainingStage,
+} from '@/types';
+
+const EAR_TRAINING_CACHE_PREFIX = 'ear_training';
+const EAR_TRAINING_STAGE_SELECT = `
+  *,
+  phrases:ear_training_phrases (
+    *,
+    notes:ear_training_phrase_notes (*),
+    chords:ear_training_phrase_chords (*),
+    demo_loops:ear_training_phrase_demo_loops (*)
+  )
+`;
+
+type EarTrainingStagePayload = Omit<EarTrainingStage, 'id' | 'created_at' | 'updated_at' | 'phrases'>;
+type EarTrainingStageUpdate = Partial<EarTrainingStagePayload>;
+type EarTrainingPhrasePayload = Omit<EarTrainingPhrase, 'id' | 'created_at' | 'updated_at' | 'notes' | 'chords' | 'demo_loops'>;
+type EarTrainingPhraseUpdate = Partial<Omit<EarTrainingPhrasePayload, 'stage_id'>>;
+type EarTrainingPhraseNotePayload = Omit<EarTrainingPhraseNote, 'id' | 'created_at'>;
+type EarTrainingPhraseChordPayload = Omit<EarTrainingPhraseChord, 'id' | 'created_at'>;
+
+const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
+  ...stage,
+  phrases: (stage.phrases ?? [])
+    .map(phrase => ({
+      ...phrase,
+      notes: (phrase.notes ?? []).slice().sort((a, b) => a.note_index - b.note_index),
+      chords: (phrase.chords ?? []).slice().sort((a, b) => a.order_index - b.order_index),
+      demo_loops: (phrase.demo_loops ?? []).slice().sort((a, b) => a.loop_number - b.loop_number),
+    }))
+    .sort((a, b) => a.order_index - b.order_index),
+});
+
+const invalidateEarTrainingCache = (): void => {
+  clearCacheByPattern(EAR_TRAINING_CACHE_PREFIX);
+};
+
+export const fetchEarTrainingStages = async (
+  { includeInactive = false, forceRefresh = false }: { includeInactive?: boolean; forceRefresh?: boolean } = {},
+): Promise<EarTrainingStage[]> => {
+  const supabase = getSupabaseClient();
+  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stages:${includeInactive ? 'all' : 'active'}`;
+  if (forceRefresh) {
+    clearCacheByPattern(cacheKey);
+  }
+
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => {
+      let query = supabase
+        .from('ear_training_stages')
+        .select(EAR_TRAINING_STAGE_SELECT)
+        .order('slug', { ascending: true });
+
+      if (!includeInactive) {
+        query = query.eq('is_active', true);
+      }
+
+      return await query;
+    },
+    1000 * 60 * 5,
+  );
+
+  if (error) {
+    throw error;
+  }
+
+  return ((data ?? []) as EarTrainingStage[]).map(sortStageRelations);
+};
+
+export const fetchEarTrainingStageById = async (
+  stageId: string,
+  { forceRefresh = false }: { forceRefresh?: boolean } = {},
+): Promise<EarTrainingStage> => {
+  const supabase = getSupabaseClient();
+  const cacheKey = `${EAR_TRAINING_CACHE_PREFIX}:stage:${stageId}`;
+  if (forceRefresh) {
+    clearCacheByPattern(cacheKey);
+  }
+
+  const { data, error } = await fetchWithCache(
+    cacheKey,
+    async () => await supabase
+      .from('ear_training_stages')
+      .select(EAR_TRAINING_STAGE_SELECT)
+      .eq('id', stageId)
+      .single(),
+    1000 * 60 * 5,
+  );
+
+  if (error) {
+    throw error;
+  }
+  if (!data) {
+    throw new Error('耳コピステージが見つかりません');
+  }
+
+  return sortStageRelations(data as EarTrainingStage);
+};
+
+export const createEarTrainingStage = async (payload: EarTrainingStagePayload): Promise<EarTrainingStage> => {
+  const { data, error } = await getSupabaseClient()
+    .from('ear_training_stages')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return data as EarTrainingStage;
+};
+
+export const updateEarTrainingStage = async (
+  stageId: string,
+  updates: EarTrainingStageUpdate,
+): Promise<EarTrainingStage> => {
+  const { data, error } = await getSupabaseClient()
+    .from('ear_training_stages')
+    .update(updates)
+    .eq('id', stageId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return data as EarTrainingStage;
+};
+
+export const deleteEarTrainingStage = async (stageId: string): Promise<void> => {
+  const { error } = await getSupabaseClient()
+    .from('ear_training_stages')
+    .delete()
+    .eq('id', stageId);
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+};
+
+export const createEarTrainingPhrase = async (payload: EarTrainingPhrasePayload): Promise<EarTrainingPhrase> => {
+  const { data, error } = await getSupabaseClient()
+    .from('ear_training_phrases')
+    .insert(payload)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return data as EarTrainingPhrase;
+};
+
+export const updateEarTrainingPhrase = async (
+  phraseId: string,
+  updates: EarTrainingPhraseUpdate,
+): Promise<EarTrainingPhrase> => {
+  const { data, error } = await getSupabaseClient()
+    .from('ear_training_phrases')
+    .update(updates)
+    .eq('id', phraseId)
+    .select()
+    .single();
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return data as EarTrainingPhrase;
+};
+
+export const deleteEarTrainingPhrase = async (phraseId: string): Promise<void> => {
+  const { error } = await getSupabaseClient()
+    .from('ear_training_phrases')
+    .delete()
+    .eq('id', phraseId);
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+};
+
+export const replaceEarTrainingPhraseNotes = async (
+  phraseId: string,
+  notes: Omit<EarTrainingPhraseNotePayload, 'phrase_id'>[],
+): Promise<EarTrainingPhraseNote[]> => {
+  const supabase = getSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from('ear_training_phrase_notes')
+    .delete()
+    .eq('phrase_id', phraseId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (notes.length === 0) {
+    invalidateEarTrainingCache();
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('ear_training_phrase_notes')
+    .insert(notes.map(note => ({ ...note, phrase_id: phraseId })))
+    .select()
+    .order('note_index', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return (data ?? []) as EarTrainingPhraseNote[];
+};
+
+export const replaceEarTrainingPhraseChords = async (
+  phraseId: string,
+  chords: Omit<EarTrainingPhraseChordPayload, 'phrase_id'>[],
+): Promise<EarTrainingPhraseChord[]> => {
+  const supabase = getSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from('ear_training_phrase_chords')
+    .delete()
+    .eq('phrase_id', phraseId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (chords.length === 0) {
+    invalidateEarTrainingCache();
+    return [];
+  }
+
+  const { data, error } = await supabase
+    .from('ear_training_phrase_chords')
+    .insert(chords.map(chord => ({ ...chord, phrase_id: phraseId })))
+    .select()
+    .order('order_index', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return (data ?? []) as EarTrainingPhraseChord[];
+};
+
+export const replaceEarTrainingPhraseDemoLoops = async (
+  phraseId: string,
+  loopNumbers: number[],
+): Promise<EarTrainingPhraseDemoLoop[]> => {
+  const supabase = getSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from('ear_training_phrase_demo_loops')
+    .delete()
+    .eq('phrase_id', phraseId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  if (loopNumbers.length === 0) {
+    invalidateEarTrainingCache();
+    return [];
+  }
+
+  const rows = Array.from(new Set(loopNumbers))
+    .sort((a, b) => a - b)
+    .map(loop_number => ({ phrase_id: phraseId, loop_number }));
+
+  const { data, error } = await supabase
+    .from('ear_training_phrase_demo_loops')
+    .insert(rows)
+    .select()
+    .order('loop_number', { ascending: true });
+
+  if (error) {
+    throw error;
+  }
+
+  invalidateEarTrainingCache();
+  return (data ?? []) as EarTrainingPhraseDemoLoop[];
+};

@@ -28,6 +28,7 @@ const LazyStoryPage = React.lazy(() => import('@/components/fantasy/StoryPage'))
 const LazyDailyChallengeMain = React.lazy(() => import('@/components/dailyChallenge/DailyChallengeMain'));
 const LazySurvivalMain = React.lazy(() => import('@/components/survival/SurvivalMain'));
 const LazyGameScreen = React.lazy(() => import('@/components/game/GameScreen'));
+const LazyEarTrainingMain = React.lazy(() => import('@/components/earTraining/EarTrainingMain'));
 
 /**
  * メインアプリケーションコンポーネント
@@ -123,6 +124,7 @@ const App: React.FC = () => {
         '#daily-challenge',
         '#survival',
         '#survival-lesson',
+        '#ear-training-lesson',
         '#play-lesson',
         '#practice',
         '#performance',
@@ -185,6 +187,8 @@ const App: React.FC = () => {
       switch (hashBase) {
         case 'survival-lesson':
           return <LazySurvivalMain lessonMode />;
+        case 'ear-training-lesson':
+          return <LazyEarTrainingMain />;
         case 'fantasy':
           return <LazyFantasyMain />;
         case 'daily-challenge':
@@ -234,9 +238,10 @@ const App: React.FC = () => {
         );
         break;
       case 'play-lesson':
+      case 'ear-training-lesson':
         IOSContent = (
           <React.Suspense fallback={<LoadingScreen />}>
-            <LazyGameScreen />
+            {effectiveMode === 'ear-training-lesson' ? <LazyEarTrainingMain /> : <LazyGameScreen />}
           </React.Suspense>
         );
         break;
@@ -351,6 +356,7 @@ const App: React.FC = () => {
     case '#admin-fantasy-stages':
     case '#admin-survival':
     case '#admin-lesson-stages':
+    case '#admin-ear-training':
     case '#admin-lessons':
     case '#admin-challenges':
     case '#admin-users':
@@ -358,6 +364,13 @@ const App: React.FC = () => {
     case '#admin-courses':
     case '#admin-dayly-fantasy':
       MainContent = isAdmin ? <AdminDashboard /> : <Dashboard />;
+      break;
+    case '#ear-training-lesson':
+      MainContent = (
+        <React.Suspense fallback={<LoadingScreen />}>
+          <LazyEarTrainingMain />
+        </React.Suspense>
+      );
       break;
     case '#fantasy':
       MainContent = !isPremiumMember ? <Dashboard /> : (

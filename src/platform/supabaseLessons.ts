@@ -19,7 +19,8 @@ async function fetchAllLessonsPages(courseId: string): Promise<Lesson[]> {
         lesson_songs (
           *,
           songs (id, title, artist),
-          fantasy_stage:fantasy_stages (*)
+          fantasy_stage:fantasy_stages (*),
+          ear_training_stage:ear_training_stages (*)
         )
       `)
       .eq('course_id', courseId)
@@ -84,7 +85,9 @@ export async function fetchLessonById(lessonId: string): Promise<Lesson> {
       *,
       lesson_songs (
         *,
-        songs (id, title, artist)
+        songs (id, title, artist),
+        fantasy_stage:fantasy_stages (*),
+        ear_training_stage:ear_training_stages (*)
       )
     `)
     .eq('id', lessonId)
@@ -311,6 +314,12 @@ type SurvivalLessonSongData = {
   clear_conditions?: ClearConditions;
 };
 
+type EarTrainingLessonSongData = {
+  lesson_id: string;
+  ear_training_stage_id: string;
+  clear_conditions?: ClearConditions;
+};
+
 /**
  * レッスンにサバイバルステージを追加します。
  */
@@ -362,6 +371,67 @@ export async function removeSurvivalStageFromLesson(lessonId: string, lessonSong
 
   if (error) {
     console.error(`Error removing survival stage from lesson ${lessonId}:`, error);
+    throw error;
+  }
+}
+
+// --- Ear Training Stages ---
+
+/**
+ * レッスンに耳コピバトルステージを追加します。
+ */
+export async function addEarTrainingStageToLesson(data: EarTrainingLessonSongData): Promise<LessonSong> {
+  const { data: existingItems } = await getSupabaseClient()
+    .from('lesson_songs')
+    .select('order_index')
+    .eq('lesson_id', data.lesson_id)
+    .order('order_index', { ascending: false })
+    .limit(1);
+
+  const nextOrderIndex = existingItems && existingItems.length > 0
+    ? (existingItems[0].order_index || 0) + 1
+    : 0;
+
+  const { data: result, error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .insert({
+      lesson_id: data.lesson_id,
+      song_id: null,
+      fantasy_stage_id: null,
+      is_fantasy: false,
+      is_survival: false,
+      is_ear_training: true,
+      ear_training_stage_id: data.ear_training_stage_id,
+      clear_conditions: data.clear_conditions,
+      order_index: nextOrderIndex,
+    })
+    .select(`
+      *,
+      ear_training_stage:ear_training_stages (*)
+    `)
+    .single();
+
+  if (error) {
+    console.error('Error adding ear training stage to lesson:', error);
+    throw error;
+  }
+
+  return result as LessonSong;
+}
+
+/**
+ * レッスンから耳コピバトルステージを削除します。
+ */
+export async function removeEarTrainingStageFromLesson(lessonId: string, lessonSongId: string): Promise<void> {
+  const { error } = await getSupabaseClient()
+    .from('lesson_songs')
+    .delete()
+    .eq('lesson_id', lessonId)
+    .eq('id', lessonSongId)
+    .eq('is_ear_training', true);
+
+  if (error) {
+    console.error(`Error removing ear training stage from lesson ${lessonId}:`, error);
     throw error;
   }
 }

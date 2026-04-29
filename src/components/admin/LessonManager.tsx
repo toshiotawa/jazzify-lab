@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useForm } from 'react-hook-form';
-import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, type LessonMediaLocaleScope } from '@/types';
+import { Course, Lesson, ClearConditions, FantasyStage, RepeatTranspositionMode, NavLinkKey, EarTrainingStage, type LessonMediaLocaleScope } from '@/types';
 import { Song as SongData } from '@/platform/supabaseSongs';
 import { fetchCoursesSimple } from '@/platform/supabaseCourses';
 import { fetchSongs } from '@/platform/supabaseSongs';
-import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
+import { fetchLessonsByCourse, addLesson, updateLesson, deleteLesson, addSongToLesson, removeSongFromLesson, updateLessonSongConditions, addFantasyStageToLesson, removeFantasyStageFromLesson, addSurvivalStageToLesson, removeSurvivalStageFromLesson, addEarTrainingStageToLesson, removeEarTrainingStageFromLesson, LESSONS_CACHE_KEY } from '@/platform/supabaseLessons';
 import { fetchFantasyStages } from '@/platform/supabaseFantasyStages';
+import { fetchEarTrainingStages } from '@/platform/supabaseEarTraining';
 import { invalidateCacheKey, clearSupabaseCache } from '@/platform/supabaseClient';
 import { useToast } from '@/stores/toastStore';
 import { FaMusic, FaTrash, FaEdit, FaArrowUp, FaArrowDown, FaGripVertical, FaDragon, FaSkull } from 'react-icons/fa';
@@ -39,9 +40,10 @@ type SongFormData = {
 };
 
 type ContentFormData = {
-  content_type: 'song' | 'fantasy' | 'survival';
+  content_type: 'song' | 'fantasy' | 'survival' | 'ear_training';
   song_id?: string;
   fantasy_stage_id?: string;
+  ear_training_stage_id?: string;
   clear_conditions: ClearConditions;
   override_repeat_transposition_mode?: RepeatTranspositionMode | null;
   override_start_key?: number | null;
@@ -61,6 +63,7 @@ export const LessonManager: React.FC = () => {
   const [selectedLesson, setSelectedLesson] = useState<Lesson | null>(null);
   const [availableSongs, setAvailableSongs] = useState<SongData[]>([]);
   const [availableFantasyStages, setAvailableFantasyStages] = useState<FantasyStage[]>([]);
+  const [availableEarTrainingStages, setAvailableEarTrainingStages] = useState<EarTrainingStage[]>([]);
   const [expandedLessons, setExpandedLessons] = useState<Set<string>>(new Set());
   const [currentLessons, setCurrentLessons] = useState<Lesson[]>([]);
   const [lessonsLoading, setLessonsLoading] = useState(false);
@@ -121,14 +124,16 @@ export const LessonManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const [coursesData, songsData, fantasyStagesData] = await Promise.all([
+      const [coursesData, songsData, fantasyStagesData, earTrainingStagesData] = await Promise.all([
         fetchCoursesSimple({ includeHidden: true }),
         fetchSongs('lesson'),
-        fetchFantasyStages()
+        fetchFantasyStages(),
+        fetchEarTrainingStages({ includeInactive: true })
       ]);
       setCourses(coursesData);
       setAvailableSongs(songsData);
       setAvailableFantasyStages(fantasyStagesData);
+      setAvailableEarTrainingStages(earTrainingStagesData);
 
       const sortedPick = sortCoursesByDifficultyThenOrder(coursesData);
       if (!selectedCourseId || !coursesData.some(c => c.id === selectedCourseId)) {
@@ -514,6 +519,12 @@ export const LessonManager: React.FC = () => {
           survival_stage_number: survivalStageNumber,
           clear_conditions: formData.clear_conditions,
         });
+      } else if (formData.content_type === 'ear_training' && formData.ear_training_stage_id) {
+        newLessonSong = await addEarTrainingStageToLesson({
+          lesson_id: selectedLesson.id,
+          ear_training_stage_id: formData.ear_training_stage_id,
+          clear_conditions: formData.clear_conditions,
+        });
       } else {
         throw new Error('コンテンツが選択されていません');
       }
@@ -526,7 +537,7 @@ export const LessonManager: React.FC = () => {
         )
       );
       
-      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。' };
+      const contentTypeMessages = { song: '楽曲を追加しました。', fantasy: 'ファンタジーステージを追加しました。', survival: 'サバイバルステージを追加しました。', ear_training: '耳コピバトルステージを追加しました。' };
       toast.success(contentTypeMessages[formData.content_type]);
       
       invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
@@ -592,15 +603,18 @@ export const LessonManager: React.FC = () => {
     }
   };
   
-  const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string, isSurvival?: boolean) => {
+  const handleRemoveContent = async (lessonId: string, lessonSongId: string, isFantasy: boolean, contentId: string, isSurvival?: boolean, isEarTraining?: boolean) => {
     if (!selectedCourseId) return;
     
-    const confirmMessage = isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
+    const confirmMessage = isEarTraining ? 'この耳コピバトルステージをレッスンから削除しますか？'
+      : isSurvival ? 'このサバイバルステージをレッスンから削除しますか？'
       : isFantasy ? 'このファンタジーステージをレッスンから削除しますか？' : 'この曲をレッスンから削除しますか？';
     
     if (window.confirm(confirmMessage)) {
       try {
-        if (isSurvival) {
+        if (isEarTraining) {
+          await removeEarTrainingStageFromLesson(lessonId, lessonSongId);
+        } else if (isSurvival) {
           await removeSurvivalStageFromLesson(lessonId, lessonSongId);
         } else if (isFantasy) {
           await removeFantasyStageFromLesson(lessonId, contentId);
@@ -616,7 +630,7 @@ export const LessonManager: React.FC = () => {
           )
         );
         
-        toast.success(isFantasy ? 'ファンタジーステージを削除しました。' : '曲を削除しました。');
+        toast.success(isEarTraining ? '耳コピバトルステージを削除しました。' : isFantasy ? 'ファンタジーステージを削除しました。' : '曲を削除しました。');
         
         invalidateCacheKey(LESSONS_CACHE_KEY(selectedCourseId));
         setTimeout(() => loadLessons(true), 500);
@@ -1078,6 +1092,30 @@ export const LessonManager: React.FC = () => {
                         {lesson.lesson_songs && lesson.lesson_songs.length > 0 ? (
                           <div className="space-y-2">
                             {lesson.lesson_songs.map(ls => {
+                              if (ls.is_ear_training) {
+                                const stage = ls.ear_training_stage;
+                                return (
+                                  <div key={ls.id} className="flex items-center justify-between bg-slate-700 p-2 rounded">
+                                    <div>
+                                      <FaMusic className="inline-block mr-2 text-cyan-300" />
+                                      <span className="font-medium">{stage?.title || '不明な耳コピステージ'}</span>
+                                      <span className="text-xs text-cyan-300 ml-2">[耳コピバトル]</span>
+                                      <span className="text-xs text-gray-400 ml-2">
+                                        (ランク: {ls.clear_conditions?.rank || 'B'},
+                                        {ls.clear_conditions?.requires_days
+                                          ? `${ls.clear_conditions?.daily_count || 1}回 × ${ls.clear_conditions?.count || 1}日間`
+                                          : `${ls.clear_conditions?.count || 1}回`})
+                                      </span>
+                                    </div>
+                                    <button
+                                      className="btn btn-ghost btn-xs text-red-500"
+                                      onClick={() => handleRemoveContent(lesson.id, ls.id, false, ls.ear_training_stage_id || ls.id, false, true)}
+                                    >
+                                      <FaTrash />
+                                    </button>
+                                  </div>
+                                );
+                              }
                               if (ls.is_survival) {
                                 const stageDef = ls.survival_stage_number ? ALL_STAGES.find(s => s.stageNumber === ls.survival_stage_number) : null;
                                 return (
@@ -1401,6 +1439,15 @@ export const LessonManager: React.FC = () => {
                   />
                   <span className="ml-2">サバイバル</span>
                 </label>
+                <label className="flex items-center">
+                  <input
+                    type="radio"
+                    {...registerContent('content_type')}
+                    value="ear_training"
+                    className="radio radio-info"
+                  />
+                  <span className="ml-2">耳コピバトル</span>
+                </label>
               </div>
             </div>
             
@@ -1415,6 +1462,30 @@ export const LessonManager: React.FC = () => {
                     </option>
                   ))}
                 </select>
+              </div>
+            ) : watchContent && watchContent('content_type') === 'ear_training' ? (
+              <div className="space-y-3">
+                <label className="label"><span className="label-text">耳コピステージを選択 *</span></label>
+                <select {...registerContent('ear_training_stage_id', { required: true })} className="select select-bordered w-full">
+                  <option value="">-- 耳コピステージを選択してください --</option>
+                  {availableEarTrainingStages.map(stage => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.title} ({stage.slug})
+                    </option>
+                  ))}
+                </select>
+                {watchContent('ear_training_stage_id') && (() => {
+                  const selected = availableEarTrainingStages.find(stage => stage.id === watchContent('ear_training_stage_id'));
+                  if (!selected) return null;
+                  return (
+                    <div className="rounded-lg bg-slate-800 p-3 text-sm">
+                      <div className="font-semibold text-cyan-200">{selected.title}</div>
+                      <div className="mt-1 text-xs text-gray-400">
+                        {selected.bpm} BPM / {selected.phrases?.length || 0}フレーズ / 制限時間 {selected.time_limit_sec}秒
+                      </div>
+                    </div>
+                  );
+                })()}
               </div>
             ) : watchContent && watchContent('content_type') === 'survival' ? (
               <div className="space-y-3">
@@ -1613,7 +1684,7 @@ export const LessonManager: React.FC = () => {
             
             <div className="modal-action">
               <button type="button" className="btn btn-ghost" onClick={closeContentDialog}>キャンセル</button>
-              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalStageNumber === 0)}>
+              <button type="submit" className="btn btn-primary" disabled={isSubmitting || (watchContent('content_type') === 'survival' && survivalStageNumber === 0) || (watchContent('content_type') === 'ear_training' && !watchContent('ear_training_stage_id'))}>
                 {isSubmitting ? '追加中...' : '追加'}
               </button>
             </div>

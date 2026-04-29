@@ -48,7 +48,7 @@ export async function updateLessonRequirementProgress(
   rank: string,
   clearConditions: any,
   options?: {
-    sourceType?: 'song' | 'fantasy';
+    sourceType?: 'song' | 'fantasy' | 'ear_training';
     lessonSongId?: string;
   }
 ): Promise<boolean> {
@@ -56,8 +56,8 @@ export async function updateLessonRequirementProgress(
   const userId = await requireUserId();
 
   // レッスン課題のタイプに応じて、適切なIDを使用
-  // ファンタジーステージの場合は、lessonSongIdを使用（song_idカラムに格納）
-  const progressSongId = options?.sourceType === 'fantasy' && options?.lessonSongId 
+  // lesson_songs.idで管理する課題（ファンタジー/耳コピ）はlessonSongIdを使用
+  const progressSongId = options?.sourceType !== 'song' && options?.lessonSongId
     ? options.lessonSongId 
     : songId;
     
@@ -87,7 +87,7 @@ export async function checkAllRequirementsCompleted(lessonId: string): Promise<b
   // レッスンに必要な実習課題の数を取得（楽曲とファンタジーステージ両方）
   const { data: requirements, error: reqError } = await supabase
     .from('lesson_songs')
-    .select('id, song_id, fantasy_stage_id, is_fantasy')
+    .select('id, song_id, fantasy_stage_id, is_fantasy, is_survival, is_ear_training, ear_training_stage_id')
     .eq('lesson_id', lessonId);
 
   if (reqError || !requirements) return false;
@@ -126,7 +126,8 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
     .select(`
       *,
       songs (id, title, artist),
-      fantasy_stage:fantasy_stages (*)
+      fantasy_stage:fantasy_stages (*),
+      ear_training_stage:ear_training_stages (*)
     `)
     .eq('lesson_id', lessonId);
 
@@ -138,7 +139,7 @@ export async function fetchDetailedRequirementsProgress(lessonId: string): Promi
   const allCompleted = requirements ? 
     requirements.every(req => 
       progress.some(p => {
-        if (req.is_fantasy || req.is_survival) {
+        if (req.is_fantasy || req.is_survival || req.is_ear_training) {
           return p.lesson_song_id === req.id && p.is_completed;
         }
         return p.song_id === req.song_id && p.is_completed;
