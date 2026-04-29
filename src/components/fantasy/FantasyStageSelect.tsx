@@ -731,7 +731,7 @@ const FantasyStageSelect: React.FC<FantasyStageSelectProps> = ({
         <div className="flex justify-between items-center gap-2">
           <div className="min-w-0">
               <h1 className="text-2xl sm:text-3xl font-bold mb-2 flex items-center gap-3">
-                <img src="/default_avater/default-avater.png" alt={fantasyHeaderTitle} className="w-12 h-12 sm:w-16 sm:h-16" />
+                <img src="/default_avatar/default_avatar.svg" alt={fantasyHeaderTitle} className="w-12 h-12 sm:w-16 sm:h-16" />
                 <span className="whitespace-normal break-words">{fantasyHeaderTitle}</span>
             </h1>
             <div className="flex items-center space-x-4 sm:space-x-6 text-base sm:text-lg">

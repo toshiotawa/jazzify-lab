@@ -54,6 +54,20 @@ const sampleMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
   </part>
 </score-partwise>`;
 
+const singleNoteMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
+<score-partwise version="3.1">
+  <part-list><score-part id="P1"><part-name>Piano</part-name></score-part></part-list>
+  <part id="P1">
+    <measure number="1">
+      <attributes>
+        <divisions>1</divisions>
+        <time><beats>4</beats><beat-type>4</beat-type></time>
+      </attributes>
+      <note><pitch><step>C</step><octave>4</octave></pitch><duration>4</duration><voice>1</voice><type>whole</type></note>
+    </measure>
+  </part>
+</score-partwise>`;
+
 describe('earTrainingMusicXmlImport', () => {
   it('指定小節数ごとにMusicXMLのフレーズ範囲を作る', () => {
     const preview = createEarTrainingMusicXmlPreview(sampleMusicXml, 2);
@@ -103,5 +117,31 @@ describe('earTrainingMusicXmlImport', () => {
 
     expect(() => validateEarTrainingImportFileCount(preview, 1)).toThrow('mp3ファイル数は2個必要です');
     expect(() => validateEarTrainingImportFileCount(preview, 2)).not.toThrow();
+  });
+
+  it('和音を含むMusicXMLはMVP制約エラーにする', () => {
+    const chordMusicXml = sampleMusicXml.replace(
+      '<note><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>',
+      '<note><chord/><pitch><step>D</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>',
+    );
+
+    expect(() => createEarTrainingMusicXmlPreview(chordMusicXml, 2)).toThrow('和音を含む');
+  });
+
+  it('アウフタクトや休符開始のMusicXMLはMVP制約エラーにする', () => {
+    const pickupMusicXml = sampleMusicXml.replace(
+      '<note><pitch><step>C</step><octave>4</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>',
+      '<note><rest/><duration>1</duration><voice>1</voice><type>quarter</type></note>',
+    );
+
+    expect(() => createEarTrainingMusicXmlPreview(pickupMusicXml, 2)).toThrow('アウフタクト');
+  });
+
+  it('2音未満のフレーズは生成エラーにする', () => {
+    expect(() => buildEarTrainingPhraseDraftsFromMusicXml(singleNoteMusicXml, {
+      phraseMeasures: 1,
+      bpm: 120,
+      beatsPerMeasure: 4,
+    })).toThrow('ノート数は2以上');
   });
 });

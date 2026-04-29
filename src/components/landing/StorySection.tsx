@@ -44,7 +44,7 @@ export const StorySection: React.FC = () => (
         <div className="character-card rounded-2xl p-8 text-center">
           <div className="w-32 h-32 mx-auto mb-6 rounded-full bg-slate-800 flex items-center justify-center overflow-hidden">
             <img
-              src="/default_avater/default-avater.png"
+              src="/default_avatar/default_avatar.svg"
               alt="不破市太郎 (ファイ)"
               className="w-full h-full object-cover"
               loading="lazy"

@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 interface DescentCharacterProps {
   xPx: number;
@@ -32,7 +33,7 @@ export const DescentCharacter: React.FC<DescentCharacterProps> = ({ xPx, yPx, sc
       }}
     >
       <img
-        src="/default_avater/default-avater.webp"
+        src={DEFAULT_AVATAR_URL}
         alt=""
         draggable={false}
         style={{

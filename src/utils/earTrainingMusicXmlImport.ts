@@ -31,6 +31,12 @@ export interface BuildEarTrainingPhraseDraftsOptions {
   beatsPerMeasure: number;
 }
 
+interface EarTrainingMusicXmlValidationOptions {
+  label?: string;
+  beatsPerMeasure?: number;
+  beatType?: number;
+}
+
 const roundToMillis = (value: number): number => Math.round(value * 1000) / 1000;
 
 const parseXml = (xmlText: string): Document => {
@@ -40,6 +46,125 @@ const parseXml = (xmlText: string): Document => {
     throw new Error('MusicXMLの解析に失敗しました');
   }
   return document;
+};
+
+const getNumberFromText = (element: Element, selector: string, fallback: number): number => {
+  const parsed = Number(element.querySelector(selector)?.textContent ?? '');
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
+
+const isPitchedNote = (note: Element): boolean =>
+  note.querySelector('pitch') !== null && note.querySelector('rest') === null;
+
+const isGraceNote = (note: Element): boolean => note.querySelector('grace') !== null;
+
+const hasTieStop = (note: Element): boolean =>
+  Array.from(note.querySelectorAll('tie, tied'))
+    .some(tie => tie.getAttribute('type') === 'stop');
+
+const getDurationDivisions = (element: Element): number => {
+  const duration = Number(element.querySelector('duration')?.textContent ?? '0');
+  return Number.isFinite(duration) && duration > 0 ? duration : 0;
+};
+
+const validatePhraseStart = (
+  document: Document,
+  label: string,
+  fallbackBeatsPerMeasure: number,
+  fallbackBeatType: number,
+): void => {
+  const firstMeasure = document.querySelector('part:first-of-type > measure');
+  if (!firstMeasure) {
+    throw new Error(`${label} に小節が見つかりません`);
+  }
+
+  const divisions = getNumberFromText(firstMeasure, 'attributes > divisions', 1);
+  const beatsPerMeasure = getNumberFromText(firstMeasure, 'attributes > time > beats', fallbackBeatsPerMeasure);
+  const beatType = getNumberFromText(firstMeasure, 'attributes > time > beat-type', fallbackBeatType);
+  const expectedMeasureDivisions = divisions * beatsPerMeasure * (4 / beatType);
+  let positionDivisions = 0;
+  let firstNotePositionDivisions: number | null = null;
+  let firstPitchedNote: Element | null = null;
+
+  for (const child of Array.from(firstMeasure.children)) {
+    if (child.tagName === 'forward') {
+      positionDivisions += getDurationDivisions(child);
+      continue;
+    }
+    if (child.tagName !== 'note') {
+      continue;
+    }
+    if (isGraceNote(child)) {
+      continue;
+    }
+
+    const noteStartsAt = positionDivisions;
+    const duration = getDurationDivisions(child);
+    if (isPitchedNote(child) && !firstPitchedNote) {
+      firstPitchedNote = child;
+      firstNotePositionDivisions = noteStartsAt;
+    }
+    if (child.querySelector('chord') === null) {
+      positionDivisions += duration;
+    }
+  }
+
+  if (!firstPitchedNote) {
+    throw new Error(`${label} の先頭小節に判定ノートがありません`);
+  }
+  if (firstNotePositionDivisions !== 0) {
+    throw new Error(`${label} はアウフタクトまたは休符開始のため耳コピMVPでは扱えません`);
+  }
+  if (hasTieStop(firstPitchedNote)) {
+    throw new Error(`${label} はループ開始前からタイでつながるため耳コピMVPでは扱えません`);
+  }
+  if (Math.abs(positionDivisions - expectedMeasureDivisions) > 0.001) {
+    throw new Error(`${label} の先頭小節が不完全です。アウフタクトは禁止です`);
+  }
+};
+
+const validateEarTrainingMusicXmlMvpConstraints = (
+  xmlText: string,
+  options: EarTrainingMusicXmlValidationOptions = {},
+): void => {
+  const document = parseXml(xmlText);
+  const label = options.label ?? 'MusicXML';
+  const parts = Array.from(document.querySelectorAll('part'));
+  if (parts.length !== 1) {
+    throw new Error(`${label} は単一パートのMusicXMLのみ対応しています`);
+  }
+  if (document.querySelector('note > chord')) {
+    throw new Error(`${label} は和音を含むため耳コピMVPでは扱えません`);
+  }
+  if (document.querySelector('backup')) {
+    throw new Error(`${label} は複声または複数スタッフを含むため耳コピMVPでは扱えません`);
+  }
+  if (document.querySelector('note > grace')) {
+    throw new Error(`${label} は装飾音符を含むため耳コピMVPでは扱えません`);
+  }
+
+  const voices = new Set<string>();
+  const staves = new Set<string>();
+  Array.from(document.querySelectorAll('note')).forEach(note => {
+    if (!isPitchedNote(note)) {
+      return;
+    }
+    voices.add(note.querySelector('voice')?.textContent?.trim() || '1');
+    const staff = note.querySelector('staff')?.textContent?.trim();
+    if (staff) {
+      staves.add(staff);
+    }
+  });
+  if (voices.size > 1 || staves.size > 1) {
+    throw new Error(`${label} は単旋律のみ対応しています`);
+  }
+
+  validatePhraseStart(
+    document,
+    label,
+    options.beatsPerMeasure ?? 4,
+    options.beatType ?? 4,
+  );
 };
 
 const getMeasureNumbers = (xmlText: string): number[] => {
@@ -64,6 +189,7 @@ export const createEarTrainingMusicXmlPreview = (
   }
 
   const measureNumbers = getMeasureNumbers(xmlText);
+  validateEarTrainingMusicXmlMvpConstraints(xmlText);
   const ranges: EarTrainingMusicXmlPhraseRange[] = [];
   for (let index = 0; index < measureNumbers.length; index += phraseMeasures) {
     const rangeMeasures = measureNumbers.slice(index, index + phraseMeasures);
@@ -254,9 +380,17 @@ export const buildEarTrainingPhraseDraftsFromMusicXml = (
 
   return preview.ranges.map(range => {
     const musicXmlText = truncateMusicXmlByMeasureRange(xmlText, range.startMeasure, range.endMeasure);
+    validateEarTrainingMusicXmlMvpConstraints(musicXmlText, {
+      label: `Phrase ${range.orderIndex + 1}`,
+      beatsPerMeasure: options.beatsPerMeasure,
+      beatType: 4,
+    });
     const notes = toEarTrainingNotes(musicXmlText, options.bpm, options.beatsPerMeasure);
     if (notes.length === 0) {
       throw new Error(`Phrase ${range.orderIndex + 1} に判定ノートがありません`);
+    }
+    if (notes.length < 2) {
+      throw new Error(`Phrase ${range.orderIndex + 1} のノート数は2以上にしてください`);
     }
     if (notes.length > 32) {
       throw new Error(`Phrase ${range.orderIndex + 1} のノート数が32を超えています`);

@@ -1,0 +1,24 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" role="img" aria-labelledby="title desc">
+  <title id="title">default_avatar</title>
+  <desc id="desc">Default player avatar for Jazzify.</desc>
+  <defs>
+    <linearGradient id="bg" x1="36" y1="24" x2="220" y2="232" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="0.5" stop-color="#6366f1"/>
+      <stop offset="1" stop-color="#111827"/>
+    </linearGradient>
+    <linearGradient id="face" x1="77" y1="60" x2="181" y2="199" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fde68a"/>
+      <stop offset="1" stop-color="#f59e0b"/>
+    </linearGradient>
+  </defs>
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <circle cx="128" cy="111" r="58" fill="url(#face)"/>
+  <path d="M58 226c10-42 38-66 70-66s60 24 70 66H58Z" fill="#f8fafc"/>
+  <path d="M75 96c7-36 29-58 58-58 27 0 47 16 55 45-19-11-39-13-60-5-17 6-34 12-53 18Z" fill="#0f172a"/>
+  <circle cx="106" cy="113" r="7" fill="#0f172a"/>
+  <circle cx="151" cy="113" r="7" fill="#0f172a"/>
+  <path d="M107 141c14 13 30 13 44 0" fill="none" stroke="#7c2d12" stroke-width="8" stroke-linecap="round"/>
+  <path d="M53 68l23 6 6-23 16 21 21-15-5 26 26 5-24 12 12 24-24-12-12 24-5-26-26-5 21-15-15-22Z" fill="#facc15"/>
+  <path d="M178 45v47m-18-31h36" stroke="#f8fafc" stroke-width="10" stroke-linecap="round"/>
+</svg>

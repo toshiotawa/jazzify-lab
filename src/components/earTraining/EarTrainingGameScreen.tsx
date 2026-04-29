@@ -29,6 +29,7 @@ import {
   mapEarTrainingRankToLessonRank,
   resolveEarTrainingOutcome,
 } from '@/utils/earTrainingEngine';
+import { DEFAULT_AVATAR_URL } from '@/utils/constants';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -49,9 +50,9 @@ interface ElementSize {
   height: number;
 }
 
-const PLAYER_AVATAR_PATH = '/default_avater/default-avater.png';
 const DEFAULT_PIANO_HEIGHT = 132;
 const INPUT_COOLDOWN_MS = 20;
+const AUDIO_END_EPSILON_SEC = 0.03;
 
 const useElementSize = <T extends HTMLElement>(): [React.RefObject<T>, ElementSize] => {
   const ref = useRef<T>(null);
@@ -160,6 +161,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const attemptRef = useRef<EarTrainingPhraseAttempt | null>(null);
   const gameStateRef = useRef<EarTrainingGameState>('idle');
+  const phraseIndexRef = useRef(0);
   const enemyHpRef = useRef(stage.enemy_hp);
   const playerHpRef = useRef(stage.player_hp);
   const timeRemainingRef = useRef(stage.time_limit_sec);
@@ -179,6 +181,10 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   useEffect(() => {
     gameStateRef.current = gameState;
   }, [gameState]);
+
+  useEffect(() => {
+    phraseIndexRef.current = phraseIndex;
+  }, [phraseIndex]);
 
   useEffect(() => {
     enemyHpRef.current = enemyHp;
@@ -242,6 +248,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearFailTimer();
     clearTransitionTimer();
     clearTimeLimitTimer();
+    gameStateRef.current = 'stageClear';
     stopPhraseAudio();
     setLastRank(rank);
     setGameState('stageClear');
@@ -270,10 +277,46 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearFailTimer();
     clearTransitionTimer();
     clearTimeLimitTimer();
+    gameStateRef.current = 'gameOver';
     stopPhraseAudio();
     setGameState('gameOver');
     setStatusText(message);
   }, [clearFailTimer, clearTimeLimitTimer, clearTransitionTimer, stopPhraseAudio]);
+
+  const failCurrentPhrase = useCallback(() => {
+    const currentAttempt = attemptRef.current;
+    if (!currentAttempt || currentAttempt.completed || gameStateRef.current !== 'playingPhrase') {
+      return;
+    }
+
+    gameStateRef.current = 'phraseFail';
+    const nextPlayerHp = Math.max(0, playerHpRef.current - damageConfig.fail);
+    setPlayerHp(nextPlayerHp);
+    playerHpRef.current = nextPlayerHp;
+    setAttempt({ ...currentAttempt, failed: true });
+    setLastRank('Fail');
+
+    const outcome = resolveEarTrainingOutcome({
+      enemyHp: enemyHpRef.current,
+      playerHp: nextPlayerHp,
+      timeRemainingSec: timeRemainingRef.current,
+      phraseCompleted: false,
+      phraseFailed: true,
+    });
+
+    if (outcome === 'gameOver') {
+      finishGameOver('Game Over');
+      return;
+    }
+
+    setGameState('phraseFail');
+    setStatusText('Fail: 次のフレーズへ進みます');
+    triggerFeedback('miss');
+    transitionTimerRef.current = setTimeout(() => {
+      const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
+      startPhraseRef.current(wrappedIndex);
+    }, 900);
+  }, [damageConfig.fail, finishGameOver, phrases.length, triggerFeedback]);
 
   const startPhrase = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
@@ -285,12 +328,14 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearFailTimer();
     clearTransitionTimer();
     setPhraseIndex(nextPhraseIndex);
+    phraseIndexRef.current = nextPhraseIndex;
     const nextAttempt = createPhraseAttempt(phrase);
     setAttempt(nextAttempt);
     setLastRank(null);
     setActiveLoop(1);
     setActiveChord(getActiveChord(phrase, 0));
     setStatusText(`Phrase ${nextPhraseIndex + 1}`);
+    gameStateRef.current = 'playingPhrase';
     setGameState('playingPhrase');
 
     const audio = audioRef.current;
@@ -303,49 +348,13 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         setStatusText('音源を再生できませんでした。もう一度開始してください。');
       });
     }
-
-    failTimerRef.current = setTimeout(() => {
-      const currentAttempt = attemptRef.current;
-      if (!currentAttempt || currentAttempt.completed || gameStateRef.current !== 'playingPhrase') {
-        return;
-      }
-
-      const nextPlayerHp = Math.max(0, playerHpRef.current - damageConfig.fail);
-      setPlayerHp(nextPlayerHp);
-      playerHpRef.current = nextPlayerHp;
-      setAttempt({ ...currentAttempt, failed: true });
-      setLastRank('Fail');
-
-      const outcome = resolveEarTrainingOutcome({
-        enemyHp: enemyHpRef.current,
-        playerHp: nextPlayerHp,
-        timeRemainingSec: timeRemainingRef.current,
-        phraseCompleted: false,
-        phraseFailed: true,
-      });
-
-      if (outcome === 'gameOver') {
-        finishGameOver('Game Over');
-        return;
-      }
-
-      setGameState('phraseFail');
-      setStatusText('Fail: 次のフレーズへ進みます');
-      triggerFeedback('miss');
-      transitionTimerRef.current = setTimeout(() => {
-        const wrappedIndex = (nextPhraseIndex + 1) % phrases.length;
-        startPhraseRef.current(wrappedIndex);
-      }, 900);
-    }, Math.max(0.1, Number(phrase.audio_duration_sec)) * 1000);
   }, [
     clearFailTimer,
     clearTransitionTimer,
-    damageConfig.fail,
     finishGameOver,
     phrases,
     settings.masterVolume,
     settings.musicVolume,
-    triggerFeedback,
   ]);
 
   useEffect(() => {
@@ -379,6 +388,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setTimeRemaining(stage.time_limit_sec);
     setPhraseIndex(0);
     setCountInValue(stage.count_in_beats);
+    gameStateRef.current = 'countIn';
     setGameState('countIn');
     setStatusText('Count In');
     clearCountdownTimer();
@@ -420,6 +430,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       Number(phrase.loop_duration_sec),
       stage.loop_measures,
     );
+    gameStateRef.current = 'phraseComplete';
     setGameState('phraseComplete');
     setLastRank(rank);
     setStatusText(`${rank}: 次の小節頭で次へ`);
@@ -615,7 +626,16 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setActiveLoop(Math.max(1, Math.min(stage.max_loops_per_phrase, loop)));
     const loopTime = audio.currentTime % Number(phrase.loop_duration_sec);
     setActiveChord(getActiveChord(phrase, loopTime));
-  }, [phraseIndex, phrases, stage.max_loops_per_phrase]);
+
+    const audioDurationSec = Number(phrase.audio_duration_sec);
+    if (audio.ended || (Number.isFinite(audioDurationSec) && audio.currentTime >= audioDurationSec - AUDIO_END_EPSILON_SEC)) {
+      failCurrentPhrase();
+    }
+  }, [failCurrentPhrase, phraseIndex, phrases, stage.max_loops_per_phrase]);
+
+  const handleAudioEnded = useCallback(() => {
+    failCurrentPhrase();
+  }, [failCurrentPhrase]);
 
   useEffect(() => {
     return () => {
@@ -642,7 +662,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   ));
   const demoLoopActive = Boolean(currentPhrase?.demo_loops?.some(loop => loop.loop_number === activeLoop));
   const enemyName = enemy?.name ?? 'Random Rival';
-  const enemyAvatar = enemy?.avatarUrl ?? '/default_avater/default-avater.webp';
+  const enemyAvatar = enemy?.avatarUrl ?? DEFAULT_AVATAR_URL;
   const enemyHpPercent = Math.max(0, Math.min(100, (enemyHp / stage.enemy_hp) * 100));
   const playerHpPercent = Math.max(0, Math.min(100, (playerHp / stage.player_hp) * 100));
 
@@ -652,7 +672,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       feedback === 'miss' && 'bg-red-950',
       feedback === 'clear' && 'bg-white text-slate-950',
     )}>
-      <audio ref={audioRef} onTimeUpdate={handleAudioTimeUpdate} preload="auto" />
+      <audio ref={audioRef} onEnded={handleAudioEnded} onTimeUpdate={handleAudioTimeUpdate} preload="auto" />
 
       <header className="grid grid-cols-3 gap-2 border-b border-white/10 bg-black/30 px-3 py-2 text-xs sm:text-sm">
         <div>
@@ -706,7 +726,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
           )}
           <div className="flex h-full items-center justify-around gap-4 pt-8">
             <div className={cn('flex flex-col items-center gap-2 transition-transform', feedback === 'miss' && 'scale-95')}>
-              <img src={PLAYER_AVATAR_PATH} alt="default_avatar" className="h-24 w-24 rounded-full object-contain sm:h-32 sm:w-32" />
+              <img src={DEFAULT_AVATAR_URL} alt="default_avatar" className="h-24 w-24 rounded-full object-contain sm:h-32 sm:w-32" />
               <div className="rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold">default_avatar</div>
             </div>
             <div className="text-center">
@@ -716,7 +736,15 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
               {lastRank && <div className="mt-2 rounded-full bg-white/10 px-3 py-1 text-sm font-bold">{lastRank}</div>}
             </div>
             <div className={cn('flex flex-col items-center gap-2 transition-transform', feedback === 'correct' && 'scale-95')}>
-              <img src={enemyAvatar} alt={enemyName} className="h-24 w-24 rounded-full object-cover sm:h-32 sm:w-32" />
+              <img
+                src={enemyAvatar}
+                alt={enemyName}
+                className="h-24 w-24 rounded-full object-cover sm:h-32 sm:w-32"
+                onError={event => {
+                  event.currentTarget.onerror = null;
+                  event.currentTarget.src = DEFAULT_AVATAR_URL;
+                }}
+              />
               <div className="rounded-full bg-rose-500/20 px-3 py-1 text-sm font-bold">{enemyName}</div>
             </div>
           </div>
