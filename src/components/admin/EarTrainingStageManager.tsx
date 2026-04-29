@@ -12,13 +12,22 @@ import {
   deleteEarTrainingPhrase,
   deleteEarTrainingStage,
   fetchEarTrainingStages,
+  replaceEarTrainingStagePhrases,
   replaceEarTrainingPhraseChords,
   replaceEarTrainingPhraseDemoLoops,
   replaceEarTrainingPhraseNotes,
   updateEarTrainingPhrase,
   updateEarTrainingStage,
+  type EarTrainingPhraseImportPayload,
 } from '@/platform/supabaseEarTraining';
+import { uploadEarTrainingMusicXml, uploadEarTrainingPhraseAudio } from '@/platform/r2Storage';
 import { midiToPitchClass, noteNameToPitchClass } from '@/utils/earTrainingEngine';
+import {
+  buildEarTrainingPhraseDraftsFromMusicXml,
+  createEarTrainingMusicXmlPreview,
+  validateEarTrainingImportFileCount,
+  type EarTrainingMusicXmlPreview,
+} from '@/utils/earTrainingMusicXmlImport';
 
 type StageForm = Omit<EarTrainingStage, 'id' | 'created_at' | 'updated_at' | 'phrases'>;
 
@@ -190,6 +199,27 @@ const parseDemoLoops = (text: string): number[] =>
     .map(value => Number(value.trim()))
     .filter(value => Number.isInteger(value) && value >= 1 && value <= 16);
 
+const roundSeconds = (value: number): number => Math.round(value * 1000) / 1000;
+
+const getAudioDurationSec = (file: File): Promise<number> => new Promise(resolve => {
+  const objectUrl = URL.createObjectURL(file);
+  const audio = new Audio();
+  const cleanup = () => {
+    URL.revokeObjectURL(objectUrl);
+  };
+
+  audio.preload = 'metadata';
+  audio.onloadedmetadata = () => {
+    cleanup();
+    resolve(Number.isFinite(audio.duration) && audio.duration > 0 ? audio.duration : 0);
+  };
+  audio.onerror = () => {
+    cleanup();
+    resolve(0);
+  };
+  audio.src = objectUrl;
+});
+
 const EarTrainingStageManager: React.FC = () => {
   const toast = useToast();
   const [stages, setStages] = useState<EarTrainingStage[]>([]);
@@ -199,6 +229,13 @@ const EarTrainingStageManager: React.FC = () => {
   const [phraseForm, setPhraseForm] = useState<PhraseForm>(defaultPhraseForm);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importPhraseMeasures, setImportPhraseMeasures] = useState(defaultStageForm.loop_measures);
+  const [importMusicXmlFile, setImportMusicXmlFile] = useState<File | null>(null);
+  const [importMusicXmlText, setImportMusicXmlText] = useState('');
+  const [importAudioFiles, setImportAudioFiles] = useState<File[]>([]);
+  const [importPreview, setImportPreview] = useState<EarTrainingMusicXmlPreview | null>(null);
+  const [importError, setImportError] = useState<string | null>(null);
 
   const selectedStage = useMemo(
     () => stages.find(stage => stage.id === selectedStageId) ?? null,
@@ -238,10 +275,55 @@ const EarTrainingStageManager: React.FC = () => {
     setPhraseForm(phraseToForm(selectedPhrase));
   }, [selectedPhrase]);
 
+  useEffect(() => {
+    if (!selectedStage) {
+      return;
+    }
+    setImportPhraseMeasures(selectedStage.loop_measures);
+  }, [selectedStage]);
+
+  useEffect(() => {
+    if (!importMusicXmlText.trim()) {
+      setImportPreview(null);
+      setImportError(null);
+      return;
+    }
+
+    try {
+      setImportPreview(createEarTrainingMusicXmlPreview(importMusicXmlText, importPhraseMeasures));
+      setImportError(null);
+    } catch (error) {
+      setImportPreview(null);
+      setImportError(error instanceof Error ? error.message : 'MusicXMLの解析に失敗しました');
+    }
+  }, [importMusicXmlText, importPhraseMeasures]);
+
   const selectStage = (stage: EarTrainingStage) => {
     setSelectedStageId(stage.id);
     setEditingPhraseId(null);
     setStageForm(stageToForm(stage));
+  };
+
+  const handleMusicXmlFileChange = async (file: File | null) => {
+    setImportMusicXmlFile(file);
+    if (!file) {
+      setImportMusicXmlText('');
+      return;
+    }
+    if (!/\.(xml|musicxml)$/i.test(file.name)) {
+      toast.error('MusicXMLは.xmlまたは.musicxmlを選択してください');
+      setImportMusicXmlFile(null);
+      setImportMusicXmlText('');
+      return;
+    }
+    setImportMusicXmlText(await file.text());
+  };
+
+  const handleAudioFilesChange = (files: FileList | null) => {
+    const selectedFiles = Array.from(files ?? [])
+      .filter(file => /\.mp3$/i.test(file.name) || file.type === 'audio/mpeg')
+      .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+    setImportAudioFiles(selectedFiles);
   };
 
   const saveStage = async () => {
@@ -347,6 +429,78 @@ const EarTrainingStageManager: React.FC = () => {
     }
   };
 
+  const importPhrasesFromFiles = async () => {
+    if (!selectedStage) {
+      toast.error('先にステージを選択してください');
+      return;
+    }
+    if (!importMusicXmlFile || !importMusicXmlText.trim()) {
+      toast.error('MusicXMLファイルを選択してください');
+      return;
+    }
+    if (!importPreview) {
+      toast.error(importError ?? 'MusicXMLを確認してください');
+      return;
+    }
+    try {
+      validateEarTrainingImportFileCount(importPreview, importAudioFiles.length);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'mp3ファイル数が一致しません');
+      return;
+    }
+    if ((selectedStage.phrases?.length ?? 0) > 0 && !confirm('既存フレーズを削除して作り直します。よろしいですか？')) {
+      return;
+    }
+
+    setImporting(true);
+    try {
+      const phraseDrafts = buildEarTrainingPhraseDraftsFromMusicXml(importMusicXmlText, {
+        phraseMeasures: importPhraseMeasures,
+        bpm: selectedStage.bpm,
+        beatsPerMeasure: selectedStage.beats_per_measure,
+      });
+      const musicXmlUrl = await uploadEarTrainingMusicXml(importMusicXmlFile, selectedStage.id);
+      const phrasePayloads: EarTrainingPhraseImportPayload[] = [];
+
+      for (const draft of phraseDrafts) {
+        const audioFile = importAudioFiles[draft.orderIndex];
+        const audioUrl = await uploadEarTrainingPhraseAudio(audioFile, selectedStage.id, draft.orderIndex);
+        const audioDurationSec = await getAudioDurationSec(audioFile);
+        const phraseMeasureCount = draft.endMeasure - draft.startMeasure + 1;
+        const fallbackLoopDurationSec = (60 / selectedStage.bpm) * selectedStage.beats_per_measure * phraseMeasureCount;
+        const resolvedAudioDurationSec = audioDurationSec > 0
+          ? audioDurationSec
+          : fallbackLoopDurationSec * selectedStage.max_loops_per_phrase;
+        const loopDurationSec = audioDurationSec > 0
+          ? audioDurationSec / selectedStage.max_loops_per_phrase
+          : fallbackLoopDurationSec;
+
+        phrasePayloads.push({
+          order_index: draft.orderIndex,
+          title: `Phrase ${draft.orderIndex + 1}`,
+          title_en: null,
+          music_xml_url: musicXmlUrl,
+          audio_url: audioUrl,
+          loop_duration_sec: roundSeconds(loopDurationSec),
+          audio_duration_sec: roundSeconds(resolvedAudioDurationSec),
+          note_count: draft.noteCount,
+          notes: draft.notes,
+          chords: draft.chords,
+          demoLoopNumbers: [1, 3, 5],
+        });
+      }
+
+      await replaceEarTrainingStagePhrases(selectedStage.id, phrasePayloads);
+      setEditingPhraseId(null);
+      toast.success(`${phrasePayloads.length}フレーズを生成しました`);
+      await loadStages();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '一括アップロードに失敗しました');
+    } finally {
+      setImporting(false);
+    }
+  };
+
   if (loading) {
     return <div className="p-8 text-center text-gray-300">読み込み中...</div>;
   }
@@ -435,7 +589,77 @@ const EarTrainingStageManager: React.FC = () => {
           </section>
 
           {selectedStage && (
-            <section className="rounded-xl bg-slate-800 p-4">
+            <>
+              <section className="rounded-xl bg-slate-800 p-4">
+                <h2 className="mb-2 text-lg font-bold">一括生成アップロード</h2>
+                <p className="mb-4 text-sm text-gray-400">
+                  MusicXMLを1つ、mp3をフレーズ数分アップロードします。MusicXMLは指定小節数ごとに分割され、既存フレーズは置き換えられます。
+                </p>
+                <div className="grid gap-3 lg:grid-cols-3">
+                  <NumberInput
+                    label="1フレーズの小節数"
+                    value={importPhraseMeasures}
+                    onChange={value => setImportPhraseMeasures(Math.max(1, Math.floor(value)))}
+                  />
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-300">MusicXML 1ファイル</span>
+                    <input
+                      type="file"
+                      accept=".xml,.musicxml,application/xml,text/xml"
+                      className="file-input file-input-bordered file-input-sm w-full bg-slate-900"
+                      onChange={event => void handleMusicXmlFileChange(event.target.files?.[0] ?? null)}
+                    />
+                    {importMusicXmlFile && <span className="mt-1 block text-xs text-gray-400">{importMusicXmlFile.name}</span>}
+                  </label>
+                  <label className="block text-sm">
+                    <span className="mb-1 block text-gray-300">mp3ファイル（フレーズ分）</span>
+                    <input
+                      type="file"
+                      accept=".mp3,audio/mpeg"
+                      multiple
+                      className="file-input file-input-bordered file-input-sm w-full bg-slate-900"
+                      onChange={event => handleAudioFilesChange(event.target.files)}
+                    />
+                    <span className="mt-1 block text-xs text-gray-400">ファイル名順でPhrase 1から割り当てます</span>
+                  </label>
+                </div>
+
+                {importError && (
+                  <div className="alert alert-error mt-4 py-2 text-sm">
+                    {importError}
+                  </div>
+                )}
+
+                {importPreview && (
+                  <div className="mt-4 rounded-lg bg-slate-900 p-3 text-sm">
+                    <div className="flex flex-wrap gap-x-4 gap-y-1 text-gray-200">
+                      <span>総小節数: {importPreview.totalMeasures}</span>
+                      <span>生成フレーズ数: {importPreview.phraseCount}</span>
+                      <span className={importAudioFiles.length === importPreview.phraseCount ? 'text-green-300' : 'text-yellow-300'}>
+                        選択mp3: {importAudioFiles.length} / {importPreview.phraseCount}
+                      </span>
+                    </div>
+                    <div className="mt-2 flex flex-wrap gap-2">
+                      {importPreview.ranges.map(range => (
+                        <span key={range.orderIndex} className="rounded bg-slate-700 px-2 py-1 text-xs text-gray-200">
+                          Phrase {range.orderIndex + 1}: {range.startMeasure}-{range.endMeasure}小節
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm mt-4"
+                  disabled={importing || saving || !importPreview || importAudioFiles.length !== importPreview.phraseCount}
+                  onClick={importPhrasesFromFiles}
+                >
+                  {importing ? '生成中...' : 'アップロードしてフレーズ生成'}
+                </button>
+              </section>
+
+              <section className="rounded-xl bg-slate-800 p-4">
               <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
                 <h2 className="text-lg font-bold">フレーズ</h2>
                 <button
@@ -506,7 +730,8 @@ const EarTrainingStageManager: React.FC = () => {
                   </button>
                 )}
               </div>
-            </section>
+              </section>
+            </>
           )}
         </div>
       </div>

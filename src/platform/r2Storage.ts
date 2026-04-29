@@ -200,6 +200,51 @@ export async function uploadFantasyBgm(file: File, bgmId: string): Promise<strin
   return `${PUBLIC_URL}/${key}`;
 }
 
+export async function uploadEarTrainingMusicXml(file: File, stageId: string): Promise<string> {
+  checkFileSize(file, MAX_SONG_FILE_SIZE, 'MusicXMLファイル');
+
+  const client = getR2Client();
+  const key = `ear-training/${stageId}/source.musicxml`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: file.type || 'application/xml',
+    CacheControl: 'public, max-age=31536000',
+  });
+
+  await client.send(command);
+
+  return `${PUBLIC_URL}/${key}?v=${Date.now()}`;
+}
+
+export async function uploadEarTrainingPhraseAudio(
+  file: File,
+  stageId: string,
+  phraseOrderIndex: number,
+): Promise<string> {
+  checkFileSize(file, MAX_SONG_FILE_SIZE, '耳コピフレーズ音源');
+
+  const client = getR2Client();
+  const phraseNumber = String(phraseOrderIndex + 1).padStart(3, '0');
+  const key = `ear-training/${stageId}/phrase-${phraseNumber}.mp3`;
+  const arrayBuffer = await file.arrayBuffer();
+
+  const command = new PutObjectCommand({
+    Bucket: BUCKET_NAME,
+    Key: key,
+    Body: new Uint8Array(arrayBuffer),
+    ContentType: file.type || 'audio/mpeg',
+    CacheControl: 'public, max-age=31536000',
+  });
+
+  await client.send(command);
+
+  return `${PUBLIC_URL}/${key}?v=${Date.now()}`;
+}
+
 export async function deleteFantasyBgm(bgmId: string): Promise<void> {
   const client = getR2Client();
   const key = `fantasy-bgm/${bgmId}.mp3`;

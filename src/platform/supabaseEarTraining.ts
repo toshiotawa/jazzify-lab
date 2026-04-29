@@ -25,6 +25,12 @@ type EarTrainingPhraseUpdate = Partial<Omit<EarTrainingPhrasePayload, 'stage_id'
 type EarTrainingPhraseNotePayload = Omit<EarTrainingPhraseNote, 'id' | 'created_at'>;
 type EarTrainingPhraseChordPayload = Omit<EarTrainingPhraseChord, 'id' | 'created_at'>;
 
+export interface EarTrainingPhraseImportPayload extends Omit<EarTrainingPhrasePayload, 'stage_id'> {
+  notes: Omit<EarTrainingPhraseNotePayload, 'phrase_id'>[];
+  chords: Omit<EarTrainingPhraseChordPayload, 'phrase_id'>[];
+  demoLoopNumbers: number[];
+}
+
 const sortStageRelations = (stage: EarTrainingStage): EarTrainingStage => ({
   ...stage,
   phrases: (stage.phrases ?? [])
@@ -299,4 +305,50 @@ export const replaceEarTrainingPhraseDemoLoops = async (
 
   invalidateEarTrainingCache();
   return (data ?? []) as EarTrainingPhraseDemoLoop[];
+};
+
+export const replaceEarTrainingStagePhrases = async (
+  stageId: string,
+  phrases: EarTrainingPhraseImportPayload[],
+): Promise<EarTrainingPhrase[]> => {
+  const supabase = getSupabaseClient();
+  const { error: deleteError } = await supabase
+    .from('ear_training_phrases')
+    .delete()
+    .eq('stage_id', stageId);
+
+  if (deleteError) {
+    throw deleteError;
+  }
+
+  const createdPhrases: EarTrainingPhrase[] = [];
+  for (const phrasePayload of phrases) {
+    const {
+      notes,
+      chords,
+      demoLoopNumbers,
+      ...phraseRow
+    } = phrasePayload;
+
+    const { data: phrase, error: phraseError } = await supabase
+      .from('ear_training_phrases')
+      .insert({ ...phraseRow, stage_id: stageId })
+      .select()
+      .single();
+
+    if (phraseError) {
+      throw phraseError;
+    }
+
+    const createdPhrase = phrase as EarTrainingPhrase;
+    await Promise.all([
+      replaceEarTrainingPhraseNotes(createdPhrase.id, notes),
+      replaceEarTrainingPhraseChords(createdPhrase.id, chords),
+      replaceEarTrainingPhraseDemoLoops(createdPhrase.id, demoLoopNumbers),
+    ]);
+    createdPhrases.push(createdPhrase);
+  }
+
+  invalidateEarTrainingCache();
+  return createdPhrases;
 };
