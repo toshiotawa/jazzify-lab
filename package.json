@@ -21,7 +21,9 @@
     "test": "vitest run",
     "type-check": "tsc --noEmit",
     "clean": "rm -rf dist node_modules/.vite",
-    "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install"
+    "clean:all": "rm -rf dist node_modules/.vite node_modules && npm install",
+    "verify:node": "node ./scripts/ensure-node.mjs",
+    "wrangler:r2": "node ./scripts/ensure-node.mjs && node ./scripts/wrangler-with-r2-env.mjs"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.873.0",

@@ -1,0 +1,10 @@
+# Cloudflare Wrangler（R2 CLI など）用の最小設定。
+# Worker のデプロイは想定していない。`wrangler r2 object put` 等は cwd がルートであること。
+#
+# アカウント ID:
+# - アカウント ID をコミットしない場合は、`.env.r2` に `CF_ACCOUNT_ID=...` を書き、
+#   `npm run wrangler:r2 -- …` で起動すると `CLOUDFLARE_ACCOUNT_ID` に写される。
+# - または `export CLOUDFLARE_ACCOUNT_ID=...` のあと `npx wrangler …`
+
+name = "jazzify-lab"
+compatibility_date = "2024-11-01"

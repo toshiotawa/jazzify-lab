@@ -106,21 +106,29 @@ VITE_R2_PUBLIC_URL=https://your-cdn.com
 | R2 キー | `fantasy-bgm/ii-v-i-{範囲}-{slug}.mp3`（例: `ii-v-i-1-5-c.mp3`） |
 | 公開 URL 例 | `https://jazzify-cdn.com/fantasy-bgm/ii-v-i-1-5-c.mp3`（CDN は `VITE_R2_PUBLIC_URL` に合わせる） |
 
+**前提（Node.js）**
+
+- **18 以上**が必要。未導入なら macOS では `brew install node`、または [nodejs.org](https://nodejs.org/) の LTS を入れる。
+- **nvm** / **fnm** 利用時はルートで `nvm install` / `fnm install`（`.nvmrc` と `.node-version` は Node **20** を想定）。
+- `npm install` 後に `npm run verify:node` で最低バージョンを確認できる。
+
 **認証（推奨: Wrangler）**
 
-1. プロジェクトルートに **`.env.r2`**（`.gitignore` 済み）を置き、少なくとも次を設定する:
+1. `env.r2.example` を参考に、プロジェクトルートに **`.env.r2` または `env.r2`**（`.gitignore` 済み）を置き、少なくとも次を設定する:
    - `CF_ACCOUNT_ID` … Cloudflare アカウント ID（Wrangler の `CLOUDFLARE_ACCOUNT_ID` に渡る）
    - `R2_BUCKET` … バケット名（未設定時はスクリプト既定 `jazzify-assets`）
-2. 一度だけ: `npx wrangler login`（ブラウザで OAuth）
-3. `npm install`（`devDependencies` の `wrangler` で CLI を解決。Windows では `node` 直起動で **npx ENOENT** を避ける）
-4. `node scripts/upload-ii-v-i-mp3-to-r2.mjs`  
+2. ルートに **`wrangler.toml`** がある（R2 CLI 用の最小設定）。手動 put 時は次で `.env.r2` / `env.r2` のアカウント ID を自動注入できる:  
+   `npm run wrangler:r2 -- r2 object put jazzify-assets/キー -f ./ローカル.mp3 --content-type audio/mpeg`
+3. 一度だけ: `npx wrangler login`（ブラウザで OAuth）
+4. `npm install`（`devDependencies` の `wrangler` で CLI を解決。Windows では `node` 直起動で **npx ENOENT** を避ける）
+5. `node scripts/upload-ii-v-i-mp3-to-r2.mjs`  
    - 確認のみ: `--dry-run`  
-   - **S3 互換 API トークン**で上げる場合: `--s3`（`.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` が必要）  
+   - **S3 互換 API トークン**で上げる場合: `--s3`（`.env.r2` または `env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` が必要）  
    - R2 API が **500** を返すことがある（一時障害）。スクリプトは **自動リトライ**（既定 4 回、`II_V_I_UPLOAD_RETRIES` で変更、`--no-retry` でオフ）。欠けた分だけ **同じコマンドを再実行**しても上書きでよい
 
 **キーローテーション（R2 API トークン）**
 
-- Cloudflare ダッシュボードで新トークン発行 → 古いトークンを失効 → `.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` を差し替え（`--s3` 利用時のみ。Wrangler ログイン方式では未使用）
+- Cloudflare ダッシュボードで新トークン発行 → 古いトークンを失効 → `.env.r2` または `env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` を差し替え（`--s3` 利用時のみ。Wrangler ログイン方式では未使用）
 - 管理画面からのブラウザアップロード用は `.env.local` の `VITE_CLOUDFLARE_*` も同様に揃える
 
 コース全体（DB・マイグレーション・`order_index` の注意など）は [II_V_I_LESSON_COURSE_SETUP.md](./II_V_I_LESSON_COURSE_SETUP.md) を参照。
@@ -413,8 +421,8 @@ WHERE stage_number = '1-10' AND stage_tier = 'phrases';
 | `VITE_CLOUDFLARE_SECRET_ACCESS_KEY` | R2 シークレットキー |
 | `VITE_R2_BUCKET_NAME` | R2 バケット名 |
 | `VITE_R2_PUBLIC_URL` | R2 公開URL（CDN） |
-| `.env.r2` の `CF_ACCOUNT_ID` | II-V-I BGM 一括アップロード（Wrangler）用。Git に含めない |
-| `.env.r2` の `CF_ACCESS_KEY` / `CF_SECRET_KEY` | 一括アップロード `--s3` モード用（キーローテーション時に更新） |
+| `.env.r2` または `env.r2` の `CF_ACCOUNT_ID` | II-V-I BGM 一括アップロード（Wrangler）用。Git に含めない |
+| 同上の `CF_ACCESS_KEY` / `CF_SECRET_KEY` | 一括アップロード `--s3` モード用（キーローテーション時に更新） |
 
 ---
 

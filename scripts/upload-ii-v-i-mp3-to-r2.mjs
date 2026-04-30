@@ -6,8 +6,8 @@
  *   キーローテーション時: ダッシュボードで新トークン発行→古いもの失効→.env.r2 の
  *   CF_ACCESS_KEY / CF_SECRET_KEY だけ差し替え（wrangler ログイン方式では未使用）。
  *
- * wrangler 利用時: .env.r2 に CF_ACCOUNT_ID（= CLOUDFLARE_ACCOUNT_ID）が必要。
- *   プロジェクト直下に wrangler.toml が無いと R2 コマンドはアカウント ID 未設定で失敗しやすい。
+ * wrangler 利用時: `.env.r2` または `env.r2` に CF_ACCOUNT_ID（= CLOUDFLARE_ACCOUNT_ID）が必要。
+ *   手動で `wrangler r2 object put` する場合は `npm run wrangler:r2 -- r2 object put …` でも CF_ACCOUNT_ID を引き継げる。
  *
  * count_in_measures と音源の整合: DB が 1 のときは MP3 先頭に 1 小節分のカウントイン区間が必要。
  *   無音プリペンド: `node scripts/prepend-count-in-to-ii-v-i-mp3.mjs`（docs/II_V_I_LESSON_COURSE_SETUP.md 参照）
@@ -15,10 +15,10 @@
  *
  * Usage:
  *   npx wrangler login
- *   # .env.r2 に CF_ACCOUNT_ID=... と R2_BUCKET=...（任意）
+ *   # `.env.r2` または `env.r2` に CF_ACCOUNT_ID=... と R2_BUCKET=...（任意）
  *   node scripts/upload-ii-v-i-mp3-to-r2.mjs
  *   node scripts/upload-ii-v-i-mp3-to-r2.mjs --dry-run
- *   node scripts/upload-ii-v-i-mp3-to-r2.mjs --s3   # .env.r2 必須
+ *   node scripts/upload-ii-v-i-mp3-to-r2.mjs --s3   # `.env.r2` または `env.r2` 必須
  *   II_V_I_UPLOAD_RETRIES=5 node ...   # wrangler 失敗時の再試行回数（既定 4）
  *   node ... --no-retry               # 再試行しない
  */
@@ -27,23 +27,11 @@ import { spawnSync } from 'node:child_process';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { setTimeout as delay } from 'node:timers/promises';
-
-function loadEnvFile(filePath) {
-  if (!existsSync(filePath)) return {};
-  const map = {};
-  for (const line of readFileSync(filePath, 'utf8').split('\n')) {
-    const trimmed = line.trim();
-    if (!trimmed || trimmed.startsWith('#')) continue;
-    const eq = trimmed.indexOf('=');
-    if (eq < 0) continue;
-    map[trimmed.slice(0, eq).trim()] = trimmed.slice(eq + 1).trim();
-  }
-  return map;
-}
+import { loadEnvR2Map } from './load-env-r2.mjs';
+import { r2AccountIdFrom, r2S3CredentialsFrom, wranglerSpawnEnv } from './r2-env-helpers.mjs';
 
 const ROOT = resolve(import.meta.dirname, '..');
-const envR2Path = join(ROOT, '.env.r2');
-const envR2 = loadEnvFile(envR2Path);
+const envR2 = loadEnvR2Map(ROOT);
 
 const useS3 = process.argv.includes('--s3');
 const dryRun = process.argv.includes('--dry-run');
@@ -55,13 +43,11 @@ const wranglerRetries = noRetry
 const BUCKET =
   process.env.R2_BUCKET ||
   envR2.R2_BUCKET ||
+  envR2.VITE_R2_BUCKET_NAME ||
   'jazzify-assets';
 
-/** wrangler r2 はアカウントID必須（wrangler.toml が無い場合は環境変数） */
-const CLOUDFLARE_ACCOUNT_ID =
-  process.env.CLOUDFLARE_ACCOUNT_ID ||
-  envR2.CF_ACCOUNT_ID ||
-  '';
+/** wrangler r2 はアカウントID必須（wrangler.toml の account_id または CLOUDFLARE_ACCOUNT_ID） */
+const CLOUDFLARE_ACCOUNT_ID = r2AccountIdFrom(envR2);
 
 const KEYS = [
   { slug: 'c', suffix: 'C' },
@@ -85,26 +71,25 @@ const SRC_DIR = join(ROOT, 'public', 'II-V-I_1-50');
 /** @type {S3Client | null} */
 let s3 = null;
 if (useS3) {
-  const ACCOUNT_ID = envR2.CF_ACCOUNT_ID || process.env.CF_ACCOUNT_ID;
-  const ACCESS_KEY = envR2.CF_ACCESS_KEY || process.env.CF_ACCESS_KEY;
-  const SECRET_KEY = envR2.CF_SECRET_KEY || process.env.CF_SECRET_KEY;
-  if (!ACCOUNT_ID || !ACCESS_KEY || !SECRET_KEY) {
-    console.error('--s3 モード: .env.r2 または環境変数に CF_ACCOUNT_ID / CF_ACCESS_KEY / CF_SECRET_KEY が必要です');
+  const { accountId, accessKey, secretKey } = r2S3CredentialsFrom(envR2);
+  if (!accountId || !accessKey || !secretKey) {
+    console.error(
+      '--s3 モード: アカウント ID と S3 互換の Access / Secret が必要です。\n' +
+        '  `.env.r2` に例: CF_ACCOUNT_ID, CF_ACCESS_KEY, CF_SECRET_KEY\n' +
+        '  または: AWS_ACCESS_KEY_ID / AWS_SECRET_ACCESS_KEY など（scripts/r2-env-helpers.mjs 参照）',
+    );
     process.exit(1);
   }
   s3 = new S3Client({
     region: 'auto',
-    endpoint: `https://${ACCOUNT_ID}.r2.cloudflarestorage.com`,
-    credentials: { accessKeyId: ACCESS_KEY, secretAccessKey: SECRET_KEY },
+    endpoint: `https://${accountId}.r2.cloudflarestorage.com`,
+    credentials: { accessKeyId: accessKey, secretAccessKey: secretKey },
     forcePathStyle: true,
   });
 }
 
 function putWithWrangler(localPath, objectPath) {
-  const childEnv = {
-    ...process.env,
-    ...(CLOUDFLARE_ACCOUNT_ID ? { CLOUDFLARE_ACCOUNT_ID } : {}),
-  };
+  const childEnv = wranglerSpawnEnv(envR2);
   const wranglerArgs = [
     'r2',
     'object',
@@ -171,7 +156,7 @@ if (!useS3 && !dryRun) {
   if (!CLOUDFLARE_ACCOUNT_ID) {
     console.error(
       'wrangler モード: Cloudflare のアカウント ID が必要です。\n' +
-        '  .env.r2 に CF_ACCOUNT_ID=... を書く、または環境変数 CLOUDFLARE_ACCOUNT_ID を設定してください。\n' +
+        '  `.env.r2` または `env.r2` に CF_ACCOUNT_ID=... を書く、または環境変数 CLOUDFLARE_ACCOUNT_ID を設定してください。\n' +
         '  （ダッシュボード右サイドバー「アカウント ID」、または R2 の URL に含まれる 32 桁 hex）',
     );
     process.exit(1);

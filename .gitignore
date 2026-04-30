@@ -20,6 +20,8 @@ ios/Secrets.xcconfig
 .env.test.local
 .env.production.local
 .env.r2
+# ドットなしのローカル R2 設定（秘密をコミットしないこと）
+/env.r2
 
 # IDE files
 .vscode/
@@ -133,6 +135,9 @@ node_modules/.vite/
 stats.json
 
 # Game specific
+# Generated II-V-I ear-training MP3s (R2: `node scripts/upload-ear-training-ii-v-i-r2.mjs`)
+public/II-V-I_1-50/ear-training-out/
+tmp-ear-training-build/
 # Prepend-count-in script backups (do not commit)
 *.mp3.bak
 # Large audio files (keep small demo files)
