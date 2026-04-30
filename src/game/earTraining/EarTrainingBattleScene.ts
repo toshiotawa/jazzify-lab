@@ -23,6 +23,7 @@ const JAZZ_FLOOR_TILE_HEIGHT = 48;
 const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
 const FUKIDASHI_ASSET_KEY = 'ear-training-fukidashi';
 const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.png`;
+const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
@@ -777,7 +778,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         tail.forEach(part => part.destroy());
         this.flashEnemy();
         this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xfb923c, false);
-        this.knockCharacter('enemy', 24, 170, () => this.callbacks.onEffectImpact(command.id));
+        this.showEnemyDamageText(command.damage, anchors.enemy);
+        this.callbacks.onEffectImpact(command.id);
+        this.knockEnemyAfterDamage(24, 170);
       },
     });
   }
@@ -882,7 +885,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
           ease: 'Cubic.easeOut',
           onComplete: () => ring.destroy(),
         });
-        this.applyCompletionImpact(anchors, 0xfacc15, 84, 330, 0xfef08a, () => this.callbacks.onEffectImpact(command.id));
+        this.applyCompletionImpact(
+          anchors,
+          0xfacc15,
+          84,
+          330,
+          0xfef08a,
+          command.damage,
+          () => this.callbacks.onEffectImpact(command.id),
+        );
       },
     });
   }
@@ -913,7 +924,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       onComplete: () => {
         snowflake.destroy();
         snowflakeGuide.destroy();
-        this.applyCompletionImpact(anchors, 0x93c5fd, 106, 360, 0x7dd3fc, () => this.callbacks.onEffectImpact(command.id));
+        this.applyCompletionImpact(
+          anchors,
+          0x93c5fd,
+          106,
+          360,
+          0x7dd3fc,
+          command.damage,
+          () => this.callbacks.onEffectImpact(command.id),
+        );
       },
     });
   }
@@ -929,7 +948,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       const lightning = this.createEffectSprite('lightning', anchors.enemy.x, anchors.enemy.bodyY - 34, 190);
       lightning.setAngle(4);
       this.effectLayer?.add(lightningGuide);
-      this.applyCompletionImpact(anchors, 0xfef08a, 122, 390, 0xfef08a, () => this.callbacks.onEffectImpact(command.id));
+      this.applyCompletionImpact(
+        anchors,
+        0xfef08a,
+        122,
+        390,
+        0xfef08a,
+        command.damage,
+        () => this.callbacks.onEffectImpact(command.id),
+      );
       this.tweens.add({
         targets: [cloudBase, cloud, lightningGuide, lightning],
         alpha: 0,
@@ -982,7 +1009,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       onComplete: () => {
         trail.destroy();
         meteor.destroy();
-        this.applyCompletionImpact(anchors, 0xf97316, 172, 460, 0xffedd5, () => this.callbacks.onEffectImpact(command.id));
+        this.applyCompletionImpact(
+          anchors,
+          0xf97316,
+          172,
+          460,
+          0xffedd5,
+          command.damage,
+          () => this.callbacks.onEffectImpact(command.id),
+        );
       },
     });
   }
@@ -993,6 +1028,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     knockbackDistance: number,
     knockbackDuration: number,
     tintColor: number,
+    damage: number | undefined,
     onImpact: () => void,
   ): void {
     this.flashEnemy();
@@ -1000,8 +1036,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, color, true);
     this.showScreenFlash(color, 0.16);
     this.showCompletionAura(anchors.enemy.x, anchors.enemy.bodyY, color);
+    this.showEnemyDamageText(damage, anchors.enemy);
     onImpact();
-    this.knockCharacter('enemy', knockbackDistance, knockbackDuration);
+    this.knockEnemyAfterDamage(knockbackDistance, knockbackDuration);
   }
 
   private createEffectSprite(spriteName: BattleEffectSpriteName, x: number, y: number, displaySize: number): Phaser.GameObjects.Image {
@@ -1248,6 +1285,35 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
+  private showEnemyDamageText(damage: number | undefined, anchors: CharacterAnchors): void {
+    if (!this.effectLayer || damage === undefined) {
+      return;
+    }
+    const displayDamage = Math.round(Math.abs(damage));
+    if (displayDamage <= 0) {
+      return;
+    }
+    const text = this.add.text(anchors.x + 28, anchors.headY + 18, `${displayDamage}`, {
+      color: '#fecaca',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '18px',
+      fontStyle: '900',
+      stroke: '#450a0a',
+      strokeThickness: 4,
+    }).setOrigin(0.5, 0.5);
+    this.effectLayer.add(text);
+    this.tweens.add({
+      targets: text,
+      y: anchors.headY - 18,
+      x: anchors.x + 38,
+      alpha: 0,
+      scale: 1.08,
+      duration: 720,
+      ease: 'Cubic.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
   private showImpactBurst(x: number, y: number, color: number, large: boolean): void {
     if (!this.effectLayer) {
       return;
@@ -1361,6 +1427,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
           },
         });
       },
+    });
+  }
+
+  private knockEnemyAfterDamage(distance: number, duration: number): void {
+    this.time.delayedCall(ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS, () => {
+      this.knockCharacter('enemy', distance, duration);
     });
   }
 
