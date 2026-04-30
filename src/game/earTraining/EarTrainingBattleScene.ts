@@ -64,8 +64,6 @@ interface PianoKeyView {
 
 interface CharacterView {
   container: Phaser.GameObjects.Container;
-  aura: Phaser.GameObjects.Arc;
-  body: Phaser.GameObjects.Arc;
   image: Phaser.GameObjects.Image | null;
 }
 
@@ -338,11 +336,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   private createCharacter(x: number, y: number, isPlayer: boolean, avatarUrl: string, avatarFlipX: boolean): CharacterView {
     const container = this.add.container(x, y);
-    const auraColor = isPlayer ? 0x22c55e : 0xf43f5e;
-    const aura = this.add.circle(0, -78, 86, auraColor, 0.16);
-    aura.setStrokeStyle(2, auraColor, 0.42);
-    const body = this.add.circle(0, -78, 66, isPlayer ? 0x064e3b : 0x4c0519, 0.92);
-    body.setStrokeStyle(3, isPlayer ? 0x86efac : 0xfda4af, 0.72);
     const textureKey = hashText(avatarUrl);
     const shouldFlipX = !isPlayer && (avatarFlipX || EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(avatarUrl));
     const image = this.textures.exists(textureKey)
@@ -357,13 +350,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0.5);
     fallback.setVisible(!image);
 
-    container.add([aura, body]);
     if (image) {
       container.add(image);
     }
     container.add(fallback);
     this.characterLayer?.add(container);
-    return { container, aura, body, image };
+    return { container, image };
   }
 
   private drawPhraseSlots(width: number, height: number): void {
@@ -660,14 +652,13 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.playerView) {
       return;
     }
-    this.playerView.body.setFillStyle(0xef4444, 0.96);
     this.tweens.add({
-      targets: this.playerView.body,
+      targets: this.playerView.container,
       alpha: 0.35,
       yoyo: true,
       repeat: 3,
       duration: 80,
-      onComplete: () => this.playerView?.body.setAlpha(1),
+      onComplete: () => this.playerView?.container.setAlpha(1),
     });
   }
 

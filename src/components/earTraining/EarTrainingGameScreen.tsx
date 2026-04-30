@@ -22,6 +22,7 @@ import { cn } from '@/utils/cn';
 import {
   MIDIController,
   initializeAudioSystem,
+  markAudioUserInteraction,
   playNote,
   stopNote,
   updateGlobalVolume,
@@ -161,6 +162,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const enemyHpRef = useRef(stage.enemy_hp);
   const playerHpRef = useRef(stage.player_hp);
   const timeRemainingRef = useRef(stage.time_limit_sec);
+  const audioPrimeTokenRef = useRef(0);
   const failTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const transitionTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const countdownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -240,6 +242,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     if (!audio) {
       return;
     }
+    audioPrimeTokenRef.current += 1;
+    audio.muted = false;
     audio.pause();
     audio.currentTime = 0;
   }, []);
@@ -357,9 +361,11 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
     const audio = audioRef.current;
     if (audio) {
+      audioPrimeTokenRef.current += 1;
       audio.pause();
       audio.src = phrase.audio_url;
       audio.currentTime = 0;
+      audio.muted = false;
       audio.volume = settings.musicVolume * settings.masterVolume;
       void audio.play().catch(() => {
         setStatusText('音源を再生できませんでした。もう一度開始してください。');
@@ -394,13 +400,47 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     }, 1000);
   }, [clearTimeLimitTimer, finishGameOver, practiceMode]);
 
+  const primePhraseAudio = useCallback((phrase: EarTrainingPhrase | undefined) => {
+    const audio = audioRef.current;
+    if (!audio || !phrase) {
+      return;
+    }
+
+    audioPrimeTokenRef.current += 1;
+    const token = audioPrimeTokenRef.current;
+    audio.pause();
+    audio.src = phrase.audio_url;
+    audio.currentTime = 0;
+    audio.muted = true;
+    audio.volume = 0;
+
+    void audio.play()
+      .then(() => {
+        if (audioPrimeTokenRef.current !== token || gameStateRef.current === 'playingPhrase') {
+          return;
+        }
+        audio.pause();
+        audio.currentTime = 0;
+      })
+      .catch(() => undefined)
+      .finally(() => {
+        if (audioPrimeTokenRef.current !== token || gameStateRef.current === 'playingPhrase') {
+          return;
+        }
+        audio.muted = false;
+        audio.volume = settings.musicVolume * settings.masterVolume;
+      });
+  }, [settings.masterVolume, settings.musicVolume]);
+
   const startCountIn = useCallback(() => {
     if (phrases.length === 0) {
       finishGameOver('フレーズが登録されていません');
       return;
     }
 
+    markAudioUserInteraction();
     void initializeAudioSystem().catch(() => undefined);
+    primePhraseAudio(phrases[0]);
     progressSaveStartedRef.current = false;
     setProgressSaved(false);
     setEnemyHp(stage.enemy_hp);
@@ -437,6 +477,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearTransitionTimer,
     finishGameOver,
     phrases.length,
+    primePhraseAudio,
     stage.bpm,
     stage.count_in_beats,
     stage.enemy_hp,
@@ -749,6 +790,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       }
     },
     onPianoKeyDown: (midiNote: number) => {
+      markAudioUserInteraction();
       void playNote(midiNote);
       handleNoteInputRef.current(midiNote);
     },
