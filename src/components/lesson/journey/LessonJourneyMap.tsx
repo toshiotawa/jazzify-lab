@@ -67,12 +67,12 @@ const LessonJourneyMap: React.FC<LessonJourneyMapProps> = ({
     return lessons.map((lesson, index) => ({
       id: lesson.id,
       blockNumber: lesson.block_number ?? 1,
-      blockName: lesson.block_name ?? null,
+      blockName: lessonDisplayBlockName(lesson, isEnglishCopy),
       blockNameEn: lesson.block_name_en ?? null,
       orderIndex: lesson.order_index,
       sourceIndex: index,
     }));
-  }, [lessons]);
+  }, [lessons, isEnglishCopy]);
 
   const layout = useMemo(
     () => buildJourneyLayout(journeyInputs, { isEnglish: isEnglishCopy }),

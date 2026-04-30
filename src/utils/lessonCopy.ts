@@ -1,5 +1,9 @@
 import type { Lesson } from '@/types';
 
+/** DB 上のチュートリアルブロック既定名（block_name_en 未設定時の英語 UI 用） */
+const TUTORIAL_LESSON_BLOCK_NAME_JA = 'チュートリアル';
+const TUTORIAL_LESSON_BLOCK_NAME_EN = 'Tutorial';
+
 type LessonLocalized = Pick<Lesson, 'title' | 'description' | 'block_number' | 'block_name'> & {
   title_en?: string | null;
   description_en?: string | null;
@@ -38,6 +42,9 @@ export const lessonDisplayBlockName = (lesson: LessonLocalized, isEnglish: boole
     return lesson.block_name_en;
   }
   if (lesson.block_name) {
+    if (isEnglish && lesson.block_name === TUTORIAL_LESSON_BLOCK_NAME_JA) {
+      return TUTORIAL_LESSON_BLOCK_NAME_EN;
+    }
     return lesson.block_name;
   }
   return isEnglish ? `Block ${blockNumber}` : `ブロック ${blockNumber}`;

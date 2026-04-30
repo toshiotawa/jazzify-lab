@@ -60,6 +60,34 @@ describe('lessonDisplayBlockName', () => {
     expect(lessonDisplayBlockName(baseLesson, true)).toBe('第1番');
   });
 
+  it('英語でチュートリアルブロックは block_name_en が無くても Tutorial とする', () => {
+    expect(
+      lessonDisplayBlockName(
+        {
+          title: 'x',
+          description: 'y',
+          block_number: 1,
+          block_name: 'チュートリアル',
+        },
+        true,
+      ),
+    ).toBe('Tutorial');
+  });
+
+  it('日本語 UI ではチュートリアルブロック名をそのまま表示する', () => {
+    expect(
+      lessonDisplayBlockName(
+        {
+          title: 'x',
+          description: 'y',
+          block_number: 1,
+          block_name: 'チュートリアル',
+        },
+        false,
+      ),
+    ).toBe('チュートリアル');
+  });
+
   it('名前が無いときはブロック番号ラベル', () => {
     expect(
       lessonDisplayBlockName(
