@@ -90,18 +90,21 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private pianoKeys: PianoKeyView[] = [];
   private pressedPointerKey: number | null = null;
   private lastEffectId: number | null = null;
+  private isReady = false;
 
   constructor() {
     super({ key: 'EarTrainingBattleScene' });
   }
 
   create(): void {
+    this.isReady = true;
     this.cameras.main.setBackgroundColor('#070817');
     this.scale.on('resize', this.handleResize, this);
     this.rebuildScene();
   }
 
   shutdown(): void {
+    this.isReady = false;
     this.scale.off('resize', this.handleResize, this);
   }
 
@@ -113,6 +116,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const shouldRefreshAvatars = this.snapshot?.enemyAvatarUrl !== snapshot.enemyAvatarUrl
       || this.snapshot?.playerAvatarUrl !== snapshot.playerAvatarUrl;
     this.snapshot = snapshot;
+    if (!this.isReady) {
+      return;
+    }
     this.rebuildScene();
     if (shouldRefreshAvatars) {
       this.loadAvatarTextures(snapshot);
@@ -120,6 +126,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   triggerEffect(command: EarTrainingBattleEffectCommand): void {
+    if (!this.isReady) {
+      return;
+    }
     if (this.lastEffectId === command.id) {
       return;
     }

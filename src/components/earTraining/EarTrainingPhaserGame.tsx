@@ -70,14 +70,9 @@ const EarTrainingPhaserGame = forwardRef<EarTrainingBattleSceneHandle, EarTraini
     const applyInitialSnapshot = () => {
       scene.updateSnapshot(latestSnapshotRef.current);
     };
-    if (scene.scene.isActive()) {
-      applyInitialSnapshot();
-    } else {
-      scene.events.once(Phaser.Scenes.Events.CREATE, applyInitialSnapshot);
-    }
+    applyInitialSnapshot();
 
     return () => {
-      scene.events.off(Phaser.Scenes.Events.CREATE, applyInitialSnapshot);
       sceneRef.current = null;
       gameRef.current?.destroy(true);
       gameRef.current = null;
