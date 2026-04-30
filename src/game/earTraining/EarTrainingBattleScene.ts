@@ -197,8 +197,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     background.fillRect(0, floorY - FLOOR_BAND_OVERLAP, width, floorHeight);
     background.lineStyle(2, 0xfbbf24, 0.16);
     background.lineBetween(0, floorY, width, floorY);
+    background.fillStyle(0x000000, 0.2);
+    background.fillEllipse(width * 0.23, floorY + 6, 168, 28);
+    background.fillEllipse(width * 0.77, floorY + 6, 168, 28);
     this.backgroundLayer.add([wall, floor, background]);
-    this.drawJazzClubDecorations(width, height, floorY);
   }
 
   private ensureJazzClubBackgroundTextures(): void {
@@ -239,59 +241,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       floorTexture.generateTexture(JAZZ_FLOOR_TILE_KEY, JAZZ_FLOOR_TILE_WIDTH, JAZZ_FLOOR_TILE_HEIGHT);
       floorTexture.destroy();
     }
-  }
-
-  private drawJazzClubDecorations(width: number, height: number, floorY: number): void {
-    if (!this.backgroundLayer) {
-      return;
-    }
-
-    const decoration = this.add.graphics();
-    const safeWallTop = HUD_HEIGHT + 26;
-    const wallCenterY = Phaser.Math.Clamp(floorY - 170, safeWallTop + 52, Math.max(safeWallTop + 52, floorY - 56));
-
-    this.drawWallLamp(decoration, width * 0.11, wallCenterY - 36);
-    this.drawWallLamp(decoration, width * 0.89, wallCenterY - 36);
-    this.drawJazzFrame(decoration, width * 0.37, safeWallTop + 68, 78, 48);
-    this.drawJazzFrame(decoration, width * 0.63, safeWallTop + 82, 66, 42);
-    this.drawMusicNote(decoration, width * 0.51, safeWallTop + 58, 0.62);
-    this.drawMusicNote(decoration, width * 0.16, Math.min(floorY - 90, height * 0.48), 0.48);
-    this.drawMusicNote(decoration, width * 0.84, Math.min(floorY - 86, height * 0.5), 0.48);
-
-    decoration.fillStyle(0x000000, 0.2);
-    decoration.fillEllipse(width * 0.23, floorY + 6, 168, 28);
-    decoration.fillEllipse(width * 0.77, floorY + 6, 168, 28);
-    this.backgroundLayer.add(decoration);
-  }
-
-  private drawWallLamp(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
-    graphics.fillStyle(0xf59e0b, 0.11);
-    graphics.fillCircle(x, y + 8, 72);
-    graphics.fillStyle(0xfbbf24, 0.24);
-    graphics.fillCircle(x, y + 8, 42);
-    graphics.fillStyle(0xfde68a, 0.88);
-    graphics.fillRoundedRect(x - 12, y - 18, 24, 34, 8);
-    graphics.fillStyle(0x451a03, 0.95);
-    graphics.fillRoundedRect(x - 18, y + 12, 36, 8, 4);
-  }
-
-  private drawJazzFrame(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number): void {
-    graphics.fillStyle(0x09090b, 0.82);
-    graphics.fillRoundedRect(x - width / 2, y - height / 2, width, height, 4);
-    graphics.lineStyle(3, 0x92400e, 0.82);
-    graphics.strokeRoundedRect(x - width / 2, y - height / 2, width, height, 4);
-    graphics.lineStyle(1, 0xfde68a, 0.18);
-    graphics.lineBetween(x - width * 0.25, y + height * 0.12, x - width * 0.04, y - height * 0.16);
-    graphics.lineBetween(x - width * 0.04, y - height * 0.16, x + width * 0.16, y + height * 0.12);
-    graphics.fillStyle(0xf59e0b, 0.22);
-    graphics.fillCircle(x + width * 0.24, y - height * 0.12, 5);
-  }
-
-  private drawMusicNote(graphics: Phaser.GameObjects.Graphics, x: number, y: number, scale: number): void {
-    graphics.fillStyle(0xfde68a, 0.16);
-    graphics.fillEllipse(x - 6 * scale, y + 18 * scale, 16 * scale, 11 * scale);
-    graphics.fillRect(x + 1 * scale, y - 18 * scale, 4 * scale, 38 * scale);
-    graphics.fillRoundedRect(x + 3 * scale, y - 18 * scale, 22 * scale, 5 * scale, 2 * scale);
   }
 
   private drawHud(width: number): void {
