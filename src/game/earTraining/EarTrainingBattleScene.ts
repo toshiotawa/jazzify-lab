@@ -63,6 +63,7 @@ const hashText = (value: string): string => {
 interface CharacterView {
   container: Phaser.GameObjects.Container;
   image: Phaser.GameObjects.Image | null;
+  fallback: Phaser.GameObjects.Text;
 }
 
 interface CharacterAnchors {
@@ -411,7 +412,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     container.add(fallback);
     this.characterLayer?.add(container);
-    return { container, image };
+    return { container, image, fallback };
   }
 
   private drawEnemyAttackGauge(x: number, y: number): void {
@@ -722,60 +723,57 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playGoodCompleteEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 1);
-    const bolt = this.add.rectangle(anchors.player.x + 36, anchors.player.castY, 72, 18, 0xfacc15, 0.95);
-    bolt.setStrokeStyle(2, 0xfef3c7, 0.9);
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.35);
+    const bolt = this.add.rectangle(anchors.player.x + 38, anchors.player.castY, 104, 24, 0xfacc15, 0.98);
+    bolt.setStrokeStyle(3, 0xfef3c7, 0.95);
     this.effectLayer?.add(bolt);
     this.tweens.add({
       targets: bolt,
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      scaleX: 1.45,
+      scaleX: 1.75,
       alpha: 0,
-      duration: 640,
+      duration: 620,
       ease: 'Quart.easeOut',
       onComplete: () => {
         bolt.destroy();
-        this.flashEnemy();
-        this.knockEnemy(anchors.enemy.x + 22, anchors.enemy.x, 150);
-        this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xfacc15, true);
+        this.applyCompletionImpact(anchors, 0xfacc15, 78, 300, 0xfef08a);
         this.callbacks.onEffectImpact(command.id);
       },
     });
   }
 
   private playSnowflakeEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.25);
-    const snowflake = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 38);
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.6);
+    const snowflake = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 52);
     this.effectLayer?.add(snowflake);
     this.tweens.add({
       targets: snowflake,
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      angle: 540,
-      scale: 1.35,
-      duration: 760,
+      angle: 720,
+      scale: 1.65,
+      duration: 820,
       ease: 'Cubic.easeInOut',
       onComplete: () => {
         snowflake.destroy();
-        this.flashEnemy();
-        this.knockEnemy(anchors.enemy.x + 28, anchors.enemy.x, 170);
-        this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0x93c5fd, true);
+        this.applyCompletionImpact(anchors, 0x93c5fd, 96, 340, 0x7dd3fc);
         this.callbacks.onEffectImpact(command.id);
       },
     });
   }
 
   private playLightningEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 8, 82, 0x60a5fa);
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.45);
+    this.zoomToPlayer(anchors, 760);
+    this.createMagicCircle(anchors.player.x, anchors.player.footY - 8, 112, 0x60a5fa);
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.9);
     const cloud = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
+    cloud.setScale(1.22);
     this.effectLayer?.add(cloud);
-    this.time.delayedCall(340, () => {
+    this.time.delayedCall(470, () => {
       const lightning = this.createLightning(anchors.enemy.x, anchors.enemy.headY - 18, anchors.enemy.bodyY + 8, 0xfef08a);
       this.effectLayer?.add(lightning);
-      this.flashEnemy();
-      this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xfef08a, true);
+      this.applyCompletionImpact(anchors, 0xfef08a, 112, 360, 0xfef08a);
       this.callbacks.onEffectImpact(command.id);
       this.tweens.add({
         targets: [cloud, lightning],
@@ -791,39 +789,68 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 132, 0xf97316);
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 1.85);
-    this.tweens.add({
-      targets: this.cameras.main,
-      zoom: 1.09,
-      duration: 260,
-      yoyo: true,
-      ease: 'Sine.easeInOut',
-      onComplete: () => this.cameras.main.setZoom(1),
-    });
-    const meteorStartY = Math.max(HUD_HEIGHT + 20, anchors.enemy.headY - 190);
-    const meteor = this.add.circle(anchors.enemy.x - 92, meteorStartY, 34, 0xf97316, 1);
-    meteor.setStrokeStyle(5, 0xffedd5, 0.9);
-    const core = this.add.circle(anchors.enemy.x - 92, meteorStartY, 15, 0xfef3c7, 1);
-    const trail = this.add.rectangle(anchors.enemy.x - 128, meteorStartY - 38, 30, 102, 0xef4444, 0.58);
+    this.zoomToPlayer(anchors, 980);
+    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 176, 0xf97316);
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 2.35);
+    const meteorStartY = Math.max(HUD_HEIGHT + 8, anchors.enemy.headY - 230);
+    const meteor = this.add.circle(anchors.enemy.x - 116, meteorStartY, 48, 0xf97316, 1);
+    meteor.setStrokeStyle(7, 0xffedd5, 0.95);
+    const core = this.add.circle(anchors.enemy.x - 116, meteorStartY, 22, 0xfef3c7, 1);
+    const trail = this.add.rectangle(anchors.enemy.x - 166, meteorStartY - 54, 42, 148, 0xef4444, 0.64);
     trail.setRotation(-0.58);
     this.effectLayer?.add([trail, meteor, core]);
     this.tweens.add({
       targets: [trail, meteor, core],
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      scale: 1.24,
-      duration: 900,
+      scale: 1.38,
+      duration: 960,
       ease: 'Cubic.easeIn',
       onComplete: () => {
         trail.destroy();
         meteor.destroy();
         core.destroy();
-        this.flashEnemy();
-        this.knockEnemy(anchors.enemy.x + 40, anchors.enemy.x, 230);
-        this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xf97316, true);
+        this.applyCompletionImpact(anchors, 0xf97316, 150, 420, 0xffedd5);
         this.callbacks.onEffectImpact(command.id);
       },
+    });
+  }
+
+  private applyCompletionImpact(
+    anchors: BattleAnchors,
+    color: number,
+    knockbackDistance: number,
+    knockbackDuration: number,
+    tintColor: number,
+  ): void {
+    this.flashEnemy();
+    this.tintEnemy(tintColor, knockbackDuration + 260);
+    this.knockEnemy(anchors.enemy.x + knockbackDistance, anchors.enemy.x, knockbackDuration);
+    this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, color, true);
+    this.showScreenFlash(color, 0.16);
+  }
+
+  private zoomToPlayer(anchors: BattleAnchors, holdMs: number): void {
+    const camera = this.cameras.main;
+    camera.pan(anchors.player.x, anchors.player.bodyY, 240, 'Sine.easeInOut');
+    this.tweens.add({
+      targets: camera,
+      zoom: 1.88,
+      duration: 280,
+      ease: 'Sine.easeOut',
+    });
+    this.time.delayedCall(holdMs, () => {
+      camera.pan(this.scale.width / 2, this.scale.height / 2, 340, 'Sine.easeInOut');
+      this.tweens.add({
+        targets: camera,
+        zoom: 1,
+        duration: 340,
+        ease: 'Sine.easeInOut',
+        onComplete: () => {
+          camera.setZoom(1);
+          camera.centerOn(this.scale.width / 2, this.scale.height / 2);
+        },
+      });
     });
   }
 
@@ -968,33 +995,67 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
-    const ring = this.add.circle(x, y, large ? 34 : 22, color, 0.14);
-    ring.setStrokeStyle(large ? 5 : 3, 0xffffff, large ? 0.86 : 0.72);
+    const ring = this.add.circle(x, y, large ? 46 : 24, color, 0.16);
+    ring.setStrokeStyle(large ? 7 : 3, 0xffffff, large ? 0.9 : 0.72);
     this.effectLayer.add(ring);
     this.tweens.add({
       targets: ring,
-      scale: large ? 1.9 : 1.55,
+      scale: large ? 2.25 : 1.6,
       alpha: 0,
-      duration: large ? 620 : 420,
+      duration: large ? 740 : 420,
       ease: 'Cubic.easeOut',
       onComplete: () => ring.destroy(),
     });
 
-    const sparkCount = large ? 14 : 8;
+    const sparkCount = large ? 22 : 9;
     for (let index = 0; index < sparkCount; index += 1) {
       const angle = (Math.PI * 2 * index) / sparkCount;
-      const spark = this.add.circle(x, y, large ? 4 : 3, color, 0.88);
+      const spark = this.add.circle(x, y, large ? 5 : 3, color, 0.9);
       this.effectLayer.add(spark);
       this.tweens.add({
         targets: spark,
-        x: x + Math.cos(angle) * (large ? 74 : 42),
-        y: y + Math.sin(angle) * (large ? 50 : 30),
+        x: x + Math.cos(angle) * (large ? 104 : 44),
+        y: y + Math.sin(angle) * (large ? 68 : 30),
         alpha: 0,
-        duration: large ? 560 : 360,
+        duration: large ? 680 : 360,
         ease: 'Cubic.easeOut',
         onComplete: () => spark.destroy(),
       });
     }
+  }
+
+  private showScreenFlash(color: number, alpha: number): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const flash = this.add.rectangle(
+      0,
+      0,
+      Math.max(320, this.scale.width),
+      Math.max(480, this.scale.height),
+      color,
+      alpha,
+    ).setOrigin(0, 0);
+    this.effectLayer.add(flash);
+    this.tweens.add({
+      targets: flash,
+      alpha: 0,
+      duration: 360,
+      ease: 'Cubic.easeOut',
+      onComplete: () => flash.destroy(),
+    });
+  }
+
+  private tintEnemy(color: number, duration: number): void {
+    if (!this.enemyView) {
+      return;
+    }
+    this.enemyView.image?.setTint(color);
+    this.enemyView.fallback.setColor(`#${color.toString(16).padStart(6, '0')}`);
+    this.time.delayedCall(duration, () => {
+      this.enemyView?.image?.clearTint();
+      this.enemyView?.fallback.setColor('#ffffff');
+    });
   }
 
   private getRankColor(label: string): string {
