@@ -10,6 +10,11 @@ import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
 const PIANO_OVERLAY_HEIGHT = 120;
 const HUD_HEIGHT = 150;
 const PHRASE_INTRO_FADE_MS = 2600;
+const FLOOR_CLEARANCE_FROM_PIANO = 100;
+const FLOOR_BAND_OVERLAP = 16;
+const CHARACTER_DISPLAY_SIZE = 116;
+const CHARACTER_SHADOW_WIDTH = 104;
+const CHARACTER_SHADOW_HEIGHT = 22;
 
 const EMPTY_CALLBACKS: EarTrainingBattleCallbacks = {
   onStart: () => undefined,
@@ -29,7 +34,7 @@ const clampPercent = (value: number, max: number): number => {
 
 const getPianoHeight = (): number => PIANO_OVERLAY_HEIGHT;
 
-const getCharacterBaseY = (height: number): number => Math.max(230, height - getPianoHeight() - 170);
+const getFloorY = (height: number): number => Math.max(260, height - getPianoHeight() - FLOOR_CLEARANCE_FROM_PIANO);
 
 const colorForHp = (percent: number, high: number, middle: number, low: number): number => {
   if (percent > 0.5) {
@@ -181,8 +186,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     for (let y = 0; y < height; y += 56) {
       background.lineBetween(0, y, width, y);
     }
-    background.fillStyle(0x000000, 0.35);
-    background.fillRect(0, height * 0.72, width, height * 0.28);
+    const floorY = getFloorY(height);
+    background.fillStyle(0x000000, 0.42);
+    background.fillRect(0, floorY - FLOOR_BAND_OVERLAP, width, height - floorY + FLOOR_BAND_OVERLAP);
+    background.lineStyle(2, 0xffffff, 0.09);
+    background.lineBetween(0, floorY, width, floorY);
     this.backgroundLayer.add(background);
   }
 
@@ -310,28 +318,30 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!snapshot || !this.characterLayer) {
       return;
     }
-    const characterBaseY = getCharacterBaseY(height);
-    this.playerView = this.createCharacter(width * 0.23, characterBaseY, true, snapshot.playerAvatarUrl, false);
-    this.enemyView = this.createCharacter(width * 0.77, characterBaseY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
-    this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, characterBaseY - 166));
+    const floorY = getFloorY(height);
+    this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
+    this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
+    this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
   }
 
   private createCharacter(x: number, y: number, isPlayer: boolean, avatarUrl: string, avatarFlipX: boolean): CharacterView {
     const container = this.add.container(x, y);
     const textureKey = hashText(avatarUrl);
     const shouldFlipX = !isPlayer && (avatarFlipX || EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(avatarUrl));
+    const shadow = this.add.ellipse(0, 4, CHARACTER_SHADOW_WIDTH, CHARACTER_SHADOW_HEIGHT, 0x000000, 0.34);
     const image = this.textures.exists(textureKey)
-      ? this.add.image(0, -78, textureKey).setDisplaySize(116, 116)
+      ? this.add.image(0, 0, textureKey).setOrigin(0.5, 1).setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE)
       : null;
     image?.setFlipX(shouldFlipX);
-    const fallback = this.add.text(0, -78, isPlayer ? 'P' : 'E', {
+    const fallback = this.add.text(0, 0, isPlayer ? 'P' : 'E', {
       color: '#ffffff',
       fontFamily: 'Arial, sans-serif',
       fontSize: '42px',
       fontStyle: '900',
-    }).setOrigin(0.5, 0.5);
+    }).setOrigin(0.5, 1);
     fallback.setVisible(!image);
 
+    container.add(shadow);
     if (image) {
       container.add(image);
     }
@@ -378,7 +388,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
     this.lastPhraseIntroKey = introKey;
     this.phraseIntroText?.destroy();
-    const y = Math.max(HUD_HEIGHT + 42, getCharacterBaseY(height) - 220);
+    const y = Math.max(HUD_HEIGHT + 42, getFloorY(height) - 220);
     const text = this.add.text(width / 2, y, `Phrase ${snapshot.phraseIndex + 1} / ${snapshot.totalPhrases}`, {
       color: '#fef3c7',
       fontFamily: 'Arial, sans-serif',
