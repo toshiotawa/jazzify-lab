@@ -794,7 +794,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const anchors = this.getBattleAnchors(width, height);
     const label = command.label ?? 'Good';
     const isSuperPerfect = label === 'Perfect' && (command.phraseNoteCount ?? 0) >= 6;
-    const displayLabel = isSuperPerfect ? 'Super Perfect' : label;
+    const displayLabel = isSuperPerfect ? 'Awesome!' : label;
     this.showFloatingResultText(displayLabel, anchors.player.x, anchors.player.resultTextY, this.getRankColor(displayLabel));
 
     if (isSuperPerfect) {
@@ -1369,7 +1369,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private getRankColor(label: string): string {
-    if (label === 'Super Perfect' || label === 'Perfect') {
+    if (label === 'Awesome!' || label === 'Perfect') {
       return '#fef08a';
     }
     if (label === 'Great') {
