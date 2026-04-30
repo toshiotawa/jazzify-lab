@@ -29,7 +29,7 @@ import {
   mapEarTrainingRankToLessonRank,
   resolveEarTrainingOutcome,
 } from '@/utils/earTrainingEngine';
-import { DEFAULT_AVATAR_URL } from '@/utils/constants';
+import { DEFAULT_AVATAR_URL, EAR_TRAINING_PLAYER_AVATAR_URL } from '@/utils/constants';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -784,8 +784,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
           )}
           <div className="flex h-full items-center justify-around gap-4 pt-8">
             <div className={cn('flex flex-col items-center gap-2 transition-transform', feedback === 'miss' && 'scale-95')}>
-              <img src={DEFAULT_AVATAR_URL} alt="default_avatar" className="h-24 w-24 rounded-full object-contain sm:h-32 sm:w-32" />
-              <div className="rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold">default_avatar</div>
+              <img
+                src={EAR_TRAINING_PLAYER_AVATAR_URL}
+                alt="あなた"
+                className="h-24 w-24 rounded-full object-contain sm:h-32 sm:w-32"
+              />
+              <div className="rounded-full bg-emerald-500/20 px-3 py-1 text-sm font-bold">あなた</div>
             </div>
             <div className="text-center">
               <div className={cn('text-4xl font-black transition-transform', feedback === 'correct' && 'scale-125 text-amber-300')}>
