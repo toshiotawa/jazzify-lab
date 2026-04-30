@@ -978,7 +978,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 138, 0xfef08a);
     this.createCastEffect(anchors.player.x, anchors.player.castY, 2.65);
     this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 1380, 0xfef08a, true);
-    this.showChantText(anchors.player.x, anchors.player.headY - 38, '6 NOTE PERFECT!');
+    this.showChantText(anchors.player.x, anchors.player.headY - 38, 'Awesome!');
   }
 
   private launchMeteor(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
