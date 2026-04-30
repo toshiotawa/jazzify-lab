@@ -18,6 +18,7 @@ export interface EarTrainingBattleChordView {
 
 export interface EarTrainingBattleSnapshot {
   gameState: EarTrainingGameState;
+  resultState: 'win' | 'lose' | 'timeOver' | null;
   stageTitle: string;
   statusText: string;
   timeLabel: string;

@@ -8,6 +8,7 @@ import type {
   EarTrainingPhrase,
   EarTrainingPhraseAttempt,
   EarTrainingPhraseChord,
+  EarTrainingPhraseNote,
   EarTrainingRank,
   EarTrainingStage,
 } from '@/types';
@@ -103,6 +104,69 @@ const getActiveChord = (phrase: EarTrainingPhrase | undefined, timeSec: number):
   return phrase.chords[0] ?? null;
 };
 
+const getPhraseNoteTimeSec = (note: EarTrainingPhraseNote, stage: EarTrainingStage): number | null => {
+  if (note.measure_number === null || note.measure_number === undefined) {
+    return null;
+  }
+  if (note.beat_offset === null || note.beat_offset === undefined) {
+    return null;
+  }
+
+  const beatDurationSec = 60 / stage.bpm;
+  const measureIndex = Math.max(0, note.measure_number - 1);
+  const beatOffset = Math.max(0, note.beat_offset);
+  return (measureIndex * stage.beats_per_measure + beatOffset) * beatDurationSec;
+};
+
+const getPhraseDemoWindow = (
+  phrase: EarTrainingPhrase,
+  stage: EarTrainingStage,
+): { startSec: number; endSec: number } | null => {
+  const noteTimes = (phrase.notes ?? [])
+    .map(note => getPhraseNoteTimeSec(note, stage))
+    .filter((time): time is number => time !== null && Number.isFinite(time));
+
+  if (noteTimes.length === 0) {
+    return null;
+  }
+
+  const startSec = Math.min(...noteTimes);
+  const lastNoteStartSec = Math.max(...noteTimes);
+  const beatDurationSec = 60 / stage.bpm;
+  const loopDurationSec = Number(phrase.loop_duration_sec);
+  const fallbackEndSec = lastNoteStartSec + beatDurationSec;
+  const endSec = Number.isFinite(loopDurationSec)
+    ? Math.min(loopDurationSec, fallbackEndSec)
+    : fallbackEndSec;
+
+  return {
+    startSec,
+    endSec: Math.max(startSec, endSec),
+  };
+};
+
+const isPhraseDemoLoopActive = (phrase: EarTrainingPhrase, loopNumber: number): boolean => (
+  Boolean(phrase.demo_loops?.some(loop => loop.loop_number === loopNumber))
+);
+
+const shouldShowDemoBubble = (
+  phrase: EarTrainingPhrase,
+  stage: EarTrainingStage,
+  loopNumber: number,
+  loopTimeSec: number,
+): boolean => {
+  if (!isPhraseDemoLoopActive(phrase, loopNumber)) {
+    return false;
+  }
+
+  const demoWindow = getPhraseDemoWindow(phrase, stage);
+  if (!demoWindow) {
+    return true;
+  }
+
+  return loopTimeSec >= demoWindow.startSec && loopTimeSec <= demoWindow.endSec;
+};
+
 const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   stage,
   enemy,
@@ -157,6 +221,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
   const [enemyAttackGaugePercent, setEnemyAttackGaugePercent] = useState(0);
+  const [demoBubbleVisible, setDemoBubbleVisible] = useState(false);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
@@ -395,6 +460,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setLastRank(null);
     setActiveLoop(1);
     setEnemyAttackGaugePercent(0);
+    setDemoBubbleVisible(shouldShowDemoBubble(phrase, stage, 1, 0));
     setActiveChord(getActiveChord(phrase, 0));
     setStatusText(`Phrase ${nextPhraseIndex + 1}`);
     gameStateRef.current = 'playingPhrase';
@@ -417,6 +483,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearTransitionTimer,
     finishGameOver,
     phrases,
+    stage,
     settings.masterVolume,
     settings.musicVolume,
   ]);
@@ -434,7 +501,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       setTimeRemaining(prev => {
         const next = Math.max(0, prev - 1);
         if (next <= 0) {
-          finishGameOver('Time Up');
+          finishGameOver('Time Over');
         }
         return next;
       });
@@ -492,6 +559,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setBattleEffectCommand(null);
     pendingImpactHandlersRef.current.clear();
     setEnemyAttackGaugePercent(0);
+    setDemoBubbleVisible(false);
     gameStateRef.current = 'countIn';
     setGameState('countIn');
     setStatusText('Count In');
@@ -738,6 +806,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setActiveLoop(Math.max(1, Math.min(stage.max_loops_per_phrase, loop)));
     const loopTime = audio.currentTime % Number(phrase.loop_duration_sec);
     setActiveChord(getActiveChord(phrase, loopTime));
+    setDemoBubbleVisible(shouldShowDemoBubble(phrase, stage, loop, loopTime));
     const loopDurationSec = Number(phrase.loop_duration_sec);
     const gaugeDurationSec = loopDurationSec * ATTACK_GAUGE_TARGET_LOOPS;
     setEnemyAttackGaugePercent(
@@ -750,7 +819,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     if (audio.ended || (Number.isFinite(audioDurationSec) && audio.currentTime >= audioDurationSec - AUDIO_END_EPSILON_SEC)) {
       failCurrentPhrase();
     }
-  }, [failCurrentPhrase, phraseIndex, phrases, stage.max_loops_per_phrase]);
+  }, [failCurrentPhrase, phraseIndex, phrases, stage]);
 
   const handleAudioEnded = useCallback(() => {
     failCurrentPhrase();
@@ -778,7 +847,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const revealedNotes = attempt?.revealedNotes ?? [];
   const currentNotes = currentPhrase?.notes ?? [];
   const currentNoteIndex = attempt?.currentNoteIndex ?? 0;
-  const demoLoopActive = Boolean(currentPhrase?.demo_loops?.some(loop => loop.loop_number === activeLoop));
+  const demoLoopActive = gameState === 'playingPhrase' && demoBubbleVisible;
   const enemyName = enemy?.name ?? 'Random Rival';
   const enemyAvatar = useMemo(() => {
     const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
@@ -795,11 +864,17 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
   const stageStatusText = gameState === 'countIn' ? `Count ${countInValue}` : statusText;
+  const resultState = gameState === 'stageClear'
+    ? 'win'
+    : gameState === 'gameOver'
+      ? statusText === 'Time Over' ? 'timeOver' : 'lose'
+      : null;
   const lessonProgressText = lessonContext && gameState === 'stageClear'
     ? progressSaved ? 'レッスン進捗を保存しました' : 'レッスン進捗を保存中...'
     : null;
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
+    resultState,
     stageTitle: stage.title,
     statusText: stageStatusText,
     timeLabel,
@@ -856,6 +931,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     playerHp,
     practiceMode,
     revealedNotes,
+    resultState,
     showLobbyControls,
     stage.enemy_hp,
     stage.max_loops_per_phrase,

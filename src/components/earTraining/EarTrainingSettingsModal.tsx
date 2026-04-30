@@ -54,7 +54,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-md rounded-2xl border border-slate-700 bg-slate-900 p-5 text-white shadow-2xl"
+        className="max-h-[calc(100dvh-2rem)] w-full max-w-md overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 p-5 text-white shadow-2xl"
         onClick={event => event.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
@@ -69,7 +69,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
           </button>
         </div>
 
-        <div className="space-y-5">
+        <div className="max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-1">
           <section className="rounded-xl border border-blue-700/40 bg-blue-950/30 p-4">
             <h3 className="mb-2 text-sm font-semibold text-blue-100">MIDIデバイス</h3>
             <MidiDeviceSelector

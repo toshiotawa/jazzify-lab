@@ -21,6 +21,8 @@ const JAZZ_WALL_TILE_SIZE = 64;
 const JAZZ_FLOOR_TILE_WIDTH = 96;
 const JAZZ_FLOOR_TILE_HEIGHT = 48;
 const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
+const FUKIDASHI_ASSET_KEY = 'ear-training-fukidashi';
+const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.png`;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
@@ -208,6 +210,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       }
       this.load.image(asset.key, asset.url);
     });
+    if (!this.textures.exists(FUKIDASHI_ASSET_KEY)) {
+      this.load.image(FUKIDASHI_ASSET_KEY, FUKIDASHI_ASSET_URL);
+    }
   }
 
   private rebuildScene(): void {
@@ -436,6 +441,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.playerView = this.createCharacter(width * 0.23, floorY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, floorY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
     this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, floorY - 166));
+    if (snapshot.demoLoopActive) {
+      this.drawDemoBubble(width * 0.77, Math.max(HUD_HEIGHT + 46, floorY - CHARACTER_DISPLAY_SIZE - 38));
+    }
   }
 
   private createCharacter(x: number, y: number, isPlayer: boolean, avatarUrl: string, avatarFlipX: boolean): CharacterView {
@@ -481,6 +489,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     frame.setStrokeStyle(1, percent >= 0.92 ? 0xfca5a5 : 0xfb7185, 0.78);
     const fill = this.add.rectangle(x - width / 2 + 2, y + 4, Math.max(0, (width - 4) * percent), 8, 0xfb7185, 0.95).setOrigin(0, 0.5);
     this.characterLayer.add([label, frame, fill]);
+  }
+
+  private drawDemoBubble(x: number, y: number): void {
+    if (!this.characterLayer || !this.textures.exists(FUKIDASHI_ASSET_KEY)) {
+      return;
+    }
+
+    const bubble = this.add.image(x, y, FUKIDASHI_ASSET_KEY)
+      .setOrigin(0.5, 0.72)
+      .setDisplaySize(112, 84)
+      .setAlpha(0.96);
+    this.characterLayer.add(bubble);
   }
 
   private drawPhraseIntro(width: number, height: number): void {
@@ -600,11 +620,24 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const overlay = this.add.rectangle(0, 0, width, height, 0x020617, 0.62).setOrigin(0, 0);
     this.hudLayer.add(overlay);
 
-    if (snapshot.lastRank) {
+    const resultLabel = this.getResultLabel(snapshot.resultState);
+    if (resultLabel) {
+      const result = this.add.text(width / 2, height * 0.3, resultLabel, {
+        color: this.getResultColor(snapshot.resultState),
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '34px',
+        fontStyle: '900',
+        stroke: '#020617',
+        strokeThickness: 6,
+      }).setOrigin(0.5, 0.5);
+      this.hudLayer.add(result);
+    }
+
+    if (snapshot.resultState === 'win' && snapshot.lastRank) {
       const rank = this.add.text(width / 2, height * 0.38, `Rank ${snapshot.lastRank}`, {
         color: '#fde68a',
         fontFamily: 'Arial, sans-serif',
-        fontSize: '16px',
+        fontSize: '18px',
         fontStyle: '900',
       }).setOrigin(0.5, 0.5);
       this.hudLayer.add(rank);
@@ -613,9 +646,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.drawModeButton(width / 2 - 82, height * 0.46, 'バトル', !snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(false));
     this.drawModeButton(width / 2 + 12, height * 0.46, '練習', snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(true));
     this.drawStartButton(width / 2, height * 0.56, snapshot.startButtonLabel);
+    this.drawLobbyBackButton(width / 2, height * 0.66);
 
     if (snapshot.lessonProgressText) {
-      const progress = this.add.text(width / 2, height * 0.68, snapshot.lessonProgressText, {
+      const progress = this.add.text(width / 2, height * 0.75, snapshot.lessonProgressText, {
         color: '#bbf7d0',
         fontFamily: 'Arial, sans-serif',
         fontSize: '14px',
@@ -623,6 +657,29 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       }).setOrigin(0.5, 0.5);
       this.hudLayer.add(progress);
     }
+  }
+
+  private getResultLabel(resultState: EarTrainingBattleSnapshot['resultState']): string | null {
+    if (resultState === 'win') {
+      return 'You Win';
+    }
+    if (resultState === 'lose') {
+      return 'Lose';
+    }
+    if (resultState === 'timeOver') {
+      return 'Time Over';
+    }
+    return null;
+  }
+
+  private getResultColor(resultState: EarTrainingBattleSnapshot['resultState']): string {
+    if (resultState === 'win') {
+      return '#fde68a';
+    }
+    if (resultState === 'timeOver') {
+      return '#bae6fd';
+    }
+    return '#fecaca';
   }
 
   private drawModeButton(x: number, y: number, label: string, active: boolean, onClick: () => void): void {
@@ -660,6 +717,24 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       fontStyle: '900',
     }).setOrigin(0.5, 0.5);
     this.tweens.add({ targets: button, scale: 1.04, yoyo: true, repeat: -1, duration: 620 });
+    this.hudLayer.add([button, text]);
+  }
+
+  private drawLobbyBackButton(x: number, y: number): void {
+    if (!this.hudLayer) {
+      return;
+    }
+
+    const button = this.add.rectangle(x, y, 154, 40, 0x020617, 0.86);
+    button.setStrokeStyle(2, 0xffffff, 0.24);
+    button.setInteractive({ useHandCursor: true });
+    button.on('pointerdown', () => this.callbacks.onBack());
+    const text = this.add.text(x, y, '戻る', {
+      color: '#e2e8f0',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '16px',
+      fontStyle: '900',
+    }).setOrigin(0.5, 0.5);
     this.hudLayer.add([button, text]);
   }
 
