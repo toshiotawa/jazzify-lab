@@ -39,6 +39,7 @@ export type EarTrainingOutcome =
   | 'input';
 
 const NOTE_NAMES_BY_PITCH_CLASS = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
+const MAX_MISSES_PER_NOTE = 5;
 
 export const midiToPitchClass = (midiNote: number): number => {
   const rounded = Math.round(midiNote);
@@ -66,18 +67,17 @@ export const createPhraseAttempt = (phrase: EarTrainingPhrase, audioTime = 0): E
   phraseId: phrase.id,
   currentNoteIndex: 0,
   revealedNotes: [],
-  missedNoteIndexes: new Set<number>(),
-  damagedNoteIndexes: new Set<number>(),
+  missedNoteCounts: new Map<number, number>(),
   startedAtAudioTime: audioTime,
   completed: false,
   failed: false,
 });
 
 export const calculateEarTrainingRank = (
-  missedNoteIndexes: Set<number>,
+  missedNoteCounts: Map<number, number>,
   rankRule: EarTrainingRankRule,
 ): EarTrainingRank => {
-  const missCount = missedNoteIndexes.size;
+  const missCount = Array.from(missedNoteCounts.values()).reduce((total, count) => total + count, 0);
   if (missCount <= rankRule.perfectMaxMisses) {
     return 'Perfect';
   }
@@ -155,28 +155,23 @@ export const handleEarTrainingNoteInput = (
   }
 
   const noteIndex = attempt.currentNoteIndex;
-  const missedNoteIndexes = new Set(attempt.missedNoteIndexes);
-  const damagedNoteIndexes = new Set(attempt.damagedNoteIndexes);
-  const evaluationMissAdded = !missedNoteIndexes.has(noteIndex);
-  const damageAdded = !damagedNoteIndexes.has(noteIndex);
+  const missedNoteCounts = new Map(attempt.missedNoteCounts);
+  const currentMissCount = missedNoteCounts.get(noteIndex) ?? 0;
+  const evaluationMissAdded = currentMissCount < MAX_MISSES_PER_NOTE;
 
   if (evaluationMissAdded) {
-    missedNoteIndexes.add(noteIndex);
-  }
-  if (damageAdded) {
-    damagedNoteIndexes.add(noteIndex);
+    missedNoteCounts.set(noteIndex, currentMissCount + 1);
   }
 
   return {
     attempt: {
       ...attempt,
-      missedNoteIndexes,
-      damagedNoteIndexes,
+      missedNoteCounts,
     },
     correct: false,
     completed: false,
     enemyDamage: 0,
-    playerDamage: damageAdded ? damage.miss : 0,
+    playerDamage: evaluationMissAdded ? damage.miss : 0,
     evaluationMissAdded,
   };
 };

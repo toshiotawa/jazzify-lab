@@ -546,7 +546,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       });
 
       if (outcome === 'stageClear') {
-        const rank = calculateEarTrainingRank(result.attempt.missedNoteIndexes, rankRule);
+        const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
         if (result.completed) {
           triggerBattleEffect('complete', rank, getCompletionDamage(rank, activeDamageConfig));
         }
@@ -556,7 +556,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
       if (outcome === 'phraseComplete') {
         clearFailTimer();
-        const rank = calculateEarTrainingRank(result.attempt.missedNoteIndexes, rankRule);
+        const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
         const completionDamage = getCompletionDamage(rank, activeDamageConfig);
         const enemyHpAfterCompletion = Math.max(0, nextEnemyHp - completionDamage);
         setEnemyHp(enemyHpAfterCompletion);

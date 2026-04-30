@@ -25,7 +25,7 @@ export const LPHeader: React.FC<Props> = ({
         <div className="flex items-center justify-between">
           <h1 className="flex items-center gap-3 text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-purple-400 to-pink-400">
             <img
-              src="/default_avatar/default_avatar.svg"
+              src="/default_avater/default-avater.webp"
               alt="Jazzify ロゴ"
               className="w-8 h-8 rounded-full"
             />

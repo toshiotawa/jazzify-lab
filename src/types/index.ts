@@ -758,8 +758,7 @@ export interface EarTrainingPhraseAttempt {
   phraseId: string;
   currentNoteIndex: number;
   revealedNotes: string[];
-  missedNoteIndexes: Set<number>;
-  damagedNoteIndexes: Set<number>;
+  missedNoteCounts: Map<number, number>;
   startedAtAudioTime: number;
   completed: boolean;
   failed: boolean;

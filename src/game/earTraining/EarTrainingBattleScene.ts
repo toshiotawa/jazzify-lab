@@ -196,10 +196,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const background = this.add.graphics();
     background.fillGradientStyle(0x050614, 0x11104a, 0x12081f, 0x2e115d, 1);
     background.fillRect(0, 0, width, height);
-    background.fillStyle(0x38bdf8, 0.08);
-    background.fillCircle(width * 0.5, height * 0.22, Math.min(width, height) * 0.38);
-    background.fillStyle(0xf97316, 0.07);
-    background.fillCircle(width * 0.82, height * 0.35, Math.min(width, height) * 0.26);
     background.lineStyle(1, 0xffffff, 0.06);
     for (let x = 0; x < width; x += 56) {
       background.lineBetween(x, 0, x, height);
@@ -284,14 +280,23 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!snapshot || !this.hudLayer) {
       return;
     }
-    const maxItems = Math.max(1, Math.floor((width - 190) / 82));
-    const chords = snapshot.chords.slice(0, maxItems);
-    if (chords.length === 0) {
+    if (snapshot.chords.length === 0) {
       return;
     }
 
-    const itemWidth = Math.min(78, (width - 190) / chords.length);
-    const startX = (width - itemWidth * chords.length) / 2;
+    const itemWidth = 78;
+    const leftMargin = 16;
+    const rightReservedWidth = 132;
+    const availableWidth = Math.max(itemWidth, width - leftMargin - rightReservedWidth);
+    const visibleCount = Math.max(1, Math.min(snapshot.chords.length, Math.floor(availableWidth / itemWidth)));
+    const activeIndex = snapshot.chords.findIndex(chord => chord.active);
+    const firstVisibleIndex = Phaser.Math.Clamp(
+      activeIndex >= 0 ? activeIndex - visibleCount + 1 : 0,
+      0,
+      Math.max(0, snapshot.chords.length - visibleCount),
+    );
+    const chords = snapshot.chords.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
+    const startX = Math.max(leftMargin, (width - rightReservedWidth - itemWidth * chords.length) / 2);
     chords.forEach((chord, index) => {
       const x = startX + index * itemWidth;
       const bg = this.add.rectangle(x + itemWidth / 2, y + 13, itemWidth - 6, 26, chord.active ? 0xfacc15 : 0x020617, chord.active ? 1 : 0.72);

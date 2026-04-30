@@ -63,16 +63,28 @@ describe('earTrainingEngine', () => {
     expect(isMatchingPitchClass(phrase.notes![1], 75)).toBe(true);
   });
 
-  it('同じ音でのミスダメージと評価ミスは1回だけ加算する', () => {
+  it('同じ音でのミスダメージと評価ミスを5回まで加算する', () => {
     const attempt = createPhraseAttempt(phrase);
     const first = handleEarTrainingNoteInput(phrase, attempt, 60, damage);
     const second = handleEarTrainingNoteInput(phrase, first.attempt, 61, damage);
+    const third = handleEarTrainingNoteInput(phrase, second.attempt, 64, damage);
+    const fourth = handleEarTrainingNoteInput(phrase, third.attempt, 65, damage);
+    const fifth = handleEarTrainingNoteInput(phrase, fourth.attempt, 66, damage);
+    const sixth = handleEarTrainingNoteInput(phrase, fifth.attempt, 67, damage);
 
     expect(first.playerDamage).toBe(3);
     expect(first.evaluationMissAdded).toBe(true);
-    expect(second.playerDamage).toBe(0);
-    expect(second.evaluationMissAdded).toBe(false);
-    expect(second.attempt.missedNoteIndexes.size).toBe(1);
+    expect(second.playerDamage).toBe(3);
+    expect(second.evaluationMissAdded).toBe(true);
+    expect(third.playerDamage).toBe(3);
+    expect(third.evaluationMissAdded).toBe(true);
+    expect(fourth.playerDamage).toBe(3);
+    expect(fourth.evaluationMissAdded).toBe(true);
+    expect(fifth.playerDamage).toBe(3);
+    expect(fifth.evaluationMissAdded).toBe(true);
+    expect(sixth.playerDamage).toBe(0);
+    expect(sixth.evaluationMissAdded).toBe(false);
+    expect(sixth.attempt.missedNoteCounts.get(0)).toBe(5);
   });
 
   it('ダメージ0設定では正解とミスのダメージを発生させない', () => {
@@ -90,6 +102,7 @@ describe('earTrainingEngine', () => {
     expect(correct.enemyDamage).toBe(0);
     expect(miss.playerDamage).toBe(0);
     expect(miss.evaluationMissAdded).toBe(true);
+    expect(miss.attempt.missedNoteCounts.get(0)).toBe(1);
   });
 
   it('現在の次音だけを開示し、最後の正解で完了にする', () => {
@@ -104,9 +117,9 @@ describe('earTrainingEngine', () => {
   });
 
   it('ミス数から評価ランクを算出する', () => {
-    expect(calculateEarTrainingRank(new Set(), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Perfect');
-    expect(calculateEarTrainingRank(new Set([1, 2]), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Great');
-    expect(calculateEarTrainingRank(new Set([0, 1, 2]), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Good');
+    expect(calculateEarTrainingRank(new Map(), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Perfect');
+    expect(calculateEarTrainingRank(new Map([[1, 1], [2, 1]]), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Great');
+    expect(calculateEarTrainingRank(new Map([[0, 3]]), { perfectMaxMisses: 0, greatMaxMisses: 2 })).toBe('Good');
   });
 
   it('同時イベントの優先順位を守る', () => {

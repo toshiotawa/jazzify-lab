@@ -197,7 +197,7 @@ const LandingPage: React.FC = () => {
           <div className="container mx-auto px-6 py-2 md:py-4">
             <div className="flex items-center justify-between">
               <h1 className="lp-display flex items-center gap-3 text-2xl font-bold" style={{ color: 'var(--lp-gold)' }}>
-                <img src="/default_avatar/default_avatar.svg" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" width={32} height={32} />
+                <img src="/default_avater/default-avater.webp" alt="Jazzify ロゴ" className="w-8 h-8 rounded-full" width={32} height={32} />
                 Jazzify
               </h1>
 
@@ -616,7 +616,7 @@ const LandingPage: React.FC = () => {
             <div className="max-w-2xl mx-auto text-center" data-animate="alt-cards text-up">
               <div className="rounded-2xl p-8 sm:p-12" style={{ background: 'rgba(13,19,33,0.6)', border: '1px solid rgba(200,162,77,0.15)' }}>
                 <div className="w-20 h-20 mx-auto mb-6 rounded-2xl overflow-hidden" style={{ border: '1px solid rgba(200,162,77,0.15)' }}>
-                  <img src="/default_avatar/default_avatar.svg" alt={isEnglishLanding ? 'Jazzify app icon' : 'Jazzify アプリアイコン'} className="w-full h-full object-cover" width={80} height={80} loading="lazy" />
+                  <img src="/default_avater/default-avater.webp" alt={isEnglishLanding ? 'Jazzify app icon' : 'Jazzify アプリアイコン'} className="w-full h-full object-cover" width={80} height={80} loading="lazy" />
                 </div>
                 <h3 className="lp-display text-2xl sm:text-3xl font-bold mb-4" style={{ color: 'var(--lp-cream)' }}>Jazzify</h3>
                 <p className="text-sm sm:text-base leading-relaxed mb-2" style={{ color: 'var(--lp-cream-muted)' }}>
