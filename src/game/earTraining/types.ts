@@ -7,6 +7,7 @@ export interface EarTrainingBattleEffectCommand {
   kind: EarTrainingBattleEffectKind;
   label?: string;
   damage?: number;
+  phraseNoteCount?: number;
 }
 
 export interface EarTrainingBattleChordView {
@@ -55,6 +56,7 @@ export interface EarTrainingBattleCallbacks {
   onPracticeModeChange: (practiceMode: boolean) => void;
   onPianoKeyDown: (midiNote: number) => void;
   onPianoKeyUp: (midiNote: number) => void;
+  onEffectImpact: (effectId: number) => void;
 }
 
 export interface EarTrainingBattleSceneHandle {

@@ -60,6 +60,8 @@ interface EarTrainingGameScreenProps {
   onBack: () => void;
 }
 
+type PendingImpactHandler = () => void;
+
 const INPUT_COOLDOWN_MS = 20;
 const AUDIO_END_EPSILON_SEC = 0.03;
 const BATTLE_EFFECT_DURATION_MS = 720;
@@ -175,6 +177,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const battleEffectClearTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const battleEffectIdRef = useRef(0);
+  const pendingImpactHandlersRef = useRef<Map<number, PendingImpactHandler>>(new Map());
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
 
@@ -259,17 +262,37 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setTimeout(() => setFeedback(null), 220);
   }, []);
 
-  const triggerBattleEffect = useCallback((kind: EarTrainingBattleEffectKind, label?: string, damage?: number) => {
+  const triggerBattleEffect = useCallback((
+    kind: EarTrainingBattleEffectKind,
+    label?: string,
+    damage?: number,
+    phraseNoteCount?: number,
+  ): number => {
     clearBattleEffectTimers();
     battleEffectIdRef.current += 1;
     const effectId = battleEffectIdRef.current;
-    setBattleEffectCommand({ id: effectId, kind, label, damage });
+    setBattleEffectCommand({ id: effectId, kind, label, damage, phraseNoteCount });
     battleEffectClearTimerRef.current = setTimeout(() => {
       setBattleEffectCommand(current => (current?.id === effectId ? null : current));
     }, BATTLE_EFFECT_DURATION_MS);
+    return effectId;
   }, [clearBattleEffectTimers]);
 
+  const registerBattleEffectImpact = useCallback((effectId: number, handler: PendingImpactHandler) => {
+    pendingImpactHandlersRef.current.set(effectId, handler);
+  }, []);
+
+  const handleBattleEffectImpact = useCallback((effectId: number) => {
+    const handler = pendingImpactHandlersRef.current.get(effectId);
+    if (!handler) {
+      return;
+    }
+    pendingImpactHandlersRef.current.delete(effectId);
+    handler();
+  }, []);
+
   const finishStageClear = useCallback(async (rank: EarTrainingRank) => {
+    pendingImpactHandlersRef.current.clear();
     clearFailTimer();
     clearTransitionTimer();
     clearTimeLimitTimer();
@@ -300,6 +323,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   ]);
 
   const finishGameOver = useCallback((message: string) => {
+    pendingImpactHandlersRef.current.clear();
     clearFailTimer();
     clearTransitionTimer();
     clearTimeLimitTimer();
@@ -316,35 +340,44 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     }
 
     gameStateRef.current = 'phraseFail';
-    const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.fail);
-    setPlayerHp(nextPlayerHp);
-    playerHpRef.current = nextPlayerHp;
     setAttempt({ ...currentAttempt, failed: true });
     setLastRank('Fail');
     setEnemyAttackGaugePercent(1);
     triggerFeedback('miss');
-    triggerBattleEffect('fail', 'FAIL', activeDamageConfig.fail);
+    const effectId = triggerBattleEffect('fail', 'Fail', activeDamageConfig.fail);
+    registerBattleEffectImpact(effectId, () => {
+      const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.fail);
+      setPlayerHp(nextPlayerHp);
+      playerHpRef.current = nextPlayerHp;
 
-    const outcome = resolveEarTrainingOutcome({
-      enemyHp: enemyHpRef.current,
-      playerHp: nextPlayerHp,
-      timeRemainingSec: timeRemainingRef.current,
-      phraseCompleted: false,
-      phraseFailed: true,
+      const outcome = resolveEarTrainingOutcome({
+        enemyHp: enemyHpRef.current,
+        playerHp: nextPlayerHp,
+        timeRemainingSec: timeRemainingRef.current,
+        phraseCompleted: false,
+        phraseFailed: true,
+      });
+
+      if (outcome === 'gameOver') {
+        finishGameOver('Game Over');
+        return;
+      }
+
+      setGameState('phraseFail');
+      setStatusText('Fail: 次のフレーズへ進みます');
+      transitionTimerRef.current = setTimeout(() => {
+        const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
+        startPhraseRef.current(wrappedIndex);
+      }, 900);
     });
-
-    if (outcome === 'gameOver') {
-      finishGameOver('Game Over');
-      return;
-    }
-
-    setGameState('phraseFail');
-    setStatusText('Fail: 次のフレーズへ進みます');
-    transitionTimerRef.current = setTimeout(() => {
-      const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
-      startPhraseRef.current(wrappedIndex);
-    }, 900);
-  }, [activeDamageConfig.fail, finishGameOver, phrases.length, triggerBattleEffect, triggerFeedback]);
+  }, [
+    activeDamageConfig.fail,
+    finishGameOver,
+    phrases.length,
+    registerBattleEffectImpact,
+    triggerBattleEffect,
+    triggerFeedback,
+  ]);
 
   const startPhrase = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
@@ -457,6 +490,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setPhraseIndex(0);
     setCountInValue(stage.count_in_beats);
     setBattleEffectCommand(null);
+    pendingImpactHandlersRef.current.clear();
     setEnemyAttackGaugePercent(0);
     gameStateRef.current = 'countIn';
     setGameState('countIn');
@@ -539,67 +573,91 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setAttempt(result.attempt);
 
     if (result.correct) {
-      const nextEnemyHp = Math.max(0, enemyHpRef.current - result.enemyDamage);
-      setEnemyHp(nextEnemyHp);
-      enemyHpRef.current = nextEnemyHp;
       setStatusText(result.revealedNote ? `正解: ${result.revealedNote}` : '正解');
       triggerFeedback('correct');
-      triggerBattleEffect('correct', result.revealedNote, result.enemyDamage);
-
-      const outcome = resolveEarTrainingOutcome({
-        enemyHp: nextEnemyHp,
-        playerHp: playerHpRef.current,
-        timeRemainingSec: timeRemainingRef.current,
-        phraseCompleted: result.completed,
-        phraseFailed: false,
-      });
-
-      if (outcome === 'stageClear') {
-        const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
-        if (result.completed) {
-          triggerBattleEffect('complete', rank, getCompletionDamage(rank, activeDamageConfig));
-        }
-        void finishStageClear(rank);
-        return;
+      if (result.completed) {
+        gameStateRef.current = 'phraseComplete';
+        setGameState('phraseComplete');
       }
+      const correctEffectId = triggerBattleEffect('correct', undefined, result.enemyDamage);
+      registerBattleEffectImpact(correctEffectId, () => {
+        const nextEnemyHp = Math.max(0, enemyHpRef.current - result.enemyDamage);
+        setEnemyHp(nextEnemyHp);
+        enemyHpRef.current = nextEnemyHp;
 
-      if (outcome === 'phraseComplete') {
-        clearFailTimer();
-        const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
-        const completionDamage = getCompletionDamage(rank, activeDamageConfig);
-        const enemyHpAfterCompletion = Math.max(0, nextEnemyHp - completionDamage);
-        setEnemyHp(enemyHpAfterCompletion);
-        enemyHpRef.current = enemyHpAfterCompletion;
-        triggerBattleEffect('complete', rank, completionDamage);
+        const outcome = resolveEarTrainingOutcome({
+          enemyHp: nextEnemyHp,
+          playerHp: playerHpRef.current,
+          timeRemainingSec: timeRemainingRef.current,
+          phraseCompleted: result.completed,
+          phraseFailed: false,
+        });
 
-        if (enemyHpAfterCompletion <= 0) {
+        if (outcome === 'stageClear') {
+          const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
+          if (result.completed) {
+            const completeEffectId = triggerBattleEffect(
+              'complete',
+              rank,
+              getCompletionDamage(rank, activeDamageConfig),
+              phrase.notes?.length ?? 0,
+            );
+            registerBattleEffectImpact(completeEffectId, () => {
+              void finishStageClear(rank);
+            });
+            return;
+          }
           void finishStageClear(rank);
           return;
         }
 
-        transitionToNextPhrase(rank, phrase);
-      }
+        if (outcome === 'phraseComplete') {
+          clearFailTimer();
+          const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
+          const completionDamage = getCompletionDamage(rank, activeDamageConfig);
+          const completeEffectId = triggerBattleEffect(
+            'complete',
+            rank,
+            completionDamage,
+            phrase.notes?.length ?? 0,
+          );
+          registerBattleEffectImpact(completeEffectId, () => {
+            const enemyHpAfterCompletion = Math.max(0, enemyHpRef.current - completionDamage);
+            setEnemyHp(enemyHpAfterCompletion);
+            enemyHpRef.current = enemyHpAfterCompletion;
+
+            if (enemyHpAfterCompletion <= 0) {
+              void finishStageClear(rank);
+              return;
+            }
+
+            transitionToNextPhrase(rank, phrase);
+          });
+        }
+      });
       return;
     }
 
     if (result.playerDamage > 0) {
-      const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
-      setPlayerHp(nextPlayerHp);
-      playerHpRef.current = nextPlayerHp;
       triggerFeedback('miss');
-      triggerBattleEffect('miss', 'MISS', result.playerDamage);
+      const missEffectId = triggerBattleEffect('miss', 'MISS', result.playerDamage);
       setStatusText('ミス: 敵の攻撃');
+      registerBattleEffectImpact(missEffectId, () => {
+        const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
+        setPlayerHp(nextPlayerHp);
+        playerHpRef.current = nextPlayerHp;
 
-      const outcome = resolveEarTrainingOutcome({
-        enemyHp: enemyHpRef.current,
-        playerHp: nextPlayerHp,
-        timeRemainingSec: timeRemainingRef.current,
-        phraseCompleted: false,
-        phraseFailed: false,
+        const outcome = resolveEarTrainingOutcome({
+          enemyHp: enemyHpRef.current,
+          playerHp: nextPlayerHp,
+          timeRemainingSec: timeRemainingRef.current,
+          phraseCompleted: false,
+          phraseFailed: false,
+        });
+        if (outcome === 'gameOver') {
+          finishGameOver('Game Over');
+        }
       });
-      if (outcome === 'gameOver') {
-        finishGameOver('Game Over');
-      }
       return;
     }
 
@@ -614,6 +672,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     phraseIndex,
     phrases,
     rankRule,
+    registerBattleEffectImpact,
     transitionToNextPhrase,
     triggerBattleEffect,
     triggerFeedback,
@@ -702,6 +761,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
   useEffect(() => {
     return () => {
+      pendingImpactHandlersRef.current.clear();
       clearBattleEffectTimers();
       clearCountdownTimer();
       clearFailTimer();
@@ -819,7 +879,15 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     },
     onPianoKeyDown: handlePianoKeyDown,
     onPianoKeyUp: handlePianoKeyUp,
-  }), [canChangePracticeMode, handlePianoKeyDown, handlePianoKeyUp, onBack, startCountIn]);
+    onEffectImpact: handleBattleEffectImpact,
+  }), [
+    canChangePracticeMode,
+    handleBattleEffectImpact,
+    handlePianoKeyDown,
+    handlePianoKeyUp,
+    onBack,
+    startCountIn,
+  ]);
 
   return (
     <div className={cn(
