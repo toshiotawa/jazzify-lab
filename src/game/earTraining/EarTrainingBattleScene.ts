@@ -15,6 +15,11 @@ const FLOOR_BAND_OVERLAP = 16;
 const CHARACTER_DISPLAY_SIZE = 116;
 const CHARACTER_SHADOW_WIDTH = 104;
 const CHARACTER_SHADOW_HEIGHT = 22;
+const JAZZ_WALL_TILE_KEY = 'ear-training-jazz-wall-tile';
+const JAZZ_FLOOR_TILE_KEY = 'ear-training-jazz-floor-tile';
+const JAZZ_WALL_TILE_SIZE = 64;
+const JAZZ_FLOOR_TILE_WIDTH = 96;
+const JAZZ_FLOOR_TILE_HEIGHT = 48;
 
 const EMPTY_CALLBACKS: EarTrainingBattleCallbacks = {
   onStart: () => undefined,
@@ -176,22 +181,117 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const background = this.add.graphics();
-    background.fillGradientStyle(0x050614, 0x11104a, 0x12081f, 0x2e115d, 1);
-    background.fillRect(0, 0, width, height);
-    background.lineStyle(1, 0xffffff, 0.06);
-    for (let x = 0; x < width; x += 56) {
-      background.lineBetween(x, 0, x, height);
-    }
-    for (let y = 0; y < height; y += 56) {
-      background.lineBetween(0, y, width, y);
-    }
+    this.ensureJazzClubBackgroundTextures();
+
     const floorY = getFloorY(height);
-    background.fillStyle(0x000000, 0.42);
-    background.fillRect(0, floorY - FLOOR_BAND_OVERLAP, width, height - floorY + FLOOR_BAND_OVERLAP);
-    background.lineStyle(2, 0xffffff, 0.09);
+    const wallHeight = Math.max(0, floorY - FLOOR_BAND_OVERLAP);
+    const floorHeight = Math.max(0, height - floorY + FLOOR_BAND_OVERLAP);
+    const wall = this.add.tileSprite(0, 0, width, wallHeight, JAZZ_WALL_TILE_KEY).setOrigin(0, 0);
+    const floor = this.add.tileSprite(0, floorY - FLOOR_BAND_OVERLAP, width, floorHeight, JAZZ_FLOOR_TILE_KEY).setOrigin(0, 0);
+    const background = this.add.graphics();
+    background.fillGradientStyle(0x050614, 0x0f102e, 0x18091d, 0x2a0d2f, 0.64);
+    background.fillRect(0, 0, width, height);
+    background.fillStyle(0x020617, 0.2);
+    background.fillRect(0, 0, width, HUD_HEIGHT + 28);
+    background.fillStyle(0x000000, 0.18);
+    background.fillRect(0, floorY - FLOOR_BAND_OVERLAP, width, floorHeight);
+    background.lineStyle(2, 0xfbbf24, 0.16);
     background.lineBetween(0, floorY, width, floorY);
-    this.backgroundLayer.add(background);
+    this.backgroundLayer.add([wall, floor, background]);
+    this.drawJazzClubDecorations(width, height, floorY);
+  }
+
+  private ensureJazzClubBackgroundTextures(): void {
+    if (!this.textures.exists(JAZZ_WALL_TILE_KEY)) {
+      const wallTexture = this.add.graphics();
+      wallTexture.fillStyle(0x160818, 1);
+      wallTexture.fillRect(0, 0, JAZZ_WALL_TILE_SIZE, JAZZ_WALL_TILE_SIZE);
+      wallTexture.fillStyle(0x24102b, 0.78);
+      wallTexture.fillRect(2, 2, JAZZ_WALL_TILE_SIZE - 4, JAZZ_WALL_TILE_SIZE - 4);
+      wallTexture.fillStyle(0x110614, 0.42);
+      wallTexture.fillRect(0, 0, JAZZ_WALL_TILE_SIZE, 8);
+      wallTexture.lineStyle(1, 0xfde68a, 0.06);
+      wallTexture.lineBetween(0, 0, 0, JAZZ_WALL_TILE_SIZE);
+      wallTexture.lineBetween(JAZZ_WALL_TILE_SIZE - 1, 0, JAZZ_WALL_TILE_SIZE - 1, JAZZ_WALL_TILE_SIZE);
+      wallTexture.lineStyle(1, 0xffffff, 0.035);
+      wallTexture.lineBetween(8, 12, JAZZ_WALL_TILE_SIZE - 8, 12);
+      wallTexture.lineBetween(8, JAZZ_WALL_TILE_SIZE - 12, JAZZ_WALL_TILE_SIZE - 8, JAZZ_WALL_TILE_SIZE - 12);
+      wallTexture.generateTexture(JAZZ_WALL_TILE_KEY, JAZZ_WALL_TILE_SIZE, JAZZ_WALL_TILE_SIZE);
+      wallTexture.destroy();
+    }
+
+    if (!this.textures.exists(JAZZ_FLOOR_TILE_KEY)) {
+      const floorTexture = this.add.graphics();
+      floorTexture.fillStyle(0x12070a, 1);
+      floorTexture.fillRect(0, 0, JAZZ_FLOOR_TILE_WIDTH, JAZZ_FLOOR_TILE_HEIGHT);
+      floorTexture.fillStyle(0x26100d, 0.92);
+      floorTexture.fillRect(0, 0, JAZZ_FLOOR_TILE_WIDTH, 15);
+      floorTexture.fillStyle(0x1f0d0b, 0.92);
+      floorTexture.fillRect(0, 16, JAZZ_FLOOR_TILE_WIDTH, 15);
+      floorTexture.fillStyle(0x2f1510, 0.82);
+      floorTexture.fillRect(0, 32, JAZZ_FLOOR_TILE_WIDTH, 16);
+      floorTexture.lineStyle(1, 0xf59e0b, 0.08);
+      floorTexture.lineBetween(0, 15, JAZZ_FLOOR_TILE_WIDTH, 15);
+      floorTexture.lineBetween(0, 31, JAZZ_FLOOR_TILE_WIDTH, 31);
+      floorTexture.lineStyle(1, 0x000000, 0.18);
+      floorTexture.lineBetween(0, 0, 0, JAZZ_FLOOR_TILE_HEIGHT);
+      floorTexture.lineBetween(JAZZ_FLOOR_TILE_WIDTH - 1, 0, JAZZ_FLOOR_TILE_WIDTH - 1, JAZZ_FLOOR_TILE_HEIGHT);
+      floorTexture.generateTexture(JAZZ_FLOOR_TILE_KEY, JAZZ_FLOOR_TILE_WIDTH, JAZZ_FLOOR_TILE_HEIGHT);
+      floorTexture.destroy();
+    }
+  }
+
+  private drawJazzClubDecorations(width: number, height: number, floorY: number): void {
+    if (!this.backgroundLayer) {
+      return;
+    }
+
+    const decoration = this.add.graphics();
+    const safeWallTop = HUD_HEIGHT + 26;
+    const wallCenterY = Phaser.Math.Clamp(floorY - 170, safeWallTop + 52, Math.max(safeWallTop + 52, floorY - 56));
+
+    this.drawWallLamp(decoration, width * 0.11, wallCenterY - 36);
+    this.drawWallLamp(decoration, width * 0.89, wallCenterY - 36);
+    this.drawJazzFrame(decoration, width * 0.37, safeWallTop + 68, 78, 48);
+    this.drawJazzFrame(decoration, width * 0.63, safeWallTop + 82, 66, 42);
+    this.drawMusicNote(decoration, width * 0.51, safeWallTop + 58, 0.62);
+    this.drawMusicNote(decoration, width * 0.16, Math.min(floorY - 90, height * 0.48), 0.48);
+    this.drawMusicNote(decoration, width * 0.84, Math.min(floorY - 86, height * 0.5), 0.48);
+
+    decoration.fillStyle(0x000000, 0.2);
+    decoration.fillEllipse(width * 0.23, floorY + 6, 168, 28);
+    decoration.fillEllipse(width * 0.77, floorY + 6, 168, 28);
+    this.backgroundLayer.add(decoration);
+  }
+
+  private drawWallLamp(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    graphics.fillStyle(0xf59e0b, 0.11);
+    graphics.fillCircle(x, y + 8, 72);
+    graphics.fillStyle(0xfbbf24, 0.24);
+    graphics.fillCircle(x, y + 8, 42);
+    graphics.fillStyle(0xfde68a, 0.88);
+    graphics.fillRoundedRect(x - 12, y - 18, 24, 34, 8);
+    graphics.fillStyle(0x451a03, 0.95);
+    graphics.fillRoundedRect(x - 18, y + 12, 36, 8, 4);
+  }
+
+  private drawJazzFrame(graphics: Phaser.GameObjects.Graphics, x: number, y: number, width: number, height: number): void {
+    graphics.fillStyle(0x09090b, 0.82);
+    graphics.fillRoundedRect(x - width / 2, y - height / 2, width, height, 4);
+    graphics.lineStyle(3, 0x92400e, 0.82);
+    graphics.strokeRoundedRect(x - width / 2, y - height / 2, width, height, 4);
+    graphics.lineStyle(1, 0xfde68a, 0.18);
+    graphics.lineBetween(x - width * 0.25, y + height * 0.12, x - width * 0.04, y - height * 0.16);
+    graphics.lineBetween(x - width * 0.04, y - height * 0.16, x + width * 0.16, y + height * 0.12);
+    graphics.fillStyle(0xf59e0b, 0.22);
+    graphics.fillCircle(x + width * 0.24, y - height * 0.12, 5);
+  }
+
+  private drawMusicNote(graphics: Phaser.GameObjects.Graphics, x: number, y: number, scale: number): void {
+    graphics.fillStyle(0xfde68a, 0.16);
+    graphics.fillEllipse(x - 6 * scale, y + 18 * scale, 16 * scale, 11 * scale);
+    graphics.fillRect(x + 1 * scale, y - 18 * scale, 4 * scale, 38 * scale);
+    graphics.fillRoundedRect(x + 3 * scale, y - 18 * scale, 22 * scale, 5 * scale, 2 * scale);
   }
 
   private drawHud(width: number): void {
