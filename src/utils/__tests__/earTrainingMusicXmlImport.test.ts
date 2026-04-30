@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   buildEarTrainingPhraseDraftsFromMusicXml,
   createEarTrainingMusicXmlPreview,
+  scaleEarTrainingPhraseChordTimings,
   validateEarTrainingImportFileCount,
 } from '@/utils/earTrainingMusicXmlImport';
 
@@ -40,12 +41,20 @@ const sampleMusicXml = `<?xml version="1.0" encoding="UTF-8"?>
       <note><pitch><step>C</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
     </measure>
     <measure number="3">
+      <harmony>
+        <root><root-step>E</root-step></root>
+        <kind text="7">dominant</kind>
+      </harmony>
       <note><pitch><step>D</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
       <note><pitch><step>E</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
       <note><pitch><step>F</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
       <note><pitch><step>G</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
     </measure>
     <measure number="4">
+      <harmony>
+        <root><root-step>A</root-step></root>
+        <kind text="7">dominant</kind>
+      </harmony>
       <note><pitch><step>A</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
       <note><pitch><step>B</step><octave>5</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
       <note><pitch><step>C</step><octave>6</octave></pitch><duration>1</duration><voice>1</voice><type>quarter</type></note>
@@ -109,6 +118,35 @@ describe('earTrainingMusicXmlImport', () => {
       duration_beats: 4,
       start_time_sec: 0,
       end_time_sec: 2,
+    });
+    expect(drafts[1].chords.map(chord => chord.chord_name)).toEqual(['E7', 'A7']);
+    expect(drafts[1].chords[0]).toMatchObject({
+      measure_number: 1,
+      beat_offset: 1,
+      duration_beats: 4,
+      start_time_sec: 0,
+      end_time_sec: 2,
+    });
+  });
+
+  it('コードの秒タイミングを実ループ時間へスケーリングする', () => {
+    const drafts = buildEarTrainingPhraseDraftsFromMusicXml(sampleMusicXml, {
+      phraseMeasures: 2,
+      bpm: 120,
+      beatsPerMeasure: 4,
+    });
+
+    const scaledChords = scaleEarTrainingPhraseChordTimings(drafts[0].chords, 5, 4);
+
+    expect(scaledChords[0]).toMatchObject({
+      chord_name: 'Cmaj7',
+      start_time_sec: 0,
+      end_time_sec: 2.5,
+    });
+    expect(scaledChords[1]).toMatchObject({
+      chord_name: 'Dm7',
+      start_time_sec: 2.5,
+      end_time_sec: 5,
     });
   });
 

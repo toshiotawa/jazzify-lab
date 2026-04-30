@@ -61,6 +61,7 @@ const EarTrainingMain: React.FC = () => {
       clearConditions: parseClearConditions(params.get('clearConditions')),
     };
   }, [params]);
+  const initialPracticeMode = useMemo(() => params.get('practice') === '1', [params]);
 
   useEffect(() => {
     let cancelled = false;
@@ -183,6 +184,7 @@ const EarTrainingMain: React.FC = () => {
         stage={stage}
         enemy={enemy}
         lessonContext={lessonContext}
+        initialPracticeMode={initialPracticeMode}
         onLessonStageClear={handleLessonStageClear}
         onBack={handleBack}
       />

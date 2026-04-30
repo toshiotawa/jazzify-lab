@@ -41,6 +41,7 @@ interface EarTrainingGameScreenProps {
   stage: EarTrainingStage;
   enemy: SurvivalCharacterRow | null;
   lessonContext: EarTrainingLessonContext | null;
+  initialPracticeMode: boolean;
   onLessonStageClear: (lessonRank: 'S' | 'A' | 'B' | 'C') => Promise<void>;
   onBack: () => void;
 }
@@ -53,6 +54,14 @@ interface ElementSize {
 const DEFAULT_PIANO_HEIGHT = 132;
 const INPUT_COOLDOWN_MS = 20;
 const AUDIO_END_EPSILON_SEC = 0.03;
+const NO_DAMAGE_CONFIG = {
+  perCorrectNote: 0,
+  good: 0,
+  great: 0,
+  perfect: 0,
+  miss: 0,
+  fail: 0,
+};
 
 const useElementSize = <T extends HTMLElement>(): [React.RefObject<T>, ElementSize] => {
   const ref = useRef<T>(null);
@@ -110,10 +119,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   stage,
   enemy,
   lessonContext,
+  initialPracticeMode,
   onLessonStageClear,
   onBack,
 }) => {
   const { settings, updateSettings } = useGameStore();
+  const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
     [stage.phrases],
@@ -128,6 +139,10 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       fail: stage.fail_damage,
     }),
     [stage],
+  );
+  const activeDamageConfig = useMemo(
+    () => (practiceMode ? NO_DAMAGE_CONFIG : damageConfig),
+    [damageConfig, practiceMode],
   );
   const rankRule = useMemo(
     () => ({
@@ -171,8 +186,29 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const timeLimitTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const lastInputAtRef = useRef(0);
   const progressSaveStartedRef = useRef(false);
+  const chordScrollerRef = useRef<HTMLDivElement | null>(null);
+  const chordElementRefs = useRef<Map<string, HTMLSpanElement>>(new Map());
 
   const currentPhrase = phrases[phraseIndex];
+
+  useEffect(() => {
+    chordScrollerRef.current?.scrollTo({ left: 0, behavior: 'auto' });
+  }, [currentPhrase?.id]);
+
+  useEffect(() => {
+    if (!activeChord?.id) {
+      return;
+    }
+
+    const scroller = chordScrollerRef.current;
+    const activeElement = chordElementRefs.current.get(activeChord.id);
+    if (!scroller || !activeElement) {
+      return;
+    }
+
+    const centeredLeft = activeElement.offsetLeft - ((scroller.clientWidth - activeElement.clientWidth) / 2);
+    scroller.scrollTo({ left: Math.max(0, centeredLeft), behavior: 'auto' });
+  }, [activeChord?.id]);
 
   useEffect(() => {
     attemptRef.current = attempt;
@@ -255,7 +291,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setStatusText('Stage Clear!');
     triggerFeedback('clear');
 
-    if (!lessonContext || progressSaveStartedRef.current) {
+    if (practiceMode || !lessonContext || progressSaveStartedRef.current) {
       return;
     }
 
@@ -269,6 +305,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearTransitionTimer,
     lessonContext,
     onLessonStageClear,
+    practiceMode,
     stopPhraseAudio,
     triggerFeedback,
   ]);
@@ -290,7 +327,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     }
 
     gameStateRef.current = 'phraseFail';
-    const nextPlayerHp = Math.max(0, playerHpRef.current - damageConfig.fail);
+    const nextPlayerHp = Math.max(0, playerHpRef.current - activeDamageConfig.fail);
     setPlayerHp(nextPlayerHp);
     playerHpRef.current = nextPlayerHp;
     setAttempt({ ...currentAttempt, failed: true });
@@ -316,7 +353,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
       startPhraseRef.current(wrappedIndex);
     }, 900);
-  }, [damageConfig.fail, finishGameOver, phrases.length, triggerFeedback]);
+  }, [activeDamageConfig.fail, finishGameOver, phrases.length, triggerFeedback]);
 
   const startPhrase = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
@@ -363,6 +400,9 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
   const startTimeLimit = useCallback(() => {
     clearTimeLimitTimer();
+    if (practiceMode) {
+      return;
+    }
     timeLimitTimerRef.current = setInterval(() => {
       setTimeRemaining(prev => {
         const next = Math.max(0, prev - 1);
@@ -372,7 +412,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         return next;
       });
     }, 1000);
-  }, [clearTimeLimitTimer, finishGameOver]);
+  }, [clearTimeLimitTimer, finishGameOver, practiceMode]);
 
   const startCountIn = useCallback(() => {
     if (phrases.length === 0) {
@@ -462,7 +502,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       return;
     }
 
-    const result = handleEarTrainingNoteInput(phrase, currentAttempt, note, damageConfig);
+    const result = handleEarTrainingNoteInput(phrase, currentAttempt, note, activeDamageConfig);
     setAttempt(result.attempt);
 
     if (result.correct) {
@@ -489,7 +529,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       if (outcome === 'phraseComplete') {
         clearFailTimer();
         const rank = calculateEarTrainingRank(result.attempt.missedNoteIndexes, rankRule);
-        const completionDamage = getCompletionDamage(rank, damageConfig);
+        const completionDamage = getCompletionDamage(rank, activeDamageConfig);
         const enemyHpAfterCompletion = Math.max(0, nextEnemyHp - completionDamage);
         setEnemyHp(enemyHpAfterCompletion);
         enemyHpRef.current = enemyHpAfterCompletion;
@@ -528,7 +568,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     triggerFeedback('miss');
   }, [
     clearFailTimer,
-    damageConfig,
+    activeDamageConfig,
     finishGameOver,
     finishStageClear,
     phraseIndex,
@@ -665,6 +705,8 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const enemyAvatar = enemy?.avatarUrl ?? DEFAULT_AVATAR_URL;
   const enemyHpPercent = Math.max(0, Math.min(100, (enemyHp / stage.enemy_hp) * 100));
   const playerHpPercent = Math.max(0, Math.min(100, (playerHp / stage.player_hp) * 100));
+  const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
+  const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
 
   return (
     <div className={cn(
@@ -682,7 +724,14 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
           </div>
         </div>
         <div className="text-center">
-          <div className="text-lg font-black tabular-nums sm:text-2xl">{formatTime(timeRemaining)}</div>
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-lg font-black tabular-nums sm:text-2xl">{timeLabel}</span>
+            {practiceMode && (
+              <span className="rounded-full bg-cyan-400/20 px-2 py-0.5 text-[10px] font-bold text-cyan-100">
+                練習
+              </span>
+            )}
+          </div>
           <div className="text-slate-300">{gameState === 'countIn' ? `Count ${countInValue}` : statusText}</div>
         </div>
         <div>
@@ -695,23 +744,32 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
       <main className="grid min-h-0 flex-1 grid-rows-[auto_1fr_auto] gap-2 p-2 sm:p-3 lg:grid-cols-[minmax(260px,1fr)_minmax(360px,1.2fr)] lg:grid-rows-[auto_1fr]">
         <section className="rounded-2xl border border-white/10 bg-black/25 p-2 sm:p-3 lg:col-span-2">
-          <div className="flex flex-wrap items-center justify-center gap-2">
-            {(currentPhrase?.chords ?? []).slice(0, 8).map(chord => (
-              <span
-                key={chord.id}
-                className={cn(
-                  'rounded-xl border px-3 py-1 text-sm font-bold sm:text-base',
-                  activeChord?.id === chord.id
-                    ? 'border-amber-300 bg-amber-300 text-slate-950'
-                    : 'border-white/10 bg-slate-900/70 text-slate-200',
-                )}
-              >
-                {chord.chord_name}
-              </span>
-            ))}
-            {(!currentPhrase?.chords || currentPhrase.chords.length === 0) && (
-              <span className="text-sm text-slate-400">コード未設定</span>
-            )}
+          <div ref={chordScrollerRef} className="overflow-x-auto">
+            <div className="flex w-max min-w-full items-center justify-center gap-2 whitespace-nowrap">
+              {(currentPhrase?.chords ?? []).map(chord => (
+                <span
+                  key={chord.id}
+                  ref={element => {
+                    if (element) {
+                      chordElementRefs.current.set(chord.id, element);
+                      return;
+                    }
+                    chordElementRefs.current.delete(chord.id);
+                  }}
+                  className={cn(
+                    'shrink-0 rounded-xl border px-3 py-1 text-sm font-bold sm:text-base',
+                    activeChord?.id === chord.id
+                      ? 'border-amber-300 bg-amber-300 text-slate-950'
+                      : 'border-white/10 bg-slate-900/70 text-slate-200',
+                  )}
+                >
+                  {chord.chord_name}
+                </span>
+              ))}
+              {(!currentPhrase?.chords || currentPhrase.chords.length === 0) && (
+                <span className="text-sm text-slate-400">コード未設定</span>
+              )}
+            </div>
           </div>
         </section>
 
@@ -772,6 +830,43 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
           </div>
           {(gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver') && (
             <div className="mt-3 flex flex-wrap justify-center gap-2">
+              <div className="flex w-full justify-center">
+                <div
+                  role="group"
+                  aria-label="耳コピバトルのプレイモード"
+                  className="inline-flex rounded-full border border-white/10 bg-slate-950/70 p-1"
+                >
+                  <button
+                    type="button"
+                    onClick={() => setPracticeMode(false)}
+                    disabled={!canChangePracticeMode}
+                    className={cn(
+                      'rounded-full px-4 py-1.5 text-sm font-bold transition',
+                      !practiceMode ? 'bg-blue-500 text-white' : 'text-slate-300 hover:bg-white/10',
+                    )}
+                    aria-pressed={!practiceMode}
+                  >
+                    バトル
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPracticeMode(true)}
+                    disabled={!canChangePracticeMode}
+                    className={cn(
+                      'rounded-full px-4 py-1.5 text-sm font-bold transition',
+                      practiceMode ? 'bg-cyan-400 text-slate-950' : 'text-slate-300 hover:bg-white/10',
+                    )}
+                    aria-pressed={practiceMode}
+                  >
+                    練習
+                  </button>
+                </div>
+              </div>
+              {practiceMode && (
+                <div className="w-full text-center text-xs text-cyan-100">
+                  練習モード中はHPと制限時間が減らず、レッスン進捗は保存されません。
+                </div>
+              )}
               <button type="button" onClick={startCountIn} className="btn btn-primary">
                 {gameState === 'idle' ? '開始' : 'もう一度'}
               </button>

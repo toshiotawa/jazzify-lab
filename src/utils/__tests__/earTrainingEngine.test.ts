@@ -75,6 +75,23 @@ describe('earTrainingEngine', () => {
     expect(second.attempt.missedNoteIndexes.size).toBe(1);
   });
 
+  it('ダメージ0設定では正解とミスのダメージを発生させない', () => {
+    const noDamage = {
+      perCorrectNote: 0,
+      good: 0,
+      great: 0,
+      perfect: 0,
+      miss: 0,
+      fail: 0,
+    };
+    const correct = handleEarTrainingNoteInput(phrase, createPhraseAttempt(phrase), 62, noDamage);
+    const miss = handleEarTrainingNoteInput(phrase, createPhraseAttempt(phrase), 60, noDamage);
+
+    expect(correct.enemyDamage).toBe(0);
+    expect(miss.playerDamage).toBe(0);
+    expect(miss.evaluationMissAdded).toBe(true);
+  });
+
   it('現在の次音だけを開示し、最後の正解で完了にする', () => {
     const first = handleEarTrainingNoteInput(phrase, createPhraseAttempt(phrase), 62, damage);
     const second = handleEarTrainingNoteInput(phrase, first.attempt, 75, damage);

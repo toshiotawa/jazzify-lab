@@ -39,6 +39,9 @@ interface EarTrainingMusicXmlValidationOptions {
 
 const roundToMillis = (value: number): number => Math.round(value * 1000) / 1000;
 
+const scaleNullableSeconds = (value: number | null | undefined, scale: number): number | null =>
+  value === null || value === undefined ? null : roundToMillis(value * scale);
+
 const parseXml = (xmlText: string): Document => {
   const document = new DOMParser().parseFromString(xmlText, 'application/xml');
   const parseError = document.querySelector('parsererror');
@@ -370,6 +373,38 @@ const toEarTrainingChords = (
       end_time_sec: roundToMillis((chord.totalBeatPosition + durationBeats) * (60 / bpm)),
     };
   });
+};
+
+export const scaleEarTrainingPhraseChordTimings = (
+  chords: EarTrainingPhraseChordImport[],
+  targetLoopDurationSec: number,
+  sourceLoopDurationSec?: number,
+): EarTrainingPhraseChordImport[] => {
+  const inferredSourceLoopDurationSec = chords.reduce((maxEndSec, chord) => {
+    const endTimeSec = chord.end_time_sec;
+    if (endTimeSec === null || endTimeSec === undefined || !Number.isFinite(endTimeSec)) {
+      return maxEndSec;
+    }
+    return Math.max(maxEndSec, endTimeSec);
+  }, 0);
+  const resolvedSourceLoopDurationSec = sourceLoopDurationSec ?? inferredSourceLoopDurationSec;
+
+  if (
+    chords.length === 0
+    || !Number.isFinite(targetLoopDurationSec)
+    || targetLoopDurationSec <= 0
+    || !Number.isFinite(resolvedSourceLoopDurationSec)
+    || resolvedSourceLoopDurationSec <= 0
+  ) {
+    return chords;
+  }
+
+  const timingScale = targetLoopDurationSec / resolvedSourceLoopDurationSec;
+  return chords.map(chord => ({
+    ...chord,
+    start_time_sec: scaleNullableSeconds(chord.start_time_sec, timingScale),
+    end_time_sec: scaleNullableSeconds(chord.end_time_sec, timingScale),
+  }));
 };
 
 export const buildEarTrainingPhraseDraftsFromMusicXml = (

@@ -25,6 +25,7 @@ import { midiToPitchClass, noteNameToPitchClass } from '@/utils/earTrainingEngin
 import {
   buildEarTrainingPhraseDraftsFromMusicXml,
   createEarTrainingMusicXmlPreview,
+  scaleEarTrainingPhraseChordTimings,
   validateEarTrainingImportFileCount,
   type EarTrainingMusicXmlPreview,
 } from '@/utils/earTrainingMusicXmlImport';
@@ -487,6 +488,11 @@ const EarTrainingStageManager: React.FC = () => {
         const loopDurationSec = audioDurationSec > 0
           ? audioDurationSec / selectedStage.max_loops_per_phrase
           : fallbackLoopDurationSec;
+        const normalizedChords = scaleEarTrainingPhraseChordTimings(
+          draft.chords,
+          loopDurationSec,
+          fallbackLoopDurationSec,
+        );
 
         phrasePayloads.push({
           order_index: draft.orderIndex,
@@ -498,7 +504,7 @@ const EarTrainingStageManager: React.FC = () => {
           audio_duration_sec: roundSeconds(resolvedAudioDurationSec),
           note_count: draft.noteCount,
           notes: draft.notes,
-          chords: draft.chords,
+          chords: normalizedChords,
           demoLoopNumbers: [1, 3, 5],
         });
       }
