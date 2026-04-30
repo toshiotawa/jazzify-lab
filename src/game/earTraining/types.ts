@@ -28,6 +28,7 @@ export interface EarTrainingBattleSnapshot {
   enemyMaxHp: number;
   enemyName: string;
   enemyAvatarUrl: string;
+  enemyAvatarFlipX: boolean;
   playerAvatarUrl: string;
   phraseIndex: number;
   totalPhrases: number;

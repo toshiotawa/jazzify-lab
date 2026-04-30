@@ -36,7 +36,12 @@ import {
   mapEarTrainingRankToLessonRank,
   resolveEarTrainingOutcome,
 } from '@/utils/earTrainingEngine';
-import { DEFAULT_AVATAR_URL, EAR_TRAINING_PLAYER_AVATAR_URL } from '@/utils/constants';
+import {
+  DEFAULT_AVATAR_URL,
+  EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
+  EAR_TRAINING_ENEMY_AVATAR_URLS,
+  EAR_TRAINING_PLAYER_AVATAR_URL,
+} from '@/utils/constants';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -651,7 +656,16 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const currentNoteIndex = attempt?.currentNoteIndex ?? 0;
   const demoLoopActive = Boolean(currentPhrase?.demo_loops?.some(loop => loop.loop_number === activeLoop));
   const enemyName = enemy?.name ?? 'Random Rival';
-  const enemyAvatar = enemy?.avatarUrl ?? DEFAULT_AVATAR_URL;
+  const enemyAvatar = useMemo(() => {
+    const source = `${stage.id}:${enemy?.id ?? enemy?.name ?? 'enemy'}`;
+    let hash = 0;
+    for (let index = 0; index < source.length; index += 1) {
+      hash = ((hash << 5) - hash + source.charCodeAt(index)) | 0;
+    }
+    const avatarIndex = Math.abs(hash) % EAR_TRAINING_ENEMY_AVATAR_URLS.length;
+    return EAR_TRAINING_ENEMY_AVATAR_URLS[avatarIndex] ?? DEFAULT_AVATAR_URL;
+  }, [enemy?.id, enemy?.name, stage.id]);
+  const enemyAvatarFlipX = EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS.has(enemyAvatar);
   const timeLabel = practiceMode ? '∞' : formatTime(timeRemaining);
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
@@ -673,6 +687,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     enemyMaxHp: stage.enemy_hp,
     enemyName,
     enemyAvatarUrl: enemyAvatar,
+    enemyAvatarFlipX,
     playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
     phraseIndex,
     totalPhrases: phrases.length,
@@ -703,6 +718,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     currentPhrase?.chords,
     demoLoopActive,
     enemyAvatar,
+    enemyAvatarFlipX,
     enemyHp,
     enemyName,
     gameState,
