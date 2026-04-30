@@ -14,7 +14,15 @@ import { useAuthStore } from '@/stores/authStore';
 import { useToast, useToastStore } from '@/stores/toastStore';
 import { useGeoStore } from '@/stores/geoStore';
 import { shouldUseEnglishCopy } from '@/utils/globalAudience';
-import { lessonDisplayDescription, lessonDisplayTitle, lessonSongDisplayTitle } from '@/utils/lessonCopy';
+import {
+  earTrainingStageDisplayDescription,
+  earTrainingStageDisplayTitle,
+  fantasyStageDisplayDescription,
+  fantasyStageDisplayName,
+  lessonDisplayDescription,
+  lessonDisplayTitle,
+  lessonSongDisplayTitle,
+} from '@/utils/lessonCopy';
 import { useUtcResetInfo } from '@/utils/useUtcResetInfo';
 import { useUserStatsStore } from '@/stores/userStatsStore';
 import { useBillingAwareMembership } from '@/utils/useBillingAwareMembership';
@@ -718,28 +726,45 @@ const LessonDetailPage: React.FC = () => {
                         })()}
 
                         {/* ファンタジーステージ情報 */}
-                        {isFantasy && !isSurvival && req.fantasy_stage && (
-                          <div className="mb-3 text-sm">
-                            <div className="font-medium text-purple-300">
-                              {req.fantasy_stage.stage_number} - {req.fantasy_stage.name}
+                        {isFantasy && !isSurvival && req.fantasy_stage && (() => {
+                          const fs = req.fantasy_stage;
+                          const fsName = fantasyStageDisplayName(fs, isEnglishCopy);
+                          const fsDesc = fantasyStageDisplayDescription(fs, isEnglishCopy);
+                          const headParts = [fs.stage_number, fsName].filter(
+                            (p): p is string => typeof p === 'string' && p.trim() !== '',
+                          );
+                          const fsHeadline = headParts.join(' - ');
+                          if (!fsHeadline && !fsDesc) {
+                            return null;
+                          }
+                          return (
+                            <div className="mb-3 text-sm">
+                              {fsHeadline ? (
+                                <div className="font-medium text-purple-300">{fsHeadline}</div>
+                              ) : null}
+                              {fsDesc ? (
+                                <div className={`text-gray-400 text-xs ${fsHeadline ? 'mt-1' : ''}`}>{fsDesc}</div>
+                              ) : null}
                             </div>
-                            <div className="text-gray-400 text-xs mt-1">
-                              {req.fantasy_stage.description}
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
 
                         {/* 耳コピバトル情報 */}
-                        {isEarTraining && req.ear_training_stage && (
-                          <div className="mb-3 text-sm">
-                            <div className="font-medium text-cyan-200">
-                              {req.ear_training_stage.title}
+                        {isEarTraining && req.ear_training_stage && (() => {
+                          const et = req.ear_training_stage;
+                          const etTitle = earTrainingStageDisplayTitle(et, isEnglishCopy);
+                          const etDesc =
+                            earTrainingStageDisplayDescription(et, isEnglishCopy) ||
+                            practiceCopy.earTrainingDescriptionFallback;
+                          return (
+                            <div className="mb-3 text-sm">
+                              {etTitle ? (
+                                <div className="font-medium text-cyan-200">{etTitle}</div>
+                              ) : null}
+                              <div className={`text-gray-400 text-xs ${etTitle ? 'mt-1' : ''}`}>{etDesc}</div>
                             </div>
-                            <div className="text-gray-400 text-xs mt-1">
-                              {req.ear_training_stage.description || practiceCopy.earTrainingDescriptionFallback}
-                            </div>
-                          </div>
-                        )}
+                          );
+                        })()}
                         
                         {/* 進捗表示 */}
                         <div className="mb-3">

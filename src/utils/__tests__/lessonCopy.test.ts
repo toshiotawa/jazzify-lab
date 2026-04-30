@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  earTrainingStageDisplayDescription,
+  earTrainingStageDisplayTitle,
+  fantasyStageDisplayDescription,
+  fantasyStageDisplayName,
   lessonDisplayBlockName,
   lessonDisplayDescription,
   lessonDisplayTitle,
@@ -40,12 +44,84 @@ describe('lessonSongDisplayTitle', () => {
     ).toBe('English title');
   });
 
-  it('英語でも title_en が無ければ title', () => {
-    expect(lessonSongDisplayTitle({ title: '日本語のみ' }, true)).toBe('日本語のみ');
+  it('英語で title_en が無いときは日本語 title にフォールバックしない', () => {
+    expect(lessonSongDisplayTitle({ title: '日本語のみ' }, true)).toBe('');
   });
 
   it('title が null のときは空文字', () => {
     expect(lessonSongDisplayTitle({ title: null }, false)).toBe('');
+  });
+
+  it('英語で title_en が空白のみのときは空文字', () => {
+    expect(lessonSongDisplayTitle({ title: 'JA', title_en: '   ' }, true)).toBe('');
+  });
+});
+
+const baseFantasy = {
+  name: '日本語名',
+  name_en: 'English name',
+  description: '日本語説明',
+  description_en: 'English description',
+};
+
+describe('fantasyStageDisplayName', () => {
+  it('英語 UI では name_en を返す', () => {
+    expect(fantasyStageDisplayName(baseFantasy, true)).toBe('English name');
+  });
+
+  it('英語 UI で name_en が無いときは空', () => {
+    expect(fantasyStageDisplayName({ ...baseFantasy, name_en: null }, true)).toBe('');
+  });
+
+  it('日本語 UI では name を返す', () => {
+    expect(fantasyStageDisplayName({ ...baseFantasy, name_en: null }, false)).toBe('日本語名');
+  });
+});
+
+describe('fantasyStageDisplayDescription', () => {
+  it('英語 UI では description_en を返す', () => {
+    expect(fantasyStageDisplayDescription(baseFantasy, true)).toBe('English description');
+  });
+
+  it('英語 UI で description_en が無いときは空', () => {
+    expect(fantasyStageDisplayDescription({ ...baseFantasy, description_en: null }, true)).toBe('');
+  });
+
+  it('日本語 UI では description を返す', () => {
+    expect(fantasyStageDisplayDescription({ ...baseFantasy, description_en: null }, false)).toBe('日本語説明');
+  });
+});
+
+const baseEarTraining = {
+  title: '耳コピタイトル',
+  title_en: 'Ear title',
+  description: '耳コピ説明',
+  description_en: 'Ear body',
+};
+
+describe('earTrainingStageDisplayTitle', () => {
+  it('英語 UI では title_en を返す', () => {
+    expect(earTrainingStageDisplayTitle(baseEarTraining, true)).toBe('Ear title');
+  });
+
+  it('英語 UI で title_en が無いときは空', () => {
+    expect(earTrainingStageDisplayTitle({ ...baseEarTraining, title_en: null }, true)).toBe('');
+  });
+});
+
+describe('earTrainingStageDisplayDescription', () => {
+  it('英語 UI では description_en を返す', () => {
+    expect(earTrainingStageDisplayDescription(baseEarTraining, true)).toBe('Ear body');
+  });
+
+  it('英語 UI で description_en が無いときは空', () => {
+    expect(earTrainingStageDisplayDescription({ ...baseEarTraining, description_en: null }, true)).toBe('');
+  });
+
+  it('日本語 UI では description を返す', () => {
+    expect(earTrainingStageDisplayDescription({ ...baseEarTraining, description_en: null }, false)).toBe(
+      '耳コピ説明',
+    );
   });
 });
 
