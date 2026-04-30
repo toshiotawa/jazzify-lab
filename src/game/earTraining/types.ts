@@ -35,6 +35,7 @@ export interface EarTrainingBattleSnapshot {
   activeLoop: number;
   maxLoops: number;
   demoLoopActive: boolean;
+  enemyAttackGaugePercent: number;
   chords: EarTrainingBattleChordView[];
   phraseSlots: string[];
   revealedNotes: string[];

@@ -7,9 +7,9 @@ import type {
 } from './types';
 import { EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS } from '@/utils/constants';
 
-const PIANO_MIN_MIDI = 48;
-const PIANO_MAX_MIDI = 72;
-const WHITE_PITCH_CLASSES = new Set([0, 2, 4, 5, 7, 9, 11]);
+const PIANO_OVERLAY_HEIGHT = 120;
+const HUD_HEIGHT = 150;
+const PHRASE_INTRO_FADE_MS = 2600;
 
 const EMPTY_CALLBACKS: EarTrainingBattleCallbacks = {
   onStart: () => undefined,
@@ -27,16 +27,9 @@ const clampPercent = (value: number, max: number): number => {
   return Phaser.Math.Clamp(value / max, 0, 1);
 };
 
-const pitchClass = (midiNote: number): number => ((midiNote % 12) + 12) % 12;
+const getPianoHeight = (): number => PIANO_OVERLAY_HEIGHT;
 
-const isWhiteKey = (midiNote: number): boolean => WHITE_PITCH_CLASSES.has(pitchClass(midiNote));
-
-const getPianoHeight = (height: number): number => Math.max(116, Math.min(148, height * 0.2));
-
-const noteLabel = (midiNote: number): string => {
-  const labels = ['C', 'C#', 'D', 'D#', 'E', 'F', 'F#', 'G', 'G#', 'A', 'A#', 'B'];
-  return labels[pitchClass(midiNote)] ?? '';
-};
+const getCharacterBaseY = (height: number): number => Math.max(230, height - getPianoHeight() - 170);
 
 const colorForHp = (percent: number, high: number, middle: number, low: number): number => {
   if (percent > 0.5) {
@@ -56,12 +49,6 @@ const hashText = (value: string): string => {
   return `ear-training-avatar-${Math.abs(hash)}`;
 };
 
-interface PianoKeyView {
-  midiNote: number;
-  body: Phaser.GameObjects.Rectangle;
-  label: Phaser.GameObjects.Text | null;
-}
-
 interface CharacterView {
   container: Phaser.GameObjects.Container;
   image: Phaser.GameObjects.Image | null;
@@ -70,18 +57,16 @@ interface CharacterView {
 export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingBattleSceneHandle {
   private callbacks: EarTrainingBattleCallbacks = EMPTY_CALLBACKS;
   private snapshot: EarTrainingBattleSnapshot | null = null;
-  private activeKeys = new Set<number>();
   private loadingTextureKeys = new Set<string>();
   private backgroundLayer: Phaser.GameObjects.Container | null = null;
   private characterLayer: Phaser.GameObjects.Container | null = null;
   private effectLayer: Phaser.GameObjects.Container | null = null;
   private hudLayer: Phaser.GameObjects.Container | null = null;
   private phraseLayer: Phaser.GameObjects.Container | null = null;
-  private inputLayer: Phaser.GameObjects.Container | null = null;
   private playerView: CharacterView | null = null;
   private enemyView: CharacterView | null = null;
-  private pianoKeys: PianoKeyView[] = [];
-  private pressedPointerKey: number | null = null;
+  private phraseIntroText: Phaser.GameObjects.Text | null = null;
+  private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
   private isReady = false;
 
@@ -141,13 +126,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.playEnemyAttackEffect(command, false);
   }
 
-  highlightKey(midiNote: number, active: boolean): void {
-    if (active) {
-      this.activeKeys.add(midiNote);
-    } else {
-      this.activeKeys.delete(midiNote);
-    }
-    this.paintPianoKeys();
+  highlightKey(_midiNote: number, _active: boolean): void {
+    void _midiNote;
+    void _active;
   }
 
   private handleResize = (): void => {
@@ -164,16 +145,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.characterLayer = this.add.container(0, 0);
     this.hudLayer = this.add.container(0, 0);
     this.phraseLayer = this.add.container(0, 0);
-    this.inputLayer = this.add.container(0, 0);
     const effectLayer = this.effectLayer ?? this.add.container(0, 0);
     this.effectLayer = effectLayer;
 
     this.drawBackground(width, height);
     this.drawHud(width);
     this.drawCharacters(width, height);
+    this.drawPhraseIntro(width, height);
     this.drawPhraseSlots(width, height);
     this.drawLobbyOverlay(width, height);
-    this.drawPiano(width, height);
     this.children.bringToTop(effectLayer);
   }
 
@@ -182,10 +162,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.characterLayer?.destroy(true);
     this.hudLayer?.destroy(true);
     this.phraseLayer?.destroy(true);
-    this.inputLayer?.destroy(true);
     this.playerView = null;
     this.enemyView = null;
-    this.pianoKeys = [];
   }
 
   private drawBackground(width: number, height: number): void {
@@ -214,8 +192,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const hudHeight = 88;
-    const hudBg = this.add.rectangle(0, 0, width, hudHeight, 0x020617, 0.66).setOrigin(0, 0);
+    const hudBg = this.add.rectangle(0, 0, width, HUD_HEIGHT, 0x020617, 0.66).setOrigin(0, 0);
     hudBg.setStrokeStyle(1, 0xffffff, 0.08);
     this.hudLayer.add(hudBg);
 
@@ -230,9 +207,9 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0);
     this.hudLayer.add(time);
 
-    this.drawChordHud(width, 112);
-    this.drawUtilityButton(width - 118, 92, 46, '設定', () => this.callbacks.onOpenSettings());
-    this.drawUtilityButton(width - 66, 92, 46, '戻る', () => this.callbacks.onBack());
+    this.drawUtilityButton(width - 118, 58, 46, '設定', () => this.callbacks.onOpenSettings());
+    this.drawUtilityButton(width - 66, 58, 46, '戻る', () => this.callbacks.onBack());
+    this.drawChordHud(width, 104);
 
     if (snapshot.practiceMode) {
       const practice = this.add.text(width / 2 + 60, 26, '練習', {
@@ -246,7 +223,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.hudLayer.add(practice);
     }
 
-    const midiStatus = this.add.text(width - 118, 124, snapshot.isMidiConnected ? 'MIDI ON' : 'MIDI OFF', {
+    const midiStatus = this.add.text(18, 64, snapshot.isMidiConnected ? 'MIDI ON' : 'MIDI OFF', {
       color: snapshot.isMidiConnected ? '#bbf7d0' : '#94a3b8',
       fontFamily: 'Arial, sans-serif',
       fontSize: '10px',
@@ -284,10 +261,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const itemWidth = 78;
-    const leftMargin = 16;
-    const rightReservedWidth = 132;
-    const availableWidth = Math.max(itemWidth, width - leftMargin - rightReservedWidth);
+    const label = this.add.text(18, y + 13, 'CHORD', {
+      color: '#94a3b8',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '10px',
+      fontStyle: '900',
+    }).setOrigin(0, 0.5);
+    this.hudLayer.add(label);
+
+    const itemWidth = 82;
+    const leftMargin = 72;
+    const rightMargin = 16;
+    const availableWidth = Math.max(itemWidth, width - leftMargin - rightMargin);
     const visibleCount = Math.max(1, Math.min(snapshot.chords.length, Math.floor(availableWidth / itemWidth)));
     const activeIndex = snapshot.chords.findIndex(chord => chord.active);
     const firstVisibleIndex = Phaser.Math.Clamp(
@@ -296,7 +281,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       Math.max(0, snapshot.chords.length - visibleCount),
     );
     const chords = snapshot.chords.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
-    const startX = Math.max(leftMargin, (width - rightReservedWidth - itemWidth * chords.length) / 2);
+    const startX = Math.max(leftMargin, leftMargin + (availableWidth - itemWidth * chords.length) / 2);
     chords.forEach((chord, index) => {
       const x = startX + index * itemWidth;
       const bg = this.add.rectangle(x + itemWidth / 2, y + 13, itemWidth - 6, 26, chord.active ? 0xfacc15 : 0x020617, chord.active ? 1 : 0.72);
@@ -333,10 +318,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!snapshot || !this.characterLayer) {
       return;
     }
-    const pianoHeight = getPianoHeight(height);
-    const characterBaseY = Math.max(230, height - pianoHeight - 170);
+    const characterBaseY = getCharacterBaseY(height);
     this.playerView = this.createCharacter(width * 0.23, characterBaseY, true, snapshot.playerAvatarUrl, false);
     this.enemyView = this.createCharacter(width * 0.77, characterBaseY, false, snapshot.enemyAvatarUrl, snapshot.enemyAvatarFlipX);
+    this.drawEnemyAttackGauge(width * 0.77, Math.max(HUD_HEIGHT + 12, characterBaseY - 166));
   }
 
   private createCharacter(x: number, y: number, isPlayer: boolean, avatarUrl: string, avatarFlipX: boolean): CharacterView {
@@ -363,22 +348,97 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     return { container, image };
   }
 
+  private drawEnemyAttackGauge(x: number, y: number): void {
+    const snapshot = this.snapshot;
+    if (!snapshot || !this.characterLayer) {
+      return;
+    }
+    const width = 126;
+    const percent = Phaser.Math.Clamp(snapshot.enemyAttackGaugePercent, 0, 1);
+    const label = this.add.text(x, y - 12, 'ATTACK', {
+      color: percent >= 0.92 ? '#fecaca' : '#fda4af',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '10px',
+      fontStyle: '900',
+    }).setOrigin(0.5, 0.5);
+    const frame = this.add.rectangle(x, y + 4, width, 12, 0x020617, 0.84).setOrigin(0.5, 0.5);
+    frame.setStrokeStyle(1, percent >= 0.92 ? 0xfca5a5 : 0xfb7185, 0.78);
+    const fill = this.add.rectangle(x - width / 2 + 2, y + 4, Math.max(0, (width - 4) * percent), 8, 0xfb7185, 0.95).setOrigin(0, 0.5);
+    this.characterLayer.add([label, frame, fill]);
+  }
+
+  private drawPhraseIntro(width: number, height: number): void {
+    const snapshot = this.snapshot;
+    if (!snapshot || !this.effectLayer || snapshot.totalPhrases <= 0) {
+      return;
+    }
+    if (snapshot.showLobbyControls) {
+      this.phraseIntroText?.destroy();
+      this.phraseIntroText = null;
+      this.lastPhraseIntroKey = null;
+      return;
+    }
+
+    const introKey = `${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
+    if (this.lastPhraseIntroKey === introKey) {
+      return;
+    }
+
+    this.lastPhraseIntroKey = introKey;
+    this.phraseIntroText?.destroy();
+    const y = Math.max(HUD_HEIGHT + 42, getCharacterBaseY(height) - 220);
+    const text = this.add.text(width / 2, y, `Phrase ${snapshot.phraseIndex + 1} / ${snapshot.totalPhrases}`, {
+      color: '#fef3c7',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '22px',
+      fontStyle: '900',
+      stroke: '#020617',
+      strokeThickness: 5,
+    }).setOrigin(0.5, 0.5);
+    text.setAlpha(0.95);
+    this.phraseIntroText = text;
+    this.effectLayer.add(text);
+    this.tweens.add({
+      targets: text,
+      y: y - 24,
+      alpha: 0,
+      duration: PHRASE_INTRO_FADE_MS,
+      ease: 'Cubic.easeOut',
+      onComplete: () => {
+        text.destroy();
+        if (this.phraseIntroText === text) {
+          this.phraseIntroText = null;
+        }
+      },
+    });
+  }
+
   private drawPhraseSlots(width: number, height: number): void {
     const snapshot = this.snapshot;
     if (!snapshot || !this.phraseLayer) {
       return;
     }
     const slots = snapshot.phraseSlots.length > 0 ? snapshot.phraseSlots : ['_'];
-    const slotSize = Phaser.Math.Clamp((width - 48) / Math.max(8, slots.length), 34, 54);
+    const slotSize = Phaser.Math.Clamp((width - 48) / Math.min(Math.max(8, slots.length), 11), 34, 54);
     const gap = 7;
-    const totalWidth = slots.length * slotSize + (slots.length - 1) * gap;
+    const availableWidth = Math.max(slotSize, width - 40);
+    const visibleCount = Math.max(1, Math.min(slots.length, Math.floor((availableWidth + gap) / (slotSize + gap))));
+    const focusedIndex = Phaser.Math.Clamp(snapshot.currentNoteIndex, 0, Math.max(0, slots.length - 1));
+    const firstVisibleIndex = Phaser.Math.Clamp(
+      focusedIndex - Math.floor(visibleCount / 2),
+      0,
+      Math.max(0, slots.length - visibleCount),
+    );
+    const visibleSlots = slots.slice(firstVisibleIndex, firstVisibleIndex + visibleCount);
+    const totalWidth = visibleSlots.length * slotSize + (visibleSlots.length - 1) * gap;
     const startX = Math.max(16, (width - totalWidth) / 2);
-    const y = height - getPianoHeight(height) - slotSize - 18;
+    const y = height - getPianoHeight() - slotSize - 18;
 
-    slots.forEach((_slot, index) => {
+    visibleSlots.forEach((_slot, visibleIndex) => {
+      const index = firstVisibleIndex + visibleIndex;
       const revealed = index < snapshot.revealedNotes.length;
       const current = index === snapshot.currentNoteIndex && snapshot.gameState === 'playingPhrase';
-      const x = startX + index * (slotSize + gap);
+      const x = startX + visibleIndex * (slotSize + gap);
       const bgColor = current ? 0x22d3ee : revealed ? 0x10b981 : 0x020617;
       const textColor = current ? '#ecfeff' : revealed ? '#d1fae5' : '#64748b';
       const box = this.add.rectangle(x, y, slotSize, slotSize, bgColor, current ? 0.38 : revealed ? 0.28 : 0.78).setOrigin(0, 0);
@@ -390,7 +450,29 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         fontStyle: '900',
       }).setOrigin(0.5, 0.5);
       this.phraseLayer?.add([box, text]);
+      if (current) {
+        this.tweens.add({ targets: box, alpha: 0.92, yoyo: true, repeat: -1, duration: 360 });
+      }
     });
+
+    if (firstVisibleIndex > 0) {
+      const left = this.add.text(startX - 12, y + slotSize / 2, '‹', {
+        color: '#94a3b8',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '22px',
+        fontStyle: '900',
+      }).setOrigin(0.5, 0.5);
+      this.phraseLayer?.add(left);
+    }
+    if (firstVisibleIndex + visibleCount < slots.length) {
+      const right = this.add.text(startX + totalWidth + 12, y + slotSize / 2, '›', {
+        color: '#94a3b8',
+        fontFamily: 'Arial, sans-serif',
+        fontSize: '22px',
+        fontStyle: '900',
+      }).setOrigin(0.5, 0.5);
+      this.phraseLayer?.add(right);
+    }
   }
 
   private drawLobbyOverlay(width: number, height: number): void {
@@ -463,89 +545,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0.5);
     this.tweens.add({ targets: button, scale: 1.04, yoyo: true, repeat: -1, duration: 620 });
     this.hudLayer.add([button, text]);
-  }
-
-  private drawPiano(width: number, height: number): void {
-    if (!this.inputLayer) {
-      return;
-    }
-    const pianoHeight = getPianoHeight(height);
-    const y = height - pianoHeight;
-    const base = this.add.rectangle(0, y, width, pianoHeight, 0x020617, 0.96).setOrigin(0, 0);
-    base.setStrokeStyle(1, 0xffffff, 0.12);
-    this.inputLayer.add(base);
-
-    const whiteNotes = Array.from({ length: PIANO_MAX_MIDI - PIANO_MIN_MIDI + 1 }, (_, index) => PIANO_MIN_MIDI + index)
-      .filter(isWhiteKey);
-    const whiteIndexByMidi = new Map<number, number>();
-    const whiteWidth = width / whiteNotes.length;
-    whiteNotes.forEach((midiNote, index) => {
-      whiteIndexByMidi.set(midiNote, index);
-      const x = index * whiteWidth;
-      const body = this.add.rectangle(x + 1, y + 12, whiteWidth - 2, pianoHeight - 20, 0xf8fafc, 1).setOrigin(0, 0);
-      body.setStrokeStyle(1, 0x0f172a, 0.38);
-      this.registerPianoKey(body, midiNote);
-      const label = this.add.text(x + whiteWidth / 2, y + pianoHeight - 24, noteLabel(midiNote), {
-        color: '#0f172a',
-        fontFamily: 'Arial, sans-serif',
-        fontSize: '12px',
-        fontStyle: '900',
-      }).setOrigin(0.5, 0.5);
-      this.inputLayer?.add([body, label]);
-      this.pianoKeys.push({ midiNote, body, label });
-    });
-
-    for (let midiNote = PIANO_MIN_MIDI; midiNote <= PIANO_MAX_MIDI; midiNote += 1) {
-      if (isWhiteKey(midiNote)) {
-        continue;
-      }
-      let previousWhiteMidi = midiNote - 1;
-      while (previousWhiteMidi >= PIANO_MIN_MIDI && !isWhiteKey(previousWhiteMidi)) {
-        previousWhiteMidi -= 1;
-      }
-      const previousWhiteIndex = whiteIndexByMidi.get(previousWhiteMidi);
-      if (previousWhiteIndex === undefined) {
-        continue;
-      }
-      const x = (previousWhiteIndex + 1) * whiteWidth;
-      const body = this.add.rectangle(x, y + 12, whiteWidth * 0.62, pianoHeight * 0.58, 0x020617, 1).setOrigin(0.5, 0);
-      body.setStrokeStyle(1, 0x94a3b8, 0.32);
-      this.registerPianoKey(body, midiNote);
-      this.inputLayer.add(body);
-      this.pianoKeys.push({ midiNote, body, label: null });
-    }
-
-    this.paintPianoKeys();
-  }
-
-  private registerPianoKey(body: Phaser.GameObjects.Rectangle, midiNote: number): void {
-    body.setInteractive({ useHandCursor: true });
-    body.on('pointerdown', () => {
-      this.pressedPointerKey = midiNote;
-      this.highlightKey(midiNote, true);
-      this.callbacks.onPianoKeyDown(midiNote);
-    });
-    body.on('pointerup', () => this.releasePointerKey(midiNote));
-    body.on('pointerout', () => this.releasePointerKey(midiNote));
-  }
-
-  private releasePointerKey(midiNote: number): void {
-    if (this.pressedPointerKey !== midiNote) {
-      return;
-    }
-    this.pressedPointerKey = null;
-    this.highlightKey(midiNote, false);
-    this.callbacks.onPianoKeyUp(midiNote);
-  }
-
-  private paintPianoKeys(): void {
-    this.pianoKeys.forEach(key => {
-      const active = this.activeKeys.has(key.midiNote);
-      const white = isWhiteKey(key.midiNote);
-      key.body.setFillStyle(active ? 0x38bdf8 : white ? 0xf8fafc : 0x020617, 1);
-      key.body.setStrokeStyle(active ? 2 : 1, active ? 0xa5f3fc : white ? 0x0f172a : 0x94a3b8, active ? 0.95 : 0.38);
-      key.label?.setColor(active ? '#083344' : '#0f172a');
-    });
   }
 
   private playCorrectEffect(command: EarTrainingBattleEffectCommand): void {

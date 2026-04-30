@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import EarTrainingSettingsModal from './EarTrainingSettingsModal';
 import EarTrainingPhaserGame from './EarTrainingPhaserGame';
+import EarTrainingPianoOverlay, { type EarTrainingPianoOverlayHandle } from './EarTrainingPianoOverlay';
 import type {
   ClearConditions,
   EarTrainingGameState,
@@ -62,6 +63,7 @@ interface EarTrainingGameScreenProps {
 const INPUT_COOLDOWN_MS = 20;
 const AUDIO_END_EPSILON_SEC = 0.03;
 const BATTLE_EFFECT_DURATION_MS = 720;
+const ATTACK_GAUGE_TARGET_LOOPS = 6;
 const NO_DAMAGE_CONFIG = {
   perCorrectNote: 0,
   good: 0,
@@ -77,6 +79,8 @@ const formatTime = (seconds: number): string => {
   const rest = safe % 60;
   return `${minutes}:${rest.toString().padStart(2, '0')}`;
 };
+
+const clampRatio = (value: number): number => Math.min(1, Math.max(0, value));
 
 const getActiveChord = (phrase: EarTrainingPhrase | undefined, timeSec: number): EarTrainingPhraseChord | null => {
   if (!phrase?.chords || phrase.chords.length === 0) {
@@ -150,10 +154,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [feedback, setFeedback] = useState<'correct' | 'miss' | 'clear' | null>(null);
   const [battleEffectCommand, setBattleEffectCommand] = useState<EarTrainingBattleEffectCommand | null>(null);
   const [progressSaved, setProgressSaved] = useState(false);
+  const [enemyAttackGaugePercent, setEnemyAttackGaugePercent] = useState(0);
 
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const midiControllerRef = useRef<MIDIController | null>(null);
   const phaserGameRef = useRef<EarTrainingBattleSceneHandle | null>(null);
+  const pianoOverlayRef = useRef<EarTrainingPianoOverlayHandle | null>(null);
   const handleNoteInputRef = useRef<(note: number) => void>(() => undefined);
   const startPhraseRef = useRef<(nextPhraseIndex: number) => void>(() => undefined);
   const attemptRef = useRef<EarTrainingPhraseAttempt | null>(null);
@@ -315,6 +321,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     playerHpRef.current = nextPlayerHp;
     setAttempt({ ...currentAttempt, failed: true });
     setLastRank('Fail');
+    setEnemyAttackGaugePercent(1);
     triggerFeedback('miss');
     triggerBattleEffect('fail', 'FAIL', activeDamageConfig.fail);
 
@@ -354,6 +361,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setAttempt(nextAttempt);
     setLastRank(null);
     setActiveLoop(1);
+    setEnemyAttackGaugePercent(0);
     setActiveChord(getActiveChord(phrase, 0));
     setStatusText(`Phrase ${nextPhraseIndex + 1}`);
     gameStateRef.current = 'playingPhrase';
@@ -449,6 +457,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setPhraseIndex(0);
     setCountInValue(stage.count_in_beats);
     setBattleEffectCommand(null);
+    setEnemyAttackGaugePercent(0);
     gameStateRef.current = 'countIn';
     setGameState('countIn');
     setStatusText('Count In');
@@ -626,7 +635,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
     const controller = midiControllerRef.current;
     controller.setKeyHighlightCallback((note, active) => {
-      phaserGameRef.current?.highlightKey(note, active);
+      pianoOverlayRef.current?.highlightKey(note, active);
     });
     void controller.initialize().then(async () => {
       if (settings.selectedMidiDevice) {
@@ -653,6 +662,16 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     });
   }, [updateSettings]);
 
+  const handlePianoKeyDown = useCallback((midiNote: number) => {
+    markAudioUserInteraction();
+    void playNote(midiNote);
+    handleNoteInputRef.current(midiNote);
+  }, []);
+
+  const handlePianoKeyUp = useCallback((midiNote: number) => {
+    void stopNote(midiNote);
+  }, []);
+
   const handleAudioTimeUpdate = useCallback(() => {
     const audio = audioRef.current;
     const phrase = phrases[phraseIndex];
@@ -663,6 +682,13 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setActiveLoop(Math.max(1, Math.min(stage.max_loops_per_phrase, loop)));
     const loopTime = audio.currentTime % Number(phrase.loop_duration_sec);
     setActiveChord(getActiveChord(phrase, loopTime));
+    const loopDurationSec = Number(phrase.loop_duration_sec);
+    const gaugeDurationSec = loopDurationSec * ATTACK_GAUGE_TARGET_LOOPS;
+    setEnemyAttackGaugePercent(
+      Number.isFinite(gaugeDurationSec) && gaugeDurationSec > 0
+        ? clampRatio(audio.currentTime / gaugeDurationSec)
+        : 0,
+    );
 
     const audioDurationSec = Number(phrase.audio_duration_sec);
     if (audio.ended || (Number.isFinite(audioDurationSec) && audio.currentTime >= audioDurationSec - AUDIO_END_EPSILON_SEC)) {
@@ -735,6 +761,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
     demoLoopActive,
+    enemyAttackGaugePercent,
     chords: (currentPhrase?.chords ?? []).map(chord => ({
       id: chord.id,
       name: chord.chord_name,
@@ -760,6 +787,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     demoLoopActive,
     enemyAvatar,
     enemyAvatarFlipX,
+    enemyAttackGaugePercent,
     enemyHp,
     enemyName,
     gameState,
@@ -789,19 +817,13 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         setPracticeMode(nextPracticeMode);
       }
     },
-    onPianoKeyDown: (midiNote: number) => {
-      markAudioUserInteraction();
-      void playNote(midiNote);
-      handleNoteInputRef.current(midiNote);
-    },
-    onPianoKeyUp: (midiNote: number) => {
-      void stopNote(midiNote);
-    },
-  }), [canChangePracticeMode, onBack, startCountIn]);
+    onPianoKeyDown: handlePianoKeyDown,
+    onPianoKeyUp: handlePianoKeyUp,
+  }), [canChangePracticeMode, handlePianoKeyDown, handlePianoKeyUp, onBack, startCountIn]);
 
   return (
     <div className={cn(
-      'h-[100dvh] w-full overflow-hidden bg-slate-950 text-white',
+      'relative h-[100dvh] w-full overflow-hidden bg-slate-950 text-white',
       feedback === 'miss' && 'bg-red-950',
       feedback === 'clear' && 'bg-white text-slate-950',
     )}>
@@ -813,6 +835,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         effectCommand={battleEffectCommand}
         callbacks={battleCallbacks}
         className="h-full w-full"
+      />
+
+      <EarTrainingPianoOverlay
+        ref={pianoOverlayRef}
+        onPianoKeyDown={handlePianoKeyDown}
+        onPianoKeyUp={handlePianoKeyUp}
       />
 
       <EarTrainingSettingsModal
