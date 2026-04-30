@@ -6,6 +6,13 @@ import { fetchEarTrainingStageById, fetchEarTrainingStages } from '@/platform/su
 import { fetchSurvivalCharacters, SurvivalCharacterRow } from '@/platform/supabaseSurvival';
 import { updateLessonRequirementProgress } from '@/platform/supabaseLessonRequirements';
 import { getWindow } from '@/platform';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
+import {
+  EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA,
+  getEarTrainingMainCopy,
+} from '@/utils/earTrainingUiCopy';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -41,6 +48,19 @@ const getParamsFromHash = (): URLSearchParams => {
 };
 
 const EarTrainingMain: React.FC = () => {
+  const { profile } = useAuthStore(state => ({ profile: state.profile }));
+  const geoCountry = useGeoStore(state => state.country);
+  const audienceContext = useMemo(
+    () => ({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale,
+    }),
+    [profile?.rank, profile?.country, profile?.preferred_locale, geoCountry],
+  );
+  const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
+  const mainCopy = useMemo(() => getEarTrainingMainCopy(isEnglishCopy), [isEnglishCopy]);
+
   const [stage, setStage] = useState<EarTrainingStage | null>(null);
   const [stages, setStages] = useState<EarTrainingStage[]>([]);
   const [enemy, setEnemy] = useState<SurvivalCharacterRow | null>(null);
@@ -68,6 +88,7 @@ const EarTrainingMain: React.FC = () => {
     const load = async () => {
       setLoading(true);
       setError(null);
+      const copy = getEarTrainingMainCopy(isEnglishCopy);
       try {
         const stageId = params.get('stageId');
         const [stageData, stageList, characters] = await Promise.all([
@@ -89,12 +110,15 @@ const EarTrainingMain: React.FC = () => {
         }
 
         if (!selectedStage) {
-          setError('耳コピステージが登録されていません');
+          setError(copy.noStagesRegistered);
         }
       } catch (loadError) {
         if (!cancelled) {
-          const message = loadError instanceof Error ? loadError.message : '耳コピステージの読み込みに失敗しました';
-          setError(message);
+          const raw = loadError instanceof Error ? loadError.message : '';
+          const resolved = raw === EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA
+            ? copy.stageNotFoundFromFetch
+            : (raw || copy.loadFailedDefault);
+          setError(resolved);
         }
       } finally {
         if (!cancelled) {
@@ -107,7 +131,7 @@ const EarTrainingMain: React.FC = () => {
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [isEnglishCopy, params]);
 
   const handleBack = useCallback(() => {
     if (lessonContext) {
@@ -131,7 +155,7 @@ const EarTrainingMain: React.FC = () => {
   }, [lessonContext]);
 
   if (loading) {
-    return <LoadingScreen message="耳コピバトルを読み込み中..." />;
+    return <LoadingScreen message={mainCopy.loading} />;
   }
 
   if (error || !stage) {
@@ -140,10 +164,10 @@ const EarTrainingMain: React.FC = () => {
         <GameHeader />
         <div className="grid flex-1 place-items-center p-6 text-center">
           <div className="max-w-md rounded-2xl border border-red-500/30 bg-red-950/30 p-6">
-            <h1 className="mb-3 text-xl font-bold">耳コピバトル</h1>
-            <p className="mb-4 text-sm text-red-100">{error ?? 'ステージが見つかりません'}</p>
+            <h1 className="mb-3 text-xl font-bold">{mainCopy.title}</h1>
+            <p className="mb-4 text-sm text-red-100">{error ?? mainCopy.stageNotFound}</p>
             <button type="button" onClick={handleBack} className="btn btn-primary">
-              戻る
+              {mainCopy.back}
             </button>
           </div>
         </div>
@@ -156,7 +180,7 @@ const EarTrainingMain: React.FC = () => {
       <div className="flex h-[100dvh] flex-col overflow-hidden bg-slate-950 text-white">
         <GameHeader />
         <div className="mx-auto w-full max-w-4xl flex-1 overflow-y-auto p-4">
-          <h1 className="mb-4 text-2xl font-bold">耳コピバトル</h1>
+          <h1 className="mb-4 text-2xl font-bold">{mainCopy.title}</h1>
           <div className="grid gap-3 sm:grid-cols-2">
             {stages.map(item => (
               <button
@@ -179,7 +203,7 @@ const EarTrainingMain: React.FC = () => {
   }
 
   return (
-    <React.Suspense fallback={<LoadingScreen message="耳コピバトルを準備中..." />}>
+    <React.Suspense fallback={<LoadingScreen message={mainCopy.preparing} />}>
       <EarTrainingGameScreen
         stage={stage}
         enemy={enemy}

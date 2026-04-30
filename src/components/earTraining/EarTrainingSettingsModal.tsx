@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { MidiDeviceSelector } from '@/components/ui/MidiDeviceManager';
 import { useGameStore } from '@/stores/gameStore';
+import { getEarTrainingSettingsModalCopy } from '@/utils/earTrainingUiCopy';
 
 interface EarTrainingSettingsModalProps {
   isOpen: boolean;
+  isEnglishCopy: boolean;
   onClose: () => void;
   midiDeviceId: string | null;
   onMidiDeviceChange: (deviceId: string | null) => void;
@@ -34,12 +36,14 @@ const SliderRow: React.FC<{
 
 const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
   isOpen,
+  isEnglishCopy,
   onClose,
   midiDeviceId,
   onMidiDeviceChange,
   isMidiConnected,
 }) => {
   const { settings, updateSettings } = useGameStore();
+  const ui = useMemo(() => getEarTrainingSettingsModalCopy(isEnglishCopy), [isEnglishCopy]);
 
   if (!isOpen) {
     return null;
@@ -50,7 +54,7 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
       className="fixed inset-0 z-[70] flex items-center justify-center bg-black/60 p-4"
       role="dialog"
       aria-modal="true"
-      aria-label="耳コピバトル設定"
+      aria-label={ui.dialogAriaLabel}
       onClick={onClose}
     >
       <div
@@ -58,49 +62,49 @@ const EarTrainingSettingsModal: React.FC<EarTrainingSettingsModalProps> = ({
         onClick={event => event.stopPropagation()}
       >
         <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-lg font-bold">耳コピバトル設定</h2>
+          <h2 className="text-lg font-bold">{ui.title}</h2>
           <button
             type="button"
             onClick={onClose}
             className="rounded-lg px-3 py-1 text-slate-300 hover:bg-slate-800 hover:text-white"
-            aria-label="設定を閉じる"
+            aria-label={ui.closeAriaLabel}
           >
-            閉じる
+            {ui.close}
           </button>
         </div>
 
         <div className="max-h-[calc(100dvh-8rem)] space-y-5 overflow-y-auto pr-1">
           <section className="rounded-xl border border-blue-700/40 bg-blue-950/30 p-4">
-            <h3 className="mb-2 text-sm font-semibold text-blue-100">MIDIデバイス</h3>
+            <h3 className="mb-2 text-sm font-semibold text-blue-100">{ui.midiHeading}</h3>
             <MidiDeviceSelector
               value={midiDeviceId}
               onChange={onMidiDeviceChange}
               className="w-full"
             />
             <p className="mt-2 text-xs text-slate-300">
-              {isMidiConnected ? '接続済み' : '未接続または未選択'}
+              {isMidiConnected ? ui.midiConnected : ui.midiDisconnected}
             </p>
           </section>
 
           <section className="space-y-4 rounded-xl border border-slate-700 bg-slate-800/60 p-4">
-            <h3 className="text-sm font-semibold text-slate-100">音量</h3>
+            <h3 className="text-sm font-semibold text-slate-100">{ui.volumeHeading}</h3>
             <SliderRow
-              label="マスター"
+              label={ui.master}
               value={settings.masterVolume}
               onChange={value => updateSettings({ masterVolume: value })}
             />
             <SliderRow
-              label="フレーズ音源"
+              label={ui.phraseAudio}
               value={settings.musicVolume}
               onChange={value => updateSettings({ musicVolume: value })}
             />
             <SliderRow
-              label="入力ピアノ"
+              label={ui.inputPiano}
               value={settings.midiVolume}
               onChange={value => updateSettings({ midiVolume: value })}
             />
             <SliderRow
-              label="効果音"
+              label={ui.soundEffects}
               value={settings.soundEffectVolume}
               onChange={value => updateSettings({ soundEffectVolume: value })}
             />

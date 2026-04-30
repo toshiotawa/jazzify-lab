@@ -16,11 +16,27 @@ export interface EarTrainingBattleChordView {
   active: boolean;
 }
 
+export interface EarTrainingBattleHudLabels {
+  settings: string;
+  backShort: string;
+  practiceBadge: string;
+  battleMode: string;
+  practiceMode: string;
+  lobbyBack: string;
+  resultWin: string;
+  resultLose: string;
+  resultTimeOver: string;
+  rankPrefix: string;
+}
+
 export interface EarTrainingBattleSnapshot {
   gameState: EarTrainingGameState;
   resultState: 'win' | 'lose' | 'timeOver' | null;
   stageTitle: string;
   statusText: string;
+  hudLabels: EarTrainingBattleHudLabels;
+  phraseIntroLine: string;
+  resultRankLine: string | null;
   timeLabel: string;
   practiceMode: boolean;
   isMidiConnected: boolean;

@@ -1,3 +1,4 @@
+import { EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA } from '@/utils/earTrainingUiCopy';
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern } from './supabaseClient';
 import type {
   EarTrainingPhrase,
@@ -104,7 +105,7 @@ export const fetchEarTrainingStageById = async (
     throw error;
   }
   if (!data) {
-    throw new Error('耳コピステージが見つかりません');
+    throw new Error(EAR_TRAINING_STAGE_NOT_FOUND_MESSAGE_JA);
   }
 
   return sortStageRelations(data as EarTrainingStage);

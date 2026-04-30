@@ -335,12 +335,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }).setOrigin(0.5, 0);
     this.hudLayer.add(time);
 
-    this.drawUtilityButton(width - 118, 58, 46, '設定', () => this.callbacks.onOpenSettings());
-    this.drawUtilityButton(width - 66, 58, 46, '戻る', () => this.callbacks.onBack());
+    this.drawUtilityButton(width - 118, 58, 46, snapshot.hudLabels.settings, () => this.callbacks.onOpenSettings());
+    this.drawUtilityButton(width - 66, 58, 46, snapshot.hudLabels.backShort, () => this.callbacks.onBack());
     this.drawChordHud(width, 104);
 
     if (snapshot.practiceMode) {
-      const practice = this.add.text(width / 2 + 60, 26, '練習', {
+      const practice = this.add.text(width / 2 + 60, 26, snapshot.hudLabels.practiceBadge, {
         color: '#083344',
         backgroundColor: '#67e8f9',
         fontFamily: 'Arial, sans-serif',
@@ -525,7 +525,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.lastPhraseIntroKey = introKey;
     this.phraseIntroText?.destroy();
     const y = Math.max(HUD_HEIGHT + 42, getFloorY(height) - 220);
-    const text = this.add.text(width / 2, y, `Phrase ${snapshot.phraseIndex + 1} / ${snapshot.totalPhrases}`, {
+    const text = this.add.text(width / 2, y, snapshot.phraseIntroLine, {
       color: '#fef3c7',
       fontFamily: 'Arial, sans-serif',
       fontSize: '22px',
@@ -635,8 +635,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.hudLayer.add(result);
     }
 
-    if (snapshot.resultState === 'win' && snapshot.lastRank) {
-      const rank = this.add.text(width / 2, height * 0.38, `Rank ${snapshot.lastRank}`, {
+    if (snapshot.resultState === 'win' && snapshot.resultRankLine) {
+      const rank = this.add.text(width / 2, height * 0.38, snapshot.resultRankLine, {
         color: '#fde68a',
         fontFamily: 'Arial, sans-serif',
         fontSize: '18px',
@@ -645,8 +645,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.hudLayer.add(rank);
     }
 
-    this.drawModeButton(width / 2 - 82, height * 0.46, 'バトル', !snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(false));
-    this.drawModeButton(width / 2 + 12, height * 0.46, '練習', snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(true));
+    this.drawModeButton(width / 2 - 82, height * 0.46, snapshot.hudLabels.battleMode, !snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(false));
+    this.drawModeButton(width / 2 + 12, height * 0.46, snapshot.hudLabels.practiceMode, snapshot.practiceMode, () => this.callbacks.onPracticeModeChange(true));
     this.drawStartButton(width / 2, height * 0.56, snapshot.startButtonLabel);
     this.drawLobbyBackButton(width / 2, height * 0.66);
 
@@ -662,14 +662,18 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private getResultLabel(resultState: EarTrainingBattleSnapshot['resultState']): string | null {
+    const labels = this.snapshot?.hudLabels;
+    if (!labels) {
+      return null;
+    }
     if (resultState === 'win') {
-      return 'You Win';
+      return labels.resultWin;
     }
     if (resultState === 'lose') {
-      return 'Lose';
+      return labels.resultLose;
     }
     if (resultState === 'timeOver') {
-      return 'Time Over';
+      return labels.resultTimeOver;
     }
     return null;
   }
@@ -731,7 +735,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     button.setStrokeStyle(2, 0xffffff, 0.24);
     button.setInteractive({ useHandCursor: true });
     button.on('pointerdown', () => this.callbacks.onBack());
-    const text = this.add.text(x, y, '戻る', {
+    const lobbyBackLabel = this.snapshot?.hudLabels.lobbyBack ?? 'Back';
+    const text = this.add.text(x, y, lobbyBackLabel, {
       color: '#e2e8f0',
       fontFamily: 'Arial, sans-serif',
       fontSize: '16px',

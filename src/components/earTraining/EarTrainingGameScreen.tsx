@@ -40,11 +40,20 @@ import {
   resolveEarTrainingOutcome,
 } from '@/utils/earTrainingEngine';
 import {
+  formatEarTrainingCountInDisplay,
+  formatEarTrainingPhraseIntroLine,
+  getEarTrainingBattleHudLabels,
+  getEarTrainingGameCopy,
+} from '@/utils/earTrainingUiCopy';
+import { shouldUseEnglishCopy } from '@/utils/globalAudience';
+import {
   DEFAULT_AVATAR_URL,
   EAR_TRAINING_ENEMY_AVATAR_FLIP_X_URLS,
   EAR_TRAINING_ENEMY_AVATAR_URLS,
   EAR_TRAINING_PLAYER_AVATAR_URL,
 } from '@/utils/constants';
+import { useAuthStore } from '@/stores/authStore';
+import { useGeoStore } from '@/stores/geoStore';
 
 interface EarTrainingLessonContext {
   lessonId: string;
@@ -176,6 +185,20 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   onBack,
 }) => {
   const { settings, updateSettings } = useGameStore();
+  const { profile } = useAuthStore(state => ({ profile: state.profile }));
+  const geoCountry = useGeoStore(state => state.country);
+  const audienceContext = useMemo(
+    () => ({
+      rank: profile?.rank,
+      country: profile?.country ?? geoCountry,
+      preferredLocale: profile?.preferred_locale,
+    }),
+    [profile?.rank, profile?.country, profile?.preferred_locale, geoCountry],
+  );
+  const isEnglishCopy = shouldUseEnglishCopy(audienceContext);
+  const copy = useMemo(() => getEarTrainingGameCopy(isEnglishCopy), [isEnglishCopy]);
+  const hudLabels = useMemo(() => getEarTrainingBattleHudLabels(isEnglishCopy), [isEnglishCopy]);
+  const [statusText, setStatusText] = useState(copy.idlePrompt);
   const [practiceMode, setPracticeMode] = useState(initialPracticeMode);
   const phrases = useMemo(
     () => (stage.phrases ?? []).slice().sort((a, b) => a.order_index - b.order_index),
@@ -211,7 +234,6 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
   const [timeRemaining, setTimeRemaining] = useState(stage.time_limit_sec);
   const [countInValue, setCountInValue] = useState(stage.count_in_beats);
-  const [statusText, setStatusText] = useState('準備ができたら開始してください');
   const [activeLoop, setActiveLoop] = useState(1);
   const [activeChord, setActiveChord] = useState<EarTrainingPhraseChord | null>(null);
   const [lastRank, setLastRank] = useState<EarTrainingRank | null>(null);
@@ -271,6 +293,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   useEffect(() => {
     timeRemainingRef.current = timeRemaining;
   }, [timeRemaining]);
+
+  useEffect(() => {
+    if (gameState === 'idle') {
+      setStatusText(copy.idlePrompt);
+    }
+  }, [copy.idlePrompt, gameState]);
 
   useEffect(() => {
     updateGlobalVolume(settings.midiVolume * settings.masterVolume);
@@ -365,7 +393,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     stopPhraseAudio();
     setLastRank(rank);
     setGameState('stageClear');
-    setStatusText('Stage Clear!');
+    setStatusText(copy.stageClear);
     triggerFeedback('clear');
 
     if (practiceMode || !lessonContext || progressSaveStartedRef.current) {
@@ -380,6 +408,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearFailTimer,
     clearTimeLimitTimer,
     clearTransitionTimer,
+    copy,
     lessonContext,
     onLessonStageClear,
     practiceMode,
@@ -424,12 +453,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       });
 
       if (outcome === 'gameOver') {
-        finishGameOver('Game Over');
+        finishGameOver(copy.gameOver);
         return;
       }
 
       setGameState('phraseFail');
-      setStatusText('Fail: 次のフレーズへ進みます');
+      setStatusText(copy.failAdvance);
       transitionTimerRef.current = setTimeout(() => {
         const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
         startPhraseRef.current(wrappedIndex);
@@ -437,6 +466,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     });
   }, [
     activeDamageConfig.fail,
+    copy,
     finishGameOver,
     phrases.length,
     registerBattleEffectImpact,
@@ -447,7 +477,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const startPhrase = useCallback((nextPhraseIndex: number) => {
     const phrase = phrases[nextPhraseIndex];
     if (!phrase) {
-      finishGameOver('フレーズが登録されていません');
+      finishGameOver(copy.noPhrases);
       return;
     }
 
@@ -462,7 +492,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setEnemyAttackGaugePercent(0);
     setDemoBubbleVisible(shouldShowDemoBubble(phrase, stage, 1, 0));
     setActiveChord(getActiveChord(phrase, 0));
-    setStatusText(`Phrase ${nextPhraseIndex + 1}`);
+    setStatusText(copy.phraseLabel(nextPhraseIndex + 1));
     gameStateRef.current = 'playingPhrase';
     setGameState('playingPhrase');
 
@@ -475,12 +505,13 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       audio.muted = false;
       audio.volume = settings.musicVolume * settings.masterVolume;
       void audio.play().catch(() => {
-        setStatusText('音源を再生できませんでした。もう一度開始してください。');
+        setStatusText(copy.audioFailed);
       });
     }
   }, [
     clearFailTimer,
     clearTransitionTimer,
+    copy,
     finishGameOver,
     phrases,
     stage,
@@ -501,12 +532,12 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
       setTimeRemaining(prev => {
         const next = Math.max(0, prev - 1);
         if (next <= 0) {
-          finishGameOver('Time Over');
+          finishGameOver(copy.timeOver);
         }
         return next;
       });
     }, 1000);
-  }, [clearTimeLimitTimer, finishGameOver, practiceMode]);
+  }, [clearTimeLimitTimer, copy, finishGameOver, practiceMode]);
 
   const primePhraseAudio = useCallback((phrase: EarTrainingPhrase | undefined) => {
     const audio = audioRef.current;
@@ -542,7 +573,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
   const startCountIn = useCallback(() => {
     if (phrases.length === 0) {
-      finishGameOver('フレーズが登録されていません');
+      finishGameOver(copy.noPhrases);
       return;
     }
 
@@ -562,7 +593,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setDemoBubbleVisible(false);
     gameStateRef.current = 'countIn';
     setGameState('countIn');
-    setStatusText('Count In');
+    setStatusText(copy.countIn);
     clearCountdownTimer();
     clearBattleEffectTimers();
     clearFailTimer();
@@ -586,6 +617,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearFailTimer,
     clearTimeLimitTimer,
     clearTransitionTimer,
+    copy,
     finishGameOver,
     phrases.length,
     primePhraseAudio,
@@ -608,7 +640,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     gameStateRef.current = 'phraseComplete';
     setGameState('phraseComplete');
     setLastRank(rank);
-    setStatusText(`${rank}: 次の小節頭で次へ`);
+    setStatusText(copy.transitionNextBar(rank));
 
     transitionTimerRef.current = setTimeout(() => {
       stopPhraseAudio();
@@ -618,7 +650,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         startPhrase(nextIndex);
       }, 420);
     }, delaySec * 1000);
-  }, [phraseIndex, phrases.length, stage.loop_measures, startPhrase, stopPhraseAudio]);
+  }, [copy, phraseIndex, phrases.length, stage.loop_measures, startPhrase, stopPhraseAudio]);
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
@@ -641,7 +673,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setAttempt(result.attempt);
 
     if (result.correct) {
-      setStatusText(result.revealedNote ? `正解: ${result.revealedNote}` : '正解');
+      setStatusText(copy.correct(result.revealedNote));
       triggerFeedback('correct');
       if (result.completed) {
         gameStateRef.current = 'phraseComplete';
@@ -706,7 +738,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     if (result.playerDamage > 0) {
       triggerFeedback('miss');
       const missEffectId = triggerBattleEffect('miss', 'MISS', result.playerDamage);
-      setStatusText('ミス: 敵の攻撃');
+      setStatusText(copy.missEnemyAttack);
       registerBattleEffectImpact(missEffectId, () => {
         const nextPlayerHp = Math.max(0, playerHpRef.current - result.playerDamage);
         setPlayerHp(nextPlayerHp);
@@ -720,18 +752,19 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
           phraseFailed: false,
         });
         if (outcome === 'gameOver') {
-          finishGameOver('Game Over');
+          finishGameOver(copy.gameOver);
         }
       });
       return;
     }
 
-    setStatusText('もう一度');
+    setStatusText(copy.tryAgain);
     triggerFeedback('miss');
     triggerBattleEffect('miss', 'MISS');
   }, [
     clearFailTimer,
     activeDamageConfig,
+    copy,
     finishGameOver,
     finishStageClear,
     phraseIndex,
@@ -863,20 +896,29 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   const canChangePracticeMode = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const showLobbyControls = gameState === 'idle' || gameState === 'stageClear' || gameState === 'gameOver';
   const startButtonLabel = gameState === 'idle' ? 'START' : 'RETRY';
-  const stageStatusText = gameState === 'countIn' ? `Count ${countInValue}` : statusText;
+  const stageStatusText = gameState === 'countIn'
+    ? formatEarTrainingCountInDisplay(isEnglishCopy, countInValue)
+    : statusText;
   const resultState = gameState === 'stageClear'
     ? 'win'
     : gameState === 'gameOver'
-      ? statusText === 'Time Over' ? 'timeOver' : 'lose'
+      ? statusText === copy.timeOver ? 'timeOver' : 'lose'
       : null;
   const lessonProgressText = lessonContext && gameState === 'stageClear'
-    ? progressSaved ? 'レッスン進捗を保存しました' : 'レッスン進捗を保存中...'
+    ? progressSaved ? copy.lessonSaved : copy.lessonSaving
+    : null;
+  const phraseIntroLine = formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
+  const resultRankLine = gameState === 'stageClear' && lastRank
+    ? `${hudLabels.rankPrefix} ${lastRank}`
     : null;
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,
     resultState,
     stageTitle: stage.title,
     statusText: stageStatusText,
+    hudLabels,
+    phraseIntroLine,
+    resultRankLine,
     timeLabel,
     practiceMode,
     isMidiConnected,
@@ -923,13 +965,16 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     enemyHp,
     enemyName,
     gameState,
+    hudLabels,
     isMidiConnected,
     lastRank,
     lessonProgressText,
     phraseIndex,
+    phraseIntroLine,
     phrases.length,
     playerHp,
     practiceMode,
+    resultRankLine,
     revealedNotes,
     resultState,
     showLobbyControls,
@@ -986,6 +1031,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
       <EarTrainingSettingsModal
         isOpen={isSettingsOpen}
+        isEnglishCopy={isEnglishCopy}
         onClose={() => setIsSettingsOpen(false)}
         midiDeviceId={settings.selectedMidiDevice}
         onMidiDeviceChange={handleMidiDeviceChange}

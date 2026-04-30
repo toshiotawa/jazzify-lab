@@ -122,6 +122,7 @@ const LessonDetailPage: React.FC = () => {
       tagSurvival: isEnglishCopy ? '[Survival]' : '[サバイバル]',
       tagFantasy: isEnglishCopy ? '[Fantasy]' : '[ファンタジー]',
       tagEarTraining: isEnglishCopy ? '[Ear Training Battle]' : '[耳コピバトル]',
+      earTrainingDescriptionFallback: isEnglishCopy ? 'Ear training battle task' : '耳コピバトル課題',
       progressLabel: isEnglishCopy ? 'Progress' : '進捗',
       dayLabel: (n: number) => (isEnglishCopy ? `Day ${n}` : `${n}日目`),
       todayCleared: isEnglishCopy ? "Today's goal: Cleared" : '本日の課題: クリア済み',
@@ -735,7 +736,7 @@ const LessonDetailPage: React.FC = () => {
                               {req.ear_training_stage.title}
                             </div>
                             <div className="text-gray-400 text-xs mt-1">
-                              {req.ear_training_stage.description || '耳コピバトル課題'}
+                              {req.ear_training_stage.description || practiceCopy.earTrainingDescriptionFallback}
                             </div>
                           </div>
                         )}
