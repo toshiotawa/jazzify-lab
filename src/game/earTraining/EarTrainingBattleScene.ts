@@ -985,18 +985,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const meteorStartY = Math.max(HUD_HEIGHT + 8, anchors.enemy.headY - 230);
     const meteor = this.createEffectSprite('meteor', anchors.enemy.x - 148, meteorStartY, 230);
     meteor.setAngle(-8);
-    const trail = this.add.rectangle(anchors.enemy.x - 194, meteorStartY - 52, 54, 168, 0xef4444, 0.5);
-    trail.setRotation(-0.72);
-    this.effectLayer?.add(trail);
-    this.tweens.add({
-      targets: trail,
-      x: anchors.enemy.x,
-      y: anchors.enemy.bodyY,
-      scale: 1.36,
-      angle: 10,
-      duration: 980,
-      ease: 'Cubic.easeIn',
-    });
     this.tweens.add({
       targets: meteor,
       x: anchors.enemy.x,
@@ -1007,7 +995,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       duration: 980,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        trail.destroy();
         meteor.destroy();
         this.applyCompletionImpact(
           anchors,
