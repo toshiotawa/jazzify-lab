@@ -261,16 +261,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const label = this.add.text(18, y + 13, 'CHORD', {
-      color: '#94a3b8',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '10px',
-      fontStyle: '900',
-    }).setOrigin(0, 0.5);
-    this.hudLayer.add(label);
-
     const itemWidth = 82;
-    const leftMargin = 72;
+    const leftMargin = 16;
     const rightMargin = 16;
     const availableWidth = Math.max(itemWidth, width - leftMargin - rightMargin);
     const visibleCount = Math.max(1, Math.min(snapshot.chords.length, Math.floor(availableWidth / itemWidth)));
