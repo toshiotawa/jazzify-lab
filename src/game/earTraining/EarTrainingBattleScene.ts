@@ -20,6 +20,42 @@ const JAZZ_FLOOR_TILE_KEY = 'ear-training-jazz-floor-tile';
 const JAZZ_WALL_TILE_SIZE = 64;
 const JAZZ_FLOOR_TILE_WIDTH = 96;
 const JAZZ_FLOOR_TILE_HEIGHT = 48;
+const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
+
+type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
+type CharacterSide = 'player' | 'enemy';
+
+interface BattleEffectSpriteAsset {
+  key: string;
+  url: string;
+}
+
+const BATTLE_EFFECT_SPRITE_ASSETS: Record<BattleEffectSpriteName, BattleEffectSpriteAsset> = {
+  cloud: {
+    key: 'ear-training-effect-cloud',
+    url: `${EFFECT_ASSET_PATH}effect-cloud-transparent.png`,
+  },
+  fireRing: {
+    key: 'ear-training-effect-fire-ring',
+    url: `${EFFECT_ASSET_PATH}effect-fire-ring-transparent.png`,
+  },
+  fireball: {
+    key: 'ear-training-effect-fireball',
+    url: `${EFFECT_ASSET_PATH}effect-fireball-transparent.png`,
+  },
+  lightning: {
+    key: 'ear-training-effect-lightning',
+    url: `${EFFECT_ASSET_PATH}effect-lightning-transparent.png`,
+  },
+  meteor: {
+    key: 'ear-training-effect-meteor',
+    url: `${EFFECT_ASSET_PATH}effect-meteor-transparent.png`,
+  },
+  snowflake: {
+    key: 'ear-training-effect-snowflake',
+    url: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.png`,
+  },
+};
 
 const EMPTY_CALLBACKS: EarTrainingBattleCallbacks = {
   onStart: () => undefined,
@@ -100,6 +136,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     super({ key: 'EarTrainingBattleScene' });
   }
 
+  preload(): void {
+    this.loadBattleEffectSprites();
+  }
+
   create(): void {
     this.isReady = true;
     this.cameras.main.setBackgroundColor('#070817');
@@ -160,6 +200,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private handleResize = (): void => {
     this.rebuildScene();
   };
+
+  private loadBattleEffectSprites(): void {
+    Object.values(BATTLE_EFFECT_SPRITE_ASSETS).forEach(asset => {
+      if (this.textures.exists(asset.key)) {
+        return;
+      }
+      this.load.image(asset.key, asset.url);
+    });
+  }
 
   private rebuildScene(): void {
     this.clearScene();
@@ -621,29 +670,38 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
-    const fireball = this.add.circle(anchors.player.x + 34, anchors.player.castY, 16, 0xf97316, 1);
-    fireball.setStrokeStyle(3, 0xfef3c7, 0.95);
-    const core = this.add.circle(anchors.player.x + 34, anchors.player.castY, 7, 0xffedd5, 1);
+    const fireball = this.createEffectSprite('fireball', anchors.player.x + 44, anchors.player.castY, 78);
+    fireball.setAngle(-24);
+    const glow = this.add.circle(anchors.player.x + 44, anchors.player.castY, 22, 0xf97316, 0.34);
     const tail = [
-      this.add.circle(anchors.player.x + 12, anchors.player.castY + 4, 7, 0xfb923c, 0.72),
-      this.add.circle(anchors.player.x - 6, anchors.player.castY + 8, 5, 0xef4444, 0.52),
+      this.add.circle(anchors.player.x + 14, anchors.player.castY + 6, 8, 0xfb923c, 0.72),
+      this.add.circle(anchors.player.x - 10, anchors.player.castY + 10, 5, 0xef4444, 0.52),
     ];
-    this.effectLayer.add([fireball, core, ...tail]);
+    this.effectLayer.add([glow, ...tail]);
     this.tweens.add({
-      targets: [fireball, core, ...tail],
+      targets: [glow, ...tail],
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      scale: 0.5,
-      duration: 520,
+      scale: 0.72,
+      duration: 540,
+      ease: 'Cubic.easeIn',
+    });
+    this.tweens.add({
+      targets: fireball,
+      x: anchors.enemy.x,
+      y: anchors.enemy.bodyY,
+      angle: 16,
+      displayWidth: 96,
+      displayHeight: 96,
+      duration: 540,
       ease: 'Cubic.easeIn',
       onComplete: () => {
         fireball.destroy();
-        core.destroy();
+        glow.destroy();
         tail.forEach(part => part.destroy());
         this.flashEnemy();
-        this.knockEnemy(anchors.enemy.x + 18, anchors.enemy.x, 120);
         this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, 0xfb923c, false);
-        this.callbacks.onEffectImpact(command.id);
+        this.knockCharacter('enemy', 24, 170, () => this.callbacks.onEffectImpact(command.id));
       },
     });
   }
@@ -683,7 +741,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (heavy) {
       this.showFloatingResultText(command.label ?? 'Fail', anchors.player.x, anchors.player.resultTextY, '#fecaca');
     }
-    this.knockEnemy(anchors.enemy.x - 28, anchors.enemy.x, 180);
+    this.knockCharacter('enemy', -18, 170);
     const slash = this.add.rectangle(anchors.enemy.x - 28, anchors.enemy.bodyY, heavy ? 128 : 78, heavy ? 22 : 15, 0xfb7185, 1);
     slash.setStrokeStyle(2, 0xfdf2f8, 0.82);
     slash.setRotation(-0.18);
@@ -701,7 +759,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         slash.destroy();
         this.flashPlayer();
         this.showImpactBurst(anchors.player.x, anchors.player.bodyY, 0xfb7185, heavy);
-        this.callbacks.onEffectImpact(command.id);
+        this.knockCharacter('player', heavy ? -52 : -32, heavy ? 290 : 210, () => this.callbacks.onEffectImpact(command.id));
       },
     });
   }
@@ -724,41 +782,60 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   private playGoodCompleteEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.35);
-    const bolt = this.add.rectangle(anchors.player.x + 38, anchors.player.castY, 104, 24, 0xfacc15, 0.98);
-    bolt.setStrokeStyle(3, 0xfef3c7, 0.95);
-    this.effectLayer?.add(bolt);
+    const ring = this.createEffectSprite('fireRing', anchors.player.x + 42, anchors.player.castY, 64);
+    ring.setAlpha(0.92);
     this.tweens.add({
-      targets: bolt,
+      targets: ring,
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      scaleX: 1.75,
-      alpha: 0,
-      duration: 620,
+      angle: 540,
+      displayWidth: 176,
+      displayHeight: 176,
+      alpha: 1,
+      duration: 680,
       ease: 'Quart.easeOut',
       onComplete: () => {
-        bolt.destroy();
-        this.applyCompletionImpact(anchors, 0xfacc15, 78, 300, 0xfef08a);
-        this.callbacks.onEffectImpact(command.id);
+        this.tweens.add({
+          targets: ring,
+          displayWidth: 226,
+          displayHeight: 226,
+          alpha: 0,
+          duration: 260,
+          ease: 'Cubic.easeOut',
+          onComplete: () => ring.destroy(),
+        });
+        this.applyCompletionImpact(anchors, 0xfacc15, 84, 330, 0xfef08a, () => this.callbacks.onEffectImpact(command.id));
       },
     });
   }
 
   private playSnowflakeEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.6);
-    const snowflake = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 52);
-    this.effectLayer?.add(snowflake);
+    const snowflakeGuide = this.createSnowflake(anchors.player.x + 42, anchors.player.castY, 38);
+    const snowflake = this.createEffectSprite('snowflake', anchors.player.x + 42, anchors.player.castY, 72);
+    this.effectLayer?.add(snowflakeGuide);
     this.tweens.add({
       targets: snowflake,
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
       angle: 720,
-      scale: 1.65,
-      duration: 820,
+      displayWidth: 154,
+      displayHeight: 154,
+      duration: 860,
+      ease: 'Cubic.easeInOut',
+    });
+    this.tweens.add({
+      targets: snowflakeGuide,
+      x: anchors.enemy.x,
+      y: anchors.enemy.bodyY,
+      angle: 720,
+      scale: 1.08,
+      duration: 860,
       ease: 'Cubic.easeInOut',
       onComplete: () => {
         snowflake.destroy();
-        this.applyCompletionImpact(anchors, 0x93c5fd, 96, 340, 0x7dd3fc);
-        this.callbacks.onEffectImpact(command.id);
+        snowflakeGuide.destroy();
+        this.applyCompletionImpact(anchors, 0x93c5fd, 106, 360, 0x7dd3fc, () => this.callbacks.onEffectImpact(command.id));
       },
     });
   }
@@ -767,21 +844,26 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.zoomToPlayer(anchors, 760);
     this.createMagicCircle(anchors.player.x, anchors.player.footY - 8, 112, 0x60a5fa);
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.9);
-    const cloud = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
-    cloud.setScale(1.22);
-    this.effectLayer?.add(cloud);
+    this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 720, 0x93c5fd, false);
+    const cloudBase = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
+    const cloud = this.createEffectSprite('cloud', anchors.enemy.x, anchors.enemy.headY - 32, 148);
+    cloud.setAlpha(0.9);
+    this.effectLayer?.add(cloudBase);
     this.time.delayedCall(470, () => {
-      const lightning = this.createLightning(anchors.enemy.x, anchors.enemy.headY - 18, anchors.enemy.bodyY + 8, 0xfef08a);
-      this.effectLayer?.add(lightning);
-      this.applyCompletionImpact(anchors, 0xfef08a, 112, 360, 0xfef08a);
-      this.callbacks.onEffectImpact(command.id);
+      const lightningGuide = this.createLightning(anchors.enemy.x, anchors.enemy.headY - 18, anchors.enemy.bodyY + 8, 0xfef08a);
+      const lightning = this.createEffectSprite('lightning', anchors.enemy.x, anchors.enemy.bodyY - 34, 190);
+      lightning.setAngle(4);
+      this.effectLayer?.add(lightningGuide);
+      this.applyCompletionImpact(anchors, 0xfef08a, 122, 390, 0xfef08a, () => this.callbacks.onEffectImpact(command.id));
       this.tweens.add({
-        targets: [cloud, lightning],
+        targets: [cloudBase, cloud, lightningGuide, lightning],
         alpha: 0,
-        duration: 360,
-        delay: 170,
+        duration: 420,
+        delay: 260,
         onComplete: () => {
+          cloudBase.destroy();
           cloud.destroy();
+          lightningGuide.destroy();
           lightning.destroy();
         },
       });
@@ -789,29 +871,43 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.zoomToPlayer(anchors, 980);
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 176, 0xf97316);
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 2.35);
+    this.zoomToPlayer(anchors, 1080, () => this.launchMeteor(command, anchors));
+    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 190, 0xf97316);
+    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 138, 0xfef08a);
+    this.createCastEffect(anchors.player.x, anchors.player.castY, 2.65);
+    this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 1380, 0xfef08a, true);
+    this.showChantText(anchors.player.x, anchors.player.headY - 38, '6 NOTE PERFECT!');
+  }
+
+  private launchMeteor(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
     const meteorStartY = Math.max(HUD_HEIGHT + 8, anchors.enemy.headY - 230);
-    const meteor = this.add.circle(anchors.enemy.x - 116, meteorStartY, 48, 0xf97316, 1);
-    meteor.setStrokeStyle(7, 0xffedd5, 0.95);
-    const core = this.add.circle(anchors.enemy.x - 116, meteorStartY, 22, 0xfef3c7, 1);
-    const trail = this.add.rectangle(anchors.enemy.x - 166, meteorStartY - 54, 42, 148, 0xef4444, 0.64);
-    trail.setRotation(-0.58);
-    this.effectLayer?.add([trail, meteor, core]);
+    const meteor = this.createEffectSprite('meteor', anchors.enemy.x - 148, meteorStartY, 230);
+    meteor.setAngle(-8);
+    const trail = this.add.rectangle(anchors.enemy.x - 194, meteorStartY - 52, 54, 168, 0xef4444, 0.5);
+    trail.setRotation(-0.72);
+    this.effectLayer?.add(trail);
     this.tweens.add({
-      targets: [trail, meteor, core],
+      targets: trail,
       x: anchors.enemy.x,
       y: anchors.enemy.bodyY,
-      scale: 1.38,
-      duration: 960,
+      scale: 1.36,
+      angle: 10,
+      duration: 980,
+      ease: 'Cubic.easeIn',
+    });
+    this.tweens.add({
+      targets: meteor,
+      x: anchors.enemy.x,
+      y: anchors.enemy.bodyY,
+      displayWidth: 352,
+      displayHeight: 352,
+      angle: 10,
+      duration: 980,
       ease: 'Cubic.easeIn',
       onComplete: () => {
         trail.destroy();
         meteor.destroy();
-        core.destroy();
-        this.applyCompletionImpact(anchors, 0xf97316, 150, 420, 0xffedd5);
-        this.callbacks.onEffectImpact(command.id);
+        this.applyCompletionImpact(anchors, 0xf97316, 172, 460, 0xffedd5, () => this.callbacks.onEffectImpact(command.id));
       },
     });
   }
@@ -822,20 +918,22 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     knockbackDistance: number,
     knockbackDuration: number,
     tintColor: number,
+    onComplete: () => void,
   ): void {
     this.flashEnemy();
     this.tintEnemy(tintColor, knockbackDuration + 260);
-    this.knockEnemy(anchors.enemy.x + knockbackDistance, anchors.enemy.x, knockbackDuration);
     this.showImpactBurst(anchors.enemy.x, anchors.enemy.bodyY, color, true);
     this.showScreenFlash(color, 0.16);
+    this.showCompletionAura(anchors.enemy.x, anchors.enemy.bodyY, color);
+    this.knockCharacter('enemy', knockbackDistance, knockbackDuration, onComplete);
   }
 
-  private zoomToPlayer(anchors: BattleAnchors, holdMs: number): void {
+  private zoomToPlayer(anchors: BattleAnchors, holdMs: number, onReturned?: () => void): void {
     const camera = this.cameras.main;
     camera.pan(anchors.player.x, anchors.player.bodyY, 240, 'Sine.easeInOut');
     this.tweens.add({
       targets: camera,
-      zoom: 1.88,
+      zoom: 1.98,
       duration: 280,
       ease: 'Sine.easeOut',
     });
@@ -849,8 +947,91 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         onComplete: () => {
           camera.setZoom(1);
           camera.centerOn(this.scale.width / 2, this.scale.height / 2);
+          onReturned?.();
         },
       });
+    });
+  }
+
+  private createEffectSprite(spriteName: BattleEffectSpriteName, x: number, y: number, displaySize: number): Phaser.GameObjects.Image {
+    const asset = BATTLE_EFFECT_SPRITE_ASSETS[spriteName];
+    const sprite = this.add.image(x, y, asset.key).setOrigin(0.5, 0.5).setDisplaySize(displaySize, displaySize);
+    this.effectLayer?.add(sprite);
+    return sprite;
+  }
+
+  private createPlayerSparkles(x: number, y: number, durationMs: number, color: number, intense: boolean): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const burstCount = intense ? 18 : 8;
+    const sparklesPerBurst = intense ? 5 : 3;
+    const intervalMs = Math.max(48, Math.floor(durationMs / burstCount));
+    for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
+      this.time.delayedCall(burstIndex * intervalMs, () => {
+        for (let sparkIndex = 0; sparkIndex < sparklesPerBurst; sparkIndex += 1) {
+          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
+          const startRadius = Phaser.Math.FloatBetween(18, intense ? 72 : 52);
+          const endRadius = startRadius + Phaser.Math.FloatBetween(28, intense ? 92 : 54);
+          const startX = x + Math.cos(angle) * startRadius;
+          const startY = y + Math.sin(angle) * startRadius;
+          const sparkle = this.add.star(startX, startY, 5, intense ? 3 : 2, intense ? 8 : 6, color, 0.94);
+          sparkle.setStrokeStyle(1, 0xffffff, 0.82);
+          this.effectLayer?.add(sparkle);
+          this.tweens.add({
+            targets: sparkle,
+            x: x + Math.cos(angle) * endRadius,
+            y: y + Math.sin(angle) * endRadius,
+            angle: Phaser.Math.Between(-180, 180),
+            scale: intense ? 1.65 : 1.25,
+            alpha: 0,
+            duration: intense ? 640 : 420,
+            ease: 'Cubic.easeOut',
+            onComplete: () => sparkle.destroy(),
+          });
+        }
+      });
+    }
+  }
+
+  private showChantText(x: number, y: number, label: string): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const text = this.add.text(x, y, label, {
+      color: '#fef08a',
+      fontFamily: 'Arial, sans-serif',
+      fontSize: '18px',
+      fontStyle: '900',
+      stroke: '#7c2d12',
+      strokeThickness: 6,
+    }).setOrigin(0.5, 0.5);
+    this.effectLayer.add(text);
+    this.tweens.add({
+      targets: text,
+      y: y - 34,
+      scale: 1.32,
+      alpha: 0,
+      duration: 1380,
+      ease: 'Cubic.easeOut',
+      onComplete: () => text.destroy(),
+    });
+  }
+
+  private showCompletionAura(x: number, y: number, color: number): void {
+    if (!this.effectLayer) {
+      return;
+    }
+    const aura = this.add.circle(x, y, 60, color, 0.14);
+    aura.setStrokeStyle(5, color, 0.82);
+    this.effectLayer.add(aura);
+    this.tweens.add({
+      targets: aura,
+      scale: 2.15,
+      alpha: 0,
+      duration: 820,
+      ease: 'Cubic.easeOut',
+      onComplete: () => aura.destroy(),
     });
   }
 
@@ -1071,16 +1252,39 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     return '#fecaca';
   }
 
-  private knockEnemy(offsetX: number, returnX: number, duration: number): void {
-    if (!this.enemyView) {
+  private knockCharacter(side: CharacterSide, distance: number, duration: number, onComplete?: () => void): void {
+    const view = side === 'player' ? this.playerView : this.enemyView;
+    if (!view) {
+      onComplete?.();
       return;
     }
-    this.enemyView.container.setX(offsetX);
+    const startX = view.container.x;
+    const startY = view.container.y;
+    const pushDuration = Math.max(80, Math.floor(duration * 0.38));
+    const returnDuration = Math.max(120, duration - pushDuration);
+    const rotation = distance >= 0 ? 4 : -4;
     this.tweens.add({
-      targets: this.enemyView.container,
-      x: returnX,
-      duration,
-      ease: 'Back.easeOut',
+      targets: view.container,
+      x: startX + distance,
+      y: startY - 10,
+      angle: rotation,
+      duration: pushDuration,
+      ease: 'Quad.easeOut',
+      onComplete: () => {
+        this.tweens.add({
+          targets: view.container,
+          x: startX,
+          y: startY,
+          angle: 0,
+          duration: returnDuration,
+          ease: 'Back.easeOut',
+          onComplete: () => {
+            view.container.setPosition(startX, startY);
+            view.container.setAngle(0);
+            onComplete?.();
+          },
+        });
+      },
     });
   }
 
