@@ -650,34 +650,32 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
         const rank = calculateEarTrainingRank(result.attempt.missedNoteCounts, rankRule);
         const completionDamage = getCompletionDamage(rank, activeDamageConfig);
         const totalCompletionDamage = result.enemyDamage + completionDamage;
-        const completeEffectId = triggerBattleEffect(
+        triggerBattleEffect(
           'complete',
           rank,
           totalCompletionDamage,
           phrase.notes?.length ?? 0,
         );
-        registerBattleEffectImpact(completeEffectId, () => {
-          const enemyHpAfterCompletion = Math.max(0, enemyHpRef.current - totalCompletionDamage);
-          setEnemyHp(enemyHpAfterCompletion);
-          enemyHpRef.current = enemyHpAfterCompletion;
+        const enemyHpAfterCompletion = Math.max(0, enemyHpRef.current - totalCompletionDamage);
+        setEnemyHp(enemyHpAfterCompletion);
+        enemyHpRef.current = enemyHpAfterCompletion;
 
-          const outcome = resolveEarTrainingOutcome({
-            enemyHp: enemyHpAfterCompletion,
-            playerHp: playerHpRef.current,
-            timeRemainingSec: timeRemainingRef.current,
-            phraseCompleted: true,
-            phraseFailed: false,
-          });
-
-          if (outcome === 'stageClear') {
-            void finishStageClear(rank);
-            return;
-          }
-
-          if (outcome === 'phraseComplete') {
-            transitionToNextPhrase(rank, phrase);
-          }
+        const outcome = resolveEarTrainingOutcome({
+          enemyHp: enemyHpAfterCompletion,
+          playerHp: playerHpRef.current,
+          timeRemainingSec: timeRemainingRef.current,
+          phraseCompleted: true,
+          phraseFailed: false,
         });
+
+        if (outcome === 'stageClear') {
+          void finishStageClear(rank);
+          return;
+        }
+
+        if (outcome === 'phraseComplete') {
+          transitionToNextPhrase(rank, phrase);
+        }
         return;
       }
 

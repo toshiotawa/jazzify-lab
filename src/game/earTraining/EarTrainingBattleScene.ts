@@ -789,9 +789,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
     const label = command.label ?? 'Good';
-    this.showFloatingResultText(label, anchors.player.x, anchors.player.resultTextY, this.getRankColor(label));
+    const isSuperPerfect = label === 'Perfect' && (command.phraseNoteCount ?? 0) >= 6;
+    const displayLabel = isSuperPerfect ? 'Super Perfect' : label;
+    this.showFloatingResultText(displayLabel, anchors.player.x, anchors.player.resultTextY, this.getRankColor(displayLabel));
 
-    if (label === 'Perfect' && (command.phraseNoteCount ?? 0) >= 6) {
+    if (isSuperPerfect) {
       this.playMeteorEffect(command, anchors);
       return;
     }
@@ -916,10 +918,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playLightningEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.zoomToPlayer(anchors, 760);
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 8, 112, 0x60a5fa);
     this.createCastEffect(anchors.player.x, anchors.player.castY, 1.9);
-    this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 720, 0x93c5fd, false);
     const cloudBase = this.createCloud(anchors.enemy.x, anchors.enemy.headY - 28);
     const cloud = this.createEffectSprite('cloud', anchors.enemy.x, anchors.enemy.headY - 32, 148);
     cloud.setAlpha(0.9);
@@ -946,30 +945,13 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.zoomToPlayer(anchors, 1080, () => this.launchMeteor(command, anchors));
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 190, 0xf97316);
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 138, 0xfef08a);
-    this.createCastEffect(anchors.player.x, anchors.player.castY, 2.65);
-    this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 1380, 0xfef08a, true);
-    this.showChantText(anchors.player.x, anchors.player.headY - 38, '6 NOTE PERFECT!');
+    this.launchMeteor(command, anchors);
   }
 
   private launchMeteor(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
     const meteorStartY = Math.max(HUD_HEIGHT + 8, anchors.enemy.headY - 230);
     const meteor = this.createEffectSprite('meteor', anchors.enemy.x - 148, meteorStartY, 230);
     meteor.setAngle(-8);
-    const trail = this.add.rectangle(anchors.enemy.x - 194, meteorStartY - 52, 54, 168, 0xef4444, 0.5);
-    trail.setRotation(-0.72);
-    this.effectLayer?.add(trail);
-    this.tweens.add({
-      targets: trail,
-      x: anchors.enemy.x,
-      y: anchors.enemy.bodyY,
-      scale: 1.36,
-      angle: 10,
-      duration: 980,
-      ease: 'Cubic.easeIn',
-    });
     this.tweens.add({
       targets: meteor,
       x: anchors.enemy.x,
@@ -980,9 +962,8 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       duration: 980,
       ease: 'Cubic.easeIn',
       onComplete: () => {
-        trail.destroy();
         meteor.destroy();
-        this.applyCompletionImpact(anchors, 0xf97316, 172, 460, 0xffedd5, () => this.callbacks.onEffectImpact(command.id));
+        this.callbacks.onEffectImpact(command.id);
       },
     });
   }
@@ -1003,94 +984,11 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.knockCharacter('enemy', knockbackDistance, knockbackDuration, onComplete);
   }
 
-  private zoomToPlayer(anchors: BattleAnchors, holdMs: number, onReturned?: () => void): void {
-    const camera = this.cameras.main;
-    camera.pan(anchors.player.x, anchors.player.bodyY, 240, 'Sine.easeInOut');
-    this.tweens.add({
-      targets: camera,
-      zoom: 1.98,
-      duration: 280,
-      ease: 'Sine.easeOut',
-    });
-    this.time.delayedCall(holdMs, () => {
-      camera.pan(this.scale.width / 2, this.scale.height / 2, 340, 'Sine.easeInOut');
-      this.tweens.add({
-        targets: camera,
-        zoom: 1,
-        duration: 340,
-        ease: 'Sine.easeInOut',
-        onComplete: () => {
-          camera.setZoom(1);
-          camera.centerOn(this.scale.width / 2, this.scale.height / 2);
-          onReturned?.();
-        },
-      });
-    });
-  }
-
   private createEffectSprite(spriteName: BattleEffectSpriteName, x: number, y: number, displaySize: number): Phaser.GameObjects.Image {
     const asset = BATTLE_EFFECT_SPRITE_ASSETS[spriteName];
     const sprite = this.add.image(x, y, asset.key).setOrigin(0.5, 0.5).setDisplaySize(displaySize, displaySize);
     this.effectLayer?.add(sprite);
     return sprite;
-  }
-
-  private createPlayerSparkles(x: number, y: number, durationMs: number, color: number, intense: boolean): void {
-    if (!this.effectLayer) {
-      return;
-    }
-    const burstCount = intense ? 18 : 8;
-    const sparklesPerBurst = intense ? 5 : 3;
-    const intervalMs = Math.max(48, Math.floor(durationMs / burstCount));
-    for (let burstIndex = 0; burstIndex < burstCount; burstIndex += 1) {
-      this.time.delayedCall(burstIndex * intervalMs, () => {
-        for (let sparkIndex = 0; sparkIndex < sparklesPerBurst; sparkIndex += 1) {
-          const angle = Phaser.Math.FloatBetween(0, Math.PI * 2);
-          const startRadius = Phaser.Math.FloatBetween(18, intense ? 72 : 52);
-          const endRadius = startRadius + Phaser.Math.FloatBetween(28, intense ? 92 : 54);
-          const startX = x + Math.cos(angle) * startRadius;
-          const startY = y + Math.sin(angle) * startRadius;
-          const sparkle = this.add.star(startX, startY, 5, intense ? 3 : 2, intense ? 8 : 6, color, 0.94);
-          sparkle.setStrokeStyle(1, 0xffffff, 0.82);
-          this.effectLayer?.add(sparkle);
-          this.tweens.add({
-            targets: sparkle,
-            x: x + Math.cos(angle) * endRadius,
-            y: y + Math.sin(angle) * endRadius,
-            angle: Phaser.Math.Between(-180, 180),
-            scale: intense ? 1.65 : 1.25,
-            alpha: 0,
-            duration: intense ? 640 : 420,
-            ease: 'Cubic.easeOut',
-            onComplete: () => sparkle.destroy(),
-          });
-        }
-      });
-    }
-  }
-
-  private showChantText(x: number, y: number, label: string): void {
-    if (!this.effectLayer) {
-      return;
-    }
-    const text = this.add.text(x, y, label, {
-      color: '#fef08a',
-      fontFamily: 'Arial, sans-serif',
-      fontSize: '18px',
-      fontStyle: '900',
-      stroke: '#7c2d12',
-      strokeThickness: 6,
-    }).setOrigin(0.5, 0.5);
-    this.effectLayer.add(text);
-    this.tweens.add({
-      targets: text,
-      y: y - 34,
-      scale: 1.32,
-      alpha: 0,
-      duration: 1380,
-      ease: 'Cubic.easeOut',
-      onComplete: () => text.destroy(),
-    });
   }
 
   private showCompletionAura(x: number, y: number, color: number): void {
@@ -1140,37 +1038,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
         onComplete: () => spark.destroy(),
       });
     }
-  }
-
-  private createMagicCircle(x: number, y: number, size: number, color: number): void {
-    if (!this.effectLayer) {
-      return;
-    }
-    const circle = this.add.graphics();
-    circle.lineStyle(3, color, 0.86);
-    circle.strokeCircle(0, 0, size / 2);
-    circle.lineStyle(2, 0xfef3c7, 0.72);
-    circle.strokeCircle(0, 0, size * 0.32);
-    for (let index = 0; index < 6; index += 1) {
-      const angle = (Math.PI * 2 * index) / 6;
-      circle.lineBetween(
-        Math.cos(angle) * size * 0.18,
-        Math.sin(angle) * size * 0.18,
-        Math.cos(angle + Math.PI) * size * 0.44,
-        Math.sin(angle + Math.PI) * size * 0.44,
-      );
-    }
-    circle.setPosition(x, y);
-    this.effectLayer.add(circle);
-    this.tweens.add({
-      targets: circle,
-      angle: 180,
-      scale: 1.18,
-      alpha: 0,
-      duration: 920,
-      ease: 'Cubic.easeOut',
-      onComplete: () => circle.destroy(),
-    });
   }
 
   private createSnowflake(x: number, y: number, size: number): Phaser.GameObjects.Graphics {
@@ -1315,7 +1182,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private getRankColor(label: string): string {
-    if (label === 'Perfect') {
+    if (label === 'Super Perfect' || label === 'Perfect') {
       return '#fef08a';
     }
     if (label === 'Great') {
