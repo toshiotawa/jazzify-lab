@@ -59,6 +59,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             addChild(cameraNode)
             self.camera = cameraNode
         }
+        resetCameraToCenter()
         // 背景/キャラ/演出/フレーズ層
         for node in [backgroundLayer, characterLayer, phraseLayer, effectLayer] where node.parent == nil {
             addChild(node)
@@ -121,6 +122,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let height = max(480, size.height)
         let floorY = floorYForHeight(height)
 
+        resetCameraToCenter()
         drawBackground(width: width, height: height, floorY: floorY)
         drawCharacters(width: width, height: height, floorY: floorY)
         drawPhraseIntro(width: width, height: height, floorY: floorY)
@@ -136,6 +138,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func drawBackground(width: CGFloat, height: CGFloat, floorY: CGFloat) {
         // SpriteKit の座標系は左下原点なので、Web の上下を逆転して描画する。
+        let backdrop = SKSpriteNode(texture: makeBackdropTexture(width: width, height: height))
+        backdrop.anchorPoint = CGPoint(x: 0.5, y: 0)
+        backdrop.position = CGPoint(x: width / 2, y: 0)
+        backdrop.size = CGSize(width: width, height: height)
+        backgroundLayer.addChild(backdrop)
+
         let wallTexture = makeWallTileTexture()
         let floorTexture = makeFloorTileTexture()
 
@@ -144,6 +152,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         wallSprite.size = CGSize(width: width, height: wallHeight)
         wallSprite.anchorPoint = CGPoint(x: 0.5, y: 0)
         wallSprite.position = CGPoint(x: width / 2, y: floorY - Self.floorBandOverlap)
+        wallSprite.alpha = 0.82
         backgroundLayer.addChild(wallSprite)
 
         let floorHeight = max(0, floorY)
@@ -151,6 +160,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         floorSprite.size = CGSize(width: width, height: floorHeight)
         floorSprite.anchorPoint = CGPoint(x: 0.5, y: 0)
         floorSprite.position = CGPoint(x: width / 2, y: 0)
+        floorSprite.alpha = 0.92
         backgroundLayer.addChild(floorSprite)
 
         // 床ライン (Phaser: lineStyle(2, 0xfbbf24, 0.16))
@@ -172,6 +182,33 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         rightShadow.strokeColor = .clear
         rightShadow.position = CGPoint(x: width * 0.77, y: floorY - 6)
         backgroundLayer.addChild(rightShadow)
+    }
+
+    private func makeBackdropTexture(width: CGFloat, height: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: max(1, width), height: max(1, height))
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
+        let image = renderer.image { ctx in
+            let colors = [
+                UIColor(red: 0.165, green: 0.051, blue: 0.184, alpha: 1.0).cgColor,
+                UIColor(red: 0.094, green: 0.035, blue: 0.114, alpha: 1.0).cgColor,
+                UIColor(red: 0.020, green: 0.024, blue: 0.078, alpha: 1.0).cgColor
+            ] as CFArray
+            let locations: [CGFloat] = [0, 0.48, 1]
+            guard let gradient = CGGradient(colorsSpace: CGColorSpaceCreateDeviceRGB(), colors: colors, locations: locations) else {
+                UIColor(red: 0.027, green: 0.031, blue: 0.090, alpha: 1.0).setFill()
+                ctx.fill(CGRect(origin: .zero, size: textureSize))
+                return
+            }
+            ctx.cgContext.drawLinearGradient(
+                gradient,
+                start: CGPoint(x: 0, y: textureSize.height),
+                end: CGPoint(x: textureSize.width, y: 0),
+                options: []
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
     }
 
     private func makeWallTileTexture() -> SKTexture {
@@ -288,10 +325,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         phraseIntroLabel?.removeFromParent()
         let label = SKLabelNode(text: snapshot.phraseIntroLine)
         label.fontName = "AvenirNext-Heavy"
-        label.fontSize = 22
+        label.fontSize = 24
         label.fontColor = UIColor(red: 0.996, green: 0.953, blue: 0.780, alpha: 1.0)
         label.zPosition = 30
-        let y = max(height - Self.hudHeight - 42, floorY + 200)
+        let y = min(height - 190, max(floorY + 150, height * 0.55))
         label.position = CGPoint(x: width / 2, y: y)
         label.alpha = 0.95
         effectLayer.addChild(label)
@@ -395,9 +432,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             slash?.removeFromParent()
             self.flashCharacter(.player)
             self.showImpactBurst(at: CGPoint(x: anchors.player.x, y: anchors.player.bodyY), color: UIColor(red: 0.984, green: 0.447, blue: 0.522, alpha: 1.0), large: heavy)
-            self.knockCharacter(.player, distance: heavy ? -52 : -32, durationMs: heavy ? 290 : 210) {
-                self.onEffectImpact?(command.id)
-            }
+            self.onEffectImpact?(command.id)
+            self.knockCharacter(.player, distance: heavy ? -52 : -32, durationMs: heavy ? 290 : 210)
         }
     }
 
@@ -739,6 +775,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Camera
 
     private func cameraShake(amplitude: CGFloat, durationMs: TimeInterval) {
+        let center = CGPoint(x: size.width / 2, y: size.height / 2)
+        if cameraNode.position == .zero {
+            cameraNode.position = center
+        }
         let totalDuration = durationMs / 1000
         let stepCount = max(4, Int(totalDuration / 0.04))
         var actions: [SKAction] = []
@@ -747,11 +787,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let dy = CGFloat.random(in: -amplitude...amplitude)
             actions.append(SKAction.moveBy(x: dx, y: dy, duration: totalDuration / Double(stepCount)))
         }
-        let returnAction = SKAction.move(to: CGPoint(x: size.width / 2, y: size.height / 2), duration: 0.04)
-        cameraNode.run(SKAction.sequence(actions + [returnAction]))
+        let returnAction = SKAction.move(to: center, duration: 0.04)
+        cameraNode.removeAction(forKey: "camera-shake")
+        cameraNode.run(SKAction.sequence(actions + [returnAction]), withKey: "camera-shake")
     }
 
     private func zoomToPlayer(anchors: BattleAnchors, holdMs: TimeInterval, onReturned: @escaping () -> Void) {
+        if cameraNode.position == .zero {
+            resetCameraToCenter()
+        }
         let panTo = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
         let pan = SKAction.move(to: panTo, duration: 0.24)
         pan.timingMode = .easeInEaseOut
@@ -773,6 +817,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
     }
 
+    private func resetCameraToCenter() {
+        guard size.width > 0, size.height > 0 else { return }
+        cameraNode.removeAllActions()
+        cameraNode.position = CGPoint(x: size.width / 2, y: size.height / 2)
+        cameraNode.setScale(1.0)
+    }
+
     // MARK: - Character feedback
 
     private enum CharacterSide { case player, enemy }
@@ -791,25 +842,31 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             completion?()
             return
         }
+        let anchors = battleAnchors()
+        let homePosition = side == .player
+            ? CGPoint(x: anchors.player.x, y: anchors.player.footY)
+            : CGPoint(x: anchors.enemy.x, y: anchors.enemy.footY)
         let totalDuration = durationMs / 1000
         let pushDuration = max(0.08, totalDuration * 0.38)
         let returnDuration = max(0.12, totalDuration - pushDuration)
         let rotation: CGFloat = (distance >= 0 ? 4 : -4) * (.pi / 180)
-        let startX = view.container.position.x
-        let startY = view.container.position.y
+        view.container.removeAction(forKey: "knockback")
+        view.container.position = homePosition
+        view.container.zRotation = 0
         let push = SKAction.group([
-            SKAction.moveBy(x: distance, y: 10, duration: pushDuration),
+            SKAction.move(to: CGPoint(x: homePosition.x + distance, y: homePosition.y + 10), duration: pushDuration),
             SKAction.rotate(toAngle: rotation, duration: pushDuration, shortestUnitArc: true),
         ])
         push.timingMode = .easeOut
         let back = SKAction.group([
-            SKAction.move(to: CGPoint(x: startX, y: startY), duration: returnDuration),
+            SKAction.move(to: homePosition, duration: returnDuration),
             SKAction.rotate(toAngle: 0, duration: returnDuration, shortestUnitArc: true),
         ])
         back.timingMode = .easeOut
-        view.container.run(SKAction.sequence([push, back])) {
+        let complete = SKAction.run {
             completion?()
         }
+        view.container.run(SKAction.sequence([push, back, complete]), withKey: "knockback")
     }
 
     private func knockEnemyAfterDamage(distance: CGFloat, durationMs: TimeInterval) {

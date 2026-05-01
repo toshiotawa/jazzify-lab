@@ -1,33 +1,35 @@
 import SwiftUI
 
 /// 耳コピバトル ゲーム画面の上部 HUD。
-/// - 左：プレイヤー HP バー / 中央：ステータステキスト + コードチップ / 右：制限時間 + 設定 + 戻る
-/// - 制限時間表示はノッチ被りを避けるため `safeAreaInset(edge: .top)` 込みで右上のピル形バッジに再配置する。
+/// - 上段：自分HP / 時間 / 敵HP
+/// - 中段：攻撃ゲージ / コードチップ / 解答スロット
 struct EarTrainingHUDView: View {
     @ObservedObject var controller: EarTrainingBattleController
 
-    var body: some View {
-        VStack(spacing: 8) {
-            HStack(alignment: .top, spacing: 12) {
-                playerColumn
-                Spacer(minLength: 6)
-                rightControls
-            }
-            .padding(.horizontal, 12)
-            .padding(.top, 8)
+    private let chordChipWidth: CGFloat = 82
+    private let phraseSlotGap: CGFloat = 7
 
-            statusLine
-            chordChips
-            phraseSlots
-            attackGauge
-            enemyHealth
+    var body: some View {
+        ZStack(alignment: .topTrailing) {
+            VStack(spacing: 5) {
+                healthTimeRow
+                attackGauge
+                chordChips
+                phraseSlots
+            }
+            .padding(.horizontal, 10)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
+
+            rightControls
+                .padding(.top, 4)
+                .padding(.trailing, 6)
         }
-        .padding(.bottom, 6)
         .background(
             LinearGradient(
                 colors: [
-                    Color.black.opacity(0.78),
-                    Color.black.opacity(0.42),
+                    Color.black.opacity(0.58),
+                    Color.black.opacity(0.22),
                     Color.black.opacity(0.0)
                 ],
                 startPoint: .top,
@@ -37,42 +39,34 @@ struct EarTrainingHUDView: View {
         )
     }
 
-    private var playerColumn: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            HStack(spacing: 6) {
-                Text(controller.isEnglishCopy ? "Player" : "プレイヤー")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundColor(.white.opacity(0.85))
-                if controller.practiceMode {
-                    Text(controller.hudLabels.practiceBadge)
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(Color(hex: "0f172a"))
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(hex: "67e8f9"))
-                        .clipShape(Capsule())
-                }
-                if controller.isMidiConnected {
-                    Text("MIDI ON")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(Color(hex: "16a34a"))
-                        .clipShape(Capsule())
-                }
-            }
-            HpBar(currentHp: controller.playerHp, maxHp: controller.stage.playerHp, isEnemy: false)
-                .frame(width: 160, height: 12)
-            Text("\(controller.playerHp) / \(controller.stage.playerHp)")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.85))
+    private var healthTimeRow: some View {
+        HStack(alignment: .center, spacing: 8) {
+            hpPanel(
+                title: controller.isEnglishCopy ? "Player" : "自分HP",
+                current: controller.playerHp,
+                max: controller.stage.playerHp,
+                isEnemy: false,
+                horizontalAlignment: .leading,
+                frameAlignment: .leading
+            )
+
+            timePill
+                .frame(minWidth: 68)
+
+            hpPanel(
+                title: controller.isEnglishCopy ? "Enemy" : "敵HP",
+                current: controller.enemyHp,
+                max: controller.stage.enemyHp,
+                isEnemy: true,
+                horizontalAlignment: .trailing,
+                frameAlignment: .trailing
+            )
         }
+        .padding(.trailing, 62)
     }
 
     private var rightControls: some View {
-        HStack(spacing: 8) {
-            timePill
+        HStack(spacing: 5) {
             iconButton(systemName: "gearshape.fill", label: controller.hudLabels.settings) {
                 controller.handleOpenSettings()
             }
@@ -80,6 +74,30 @@ struct EarTrainingHUDView: View {
                 controller.handleBack()
             }
         }
+    }
+
+    private func hpPanel(
+        title: String,
+        current: Int,
+        max: Int,
+        isEnemy: Bool,
+        horizontalAlignment: HorizontalAlignment,
+        frameAlignment: Alignment
+    ) -> some View {
+        VStack(alignment: horizontalAlignment, spacing: 3) {
+            Text(title)
+                .font(.system(size: 9, weight: .semibold))
+                .foregroundColor(.white.opacity(0.78))
+                .lineLimit(1)
+            HpBar(currentHp: current, maxHp: max, isEnemy: isEnemy)
+                .frame(height: 10)
+            Text("\(current) / \(max)")
+                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .foregroundColor(.white.opacity(0.84))
+                .lineLimit(1)
+                .minimumScaleFactor(0.72)
+        }
+        .frame(maxWidth: .infinity, alignment: frameAlignment)
     }
 
     private var timePill: some View {
@@ -95,14 +113,14 @@ struct EarTrainingHUDView: View {
         }
         return HStack(spacing: 4) {
             Image(systemName: "clock.fill")
-                .font(.system(size: 11, weight: .bold))
+                .font(.system(size: 10, weight: .bold))
                 .foregroundColor(textColor.opacity(0.85))
             Text(controller.timeLabel)
                 .font(.system(size: 13, weight: .heavy, design: .monospaced))
                 .foregroundColor(textColor)
         }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 5)
         .background(Color.black.opacity(0.55))
         .overlay(
             Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
@@ -112,15 +130,10 @@ struct EarTrainingHUDView: View {
 
     private func iconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
-            VStack(spacing: 1) {
-                Image(systemName: systemName)
-                    .font(.system(size: 14, weight: .bold))
-                Text(label)
-                    .font(.system(size: 9, weight: .semibold))
-            }
+            Image(systemName: systemName)
+                .font(.system(size: 12, weight: .bold))
+                .frame(width: 28, height: 28)
             .foregroundColor(.white)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
             .background(Color.black.opacity(0.55))
             .overlay(
                 Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
@@ -130,73 +143,106 @@ struct EarTrainingHUDView: View {
         .accessibilityLabel(Text(label))
     }
 
-    private var statusLine: some View {
-        Text(controller.stageStatusText)
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundColor(statusColor)
-            .frame(maxWidth: .infinity)
-            .padding(.horizontal, 14)
-            .multilineTextAlignment(.center)
-    }
-
-    private var statusColor: Color {
-        switch controller.feedback {
-        case .correct: return Color(hex: "bbf7d0")
-        case .miss: return Color(hex: "fca5a5")
-        case .clear: return Color(hex: "fde68a")
-        case nil: return .white.opacity(0.92)
-        }
-    }
-
     private var chordChips: some View {
         let chips = controller.chordChips
-        return HStack(spacing: 6) {
-            ForEach(chips) { chip in
-                Text(chip.name)
-                    .font(.system(size: 11, weight: .heavy))
-                    .foregroundColor(chip.active ? Color(hex: "0f172a") : Color.white.opacity(0.92))
-                    .padding(.horizontal, 8)
-                    .padding(.vertical, 4)
-                    .background(chip.active ? Color(hex: "facc15") : Color.white.opacity(0.18))
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+        return Group {
+            if chips.isEmpty {
+                Color.clear.frame(height: 0)
+            } else {
+                GeometryReader { proxy in
+                    let availableWidth = max(chordChipWidth, proxy.size.width)
+                    let visibleCount = max(1, min(chips.count, Int(floor(availableWidth / chordChipWidth))))
+                    let activeIndex = chips.firstIndex(where: { $0.active }) ?? 0
+                    let firstVisibleIndex = min(
+                        max(activeIndex - visibleCount + 1, 0),
+                        max(0, chips.count - visibleCount)
+                    )
+                    let visibleChips = Array(chips[firstVisibleIndex..<min(chips.count, firstVisibleIndex + visibleCount)])
+
+                    HStack(spacing: 0) {
+                        ForEach(visibleChips) { chip in
+                            Text(chip.name)
+                                .font(.system(size: 11, weight: .heavy))
+                                .foregroundColor(chip.active ? Color(hex: "0f172a") : Color.white.opacity(0.92))
+                                .frame(width: chordChipWidth - 6, height: 26)
+                                .background(chip.active ? Color(hex: "facc15") : Color.black.opacity(0.58))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                        .stroke(chip.active ? Color(hex: "fef08a") : Color.white.opacity(0.14), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                                .padding(.horizontal, 3)
+                        }
+                    }
+                    .frame(maxWidth: .infinity, alignment: .center)
+                }
+                .frame(height: 28)
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
         .padding(.horizontal, 12)
     }
 
     private var phraseSlots: some View {
-        let slots = controller.phraseSlots
+        let slots = controller.phraseSlots.isEmpty ? ["_"] : controller.phraseSlots
         let revealed = controller.revealedNotes
         let currentIndex = controller.currentNoteIndex
-        return HStack(spacing: 6) {
-            ForEach(Array(slots.enumerated()), id: \.offset) { index, name in
-                let revealedNote: String? = index < revealed.count ? revealed[index] : nil
-                let isActive = index == currentIndex && controller.gameState == .playingPhrase
-                let displayText = revealedNote ?? "?"
-                Text(displayText)
-                    .font(.system(size: 13, weight: .heavy, design: .monospaced))
-                    .foregroundColor(revealedNote != nil ? Color(hex: "0f172a") : Color.white.opacity(0.92))
-                    .frame(width: 32, height: 28)
-                    .background(
-                        revealedNote != nil
-                            ? Color(hex: "facc15")
-                            : (isActive ? Color.white.opacity(0.34) : Color.white.opacity(0.18))
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                    .accessibilityLabel(Text(revealedNote ?? name))
+        return GeometryReader { proxy in
+            let availableWidth = max(34, proxy.size.width - 24)
+            let slotBaseCount = min(max(8, slots.count), 11)
+            let slotSize = min(max((availableWidth - 24) / CGFloat(slotBaseCount), 34), 54)
+            let totalSlotWidth = CGFloat(slots.count) * slotSize + CGFloat(max(0, slots.count - 1)) * phraseSlotGap
+            let indicatorReserve: CGFloat = totalSlotWidth > availableWidth ? 34 : 0
+            let visibleCount = max(1, min(slots.count, Int(floor((availableWidth - indicatorReserve + phraseSlotGap) / (slotSize + phraseSlotGap)))))
+            let focusedIndex = min(max(currentIndex, 0), max(0, slots.count - 1))
+            let firstVisibleIndex = min(
+                max(focusedIndex - visibleCount / 2, 0),
+                max(0, slots.count - visibleCount)
+            )
+            let visibleSlots = Array(slots.enumerated())[firstVisibleIndex..<min(slots.count, firstVisibleIndex + visibleCount)]
+
+            HStack(spacing: phraseSlotGap) {
+                if firstVisibleIndex > 0 {
+                    Text("‹")
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundColor(Color(hex: "94a3b8"))
+                        .frame(width: 10)
+                }
+                ForEach(Array(visibleSlots), id: \.offset) { index, name in
+                    let revealedNote: String? = index < revealed.count ? revealed[index] : nil
+                    let isActive = index == currentIndex && controller.gameState == .playingPhrase
+                    let displayText = revealedNote ?? "_"
+                    Text(displayText)
+                        .font(.system(size: max(13, slotSize * 0.45), weight: .heavy, design: .monospaced))
+                        .foregroundColor(isActive ? Color(hex: "ecfeff") : (revealedNote != nil ? Color(hex: "d1fae5") : Color(hex: "64748b")))
+                        .frame(width: slotSize, height: slotSize)
+                        .background(
+                            isActive
+                                ? Color(hex: "22d3ee").opacity(0.38)
+                                : (revealedNote != nil ? Color(hex: "10b981").opacity(0.28) : Color.black.opacity(0.78))
+                        )
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4, style: .continuous)
+                                .stroke(isActive ? Color(hex: "a5f3fc").opacity(0.9) : Color.white.opacity(0.14), lineWidth: isActive ? 3 : 1)
+                        )
+                        .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+                        .accessibilityLabel(Text(revealedNote ?? name))
+                }
+                if firstVisibleIndex + visibleCount < slots.count {
+                    Text("›")
+                        .font(.system(size: 22, weight: .heavy))
+                        .foregroundColor(Color(hex: "94a3b8"))
+                        .frame(width: 10)
+                }
             }
+            .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(maxWidth: .infinity, alignment: .center)
+        .frame(height: 38)
         .padding(.horizontal, 12)
     }
 
     private var attackGauge: some View {
         let percent = controller.enemyAttackGaugePercent
-        return HStack(spacing: 6) {
-            Text(controller.isEnglishCopy ? "Enemy" : "敵")
-                .font(.system(size: 10, weight: .semibold))
-                .foregroundColor(.white.opacity(0.85))
+        return HStack(spacing: 0) {
             GeometryReader { proxy in
                 ZStack(alignment: .leading) {
                     RoundedRectangle(cornerRadius: 4, style: .continuous)
@@ -208,20 +254,10 @@ struct EarTrainingHUDView: View {
             }
             .frame(height: 6)
         }
-        .padding(.horizontal, 12)
+        .frame(height: 10)
+        .padding(.horizontal, 16)
     }
 
-    private var enemyHealth: some View {
-        VStack(alignment: .trailing, spacing: 2) {
-            HpBar(currentHp: controller.enemyHp, maxHp: controller.stage.enemyHp, isEnemy: true)
-                .frame(height: 12)
-                .padding(.horizontal, 12)
-            Text("\(controller.enemyHp) / \(controller.stage.enemyHp)")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                .foregroundColor(.white.opacity(0.85))
-                .padding(.trailing, 14)
-        }
-    }
 }
 
 private struct HpBar: View {

@@ -21,7 +21,7 @@ final class EarTrainingBattleController: ObservableObject {
 
     private static let inputCooldownMs: Double = 20
     private static let audioEndEpsilonSec: Double = 0.03
-    private static let battleEffectDurationMs: Double = 720
+    private static let battleEffectDurationMs: Double = 1_600
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 

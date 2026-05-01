@@ -33,8 +33,12 @@ struct EarTrainingGameView: View {
             }
         }
         .background(Color.black)
+        .onAppear {
+            OrientationManager.shared.lock(.portrait)
+        }
         .task { await bootstrap() }
         .onDisappear {
+            OrientationManager.shared.lock(.portrait)
             MIDIManager.shared.onMIDIEvent = nil
             controller?.tearDown()
         }
