@@ -8,16 +8,24 @@ struct EarTrainingDemoBubbleView: View {
     var body: some View {
         if controller.demoBubbleVisible, controller.gameState == .playingPhrase {
             GeometryReader { proxy in
+                let bubbleWidth: CGFloat = 82
+                let bubbleHeight: CGFloat = 54
+                let enemyCenterX = proxy.size.width * 0.77
+                let desiredBubbleX = enemyCenterX + 88
+                let bubbleX = min(
+                    max(bubbleWidth / 2 + 12, desiredBubbleX),
+                    proxy.size.width - bubbleWidth / 2 - 12
+                )
                 ZStack {
                     if let bubble = bubbleImage {
                         Image(uiImage: bubble)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 82, height: 54)
+                            .frame(width: bubbleWidth, height: bubbleHeight)
                     } else {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(0.92))
-                            .frame(width: 82, height: 50)
+                            .frame(width: bubbleWidth, height: 50)
                             .overlay(
                                 Text(controller.isEnglishCopy ? "Demo" : "お手本")
                                     .font(.system(size: 11, weight: .heavy))
@@ -26,7 +34,7 @@ struct EarTrainingDemoBubbleView: View {
                     }
                 }
                 .position(
-                    x: proxy.size.width * 0.78,
+                    x: bubbleX,
                     y: max(82, proxy.size.height * 0.38)
                 )
                 .transition(.opacity.combined(with: .scale))

@@ -83,7 +83,11 @@ struct EarTrainingGameView: View {
 
         let supabase = SupabaseService.shared
         do {
-            let stageDetail = try await supabase.fetchEarTrainingStageDetail(stageId: stageId)
+            async let stageDetailTask = supabase.fetchEarTrainingStageDetail(stageId: stageId)
+            async let charactersTask = supabase.fetchSurvivalCharacters()
+            let stageDetail = try await stageDetailTask
+            let characters = (try? await charactersTask) ?? []
+            let selectedEnemy = characters.randomElement()
             let phrases = stageDetail.sortedPhrases()
             guard !phrases.isEmpty else {
                 loadError = locale == .ja
@@ -98,8 +102,8 @@ struct EarTrainingGameView: View {
                 phrases: phrases,
                 lessonContext: lessonContext,
                 isEnglishCopy: locale == .en,
-                enemyId: stageDetail.id.uuidString,
-                enemyName: stageDetail.localizedTitle(locale),
+                enemyId: selectedEnemy?.id ?? stageDetail.id.uuidString,
+                enemyName: selectedEnemy?.localizedName(locale) ?? stageDetail.localizedTitle(locale),
                 audio: audioInstance,
                 onExit: onClose
             )

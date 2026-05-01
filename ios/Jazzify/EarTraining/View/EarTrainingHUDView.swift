@@ -22,8 +22,8 @@ struct EarTrainingHUDView: View {
             .padding(.bottom, 2)
 
             rightControls
-                .padding(.top, 4)
-                .padding(.trailing, 5)
+                .padding(.top, 16)
+                .padding(.trailing, 14)
         }
         .background(
             LinearGradient(
@@ -62,7 +62,7 @@ struct EarTrainingHUDView: View {
                 frameAlignment: .trailing
             )
         }
-        .padding(.trailing, 58)
+        .padding(.trailing, 90)
     }
 
     private var rightControls: some View {
@@ -141,6 +141,9 @@ struct EarTrainingHUDView: View {
                 .clipShape(Capsule())
         }
         .accessibilityLabel(Text(label))
+        .buttonStyle(.plain)
+        .frame(width: 40, height: 40)
+        .contentShape(Rectangle())
     }
 
     private var chordChips: some View {
