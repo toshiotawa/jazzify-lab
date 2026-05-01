@@ -1396,8 +1396,8 @@ private struct FullScreenAVPlayerView: UIViewControllerRepresentable {
             _ playerViewController: AVPlayerViewController,
             willEndFullScreenPresentationWithAnimationCoordinator coordinator: UIViewControllerTransitionCoordinator
         ) {
-            coordinator.animate(alongsideTransition: nil) { _ in
-                Task { @MainActor in
+            Task { @MainActor in
+                coordinator.animate(alongsideTransition: nil) { _ in
                     OrientationManager.shared.lock(.portrait)
                 }
             }

@@ -8,8 +8,8 @@ struct EarTrainingPianoView: View {
     private let firstMidi: Int = 21
     private let lastMidi: Int = 108
     private let visibleWhiteKeys: CGFloat = 14
-    private let keyboardHeight: CGFloat = 120
-    private let blackKeyHeightRatio: CGFloat = 0.62
+    private let keyboardHeight: CGFloat = 100
+    private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
 
     var body: some View {
@@ -120,7 +120,7 @@ private struct EarTrainingPianoKeyButton: View {
                 )
             if !label.isEmpty {
                 Text(label)
-                    .font(.system(size: 9, weight: .semibold))
+                    .font(.system(size: 8, weight: .semibold))
                     .foregroundStyle(.gray)
                     .padding(.bottom, 3)
             }

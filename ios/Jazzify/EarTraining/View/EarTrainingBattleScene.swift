@@ -8,14 +8,14 @@ import UIKit
 final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Constants
 
-    private static let pianoOverlayHeight: CGFloat = 120
-    private static let hudHeight: CGFloat = 150
+    private static let pianoOverlayHeight: CGFloat = 104
+    private static let hudHeight: CGFloat = 104
     private static let phraseIntroFadeMs: TimeInterval = 2.6
-    private static let floorClearanceFromPiano: CGFloat = 100
+    private static let floorClearanceFromPiano: CGFloat = 48
     private static let floorBandOverlap: CGFloat = 16
-    private static let characterDisplaySize: CGFloat = 116
-    private static let characterShadowWidth: CGFloat = 104
-    private static let characterShadowHeight: CGFloat = 22
+    private static let characterDisplaySize: CGFloat = 88
+    private static let characterShadowWidth: CGFloat = 82
+    private static let characterShadowHeight: CGFloat = 18
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
 
     // MARK: - Public state
@@ -89,7 +89,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             return
         }
         // 軽量更新: フレーズイントロのみ再描画する（キャラの進行中アニメを温存）。
-        let height = max(480, size.height)
+        let height = max(320, size.height)
         let width = max(320, size.width)
         let floorY = floorYForHeight(height)
         drawPhraseIntro(width: width, height: height, floorY: floorY)
@@ -119,7 +119,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         // effectLayer は残す（進行中エフェクトを破壊しない）
 
         let width = max(320, size.width)
-        let height = max(480, size.height)
+        let height = max(320, size.height)
         let floorY = floorYForHeight(height)
 
         resetCameraToCenter()
@@ -297,7 +297,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         let fallback = SKLabelNode(text: isPlayer ? "P" : "E")
         fallback.fontName = "AvenirNext-Heavy"
-        fallback.fontSize = 42
+        fallback.fontSize = 34
         fallback.fontColor = .white
         fallback.verticalAlignmentMode = .baseline
         fallback.horizontalAlignmentMode = .center
@@ -909,7 +909,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func battleAnchors() -> BattleAnchors {
-        let height = max(480, size.height)
+        let height = max(320, size.height)
         let width = max(320, size.width)
         let floorY = floorYForHeight(height)
         // SpriteKit 座標系では Web の Y を反転させる。Web の `bodyY = floorY - charSize*0.52` は
@@ -931,7 +931,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func floorYForHeight(_ height: CGFloat) -> CGFloat {
-        max(220, Self.pianoOverlayHeight + Self.floorClearanceFromPiano)
+        let minimumFloorY = Self.pianoOverlayHeight + 34
+        let preferredFloorY = max(
+            Self.pianoOverlayHeight + Self.floorClearanceFromPiano,
+            height * 0.42
+        )
+        let maximumFloorY = height - Self.hudHeight - Self.characterDisplaySize * 1.1
+        return max(minimumFloorY, min(preferredFloorY, maximumFloorY))
     }
 
     private func rankColor(label: String) -> UIColor {

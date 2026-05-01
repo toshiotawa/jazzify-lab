@@ -13,21 +13,21 @@ struct EarTrainingDemoBubbleView: View {
                         Image(uiImage: bubble)
                             .resizable()
                             .scaledToFit()
-                            .frame(width: 96, height: 64)
+                            .frame(width: 82, height: 54)
                     } else {
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
                             .fill(Color.white.opacity(0.92))
-                            .frame(width: 96, height: 58)
+                            .frame(width: 82, height: 50)
                             .overlay(
                                 Text(controller.isEnglishCopy ? "Demo" : "お手本")
-                                    .font(.system(size: 12, weight: .heavy))
+                                    .font(.system(size: 11, weight: .heavy))
                                     .foregroundColor(.black)
                             )
                     }
                 }
                 .position(
-                    x: proxy.size.width * 0.83,
-                    y: max(214, proxy.size.height - 356)
+                    x: proxy.size.width * 0.78,
+                    y: max(82, proxy.size.height * 0.38)
                 )
                 .transition(.opacity.combined(with: .scale))
                 .animation(.easeOut(duration: 0.18), value: controller.demoBubbleVisible)

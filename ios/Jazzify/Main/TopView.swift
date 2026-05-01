@@ -689,34 +689,43 @@ struct TopView: View {
         defer { isLoading = false }
 
         guard let userId = profile?.id else { return }
+        let currentLocale = locale
 
-        async let announcementsTask: () = {
+        async let announcementsTask: [AnnouncementRow] = {
             do {
-                self.announcements = try await SupabaseService.shared.fetchActiveAnnouncements(locale: locale)
+                return try await SupabaseService.shared.fetchActiveAnnouncements(locale: currentLocale)
             } catch {
-                self.announcements = []
+                return []
             }
         }()
 
-        async let statsTask: () = {
+        async let statsTask: UserStats? = {
             do {
-                self.userStats = try await SupabaseService.shared.fetchUserStats(userId: userId)
+                return try await SupabaseService.shared.fetchUserStats(userId: userId)
             } catch {
-                self.userStats = nil
+                return nil
             }
         }()
 
-        async let tutorialTask: () = {
+        async let tutorialTask: SupabaseService.TutorialProgressResult? = {
             do {
-                self.tutorialProgress = try await SupabaseService.shared.fetchTutorialProgress(userId: userId)
+                return try await SupabaseService.shared.fetchTutorialProgress(userId: userId)
             } catch {
-                self.tutorialProgress = nil
+                return nil
             }
         }()
 
         async let dcTask: () = loadDailyChallengeRecords()
 
-        _ = await (announcementsTask, statsTask, tutorialTask, dcTask)
+        let (loadedAnnouncements, loadedStats, loadedTutorialProgress, _) = await (
+            announcementsTask,
+            statsTask,
+            tutorialTask,
+            dcTask
+        )
+        announcements = loadedAnnouncements
+        userStats = loadedStats
+        tutorialProgress = loadedTutorialProgress
     }
 
     private func loadDailyChallengeRecords() async {

@@ -1137,11 +1137,11 @@ final class SurvivalScene: SKScene {
 
     private static func bossImageName(type: SurvivalBossType) -> String {
         // Assets.xcassets/SurvivalMap/Contents.json は provides-namespace: false のため
-        // フォルダ名は参照パスに含まれず、imageset 名だけで検索する必要がある。
+        // SurvivalMap は asset namespace を提供するため、フォルダ名を含めて参照する。
         switch type {
-        case .A: return "boss_a"
-        case .B: return "boss_b"
-        case .C: return "boss_c"
+        case .A: return "SurvivalMap/boss_a"
+        case .B: return "SurvivalMap/boss_b"
+        case .C: return "SurvivalMap/boss_c"
         }
     }
 

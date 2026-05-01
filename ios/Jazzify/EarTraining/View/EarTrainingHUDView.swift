@@ -6,24 +6,24 @@ import SwiftUI
 struct EarTrainingHUDView: View {
     @ObservedObject var controller: EarTrainingBattleController
 
-    private let chordChipWidth: CGFloat = 82
-    private let phraseSlotGap: CGFloat = 7
+    private let chordChipWidth: CGFloat = 76
+    private let phraseSlotGap: CGFloat = 5
 
     var body: some View {
         ZStack(alignment: .topTrailing) {
-            VStack(spacing: 5) {
+            VStack(spacing: 3) {
                 healthTimeRow
                 attackGauge
                 chordChips
                 phraseSlots
             }
-            .padding(.horizontal, 10)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
+            .padding(.horizontal, 8)
+            .padding(.top, 4)
+            .padding(.bottom, 2)
 
             rightControls
                 .padding(.top, 4)
-                .padding(.trailing, 6)
+                .padding(.trailing, 5)
         }
         .background(
             LinearGradient(
@@ -40,7 +40,7 @@ struct EarTrainingHUDView: View {
     }
 
     private var healthTimeRow: some View {
-        HStack(alignment: .center, spacing: 8) {
+        HStack(alignment: .center, spacing: 6) {
             hpPanel(
                 title: controller.isEnglishCopy ? "Player" : "自分HP",
                 current: controller.playerHp,
@@ -51,7 +51,7 @@ struct EarTrainingHUDView: View {
             )
 
             timePill
-                .frame(minWidth: 68)
+                .frame(minWidth: 64)
 
             hpPanel(
                 title: controller.isEnglishCopy ? "Enemy" : "敵HP",
@@ -62,11 +62,11 @@ struct EarTrainingHUDView: View {
                 frameAlignment: .trailing
             )
         }
-        .padding(.trailing, 62)
+        .padding(.trailing, 58)
     }
 
     private var rightControls: some View {
-        HStack(spacing: 5) {
+        HStack(spacing: 4) {
             iconButton(systemName: "gearshape.fill", label: controller.hudLabels.settings) {
                 controller.handleOpenSettings()
             }
@@ -84,15 +84,15 @@ struct EarTrainingHUDView: View {
         horizontalAlignment: HorizontalAlignment,
         frameAlignment: Alignment
     ) -> some View {
-        VStack(alignment: horizontalAlignment, spacing: 3) {
+        VStack(alignment: horizontalAlignment, spacing: 2) {
             Text(title)
-                .font(.system(size: 9, weight: .semibold))
+                .font(.system(size: 8, weight: .semibold))
                 .foregroundColor(.white.opacity(0.78))
                 .lineLimit(1)
             HpBar(currentHp: current, maxHp: max, isEnemy: isEnemy)
-                .frame(height: 10)
+                .frame(height: 8)
             Text("\(current) / \(max)")
-                .font(.system(size: 9, weight: .semibold, design: .monospaced))
+                .font(.system(size: 8, weight: .semibold, design: .monospaced))
                 .foregroundColor(.white.opacity(0.84))
                 .lineLimit(1)
                 .minimumScaleFactor(0.72)
@@ -113,14 +113,14 @@ struct EarTrainingHUDView: View {
         }
         return HStack(spacing: 4) {
             Image(systemName: "clock.fill")
-                .font(.system(size: 10, weight: .bold))
+                .font(.system(size: 9, weight: .bold))
                 .foregroundColor(textColor.opacity(0.85))
             Text(controller.timeLabel)
-                .font(.system(size: 13, weight: .heavy, design: .monospaced))
+                .font(.system(size: 12, weight: .heavy, design: .monospaced))
                 .foregroundColor(textColor)
         }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 5)
+        .padding(.horizontal, 7)
+        .padding(.vertical, 4)
         .background(Color.black.opacity(0.55))
         .overlay(
             Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
@@ -131,14 +131,14 @@ struct EarTrainingHUDView: View {
     private func iconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 12, weight: .bold))
-                .frame(width: 28, height: 28)
-            .foregroundColor(.white)
-            .background(Color.black.opacity(0.55))
-            .overlay(
-                Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
-            )
-            .clipShape(Capsule())
+                .font(.system(size: 11, weight: .bold))
+                .frame(width: 26, height: 26)
+                .foregroundColor(.white)
+                .background(Color.black.opacity(0.55))
+                .overlay(
+                    Capsule().stroke(Color.white.opacity(0.18), lineWidth: 1)
+                )
+                .clipShape(Capsule())
         }
         .accessibilityLabel(Text(label))
     }
@@ -162,24 +162,24 @@ struct EarTrainingHUDView: View {
                     HStack(spacing: 0) {
                         ForEach(visibleChips) { chip in
                             Text(chip.name)
-                                .font(.system(size: 11, weight: .heavy))
+                                .font(.system(size: 10, weight: .heavy))
                                 .foregroundColor(chip.active ? Color(hex: "0f172a") : Color.white.opacity(0.92))
-                                .frame(width: chordChipWidth - 6, height: 26)
+                                .frame(width: chordChipWidth - 5, height: 22)
                                 .background(chip.active ? Color(hex: "facc15") : Color.black.opacity(0.58))
                                 .overlay(
                                     RoundedRectangle(cornerRadius: 4, style: .continuous)
                                         .stroke(chip.active ? Color(hex: "fef08a") : Color.white.opacity(0.14), lineWidth: 1)
                                 )
                                 .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
-                                .padding(.horizontal, 3)
+                                .padding(.horizontal, 2)
                         }
                     }
                     .frame(maxWidth: .infinity, alignment: .center)
                 }
-                .frame(height: 28)
+                .frame(height: 24)
             }
         }
-        .padding(.horizontal, 12)
+        .padding(.horizontal, 10)
     }
 
     private var phraseSlots: some View {
@@ -187,11 +187,11 @@ struct EarTrainingHUDView: View {
         let revealed = controller.revealedNotes
         let currentIndex = controller.currentNoteIndex
         return GeometryReader { proxy in
-            let availableWidth = max(34, proxy.size.width - 24)
-            let slotBaseCount = min(max(8, slots.count), 11)
-            let slotSize = min(max((availableWidth - 24) / CGFloat(slotBaseCount), 34), 54)
+            let availableWidth = max(30, proxy.size.width - 20)
+            let slotBaseCount = min(max(9, slots.count), 12)
+            let slotSize = min(max((availableWidth - 20) / CGFloat(slotBaseCount), 28), 44)
             let totalSlotWidth = CGFloat(slots.count) * slotSize + CGFloat(max(0, slots.count - 1)) * phraseSlotGap
-            let indicatorReserve: CGFloat = totalSlotWidth > availableWidth ? 34 : 0
+            let indicatorReserve: CGFloat = totalSlotWidth > availableWidth ? 28 : 0
             let visibleCount = max(1, min(slots.count, Int(floor((availableWidth - indicatorReserve + phraseSlotGap) / (slotSize + phraseSlotGap)))))
             let focusedIndex = min(max(currentIndex, 0), max(0, slots.count - 1))
             let firstVisibleIndex = min(
@@ -203,16 +203,16 @@ struct EarTrainingHUDView: View {
             HStack(spacing: phraseSlotGap) {
                 if firstVisibleIndex > 0 {
                     Text("‹")
-                        .font(.system(size: 22, weight: .heavy))
+                        .font(.system(size: 20, weight: .heavy))
                         .foregroundColor(Color(hex: "94a3b8"))
-                        .frame(width: 10)
+                        .frame(width: 8)
                 }
                 ForEach(Array(visibleSlots), id: \.offset) { index, name in
                     let revealedNote: String? = index < revealed.count ? revealed[index] : nil
                     let isActive = index == currentIndex && controller.gameState == .playingPhrase
                     let displayText = revealedNote ?? "_"
                     Text(displayText)
-                        .font(.system(size: max(13, slotSize * 0.45), weight: .heavy, design: .monospaced))
+                        .font(.system(size: max(11, slotSize * 0.44), weight: .heavy, design: .monospaced))
                         .foregroundColor(isActive ? Color(hex: "ecfeff") : (revealedNote != nil ? Color(hex: "d1fae5") : Color(hex: "64748b")))
                         .frame(width: slotSize, height: slotSize)
                         .background(
@@ -222,22 +222,22 @@ struct EarTrainingHUDView: View {
                         )
                         .overlay(
                             RoundedRectangle(cornerRadius: 4, style: .continuous)
-                                .stroke(isActive ? Color(hex: "a5f3fc").opacity(0.9) : Color.white.opacity(0.14), lineWidth: isActive ? 3 : 1)
+                                .stroke(isActive ? Color(hex: "a5f3fc").opacity(0.9) : Color.white.opacity(0.14), lineWidth: isActive ? 2 : 1)
                         )
                         .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
                         .accessibilityLabel(Text(revealedNote ?? name))
                 }
                 if firstVisibleIndex + visibleCount < slots.count {
                     Text("›")
-                        .font(.system(size: 22, weight: .heavy))
+                        .font(.system(size: 20, weight: .heavy))
                         .foregroundColor(Color(hex: "94a3b8"))
-                        .frame(width: 10)
+                        .frame(width: 8)
                 }
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
-        .frame(height: 38)
-        .padding(.horizontal, 12)
+        .frame(height: 32)
+        .padding(.horizontal, 10)
     }
 
     private var attackGauge: some View {
@@ -252,10 +252,10 @@ struct EarTrainingHUDView: View {
                         .frame(width: proxy.size.width * CGFloat(max(0, min(1, percent))))
                 }
             }
-            .frame(height: 6)
+            .frame(height: 5)
         }
-        .frame(height: 10)
-        .padding(.horizontal, 16)
+        .frame(height: 8)
+        .padding(.horizontal, 14)
     }
 
 }

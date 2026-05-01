@@ -436,7 +436,7 @@ final class EarTrainingBattleController: ObservableObject {
         battleEffectClearTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(Self.battleEffectDurationMs * 1_000_000))
             await MainActor.run {
-                self?.pendingImpactHandlers.removeValue(forKey: id)
+                self?.pendingImpactHandlers[id] = nil
             }
         }
         return id

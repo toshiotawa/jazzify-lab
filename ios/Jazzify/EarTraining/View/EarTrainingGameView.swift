@@ -150,8 +150,34 @@ private struct EarTrainingGameContent: View {
     let onClose: () -> Void
 
     var body: some View {
+        GeometryReader { proxy in
+            let portraitSize = proxy.size
+            let landscapeSize = CGSize(
+                width: max(1, portraitSize.height),
+                height: max(1, portraitSize.width)
+            )
+
+            landscapeContent(size: landscapeSize)
+                .frame(width: landscapeSize.width, height: landscapeSize.height)
+                .clipped()
+                .rotationEffect(.degrees(90))
+                .frame(width: portraitSize.width, height: portraitSize.height)
+                .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
+        }
+        .ignoresSafeArea()
+        .sheet(isPresented: $controller.isSettingsOpen) {
+            EarTrainingSettingsSheet(
+                isEnglishCopy: locale == .en,
+                audio: audio,
+                onDismiss: { controller.handleCloseSettings() },
+                onExit: { controller.handleBack() }
+            )
+        }
+    }
+
+    private func landscapeContent(size: CGSize) -> some View {
         ZStack(alignment: .top) {
-            EarTrainingSceneContainer(controller: controller)
+            EarTrainingSceneContainer(controller: controller, sceneSize: size)
                 .ignoresSafeArea()
 
             EarTrainingDemoBubbleView(controller: controller)
@@ -167,18 +193,10 @@ private struct EarTrainingGameContent: View {
                 Spacer()
                 EarTrainingPianoView(controller: controller)
                     .ignoresSafeArea(.container, edges: .horizontal)
-                    .padding(.bottom, 8)
+                    .padding(.bottom, 4)
             }
 
             EarTrainingResultView(controller: controller)
-        }
-        .sheet(isPresented: $controller.isSettingsOpen) {
-            EarTrainingSettingsSheet(
-                isEnglishCopy: locale == .en,
-                audio: audio,
-                onDismiss: { controller.handleCloseSettings() },
-                onExit: { controller.handleBack() }
-            )
         }
     }
 }
@@ -187,11 +205,12 @@ private struct EarTrainingGameContent: View {
 
 private struct EarTrainingSceneContainer: UIViewRepresentable {
     let controller: EarTrainingBattleController
+    let sceneSize: CGSize
 
     func makeCoordinator() -> Coordinator { Coordinator() }
 
     func makeUIView(context: Context) -> SKView {
-        let initialFrame = UIScreen.main.bounds
+        let initialFrame = CGRect(origin: .zero, size: normalizedSceneSize(sceneSize))
         let view = SKView(frame: initialFrame)
         view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
         view.ignoresSiblingOrder = true
@@ -199,10 +218,7 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
         view.isAsynchronous = false
         view.isPaused = false
 
-        let sceneSize = initialFrame.size.width > 0 && initialFrame.size.height > 0
-            ? initialFrame.size
-            : CGSize(width: 1, height: 1)
-        let scene = EarTrainingBattleScene(size: sceneSize)
+        let scene = EarTrainingBattleScene(size: initialFrame.size)
         scene.scaleMode = .resizeFill
         scene.isPaused = false
         scene.onEffectImpact = { [weak controller] effectId in
@@ -216,7 +232,13 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ uiView: SKView, context: Context) {}
+    func updateUIView(_ uiView: SKView, context: Context) {
+        context.coordinator.update(sceneSize: normalizedSceneSize(sceneSize))
+    }
+
+    private func normalizedSceneSize(_ size: CGSize) -> CGSize {
+        CGSize(width: max(1, size.width), height: max(1, size.height))
+    }
 
     static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
         coordinator.detach()
@@ -240,6 +262,12 @@ private struct EarTrainingSceneContainer: UIViewRepresentable {
                 if let v = self?.view, v.isPaused { v.isPaused = false }
                 if let s = self?.scene, s.isPaused { s.isPaused = false }
             }
+        }
+
+        func update(sceneSize: CGSize) {
+            view?.bounds = CGRect(origin: .zero, size: sceneSize)
+            guard let scene, scene.size != sceneSize else { return }
+            scene.size = sceneSize
         }
 
         func detach() {

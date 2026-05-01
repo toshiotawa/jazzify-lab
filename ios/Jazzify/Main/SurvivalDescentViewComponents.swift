@@ -64,7 +64,7 @@ struct SurvivalDescentBackgroundView: View {
     private func brickTile(filter: SurvivalDescentBlockFilter) -> some View {
         let tile = max(160, 256 * scale)
         TiledPatternImage(
-            imageName: "background",
+            imageName: "SurvivalMap/background",
             tileSize: tile
         )
         .hueRotation(.degrees(filter.backgroundHueDeg))
@@ -338,7 +338,7 @@ struct SurvivalDescentLandingPlatform: View {
         let width = widthLogical * scale
         let height = heightLogical * scale
 
-        Image(type == .big ? "big_odoriba" : "odoriba")
+        Image(type == .big ? "SurvivalMap/big_odoriba" : "SurvivalMap/odoriba")
             .resizable()
             .interpolation(.medium)
             .frame(width: width, height: height)
@@ -536,7 +536,7 @@ struct SurvivalDescentDoorView: View {
         let brightnessAdj: Double = dim ? -0.5 : (opened ? 0.15 : -0.15)
 
         ZStack {
-            Image("door")
+            Image("SurvivalMap/door")
                 .resizable()
                 .interpolation(.medium)
                 .frame(width: width, height: height)
@@ -756,7 +756,7 @@ struct SurvivalDescentCharacterView: View {
                 .blendMode(.screen)
                 .offset(y: size * 0.05)
 
-            Image("default_avater")
+            Image("SurvivalMap/default_avater")
                 .resizable()
                 .interpolation(.medium)
                 .aspectRatio(contentMode: .fit)
@@ -800,9 +800,9 @@ struct SurvivalDescentBossFigure: View {
 
     private var assetName: String {
         switch ((bossIndex % 3) + 3) % 3 {
-        case 0: return "boss_a"
-        case 1: return "boss_b"
-        default: return "boss_c"
+        case 0: return "SurvivalMap/boss_a"
+        case 1: return "SurvivalMap/boss_b"
+        default: return "SurvivalMap/boss_c"
         }
     }
 
