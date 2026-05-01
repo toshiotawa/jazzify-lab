@@ -379,7 +379,7 @@ struct LessonDetailView: View {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 20) {
                         summaryCard(detail)
-                        if let assignment = detail.assignmentDescription, !assignment.isEmpty {
+                        if let assignment = detail.localizedAssignmentDescription(locale), !assignment.isEmpty {
                             assignmentCard(assignment)
                         }
                         requirementsCard
@@ -640,6 +640,9 @@ struct LessonDetailView: View {
             }
 
             HStack(spacing: 10) {
+                if requirement.isEarTraining == true {
+                    badge(locale == .ja ? "耳コピ" : "Ear Training", color: .cyan)
+                }
                 if let rank = requirement.clearConditions?.rank {
                     badge(rank, color: .orange)
                 }
@@ -739,6 +742,7 @@ struct LessonDetailView: View {
         if let cc = requirement.clearConditions {
             let isFantasy = requirement.isFantasy
             let isSurvival = requirement.isSurvival ?? false
+            let isEarTraining = requirement.isEarTraining ?? false
             let requiresDays = cc.requiresDays ?? false
             let count = cc.count ?? 1
 
@@ -749,7 +753,7 @@ struct LessonDetailView: View {
 
                 let columns = [GridItem(.flexible()), GridItem(.flexible())]
                 LazyVGrid(columns: columns, alignment: .leading, spacing: 4) {
-                    if !isFantasy && !isSurvival {
+                    if !isFantasy && !isSurvival && !isEarTraining {
                         conditionItem(
                             locale == .ja ? "キー" : "Key",
                             value: {
@@ -1052,7 +1056,7 @@ struct LessonDetailView: View {
 
     private func progress(for requirement: LessonSong) -> LessonRequirementProgressRow? {
         requirementProgress.first { progress in
-            if requirement.isFantasy || requirement.isSurvival == true {
+            if requirement.isFantasy || requirement.isSurvival == true || requirement.isEarTraining == true {
                 return progress.lessonSongId == requirement.id
             }
             return progress.songId == requirement.songId
@@ -1082,10 +1086,28 @@ struct LessonDetailView: View {
         if requirement.isFantasy, let fantasyStage = requirement.fantasyStage {
             return "\(index + 1). \(fantasyStage.localizedName(locale))"
         }
+        if requirement.isEarTraining == true, let earTrainingStage = requirement.earTrainingStage {
+            return "\(index + 1). \(earTrainingStage.localizedTitle(locale))"
+        }
         return "\(index + 1). \(locale == .ja ? "課題" : "Task")"
     }
 
     private func requirementSubtitle(_ requirement: LessonSong) -> String {
+        if requirement.isEarTraining == true {
+            if let stage = requirement.earTrainingStage {
+                var parts = [locale == .ja ? "耳コピバトル課題" : "Ear-copy battle task"]
+                parts.append(stage.localizedTitle(locale))
+                if let bpm = stage.bpm {
+                    parts.append("BPM \(bpm)")
+                }
+                if let seconds = stage.timeLimitSec {
+                    parts.append(locale == .ja ? "制限 \(seconds)秒" : "\(seconds)s limit")
+                }
+                return parts.joined(separator: " / ")
+            }
+            return locale == .ja ? "耳コピバトル課題" : "Ear-copy battle task"
+        }
+
         if requirement.isSurvival == true {
             if let stageNumber = requirement.survivalStageNumber {
                 return locale == .ja ? "サバイバル課題 / Stage \(stageNumber)" : "Survival task / Stage \(stageNumber)"
@@ -1174,6 +1196,9 @@ struct LessonDetailView: View {
         if let fantasyStage = requirement.fantasyStage?.stageNumber {
             return fantasyStage
         }
+        if let earTrainingStageTitle = requirement.earTrainingStage?.localizedTitle(locale) {
+            return earTrainingStageTitle
+        }
         return requirement.id.uuidString
     }
 
@@ -1220,6 +1245,25 @@ struct LessonDetailView: View {
             }
             launchDestination = LessonLaunchDestination(
                 hash: buildHash(base: "fantasy", params: fantasyParams)
+            )
+            return
+        }
+
+        if requirement.isEarTraining == true {
+            guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
+                alertMessage = locale == .ja ? "耳コピバトルステージ設定がありません。" : "Missing ear-copy battle stage setting."
+                return
+            }
+            var earTrainingParams: [String: String] = [
+                "lessonId": lesson.id.uuidString,
+                "lessonSongId": requirement.id.uuidString,
+                "stageId": stageId.uuidString,
+            ]
+            if let cc = encodeClearConditions(requirement.clearConditions) {
+                earTrainingParams["clearConditions"] = cc
+            }
+            launchDestination = LessonLaunchDestination(
+                hash: buildHash(base: "ear-training-lesson", params: earTrainingParams)
             )
             return
         }

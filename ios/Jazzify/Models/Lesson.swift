@@ -116,6 +116,7 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     let description: String?
     let descriptionEn: String?
     let assignmentDescription: String?
+    let assignmentDescriptionEn: String?
     let navLinks: [String]?
     let lessonSongs: [LessonSong]
 
@@ -125,6 +126,7 @@ struct LessonDetail: Codable, Identifiable, Sendable {
         case titleEn = "title_en"
         case descriptionEn = "description_en"
         case assignmentDescription = "assignment_description"
+        case assignmentDescriptionEn = "assignment_description_en"
         case navLinks = "nav_links"
         case lessonSongs = "lesson_songs"
     }
@@ -136,6 +138,14 @@ struct LessonDetail: Codable, Identifiable, Sendable {
     func localizedDescription(_ locale: AppLocale) -> String? {
         locale == .en ? (descriptionEn ?? description) : description
     }
+
+    func localizedAssignmentDescription(_ locale: AppLocale) -> String? {
+        let primary = locale == .en ? assignmentDescriptionEn : assignmentDescription
+        let fallback = locale == .en ? assignmentDescription : assignmentDescriptionEn
+        if let primary, !primary.isEmpty { return primary }
+        if let fallback, !fallback.isEmpty { return fallback }
+        return nil
+    }
 }
 
 struct LessonSong: Codable, Identifiable, Sendable {
@@ -143,8 +153,10 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let lessonId: UUID
     let songId: UUID?
     let fantasyStageId: UUID?
+    let earTrainingStageId: UUID?
     let isFantasy: Bool
     let isSurvival: Bool?
+    let isEarTraining: Bool?
     let survivalStageNumber: Int?
     let clearConditions: LessonClearConditions?
     let orderIndex: Int?
@@ -152,6 +164,7 @@ struct LessonSong: Codable, Identifiable, Sendable {
     let titleEn: String?
     let songs: LessonSongReferenceSong?
     let fantasyStage: FantasyStage?
+    let earTrainingStage: EarTrainingStage?
 
     enum CodingKeys: String, CodingKey {
         case id, title, songs
@@ -159,12 +172,15 @@ struct LessonSong: Codable, Identifiable, Sendable {
         case lessonId = "lesson_id"
         case songId = "song_id"
         case fantasyStageId = "fantasy_stage_id"
+        case earTrainingStageId = "ear_training_stage_id"
         case isFantasy = "is_fantasy"
         case isSurvival = "is_survival"
+        case isEarTraining = "is_ear_training"
         case survivalStageNumber = "survival_stage_number"
         case clearConditions = "clear_conditions"
         case orderIndex = "order_index"
         case fantasyStage
+        case earTrainingStage
     }
 }
 
@@ -172,6 +188,32 @@ struct LessonSongReferenceSong: Codable, Sendable {
     let id: UUID
     let title: String
     let artist: String?
+}
+
+struct EarTrainingStage: Codable, Identifiable, Sendable {
+    let id: UUID
+    let slug: String?
+    let title: String
+    let titleEn: String?
+    let description: String?
+    let descriptionEn: String?
+    let bpm: Int?
+    let timeLimitSec: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case id, slug, title, description, bpm
+        case titleEn = "title_en"
+        case descriptionEn = "description_en"
+        case timeLimitSec = "time_limit_sec"
+    }
+
+    func localizedTitle(_ locale: AppLocale) -> String {
+        locale == .en ? (titleEn ?? title) : title
+    }
+
+    func localizedDescription(_ locale: AppLocale) -> String? {
+        locale == .en ? (descriptionEn ?? description) : description
+    }
 }
 
 enum LessonMediaLocaleScope: String, Codable, Sendable {

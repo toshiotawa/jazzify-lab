@@ -797,6 +797,7 @@ export interface Lesson {
   description: string;
   description_en?: string | null;
   assignment_description?: string;
+  assignment_description_en?: string | null;
   order_index: number;
   block_number?: number;
   block_name?: string | null;

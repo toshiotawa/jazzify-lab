@@ -24,6 +24,7 @@ const createLesson = (overrides: Partial<Lesson>): Lesson => ({
   title: 'レッスン',
   description: '',
   assignment_description: '',
+  assignment_description_en: '',
   order_index: 0,
   block_number: 1,
   created_at: new Date().toISOString(),

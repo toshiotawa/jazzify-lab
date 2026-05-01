@@ -200,9 +200,8 @@ def emit_migration_sql() -> None:
     ns = uuid.UUID("a0000000-0000-4000-8000-000000000001")
     stage_id = uuid.uuid5(ns, "ear-stage-ii-v-i-ear-battle-1-5-c")
     phrase_ids = [uuid.uuid5(ns, f"ear-ph-ii-v-i-1-5-c-{i:02d}") for i in range(1, 6)]
-    lesson_id = uuid.uuid5(ns, "lesson-ii-v-i-c-1-5-ear-battle")
-    lesson_song_id = uuid.uuid5(ns, "lesson-song-ii-v-i-c-1-5-ear-battle")
-    course_ns_sql = "'a0000000-0000-4000-8000-000000000001'::uuid"
+    existing_lesson_id = uuid.uuid5(ns, "lsn-c-1-5")
+    attach_lesson_song_id = uuid.uuid5(ns, "lsg-c-1-5-ear")
 
     phrase_meta: list[tuple[list[dict], list[dict], int]] = []
 
@@ -231,6 +230,8 @@ def emit_migration_sql() -> None:
 
     print("BEGIN;")
     print()
+    print("ALTER TABLE public.lessons ADD COLUMN IF NOT EXISTS assignment_description_en text;")
+    print()
     print("-- II-V-I phrases 1-5 (C) ear training battle")
     print(f"-- N={total_notes} completion damage: good={good_d} great={great_d} perfect={perfect_d}")
     print(f"-- rounds check: 3*great={dmg_rounds(great_d,3)} 2*perf={dmg_rounds(perfect_d,2)} 4*good={dmg_rounds(good_d,4)}")
@@ -238,10 +239,11 @@ def emit_migration_sql() -> None:
 
     print(
         f"""DELETE FROM public.lesson_songs
-WHERE id = '{lesson_song_id}'::uuid
-   OR (lesson_id = '{lesson_id}'::uuid AND ear_training_stage_id = '{stage_id}'::uuid);
+WHERE id = '{attach_lesson_song_id}'::uuid
+   OR id = '573f6350-d425-57bc-b66d-95381c5a6079'::uuid
+   OR (lesson_id = '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid AND ear_training_stage_id = '{stage_id}'::uuid);
 
-DELETE FROM public.lessons WHERE id = '{lesson_id}'::uuid;
+DELETE FROM public.lessons WHERE id = '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid;
 
 DELETE FROM public.ear_training_phrase_demo_loops WHERE phrase_id = ANY (ARRAY[{", ".join(f"'{pid}'::uuid" for pid in phrase_ids)}]);
 DELETE FROM public.ear_training_phrase_notes WHERE phrase_id = ANY (ARRAY[{", ".join(f"'{pid}'::uuid" for pid in phrase_ids)}]);
@@ -334,35 +336,24 @@ INSERT INTO public.ear_training_phrases (
 
     print(
         f"""
-INSERT INTO public.lessons (
-  id, course_id, title, title_en, description, description_en,
-  premium_only, order_index, block_number, block_name, block_name_en,
-  nav_links, assignment_description
-) VALUES (
-  '{lesson_id}'::uuid,
-  uuid_generate_v5({course_ns_sql}, 'ii-v-i-course'),
-  'II-V-I フレーズ1-5（C）耳コピバトル',
-  'II-V-I phrases 1-5 (C): ear-copy battle',
-  '耳コピバトルステージを1回クリア（ランクB以上）してください。',
-  'Clear the ear-copy battle stage once (rank B or better).',
-  true,
-  120,
-  1,
-  'フレーズ 1-5',
-  'Phrases 1-5',
-  '[]'::jsonb,
-  '敵HP1000を削り切るか、制限時間内にステージクリアを目指してください。'
-);
+UPDATE public.lessons SET
+  description =
+    '実習: (1) リンク先のファンタジーステージをクリア（ランクC以上・1回）。(2) 耳コピバトルステージを1回クリア（ランクB以上）してください。',
+  description_en =
+    'Practice: (1) Clear the linked Fantasy stage once (rank C or better). (2) Clear the ear-copy battle stage once (rank B or better).',
+  assignment_description = '制限時間内にステージクリアを目指してください。',
+  assignment_description_en = 'Aim to clear the stage within the time limit.'
+WHERE id = '{existing_lesson_id}'::uuid;
 
 INSERT INTO public.lesson_songs (
   id, lesson_id, song_id, order_index, clear_conditions,
   is_fantasy, fantasy_stage_id, is_survival, survival_stage_number,
   is_ear_training, ear_training_stage_id, title, title_en
 ) VALUES (
-  '{lesson_song_id}'::uuid,
-  '{lesson_id}'::uuid,
+  '{attach_lesson_song_id}'::uuid,
+  '{existing_lesson_id}'::uuid,
   null,
-  0,
+  1,
   '{{"count":1,"rank":"B"}}'::jsonb,
   false,
   null,
@@ -372,7 +363,19 @@ INSERT INTO public.lesson_songs (
   '{stage_id}'::uuid,
   '課題（耳コピバトル）',
   'Assignment (ear-copy battle)'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  lesson_id = EXCLUDED.lesson_id,
+  order_index = EXCLUDED.order_index,
+  clear_conditions = EXCLUDED.clear_conditions,
+  is_fantasy = EXCLUDED.is_fantasy,
+  fantasy_stage_id = EXCLUDED.fantasy_stage_id,
+  is_survival = EXCLUDED.is_survival,
+  survival_stage_number = EXCLUDED.survival_stage_number,
+  is_ear_training = EXCLUDED.is_ear_training,
+  ear_training_stage_id = EXCLUDED.ear_training_stage_id,
+  title = EXCLUDED.title,
+  title_en = EXCLUDED.title_en;
 """
     )
 

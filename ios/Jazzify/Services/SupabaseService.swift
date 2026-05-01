@@ -207,8 +207,10 @@ final class SupabaseService: Sendable {
                 lesson_id,
                 song_id,
                 fantasy_stage_id,
+                ear_training_stage_id,
                 is_fantasy,
                 is_survival,
+                is_ear_training,
                 survival_stage_number,
                 clear_conditions,
                 order_index,
@@ -223,6 +225,16 @@ final class SupabaseService: Sendable {
                     description,
                     description_en,
                     stage_tier
+                ),
+                earTrainingStage:ear_training_stages (
+                    id,
+                    slug,
+                    title,
+                    title_en,
+                    description,
+                    description_en,
+                    bpm,
+                    time_limit_sec
                 )
             )
             """)

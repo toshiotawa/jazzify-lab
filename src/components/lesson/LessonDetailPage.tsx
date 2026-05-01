@@ -1048,10 +1048,16 @@ const LessonDetailPage: React.FC = () => {
             </div>
 
             {/* 課題説明セクション（全プラン共通） */}
-            {lesson?.assignment_description && (
+            {(lesson?.assignment_description || lesson?.assignment_description_en) && (
               <div className="bg-slate-800 rounded-lg p-6">
-                <h3 className="text-lg font-semibold mb-4">課題説明</h3>
-                <p className="text-gray-300">{lesson.assignment_description}</p>
+                <h3 className="text-lg font-semibold mb-4">
+                  {isEnglishCopy ? 'Assignment' : '課題説明'}
+                </h3>
+                <p className="text-gray-300">
+                  {isEnglishCopy
+                    ? lesson.assignment_description_en || lesson.assignment_description
+                    : lesson.assignment_description}
+                </p>
               </div>
             )}
 

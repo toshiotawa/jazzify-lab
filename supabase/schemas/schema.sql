@@ -1083,6 +1083,7 @@ CREATE TABLE IF NOT EXISTS "public"."lessons" (
     "order_index" integer DEFAULT 1 NOT NULL,
     "created_at" timestamp with time zone DEFAULT "now"(),
     "assignment_description" "text",
+    "assignment_description_en" "text",
     "updated_at" timestamp with time zone DEFAULT "now"() NOT NULL,
     "block_number" integer DEFAULT 1 NOT NULL
 );

@@ -1,11 +1,14 @@
 BEGIN;
 
+ALTER TABLE public.lessons ADD COLUMN IF NOT EXISTS assignment_description_en text;
+
 -- II-V-I phrases 1-5 (C) ear training battle
 -- N=128 completion damage: good=24 great=41 perfect=75
 -- rounds check: 3*great=999 2*perf=1006 4*good=992
 
 DELETE FROM public.lesson_songs
 WHERE id = '573f6350-d425-57bc-b66d-95381c5a6079'::uuid
+   OR id = uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'lsg-c-1-5-ear')
    OR (lesson_id = '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid AND ear_training_stage_id = 'd266f9f1-4b0c-5fb7-8468-0362686c38f1'::uuid);
 
 DELETE FROM public.lessons WHERE id = '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid;
@@ -302,35 +305,25 @@ INSERT INTO public.ear_training_phrase_chords (phrase_id, order_index, chord_nam
 INSERT INTO public.ear_training_phrase_demo_loops (phrase_id, loop_number) VALUES ('4a30d9e0-e425-521e-8649-468593005756'::uuid, 1), ('4a30d9e0-e425-521e-8649-468593005756'::uuid, 3), ('4a30d9e0-e425-521e-8649-468593005756'::uuid, 5);
 
 
-INSERT INTO public.lessons (
-  id, course_id, title, title_en, description, description_en,
-  premium_only, order_index, block_number, block_name, block_name_en,
-  nav_links, assignment_description
-) VALUES (
-  '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid,
-  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'ii-v-i-course'),
-  'II-V-I フレーズ1-5（C）耳コピバトル',
-  'II-V-I phrases 1-5 (C): ear-copy battle',
-  '耳コピバトルステージを1回クリア（ランクB以上）してください。',
-  'Clear the ear-copy battle stage once (rank B or better).',
-  true,
-  120,
-  1,
-  'フレーズ 1-5',
-  'Phrases 1-5',
-  '[]'::jsonb,
-  '敵HP1000を削り切るか、制限時間内にステージクリアを目指してください。'
-);
+-- 既存レッスン「II-V-I フレーズ 1-5（C）」に耳コピ課題を追加（新規レッスン行は作らない）
+UPDATE public.lessons SET
+  description =
+    '実習: (1) リンク先のファンタジーステージをクリア（ランクC以上・1回）。(2) 耳コピバトルステージを1回クリア（ランクB以上）してください。',
+  description_en =
+    'Practice: (1) Clear the linked Fantasy stage once (rank C or better). (2) Clear the ear-copy battle stage once (rank B or better).',
+  assignment_description = '制限時間内にステージクリアを目指してください。',
+  assignment_description_en = 'Aim to clear the stage within the time limit.'
+WHERE id = uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'lsn-c-1-5');
 
 INSERT INTO public.lesson_songs (
   id, lesson_id, song_id, order_index, clear_conditions,
   is_fantasy, fantasy_stage_id, is_survival, survival_stage_number,
   is_ear_training, ear_training_stage_id, title, title_en
 ) VALUES (
-  '573f6350-d425-57bc-b66d-95381c5a6079'::uuid,
-  '21d4cbf1-5f4b-5631-9c87-d521461ef401'::uuid,
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'lsg-c-1-5-ear'),
+  uuid_generate_v5('a0000000-0000-4000-8000-000000000001'::uuid, 'lsn-c-1-5'),
   null,
-  0,
+  1,
   '{"count":1,"rank":"B"}'::jsonb,
   false,
   null,
@@ -340,6 +333,18 @@ INSERT INTO public.lesson_songs (
   'd266f9f1-4b0c-5fb7-8468-0362686c38f1'::uuid,
   '課題（耳コピバトル）',
   'Assignment (ear-copy battle)'
-);
+)
+ON CONFLICT (id) DO UPDATE SET
+  lesson_id = EXCLUDED.lesson_id,
+  order_index = EXCLUDED.order_index,
+  clear_conditions = EXCLUDED.clear_conditions,
+  is_fantasy = EXCLUDED.is_fantasy,
+  fantasy_stage_id = EXCLUDED.fantasy_stage_id,
+  is_survival = EXCLUDED.is_survival,
+  survival_stage_number = EXCLUDED.survival_stage_number,
+  is_ear_training = EXCLUDED.is_ear_training,
+  ear_training_stage_id = EXCLUDED.ear_training_stage_id,
+  title = EXCLUDED.title,
+  title_en = EXCLUDED.title_en;
 
 COMMIT;
