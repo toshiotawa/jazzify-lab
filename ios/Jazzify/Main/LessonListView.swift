@@ -296,6 +296,16 @@ private struct LessonLaunchDestination: Identifiable {
     let hash: String
 }
 
+/// 耳コピバトル モード（ネイティブ実装）の fullScreenCover 起動コンテキスト。
+/// レッスン経由起動時に必要となる lessonId / lessonSongId / clearConditions を保持する。
+private struct EarTrainingLaunch: Identifiable {
+    let id = UUID()
+    let stageId: UUID
+    let lessonId: UUID
+    let lessonSongId: UUID
+    let clearConditions: LessonClearConditions?
+}
+
 struct LessonDetailView: View {
     private struct QuickLookDocument: Identifiable {
         let id = UUID()
@@ -322,6 +332,7 @@ struct LessonDetailView: View {
     @State private var currentVideoIndex = 0
     @State private var alertMessage: String?
     @State private var launchDestination: LessonLaunchDestination?
+    @State private var earTrainingLaunch: EarTrainingLaunch?
     @State private var quickLookDocument: QuickLookDocument?
     @State private var attachmentSharePayload: AttachmentSharePayload?
     @State private var attachmentActionBusyId: UUID?
@@ -425,7 +436,24 @@ struct LessonDetailView: View {
                 onClose: { launchDestination = nil }
             )
         }
+        .fullScreenCover(item: $earTrainingLaunch) { launch in
+            EarTrainingGameView(
+                stageId: launch.stageId,
+                lessonContext: EarTrainingLessonContext(
+                    lessonId: launch.lessonId,
+                    lessonSongId: launch.lessonSongId,
+                    clearConditions: launch.clearConditions
+                ),
+                locale: locale,
+                onClose: { earTrainingLaunch = nil }
+            )
+        }
         .onChange(of: launchDestination == nil) { isNil in
+            if isNil {
+                Task { await loadLessonDetail() }
+            }
+        }
+        .onChange(of: earTrainingLaunch == nil) { isNil in
             if isNil {
                 Task { await loadLessonDetail() }
             }
@@ -1254,16 +1282,12 @@ struct LessonDetailView: View {
                 alertMessage = locale == .ja ? "耳コピバトルステージ設定がありません。" : "Missing ear-copy battle stage setting."
                 return
             }
-            var earTrainingParams: [String: String] = [
-                "lessonId": lesson.id.uuidString,
-                "lessonSongId": requirement.id.uuidString,
-                "stageId": stageId.uuidString,
-            ]
-            if let cc = encodeClearConditions(requirement.clearConditions) {
-                earTrainingParams["clearConditions"] = cc
-            }
-            launchDestination = LessonLaunchDestination(
-                hash: buildHash(base: "ear-training-lesson", params: earTrainingParams)
+            // ネイティブ実装に置き換え。WKWebView 経路は廃止する。
+            earTrainingLaunch = EarTrainingLaunch(
+                stageId: stageId,
+                lessonId: lesson.id,
+                lessonSongId: requirement.id,
+                clearConditions: requirement.clearConditions
             )
             return
         }

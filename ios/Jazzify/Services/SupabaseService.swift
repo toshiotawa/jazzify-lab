@@ -646,6 +646,96 @@ final class SupabaseService: Sendable {
             .value
     }
 
+    // MARK: - Ear Training
+
+    /// 耳コピバトル ステージの詳細 (フレーズ + ノート + コード + デモループ) を取得する。
+    /// Web 版 [supabaseEarTraining.ts:fetchEarTrainingStageById](src/platform/supabaseEarTraining.ts) と同等。
+    func fetchEarTrainingStageDetail(stageId: UUID) async throws -> EarTrainingStageDetail {
+        let raw: EarTrainingStageDetail = try await client
+            .from("ear_training_stages")
+            .select("""
+            *,
+            phrases:ear_training_phrases (
+                *,
+                notes:ear_training_phrase_notes (*),
+                chords:ear_training_phrase_chords (*),
+                demo_loops:ear_training_phrase_demo_loops (*)
+            )
+            """)
+            .eq("id", value: stageId.uuidString)
+            .single()
+            .execute()
+            .value
+        return EarTrainingStageDetail(
+            id: raw.id,
+            slug: raw.slug,
+            title: raw.title,
+            titleEn: raw.titleEn,
+            description: raw.description,
+            descriptionEn: raw.descriptionEn,
+            bpm: raw.bpm,
+            beatsPerMeasure: raw.beatsPerMeasure,
+            beatType: raw.beatType,
+            loopMeasures: raw.loopMeasures,
+            maxLoopsPerPhrase: raw.maxLoopsPerPhrase,
+            countInBeats: raw.countInBeats,
+            timeLimitSec: raw.timeLimitSec,
+            playerHp: raw.playerHp,
+            enemyHp: raw.enemyHp,
+            perCorrectNoteDamage: raw.perCorrectNoteDamage,
+            goodCompletionDamage: raw.goodCompletionDamage,
+            greatCompletionDamage: raw.greatCompletionDamage,
+            perfectCompletionDamage: raw.perfectCompletionDamage,
+            missDamage: raw.missDamage,
+            failDamage: raw.failDamage,
+            perfectMaxMisses: raw.perfectMaxMisses,
+            greatMaxMisses: raw.greatMaxMisses,
+            backgroundTheme: raw.backgroundTheme,
+            isActive: raw.isActive,
+            phrases: raw.sortedPhrases()
+        )
+    }
+
+    /// 耳コピバトルでクリアした際にレッスン要件進捗を更新する。
+    /// Web 版 [supabaseLessonRequirements.ts:updateLessonRequirementProgress](src/platform/supabaseLessonRequirements.ts) の
+    /// `sourceType: 'ear_training'` パスと等価。`p_song_id` には `lesson_songs.id` (= lessonSongId) を渡す。
+    @discardableResult
+    func recordEarTrainingLessonProgress(
+        lessonId: UUID,
+        lessonSongId: UUID,
+        rank: String,
+        clearConditions: LessonClearConditions?
+    ) async throws -> Bool {
+        let userId = try await currentUserId()
+
+        struct RpcParams: Encodable {
+            let p_user_id: UUID
+            let p_lesson_id: UUID
+            let p_song_id: UUID
+            let p_rank: String
+            let p_clear_conditions: LessonClearConditions
+        }
+
+        let conditions = clearConditions ?? LessonClearConditions(
+            key: nil, speed: nil, rank: rank, count: 1,
+            notationSetting: nil, requiresDays: false, dailyCount: nil
+        )
+
+        let params = RpcParams(
+            p_user_id: userId,
+            p_lesson_id: lessonId,
+            p_song_id: lessonSongId,
+            p_rank: rank,
+            p_clear_conditions: conditions
+        )
+
+        let result: Bool = try await client
+            .rpc("update_lesson_requirement_progress", params: params)
+            .execute()
+            .value
+        return result
+    }
+
     // MARK: - Account Deletion
 
     func deleteAccount() async throws {

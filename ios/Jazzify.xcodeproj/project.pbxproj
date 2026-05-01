@@ -21,24 +21,30 @@
 		24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 12AAB7776B432313249D043C /* FantasyStage.swift */; };
 		284CFF5C6B5540D6CFF63CA3 /* LessonJourneyLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */; };
 		28FDE1A051DE6E8433EEF17F /* SurvivalHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */; };
+		2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */; };
 		2B11D1907D7ABCFA31144BE9 /* UIKitVerticalScrollView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1D513B0B7739B098F664FD7A /* UIKitVerticalScrollView.swift */; };
 		2C5A6F07E0F0BE60FCEFF139 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F5FB42EB0BEA73D79132F739 /* SettingsView.swift */; };
 		2F1F2D964822F8E957597D56 /* C5.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = BCFC653695FDC6395887F72A /* C5.mp3 */; };
 		343EF86689A175A8BE3A6B6A /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 5FE9128F8E93AC30291509CF /* Supabase */; };
 		38C8D1B2BFA5447F96D51D06 /* LessonAttachmentPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */; };
 		3A315258049BBB83B6451627 /* C6.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = F2219FFC2796FA204F7E68DC /* C6.mp3 */; };
+		3BD0C5691E6107E03BF69BB8 /* EarTrainingStageDetail.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */; };
 		42CDF4F3D53A7BBC2AE26E72 /* MIDIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0C8428EFA383E2266F3620DD /* MIDIManager.swift */; };
+		4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */ = {isa = PBXBuildFile; fileRef = B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */; };
 		4B3D81798B36AE658E36B28E /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B4665837C213B33E7EA39A7E /* Assets.xcassets */; };
+		4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */; };
 		4EE732EF69290F9B474AB3AF /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */; };
 		4F0DD4129C5C5D5B6EDEE76D /* AnnouncementListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9C1C28DE06B5FB9224DDE130 /* AnnouncementListView.swift */; };
 		4F9D6961758AF400ED975795 /* SurvivalGameState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */; };
 		503403BE5DE2BF26F4357330 /* Lesson.swift in Sources */ = {isa = PBXBuildFile; fileRef = 58FE7F0D800E5DA8E1F04443 /* Lesson.swift */; };
 		526A15ED93FC35AA024F047E /* OrientationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 710661B97325754204CE9621 /* OrientationManager.swift */; };
 		537268253B9AB86886F57E47 /* SurvivalView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AE637ADB172B5C753918491 /* SurvivalView.swift */; };
+		53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */; };
 		54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */; };
 		56798F7B79D567C225C5CB37 /* TopView.swift in Sources */ = {isa = PBXBuildFile; fileRef = F034080E04C73977D21BFCEC /* TopView.swift */; };
 		5743407F2FA2C8E32B50A2FE /* SurvivalDescentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D635FD067D6C35FA30F9F12 /* SurvivalDescentView.swift */; };
 		5AB241934D6F4982908B967B /* SurvivalPianoSampler.swift in Sources */ = {isa = PBXBuildFile; fileRef = F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */; };
+		5B733F7752C44E16F2013B1F /* EarTrainingPhraseSlotsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */; };
 		607C8E3175A80231A75C7E4D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = 9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */; };
 		60BCB75E89D7C46F20FEE1A4 /* C7.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 2D32E093A43244C6072305F8 /* C7.mp3 */; };
 		624CAA545111AF6B552990FB /* SurvivalDescentViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8335394CBDC8AC038641B7B8 /* SurvivalDescentViewComponents.swift */; };
@@ -46,19 +52,24 @@
 		6ABFFD52C6530172AF706CAF /* SurvivalGameResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF8ECC214ED50933CFC7AC74 /* SurvivalGameResultView.swift */; };
 		6BB2DD43768BDCC704621AE3 /* SurvivalChordResolver.swift in Sources */ = {isa = PBXBuildFile; fileRef = 99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */; };
 		6BFFD02966CF6D54DC197D87 /* SubscriptionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9287B850DB97CA095340096F /* SubscriptionView.swift */; };
+		6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */; };
 		6FF3DDCFD71036E375BDCC55 /* C2.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 903944BD135D748CB90B813D /* C2.mp3 */; };
 		7630C3DB245018D47061B814 /* ContactView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1468DBA9C15E0A44DD589ADD /* ContactView.swift */; };
+		7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */; };
 		7CFB37256570B028A4C1E5EA /* LessonJourneyView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */; };
+		8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */; };
 		9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8BFE37B198C035761B13AD /* Config.swift */; };
 		9EE6D5DABFE2BA2B6CDE47DF /* Announcement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3F6053A6DDDCFD5A65983AEC /* Announcement.swift */; };
 		A4310767E5C4471375C5F9C7 /* JazzifyApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = F9FCAFC5B4E5655340C7965F /* JazzifyApp.swift */; };
 		A5CC91823BDC89DD52B2BB6A /* SurvivalDescentSidePanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 978C4F59CA03A66D1854BEE0 /* SurvivalDescentSidePanel.swift */; };
 		A897865FDFA86F5BDD5C104A /* SurvivalJoystickView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */; };
 		A8EEA36FE49B8BB6C7C499C2 /* Subscription.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECDEDC88537A018A2B1C9EB2 /* Subscription.swift */; };
+		A9FFFB17E9606EA7AFD69772 /* EarTrainingGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */; };
 		AC36839E2864B4BA360B7197 /* SurvivalBossEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */; };
 		AD6F15149CCDCAF9944C414B /* SurvivalDescentTheme.swift in Sources */ = {isa = PBXBuildFile; fileRef = D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */; };
 		ADC1F582DF917C5A6A7F43F0 /* UserStats.swift in Sources */ = {isa = PBXBuildFile; fileRef = E8965BF87290861DA4507B67 /* UserStats.swift */; };
 		B16A3D819A3A7CB6CAD4DA87 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 38BCDCE6710BA5E08D77BA6C /* InfoPlist.strings */; };
+		B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */; };
 		B3B7F00C2BE2665277EE54BC /* SurvivalStageDefinition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9598C9898C52B457C3447906 /* SurvivalStageDefinition.swift */; };
 		B850C3429F3472F06A1109B2 /* SurvivalMagicEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9490E1A44444F779DD34ACA5 /* SurvivalMagicEngine.swift */; };
 		C2066F3C674DE5E97A286AE5 /* SurvivalStageConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */; };
@@ -72,6 +83,7 @@
 		D204BC856CFE1CE66F44EB8A /* SurvivalGameAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */; };
 		D2083E728F663A949957D7DE /* LessonJourneyViewComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16568C6DC2CE0A0353458F62 /* LessonJourneyViewComponents.swift */; };
 		D852F87150F3CD5F7A7A3142 /* SurvivalGameView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */; };
+		D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */; };
 		D9DA045F477CD9291B8D8CBA /* MainTabView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1873118CEEB8C7B4341EDE19 /* MainTabView.swift */; };
 		DE6F66AA8A3B68BA29259765 /* LessonProgress.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67B7FB73F72A914199E51C1D /* LessonProgress.swift */; };
 		E09259FB92854762EA40D533 /* StoreManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 546BECBA781840253623CBDC /* StoreManager.swift */; };
@@ -90,6 +102,7 @@
 
 /* Begin PBXFileReference section */
 		0043E2CB3BFFBDF67BBB17F2 /* SurvivalCharacterProfile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCharacterProfile.swift; sourceTree = "<group>"; };
+		0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingHUDView.swift; sourceTree = "<group>"; };
 		0C07A2E14C93F4BD89CF5D9D /* SurvivalPauseSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalPauseSettingsSheet.swift; sourceTree = "<group>"; };
 		0C8428EFA383E2266F3620DD /* MIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIManager.swift; sourceTree = "<group>"; };
 		0EAC1D3A84EAB85EC9544B6B /* LessonJourneyLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyLayout.swift; sourceTree = "<group>"; };
@@ -103,9 +116,11 @@
 		20B499E74ABA90E85BD71290 /* Jazzify.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Jazzify.entitlements; sourceTree = "<group>"; };
 		2C920737F9E2FF2F7DACBD07 /* LessonMapAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonMapAudio.swift; sourceTree = "<group>"; };
 		2D32E093A43244C6072305F8 /* C7.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C7.mp3; sourceTree = "<group>"; };
+		3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingResultView.swift; sourceTree = "<group>"; };
 		342682E586DCCE6032CF9125 /* GameWebView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GameWebView.swift; sourceTree = "<group>"; };
 		34423CC3F4BE9E44A19EDE66 /* C3.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C3.mp3; sourceTree = "<group>"; };
 		360D198BE9A0BD17E0F535A3 /* SurvivalMapAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalMapAudio.swift; sourceTree = "<group>"; };
+		3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingEngine.swift; sourceTree = "<group>"; };
 		3BC5A82F7CDEB636E7DFD162 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		3F6053A6DDDCFD5A65983AEC /* Announcement.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Announcement.swift; sourceTree = "<group>"; };
 		400EB3722C2FF6DC44A98D12 /* SupabaseService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SupabaseService.swift; sourceTree = "<group>"; };
@@ -116,19 +131,23 @@
 		588D18E5F6FAC4B051836B8E /* SurvivalItemEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalItemEngine.swift; sourceTree = "<group>"; };
 		58FE7F0D800E5DA8E1F04443 /* Lesson.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Lesson.swift; sourceTree = "<group>"; };
 		59EA909F7A24426B48949D2C /* Profile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Profile.swift; sourceTree = "<group>"; };
+		5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingStageDetail.swift; sourceTree = "<group>"; };
 		6116747FF78CFB5A21A4FCB6 /* SurvivalGameEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameEngine.swift; sourceTree = "<group>"; };
 		611CAFDFC9C51C7A54B21C68 /* AppState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppState.swift; sourceTree = "<group>"; };
 		66CAD3695FC2030F5AC34539 /* SurvivalScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalScene.swift; sourceTree = "<group>"; };
 		67B7FB73F72A914199E51C1D /* LessonProgress.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonProgress.swift; sourceTree = "<group>"; };
 		69CB855F4C23E91D831AFA2B /* SurvivalStageConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageConfig.swift; sourceTree = "<group>"; };
 		6E48683B3B737009938D6CE8 /* LoginView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LoginView.swift; sourceTree = "<group>"; };
+		6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPhraseSlotsView.swift; sourceTree = "<group>"; };
 		6F8BFE37B198C035761B13AD /* Config.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Config.swift; sourceTree = "<group>"; };
 		710661B97325754204CE9621 /* OrientationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OrientationManager.swift; sourceTree = "<group>"; };
 		748AD69E41B3FD5C441F8663 /* SurvivalHUDView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalHUDView.swift; sourceTree = "<group>"; };
 		74D4EE19C16486F5049C29D8 /* MIDIBridge.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MIDIBridge.swift; sourceTree = "<group>"; };
+		7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleController.swift; sourceTree = "<group>"; };
 		7CDF1A0204DB78318DE978C0 /* SurvivalGameState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameState.swift; sourceTree = "<group>"; };
 		7EF02ACFD14CC587854BC574 /* SurvivalJoystickView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalJoystickView.swift; sourceTree = "<group>"; };
 		7F76672005EE666A9B39BC95 /* SurvivalModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalModels.swift; sourceTree = "<group>"; };
+		81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingTypes.swift; sourceTree = "<group>"; };
 		8260CAE0B745196CE83E4193 /* OTPVerifyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = OTPVerifyView.swift; sourceTree = "<group>"; };
 		8335394CBDC8AC038641B7B8 /* SurvivalDescentViewComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentViewComponents.swift; sourceTree = "<group>"; };
 		8497DA09733314AB9BE43767 /* Secrets.xcconfig */ = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Secrets.xcconfig; sourceTree = "<group>"; };
@@ -142,11 +161,15 @@
 		9598C9898C52B457C3447906 /* SurvivalStageDefinition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStageDefinition.swift; sourceTree = "<group>"; };
 		978C4F59CA03A66D1854BEE0 /* SurvivalDescentSidePanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentSidePanel.swift; sourceTree = "<group>"; };
 		99AEB4E092CE48D654E90DEB /* SurvivalChordResolver.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordResolver.swift; sourceTree = "<group>"; };
+		9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingAudio.swift; sourceTree = "<group>"; };
 		9ADEEF5BE4D7B9249EA43021 /* LessonJourneyView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonJourneyView.swift; sourceTree = "<group>"; };
 		9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		9C1C28DE06B5FB9224DDE130 /* AnnouncementListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnnouncementListView.swift; sourceTree = "<group>"; };
 		9D2BD5DA49B637FB8C0E889B /* ProfileSetupView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ProfileSetupView.swift; sourceTree = "<group>"; };
+		A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingSettingsSheet.swift; sourceTree = "<group>"; };
+		AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingGameView.swift; sourceTree = "<group>"; };
 		AFAE8D0093BDBE728653392A /* DailyChallengeRecord.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DailyChallengeRecord.swift; sourceTree = "<group>"; };
+		B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingBattleScene.swift; sourceTree = "<group>"; };
 		B4665837C213B33E7EA39A7E /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		B97734F6F02D7D4A8F9DCC03 /* SurvivalBossEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalBossEngine.swift; sourceTree = "<group>"; };
 		BCFC653695FDC6395887F72A /* C5.mp3 */ = {isa = PBXFileReference; lastKnownFileType = audio.mp3; path = C5.mp3; sourceTree = "<group>"; };
@@ -155,13 +178,14 @@
 		C6E97E7B4C255D270BD5BC8C /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		C994A6FFE63D7B1146CB41FB /* SurvivalGameView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameView.swift; sourceTree = "<group>"; };
 		CB529DBA6D08CBD90704203E /* SurvivalGameAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalGameAudio.swift; sourceTree = "<group>"; };
+		CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = EarTrainingPianoView.swift; sourceTree = "<group>"; };
 		D0D52543D5D2C698BD559C23 /* SurvivalDescentLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentLayout.swift; sourceTree = "<group>"; };
 		D2829A0553DDC93B94597E7C /* SurvivalChordPadView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalChordPadView.swift; sourceTree = "<group>"; };
 		D73D057F68847B32D28B910E /* LessonAttachmentPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LessonAttachmentPreview.swift; sourceTree = "<group>"; };
 		D82BC28D5575DEEE8A1AE11E /* SurvivalDescentTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalDescentTheme.swift; sourceTree = "<group>"; };
 		DA30893A906263BFC743A681 /* SurvivalCodeSlotsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalCodeSlotsView.swift; sourceTree = "<group>"; };
 		DBC0756174351A80F8EAFEB1 /* PaymentIssueBannerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PaymentIssueBannerView.swift; sourceTree = "<group>"; };
-		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		DD48CBFB2FD2A3E8B56713BA /* Jazzify.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = Jazzify.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		DE7DCB9D196F3FC28985D13C /* SurvivalStatusEffectEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SurvivalStatusEffectEngine.swift; sourceTree = "<group>"; };
 		E6C1425BEA0C8052E33037DF /* en */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = en; path = en.lproj/InfoPlist.strings; sourceTree = "<group>"; };
 		E8965BF87290861DA4507B67 /* UserStats.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = UserStats.swift; sourceTree = "<group>"; };
@@ -213,6 +237,7 @@
 				A1F15DC348C430F50580B7CE /* App */,
 				C5E2C6C7C1C475F5411AD908 /* Auth */,
 				7EACBB7A3AF4F5D404FF79AD /* Components */,
+				A51FD2B120C3C1FD71578128 /* EarTraining */,
 				6F6BEDF557724C85BE5C4F61 /* Game */,
 				FBA62A509B0AC904D26688AB /* IAP */,
 				38BCDCE6710BA5E08D77BA6C /* InfoPlist.strings */,
@@ -261,6 +286,14 @@
 				1CA4EBC03A3D0D8A3AF9C77A /* SurvivalGameController.swift */,
 			);
 			path = Controller;
+			sourceTree = "<group>";
+		};
+		25F1FE436717D9B1D982DE79 /* Engine */ = {
+			isa = PBXGroup;
+			children = (
+				3B24EA96BD17091501F8F0DF /* EarTrainingEngine.swift */,
+			);
+			path = Engine;
 			sourceTree = "<group>";
 		};
 		4C41E7C1555DBD179FEBC98A /* piano */ = {
@@ -317,6 +350,14 @@
 			path = MIDI;
 			sourceTree = "<group>";
 		};
+		7D89D5A6B1BADAD35BBF5E5C /* Audio */ = {
+			isa = PBXGroup;
+			children = (
+				9A7A2BE03906D905DE31E31D /* EarTrainingAudio.swift */,
+			);
+			path = Audio;
+			sourceTree = "<group>";
+		};
 		7EACBB7A3AF4F5D404FF79AD /* Components */ = {
 			isa = PBXGroup;
 			children = (
@@ -332,6 +373,14 @@
 				F6430F90E7C009810E9BE4AB /* SurvivalPianoSampler.swift */,
 			);
 			path = Audio;
+			sourceTree = "<group>";
+		};
+		95B8233870E8B462D1096CC6 /* Controller */ = {
+			isa = PBXGroup;
+			children = (
+				7CCF670303A7790DA522DD30 /* EarTrainingBattleController.swift */,
+			);
+			path = Controller;
 			sourceTree = "<group>";
 		};
 		97CD0D02A4CEF9F8D15D9BEC /* View */ = {
@@ -374,6 +423,18 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		A51FD2B120C3C1FD71578128 /* EarTraining */ = {
+			isa = PBXGroup;
+			children = (
+				7D89D5A6B1BADAD35BBF5E5C /* Audio */,
+				95B8233870E8B462D1096CC6 /* Controller */,
+				25F1FE436717D9B1D982DE79 /* Engine */,
+				ACC5357E09A041CCA3B9E036 /* Model */,
+				F6A70154B3BE78EAF684A2B2 /* View */,
+			);
+			path = EarTraining;
+			sourceTree = "<group>";
+		};
 		A55BA536236528C407A8F828 /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -381,6 +442,15 @@
 				9BCD6A5669521944C4EFDDCE /* Localizable.xcstrings */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		ACC5357E09A041CCA3B9E036 /* Model */ = {
+			isa = PBXGroup;
+			children = (
+				5BAE352D4750FD9B61D66ACE /* EarTrainingStageDetail.swift */,
+				81A296FA30F7AD566E5F1C60 /* EarTrainingTypes.swift */,
+			);
+			path = Model;
 			sourceTree = "<group>";
 		};
 		C5E2C6C7C1C475F5411AD908 /* Auth */ = {
@@ -425,6 +495,20 @@
 			path = Main;
 			sourceTree = "<group>";
 		};
+		F6A70154B3BE78EAF684A2B2 /* View */ = {
+			isa = PBXGroup;
+			children = (
+				B39FB48DFE2BE15215824D9B /* EarTrainingBattleScene.swift */,
+				AC8DA9FD8B4485700638A38B /* EarTrainingGameView.swift */,
+				0046AB5228D0224D7A38B82F /* EarTrainingHUDView.swift */,
+				6E52DC139C1B3D3614D5079A /* EarTrainingPhraseSlotsView.swift */,
+				CB8C425E842AE5DBD28C1636 /* EarTrainingPianoView.swift */,
+				3064223A090AABB08DF8E5FA /* EarTrainingResultView.swift */,
+				A4902BE6E551B8859633D82E /* EarTrainingSettingsSheet.swift */,
+			);
+			path = View;
+			sourceTree = "<group>";
+		};
 		FBA62A509B0AC904D26688AB /* IAP */ = {
 			isa = PBXGroup;
 			children = (
@@ -466,6 +550,11 @@
 			attributes = {
 				BuildIndependentTargetsInParallel = YES;
 				LastUpgradeCheck = 1500;
+				TargetAttributes = {
+					E500BA83C6EE4C666A3895FC = {
+						DevelopmentTeam = "";
+					};
+				};
 			};
 			buildConfigurationList = CC0218D6F2A41ED0C9D6D42D /* Build configuration list for PBXProject "Jazzify" */;
 			developmentRegion = en;
@@ -522,6 +611,18 @@
 				9D13D89E03692A38ECCDD9DB /* Config.swift in Sources */,
 				7630C3DB245018D47061B814 /* ContactView.swift in Sources */,
 				54BB97124499EE3DE3B06419 /* DailyChallengeRecord.swift in Sources */,
+				4C3B9806C8CE7DCC6434B954 /* EarTrainingAudio.swift in Sources */,
+				B1AAD5655726A894A74D95C6 /* EarTrainingBattleController.swift in Sources */,
+				4907F5DF39CE46F66F873718 /* EarTrainingBattleScene.swift in Sources */,
+				2A5D0D74FF58705B8BC3053C /* EarTrainingEngine.swift in Sources */,
+				A9FFFB17E9606EA7AFD69772 /* EarTrainingGameView.swift in Sources */,
+				8B0A05DBF2C58F148B4FD55B /* EarTrainingHUDView.swift in Sources */,
+				5B733F7752C44E16F2013B1F /* EarTrainingPhraseSlotsView.swift in Sources */,
+				6DF0F2EC897BEE7B9120DEA9 /* EarTrainingPianoView.swift in Sources */,
+				D8744E4938F50585AA91A7CA /* EarTrainingResultView.swift in Sources */,
+				53EDBDC25339FD88006E14DF /* EarTrainingSettingsSheet.swift in Sources */,
+				3BD0C5691E6107E03BF69BB8 /* EarTrainingStageDetail.swift in Sources */,
+				7BA646FCEC525EF198BB2701 /* EarTrainingTypes.swift in Sources */,
 				24E6529BC5B59871D25B874A /* FantasyStage.swift in Sources */,
 				E3610256F40C29FB7E2F7D20 /* FantasyStageView.swift in Sources */,
 				EA799676165F54C2B31D2C6C /* GameWebView.swift in Sources */,
@@ -666,13 +767,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -751,13 +851,12 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Jazzify/Jazzify.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
-				DEVELOPMENT_TEAM = BPVAU5J7JA;
+				DEVELOPMENT_TEAM = "";
 				INFOPLIST_FILE = Jazzify/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.2.0;
 				PRODUCT_BUNDLE_IDENTIFIER = jp.jazzify.app;
 				SDKROOT = iphoneos;
 				TARGETED_DEVICE_FAMILY = "1,2";

@@ -1,0 +1,253 @@
+import SwiftUI
+import SpriteKit
+import UIKit
+
+/// 耳コピバトル ゲーム画面 (ネイティブ版) のルートビュー。
+/// - SpriteKit シーン上に SwiftUI で HUD / ピアノ / ロビー / 結果 / 設定モーダルを重ねる。
+/// - `onAppear` で Supabase からステージ詳細を取得し、`EarTrainingBattleController` を生成する。
+/// - MIDI 入力は `MIDIManager.shared.onMIDIEvent` を直接フックする（Survival と同パターン）。
+struct EarTrainingGameView: View {
+    let stageId: UUID
+    let lessonContext: EarTrainingLessonContext?
+    let locale: AppLocale
+    let onClose: () -> Void
+
+    @State private var controller: EarTrainingBattleController?
+    @State private var audio: EarTrainingAudio?
+    @State private var loadError: String?
+    @State private var isLoading: Bool = true
+
+    var body: some View {
+        ZStack {
+            if let controller = controller, let audio = audio {
+                EarTrainingGameContent(
+                    controller: controller,
+                    audio: audio,
+                    locale: locale,
+                    onClose: onClose
+                )
+            } else if isLoading {
+                loadingView
+            } else {
+                errorView
+            }
+        }
+        .background(Color.black)
+        .task { await bootstrap() }
+        .onDisappear {
+            MIDIManager.shared.onMIDIEvent = nil
+            controller?.tearDown()
+        }
+        .preferredColorScheme(.dark)
+    }
+
+    private var loadingView: some View {
+        VStack(spacing: 12) {
+            ProgressView().tint(.yellow)
+            Text(locale == .ja ? "ステージを準備中..." : "Preparing stage...")
+                .font(.caption)
+                .foregroundStyle(.white.opacity(0.8))
+        }
+    }
+
+    private var errorView: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "exclamationmark.triangle.fill")
+                .font(.system(size: 40))
+                .foregroundStyle(.yellow)
+            Text(loadError ?? (locale == .ja ? "読み込みに失敗しました" : "Failed to load"))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 24)
+            Button(action: { onClose() }) {
+                Text(locale == .ja ? "戻る" : "Back")
+                    .font(.headline)
+                    .foregroundStyle(.black)
+                    .padding(.horizontal, 24)
+                    .padding(.vertical, 10)
+                    .background(Color.yellow)
+                    .cornerRadius(8)
+            }
+        }
+    }
+
+    @MainActor
+    private func bootstrap() async {
+        guard controller == nil else { return }
+        isLoading = true
+        loadError = nil
+
+        let supabase = SupabaseService.shared
+        do {
+            let stageDetail = try await supabase.fetchEarTrainingStageDetail(stageId: stageId)
+            let phrases = stageDetail.sortedPhrases()
+            guard !phrases.isEmpty else {
+                loadError = locale == .ja
+                    ? "フレーズが登録されていません"
+                    : "No phrases are registered for this stage."
+                isLoading = false
+                return
+            }
+            let audioInstance = EarTrainingAudio()
+            let createdController = EarTrainingBattleController(
+                stage: stageDetail,
+                phrases: phrases,
+                lessonContext: lessonContext,
+                isEnglishCopy: locale == .en,
+                enemyId: stageDetail.id.uuidString,
+                enemyName: stageDetail.localizedTitle(locale),
+                audio: audioInstance,
+                onExit: onClose
+            )
+
+            // MIDI 入力をブリッジ
+            MIDIManager.shared.onMIDIEvent = nil
+            MIDIManager.shared.onMIDIEvent = { [weak createdController] status, data1, data2 in
+                let messageType = status & 0xF0
+                let note = Int(data1)
+                let velocity = Int(data2)
+                let isNoteOn = messageType == 0x90 && velocity > 0
+                let isNoteOff = messageType == 0x80 || (messageType == 0x90 && velocity == 0)
+                if isNoteOn {
+                    SurvivalGameAudio.shared.pianoNoteOnRealtime(midi: note, velocity: velocity)
+                } else if isNoteOff {
+                    SurvivalGameAudio.shared.pianoNoteOffRealtime(midi: note)
+                } else {
+                    return
+                }
+                DispatchQueue.main.async { [weak createdController] in
+                    guard let createdController else { return }
+                    if isNoteOn {
+                        createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                    } else {
+                        createdController.handleNoteOff(midi: note, playAudio: false)
+                    }
+                }
+            }
+
+            createdController.start()
+            self.audio = audioInstance
+            self.controller = createdController
+            self.isLoading = false
+            createdController.isMidiConnected = MIDIManager.shared.selectedDeviceID != nil
+        } catch {
+            loadError = error.localizedDescription
+            isLoading = false
+        }
+    }
+}
+
+// MARK: - Content
+
+private struct EarTrainingGameContent: View {
+    @ObservedObject var controller: EarTrainingBattleController
+    let audio: EarTrainingAudio
+    let locale: AppLocale
+    let onClose: () -> Void
+
+    var body: some View {
+        ZStack(alignment: .top) {
+            EarTrainingSceneContainer(controller: controller)
+                .ignoresSafeArea()
+
+            EarTrainingDemoBubbleView(controller: controller)
+                .ignoresSafeArea()
+                .allowsHitTesting(false)
+
+            VStack(spacing: 0) {
+                EarTrainingHUDView(controller: controller)
+                Spacer()
+            }
+
+            VStack(spacing: 0) {
+                Spacer()
+                EarTrainingPianoView(controller: controller)
+                    .ignoresSafeArea(.container, edges: .horizontal)
+                    .padding(.bottom, 8)
+            }
+
+            EarTrainingResultView(controller: controller)
+        }
+        .sheet(isPresented: $controller.isSettingsOpen) {
+            EarTrainingSettingsSheet(
+                isEnglishCopy: locale == .en,
+                audio: audio,
+                onDismiss: { controller.handleCloseSettings() },
+                onExit: { controller.handleBack() }
+            )
+        }
+    }
+}
+
+// MARK: - SpriteKit ブリッジ
+
+private struct EarTrainingSceneContainer: UIViewRepresentable {
+    let controller: EarTrainingBattleController
+
+    func makeCoordinator() -> Coordinator { Coordinator() }
+
+    func makeUIView(context: Context) -> SKView {
+        let initialFrame = UIScreen.main.bounds
+        let view = SKView(frame: initialFrame)
+        view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        view.ignoresSiblingOrder = true
+        view.preferredFramesPerSecond = 60
+        view.isAsynchronous = false
+        view.isPaused = false
+
+        let sceneSize = initialFrame.size.width > 0 && initialFrame.size.height > 0
+            ? initialFrame.size
+            : CGSize(width: 1, height: 1)
+        let scene = EarTrainingBattleScene(size: sceneSize)
+        scene.scaleMode = .resizeFill
+        scene.isPaused = false
+        scene.onEffectImpact = { [weak controller] effectId in
+            Task { @MainActor [weak controller] in
+                controller?.handleEffectImpact(effectId: effectId)
+            }
+        }
+        view.presentScene(scene)
+        controller.attachScene(scene)
+        context.coordinator.attach(view: view, scene: scene, controller: controller)
+        return view
+    }
+
+    func updateUIView(_ uiView: SKView, context: Context) {}
+
+    static func dismantleUIView(_ uiView: SKView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    final class Coordinator {
+        private weak var view: SKView?
+        private weak var scene: EarTrainingBattleScene?
+        private weak var controller: EarTrainingBattleController?
+        private var activeObserver: NSObjectProtocol?
+
+        func attach(view: SKView, scene: EarTrainingBattleScene, controller: EarTrainingBattleController) {
+            self.view = view
+            self.scene = scene
+            self.controller = controller
+            activeObserver = NotificationCenter.default.addObserver(
+                forName: UIApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                if let v = self?.view, v.isPaused { v.isPaused = false }
+                if let s = self?.scene, s.isPaused { s.isPaused = false }
+            }
+        }
+
+        func detach() {
+            if let o = activeObserver { NotificationCenter.default.removeObserver(o) }
+            activeObserver = nil
+            let pendingController = controller
+            Task { @MainActor in
+                pendingController?.detachScene()
+            }
+            view = nil
+            scene = nil
+            controller = nil
+        }
+    }
+}

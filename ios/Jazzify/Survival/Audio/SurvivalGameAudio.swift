@@ -102,14 +102,20 @@ final class SurvivalGameAudio {
 
     // MARK: - Public API
 
-    /// ゲーム画面の onAppear で呼ぶ。オーディオセッション + BGM 起動
-    func start() {
+    /// ゲーム画面の onAppear で呼ぶ。オーディオセッション + (任意で) BGM 起動。
+    /// - Parameter playBackgroundMusic: false にすると BGM 起動をスキップする。耳コピバトルなど
+    ///   フレーズ MP3 を主役に流すモードで使用する。
+    func start(playBackgroundMusic: Bool = true) {
         configureAudioSession()
         preparePianoIfNeeded()
         startEngineIfNeeded()
         preWarmSynthBassBuffers()
-        currentPhase = .odd
-        playBgm(phase: .odd)
+        if playBackgroundMusic {
+            currentPhase = .odd
+            playBgm(phase: .odd)
+        } else {
+            stopBgm()
+        }
     }
 
     /// コード正解時のシンセ ベース ルート音 (C2 起点 12 音) を事前にレンダリングして
