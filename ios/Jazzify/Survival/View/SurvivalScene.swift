@@ -144,6 +144,9 @@ final class SurvivalScene: SKScene {
         let tileSize: CGFloat = 200
         let colorA = UIColor(red: 0.08, green: 0.05, blue: 0.14, alpha: 1)
         let colorB = UIColor(red: 0.06, green: 0.04, blue: 0.10, alpha: 1)
+        let gridColor = UIColor(red: 0.24, green: 0.19, blue: 0.36, alpha: 0.20)
+        let motionLineColor = UIColor(red: 0.42, green: 0.31, blue: 0.72, alpha: 0.15)
+        let dotColor = UIColor(red: 0.65, green: 0.56, blue: 0.95, alpha: 0.18)
 
         // 2x2 分の市松タイル画像 (400 × 400) を一度だけ生成。
         // スプライト側で `textureRect` + `anchorPoint` で引き伸ばして敷き詰める。
@@ -156,6 +159,37 @@ final class SurvivalScene: SKScene {
             cg.setFillColor(colorB.cgColor)
             cg.fill(CGRect(x: tileSize, y: 0, width: tileSize, height: tileSize))
             cg.fill(CGRect(x: 0, y: tileSize, width: tileSize, height: tileSize))
+
+            cg.setStrokeColor(gridColor.cgColor)
+            cg.setLineWidth(1)
+            for pos in stride(from: CGFloat(0), through: checkerSize.width, by: tileSize / 2) {
+                cg.move(to: CGPoint(x: pos, y: 0))
+                cg.addLine(to: CGPoint(x: pos, y: checkerSize.height))
+                cg.move(to: CGPoint(x: 0, y: pos))
+                cg.addLine(to: CGPoint(x: checkerSize.width, y: pos))
+            }
+            cg.strokePath()
+
+            cg.setStrokeColor(motionLineColor.cgColor)
+            cg.setLineWidth(2)
+            for offset in stride(from: -checkerSize.height, through: checkerSize.width, by: tileSize) {
+                cg.move(to: CGPoint(x: offset, y: checkerSize.height))
+                cg.addLine(to: CGPoint(x: offset + checkerSize.height, y: 0))
+            }
+            cg.strokePath()
+
+            cg.setFillColor(dotColor.cgColor)
+            let dotRadius: CGFloat = 2
+            for x in stride(from: tileSize / 4, to: checkerSize.width, by: tileSize / 2) {
+                for y in stride(from: tileSize / 4, to: checkerSize.height, by: tileSize / 2) {
+                    cg.fillEllipse(in: CGRect(
+                        x: x - dotRadius,
+                        y: y - dotRadius,
+                        width: dotRadius * 2,
+                        height: dotRadius * 2
+                    ))
+                }
+            }
         }
         let tileTexture = SKTexture(image: checkerImage)
         tileTexture.filteringMode = .nearest

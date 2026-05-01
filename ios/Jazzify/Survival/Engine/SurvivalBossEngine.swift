@@ -918,6 +918,7 @@ enum SurvivalBossEngine {
         guard now >= player.iFramesUntil else { return }
         player.hp = max(0, player.hp - damage)
         player.iFramesUntil = now + iFrame
+        player.damageFlashUntil = now + SurvivalConstants.playerDamageFlashSec
         result.playerDamage += damage
     }
 
