@@ -11,26 +11,30 @@ const PIANO_OVERLAY_HEIGHT = 120;
 const HUD_HEIGHT = 150;
 const PHRASE_INTRO_FADE_MS = 2600;
 const FLOOR_CLEARANCE_FROM_PIANO = 100;
-const FLOOR_BAND_OVERLAP = 16;
 const CHARACTER_DISPLAY_SIZE = 116;
 const CHARACTER_SHADOW_WIDTH = 104;
 const CHARACTER_SHADOW_HEIGHT = 22;
-const JAZZ_WALL_TILE_KEY = 'ear-training-jazz-wall-tile';
-const JAZZ_FLOOR_TILE_KEY = 'ear-training-jazz-floor-tile';
-const JAZZ_WALL_TILE_SIZE = 64;
-const JAZZ_FLOOR_TILE_WIDTH = 96;
-const JAZZ_FLOOR_TILE_HEIGHT = 48;
+const JAZZ_BACKDROP_EDGE_COLOR = 0x0e0705;
+const JAZZ_GOLD_TRIM = 0xd58a2a;
 const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
 const FUKIDASHI_ASSET_KEY = 'ear-training-fukidashi';
 const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.png`;
+const MAGIC_CIRCLE_ASSET_KEY = 'ear-training-effect-magic-circle';
+const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.png';
 const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
+type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit' | 'neon';
 
 interface BattleEffectSpriteAsset {
   key: string;
   url: string;
+}
+
+interface JazzStagePropAsset extends BattleEffectSpriteAsset {
+  tint: number;
+  alpha: number;
 }
 
 const BATTLE_EFFECT_SPRITE_ASSETS: Record<BattleEffectSpriteName, BattleEffectSpriteAsset> = {
@@ -57,6 +61,33 @@ const BATTLE_EFFECT_SPRITE_ASSETS: Record<BattleEffectSpriteName, BattleEffectSp
   snowflake: {
     key: 'ear-training-effect-snowflake',
     url: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.png`,
+  },
+};
+
+const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
+  doubleBass: {
+    key: 'ear-training-bg-double-bass',
+    url: `${EFFECT_ASSET_PATH}bg-double-bass.png`,
+    tint: 0x261e1c,
+    alpha: 0.56,
+  },
+  piano: {
+    key: 'ear-training-bg-upright-piano',
+    url: `${EFFECT_ASSET_PATH}bg-upright-piano.png`,
+    tint: 0x261e1c,
+    alpha: 0.58,
+  },
+  drumKit: {
+    key: 'ear-training-bg-drum-kit',
+    url: `${EFFECT_ASSET_PATH}bg-drum-kit.png`,
+    tint: 0x261e1c,
+    alpha: 0.6,
+  },
+  neon: {
+    key: 'ear-training-bg-jazz-neon',
+    url: `${EFFECT_ASSET_PATH}bg-jazz-neon.png`,
+    tint: 0x4a3c37,
+    alpha: 0.72,
   },
 };
 
@@ -145,7 +176,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   create(): void {
     this.isReady = true;
-    this.cameras.main.setBackgroundColor('#070817');
+    this.cameras.main.setBackgroundColor('#0e0705');
     this.scale.on('resize', this.handleResize, this);
     this.rebuildScene();
     if (this.snapshot) {
@@ -211,6 +242,15 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       }
       this.load.image(asset.key, asset.url);
     });
+    if (!this.textures.exists(MAGIC_CIRCLE_ASSET_KEY)) {
+      this.load.image(MAGIC_CIRCLE_ASSET_KEY, MAGIC_CIRCLE_ASSET_URL);
+    }
+    Object.values(JAZZ_STAGE_PROP_ASSETS).forEach(asset => {
+      if (this.textures.exists(asset.key)) {
+        return;
+      }
+      this.load.image(asset.key, asset.url);
+    });
     if (!this.textures.exists(FUKIDASHI_ASSET_KEY)) {
       this.load.image(FUKIDASHI_ASSET_KEY, FUKIDASHI_ASSET_URL);
     }
@@ -252,66 +292,231 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    this.ensureJazzClubBackgroundTextures();
-
     const floorY = getFloorY(height);
-    const wallHeight = Math.max(0, floorY - FLOOR_BAND_OVERLAP);
-    const floorHeight = Math.max(0, height - floorY + FLOOR_BAND_OVERLAP);
-    const wall = this.add.tileSprite(0, 0, width, wallHeight, JAZZ_WALL_TILE_KEY).setOrigin(0, 0);
-    const floor = this.add.tileSprite(0, floorY - FLOOR_BAND_OVERLAP, width, floorHeight, JAZZ_FLOOR_TILE_KEY).setOrigin(0, 0);
-    const background = this.add.graphics();
-    background.fillGradientStyle(0x050614, 0x0f102e, 0x18091d, 0x2a0d2f, 0.64);
-    background.fillRect(0, 0, width, height);
-    background.fillStyle(0x020617, 0.2);
-    background.fillRect(0, 0, width, HUD_HEIGHT + 28);
-    background.fillStyle(0x000000, 0.18);
-    background.fillRect(0, floorY - FLOOR_BAND_OVERLAP, width, floorHeight);
-    background.lineStyle(2, 0xfbbf24, 0.16);
-    background.lineBetween(0, floorY, width, floorY);
-    background.fillStyle(0x000000, 0.2);
-    background.fillEllipse(width * 0.23, floorY + 6, 168, 28);
-    background.fillEllipse(width * 0.77, floorY + 6, 168, 28);
-    this.backgroundLayer.add([wall, floor, background]);
+    const backdrop = this.add.graphics();
+    this.drawJazzBarBackdrop(backdrop, width, height, floorY);
+
+    const localVignette = this.add.graphics();
+    this.drawLocalSpotlightVignette(localVignette, width, height, floorY);
+    localVignette.setBlendMode('MULTIPLY');
+
+    const spotlights = this.add.graphics();
+    this.drawStageSpotlights(spotlights, width, height, floorY);
+    spotlights.setBlendMode('ADD');
+
+    const floorPools = this.add.graphics();
+    this.drawFloorLightPools(floorPools, width, floorY);
+    floorPools.setBlendMode('ADD');
+
+    this.backgroundLayer.add([backdrop, localVignette, spotlights, floorPools]);
+    this.addJazzStagePropSprites(width, floorY);
+    this.drawStageFloorShadows(width, floorY);
+
+    const vignette = this.add.graphics();
+    this.drawFinalStageVignette(vignette, width, height);
+    this.backgroundLayer.add(vignette);
   }
 
-  private ensureJazzClubBackgroundTextures(): void {
-    if (!this.textures.exists(JAZZ_WALL_TILE_KEY)) {
-      const wallTexture = this.add.graphics();
-      wallTexture.fillStyle(0x160818, 1);
-      wallTexture.fillRect(0, 0, JAZZ_WALL_TILE_SIZE, JAZZ_WALL_TILE_SIZE);
-      wallTexture.fillStyle(0x24102b, 0.78);
-      wallTexture.fillRect(2, 2, JAZZ_WALL_TILE_SIZE - 4, JAZZ_WALL_TILE_SIZE - 4);
-      wallTexture.fillStyle(0x110614, 0.42);
-      wallTexture.fillRect(0, 0, JAZZ_WALL_TILE_SIZE, 8);
-      wallTexture.lineStyle(1, 0xfde68a, 0.06);
-      wallTexture.lineBetween(0, 0, 0, JAZZ_WALL_TILE_SIZE);
-      wallTexture.lineBetween(JAZZ_WALL_TILE_SIZE - 1, 0, JAZZ_WALL_TILE_SIZE - 1, JAZZ_WALL_TILE_SIZE);
-      wallTexture.lineStyle(1, 0xffffff, 0.035);
-      wallTexture.lineBetween(8, 12, JAZZ_WALL_TILE_SIZE - 8, 12);
-      wallTexture.lineBetween(8, JAZZ_WALL_TILE_SIZE - 12, JAZZ_WALL_TILE_SIZE - 8, JAZZ_WALL_TILE_SIZE - 12);
-      wallTexture.generateTexture(JAZZ_WALL_TILE_KEY, JAZZ_WALL_TILE_SIZE, JAZZ_WALL_TILE_SIZE);
-      wallTexture.destroy();
+  private drawJazzBarBackdrop(graphics: Phaser.GameObjects.Graphics, width: number, height: number, floorY: number): void {
+    const wallHeight = Math.max(80, floorY);
+    const floorHeight = Math.max(0, height - floorY);
+    const lipInset = Math.max(18, width * 0.018);
+
+    graphics.fillStyle(JAZZ_BACKDROP_EDGE_COLOR, 1);
+    graphics.fillRect(0, 0, width, height);
+    graphics.fillGradientStyle(0x160b08, 0x160b08, 0x2a160e, JAZZ_BACKDROP_EDGE_COLOR, 1);
+    graphics.fillRect(0, 0, width, wallHeight);
+    this.drawWeakBrickWall(graphics, width, wallHeight);
+
+    this.drawRadialGlow(graphics, width * 0.24, wallHeight * 0.32, width * 0.34, wallHeight * 0.5, 0x000000, 0.16, 10);
+    this.drawRadialGlow(graphics, width * 0.76, wallHeight * 0.3, width * 0.31, wallHeight * 0.45, 0x000000, 0.15, 10);
+    this.drawRadialGlow(graphics, width * 0.5, wallHeight * 0.62, width * 0.28, wallHeight * 0.4, 0x000000, 0.2, 12);
+
+    const shelfTop = Math.max(HUD_HEIGHT + 16, wallHeight * 0.22);
+    const shelfHeight = Math.max(28, wallHeight * 0.13);
+    graphics.fillStyle(0x080403, 0.28);
+    graphics.fillRoundedRect(width * 0.35, shelfTop, width * 0.3, shelfHeight, 10);
+    graphics.fillStyle(0x1e1009, 0.42);
+    graphics.fillRect(width * 0.37, shelfTop + shelfHeight * 0.38, width * 0.26, 5);
+    for (let index = 0; index < 14; index += 1) {
+      const bottleX = width * 0.38 + index * width * 0.018;
+      const bottleHeight = 10 + (index % 4) * 4;
+      graphics.fillStyle(index % 3 === 0 ? 0xd58a2a : 0x5f2f18, 0.2);
+      graphics.fillRoundedRect(bottleX, shelfTop + shelfHeight * 0.34 - bottleHeight, width * 0.008, bottleHeight, 2);
     }
 
-    if (!this.textures.exists(JAZZ_FLOOR_TILE_KEY)) {
-      const floorTexture = this.add.graphics();
-      floorTexture.fillStyle(0x12070a, 1);
-      floorTexture.fillRect(0, 0, JAZZ_FLOOR_TILE_WIDTH, JAZZ_FLOOR_TILE_HEIGHT);
-      floorTexture.fillStyle(0x26100d, 0.92);
-      floorTexture.fillRect(0, 0, JAZZ_FLOOR_TILE_WIDTH, 15);
-      floorTexture.fillStyle(0x1f0d0b, 0.92);
-      floorTexture.fillRect(0, 16, JAZZ_FLOOR_TILE_WIDTH, 15);
-      floorTexture.fillStyle(0x2f1510, 0.82);
-      floorTexture.fillRect(0, 32, JAZZ_FLOOR_TILE_WIDTH, 16);
-      floorTexture.lineStyle(1, 0xf59e0b, 0.08);
-      floorTexture.lineBetween(0, 15, JAZZ_FLOOR_TILE_WIDTH, 15);
-      floorTexture.lineBetween(0, 31, JAZZ_FLOOR_TILE_WIDTH, 31);
-      floorTexture.lineStyle(1, 0x000000, 0.18);
-      floorTexture.lineBetween(0, 0, 0, JAZZ_FLOOR_TILE_HEIGHT);
-      floorTexture.lineBetween(JAZZ_FLOOR_TILE_WIDTH - 1, 0, JAZZ_FLOOR_TILE_WIDTH - 1, JAZZ_FLOOR_TILE_HEIGHT);
-      floorTexture.generateTexture(JAZZ_FLOOR_TILE_KEY, JAZZ_FLOOR_TILE_WIDTH, JAZZ_FLOOR_TILE_HEIGHT);
-      floorTexture.destroy();
+    this.drawWallSconce(graphics, width * 0.18, Math.max(72, wallHeight * 0.22));
+    this.drawWallSconce(graphics, width * 0.82, Math.max(72, wallHeight * 0.22));
+
+    graphics.fillGradientStyle(0x24120b, 0x24120b, 0x3a2114, 0x24120b, 0.97);
+    graphics.fillRect(0, floorY, width, floorHeight);
+    graphics.lineStyle(1, 0x382018, 0.28);
+    for (let index = 1; index < 8; index += 1) {
+      const lineY = floorY + (floorHeight * index) / 8;
+      graphics.lineBetween(0, lineY, width, lineY + 10);
     }
+    graphics.lineStyle(1, 0x000000, 0.12);
+    for (let index = 0; index < 12; index += 1) {
+      const x = (width * index) / 12;
+      graphics.lineBetween(x, floorY, x + width * 0.05, height);
+    }
+
+    const barSkirtHeight = Math.min(PIANO_OVERLAY_HEIGHT + 56, Math.max(12, height - floorY));
+    graphics.fillGradientStyle(0x3a2114, 0x3a2114, 0x24120b, 0x24120b, 0.96);
+    graphics.fillRect(0, height - barSkirtHeight, width, barSkirtHeight);
+    graphics.lineStyle(1.5, JAZZ_GOLD_TRIM, 0.28);
+    graphics.lineBetween(lipInset, height - barSkirtHeight + 2, width - lipInset, height - barSkirtHeight + 2);
+    graphics.lineStyle(1.5, JAZZ_GOLD_TRIM, 0.22);
+    graphics.lineBetween(lipInset + 10, floorY - 3, width - lipInset - 10, floorY - 3);
+    graphics.lineStyle(2, 0xb46928, 0.15);
+    graphics.lineBetween(lipInset + 4, floorY + 2, width - lipInset - 4, floorY + 2);
+  }
+
+  private drawWeakBrickWall(graphics: Phaser.GameObjects.Graphics, width: number, wallHeight: number): void {
+    if (wallHeight <= 56) {
+      return;
+    }
+
+    const sidePad = width * 0.045;
+    const topPad = wallHeight * 0.048;
+    const bottomPad = wallHeight * 0.088;
+    const brickAreaHeight = wallHeight - topPad - bottomPad;
+    const brickHeight = Math.max(21, brickAreaHeight / 15);
+    const brickWidth = Math.max(72, brickHeight * 2.85);
+    let row = 0;
+    for (let y = topPad; y < topPad + brickAreaHeight; y += brickHeight + 5) {
+      const stagger = (row % 2) * brickWidth * 0.5;
+      for (let x = sidePad - brickWidth + stagger; x < width - sidePad + brickWidth; x += brickWidth) {
+        graphics.fillStyle(0x593015, 0.15);
+        graphics.fillRect(Math.round(x), Math.round(y), Math.max(2, brickWidth - 6), Math.max(2, brickHeight - 5));
+        graphics.lineStyle(0.75, 0x140d09, 0.11);
+        graphics.strokeRect(Math.round(x), Math.round(y), Math.max(2, brickWidth - 6), Math.max(2, brickHeight - 5));
+      }
+      row += 1;
+    }
+  }
+
+  private drawLocalSpotlightVignette(graphics: Phaser.GameObjects.Graphics, width: number, height: number, floorY: number): void {
+    graphics.fillStyle(0x000000, 0.16);
+    graphics.fillRect(0, 0, width, height);
+    this.drawRadialGlow(graphics, width * 0.23, floorY - 36, width * 0.24, height * 0.24, 0xffffff, 0.18, 10);
+    this.drawRadialGlow(graphics, width * 0.77, floorY - 36, width * 0.24, height * 0.24, 0xffffff, 0.2, 10);
+    this.drawRadialGlow(graphics, width * 0.5, floorY * 0.36, width * 0.22, height * 0.28, 0x000000, 0.16, 10);
+  }
+
+  private drawStageSpotlights(graphics: Phaser.GameObjects.Graphics, width: number, height: number, floorY: number): void {
+    this.drawSpotlightCone(graphics, width, height, floorY, width * 0.23, width * 0.02, 0xffd29b, 0.11);
+    this.drawSpotlightCone(graphics, width, height, floorY, width * 0.77, -width * 0.02, 0xffc8af, 0.13);
+  }
+
+  private drawSpotlightCone(
+    graphics: Phaser.GameObjects.Graphics,
+    width: number,
+    height: number,
+    floorY: number,
+    centerX: number,
+    apexShift: number,
+    color: number,
+    alpha: number,
+  ): void {
+    const apexY = Math.min(2, floorY - 36);
+    const halfTop = width * 0.014;
+    const halfBottom = width * 0.072;
+    const apexX = centerX + apexShift;
+    graphics.fillStyle(color, alpha * 0.42);
+    graphics.fillTriangle(apexX - halfTop, apexY, apexX + halfTop, apexY, centerX + halfBottom, floorY + 4);
+    graphics.fillTriangle(apexX - halfTop, apexY, centerX - halfBottom, floorY + 4, centerX + halfBottom, floorY + 4);
+    graphics.fillStyle(color, alpha * 0.18);
+    graphics.fillTriangle(apexX - halfTop * 0.35, apexY, apexX + halfTop * 0.35, apexY, centerX, height);
+    this.drawRadialGlow(graphics, centerX, floorY - CHARACTER_DISPLAY_SIZE * 0.4, halfBottom * 1.2, height * 0.28, color, alpha * 0.3, 8);
+  }
+
+  private drawFloorLightPools(graphics: Phaser.GameObjects.Graphics, width: number, floorY: number): void {
+    this.drawRadialGlow(graphics, width * 0.23, floorY - 6, 88, 17, 0xffd29b, 0.13, 8);
+    this.drawRadialGlow(graphics, width * 0.77, floorY - 6, 88, 17, 0xffc8af, 0.15, 8);
+  }
+
+  private drawWallSconce(graphics: Phaser.GameObjects.Graphics, x: number, y: number): void {
+    this.drawRadialGlow(graphics, x, y, 64, 42, 0xd58a2a, 0.18, 9);
+    graphics.fillStyle(0x3a2114, 0.8);
+    graphics.fillRoundedRect(x - 9, y - 4, 18, 12, 4);
+    graphics.fillStyle(0xf8d48a, 0.5);
+    graphics.fillEllipse(x, y - 7, 18, 10);
+  }
+
+  private drawStageFloorShadows(width: number, floorY: number): void {
+    if (!this.backgroundLayer) {
+      return;
+    }
+    const leftShadow = this.add.ellipse(width * 0.23, floorY + 6, 168, 28, 0x000000, 0.17);
+    const rightShadow = this.add.ellipse(width * 0.77, floorY + 6, 168, 28, 0x000000, 0.17);
+    this.backgroundLayer.add([leftShadow, rightShadow]);
+  }
+
+  private drawFinalStageVignette(graphics: Phaser.GameObjects.Graphics, width: number, height: number): void {
+    graphics.fillStyle(0x000000, 0.13);
+    graphics.fillRect(0, 0, width, HUD_HEIGHT * 0.65);
+    this.drawRadialGlow(graphics, 0, 0, width * 0.62, height * 0.62, 0x000000, 0.2, 12);
+    this.drawRadialGlow(graphics, width, 0, width * 0.62, height * 0.62, 0x000000, 0.2, 12);
+    this.drawRadialGlow(graphics, 0, height, width * 0.62, height * 0.62, 0x000000, 0.22, 12);
+    this.drawRadialGlow(graphics, width, height, width * 0.62, height * 0.62, 0x000000, 0.22, 12);
+  }
+
+  private drawRadialGlow(
+    graphics: Phaser.GameObjects.Graphics,
+    x: number,
+    y: number,
+    radiusX: number,
+    radiusY: number,
+    color: number,
+    alpha: number,
+    steps: number,
+  ): void {
+    for (let index = steps; index > 0; index -= 1) {
+      const progress = index / steps;
+      graphics.fillStyle(color, alpha * progress * progress);
+      graphics.fillEllipse(x, y, radiusX * 2 * progress, radiusY * 2 * progress);
+    }
+  }
+
+  private addJazzStagePropSprites(width: number, floorY: number): void {
+    if (!this.backgroundLayer) {
+      return;
+    }
+
+    this.addStageBackgroundSprite('doubleBass', width * 0.075, floorY, width * 0.1, 0.5, 1);
+    this.addStageBackgroundSprite('piano', width * 0.352, floorY, width * 0.13, 0.5, 1);
+
+    const drumMaxWidth = Math.max(1, Math.floor(width * 0.138));
+    const drumHalfWidth = drumMaxWidth * 0.5;
+    const enemyApproxRightEdgeX = width * 0.77 + CHARACTER_DISPLAY_SIZE * 0.48;
+    const drumMaxCenterX = width - 16 - drumHalfWidth;
+    const minimumCenterPastEnemy = enemyApproxRightEdgeX + drumHalfWidth * 0.32 + 10;
+    const preferredDrumCenterX = width * 0.91;
+    const drumCenterX = Math.min(Math.max(preferredDrumCenterX, Math.min(minimumCenterPastEnemy, drumMaxCenterX)), drumMaxCenterX);
+    this.addStageBackgroundSprite('drumKit', drumCenterX, floorY, drumMaxWidth, 0.5, 1);
+    this.addStageBackgroundSprite('neon', width * 0.352 + 2, 64, width * 0.085, 0.5, 0);
+  }
+
+  private addStageBackgroundSprite(
+    propName: JazzStagePropName,
+    x: number,
+    y: number,
+    maxWidth: number,
+    originX: number,
+    originY: number,
+  ): void {
+    const asset = JAZZ_STAGE_PROP_ASSETS[propName];
+    const frame = this.textures.getFrame(asset.key);
+    if (!this.backgroundLayer || !frame || frame.width <= 1 || frame.height <= 1) {
+      return;
+    }
+    const sprite = this.add.image(x, y, asset.key).setOrigin(originX, originY);
+    const displayWidth = Math.max(1, Math.floor(maxWidth));
+    sprite.setDisplaySize(displayWidth, Math.max(1, displayWidth * (frame.height / frame.width)));
+    sprite.setTint(asset.tint);
+    sprite.setAlpha(asset.alpha);
+    this.backgroundLayer.add(sprite);
   }
 
   private drawHud(width: number): void {
@@ -979,8 +1184,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
     this.zoomToPlayer(anchors, 1080, () => this.launchMeteor(command, anchors));
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 190, 0xf97316);
-    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 138, 0xfef08a);
+    this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 220);
     this.createCastEffect(anchors.player.x, anchors.player.castY, 2.65);
     this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 1380, 0xfef08a, true);
     this.showChantText(anchors.player.x, anchors.player.headY - 38, 'Awesome!');
@@ -1172,32 +1376,20 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     });
   }
 
-  private createMagicCircle(x: number, y: number, size: number, color: number): void {
+  private createMagicCircle(x: number, y: number, size: number): void {
     if (!this.effectLayer) {
       return;
     }
-    const circle = this.add.graphics();
-    circle.lineStyle(3, color, 0.86);
-    circle.strokeCircle(0, 0, size / 2);
-    circle.lineStyle(2, 0xfef3c7, 0.72);
-    circle.strokeCircle(0, 0, size * 0.32);
-    for (let index = 0; index < 6; index += 1) {
-      const angle = (Math.PI * 2 * index) / 6;
-      circle.lineBetween(
-        Math.cos(angle) * size * 0.18,
-        Math.sin(angle) * size * 0.18,
-        Math.cos(angle + Math.PI) * size * 0.44,
-        Math.sin(angle + Math.PI) * size * 0.44,
-      );
-    }
-    circle.setPosition(x, y);
+    const circle = this.add.image(x, y, MAGIC_CIRCLE_ASSET_KEY).setOrigin(0.5, 0.5).setDisplaySize(size, size);
+    circle.setAlpha(0.96);
+    circle.setBlendMode('ADD');
     this.effectLayer.add(circle);
     this.tweens.add({
       targets: circle,
       angle: 180,
-      scale: 1.18,
+      scale: 1.14,
       alpha: 0,
-      duration: 920,
+      duration: 1080,
       ease: 'Cubic.easeOut',
       onComplete: () => circle.destroy(),
     });

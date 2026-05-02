@@ -1421,6 +1421,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         zoomToPlayer(anchors: anchors, holdMs: 1080) { [weak self] in
             self?.launchMeteor(command, anchors: anchors)
         }
+        showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + 12), size: 190)
     }
 
     private func launchMeteor(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
@@ -1468,6 +1469,22 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     // MARK: - Effect helpers
+
+    private func showMagicCircle(at position: CGPoint, size: CGFloat) {
+        let circle = makeEffectSprite(name: "ear-training-effect-magic-circle", size: size)
+        circle.position = position
+        circle.alpha = 0.96
+        circle.blendMode = .add
+        effectLayer.addChild(circle)
+        circle.run(SKAction.sequence([
+            SKAction.group([
+                SKAction.rotate(byAngle: .pi, duration: 1.08),
+                SKAction.scale(to: 1.14, duration: 1.08),
+                SKAction.fadeOut(withDuration: 1.08),
+            ]),
+            SKAction.removeFromParent(),
+        ]))
+    }
 
     private func makeEffectSprite(name: String, size: CGFloat) -> SKSpriteNode {
         let texture: SKTexture
