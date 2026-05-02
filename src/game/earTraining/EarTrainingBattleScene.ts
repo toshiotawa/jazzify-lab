@@ -18,9 +18,9 @@ const JAZZ_BACKDROP_EDGE_COLOR = 0x0e0705;
 const JAZZ_GOLD_TRIM = 0xd58a2a;
 const EFFECT_ASSET_PATH = '/ear-training/tutorial-earcopy-test/';
 const FUKIDASHI_ASSET_KEY = 'ear-training-fukidashi';
-const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.png`;
+const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.webp`;
 const MAGIC_CIRCLE_ASSET_KEY = 'ear-training-effect-magic-circle';
-const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.png';
+const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.webp';
 const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
 const CORRECT_PLAYER_POSE_DURATION_MS = 300;
 const SKILL_PLAYER_POSE_FRAME_MS = 80;
@@ -50,49 +50,49 @@ interface JazzStagePropAsset extends BattleEffectSpriteAsset {
 const BATTLE_EFFECT_SPRITE_ASSETS: Record<BattleEffectSpriteName, BattleEffectSpriteAsset> = {
   cloud: {
     key: 'ear-training-effect-cloud',
-    url: `${EFFECT_ASSET_PATH}effect-cloud-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-cloud-transparent.webp`,
   },
   fireRing: {
     key: 'ear-training-effect-fire-ring',
-    url: `${EFFECT_ASSET_PATH}effect-fire-ring-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-fire-ring-transparent.webp`,
   },
   fireball: {
     key: 'ear-training-effect-fireball',
-    url: `${EFFECT_ASSET_PATH}effect-fireball-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-fireball-transparent.webp`,
   },
   lightning: {
     key: 'ear-training-effect-lightning',
-    url: `${EFFECT_ASSET_PATH}effect-lightning-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-lightning-transparent.webp`,
   },
   meteor: {
     key: 'ear-training-effect-meteor',
-    url: `${EFFECT_ASSET_PATH}effect-meteor-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-meteor-transparent.webp`,
   },
   snowflake: {
     key: 'ear-training-effect-snowflake',
-    url: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.png`,
+    url: `${EFFECT_ASSET_PATH}effect-snowflake-transparent.webp`,
   },
 };
 
 const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
   doubleBass: {
     key: 'ear-training-bg-double-bass',
-    url: `${EFFECT_ASSET_PATH}bg-double-bass.png`,
+    url: `${EFFECT_ASSET_PATH}bg-double-bass.webp`,
     alpha: 0.82,
   },
   piano: {
     key: 'ear-training-bg-upright-piano',
-    url: `${EFFECT_ASSET_PATH}bg-upright-piano.png`,
+    url: `${EFFECT_ASSET_PATH}bg-upright-piano.webp`,
     alpha: 0.82,
   },
   drumKit: {
     key: 'ear-training-bg-drum-kit',
-    url: `${EFFECT_ASSET_PATH}bg-drum-kit.png`,
+    url: `${EFFECT_ASSET_PATH}bg-drum-kit.webp`,
     alpha: 0.84,
   },
   neon: {
     key: 'ear-training-bg-jazz-neon',
-    url: `${EFFECT_ASSET_PATH}bg-jazz-neon.png`,
+    url: `${EFFECT_ASSET_PATH}bg-jazz-neon.webp`,
     alpha: 0.9,
   },
 };
@@ -100,31 +100,31 @@ const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
 const PLAYER_AVATAR_POSE_ASSETS: Record<PlayerAvatarPoseName, BattleEffectSpriteAsset> = {
   correct3: {
     key: 'ear-training-player-pose-correct-3',
-    url: '/data/correct3.png',
+    url: '/data/correct3.webp',
   },
   skill1: {
     key: 'ear-training-player-pose-skill-1',
-    url: '/data/Frame1.png',
+    url: '/data/Frame1.webp',
   },
   skill2: {
     key: 'ear-training-player-pose-skill-2',
-    url: '/data/Frame2.png',
+    url: '/data/Frame2.webp',
   },
   skill3: {
     key: 'ear-training-player-pose-skill-3',
-    url: '/data/Frame3.png',
+    url: '/data/Frame3.webp',
   },
   skill4: {
     key: 'ear-training-player-pose-skill-4',
-    url: '/data/Frame4.png',
+    url: '/data/Frame4.webp',
   },
   skill5: {
     key: 'ear-training-player-pose-skill-5',
-    url: '/data/Frame5.png',
+    url: '/data/Frame5.webp',
   },
   skill6: {
     key: 'ear-training-player-pose-skill-6',
-    url: '/data/Frame6.png',
+    url: '/data/Frame6.webp',
   },
 };
 
@@ -205,6 +205,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private lastEffectId: number | null = null;
   private lastPhraseRunId: number | null = null;
   private playerPoseToken = 0;
+  private pendingSceneRebuild = false;
   private isReady = false;
 
   constructor() {
@@ -227,6 +228,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
 
   shutdown(): void {
     this.isReady = false;
+    this.pendingSceneRebuild = false;
     this.scale.off('resize', this.handleResize, this);
   }
 
@@ -244,7 +246,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.isReady) {
       return;
     }
-    this.rebuildScene();
+    this.queueSceneRebuild();
     this.loadAvatarTextures(snapshot);
   }
 
@@ -278,7 +280,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private handleResize = (): void => {
-    this.rebuildScene();
+    this.queueSceneRebuild();
   };
 
   private loadBattleEffectSprites(): void {
@@ -309,6 +311,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private rebuildScene(): void {
+    this.pendingSceneRebuild = false;
     this.clearScene();
 
     const width = Math.max(320, this.scale.width);
@@ -328,6 +331,19 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.drawPhraseSlots(width, height);
     this.drawLobbyOverlay(width, height);
     this.children.bringToTop(effectLayer);
+  }
+
+  private queueSceneRebuild(): void {
+    if (this.pendingSceneRebuild) {
+      return;
+    }
+    this.pendingSceneRebuild = true;
+    this.time.delayedCall(0, () => {
+      if (!this.isReady || !this.pendingSceneRebuild) {
+        return;
+      }
+      this.rebuildScene();
+    });
   }
 
   private clearScene(): void {
@@ -1808,7 +1824,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
     this.load.once('complete', () => {
       queuedKeys.forEach(key => this.loadingTextureKeys.delete(key));
-      this.rebuildScene();
+      this.queueSceneRebuild();
     });
     this.load.start();
   }
