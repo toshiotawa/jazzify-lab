@@ -16,6 +16,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let characterShadowWidth: CGFloat = 82
     private static let characterShadowHeight: CGFloat = 18
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
+    private static let generatedTextureCacheLimit = 16
+    private static var generatedTextureCache: [String: SKTexture] = [:]
 
     /// 耳コピバトル スポットライト（図解仕様: 薄い円錐・足元プール・リム・ヴィネット）。
     private enum SpotlightStageLayout {
@@ -402,19 +404,53 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         finalVignetteLayer.addChild(node)
     }
 
-    private func makeLocalSpotlightVignetteTexture(width: CGFloat, height: CGFloat, floorY: CGFloat) -> SKTexture {
-        let textureSize = CGSize(width: max(1, width), height: max(1, height))
-        let renderer = UIGraphicsImageRenderer(size: textureSize)
-        let image = renderer.image { ctx in
-            Self.paintLocalSpotlightVignette(
-                cgContext: ctx.cgContext,
-                size: textureSize,
-                floorY: floorY
-            )
+    private static func generatedTextureCacheKey(_ parts: String...) -> String {
+        parts.joined(separator: "|")
+    }
+
+    private static func textureCacheComponent(_ value: CGFloat) -> String {
+        String(Int(value.rounded()))
+    }
+
+    private static func textureCachePreciseComponent(_ value: CGFloat) -> String {
+        String(format: "%.3f", Double(value))
+    }
+
+    private static func cachedGeneratedTexture(key: String, makeTexture: () -> SKTexture) -> SKTexture {
+        if let texture = generatedTextureCache[key] {
+            return texture
         }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
+
+        if generatedTextureCache.count >= generatedTextureCacheLimit {
+            generatedTextureCache.removeAll(keepingCapacity: true)
+        }
+
+        let texture = makeTexture()
+        generatedTextureCache[key] = texture
         return texture
+    }
+
+    private func makeLocalSpotlightVignetteTexture(width: CGFloat, height: CGFloat, floorY: CGFloat) -> SKTexture {
+        let key = Self.generatedTextureCacheKey(
+            "localSpotlight",
+            Self.textureCacheComponent(width),
+            Self.textureCacheComponent(height),
+            Self.textureCacheComponent(floorY)
+        )
+        return Self.cachedGeneratedTexture(key: key) {
+            let textureSize = CGSize(width: max(1, width), height: max(1, height))
+            let renderer = UIGraphicsImageRenderer(size: textureSize)
+            let image = renderer.image { ctx in
+                Self.paintLocalSpotlightVignette(
+                    cgContext: ctx.cgContext,
+                    size: textureSize,
+                    floorY: floorY
+                )
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
+        }
     }
 
     private func makeSpotlightConeTexture(
@@ -426,22 +462,33 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         warmTint: UIColor,
         peakAlpha: CGFloat
     ) -> SKTexture {
-        let textureSize = CGSize(width: max(1, width), height: max(1, height))
-        let renderer = UIGraphicsImageRenderer(size: textureSize)
-        let image = renderer.image { ctx in
-            Self.paintSpotlightCone(
-                cgContext: ctx.cgContext,
-                size: textureSize,
-                floorY: floorY,
-                centerX: centerX,
-                apexTowardCenterShift: apexTowardCenterShift,
-                warmTint: warmTint,
-                peakAlpha: peakAlpha
-            )
+        let key = Self.generatedTextureCacheKey(
+            "spotlightCone",
+            Self.textureCacheComponent(width),
+            Self.textureCacheComponent(height),
+            Self.textureCacheComponent(floorY),
+            Self.textureCacheComponent(centerX),
+            Self.textureCacheComponent(apexTowardCenterShift),
+            Self.textureCachePreciseComponent(peakAlpha)
+        )
+        return Self.cachedGeneratedTexture(key: key) {
+            let textureSize = CGSize(width: max(1, width), height: max(1, height))
+            let renderer = UIGraphicsImageRenderer(size: textureSize)
+            let image = renderer.image { ctx in
+                Self.paintSpotlightCone(
+                    cgContext: ctx.cgContext,
+                    size: textureSize,
+                    floorY: floorY,
+                    centerX: centerX,
+                    apexTowardCenterShift: apexTowardCenterShift,
+                    warmTint: warmTint,
+                    peakAlpha: peakAlpha
+                )
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
         }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
     }
 
     private func makeFloorLightPoolTexture(
@@ -452,32 +499,49 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         warmTint: UIColor,
         peakAlpha: CGFloat
     ) -> SKTexture {
-        let textureSize = CGSize(width: max(1, width), height: max(1, height))
-        let renderer = UIGraphicsImageRenderer(size: textureSize)
-        let image = renderer.image { ctx in
-            Self.paintFloorLightPool(
-                cgContext: ctx.cgContext,
-                size: textureSize,
-                floorY: floorY,
-                centerX: centerX,
-                warmTint: warmTint,
-                peakAlpha: peakAlpha
-            )
+        let key = Self.generatedTextureCacheKey(
+            "floorLightPool",
+            Self.textureCacheComponent(width),
+            Self.textureCacheComponent(height),
+            Self.textureCacheComponent(floorY),
+            Self.textureCacheComponent(centerX),
+            Self.textureCachePreciseComponent(peakAlpha)
+        )
+        return Self.cachedGeneratedTexture(key: key) {
+            let textureSize = CGSize(width: max(1, width), height: max(1, height))
+            let renderer = UIGraphicsImageRenderer(size: textureSize)
+            let image = renderer.image { ctx in
+                Self.paintFloorLightPool(
+                    cgContext: ctx.cgContext,
+                    size: textureSize,
+                    floorY: floorY,
+                    centerX: centerX,
+                    warmTint: warmTint,
+                    peakAlpha: peakAlpha
+                )
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
         }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
     }
 
     private func makeFinalVignetteTexture(width: CGFloat, height: CGFloat) -> SKTexture {
-        let textureSize = CGSize(width: max(1, width), height: max(1, height))
-        let renderer = UIGraphicsImageRenderer(size: textureSize)
-        let image = renderer.image { ctx in
-            Self.paintFinalStageVignette(cgContext: ctx.cgContext, size: textureSize)
+        let key = Self.generatedTextureCacheKey(
+            "finalVignette",
+            Self.textureCacheComponent(width),
+            Self.textureCacheComponent(height)
+        )
+        return Self.cachedGeneratedTexture(key: key) {
+            let textureSize = CGSize(width: max(1, width), height: max(1, height))
+            let renderer = UIGraphicsImageRenderer(size: textureSize)
+            let image = renderer.image { ctx in
+                Self.paintFinalStageVignette(cgContext: ctx.cgContext, size: textureSize)
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
         }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
     }
 
     /// UIKit 上原点。ステージ左右・中央をわずかに締めてスポットを際立たせる。
@@ -794,14 +858,22 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func makeBackdropTexture(width: CGFloat, height: CGFloat, floorY: CGFloat) -> SKTexture {
-        let textureSize = CGSize(width: max(1, width), height: max(1, height))
-        let renderer = UIGraphicsImageRenderer(size: textureSize)
-        let image = renderer.image { ctx in
-            Self.paintJazzBarBackdrop(cgContext: ctx.cgContext, size: textureSize, floorY: floorY)
+        let key = Self.generatedTextureCacheKey(
+            "jazzBackdrop",
+            Self.textureCacheComponent(width),
+            Self.textureCacheComponent(height),
+            Self.textureCacheComponent(floorY)
+        )
+        return Self.cachedGeneratedTexture(key: key) {
+            let textureSize = CGSize(width: max(1, width), height: max(1, height))
+            let renderer = UIGraphicsImageRenderer(size: textureSize)
+            let image = renderer.image { ctx in
+                Self.paintJazzBarBackdrop(cgContext: ctx.cgContext, size: textureSize, floorY: floorY)
+            }
+            let texture = SKTexture(image: image)
+            texture.filteringMode = .linear
+            return texture
         }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        return texture
     }
 
     /// 画像アセット無しでジャズバー風の背景を描く（UIKit・上原点）。暗さ設計優先／コードUI背後には明るい面を置かない。

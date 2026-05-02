@@ -20,6 +20,8 @@ final class EarTrainingAudio: NSObject {
     private var timeObserverToken: Any?
     private var endObservation: NSObjectProtocol?
     private var statusObservation: NSKeyValueObservation?
+    private var preloadedAssetURL: URL?
+    private var preloadedAsset: AVURLAsset?
 
     /// `musicVolume * masterVolume` を 0...1 に閉じた値。
     private var phraseVolume: Float = 1.0
@@ -68,6 +70,19 @@ final class EarTrainingAudio: NSObject {
 
     // MARK: - Phrase playback
 
+    /// ロビー表示中に先頭フレーズのアセット情報を読み始め、START 後の初回バッファ待ちを短縮する。
+    func preloadPhrase(url: URL) {
+        guard preloadedAssetURL != url else { return }
+
+        let asset = AVURLAsset(url: url)
+        preloadedAssetURL = url
+        preloadedAsset = asset
+        Task {
+            _ = try? await asset.load(.isPlayable)
+            _ = try? await asset.load(.duration)
+        }
+    }
+
     /// フレーズ MP3 をプリロードして無音状態でわずかに再生し、ユーザー操作直後の遅延を緩和する。
     /// Web 版 `primePhraseAudio` 相当。
     func primePhrase(url: URL) {
@@ -101,7 +116,12 @@ final class EarTrainingAudio: NSObject {
 
     private func prepareItem(url: URL) {
         removeObservers()
-        let item = AVPlayerItem(url: url)
+        let item: AVPlayerItem
+        if let preloadedAsset, preloadedAssetURL == url {
+            item = AVPlayerItem(asset: preloadedAsset)
+        } else {
+            item = AVPlayerItem(url: url)
+        }
         currentItem = item
         player.replaceCurrentItem(with: item)
         addObservers(for: item)

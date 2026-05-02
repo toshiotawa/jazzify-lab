@@ -1024,6 +1024,7 @@ struct LessonDetailView: View {
 
             let fetchedDetail = try await detailTask
             detail = fetchedDetail
+            prefetchEarTrainingStageDetails(from: fetchedDetail)
             let rawVideos = await videosTask
             let rawAttachments = await attachmentsTask
             videos = rawVideos.filter { $0.isVisible(for: appState.locale) }
@@ -1050,6 +1051,18 @@ struct LessonDetailView: View {
         } catch {
             detail = nil
             alertMessage = error.localizedDescription
+        }
+    }
+
+    private func prefetchEarTrainingStageDetails(from lessonDetail: LessonDetail) {
+        let stageIds = lessonDetail.lessonSongs.compactMap { requirement -> UUID? in
+            guard requirement.isEarTraining == true else { return nil }
+            return requirement.earTrainingStage?.id ?? requirement.earTrainingStageId
+        }
+        guard !stageIds.isEmpty else { return }
+
+        Task {
+            await EarTrainingStageDetailCache.shared.preload(stageIds: stageIds)
         }
     }
 

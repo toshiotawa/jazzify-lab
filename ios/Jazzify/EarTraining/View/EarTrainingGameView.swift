@@ -81,14 +81,9 @@ struct EarTrainingGameView: View {
         isLoading = true
         loadError = nil
 
-        let supabase = SupabaseService.shared
         do {
-            async let stageDetailTask = supabase.fetchEarTrainingStageDetail(stageId: stageId)
-            async let charactersTask = supabase.fetchSurvivalCharacters()
-            let stageDetail = try await stageDetailTask
-            let characters = (try? await charactersTask) ?? []
-            let selectedEnemy = characters.randomElement()
-            let phrases = stageDetail.sortedPhrases()
+            let stageDetail = try await EarTrainingStageDetailCache.shared.stageDetail(for: stageId)
+            let phrases = stageDetail.phrases ?? []
             guard !phrases.isEmpty else {
                 loadError = locale == .ja
                     ? "フレーズが登録されていません"
@@ -97,13 +92,16 @@ struct EarTrainingGameView: View {
                 return
             }
             let audioInstance = EarTrainingAudio()
+            if let first = phrases.first, let url = URL(string: first.audioUrl) {
+                audioInstance.preloadPhrase(url: url)
+            }
             let createdController = EarTrainingBattleController(
                 stage: stageDetail,
                 phrases: phrases,
                 lessonContext: lessonContext,
                 isEnglishCopy: locale == .en,
-                enemyId: selectedEnemy?.id ?? stageDetail.id.uuidString,
-                enemyName: selectedEnemy?.localizedName(locale) ?? stageDetail.localizedTitle(locale),
+                enemyId: stageDetail.id.uuidString,
+                enemyName: stageDetail.localizedTitle(locale),
                 audio: audioInstance,
                 onExit: onClose
             )

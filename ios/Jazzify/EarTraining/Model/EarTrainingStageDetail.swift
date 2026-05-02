@@ -85,6 +85,53 @@ struct EarTrainingStageDetail: Codable, Identifiable, Sendable {
     }
 }
 
+/// レッスン詳細画面で先読みした耳コピステージ詳細を、バトル起動時に再利用する。
+actor EarTrainingStageDetailCache {
+    static let shared = EarTrainingStageDetailCache()
+
+    private var cachedDetails: [UUID: EarTrainingStageDetail] = [:]
+    private var inFlightTasks: [UUID: Task<EarTrainingStageDetail, Error>] = [:]
+
+    private init() {}
+
+    func stageDetail(for stageId: UUID) async throws -> EarTrainingStageDetail {
+        if let cached = cachedDetails[stageId] {
+            return cached
+        }
+
+        if let task = inFlightTasks[stageId] {
+            return try await resolve(task: task, stageId: stageId)
+        }
+
+        let task = Task {
+            try await SupabaseService.shared.fetchEarTrainingStageDetail(stageId: stageId)
+        }
+        inFlightTasks[stageId] = task
+        return try await resolve(task: task, stageId: stageId)
+    }
+
+    func preload(stageIds: [UUID]) {
+        for stageId in Set(stageIds) {
+            guard cachedDetails[stageId] == nil, inFlightTasks[stageId] == nil else { continue }
+            inFlightTasks[stageId] = Task {
+                try await SupabaseService.shared.fetchEarTrainingStageDetail(stageId: stageId)
+            }
+        }
+    }
+
+    private func resolve(task: Task<EarTrainingStageDetail, Error>, stageId: UUID) async throws -> EarTrainingStageDetail {
+        do {
+            let detail = try await task.value
+            cachedDetails[stageId] = detail
+            inFlightTasks[stageId] = nil
+            return detail
+        } catch {
+            inFlightTasks[stageId] = nil
+            throw error
+        }
+    }
+}
+
 struct EarTrainingPhraseDetail: Codable, Identifiable, Sendable {
     let id: UUID
     let stageId: UUID
