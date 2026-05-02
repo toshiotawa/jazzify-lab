@@ -33,7 +33,6 @@ interface BattleEffectSpriteAsset {
 }
 
 interface JazzStagePropAsset extends BattleEffectSpriteAsset {
-  tint: number;
   alpha: number;
 }
 
@@ -68,26 +67,22 @@ const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
   doubleBass: {
     key: 'ear-training-bg-double-bass',
     url: `${EFFECT_ASSET_PATH}bg-double-bass.png`,
-    tint: 0x261e1c,
-    alpha: 0.56,
+    alpha: 0.82,
   },
   piano: {
     key: 'ear-training-bg-upright-piano',
     url: `${EFFECT_ASSET_PATH}bg-upright-piano.png`,
-    tint: 0x261e1c,
-    alpha: 0.58,
+    alpha: 0.82,
   },
   drumKit: {
     key: 'ear-training-bg-drum-kit',
     url: `${EFFECT_ASSET_PATH}bg-drum-kit.png`,
-    tint: 0x261e1c,
-    alpha: 0.6,
+    alpha: 0.84,
   },
   neon: {
     key: 'ear-training-bg-jazz-neon',
     url: `${EFFECT_ASSET_PATH}bg-jazz-neon.png`,
-    tint: 0x4a3c37,
-    alpha: 0.72,
+    alpha: 0.9,
   },
 };
 
@@ -484,10 +479,10 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    this.addStageBackgroundSprite('doubleBass', width * 0.075, floorY, width * 0.1, 0.5, 1);
-    this.addStageBackgroundSprite('piano', width * 0.352, floorY, width * 0.13, 0.5, 1);
+    this.addStageBackgroundSprite('doubleBass', width * 0.075, floorY, width * 0.12, 0.5, 1);
+    this.addStageBackgroundSprite('piano', width * 0.352, floorY, width * 0.15, 0.5, 1);
 
-    const drumMaxWidth = Math.max(1, Math.floor(width * 0.138));
+    const drumMaxWidth = Math.max(1, Math.floor(width * 0.158));
     const drumHalfWidth = drumMaxWidth * 0.5;
     const enemyApproxRightEdgeX = width * 0.77 + CHARACTER_DISPLAY_SIZE * 0.48;
     const drumMaxCenterX = width - 16 - drumHalfWidth;
@@ -495,7 +490,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const preferredDrumCenterX = width * 0.91;
     const drumCenterX = Math.min(Math.max(preferredDrumCenterX, Math.min(minimumCenterPastEnemy, drumMaxCenterX)), drumMaxCenterX);
     this.addStageBackgroundSprite('drumKit', drumCenterX, floorY, drumMaxWidth, 0.5, 1);
-    this.addStageBackgroundSprite('neon', width * 0.352 + 2, 64, width * 0.085, 0.5, 0);
+    this.addStageBackgroundSprite('neon', width * 0.352 + 2, 64, width * 0.105, 0.5, 0);
   }
 
   private addStageBackgroundSprite(
@@ -514,7 +509,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const sprite = this.add.image(x, y, asset.key).setOrigin(originX, originY);
     const displayWidth = Math.max(1, Math.floor(maxWidth));
     sprite.setDisplaySize(displayWidth, Math.max(1, displayWidth * (frame.height / frame.width)));
-    sprite.setTint(asset.tint);
     sprite.setAlpha(asset.alpha);
     this.backgroundLayer.add(sprite);
   }
