@@ -17,6 +17,57 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let characterShadowHeight: CGFloat = 18
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
 
+    /// 耳コピバトル スポットライト（図解仕様: 薄い円錐・足元プール・リム・ヴィネット）。
+    private enum SpotlightStageLayout {
+        enum Z {
+            /// `backdrop` より手前、`localVignette` より奥。
+            static let backdrop: CGFloat = 0
+            /// ステージ周辺をわずかに締める（乗算）。
+            static let localVignette: CGFloat = 0.38
+            /// 細い円錐（スクリーン合成）。
+            static let cone: CGFloat = 0.92
+            /// 足元の楕円プール。
+            static let floorPool: CGFloat = 1.18
+        }
+
+        /// 円錐の頂点（光源）を UIKit 上端付近に置き、天井スポットのように見せる（pt、上＝0 に近いほど高い）。
+        /// コード帯は SwiftUI で上に重なるため、ここを上げても HUD の可読性は基本維持される。
+        static let coneApexInsetFromTopUIKit: CGFloat = 2
+        /// 床プール・旧シャドウと同程度の水平半径（pt）。
+        static let floorPoolRadiusX: CGFloat = 84
+        static let floorPoolRadiusY: CGFloat = 14
+        /// 図解: Cone Alpha 0.08–0.16
+        static let coneAlphaPlayer: CGFloat = 0.11
+        static let coneAlphaEnemy: CGFloat = 0.13
+        /// 図解: Floor Alpha 0.10–0.18
+        static let floorPoolAlphaPlayer: CGFloat = 0.13
+        static let floorPoolAlphaEnemy: CGFloat = 0.15
+        /// 円錐の床位置での半幅（シーン幅比）。
+        static let coneHalfWidthBottomFrac: CGFloat = 0.072
+        static let coneHalfWidthTopFrac: CGFloat = 0.014
+        /// 円錐の頂点を足元中心より中央方向へずらす（シーン幅比）。頭〜足の軸を内向きに。
+        static let coneApexShiftTowardCenterFrac: CGFloat = 0.02
+        /// 2700K〜3200K 相当の暖色。
+        static let warmTintPlayer = UIColor(red: 255 / 255, green: 210 / 255, blue: 155 / 255, alpha: 1)
+        static let warmTintEnemy = UIColor(red: 255 / 255, green: 200 / 255, blue: 175 / 255, alpha: 1)
+        /// 局所ヴィネット（乗算）最大不透明度。
+        static let localVignetteStrength: CGFloat = 0.42
+        /// 最終ヴィネット（キャラ・床の上に薄く）。
+        static let finalVignetteAlpha: CGFloat = 0.38
+        static let finalVignetteReachFrac: CGFloat = 0.62
+        /// リムライト ~0.12
+        static let rimAlpha: CGFloat = 0.12
+        static let rimScale: CGFloat = 1.048
+        static let rimTintPlayer = UIColor(red: 255 / 255, green: 195 / 255, blue: 130 / 255, alpha: 1)
+        static let rimTintEnemy = UIColor(red: 255 / 255, green: 175 / 255, blue: 150 / 255, alpha: 1)
+    }
+
+    /// アップライトピアノ（`JazzStagePropLayout`）の左端より左だけへプレイヤー側スポットを制限する。
+    private static func spotlightClipMaxXBeforeUprightPiano(width: CGFloat) -> CGFloat {
+        let leftFrac = JazzStagePropLayout.CenterXF.piano - JazzStagePropLayout.WidthFrac.piano * 0.5
+        return width * leftFrac - 14
+    }
+
     private static func jazzBackdropEdgeColor() -> UIColor {
         UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1)
     }
@@ -92,6 +143,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private let backgroundLayer = SKNode()
     private let characterLayer = SKNode()
+    /// キャラ・床の上に載せる仕上げヴィネット（演出レイヤーより手前ではない）。
+    private let finalVignetteLayer = SKNode()
     private let effectLayer = SKNode()
     private let phraseLayer = SKNode()
     private let cameraNode = SKCameraNode()
@@ -121,8 +174,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             self.camera = cameraNode
         }
         resetCameraToCenter()
-        // 背景/キャラ/演出/フレーズ層
-        for node in [backgroundLayer, characterLayer, phraseLayer, effectLayer] where node.parent == nil {
+        backgroundLayer.zPosition = 0
+        characterLayer.zPosition = 10
+        finalVignetteLayer.zPosition = 14
+        phraseLayer.zPosition = 20
+        effectLayer.zPosition = 100
+        // 背景 / キャラ / 仕上げヴィネット / フレーズ / 演出
+        for node in [backgroundLayer, characterLayer, finalVignetteLayer, phraseLayer, effectLayer] where node.parent == nil {
             addChild(node)
         }
         rebuildScene()
@@ -174,6 +232,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         lastBuildSize = size
         backgroundLayer.removeAllChildren()
         characterLayer.removeAllChildren()
+        finalVignetteLayer.removeAllChildren()
         phraseLayer.removeAllChildren()
         playerNode = nil
         enemyNode = nil
@@ -186,6 +245,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         resetCameraToCenter()
         drawBackground(width: width, height: height, floorY: floorY)
         drawCharacters(width: width, height: height, floorY: floorY)
+        drawFinalStageVignette(width: width, height: height)
         drawPhraseIntro(width: width, height: height, floorY: floorY)
         bringEffectLayerToFront()
     }
@@ -202,25 +262,485 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         backdrop.anchorPoint = CGPoint(x: 0.5, y: 0)
         backdrop.position = CGPoint(x: width / 2, y: 0)
         backdrop.size = CGSize(width: width, height: height)
-        backdrop.zPosition = 0
+        backdrop.zPosition = SpotlightStageLayout.Z.backdrop
         backgroundLayer.addChild(backdrop)
+
+        drawStageSpotlights(width: width, height: height, floorY: floorY)
 
         addJazzStagePropSprites(width: width, height: height, floorY: floorY)
 
         let shadowRadiusX: CGFloat = 84
         let shadowRadiusY: CGFloat = 14
         let leftShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
-        leftShadow.fillColor = UIColor.black.withAlphaComponent(0.2)
+        leftShadow.fillColor = UIColor.black.withAlphaComponent(0.17)
         leftShadow.strokeColor = .clear
         leftShadow.position = CGPoint(x: width * 0.23, y: floorY - 6)
         leftShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(leftShadow)
         let rightShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
-        rightShadow.fillColor = UIColor.black.withAlphaComponent(0.2)
+        rightShadow.fillColor = UIColor.black.withAlphaComponent(0.17)
         rightShadow.strokeColor = .clear
         rightShadow.position = CGPoint(x: width * 0.77, y: floorY - 6)
         rightShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(rightShadow)
+    }
+
+    /// 図解順: 局所ヴィネット → 円錐 → 足元プール（楽器プロップより手前）。
+    private func drawStageSpotlights(width: CGFloat, height: CGFloat, floorY: CGFloat) {
+        let localTex = makeLocalSpotlightVignetteTexture(width: width, height: height, floorY: floorY)
+        let localNode = SKSpriteNode(texture: localTex)
+        localNode.anchorPoint = CGPoint(x: 0.5, y: 0)
+        localNode.position = CGPoint(x: width / 2, y: 0)
+        localNode.size = CGSize(width: width, height: height)
+        localNode.zPosition = SpotlightStageLayout.Z.localVignette
+        localNode.blendMode = .multiply
+        localNode.alpha = 1.0
+        backgroundLayer.addChild(localNode)
+
+        let pianoClipX = Self.spotlightClipMaxXBeforeUprightPiano(width: width)
+
+        addSpotlightConeNode(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: width * 0.23,
+            apexTowardCenterShift: width * SpotlightStageLayout.coneApexShiftTowardCenterFrac,
+            warmTint: SpotlightStageLayout.warmTintPlayer,
+            peakAlpha: SpotlightStageLayout.coneAlphaPlayer,
+            clipMaxX: pianoClipX,
+            zSlot: 0
+        )
+        addSpotlightConeNode(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: width * 0.77,
+            apexTowardCenterShift: -width * SpotlightStageLayout.coneApexShiftTowardCenterFrac,
+            warmTint: SpotlightStageLayout.warmTintEnemy,
+            peakAlpha: SpotlightStageLayout.coneAlphaEnemy,
+            clipMaxX: nil,
+            zSlot: 1
+        )
+
+        addFloorLightPoolNode(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: width * 0.23,
+            warmTint: SpotlightStageLayout.warmTintPlayer,
+            poolAlpha: SpotlightStageLayout.floorPoolAlphaPlayer,
+            clipMaxX: pianoClipX,
+            zSlot: 0
+        )
+        addFloorLightPoolNode(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: width * 0.77,
+            warmTint: SpotlightStageLayout.warmTintEnemy,
+            poolAlpha: SpotlightStageLayout.floorPoolAlphaEnemy,
+            clipMaxX: nil,
+            zSlot: 1
+        )
+    }
+
+    private func addSpotlightConeNode(
+        width: CGFloat,
+        height: CGFloat,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        apexTowardCenterShift: CGFloat,
+        warmTint: UIColor,
+        peakAlpha: CGFloat,
+        clipMaxX: CGFloat?,
+        zSlot: Int
+    ) {
+        let tex = makeSpotlightConeTexture(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: centerX,
+            apexTowardCenterShift: apexTowardCenterShift,
+            warmTint: warmTint,
+            peakAlpha: peakAlpha,
+            clipMaxX: clipMaxX
+        )
+        let node = SKSpriteNode(texture: tex)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.position = CGPoint(x: width / 2, y: 0)
+        node.size = CGSize(width: width, height: height)
+        node.zPosition = SpotlightStageLayout.Z.cone + CGFloat(zSlot) * 0.001
+        node.blendMode = .screen
+        node.alpha = 1.0
+        backgroundLayer.addChild(node)
+    }
+
+    private func addFloorLightPoolNode(
+        width: CGFloat,
+        height: CGFloat,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        warmTint: UIColor,
+        poolAlpha: CGFloat,
+        clipMaxX: CGFloat?,
+        zSlot: Int
+    ) {
+        let tex = makeFloorLightPoolTexture(
+            width: width,
+            height: height,
+            floorY: floorY,
+            centerX: centerX,
+            warmTint: warmTint,
+            peakAlpha: poolAlpha,
+            clipMaxX: clipMaxX
+        )
+        let node = SKSpriteNode(texture: tex)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.position = CGPoint(x: width / 2, y: 0)
+        node.size = CGSize(width: width, height: height)
+        node.zPosition = SpotlightStageLayout.Z.floorPool + CGFloat(zSlot) * 0.001
+        node.blendMode = .screen
+        node.alpha = 1.0
+        backgroundLayer.addChild(node)
+    }
+
+    private func drawFinalStageVignette(width: CGFloat, height: CGFloat) {
+        let tex = makeFinalVignetteTexture(width: width, height: height)
+        let node = SKSpriteNode(texture: tex)
+        node.anchorPoint = CGPoint(x: 0.5, y: 0)
+        node.position = CGPoint(x: width / 2, y: 0)
+        node.size = CGSize(width: width, height: height)
+        node.zPosition = 0
+        node.alpha = 1.0
+        finalVignetteLayer.addChild(node)
+    }
+
+    private func makeLocalSpotlightVignetteTexture(width: CGFloat, height: CGFloat, floorY: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: max(1, width), height: max(1, height))
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
+        let image = renderer.image { ctx in
+            Self.paintLocalSpotlightVignette(
+                cgContext: ctx.cgContext,
+                size: textureSize,
+                floorY: floorY
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private func makeSpotlightConeTexture(
+        width: CGFloat,
+        height: CGFloat,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        apexTowardCenterShift: CGFloat,
+        warmTint: UIColor,
+        peakAlpha: CGFloat,
+        clipMaxX: CGFloat?
+    ) -> SKTexture {
+        let textureSize = CGSize(width: max(1, width), height: max(1, height))
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
+        let image = renderer.image { ctx in
+            Self.paintSpotlightCone(
+                cgContext: ctx.cgContext,
+                size: textureSize,
+                floorY: floorY,
+                centerX: centerX,
+                apexTowardCenterShift: apexTowardCenterShift,
+                warmTint: warmTint,
+                peakAlpha: peakAlpha,
+                clipMaxX: clipMaxX
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private func makeFloorLightPoolTexture(
+        width: CGFloat,
+        height: CGFloat,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        warmTint: UIColor,
+        peakAlpha: CGFloat,
+        clipMaxX: CGFloat?
+    ) -> SKTexture {
+        let textureSize = CGSize(width: max(1, width), height: max(1, height))
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
+        let image = renderer.image { ctx in
+            Self.paintFloorLightPool(
+                cgContext: ctx.cgContext,
+                size: textureSize,
+                floorY: floorY,
+                centerX: centerX,
+                warmTint: warmTint,
+                peakAlpha: peakAlpha,
+                clipMaxX: clipMaxX
+            )
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    private func makeFinalVignetteTexture(width: CGFloat, height: CGFloat) -> SKTexture {
+        let textureSize = CGSize(width: max(1, width), height: max(1, height))
+        let renderer = UIGraphicsImageRenderer(size: textureSize)
+        let image = renderer.image { ctx in
+            Self.paintFinalStageVignette(cgContext: ctx.cgContext, size: textureSize)
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        return texture
+    }
+
+    /// UIKit 上原点。ステージ左右・中央をわずかに締めてスポットを際立たせる。
+    private static func paintLocalSpotlightVignette(cgContext cg: CGContext, size textureSize: CGSize, floorY: CGFloat) {
+        let width = textureSize.width
+        let height = textureSize.height
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        cg.saveGState()
+        defer { cg.restoreGState() }
+        cg.setAllowsAntialiasing(true)
+
+        let floorUIKitY = height - floorY
+        let midTone = UIColor.white.withAlphaComponent(1.0 - SpotlightStageLayout.localVignetteStrength * 0.55).cgColor
+        let clear = UIColor.white.cgColor
+
+        // 左右外側をやや暗く（放射）。
+        if let gSide = CGGradient(colorsSpace: rgb, colors: [midTone, clear] as CFArray, locations: [0, 1]) {
+            let reach = width * 0.55
+            cg.drawRadialGradient(
+                gSide,
+                startCenter: CGPoint(x: 0, y: floorUIKitY * 0.42),
+                startRadius: 0,
+                endCenter: CGPoint(x: 0, y: floorUIKitY * 0.42),
+                endRadius: reach,
+                options: [.drawsAfterEndLocation]
+            )
+            cg.drawRadialGradient(
+                gSide,
+                startCenter: CGPoint(x: width, y: floorUIKitY * 0.42),
+                startRadius: 0,
+                endCenter: CGPoint(x: width, y: floorUIKitY * 0.42),
+                endRadius: reach,
+                options: [.drawsAfterEndLocation]
+            )
+        }
+
+        // ステージ中央（コードレーン）をわずかに締める — コード UI は SwiftUI のためシーンでは広めに。
+        if let gMid = CGGradient(
+            colorsSpace: rgb,
+            colors: [
+                UIColor.white.withAlphaComponent(1.0 - SpotlightStageLayout.localVignetteStrength * 0.35).cgColor,
+                UIColor.white.cgColor,
+            ] as CFArray,
+            locations: [0, 1]
+        ) {
+            let cx = width * 0.5
+            let cy = floorUIKitY * 0.36
+            let rx = width * 0.22
+            let ry = height * 0.28
+            cg.drawRadialGradient(
+                gMid,
+                startCenter: CGPoint(x: cx, y: cy),
+                startRadius: 0,
+                endCenter: CGPoint(x: cx, y: cy),
+                endRadius: max(rx, ry),
+                options: [.drawsAfterEndLocation]
+            )
+        }
+    }
+
+    /// UIKit 上原点。細い円錐（光源は画面上端＝天井付近、足元へ降りる）。
+    private static func paintSpotlightCone(
+        cgContext cg: CGContext,
+        size textureSize: CGSize,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        apexTowardCenterShift: CGFloat,
+        warmTint: UIColor,
+        peakAlpha: CGFloat,
+        clipMaxX: CGFloat?
+    ) {
+        let width = textureSize.width
+        let height = textureSize.height
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        cg.saveGState()
+        defer { cg.restoreGState() }
+        cg.setAllowsAntialiasing(true)
+
+        let floorUIKitY = height - floorY
+        let floorLimitUIKitY = floorUIKitY - 36
+        let desiredTop = SpotlightStageLayout.coneApexInsetFromTopUIKit
+        var apexUIKitY = min(desiredTop, floorLimitUIKitY)
+        if apexUIKitY < 1 {
+            apexUIKitY = min(max(2, floorUIKitY * 0.06), floorLimitUIKitY)
+        }
+        apexUIKitY = max(0, apexUIKitY)
+
+        let halfTop = width * SpotlightStageLayout.coneHalfWidthTopFrac
+        let halfBot = width * SpotlightStageLayout.coneHalfWidthBottomFrac
+
+        let apexCx = centerX + apexTowardCenterShift
+        var tr = CGPoint(x: apexCx + halfTop, y: apexUIKitY)
+        var br = CGPoint(x: centerX + halfBot, y: floorUIKitY + 4)
+        let bl = CGPoint(x: centerX - halfBot, y: floorUIKitY + 4)
+        let tl = CGPoint(x: apexCx - halfTop, y: apexUIKitY)
+
+        if let cap = clipMaxX {
+            tr.x = min(tr.x, cap)
+            br.x = min(br.x, cap)
+            guard br.x > bl.x + 3, tr.x > tl.x + 3 else { return }
+        }
+
+        cg.beginPath()
+        cg.move(to: tl)
+        cg.addLine(to: tr)
+        cg.addLine(to: br)
+        cg.addLine(to: bl)
+        cg.closePath()
+        cg.clip()
+
+        let fade = warmTint.withAlphaComponent(peakAlpha * 0.18).cgColor
+        let transparent = warmTint.withAlphaComponent(0).cgColor
+
+        let midUIKitY = apexUIKitY + (floorUIKitY - apexUIKitY) * 0.38
+        let bridgeOpaque = warmTint.withAlphaComponent(peakAlpha * 0.42)
+
+        // 天井付近はごく弱く、床へ向かって粒子上げる（縦のつながり）。
+        if let gUpper = CGGradient(
+            colorsSpace: rgb,
+            colors: [
+                warmTint.withAlphaComponent(peakAlpha * 0.14).cgColor,
+                bridgeOpaque.cgColor,
+            ] as CFArray,
+            locations: [0, 1]
+        ) {
+            cg.drawLinearGradient(
+                gUpper,
+                start: CGPoint(x: centerX, y: apexUIKitY),
+                end: CGPoint(x: centerX, y: midUIKitY),
+                options: [.drawsAfterEndLocation]
+            )
+        }
+
+        // 頭〜足の主ボリューム。
+        if let gVert = CGGradient(colorsSpace: rgb, colors: [bridgeOpaque.cgColor, fade] as CFArray, locations: [0, 1]) {
+            cg.drawLinearGradient(
+                gVert,
+                start: CGPoint(x: centerX, y: midUIKitY),
+                end: CGPoint(x: centerX, y: floorUIKitY + 24),
+                options: [.drawsAfterEndLocation]
+            )
+        }
+
+        // 横フェザー（大きく柔らかく）。
+        if let gFeather = CGGradient(colorsSpace: rgb, colors: [transparent, warmTint.withAlphaComponent(peakAlpha * 0.55).cgColor, transparent] as CFArray, locations: [0, 0.5, 1]) {
+            cg.setBlendMode(.plusLighter)
+            let featherW = halfBot * 2.4
+            cg.drawLinearGradient(
+                gFeather,
+                start: CGPoint(x: centerX - featherW, y: (apexUIKitY + floorUIKitY) * 0.5),
+                end: CGPoint(x: centerX + featherW, y: (apexUIKitY + floorUIKitY) * 0.5),
+                options: [.drawsAfterEndLocation]
+            )
+            cg.setBlendMode(.normal)
+        }
+    }
+
+    private static func paintFloorLightPool(
+        cgContext cg: CGContext,
+        size textureSize: CGSize,
+        floorY: CGFloat,
+        centerX: CGFloat,
+        warmTint: UIColor,
+        peakAlpha: CGFloat,
+        clipMaxX: CGFloat?
+    ) {
+        let width = textureSize.width
+        let height = textureSize.height
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        cg.saveGState()
+        defer { cg.restoreGState() }
+        cg.setAllowsAntialiasing(true)
+
+        if let mx = clipMaxX {
+            let clipW = max(0, min(mx, width))
+            cg.clip(to: CGRect(x: 0, y: 0, width: clipW, height: height))
+        }
+
+        let floorUIKitY = height - floorY
+        let cx = centerX
+        let cy = floorUIKitY - 6
+        let rx = SpotlightStageLayout.floorPoolRadiusX * 1.05
+        let ry = SpotlightStageLayout.floorPoolRadiusY * 1.2
+
+        cg.addEllipse(in: CGRect(x: cx - rx, y: cy - ry, width: rx * 2, height: ry * 2))
+        cg.clip()
+
+        if let gPool = CGGradient(
+            colorsSpace: rgb,
+            colors: [
+                warmTint.withAlphaComponent(peakAlpha).cgColor,
+                warmTint.withAlphaComponent(peakAlpha * 0.22).cgColor,
+                warmTint.withAlphaComponent(0).cgColor,
+            ] as CFArray,
+            locations: [0, 0.45, 1]
+        ) {
+            cg.drawRadialGradient(
+                gPool,
+                startCenter: CGPoint(x: cx, y: cy),
+                startRadius: 0,
+                endCenter: CGPoint(x: cx, y: cy),
+                endRadius: max(rx, ry),
+                options: [.drawsAfterEndLocation]
+            )
+        }
+    }
+
+    /// UIKit 上原点。端のみごく薄い仕上げ（アルファのみ）。
+    private static func paintFinalStageVignette(cgContext cg: CGContext, size textureSize: CGSize) {
+        let width = textureSize.width
+        let height = textureSize.height
+        let rgb = CGColorSpaceCreateDeviceRGB()
+        cg.saveGState()
+        defer { cg.restoreGState() }
+        cg.setAllowsAntialiasing(true)
+
+        let strength = SpotlightStageLayout.finalVignetteAlpha
+        let edge = UIColor.black.withAlphaComponent(0.42 * strength).cgColor
+        let clear = UIColor.clear.cgColor
+        let reach = max(width, height) * SpotlightStageLayout.finalVignetteReachFrac
+
+        if let g = CGGradient(colorsSpace: rgb, colors: [edge, clear] as CFArray, locations: [0, 1]) {
+            for cx in [CGFloat(0), width] as [CGFloat] {
+                for cy in [CGFloat(0), height] as [CGFloat] {
+                    cg.drawRadialGradient(
+                        g,
+                        startCenter: CGPoint(x: cx, y: cy),
+                        startRadius: 0,
+                        endCenter: CGPoint(x: cx, y: cy),
+                        endRadius: reach,
+                        options: [.drawsAfterEndLocation]
+                    )
+                }
+            }
+        }
+
+        if let gTop = CGGradient(colorsSpace: rgb, colors: [UIColor.black.withAlphaComponent(0.18 * strength).cgColor, clear] as CFArray, locations: [0, 1]) {
+            cg.drawRadialGradient(
+                gTop,
+                startCenter: CGPoint(x: width * 0.5, y: 0),
+                startRadius: 0,
+                endCenter: CGPoint(x: width * 0.5, y: 0),
+                endRadius: width * 0.72,
+                options: [.drawsAfterEndLocation]
+            )
+        }
     }
 
     /// プロシージャル壁・床テクスチャの上に、透過ジャズ楽器レイヤーを重ねる。
@@ -662,15 +1182,33 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         shadow.fillColor = UIColor.black.withAlphaComponent(0.34)
         shadow.strokeColor = .clear
         shadow.position = CGPoint(x: 0, y: -4)
+        shadow.zPosition = -4
         container.addChild(shadow)
 
         var imageNode: SKSpriteNode?
         if let image = UIImage(named: avatarAssetName) {
             let texture = SKTexture(image: image)
+
+            let rim = SKSpriteNode(texture: texture)
+            rim.anchorPoint = CGPoint(x: 0.5, y: 0)
+            rim.size = CGSize(
+                width: Self.characterDisplaySize * SpotlightStageLayout.rimScale,
+                height: Self.characterDisplaySize * SpotlightStageLayout.rimScale
+            )
+            rim.position = .zero
+            rim.xScale = flipX ? -1 : 1
+            rim.color = isPlayer ? SpotlightStageLayout.rimTintPlayer : SpotlightStageLayout.rimTintEnemy
+            rim.colorBlendFactor = 1.0
+            rim.alpha = SpotlightStageLayout.rimAlpha
+            rim.blendMode = .add
+            rim.zPosition = -1
+            container.addChild(rim)
+
             let sprite = SKSpriteNode(texture: texture)
             sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
             sprite.size = CGSize(width: Self.characterDisplaySize, height: Self.characterDisplaySize)
             sprite.position = .zero
+            sprite.zPosition = 0
             sprite.xScale = flipX ? -1 : 1
             container.addChild(sprite)
             imageNode = sprite
@@ -684,6 +1222,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         fallback.horizontalAlignmentMode = .center
         fallback.position = CGPoint(x: 0, y: 6)
         fallback.isHidden = imageNode != nil
+        fallback.zPosition = 0
         container.addChild(fallback)
 
         characterLayer.addChild(container)
