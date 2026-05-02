@@ -62,12 +62,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         static let rimTintEnemy = UIColor(red: 255 / 255, green: 175 / 255, blue: 150 / 255, alpha: 1)
     }
 
-    /// アップライトピアノ（`JazzStagePropLayout`）の左端より左だけへプレイヤー側スポットを制限する。
-    private static func spotlightClipMaxXBeforeUprightPiano(width: CGFloat) -> CGFloat {
-        let leftFrac = JazzStagePropLayout.CenterXF.piano - JazzStagePropLayout.WidthFrac.piano * 0.5
-        return width * leftFrac - 14
-    }
-
     private static func jazzBackdropEdgeColor() -> UIColor {
         UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1)
     }
@@ -126,7 +120,8 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         enum CenterXF {
             static let doubleBass: CGFloat = 0.075
-            static let piano: CGFloat = 0.30
+            /// プレイヤーと被りにくいようやや右へ（ネオンはこの中心に追従）。
+            static let piano: CGFloat = 0.352
         }
     }
 
@@ -274,12 +269,14 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let leftShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
         leftShadow.fillColor = UIColor.black.withAlphaComponent(0.17)
         leftShadow.strokeColor = .clear
+        leftShadow.lineWidth = 0
         leftShadow.position = CGPoint(x: width * 0.23, y: floorY - 6)
         leftShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(leftShadow)
         let rightShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
         rightShadow.fillColor = UIColor.black.withAlphaComponent(0.17)
         rightShadow.strokeColor = .clear
+        rightShadow.lineWidth = 0
         rightShadow.position = CGPoint(x: width * 0.77, y: floorY - 6)
         rightShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(rightShadow)
@@ -297,8 +294,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         localNode.alpha = 1.0
         backgroundLayer.addChild(localNode)
 
-        let pianoClipX = Self.spotlightClipMaxXBeforeUprightPiano(width: width)
-
         addSpotlightConeNode(
             width: width,
             height: height,
@@ -307,7 +302,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             apexTowardCenterShift: width * SpotlightStageLayout.coneApexShiftTowardCenterFrac,
             warmTint: SpotlightStageLayout.warmTintPlayer,
             peakAlpha: SpotlightStageLayout.coneAlphaPlayer,
-            clipMaxX: pianoClipX,
             zSlot: 0
         )
         addSpotlightConeNode(
@@ -318,7 +312,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             apexTowardCenterShift: -width * SpotlightStageLayout.coneApexShiftTowardCenterFrac,
             warmTint: SpotlightStageLayout.warmTintEnemy,
             peakAlpha: SpotlightStageLayout.coneAlphaEnemy,
-            clipMaxX: nil,
             zSlot: 1
         )
 
@@ -329,7 +322,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             centerX: width * 0.23,
             warmTint: SpotlightStageLayout.warmTintPlayer,
             poolAlpha: SpotlightStageLayout.floorPoolAlphaPlayer,
-            clipMaxX: pianoClipX,
             zSlot: 0
         )
         addFloorLightPoolNode(
@@ -339,7 +331,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             centerX: width * 0.77,
             warmTint: SpotlightStageLayout.warmTintEnemy,
             poolAlpha: SpotlightStageLayout.floorPoolAlphaEnemy,
-            clipMaxX: nil,
             zSlot: 1
         )
     }
@@ -352,7 +343,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         apexTowardCenterShift: CGFloat,
         warmTint: UIColor,
         peakAlpha: CGFloat,
-        clipMaxX: CGFloat?,
         zSlot: Int
     ) {
         let tex = makeSpotlightConeTexture(
@@ -362,8 +352,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             centerX: centerX,
             apexTowardCenterShift: apexTowardCenterShift,
             warmTint: warmTint,
-            peakAlpha: peakAlpha,
-            clipMaxX: clipMaxX
+            peakAlpha: peakAlpha
         )
         let node = SKSpriteNode(texture: tex)
         node.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -382,7 +371,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         centerX: CGFloat,
         warmTint: UIColor,
         poolAlpha: CGFloat,
-        clipMaxX: CGFloat?,
         zSlot: Int
     ) {
         let tex = makeFloorLightPoolTexture(
@@ -391,8 +379,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             floorY: floorY,
             centerX: centerX,
             warmTint: warmTint,
-            peakAlpha: poolAlpha,
-            clipMaxX: clipMaxX
+            peakAlpha: poolAlpha
         )
         let node = SKSpriteNode(texture: tex)
         node.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -437,8 +424,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         centerX: CGFloat,
         apexTowardCenterShift: CGFloat,
         warmTint: UIColor,
-        peakAlpha: CGFloat,
-        clipMaxX: CGFloat?
+        peakAlpha: CGFloat
     ) -> SKTexture {
         let textureSize = CGSize(width: max(1, width), height: max(1, height))
         let renderer = UIGraphicsImageRenderer(size: textureSize)
@@ -450,8 +436,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 centerX: centerX,
                 apexTowardCenterShift: apexTowardCenterShift,
                 warmTint: warmTint,
-                peakAlpha: peakAlpha,
-                clipMaxX: clipMaxX
+                peakAlpha: peakAlpha
             )
         }
         let texture = SKTexture(image: image)
@@ -465,8 +450,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         floorY: CGFloat,
         centerX: CGFloat,
         warmTint: UIColor,
-        peakAlpha: CGFloat,
-        clipMaxX: CGFloat?
+        peakAlpha: CGFloat
     ) -> SKTexture {
         let textureSize = CGSize(width: max(1, width), height: max(1, height))
         let renderer = UIGraphicsImageRenderer(size: textureSize)
@@ -477,8 +461,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 floorY: floorY,
                 centerX: centerX,
                 warmTint: warmTint,
-                peakAlpha: peakAlpha,
-                clipMaxX: clipMaxX
+                peakAlpha: peakAlpha
             )
         }
         let texture = SKTexture(image: image)
@@ -563,8 +546,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         centerX: CGFloat,
         apexTowardCenterShift: CGFloat,
         warmTint: UIColor,
-        peakAlpha: CGFloat,
-        clipMaxX: CGFloat?
+        peakAlpha: CGFloat
     ) {
         let width = textureSize.width
         let height = textureSize.height
@@ -586,16 +568,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let halfBot = width * SpotlightStageLayout.coneHalfWidthBottomFrac
 
         let apexCx = centerX + apexTowardCenterShift
-        var tr = CGPoint(x: apexCx + halfTop, y: apexUIKitY)
-        var br = CGPoint(x: centerX + halfBot, y: floorUIKitY + 4)
-        let bl = CGPoint(x: centerX - halfBot, y: floorUIKitY + 4)
         let tl = CGPoint(x: apexCx - halfTop, y: apexUIKitY)
-
-        if let cap = clipMaxX {
-            tr.x = min(tr.x, cap)
-            br.x = min(br.x, cap)
-            guard br.x > bl.x + 3, tr.x > tl.x + 3 else { return }
-        }
+        let tr = CGPoint(x: apexCx + halfTop, y: apexUIKitY)
+        let br = CGPoint(x: centerX + halfBot, y: floorUIKitY + 4)
+        let bl = CGPoint(x: centerX - halfBot, y: floorUIKitY + 4)
 
         cg.beginPath()
         cg.move(to: tl)
@@ -658,20 +634,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         floorY: CGFloat,
         centerX: CGFloat,
         warmTint: UIColor,
-        peakAlpha: CGFloat,
-        clipMaxX: CGFloat?
+        peakAlpha: CGFloat
     ) {
-        let width = textureSize.width
         let height = textureSize.height
         let rgb = CGColorSpaceCreateDeviceRGB()
         cg.saveGState()
         defer { cg.restoreGState() }
         cg.setAllowsAntialiasing(true)
-
-        if let mx = clipMaxX {
-            let clipW = max(0, min(mx, width))
-            cg.clip(to: CGRect(x: 0, y: 0, width: clipW, height: height))
-        }
 
         let floorUIKitY = height - floorY
         let cx = centerX
@@ -1181,6 +1150,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let shadow = SKShapeNode(ellipseOf: CGSize(width: Self.characterShadowWidth, height: Self.characterShadowHeight))
         shadow.fillColor = UIColor.black.withAlphaComponent(0.34)
         shadow.strokeColor = .clear
+        shadow.lineWidth = 0
         shadow.position = CGPoint(x: 0, y: -4)
         shadow.zPosition = -4
         container.addChild(shadow)
@@ -1271,17 +1241,17 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         fireball.zRotation = -24 * (.pi / 180)
         effectLayer.addChild(fireball)
 
-        let glow = SKShapeNode(circleOfRadius: 22)
-        glow.fillColor = UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 0.34)
-        glow.strokeColor = .clear
+        let glow = makeFireballGlowSprite()
         glow.position = fireball.position
+        glow.zPosition = 49
         effectLayer.addChild(glow)
 
         let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.54)
         move.timingMode = .easeIn
-        let resize = SKAction.resize(toWidth: 96, height: 96, duration: 0.54)
+        let endScale: CGFloat = 96 / 78
+        let scale = SKAction.scale(to: endScale, duration: 0.54)
         let rotate = SKAction.rotate(toAngle: 16 * (.pi / 180), duration: 0.54, shortestUnitArc: false)
-        fireball.run(SKAction.group([move, resize, rotate])) { [weak self, weak fireball] in
+        fireball.run(SKAction.group([move, scale, rotate])) { [weak self, weak fireball] in
             guard let self else { return }
             fireball?.removeFromParent()
             self.flashCharacter(.enemy)
@@ -1516,17 +1486,63 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     // MARK: - Effect helpers
 
+    private func makeFireballGlowSprite() -> SKSpriteNode {
+        let d: CGFloat = 48
+        let imageSize = CGSize(width: d, height: d)
+        let renderer = UIGraphicsImageRenderer(size: imageSize)
+        let image = renderer.image { ctx in
+            let rgb = CGColorSpaceCreateDeviceRGB()
+            let core = UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 0.38)
+            if let gradient = CGGradient(
+                colorsSpace: rgb,
+                colors: [core.cgColor, UIColor.clear.cgColor] as CFArray,
+                locations: [0, 1]
+            ) {
+                let mid = d * 0.5
+                ctx.cgContext.drawRadialGradient(
+                    gradient,
+                    startCenter: CGPoint(x: mid, y: mid),
+                    startRadius: 0,
+                    endCenter: CGPoint(x: mid, y: mid),
+                    endRadius: mid,
+                    options: [.drawsAfterEndLocation]
+                )
+            }
+        }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .linear
+        let sprite = SKSpriteNode(texture: texture)
+        sprite.size = imageSize
+        return sprite
+    }
+
     private func makeEffectSprite(name: String, size: CGFloat) -> SKSpriteNode {
         let texture: SKTexture
         if let image = UIImage(named: name) {
             texture = SKTexture(image: image)
+            texture.filteringMode = .nearest
         } else {
-            texture = SKTexture()
+            texture = Self.makeFallbackPixelArtTexture(side: max(8, size * 0.5))
         }
         let sprite = SKSpriteNode(texture: texture)
         sprite.size = CGSize(width: size, height: size)
         sprite.zPosition = 50
+        sprite.color = .white
+        sprite.colorBlendFactor = 0
         return sprite
+    }
+
+    /// アセット欠落時も透明ではなく単色シルエットにし、欠損テクスチャの異色スプライト化を防ぐ。
+    private static func makeFallbackPixelArtTexture(side: CGFloat) -> SKTexture {
+        let s = max(8, min(side, 128))
+        let renderer = UIGraphicsImageRenderer(size: CGSize(width: s, height: s))
+        let image = renderer.image { ctx in
+            UIColor(red: 1, green: 0.52, blue: 0.12, alpha: 1).setFill()
+            ctx.cgContext.fillEllipse(in: CGRect(x: s * 0.08, y: s * 0.08, width: s * 0.84, height: s * 0.84))
+        }
+        let tex = SKTexture(image: image)
+        tex.filteringMode = .nearest
+        return tex
     }
 
     private func createCastEffect(at position: CGPoint, power: CGFloat) {
@@ -1549,6 +1565,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let spark = SKShapeNode(circleOfRadius: 3 + power)
             spark.fillColor = UIColor(red: 0.996, green: 0.953, blue: 0.780, alpha: 0.86)
             spark.strokeColor = .clear
+            spark.lineWidth = 0
             spark.position = position
             effectLayer.addChild(spark)
             let dx = cos(angle) * 44 * Double(power)
@@ -1658,6 +1675,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             let spark = SKShapeNode(circleOfRadius: large ? 5 : 3)
             spark.fillColor = color.withAlphaComponent(0.9)
             spark.strokeColor = .clear
+            spark.lineWidth = 0
             spark.position = position
             effectLayer.addChild(spark)
             let dx = cos(angle) * (large ? 104 : 44)
