@@ -27,7 +27,7 @@ struct EarTrainingDemoBubbleView: View {
                             .fill(Color.white.opacity(0.92))
                             .frame(width: bubbleWidth, height: 50)
                             .overlay(
-                                Text(controller.isEnglishCopy ? "Demo" : "お手本")
+                                    Text(controller.isEnglishCopy ? "Demo phrase" : "お手本")
                                     .font(.system(size: 11, weight: .heavy))
                                     .foregroundColor(.black)
                             )

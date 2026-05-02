@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// 耳コピバトル ゲーム画面の上部 HUD。
-/// - 上段：自分HP / 時間 / 敵HP
+/// - 上段：HP バー / 時間
 /// - 中段：攻撃ゲージ / コードチップ / 解答スロット
 struct EarTrainingHUDView: View {
     @ObservedObject var controller: EarTrainingBattleController
+    /// ノッチ等を避けるための水平パディング（回転後の左右端用）。
+    var horizontalPadding: CGFloat = 8
 
     private let chordChipWidth: CGFloat = 76
     private let phraseSlotGap: CGFloat = 5
@@ -17,7 +19,7 @@ struct EarTrainingHUDView: View {
                 chordChips
                 phraseSlots
             }
-            .padding(.horizontal, 8)
+            .padding(.horizontal, horizontalPadding)
             .padding(.top, 4)
             .padding(.bottom, 2)
 
@@ -42,7 +44,6 @@ struct EarTrainingHUDView: View {
     private var healthTimeRow: some View {
         HStack(alignment: .center, spacing: 6) {
             hpPanel(
-                title: controller.isEnglishCopy ? "Player" : "自分HP",
                 current: controller.playerHp,
                 max: controller.stage.playerHp,
                 isEnemy: false,
@@ -54,7 +55,6 @@ struct EarTrainingHUDView: View {
                 .frame(minWidth: 64)
 
             hpPanel(
-                title: controller.isEnglishCopy ? "Enemy" : "敵HP",
                 current: controller.enemyHp,
                 max: controller.stage.enemyHp,
                 isEnemy: true,
@@ -77,7 +77,6 @@ struct EarTrainingHUDView: View {
     }
 
     private func hpPanel(
-        title: String,
         current: Int,
         max: Int,
         isEnemy: Bool,
@@ -85,10 +84,6 @@ struct EarTrainingHUDView: View {
         frameAlignment: Alignment
     ) -> some View {
         VStack(alignment: horizontalAlignment, spacing: 2) {
-            Text(title)
-                .font(.system(size: 8, weight: .semibold))
-                .foregroundColor(.white.opacity(0.78))
-                .lineLimit(1)
             HpBar(currentHp: current, maxHp: max, isEnemy: isEnemy)
                 .frame(height: 8)
             Text("\(current) / \(max)")

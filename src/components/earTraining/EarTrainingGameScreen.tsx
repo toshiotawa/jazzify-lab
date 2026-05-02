@@ -909,7 +909,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     : null;
   const phraseIntroLine = formatEarTrainingPhraseIntroLine(isEnglishCopy, phraseIndex, phrases.length);
   const resultRankLine = gameState === 'stageClear' && lastRank
-    ? `${hudLabels.rankPrefix} ${lastRank}`
+    ? `${hudLabels.clearGradePrefix} ${mapEarTrainingRankToLessonRank(lastRank)}`
     : null;
   const battleSnapshot: EarTrainingBattleSnapshot = useMemo(() => ({
     gameState,

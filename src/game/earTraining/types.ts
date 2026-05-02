@@ -26,7 +26,7 @@ export interface EarTrainingBattleHudLabels {
   resultWin: string;
   resultLose: string;
   resultTimeOver: string;
-  rankPrefix: string;
+  clearGradePrefix: string;
 }
 
 export interface EarTrainingBattleSnapshot {

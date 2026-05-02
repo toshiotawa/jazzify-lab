@@ -48,7 +48,7 @@ struct EarTrainingGameView: View {
     private var loadingView: some View {
         VStack(spacing: 12) {
             ProgressView().tint(.yellow)
-            Text(locale == .ja ? "ステージを準備中..." : "Preparing stage...")
+            Text(locale == .ja ? "ステージを準備中…" : "Preparing ear training battle…")
                 .font(.caption)
                 .foregroundStyle(.white.opacity(0.8))
         }
@@ -153,6 +153,8 @@ private struct EarTrainingGameContent: View {
     let locale: AppLocale
     let onClose: () -> Void
 
+    @State private var hudHorizontalPadding: CGFloat = 16
+
     var body: some View {
         GeometryReader { proxy in
             let portraitSize = proxy.size
@@ -169,6 +171,9 @@ private struct EarTrainingGameContent: View {
                 .position(x: portraitSize.width / 2, y: portraitSize.height / 2)
         }
         .ignoresSafeArea()
+        .onAppear {
+            hudHorizontalPadding = Self.resolveHudHorizontalPadding()
+        }
         .sheet(isPresented: $controller.isSettingsOpen) {
             EarTrainingSettingsSheet(
                 isEnglishCopy: locale == .en,
@@ -189,7 +194,7 @@ private struct EarTrainingGameContent: View {
                 .allowsHitTesting(false)
 
             VStack(spacing: 0) {
-                EarTrainingHUDView(controller: controller)
+                EarTrainingHUDView(controller: controller, horizontalPadding: hudHorizontalPadding)
                 Spacer()
             }
 
@@ -202,6 +207,16 @@ private struct EarTrainingGameContent: View {
 
             EarTrainingResultView(controller: controller)
         }
+    }
+
+    /// `GeometryReader` が `ignoresSafeArea` のため `proxy.safeAreaInsets` が 0 になりがち。ウィンドウのセーフエリアから HUD 用の水平余白を決める。
+    private static func resolveHudHorizontalPadding() -> CGFloat {
+        guard let scene = UIApplication.shared.connectedScenes.first as? UIWindowScene,
+              let window = scene.windows.first(where: { $0.isKeyWindow }) else {
+            return 16
+        }
+        let s = window.safeAreaInsets
+        return max(16, s.left, s.right, s.top)
     }
 }
 

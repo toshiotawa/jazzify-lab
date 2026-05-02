@@ -153,7 +153,7 @@ export const getEarTrainingBattleHudLabels = (isEnglish: boolean): EarTrainingBa
         resultWin: 'You win',
         resultLose: 'You lose',
         resultTimeOver: 'Time over',
-        rankPrefix: 'Rank',
+        clearGradePrefix: 'Clear grade',
       }
     : {
         settings: '設定',
@@ -165,7 +165,7 @@ export const getEarTrainingBattleHudLabels = (isEnglish: boolean): EarTrainingBa
         resultWin: '勝利',
         resultLose: '敗北',
         resultTimeOver: 'タイムオーバー',
-        rankPrefix: 'ランク',
+        clearGradePrefix: 'クリア評価',
       }
 );
 

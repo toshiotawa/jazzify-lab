@@ -125,7 +125,8 @@ final class EarTrainingBattleController: ObservableObject {
 
     var resultRankLine: String? {
         guard gameState == .stageClear, let rank = lastRank else { return nil }
-        return "\(hudLabels.rankPrefix) \(rank.rawValue)"
+        let letter = EarTrainingEngine.lessonRank(from: rank)
+        return "\(hudLabels.clearGradePrefix) \(letter)"
     }
 
     var lessonProgressText: String? {

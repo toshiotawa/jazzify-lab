@@ -49,7 +49,7 @@ struct EarTrainingBattleHudLabels: Sendable, Equatable {
     let resultWin: String
     let resultLose: String
     let resultTimeOver: String
-    let rankPrefix: String
+    let clearGradePrefix: String
 
     static func make(isEnglish: Bool) -> EarTrainingBattleHudLabels {
         if isEnglish {
@@ -63,7 +63,7 @@ struct EarTrainingBattleHudLabels: Sendable, Equatable {
                 resultWin: "You win",
                 resultLose: "You lose",
                 resultTimeOver: "Time over",
-                rankPrefix: "Rank"
+                clearGradePrefix: "Clear grade"
             )
         }
         return EarTrainingBattleHudLabels(
@@ -76,7 +76,7 @@ struct EarTrainingBattleHudLabels: Sendable, Equatable {
             resultWin: "勝利",
             resultLose: "敗北",
             resultTimeOver: "タイムオーバー",
-            rankPrefix: "ランク"
+            clearGradePrefix: "クリア評価"
         )
     }
 }

@@ -669,7 +669,7 @@ struct LessonDetailView: View {
 
             HStack(spacing: 10) {
                 if requirement.isEarTraining == true {
-                    badge(locale == .ja ? "耳コピ" : "Ear Training", color: .cyan)
+                    badge(locale == .ja ? "耳コピ" : "Ear training battle", color: .cyan)
                 }
                 if let rank = requirement.clearConditions?.rank {
                     badge(rank, color: .orange)
@@ -1123,7 +1123,7 @@ struct LessonDetailView: View {
     private func requirementSubtitle(_ requirement: LessonSong) -> String {
         if requirement.isEarTraining == true {
             if let stage = requirement.earTrainingStage {
-                var parts = [locale == .ja ? "耳コピバトル課題" : "Ear-copy battle task"]
+                var parts = [locale == .ja ? "耳コピバトル課題" : "Ear training battle task"]
                 parts.append(stage.localizedTitle(locale))
                 if let bpm = stage.bpm {
                     parts.append("BPM \(bpm)")
@@ -1133,7 +1133,7 @@ struct LessonDetailView: View {
                 }
                 return parts.joined(separator: " / ")
             }
-            return locale == .ja ? "耳コピバトル課題" : "Ear-copy battle task"
+            return locale == .ja ? "耳コピバトル課題" : "Ear training battle task"
         }
 
         if requirement.isSurvival == true {
@@ -1279,7 +1279,7 @@ struct LessonDetailView: View {
 
         if requirement.isEarTraining == true {
             guard let stageId = requirement.earTrainingStage?.id ?? requirement.earTrainingStageId else {
-                alertMessage = locale == .ja ? "耳コピバトルステージ設定がありません。" : "Missing ear-copy battle stage setting."
+                alertMessage = locale == .ja ? "耳コピバトルステージ設定がありません。" : "Missing ear training battle stage setting."
                 return
             }
             // ネイティブ実装に置き換え。WKWebView 経路は廃止する。

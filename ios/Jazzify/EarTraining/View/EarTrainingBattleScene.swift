@@ -12,7 +12,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let hudHeight: CGFloat = 104
     private static let phraseIntroFadeMs: TimeInterval = 2.6
     private static let floorClearanceFromPiano: CGFloat = 48
-    private static let floorBandOverlap: CGFloat = 16
     private static let characterDisplaySize: CGFloat = 88
     private static let characterShadowWidth: CGFloat = 82
     private static let characterShadowHeight: CGFloat = 18
@@ -137,39 +136,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Background
 
     private func drawBackground(width: CGFloat, height: CGFloat, floorY: CGFloat) {
-        // SpriteKit の座標系は左下原点なので、Web の上下を逆転して描画する。
         let backdrop = SKSpriteNode(texture: makeBackdropTexture(width: width, height: height))
         backdrop.anchorPoint = CGPoint(x: 0.5, y: 0)
         backdrop.position = CGPoint(x: width / 2, y: 0)
         backdrop.size = CGSize(width: width, height: height)
         backgroundLayer.addChild(backdrop)
 
-        let wallTexture = makeWallTileTexture()
-        let floorTexture = makeFloorTileTexture()
-
-        let wallHeight = max(0, height - floorY + Self.floorBandOverlap)
-        let wallSprite = SKSpriteNode(texture: wallTexture)
-        wallSprite.size = CGSize(width: width, height: wallHeight)
-        wallSprite.anchorPoint = CGPoint(x: 0.5, y: 0)
-        wallSprite.position = CGPoint(x: width / 2, y: floorY - Self.floorBandOverlap)
-        wallSprite.alpha = 0.82
-        backgroundLayer.addChild(wallSprite)
-
-        let floorHeight = max(0, floorY)
-        let floorSprite = SKSpriteNode(texture: floorTexture)
-        floorSprite.size = CGSize(width: width, height: floorHeight)
-        floorSprite.anchorPoint = CGPoint(x: 0.5, y: 0)
-        floorSprite.position = CGPoint(x: width / 2, y: 0)
-        floorSprite.alpha = 0.92
-        backgroundLayer.addChild(floorSprite)
-
-        // 床ライン (Phaser: lineStyle(2, 0xfbbf24, 0.16))
-        let line = SKShapeNode(rect: CGRect(x: 0, y: floorY - 1, width: width, height: 2))
-        line.fillColor = UIColor(red: 0.984, green: 0.749, blue: 0.141, alpha: 0.16)
-        line.strokeColor = .clear
-        backgroundLayer.addChild(line)
-
-        // 黒シャドウ (footlight)
         let shadowRadiusX: CGFloat = 84
         let shadowRadiusY: CGFloat = 14
         let leftShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
@@ -208,47 +180,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         }
         let texture = SKTexture(image: image)
         texture.filteringMode = .linear
-        return texture
-    }
-
-    private func makeWallTileTexture() -> SKTexture {
-        let size = CGSize(width: 64, height: 64)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { ctx in
-            UIColor(red: 0.086, green: 0.031, blue: 0.094, alpha: 1.0).setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            UIColor(red: 0.141, green: 0.063, blue: 0.169, alpha: 0.78).setFill()
-            ctx.fill(CGRect(x: 2, y: 2, width: size.width - 4, height: size.height - 4))
-            UIColor(red: 0.066, green: 0.024, blue: 0.078, alpha: 0.42).setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: size.width, height: 8))
-            UIColor.white.withAlphaComponent(0.035).setStroke()
-            ctx.cgContext.setLineWidth(1)
-            ctx.cgContext.move(to: CGPoint(x: 8, y: 12))
-            ctx.cgContext.addLine(to: CGPoint(x: size.width - 8, y: 12))
-            ctx.cgContext.move(to: CGPoint(x: 8, y: size.height - 12))
-            ctx.cgContext.addLine(to: CGPoint(x: size.width - 8, y: size.height - 12))
-            ctx.cgContext.strokePath()
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .nearest
-        return texture
-    }
-
-    private func makeFloorTileTexture() -> SKTexture {
-        let size = CGSize(width: 96, height: 48)
-        let renderer = UIGraphicsImageRenderer(size: size)
-        let image = renderer.image { ctx in
-            UIColor(red: 0.071, green: 0.027, blue: 0.039, alpha: 1.0).setFill()
-            ctx.fill(CGRect(origin: .zero, size: size))
-            UIColor(red: 0.149, green: 0.063, blue: 0.051, alpha: 0.92).setFill()
-            ctx.fill(CGRect(x: 0, y: 0, width: size.width, height: 16))
-            UIColor(red: 0.122, green: 0.051, blue: 0.043, alpha: 0.92).setFill()
-            ctx.fill(CGRect(x: 0, y: 16, width: size.width, height: 16))
-            UIColor(red: 0.184, green: 0.082, blue: 0.063, alpha: 0.82).setFill()
-            ctx.fill(CGRect(x: 0, y: 32, width: size.width, height: 16))
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .nearest
         return texture
     }
 
@@ -506,29 +437,37 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         lightning.zRotation = 4 * (.pi / 180)
         lightning.alpha = 0
         effectLayer.addChild(lightning)
-        lightning.run(SKAction.sequence([
+
+        // Web `playLightningEffect`: 470ms 後に落雷とダメージを同時に適用し、その後 delay 260ms → fade 420ms。
+        let strike = SKAction.sequence([
             SKAction.wait(forDuration: 0.47),
-            SKAction.fadeIn(withDuration: 0.05),
+            SKAction.group([
+                SKAction.fadeIn(withDuration: 0.05),
+                SKAction.run { [weak self] in
+                    guard let self else { return }
+                    self.applyCompletionImpact(
+                        anchors: anchors,
+                        color: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
+                        knockbackDistance: 122,
+                        knockbackDurationMs: 390,
+                        tintColor: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
+                        damage: command.damage
+                    ) {
+                        self.onEffectImpact?(command.id)
+                    }
+                },
+            ]),
             SKAction.wait(forDuration: 0.26),
             SKAction.fadeOut(withDuration: 0.42),
             SKAction.removeFromParent(),
-        ]))
+        ])
+        lightning.run(strike)
+
         cloud.run(SKAction.sequence([
             SKAction.wait(forDuration: 0.73),
             SKAction.fadeOut(withDuration: 0.42),
             SKAction.removeFromParent(),
-        ])) { [weak self] in
-            self?.applyCompletionImpact(
-                anchors: anchors,
-                color: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
-                knockbackDistance: 122,
-                knockbackDurationMs: 390,
-                tintColor: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0),
-                damage: command.damage
-            ) {
-                self?.onEffectImpact?(command.id)
-            }
-        }
+        ]))
     }
 
     private func playMeteorEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
