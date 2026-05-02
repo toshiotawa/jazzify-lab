@@ -318,9 +318,10 @@ final class EarTrainingBattleController: ObservableObject {
                 let rank = EarTrainingEngine.calculateRank(missedNoteCounts: current.missedNoteCounts, rule: rankRule)
                 let completionDamage = EarTrainingEngine.completionDamage(rank: rank, damage: damageConfig)
                 let totalCompletionDamage = result.enemyDamage + completionDamage
+                let displayRank = completionDisplayRank(rank: rank, phrase: phrase)
                 let completeEffectId = triggerBattleEffect(
                     kind: .complete,
-                    label: rank.rawValue,
+                    label: displayRank,
                     damage: totalCompletionDamage,
                     phraseNoteCount: phrase.notes?.count ?? 0
                 )
@@ -613,7 +614,7 @@ final class EarTrainingBattleController: ObservableObject {
         )
         gameState = .phraseComplete
         lastRank = rank
-        statusText = copy.transitionNextBar(rank: rank.rawValue)
+        statusText = copy.transitionNextBar(rank: completionDisplayRank(rank: rank, phrase: phrase))
 
         transitionTimerTask = Task { [weak self] in
             try? await Task.sleep(nanoseconds: UInt64(delaySec * 1_000_000_000))
@@ -633,6 +634,13 @@ final class EarTrainingBattleController: ObservableObject {
                 }
             }
         }
+    }
+
+    private func completionDisplayRank(rank: EarTrainingRank, phrase: EarTrainingPhraseDetail) -> String {
+        if rank == .perfect && (phrase.notes?.count ?? 0) >= 6 {
+            return "Awesome!"
+        }
+        return rank.rawValue
     }
 
     private func finishStageClear(rank: EarTrainingRank) async {

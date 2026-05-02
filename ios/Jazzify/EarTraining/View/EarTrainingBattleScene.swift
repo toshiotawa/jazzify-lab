@@ -1262,12 +1262,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func playCompleteEffect(_ command: EarTrainingBattleEffectCommand) {
         let label = command.label ?? "Good"
-        let isSuperPerfect = label == "Perfect" && (command.phraseNoteCount ?? 0) >= 6
-        let displayLabel = isSuperPerfect ? "Awesome!" : label
+        let isAwesome = label == "Awesome!" || (label == "Perfect" && (command.phraseNoteCount ?? 0) >= 6)
+        let displayLabel = isAwesome ? "Awesome!" : label
         let anchors = battleAnchors()
         showFloatingResultText(label: displayLabel, x: anchors.player.x, y: anchors.player.resultTextY, color: rankColor(label: displayLabel))
 
-        if isSuperPerfect {
+        if isAwesome {
             playMeteorEffect(command, anchors: anchors)
             return
         }
@@ -1421,7 +1421,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         zoomToPlayer(anchors: anchors, holdMs: 1080) { [weak self] in
             self?.launchMeteor(command, anchors: anchors)
         }
-        showChantText(at: CGPoint(x: anchors.player.x, y: anchors.player.headY + 38), label: "Awesome!")
     }
 
     private func launchMeteor(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
@@ -1497,24 +1496,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let tex = SKTexture(image: image)
         tex.filteringMode = .nearest
         return tex
-    }
-
-    private func showChantText(at position: CGPoint, label: String) {
-        let text = SKLabelNode(text: label)
-        text.fontName = "AvenirNext-Heavy"
-        text.fontSize = 18
-        text.fontColor = UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0)
-        text.position = position
-        text.zPosition = 60
-        effectLayer.addChild(text)
-        text.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.moveBy(x: 0, y: 34, duration: 1.38),
-                SKAction.scale(to: 1.32, duration: 1.38),
-                SKAction.fadeOut(withDuration: 1.38),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
     }
 
     private func showFloatingResultText(label: String, x: CGFloat, y: CGFloat, color: UIColor) {
