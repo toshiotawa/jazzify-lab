@@ -21,6 +21,64 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1)
     }
 
+    /// `drawBackground` の楽器レイアウト調整はここの定数のみで行う。
+    /// 正面舞台: ピアノ上ネオン／左端ベース／左後ろピアノ（プレイヤー側）／敵より右へドラム（床置き）。
+    /// 上中央コード帯と中央レーンは背景オブジェクトで埋めない。
+    private enum JazzStagePropLayout {
+        enum Asset {
+            static let neon = "ear-training-bg-jazz-neon"
+            static let drumKit = "ear-training-bg-drum-kit"
+            static let piano = "ear-training-bg-upright-piano"
+            static let doubleBass = "ear-training-bg-double-bass"
+        }
+
+        enum Z {
+            /// 背面から手前への重ね順（中央はコード UI のためオブジェクトなし）。
+            static let doubleBass: CGFloat = 2
+            static let piano: CGFloat = 2.5
+            static let drumKit: CGFloat = 3
+            static let neon: CGFloat = 4
+            static let floorShadow: CGFloat = 6
+        }
+
+        /// 背景オブジェクト全体をキャラ/UI より低コントラストに（ティント）。
+        enum Dim {
+            static let instrumentTint = UIColor(red: 38 / 255, green: 30 / 255, blue: 28 / 255, alpha: 1)
+            /// 強いほど背景に溶け込みやすくなる。
+            static let instrumentBlendFactor: CGFloat = 0.68
+            static let neonTint = UIColor(red: 74 / 255, green: 60 / 255, blue: 55 / 255, alpha: 1)
+            static let neonBlendFactor: CGFloat = 0.48
+        }
+
+        enum Neon {
+            /// 上部帯・ピアノ列の上へ合わせる（水平は `CenterXF.piano` にアンカー上中央で重ねる）。
+            static let anchor = CGPoint(x: 0.5, y: 1)
+            static let widthFrac: CGFloat = 0.085
+            /// `CenterXF.piano` との水平オフセット（pt）。
+            static let horizontalOffsetFromPianoCenterPt: CGFloat = 2
+            /// 画面上端からの下げ幅（ステータス・タイマー行の直下付近）。
+            static let insetFromSceneTopPt: CGFloat = 64
+        }
+
+        enum DrumFloor {
+            static let anchor = CGPoint(x: 0.5, y: 0)
+            static let widthFrac: CGFloat = 0.138
+            /// 敵（X ~77%）の右側へオフセット。右はみ出しはクリップ前提で収める。
+            static let centerXPreferredFrac: CGFloat = 0.91
+            static let marginFromSceneRightPt: CGFloat = 16
+        }
+
+        enum WidthFrac {
+            static let piano: CGFloat = 0.13
+            static let doubleBass: CGFloat = 0.10
+        }
+
+        enum CenterXF {
+            static let doubleBass: CGFloat = 0.075
+            static let piano: CGFloat = 0.30
+        }
+    }
+
     // MARK: - Public state
 
     private var snapshot: EarTrainingBattleSceneSnapshot?
@@ -147,18 +205,103 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         backdrop.zPosition = 0
         backgroundLayer.addChild(backdrop)
 
+        addJazzStagePropSprites(width: width, height: height, floorY: floorY)
+
         let shadowRadiusX: CGFloat = 84
         let shadowRadiusY: CGFloat = 14
         let leftShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
         leftShadow.fillColor = UIColor.black.withAlphaComponent(0.2)
         leftShadow.strokeColor = .clear
         leftShadow.position = CGPoint(x: width * 0.23, y: floorY - 6)
+        leftShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(leftShadow)
         let rightShadow = SKShapeNode(ellipseOf: CGSize(width: shadowRadiusX * 2, height: shadowRadiusY * 2))
         rightShadow.fillColor = UIColor.black.withAlphaComponent(0.2)
         rightShadow.strokeColor = .clear
         rightShadow.position = CGPoint(x: width * 0.77, y: floorY - 6)
+        rightShadow.zPosition = JazzStagePropLayout.Z.floorShadow
         backgroundLayer.addChild(rightShadow)
+    }
+
+    /// プロシージャル壁・床テクスチャの上に、透過ジャズ楽器レイヤーを重ねる。
+    private func addJazzStagePropSprites(width: CGFloat, height: CGFloat, floorY: CGFloat) {
+        let insTint = JazzStagePropLayout.Dim.instrumentTint
+        let insBlend = JazzStagePropLayout.Dim.instrumentBlendFactor
+        let neonTint = JazzStagePropLayout.Dim.neonTint
+        let neonBlend = JazzStagePropLayout.Dim.neonBlendFactor
+
+        let drumMaxW = max(1, floor(width * JazzStagePropLayout.DrumFloor.widthFrac))
+        let drumHalfW = drumMaxW * 0.5
+        let enemyApproxRightEdgeX = width * 0.77 + Self.characterDisplaySize * 0.48
+        let drumMaxCenterX = width - JazzStagePropLayout.DrumFloor.marginFromSceneRightPt - drumHalfW
+        let minimumCenterPastEnemy = enemyApproxRightEdgeX + drumHalfW * 0.32 + 10
+        var drumCenterX = width * JazzStagePropLayout.DrumFloor.centerXPreferredFrac
+        drumCenterX = max(drumCenterX, min(minimumCenterPastEnemy, drumMaxCenterX))
+        drumCenterX = min(drumCenterX, drumMaxCenterX)
+
+        /// 背面から順に積む（コード帯直上のセンターはオブジェクト無し）。
+        addStageBackgroundSpriteIfAvailable(
+            assetName: JazzStagePropLayout.Asset.doubleBass,
+            maxWidth: width * JazzStagePropLayout.WidthFrac.doubleBass,
+            anchor: CGPoint(x: 0.5, y: 0),
+            position: CGPoint(x: width * JazzStagePropLayout.CenterXF.doubleBass, y: floorY),
+            zPosition: JazzStagePropLayout.Z.doubleBass,
+            tintColor: insTint,
+            tintBlendFactor: insBlend
+        )
+        addStageBackgroundSpriteIfAvailable(
+            assetName: JazzStagePropLayout.Asset.piano,
+            maxWidth: width * JazzStagePropLayout.WidthFrac.piano,
+            anchor: CGPoint(x: 0.5, y: 0),
+            position: CGPoint(x: width * JazzStagePropLayout.CenterXF.piano, y: floorY),
+            zPosition: JazzStagePropLayout.Z.piano,
+            tintColor: insTint,
+            tintBlendFactor: insBlend
+        )
+        addStageBackgroundSpriteIfAvailable(
+            assetName: JazzStagePropLayout.Asset.drumKit,
+            maxWidth: CGFloat(drumMaxW),
+            anchor: JazzStagePropLayout.DrumFloor.anchor,
+            position: CGPoint(x: drumCenterX, y: floorY),
+            zPosition: JazzStagePropLayout.Z.drumKit,
+            tintColor: insTint,
+            tintBlendFactor: insBlend
+        )
+        let neonPivotX = width * JazzStagePropLayout.CenterXF.piano + JazzStagePropLayout.Neon.horizontalOffsetFromPianoCenterPt
+        let neonTopY = height - JazzStagePropLayout.Neon.insetFromSceneTopPt
+        addStageBackgroundSpriteIfAvailable(
+            assetName: JazzStagePropLayout.Asset.neon,
+            maxWidth: width * JazzStagePropLayout.Neon.widthFrac,
+            anchor: JazzStagePropLayout.Neon.anchor,
+            position: CGPoint(x: neonPivotX, y: neonTopY),
+            zPosition: JazzStagePropLayout.Z.neon,
+            tintColor: neonTint,
+            tintBlendFactor: neonBlend
+        )
+    }
+
+    private func addStageBackgroundSpriteIfAvailable(
+        assetName: String,
+        maxWidth: CGFloat,
+        anchor: CGPoint,
+        position: CGPoint,
+        zPosition: CGFloat,
+        tintColor: UIColor,
+        tintBlendFactor: CGFloat
+    ) {
+        guard let image = UIImage(named: assetName), image.size.width > 1, image.size.height > 1 else { return }
+        let texture = SKTexture(image: image)
+        texture.filteringMode = .nearest
+        let sprite = SKSpriteNode(texture: texture)
+        sprite.anchorPoint = anchor
+        sprite.position = position
+        sprite.zPosition = zPosition
+        sprite.color = tintColor
+        sprite.colorBlendFactor = tintBlendFactor
+        let w = max(1, floor(maxWidth))
+        let aspectRatio = image.size.height / image.size.width
+        sprite.size = CGSize(width: w, height: max(1, w * aspectRatio))
+        backgroundLayer.addChild(sprite)
     }
 
     private func makeBackdropTexture(width: CGFloat, height: CGFloat, floorY: CGFloat) -> SKTexture {
