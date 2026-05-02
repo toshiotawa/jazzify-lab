@@ -16,8 +16,16 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let characterShadowWidth: CGFloat = 82
     private static let characterShadowHeight: CGFloat = 18
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
+    private static let correctPlayerPoseDurationMs: TimeInterval = 300
+    private static let skillPlayerPoseFrameMs: TimeInterval = 80
+    private static let awesomeMagicCircleAlpha: CGFloat = 0.68
     private static let generatedTextureCacheLimit = 16
     private static var generatedTextureCache: [String: SKTexture] = [:]
+
+    private enum PlayerAvatarPoseAsset {
+        static let correctName = "correct3"
+        static let skillNames = ["Frame1", "Frame2", "Frame3", "Frame4", "Frame5"]
+    }
 
     /// 耳コピバトル スポットライト（図解仕様: 薄い円錐・足元プール・リム・ヴィネット）。
     private enum SpotlightStageLayout {
@@ -151,6 +159,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var phraseIntroLabel: SKLabelNode?
     private var demoBubbleNode: SKSpriteNode?
     private var lastBuildSize: CGSize = .zero
+    private var playerPoseToken = 0
 
     // MARK: - Init
 
@@ -1228,6 +1237,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         container.addChild(shadow)
 
         var imageNode: SKSpriteNode?
+        var rimNode: SKSpriteNode?
         if let image = UIImage(named: avatarAssetName) {
             let texture = SKTexture(image: image)
 
@@ -1245,6 +1255,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             rim.blendMode = .add
             rim.zPosition = -1
             container.addChild(rim)
+            rimNode = rim
 
             let sprite = SKSpriteNode(texture: texture)
             sprite.anchorPoint = CGPoint(x: 0.5, y: 0)
@@ -1268,7 +1279,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         container.addChild(fallback)
 
         characterLayer.addChild(container)
-        return CharacterView(container: container, image: imageNode, fallback: fallback)
+        return CharacterView(container: container, image: imageNode, rim: rimNode, fallback: fallback)
     }
 
     // MARK: - Phrase intro
@@ -1307,6 +1318,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     // MARK: - Effects
 
     private func playCorrectEffect(_ command: EarTrainingBattleEffectCommand) {
+        showCorrectPlayerPose()
         let anchors = battleAnchors()
         let start = CGPoint(x: anchors.player.x + 44, y: anchors.player.castY)
         let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
@@ -1343,6 +1355,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             playMeteorEffect(command, anchors: anchors)
             return
         }
+        showPlayerPoseSequence(
+            assetNames: PlayerAvatarPoseAsset.skillNames,
+            frameDurationMs: Self.skillPlayerPoseFrameMs,
+            restoreOnCompletion: false
+        )
         if label == "Perfect" {
             playLightningEffect(command, anchors: anchors)
             return
@@ -1490,9 +1507,20 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playMeteorEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        zoomToPlayer(anchors: anchors, holdMs: 1080) { [weak self] in
-            self?.launchMeteor(command, anchors: anchors)
-        }
+        zoomToPlayer(
+            anchors: anchors,
+            holdMs: 1080,
+            onZoomedIn: { [weak self] in
+                self?.showPlayerPoseSequence(
+                    assetNames: PlayerAvatarPoseAsset.skillNames,
+                    frameDurationMs: Self.skillPlayerPoseFrameMs,
+                    restoreOnCompletion: false
+                )
+            },
+            onReturned: { [weak self] in
+                self?.launchMeteor(command, anchors: anchors)
+            }
+        )
         showMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + 12), size: 190)
     }
 
@@ -1537,6 +1565,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         showScreenFlash(color: color, alpha: 0.16)
         showEnemyDamageText(damage: damage, anchors: anchors.enemy)
         onImpact()
+        restorePlayerPose()
         knockEnemyAfterDamage(distance: knockbackDistance, durationMs: knockbackDurationMs)
     }
 
@@ -1545,7 +1574,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private func showMagicCircle(at position: CGPoint, size: CGFloat) {
         let circle = makeEffectSprite(name: "ear-training-effect-magic-circle", size: size)
         circle.position = position
-        circle.alpha = 0.96
+        circle.alpha = Self.awesomeMagicCircleAlpha
         circle.blendMode = .add
         effectLayer.addChild(circle)
         circle.run(SKAction.sequence([
@@ -1693,17 +1722,23 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         cameraNode.run(SKAction.sequence(actions + [returnAction]), withKey: "camera-shake")
     }
 
-    private func zoomToPlayer(anchors: BattleAnchors, holdMs: TimeInterval, onReturned: @escaping () -> Void) {
+    private func zoomToPlayer(
+        anchors: BattleAnchors,
+        holdMs: TimeInterval,
+        onZoomedIn: @escaping () -> Void,
+        onReturned: @escaping () -> Void
+    ) {
         if cameraNode.position == .zero {
             resetCameraToCenter()
         }
         let panTo = CGPoint(x: anchors.player.x, y: anchors.player.bodyY)
-        let pan = SKAction.move(to: panTo, duration: 0.24)
+        let pan = SKAction.move(to: panTo, duration: 0.18)
         pan.timingMode = .easeInEaseOut
-        let zoomIn = SKAction.scale(to: 1.0 / 1.98, duration: 0.28)
+        let zoomIn = SKAction.scale(to: 1.0 / 1.98, duration: 0.18)
         zoomIn.timingMode = .easeOut
         cameraNode.run(SKAction.group([pan, zoomIn])) { [weak self] in
             guard let self else { return }
+            onZoomedIn()
             let center = CGPoint(x: self.size.width / 2, y: self.size.height / 2)
             let returnPan = SKAction.move(to: center, duration: 0.34)
             returnPan.timingMode = .easeInEaseOut
@@ -1793,6 +1828,91 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         ]))
     }
 
+    private func showCorrectPlayerPose() {
+        showPlayerPose(assetName: PlayerAvatarPoseAsset.correctName, durationMs: Self.correctPlayerPoseDurationMs)
+    }
+
+    private func showPlayerPose(assetName: String, durationMs: TimeInterval) {
+        guard let token = setPlayerPose(assetName: assetName) else { return }
+        let restore = SKAction.run { [weak self] in
+            self?.restorePlayerPose(token: token)
+        }
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: durationMs / 1000),
+            restore,
+        ]))
+    }
+
+    private func showPlayerPoseSequence(assetNames: [String], frameDurationMs: TimeInterval, restoreOnCompletion: Bool) {
+        guard let firstAssetName = assetNames.first, let token = setPlayerPose(assetName: firstAssetName) else { return }
+        for (index, assetName) in assetNames.dropFirst().enumerated() {
+            let switchFrame = SKAction.run { [weak self] in
+                guard let self, self.playerPoseToken == token else { return }
+                _ = self.applyPlayerPose(assetName: assetName)
+            }
+            run(SKAction.sequence([
+                SKAction.wait(forDuration: (frameDurationMs * TimeInterval(index + 1)) / 1000),
+                switchFrame,
+            ]))
+        }
+        guard restoreOnCompletion else { return }
+        let restoreFrame = SKAction.run { [weak self] in
+            self?.restorePlayerPose(token: token)
+        }
+        run(SKAction.sequence([
+            SKAction.wait(forDuration: (frameDurationMs * TimeInterval(assetNames.count)) / 1000),
+            restoreFrame,
+        ]))
+    }
+
+    private func setPlayerPose(assetName: String) -> Int? {
+        guard applyPlayerPose(assetName: assetName) else { return nil }
+        let token = playerPoseToken + 1
+        playerPoseToken = token
+        return token
+    }
+
+    private func applyPlayerPose(assetName: String) -> Bool {
+        guard let view = playerNode, let image = UIImage(named: assetName) else { return false }
+        let texture = SKTexture(image: image)
+        view.image?.texture = texture
+        view.image?.size = CGSize(width: Self.characterDisplaySize, height: Self.characterDisplaySize)
+        view.image?.xScale = 1
+        view.rim?.texture = texture
+        view.rim?.size = CGSize(
+            width: Self.characterDisplaySize * SpotlightStageLayout.rimScale,
+            height: Self.characterDisplaySize * SpotlightStageLayout.rimScale
+        )
+        view.rim?.xScale = 1
+        view.fallback.isHidden = true
+        return true
+    }
+
+    private func restorePlayerPose(token: Int? = nil) {
+        if let token, token != playerPoseToken {
+            return
+        }
+        guard
+            let view = playerNode,
+            let avatarAssetName = snapshot?.playerAvatarName,
+            let image = UIImage(named: avatarAssetName)
+        else {
+            return
+        }
+        let texture = SKTexture(image: image)
+        playerPoseToken = 0
+        view.image?.texture = texture
+        view.image?.size = CGSize(width: Self.characterDisplaySize, height: Self.characterDisplaySize)
+        view.image?.xScale = 1
+        view.rim?.texture = texture
+        view.rim?.size = CGSize(
+            width: Self.characterDisplaySize * SpotlightStageLayout.rimScale,
+            height: Self.characterDisplaySize * SpotlightStageLayout.rimScale
+        )
+        view.rim?.xScale = 1
+        view.fallback.isHidden = true
+    }
+
     // MARK: - Anchors
 
     private struct CharacterAnchors {
@@ -1859,6 +1979,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private struct CharacterView {
         let container: SKNode
         let image: SKSpriteNode?
+        let rim: SKSpriteNode?
         let fallback: SKLabelNode
     }
 }

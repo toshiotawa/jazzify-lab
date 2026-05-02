@@ -22,10 +22,21 @@ const FUKIDASHI_ASSET_URL = `${EFFECT_ASSET_PATH}fukidashi.png`;
 const MAGIC_CIRCLE_ASSET_KEY = 'ear-training-effect-magic-circle';
 const MAGIC_CIRCLE_ASSET_URL = '/data/27304123.png';
 const ENEMY_KNOCKBACK_AFTER_DAMAGE_DELAY_MS = 16;
+const CORRECT_PLAYER_POSE_DURATION_MS = 300;
+const SKILL_PLAYER_POSE_FRAME_MS = 80;
+const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
 type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit' | 'neon';
+type PlayerAvatarPoseName =
+  | 'correct3'
+  | 'skill1'
+  | 'skill2'
+  | 'skill3'
+  | 'skill4'
+  | 'skill5'
+  | 'skill6';
 
 interface BattleEffectSpriteAsset {
   key: string;
@@ -85,6 +96,39 @@ const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
     alpha: 0.9,
   },
 };
+
+const PLAYER_AVATAR_POSE_ASSETS: Record<PlayerAvatarPoseName, BattleEffectSpriteAsset> = {
+  correct3: {
+    key: 'ear-training-player-pose-correct-3',
+    url: '/data/correct3.png',
+  },
+  skill1: {
+    key: 'ear-training-player-pose-skill-1',
+    url: '/data/Frame1.png',
+  },
+  skill2: {
+    key: 'ear-training-player-pose-skill-2',
+    url: '/data/Frame2.png',
+  },
+  skill3: {
+    key: 'ear-training-player-pose-skill-3',
+    url: '/data/Frame3.png',
+  },
+  skill4: {
+    key: 'ear-training-player-pose-skill-4',
+    url: '/data/Frame4.png',
+  },
+  skill5: {
+    key: 'ear-training-player-pose-skill-5',
+    url: '/data/Frame5.png',
+  },
+  skill6: {
+    key: 'ear-training-player-pose-skill-6',
+    url: '/data/Frame6.png',
+  },
+};
+
+const SKILL_PLAYER_POSE_SEQUENCE: PlayerAvatarPoseName[] = ['skill1', 'skill2', 'skill3', 'skill4', 'skill5'];
 
 const EMPTY_CALLBACKS: EarTrainingBattleCallbacks = {
   onStart: () => undefined,
@@ -159,6 +203,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
+  private playerPoseToken = 0;
   private isReady = false;
 
   constructor() {
@@ -249,6 +294,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.textures.exists(FUKIDASHI_ASSET_KEY)) {
       this.load.image(FUKIDASHI_ASSET_KEY, FUKIDASHI_ASSET_URL);
     }
+    Object.values(PLAYER_AVATAR_POSE_ASSETS).forEach(asset => {
+      if (this.textures.exists(asset.key)) {
+        return;
+      }
+      this.load.image(asset.key, asset.url);
+    });
   }
 
   private rebuildScene(): void {
@@ -948,6 +999,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     if (!this.effectLayer) {
       return;
     }
+    this.showCorrectPlayerPose();
     const width = Math.max(320, this.scale.width);
     const height = Math.max(480, this.scale.height);
     const anchors = this.getBattleAnchors(width, height);
@@ -1005,6 +1057,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       this.playMeteorEffect(command, anchors);
       return;
     }
+    this.showPlayerPoseSequence(SKILL_PLAYER_POSE_SEQUENCE, SKILL_PLAYER_POSE_FRAME_MS, false);
     if (label === 'Perfect') {
       this.playLightningEffect(command, anchors);
       return;
@@ -1177,7 +1230,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   private playMeteorEffect(command: EarTrainingBattleEffectCommand, anchors: BattleAnchors): void {
-    this.zoomToPlayer(anchors, 1080, () => this.launchMeteor(command, anchors));
+    this.zoomToPlayer(
+      anchors,
+      1080,
+      () => this.showPlayerPoseSequence(SKILL_PLAYER_POSE_SEQUENCE, SKILL_PLAYER_POSE_FRAME_MS, false),
+      () => this.launchMeteor(command, anchors),
+    );
     this.createMagicCircle(anchors.player.x, anchors.player.footY - 12, 220);
     this.createCastEffect(anchors.player.x, anchors.player.castY, 2.65);
     this.createPlayerSparkles(anchors.player.x, anchors.player.bodyY, 1380, 0xfef08a, true);
@@ -1228,6 +1286,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     this.showCompletionAura(anchors.enemy.x, anchors.enemy.bodyY, color);
     this.showEnemyDamageText(damage, anchors.enemy);
     onImpact();
+    this.restorePlayerPose();
     this.knockEnemyAfterDamage(knockbackDistance, knockbackDuration);
   }
 
@@ -1287,28 +1346,31 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     }
   }
 
-  private zoomToPlayer(anchors: BattleAnchors, holdMs: number, onReturned?: () => void): void {
+  private zoomToPlayer(anchors: BattleAnchors, holdMs: number, onZoomedIn?: () => void, onReturned?: () => void): void {
     const camera = this.cameras.main;
-    camera.pan(anchors.player.x, anchors.player.bodyY, 240, 'Sine.easeInOut');
+    camera.pan(anchors.player.x, anchors.player.bodyY, 180, 'Sine.easeInOut');
     this.tweens.add({
       targets: camera,
       zoom: 1.98,
-      duration: 280,
+      duration: 180,
       ease: 'Sine.easeOut',
-    });
-    this.time.delayedCall(holdMs, () => {
-      camera.pan(this.scale.width / 2, this.scale.height / 2, 340, 'Sine.easeInOut');
-      this.tweens.add({
-        targets: camera,
-        zoom: 1,
-        duration: 340,
-        ease: 'Sine.easeInOut',
-        onComplete: () => {
-          camera.setZoom(1);
-          camera.centerOn(this.scale.width / 2, this.scale.height / 2);
-          onReturned?.();
-        },
-      });
+      onComplete: () => {
+        onZoomedIn?.();
+        this.time.delayedCall(holdMs, () => {
+          camera.pan(this.scale.width / 2, this.scale.height / 2, 340, 'Sine.easeInOut');
+          this.tweens.add({
+            targets: camera,
+            zoom: 1,
+            duration: 340,
+            ease: 'Sine.easeInOut',
+            onComplete: () => {
+              camera.setZoom(1);
+              camera.centerOn(this.scale.width / 2, this.scale.height / 2);
+              onReturned?.();
+            },
+          });
+        });
+      },
     });
   }
 
@@ -1375,7 +1437,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
     const circle = this.add.image(x, y, MAGIC_CIRCLE_ASSET_KEY).setOrigin(0.5, 0.5).setDisplaySize(size, size);
-    circle.setAlpha(0.96);
+    circle.setAlpha(AWESOME_MAGIC_CIRCLE_ALPHA);
     circle.setBlendMode('ADD');
     this.effectLayer.add(circle);
     this.tweens.add({
@@ -1640,6 +1702,85 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       duration: 80,
       onComplete: () => this.playerView?.container.setAlpha(1),
     });
+  }
+
+  private showCorrectPlayerPose(): void {
+    this.showPlayerPose('correct3', CORRECT_PLAYER_POSE_DURATION_MS);
+  }
+
+  private showPlayerPoseSequence(poseNames: PlayerAvatarPoseName[], frameDurationMs: number, restoreOnComplete: boolean): void {
+    const [firstPoseName, ...remainingPoseNames] = poseNames;
+    if (!firstPoseName) {
+      return;
+    }
+    const token = this.setPlayerPose(firstPoseName);
+    if (!token) {
+      return;
+    }
+    remainingPoseNames.forEach((poseName, index) => {
+      this.time.delayedCall(frameDurationMs * (index + 1), () => {
+        if (this.playerPoseToken !== token) {
+          return;
+        }
+        this.applyPlayerPose(poseName);
+      });
+    });
+    if (!restoreOnComplete) {
+      return;
+    }
+    this.time.delayedCall(frameDurationMs * poseNames.length, () => this.restorePlayerPose(token));
+  }
+
+  private showPlayerPose(poseName: PlayerAvatarPoseName, durationMs?: number): void {
+    const token = this.setPlayerPose(poseName);
+    if (!token || durationMs === undefined) {
+      return;
+    }
+    this.time.delayedCall(durationMs, () => this.restorePlayerPose(token));
+  }
+
+  private setPlayerPose(poseName: PlayerAvatarPoseName): number | null {
+    if (!this.applyPlayerPose(poseName)) {
+      return null;
+    }
+    const token = this.playerPoseToken + 1;
+    this.playerPoseToken = token;
+    return token;
+  }
+
+  private applyPlayerPose(poseName: PlayerAvatarPoseName): boolean {
+    const image = this.playerView?.image;
+    const asset = PLAYER_AVATAR_POSE_ASSETS[poseName];
+    if (!image || !this.textures.exists(asset.key)) {
+      return false;
+    }
+    image
+      .setTexture(asset.key)
+      .setFlipX(false)
+      .setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE);
+    this.playerView?.fallback.setVisible(false);
+    return true;
+  }
+
+  private restorePlayerPose(token?: number): void {
+    if (token !== undefined && token !== this.playerPoseToken) {
+      return;
+    }
+    const image = this.playerView?.image;
+    const avatarUrl = this.snapshot?.playerAvatarUrl;
+    if (!image || !avatarUrl) {
+      return;
+    }
+    const defaultTextureKey = hashText(avatarUrl);
+    if (!this.textures.exists(defaultTextureKey)) {
+      return;
+    }
+    this.playerPoseToken = 0;
+    image
+      .setTexture(defaultTextureKey)
+      .setFlipX(false)
+      .setDisplaySize(CHARACTER_DISPLAY_SIZE, CHARACTER_DISPLAY_SIZE);
+    this.playerView?.fallback.setVisible(false);
   }
 
   private loadAvatarTextures(snapshot: EarTrainingBattleSnapshot): void {
