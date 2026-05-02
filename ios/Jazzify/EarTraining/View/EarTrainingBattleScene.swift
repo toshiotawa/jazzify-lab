@@ -1236,17 +1236,15 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     private func playCorrectEffect(_ command: EarTrainingBattleEffectCommand) {
         let anchors = battleAnchors()
+        let start = CGPoint(x: anchors.player.x + 44, y: anchors.player.castY)
+        let target = CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY)
+
         let fireball = makeEffectSprite(name: "ear-training-effect-fireball", size: 78)
-        fireball.position = CGPoint(x: anchors.player.x + 44, y: anchors.player.castY)
+        fireball.position = start
         fireball.zRotation = -24 * (.pi / 180)
         effectLayer.addChild(fireball)
 
-        let glow = makeFireballGlowSprite()
-        glow.position = fireball.position
-        glow.zPosition = 49
-        effectLayer.addChild(glow)
-
-        let move = SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.54)
+        let move = SKAction.move(to: target, duration: 0.54)
         move.timingMode = .easeIn
         let endScale: CGFloat = 96 / 78
         let scale = SKAction.scale(to: endScale, duration: 0.54)
@@ -1255,18 +1253,11 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             guard let self else { return }
             fireball?.removeFromParent()
             self.flashCharacter(.enemy)
-            self.showImpactBurst(at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), color: UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1.0), large: false)
+            self.showImpactBurst(at: target, color: UIColor(red: 0.984, green: 0.573, blue: 0.235, alpha: 1.0), large: false)
             self.showEnemyDamageText(damage: command.damage, anchors: anchors.enemy)
             self.onEffectImpact?(command.id)
             self.knockEnemyAfterDamage(distance: 24, durationMs: 170)
         }
-        glow.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.move(to: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), duration: 0.54),
-                SKAction.scale(to: 0.72, duration: 0.54),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
     }
 
     private func playCompleteEffect(_ command: EarTrainingBattleEffectCommand) {
@@ -1328,7 +1319,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playGoodCompleteEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        createCastEffect(at: CGPoint(x: anchors.player.x, y: anchors.player.castY), power: 1.35)
         let ring = makeEffectSprite(name: "ear-training-effect-fire-ring", size: 64)
         ring.position = CGPoint(x: anchors.player.x + 42, y: anchors.player.castY)
         ring.alpha = 0.92
@@ -1359,7 +1349,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playSnowflakeEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        createCastEffect(at: CGPoint(x: anchors.player.x, y: anchors.player.castY), power: 1.6)
         let snowflake = makeEffectSprite(name: "ear-training-effect-snowflake", size: 72)
         snowflake.position = CGPoint(x: anchors.player.x + 42, y: anchors.player.castY)
         effectLayer.addChild(snowflake)
@@ -1384,7 +1373,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     private func playLightningEffect(_ command: EarTrainingBattleEffectCommand, anchors: BattleAnchors) {
-        createCastEffect(at: CGPoint(x: anchors.player.x, y: anchors.player.castY), power: 1.9)
         let cloud = makeEffectSprite(name: "ear-training-effect-cloud", size: 148)
         cloud.position = CGPoint(x: anchors.enemy.x, y: anchors.enemy.headY + 32)
         cloud.alpha = 0.9
@@ -1433,9 +1421,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         zoomToPlayer(anchors: anchors, holdMs: 1080) { [weak self] in
             self?.launchMeteor(command, anchors: anchors)
         }
-        createMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + 12), size: 190, color: UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 1.0))
-        createMagicCircle(at: CGPoint(x: anchors.player.x, y: anchors.player.footY + 12), size: 138, color: UIColor(red: 0.996, green: 0.941, blue: 0.522, alpha: 1.0))
-        createCastEffect(at: CGPoint(x: anchors.player.x, y: anchors.player.castY), power: 2.65)
         showChantText(at: CGPoint(x: anchors.player.x, y: anchors.player.headY + 38), label: "Awesome!")
     }
 
@@ -1478,43 +1463,12 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         tintEnemy(color: tintColor, durationMs: knockbackDurationMs + 260)
         showImpactBurst(at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), color: color, large: true)
         showScreenFlash(color: color, alpha: 0.16)
-        showCompletionAura(at: CGPoint(x: anchors.enemy.x, y: anchors.enemy.bodyY), color: color)
         showEnemyDamageText(damage: damage, anchors: anchors.enemy)
         onImpact()
         knockEnemyAfterDamage(distance: knockbackDistance, durationMs: knockbackDurationMs)
     }
 
     // MARK: - Effect helpers
-
-    private func makeFireballGlowSprite() -> SKSpriteNode {
-        let d: CGFloat = 48
-        let imageSize = CGSize(width: d, height: d)
-        let renderer = UIGraphicsImageRenderer(size: imageSize)
-        let image = renderer.image { ctx in
-            let rgb = CGColorSpaceCreateDeviceRGB()
-            let core = UIColor(red: 0.976, green: 0.451, blue: 0.086, alpha: 0.38)
-            if let gradient = CGGradient(
-                colorsSpace: rgb,
-                colors: [core.cgColor, UIColor.clear.cgColor] as CFArray,
-                locations: [0, 1]
-            ) {
-                let mid = d * 0.5
-                ctx.cgContext.drawRadialGradient(
-                    gradient,
-                    startCenter: CGPoint(x: mid, y: mid),
-                    startRadius: 0,
-                    endCenter: CGPoint(x: mid, y: mid),
-                    endRadius: mid,
-                    options: [.drawsAfterEndLocation]
-                )
-            }
-        }
-        let texture = SKTexture(image: image)
-        texture.filteringMode = .linear
-        let sprite = SKSpriteNode(texture: texture)
-        sprite.size = imageSize
-        return sprite
-    }
 
     private func makeEffectSprite(name: String, size: CGFloat) -> SKSpriteNode {
         let texture: SKTexture
@@ -1543,59 +1497,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let tex = SKTexture(image: image)
         tex.filteringMode = .nearest
         return tex
-    }
-
-    private func createCastEffect(at position: CGPoint, power: CGFloat) {
-        let ring = SKShapeNode(circleOfRadius: 30 * power)
-        ring.fillColor = UIColor(red: 0.220, green: 0.741, blue: 0.973, alpha: 0.12)
-        ring.strokeColor = UIColor(red: 0.647, green: 0.953, blue: 0.992, alpha: 0.9)
-        ring.lineWidth = 2 + power
-        ring.position = position
-        effectLayer.addChild(ring)
-        ring.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.scale(to: 1.5, duration: 0.52),
-                SKAction.fadeOut(withDuration: 0.52),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
-
-        for index in 0..<8 {
-            let angle = (Double.pi * 2 * Double(index)) / 8.0
-            let spark = SKShapeNode(circleOfRadius: 3 + power)
-            spark.fillColor = UIColor(red: 0.996, green: 0.953, blue: 0.780, alpha: 0.86)
-            spark.strokeColor = .clear
-            spark.lineWidth = 0
-            spark.position = position
-            effectLayer.addChild(spark)
-            let dx = cos(angle) * 44 * Double(power)
-            let dy = sin(angle) * 30 * Double(power)
-            spark.run(SKAction.sequence([
-                SKAction.group([
-                    SKAction.moveBy(x: CGFloat(dx), y: CGFloat(dy), duration: 0.44),
-                    SKAction.fadeOut(withDuration: 0.44),
-                ]),
-                SKAction.removeFromParent(),
-            ]))
-        }
-    }
-
-    private func createMagicCircle(at position: CGPoint, size: CGFloat, color: UIColor) {
-        let circle = SKShapeNode(circleOfRadius: size / 2)
-        circle.strokeColor = color
-        circle.lineWidth = 3
-        circle.fillColor = .clear
-        circle.position = position
-        circle.alpha = 0.86
-        effectLayer.addChild(circle)
-        circle.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.rotate(byAngle: .pi, duration: 0.92),
-                SKAction.scale(to: 1.18, duration: 0.92),
-                SKAction.fadeOut(withDuration: 0.92),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
     }
 
     private func showChantText(at position: CGPoint, label: String) {
@@ -1688,22 +1589,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
                 SKAction.removeFromParent(),
             ]))
         }
-    }
-
-    private func showCompletionAura(at position: CGPoint, color: UIColor) {
-        let aura = SKShapeNode(circleOfRadius: 60)
-        aura.fillColor = color.withAlphaComponent(0.14)
-        aura.strokeColor = color.withAlphaComponent(0.82)
-        aura.lineWidth = 5
-        aura.position = position
-        effectLayer.addChild(aura)
-        aura.run(SKAction.sequence([
-            SKAction.group([
-                SKAction.scale(to: 2.15, duration: 0.82),
-                SKAction.fadeOut(withDuration: 0.82),
-            ]),
-            SKAction.removeFromParent(),
-        ]))
     }
 
     private func showScreenFlash(color: UIColor, alpha: CGFloat) {
