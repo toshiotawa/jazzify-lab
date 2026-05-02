@@ -18,7 +18,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private static let enemyKnockbackDelaySec: TimeInterval = 0.016
 
     private static func jazzBackdropEdgeColor() -> UIColor {
-        UIColor(red: 0.018, green: 0.020, blue: 0.055, alpha: 1.0)
+        UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1)
     }
 
     // MARK: - Public state
@@ -144,6 +144,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         backdrop.anchorPoint = CGPoint(x: 0.5, y: 0)
         backdrop.position = CGPoint(x: width / 2, y: 0)
         backdrop.size = CGSize(width: width, height: height)
+        backdrop.zPosition = 0
         backgroundLayer.addChild(backdrop)
 
         let shadowRadiusX: CGFloat = 84
@@ -171,7 +172,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         return texture
     }
 
-    /// 画像アセット無しでジャズバー風の背景を描く（UIKit座標・上原点）。
+    /// 画像アセット無しでジャズバー風の背景を描く（UIKit・上原点）。暗さ設計優先／コードUI背後には明るい面を置かない。
     private static func paintJazzBarBackdrop(cgContext cg: CGContext, size textureSize: CGSize, floorY: CGFloat) {
         let width = textureSize.width
         let height = textureSize.height
@@ -181,187 +182,173 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
         let wallHeightUi = height - fyClamped
 
         let rgb = CGColorSpaceCreateDeviceRGB()
+        let lipInsetTrim = max(18.0, width * 0.018)
 
-        // 1 ベース: 天井〜壁（ワインレッド〜深いインディゴ）
-        let baseColors = [
-            UIColor(red: 0.22, green: 0.08, blue: 0.12, alpha: 1.0).cgColor,
-            UIColor(red: 0.10, green: 0.05, blue: 0.16, alpha: 1.0).cgColor,
-            UIColor(red: 0.035, green: 0.045, blue: 0.10, alpha: 1.0).cgColor,
-            UIColor(red: 0.018, green: 0.020, blue: 0.055, alpha: 1.0).cgColor,
-        ] as CFArray
-        let baseLoc: [CGFloat] = [0, 0.35, 0.72, 1]
-        if let g = CGGradient(colorsSpace: rgb, colors: baseColors, locations: baseLoc) {
-            cg.drawLinearGradient(g, start: CGPoint(x: 0, y: 0), end: CGPoint(x: width, y: height), options: [.drawsAfterEndLocation])
-        } else {
-            Self.jazzBackdropEdgeColor().setFill()
-            cg.fill(CGRect(origin: .zero, size: textureSize))
-        }
+        let paletteTop = UIColor(red: 22 / 255, green: 11 / 255, blue: 8 / 255, alpha: 1).cgColor // #160B08
+        let paletteMid = UIColor(red: 42 / 255, green: 22 / 255, blue: 14 / 255, alpha: 1).cgColor // #2A160E
+        let paletteBot = UIColor(red: 14 / 255, green: 7 / 255, blue: 5 / 255, alpha: 1).cgColor // #0E0705
+        let woodDarkFill = UIColor(red: 36 / 255, green: 18 / 255, blue: 11 / 255, alpha: 1) // #24120B
+        let woodMidFill = UIColor(red: 58 / 255, green: 33 / 255, blue: 20 / 255, alpha: 1) // #3A2114
 
         cg.saveGState()
         defer { cg.restoreGState() }
 
-        func fillOval(_ r: CGRect) {
-            cg.beginPath()
-            cg.addEllipse(in: r)
-            cg.fillPath()
+        Self.jazzBackdropEdgeColor().setFill()
+        cg.fill(CGRect(origin: .zero, size: textureSize))
+        if let baseAll = CGGradient(colorsSpace: rgb, colors: [paletteMid, paletteBot] as CFArray, locations: [0, 1]) {
+            cg.drawLinearGradient(
+                baseAll,
+                start: CGPoint(x: width * 0.5, y: 0),
+                end: CGPoint(x: width * 0.5, y: height),
+                options: [.drawsAfterEndLocation]
+            )
         }
 
-        // 2 フルワイド背面レンガ（端〜端に近く伸ばす。不透明な両柱カーテンは使わず）
-        let wallBleed: CGFloat = max(14, width * 0.012)
-        let brickLeft = wallBleed
-        let brickRight = width - wallBleed
-        let brickMargin: CGFloat = 0
-        let brickTopUI = wallHeightUi * 0.06
-        let brickBotUI = wallHeightUi * 0.90
-        if brickBotUI - brickTopUI > 32, brickRight - brickLeft > 40 {
-            let brickWall = CGRect(x: brickLeft + brickMargin, y: brickTopUI, width: brickRight - brickLeft - brickMargin * 2, height: brickBotUI - brickTopUI)
+        if wallHeightUi > 44, let wallG = CGGradient(colorsSpace: rgb, colors: [paletteTop, paletteMid, paletteBot] as CFArray, locations: [0, 0.42, 1]) {
             cg.saveGState()
-            cg.clip(to: brickWall)
-            let mortar = UIColor(red: 0.11, green: 0.055, blue: 0.07, alpha: 1.0).cgColor
-            cg.setFillColor(mortar)
-            cg.fill(brickWall)
-            let hues: [CGFloat] = [0.15, 0.13, 0.145, 0.12]
-            let rowH: CGFloat = max(11, brickWall.height * 0.034)
-            var rowY = brickWall.minY
-            var rowParity = 0
-            while rowY <= brickWall.maxY {
-                let offsetX = CGFloat(rowParity % 2) * (rowH * 0.9)
-                rowParity += 1
-                var colX = brickWall.minX - rowH + offsetX
-                let brickW = rowH * 2.85
-                var col = 0
-                while colX < brickWall.maxX {
-                    cg.setAllowsAntialiasing(false)
-                    let ix = hues[(col & 7) % hues.count]
-                    cg.setFillColor(UIColor(red: ix + 0.035, green: ix * 0.72, blue: ix * 0.68, alpha: 1).cgColor)
-                    let r = CGRect(x: colX, y: rowY, width: brickW + 2, height: rowH + 3)
-                    cg.fill(CGRectInset(r, 1.2, 2))
-                    col += 1
-                    colX += brickW + 3
-                }
-                rowY += rowH + 4
-            }
-            cg.setBlendMode(.overlay)
-            cg.setFillColor(UIColor(red: 0.25, green: 0.12, blue: 0.07, alpha: 0.12).cgColor)
-            cg.fill(brickWall)
+            cg.clip(to: CGRect(x: 0, y: 0, width: width, height: wallHeightUi))
+            cg.drawLinearGradient(
+                wallG,
+                start: CGPoint(x: width * 0.5, y: 0),
+                end: CGPoint(x: width * 0.5, y: wallHeightUi),
+                options: [.drawsAfterEndLocation]
+            )
             cg.restoreGState()
-            // ベースボード（ほぼ全幅）
-            let baseboard = CGRect(x: brickLeft, y: brickBotUI + 4, width: brickRight - brickLeft, height: max(26, wallHeightUi * 0.07))
+        }
+
+        func drawWeakBrickWall() {
+            guard wallHeightUi > 56 else { return }
+            let sidePad = width * 0.045
+            let topPad = wallHeightUi * 0.048
+            let botPad = wallHeightUi * 0.088
+            let wallR = CGRect(x: sidePad, y: topPad, width: width - sidePad * 2, height: wallHeightUi - topPad - botPad)
+            guard wallR.width > 50, wallR.height > 30 else { return }
+
+            cg.saveGState()
+            cg.clip(to: wallR)
+            cg.setAllowsAntialiasing(false)
+            let brickH = max(21, wallR.height / 15)
+            let brickW = max(72, brickH * 2.85)
+            var rowY = wallR.minY
+            var row = 0
+            while rowY < wallR.maxY {
+                let stagger = CGFloat(row % 2) * (brickW * 0.5)
+                var colX = wallR.minX - brickW + stagger
+                while colX < wallR.maxX + brickW {
+                    let br = CGRect(x: colX, y: rowY, width: brickW - 6, height: brickH - 5).integral
+                    cg.setAlpha(0.15)
+                    cg.setFillColor(UIColor(red: 0.35, green: 0.18, blue: 0.09, alpha: 1).cgColor)
+                    cg.fill(br)
+                    cg.setAlpha(0.11)
+                    cg.setStrokeColor(UIColor(red: 0.08, green: 0.05, blue: 0.035, alpha: 1).cgColor)
+                    cg.setLineWidth(0.75)
+                    cg.beginPath()
+                    cg.addRect(br)
+                    cg.strokePath()
+                    cg.setAlpha(1)
+                    colX += brickW
+                }
+                rowY += brickH + 5
+                row += 1
+            }
+            cg.restoreGState()
+
+            cg.saveGState()
+            cg.clip(to: CGRect(x: 0, y: 0, width: width, height: wallHeightUi))
+            cg.setAllowsAntialiasing(true)
+            cg.setBlendMode(.multiply)
+            if let gTop = CGGradient(colorsSpace: rgb, colors: [UIColor.black.withAlphaComponent(0.58).cgColor, UIColor.clear.cgColor] as CFArray, locations: [0, 1]) {
+                cg.drawLinearGradient(gTop, start: CGPoint(x: width * 0.5, y: 0), end: CGPoint(x: width * 0.5, y: wallHeightUi * 0.52), options: [.drawsAfterEndLocation])
+            }
+            let sideTone = UIColor.black.withAlphaComponent(0.42).cgColor
+            if let gSide = CGGradient(colorsSpace: rgb, colors: [sideTone, UIColor.clear.cgColor] as CFArray, locations: [0, 1]) {
+                cg.drawLinearGradient(gSide, start: CGPoint(x: 0, y: wallHeightUi * 0.5), end: CGPoint(x: width * 0.42, y: wallHeightUi * 0.5), options: [.drawsAfterEndLocation])
+                cg.drawLinearGradient(gSide, start: CGPoint(x: width, y: wallHeightUi * 0.5), end: CGPoint(x: width * 0.58, y: wallHeightUi * 0.5), options: [.drawsAfterEndLocation])
+            }
+
+            // コード帯〜足元側だけ中央を締める（奥の棚は上側に残す。全面にかけない）
+            let chordBandMinY = wallHeightUi * 0.38
+            cg.saveGState()
+            cg.clip(to: CGRect(x: 0, y: chordBandMinY, width: width, height: max(1, wallHeightUi - chordBandMinY)))
+            if let cen = CGGradient(colorsSpace: rgb, colors: [UIColor.black.withAlphaComponent(0.48).cgColor, UIColor.clear.cgColor] as CFArray, locations: [0, 1]) {
+                let cx = width * 0.5
+                let cy = wallHeightUi * 0.62
+                let rx = width * 0.28
+                let ry = (wallHeightUi - chordBandMinY) * 0.72
+                cg.drawRadialGradient(cen, startCenter: CGPoint(x: cx, y: cy), startRadius: 0, endCenter: CGPoint(x: cx, y: cy), endRadius: max(rx, ry), options: [.drawsAfterEndLocation])
+            }
+            cg.restoreGState()
             cg.setBlendMode(.normal)
-            cg.setFillColor(UIColor(red: 0.06, green: 0.03, blue: 0.04, alpha: 0.94).cgColor)
-            cg.fill(baseboard)
+            cg.restoreGState()
         }
 
-        // 2-soft 両端のみ薄くドレープ感（不透明のピラーリングをしない）
-        let drapeReach = min(max(width * 0.072, 52), CGFloat(160))
-        let drapeHue = UIColor(red: 0.16, green: 0.04, blue: 0.065, alpha: 1).cgColor
-        let drapeHueClear = UIColor(red: 0.16, green: 0.04, blue: 0.065, alpha: 0).cgColor
-        let midYi = wallHeightUi * 0.5
-        if let gLeft = CGGradient(colorsSpace: rgb, colors: [drapeHue, drapeHueClear] as CFArray, locations: [0, 1]) {
-            cg.drawLinearGradient(
-                gLeft,
-                start: CGPoint(x: 0, y: midYi),
-                end: CGPoint(x: drapeReach, y: midYi),
-                options: [.drawsAfterEndLocation]
-            )
-        }
-        if let gRight = CGGradient(colorsSpace: rgb, colors: [drapeHueClear, drapeHue] as CFArray, locations: [0, 1]) {
-            cg.drawLinearGradient(
-                gRight,
-                start: CGPoint(x: width - drapeReach, y: midYi),
-                end: CGPoint(x: width, y: midYi),
-                options: [.drawsAfterEndLocation]
-            )
-        }
+        drawWeakBrickWall()
 
-        // 2c 左右奥に楽器シルエット（コントラバス・ドラム類の暗示）
-        cg.setAllowsAntialiasing(true)
-        let instAlpha: CGFloat = 0.42
-        let instColor = UIColor(red: 0.02, green: 0.018, blue: 0.04, alpha: instAlpha).cgColor
-        cg.setFillColor(instColor)
-        let lipInsetTrim = wallBleed + 16
-        let wx1 = wallBleed + width * 0.055
-        let wx2 = width - wallBleed - width * 0.28
-        let insYBase = brickBotUI > 48 ? brickBotUI - wallHeightUi * 0.12 : wallHeightUi * 0.78
-        // バス側（細長ボディ＋ヘッド）
-        let bassBody = CGRect(x: wx1, y: insYBase - wallHeightUi * 0.32, width: width * 0.055, height: wallHeightUi * 0.34)
-        let bassHead = CGRect(x: bassBody.midX - 9, y: bassBody.minY - 18, width: 18, height: 26)
-        cg.fill(bassBody)
-        cg.fill(bassHead)
-        let drumX = wx2 + width * 0.02
-        let drumY = insYBase - wallHeightUi * 0.14
-        fillOval(CGRect(x: drumX, y: drumY - 20, width: width * 0.11, height: width * 0.068))
-        fillOval(CGRect(x: drumX + width * 0.08, y: drumY - 8, width: width * 0.086, height: width * 0.055))
-        fillOval(CGRect(x: drumX + width * 0.18, y: drumY - 54, width: 40, height: 10))
-
-        // 3 背面ボトル列（半透明シルエット）
-        cg.setAllowsAntialiasing(true)
-        let shelfRect = CGRect(
-            x: width * 0.10,
-            y: wallHeightUi * 0.22,
-            width: width * 0.80,
-            height: wallHeightUi * 0.38
-        )
-        let bottleHue = UIColor(red: 0.04, green: 0.035, blue: 0.08, alpha: 0.72)
-        cg.setFillColor(bottleHue.cgColor)
-        let bottleCount = 14
-        for index in 0..<bottleCount {
-            let t = CGFloat(index) / CGFloat(bottleCount - 1)
-            let bx = shelfRect.minX + t * shelfRect.width + sin(Double(index) * 1.17) * 2
-            let bW = CGFloat(5 + index % 3)
-            let bH = shelfRect.height * CGFloat(0.55 + CGFloat(index % 5) * 0.07)
-            let by = shelfRect.midY - bH * 0.5 + CGFloat((index % 3) - 1) * 6
-            cg.fill(CGRect(x: bx - bW / 2, y: by, width: bW, height: bH))
-        }
-
-        // 4 アンバー系スポットライト（径方向）
-        func castSpot(centerX: CGFloat, centerYUi: CGFloat, radius: CGFloat, alphaAmber: CGFloat) {
-            guard let spot = CGGradient(
-                colorsSpace: rgb,
-                colors: [
-                    UIColor(red: 0.98, green: 0.72, blue: 0.34, alpha: alphaAmber).cgColor,
-                    UIColor(red: 0.45, green: 0.25, blue: 0.12, alpha: 0.0).cgColor,
-                ] as CFArray,
-                locations: [0, 1]
-            )
-            else { return }
+        cg.saveGState()
+        cg.setBlendMode(.multiply)
+        if let smoky = CGGradient(
+            colorsSpace: rgb,
+            colors: [
+                UIColor(red: 0.11, green: 0.09, blue: 0.074, alpha: 0.07).cgColor,
+                UIColor.clear.cgColor,
+            ] as CFArray,
+            locations: [0, 1]
+        ) {
             cg.drawRadialGradient(
-                spot,
-                startCenter: CGPoint(x: centerX, y: centerYUi),
+                smoky,
+                startCenter: CGPoint(x: width * 0.24, y: wallHeightUi * 0.32),
                 startRadius: 0,
-                endCenter: CGPoint(x: centerX, y: centerYUi),
-                endRadius: radius,
+                endCenter: CGPoint(x: width * 0.24, y: wallHeightUi * 0.32),
+                endRadius: width * 0.33,
+                options: [.drawsAfterEndLocation]
+            )
+            cg.drawRadialGradient(
+                smoky,
+                startCenter: CGPoint(x: width * 0.76, y: wallHeightUi * 0.30),
+                startRadius: 0,
+                endCenter: CGPoint(x: width * 0.76, y: wallHeightUi * 0.30),
+                endRadius: width * 0.30,
                 options: [.drawsAfterEndLocation]
             )
         }
+        cg.restoreGState()
 
-        cg.setBlendMode(.plusLighter)
-        castSpot(centerX: width * 0.28, centerYUi: wallHeightUi * 0.08 + 8, radius: width * 0.72, alphaAmber: 0.118)
-        castSpot(centerX: width * 0.53, centerYUi: wallHeightUi * 0.045, radius: width * 0.98, alphaAmber: 0.19)
-        castSpot(centerX: width * 0.78, centerYUi: wallHeightUi * 0.09 + 8, radius: width * 0.68, alphaAmber: 0.108)
-        // ステージ手前への集光（床ライン〜壁下寄り）
-        castSpot(centerX: width * 0.52, centerYUi: wallHeightUi * 0.86, radius: max(width * 0.78, fyClamped * 0.5), alphaAmber: 0.15)
-        cg.setBlendMode(.normal)
-
-        // 5 バーカウンター帯（手前下端）
         let barSkCapDesired = min(Self.pianoOverlayHeight + 56, max(12, fyClamped - 10))
+
+        let parquetH = fyClamped - barSkCapDesired
+        if parquetH > 12 {
+            let pqRectUIKit = CGRect(x: 0, y: height - fyClamped, width: width, height: parquetH)
+            cg.setAllowsAntialiasing(true)
+            cg.setFillColor(woodDarkFill.withAlphaComponent(0.97).cgColor)
+            cg.fill(pqRectUIKit)
+            cg.setBlendMode(.normal)
+            cg.setAllowsAntialiasing(false)
+            for lineIndex in 1..<7 {
+                let lineY = pqRectUIKit.minY + parquetH * CGFloat(lineIndex) / 7 + 10
+                cg.setStrokeColor(UIColor(red: 0.22, green: 0.14, blue: 0.10, alpha: 0.11).cgColor)
+                cg.setLineWidth(1)
+                cg.beginPath()
+                cg.move(to: CGPoint(x: pqRectUIKit.minX, y: lineY))
+                cg.addLine(to: CGPoint(x: pqRectUIKit.maxX, y: lineY))
+                cg.strokePath()
+            }
+        }
+
         if barSkCapDesired > 8 {
             let barRectUIKit = CGRect(x: 0, y: height - barSkCapDesired, width: width, height: barSkCapDesired)
-            let woodDark = UIColor(red: 0.16, green: 0.09, blue: 0.06, alpha: 1.0).cgColor
-            let woodLight = UIColor(red: 0.24, green: 0.14, blue: 0.095, alpha: 1.0).cgColor
-            cg.setFillColor(woodDark)
+            cg.setFillColor(woodDarkFill.cgColor)
             cg.fill(barRectUIKit)
-            if let band = CGGradient(colorsSpace: rgb, colors: [woodLight, woodDark] as CFArray, locations: [0, 1]) {
+            if let band = CGGradient(colorsSpace: rgb, colors: [woodMidFill.cgColor, woodDarkFill.cgColor] as CFArray, locations: [0, 1]) {
                 cg.drawLinearGradient(
                     band,
-                    start: CGPoint(x: 0, y: barRectUIKit.maxY - 12),
-                    end: CGPoint(x: 0, y: barRectUIKit.minY + 8),
-                    options: []
+                    start: CGPoint(x: 0, y: barRectUIKit.maxY - 10),
+                    end: CGPoint(x: 0, y: barRectUIKit.minY + 6),
+                    options: [.drawsAfterEndLocation]
                 )
             }
-            let goldTrim = UIColor(red: 0.78, green: 0.61, blue: 0.32, alpha: 0.75)
-            cg.setStrokeColor(goldTrim.cgColor)
-            cg.setLineWidth(2)
+            let goldTrim = UIColor(red: 213 / 255, green: 138 / 255, blue: 42 / 255, alpha: 0.28).cgColor
+            cg.setStrokeColor(goldTrim)
+            cg.setLineWidth(1.5)
             let trimY = barRectUIKit.minY + 2
             cg.beginPath()
             cg.move(to: CGPoint(x: lipInsetTrim, y: trimY))
@@ -369,73 +356,137 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             cg.strokePath()
         }
 
-        // 6 ダンスフロア（バーカウンター上〜足元）
-        let parquetH = fyClamped - barSkCapDesired
-        if parquetH > 12 {
-            let pqRectUIKit = CGRect(x: 0, y: height - fyClamped, width: width, height: parquetH)
-            cg.setFillColor(UIColor(red: 0.05, green: 0.04, blue: 0.065, alpha: 1.0).cgColor)
-            cg.fill(pqRectUIKit)
-            cg.setStrokeColor(UIColor(red: 0.09, green: 0.07, blue: 0.10, alpha: 0.45).cgColor)
-            cg.setLineWidth(1)
-            let dx: CGFloat = 16
-            var xStride = -pqRectUIKit.height * 0.35
-            let endStride = width + pqRectUIKit.height * 2
-            while xStride < endStride {
-                cg.beginPath()
-                cg.move(to: CGPoint(x: xStride, y: pqRectUIKit.minY))
-                cg.addLine(to: CGPoint(x: xStride + pqRectUIKit.height + 140, y: pqRectUIKit.maxY))
-                cg.strokePath()
-                xStride += dx
-            }
-
-            // 6b ダンスフロア手前の客席シルエット（密集する頭の列）
-            let audBaseY = pqRectUIKit.minY + parquetH * 0.38
-            cg.setAllowsAntialiasing(true)
-            for seatIndex in 0..<26 {
-                let norm = CGFloat(seatIndex + 2) / 28.0
-                let jitter = CGFloat(sin(Double(seatIndex) * 1.13) * 4.5)
-                let bx = pqRectUIKit.minX + pqRectUIKit.width * (0.045 + norm * 0.91) + jitter
-                let headW = 15 + CGFloat(seatIndex % 5) * 2
-                let headH = 11 + CGFloat((seatIndex / 7) % 3)
-                let shoulderW = headW + 12
-                let shoulderH = 8 + CGFloat(seatIndex % 3)
-                cg.setFillColor(UIColor(red: 0.018, green: 0.012, blue: 0.038, alpha: 0.5 + CGFloat(seatIndex % 3) * 0.035).cgColor)
-                fillOval(CGRect(x: bx - headW / 2, y: audBaseY + CGFloat(seatIndex % 5) - headH + 6, width: headW, height: headH))
-                cg.fill(CGRect(x: bx - shoulderW / 2, y: audBaseY + CGFloat(seatIndex % 5) + 6, width: shoulderW, height: shoulderH))
-            }
-        }
-
-        // 7 ステージ縁・壁床の境界（二重ゴールドライン／奥行き感）
-        let lipToneStrong = UIColor(red: 0.82, green: 0.62, blue: 0.30, alpha: 0.55).cgColor
-        let lipToneSoft = UIColor(red: 0.72, green: 0.55, blue: 0.26, alpha: 0.42).cgColor
+        let lipStrong = UIColor(red: 213 / 255, green: 138 / 255, blue: 42 / 255, alpha: 0.22).cgColor
+        let lipSoft = UIColor(red: 180 / 255, green: 105 / 255, blue: 40 / 255, alpha: 0.15).cgColor
+        cg.setLineWidth(1.5)
+        cg.setStrokeColor(lipStrong)
+        cg.beginPath()
+        cg.move(to: CGPoint(x: lipInsetTrim + 10, y: wallHeightUi - 3))
+        cg.addLine(to: CGPoint(x: width - lipInsetTrim - 10, y: wallHeightUi - 3))
+        cg.strokePath()
         cg.setLineWidth(2)
-        cg.setStrokeColor(lipToneStrong)
+        cg.setStrokeColor(lipSoft)
         cg.beginPath()
-        cg.move(to: CGPoint(x: lipInsetTrim + 8, y: wallHeightUi - 3))
-        cg.addLine(to: CGPoint(x: width - lipInsetTrim - 8, y: wallHeightUi - 3))
-        cg.strokePath()
-        cg.setLineWidth(3)
-        cg.setStrokeColor(lipToneSoft)
-        cg.beginPath()
-        cg.move(to: CGPoint(x: lipInsetTrim + 8, y: wallHeightUi + 2))
-        cg.addLine(to: CGPoint(x: width - lipInsetTrim - 8, y: wallHeightUi + 2))
+        cg.move(to: CGPoint(x: lipInsetTrim + 10, y: wallHeightUi + 1))
+        cg.addLine(to: CGPoint(x: width - lipInsetTrim - 10, y: wallHeightUi + 1))
         cg.strokePath()
 
-        // 8 天井付近のみ軽いヴィネット（角をほんのり落とす）
         cg.setBlendMode(.multiply)
         cg.setAllowsAntialiasing(true)
-        if let vignetteColors = CGGradient(colorsSpace: rgb,
-                                           colors: [UIColor.black.withAlphaComponent(0.35).cgColor, UIColor.clear.cgColor] as CFArray,
-                                           locations: [0, 1]) {
-            let topY = height * 0.22
+        let cornerAlphas: CGFloat = 0.54
+        if let cornerGrad = CGGradient(
+            colorsSpace: rgb,
+            colors: [UIColor.black.withAlphaComponent(cornerAlphas).cgColor, UIColor.clear.cgColor] as CFArray,
+            locations: [0, 1]
+        ) {
+            let reach = max(width, height) * 0.5
+            for cx in [CGFloat(0), width] as [CGFloat] {
+                for cy in [CGFloat(0), height] as [CGFloat] {
+                    cg.drawRadialGradient(
+                        cornerGrad,
+                        startCenter: CGPoint(x: cx, y: cy),
+                        startRadius: 0,
+                        endCenter: CGPoint(x: cx, y: cy),
+                        endRadius: reach,
+                        options: [.drawsAfterEndLocation]
+                    )
+                }
+            }
+        }
+        if let rimTop = CGGradient(colorsSpace: rgb, colors: [UIColor.black.withAlphaComponent(0.30).cgColor, UIColor.clear.cgColor] as CFArray, locations: [0, 1]) {
             cg.drawRadialGradient(
-                vignetteColors,
-                startCenter: CGPoint(x: width * 0.5, y: topY),
+                rimTop,
+                startCenter: CGPoint(x: width * 0.5, y: 6),
                 startRadius: 0,
-                endCenter: CGPoint(x: width * 0.5, y: topY),
-                endRadius: max(width, wallHeightUi) * 1.08,
+                endCenter: CGPoint(x: width * 0.5, y: 6),
+                endRadius: max(width, wallHeightUi) * 1.06,
                 options: [.drawsAfterEndLocation]
             )
+        }
+        cg.setBlendMode(.normal)
+
+        // ヴィネットの後に奥行きを描く（端で消えないよう、手掛かりは最後）
+        func drawBackBarSilhouetteLate() {
+            guard wallHeightUi > 72 else { return }
+            cg.saveGState()
+            cg.clip(to: CGRect(x: 0, y: 0, width: width, height: wallHeightUi))
+            cg.setAllowsAntialiasing(false)
+            cg.setAlpha(0.38)
+            cg.setFillColor(UIColor(red: 0.12, green: 0.065, blue: 0.04, alpha: 1).cgColor)
+            let shelfW = width * 0.46
+            let shelfX = width * 0.5 - shelfW * 0.5
+            let shelfUpperY = wallHeightUi * 0.278
+            let shelfLowerY = shelfUpperY + 56
+            let boardH: CGFloat = 8
+            cg.fill(CGRect(x: shelfX, y: shelfUpperY, width: shelfW, height: boardH))
+            cg.fill(CGRect(x: shelfX, y: shelfLowerY, width: shelfW, height: boardH))
+            let bottleHeights: [CGFloat] = [38, 46, 33, 50, 40, 36, 48, 34, 44, 37, 45, 34]
+            let slot = shelfW / CGFloat(bottleHeights.count)
+            for bottleIdx in 0..<bottleHeights.count {
+                let bx = shelfX + CGFloat(bottleIdx) * slot + 7
+                let bottleH = bottleHeights[bottleIdx]
+                let bw: CGFloat = 10
+                let topY = shelfLowerY - bottleH
+                cg.fill(CGRect(x: bx, y: topY, width: bw, height: bottleH))
+            }
+            cg.setAlpha(1)
+            cg.restoreGState()
+        }
+
+        drawBackBarSilhouetteLate()
+
+        if wallHeightUi > 26 {
+            cg.saveGState()
+            cg.clip(to: CGRect(x: 0, y: 0, width: width, height: wallHeightUi * 0.1))
+            if let bleed = CGGradient(
+                colorsSpace: rgb,
+                colors: [
+                    UIColor(red: 240 / 255, green: 180 / 255, blue: 90 / 255, alpha: 0.085).cgColor,
+                    UIColor.clear.cgColor,
+                ] as CFArray,
+                locations: [0, 1]
+            ) {
+                cg.drawLinearGradient(bleed, start: CGPoint(x: width * 0.5, y: 0), end: CGPoint(x: width * 0.5, y: wallHeightUi * 0.105), options: [.drawsAfterEndLocation])
+            }
+            cg.restoreGState()
+        }
+
+        func drawWallSconceLate(centerXUIKit: CGFloat) {
+            guard wallHeightUi > 48 else { return }
+            let y = wallHeightUi * 0.225
+            let radius = min(128, wallHeightUi * 0.52)
+            cg.saveGState()
+            cg.clip(to: CGRect(x: 0, y: 0, width: width, height: wallHeightUi))
+            if let glow = CGGradient(
+                colorsSpace: rgb,
+                colors: [
+                    UIColor(red: 240 / 255, green: 180 / 255, blue: 90 / 255, alpha: 0.125).cgColor,
+                    UIColor(red: 213 / 255, green: 138 / 255, blue: 42 / 255, alpha: 0.045).cgColor,
+                    UIColor.clear.cgColor,
+                ] as CFArray,
+                locations: [0, 0.43, 1]
+            ) {
+                cg.setBlendMode(.screen)
+                cg.drawRadialGradient(
+                    glow,
+                    startCenter: CGPoint(x: centerXUIKit, y: y),
+                    startRadius: 0,
+                    endCenter: CGPoint(x: centerXUIKit, y: y),
+                    endRadius: radius,
+                    options: [.drawsAfterEndLocation]
+                )
+                cg.setBlendMode(.normal)
+            }
+            cg.setFillColor(UIColor(red: 0.09, green: 0.05, blue: 0.035, alpha: 0.98).cgColor)
+            cg.beginPath()
+            cg.addEllipse(in: CGRect(x: centerXUIKit - 4, y: y - 4, width: 8, height: 8))
+            cg.fillPath()
+            cg.restoreGState()
+        }
+
+        if wallHeightUi > 52 {
+            drawWallSconceLate(centerXUIKit: width * 0.18)
+            drawWallSconceLate(centerXUIKit: width * 0.82)
         }
     }
 
