@@ -392,14 +392,13 @@ struct LessonJourneyView: View {
     }
 
     /// 帯ラベル: 表示言語に応じて主・副を入れ替える。
-    /// - 英語UI: EN を主、JA を副 (EN が無ければ JA のみ)
+    /// - 英語UI: 主のみ（`blockNameEn` があればそれ、なければ `blockName`）。副行は出さない。
     /// - 日本語UI: JA を主、EN を副
     private func bandLabels(for block: LessonJourneyBlockLayout) -> (main: String, sub: String?) {
         let en = block.blockNameEn?.isEmpty == false ? block.blockNameEn : nil
         if locale == .en {
             if let en {
-                let sub: String? = (block.blockName != en) ? block.blockName : nil
-                return (main: en, sub: sub)
+                return (main: en, sub: nil)
             }
             return (main: block.blockName, sub: nil)
         }

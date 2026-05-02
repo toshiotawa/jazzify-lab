@@ -62,7 +62,7 @@ struct EarTrainingHUDView: View {
                 frameAlignment: .trailing
             )
         }
-        .padding(.trailing, 90)
+        .padding(.trailing, 98)
     }
 
     private var rightControls: some View {
@@ -126,8 +126,8 @@ struct EarTrainingHUDView: View {
     private func iconButton(systemName: String, label: String, action: @escaping () -> Void) -> some View {
         Button(action: action) {
             Image(systemName: systemName)
-                .font(.system(size: 11, weight: .bold))
-                .frame(width: 26, height: 26)
+                .font(.system(size: 13, weight: .bold))
+                .frame(width: 30, height: 30)
                 .foregroundColor(.white)
                 .background(Color.black.opacity(0.55))
                 .overlay(
@@ -137,7 +137,7 @@ struct EarTrainingHUDView: View {
         }
         .accessibilityLabel(Text(label))
         .buttonStyle(.plain)
-        .frame(width: 40, height: 40)
+        .frame(width: 44, height: 44)
         .contentShape(Rectangle())
     }
 
