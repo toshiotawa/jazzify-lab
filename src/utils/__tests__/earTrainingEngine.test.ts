@@ -4,6 +4,7 @@ import {
   calculateEarTrainingRank,
   createPhraseAttempt,
   getNextMeasureDelaySec,
+  getNextPhraseIndex,
   handleEarTrainingNoteInput,
   isMatchingPitchClass,
   resolveEarTrainingOutcome,
@@ -142,5 +143,12 @@ describe('earTrainingEngine', () => {
 
   it('次小節頭までの待ち時間を計算する', () => {
     expect(getNextMeasureDelaySec(1.25, 4, 2)).toBeCloseTo(0.75);
+  });
+
+  it('次フレーズ番号を末尾と1フレーズ構成で折り返す', () => {
+    expect(getNextPhraseIndex(0, 3)).toBe(1);
+    expect(getNextPhraseIndex(2, 3)).toBe(0);
+    expect(getNextPhraseIndex(0, 1)).toBe(0);
+    expect(getNextPhraseIndex(0, 0)).toBe(0);
   });
 });

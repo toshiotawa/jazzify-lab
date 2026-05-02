@@ -140,6 +140,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     private var snapshot: EarTrainingBattleSceneSnapshot?
     private var lastEffectId: Int = -1
     private var lastPhraseIntroKey: String?
+    private var lastPhraseRunId: Int?
     private var lastBuiltAvatarSignature: String?
     /// 着弾 (HP 反映) 通知をコントローラーへ伝えるブロック。
     var onEffectImpact: ((Int) -> Void)?
@@ -203,7 +204,13 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
     func applySnapshot(_ snapshot: EarTrainingBattleSceneSnapshot) {
         let prevSnapshot = self.snapshot
+        let previousPhraseRunId = lastPhraseRunId
         self.snapshot = snapshot
+        lastPhraseRunId = snapshot.phraseRunId
+        if let previousPhraseRunId, previousPhraseRunId != snapshot.phraseRunId {
+            playerPoseToken += 1
+            restorePlayerPose()
+        }
         let avatarSignature = "\(snapshot.playerAvatarName)|\(snapshot.enemyAvatarName)|\(snapshot.enemyAvatarFlipX ? 1 : 0)"
         let needsRebuild = prevSnapshot == nil
             || size != lastBuildSize
@@ -1292,7 +1299,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             lastPhraseIntroKey = nil
             return
         }
-        let key = "\(snapshot.phraseIndex):\(snapshot.totalPhrases)"
+        let key = "\(snapshot.phraseRunId):\(snapshot.phraseIndex):\(snapshot.totalPhrases)"
         if lastPhraseIntroKey == key { return }
         lastPhraseIntroKey = key
         phraseIntroLabel?.removeFromParent()

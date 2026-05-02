@@ -136,6 +136,7 @@ struct EarTrainingBattleSceneSnapshot: Sendable, Equatable {
     let stageId: UUID
     let stageTitle: String
     let phraseIndex: Int
+    let phraseRunId: Int
     let totalPhrases: Int
     let phraseIntroLine: String
     let demoLoopActive: Bool

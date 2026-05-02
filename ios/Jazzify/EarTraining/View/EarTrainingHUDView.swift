@@ -234,6 +234,7 @@ struct EarTrainingHUDView: View {
             }
             .frame(maxWidth: .infinity, alignment: .center)
         }
+        .id(controller.phraseRunId)
         .frame(height: 32)
         .padding(.horizontal, 10)
     }

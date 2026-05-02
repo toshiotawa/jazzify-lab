@@ -203,6 +203,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   private phraseIntroText: Phaser.GameObjects.Text | null = null;
   private lastPhraseIntroKey: string | null = null;
   private lastEffectId: number | null = null;
+  private lastPhraseRunId: number | null = null;
   private playerPoseToken = 0;
   private isReady = false;
 
@@ -234,7 +235,12 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
   }
 
   updateSnapshot(snapshot: EarTrainingBattleSnapshot): void {
+    const previousPhraseRunId = this.lastPhraseRunId;
     this.snapshot = snapshot;
+    this.lastPhraseRunId = snapshot.phraseRunId;
+    if (previousPhraseRunId !== null && previousPhraseRunId !== snapshot.phraseRunId) {
+      this.playerPoseToken += 1;
+    }
     if (!this.isReady) {
       return;
     }
@@ -767,7 +773,7 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
       return;
     }
 
-    const introKey = `${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
+    const introKey = `${snapshot.phraseRunId}:${snapshot.phraseIndex}:${snapshot.totalPhrases}`;
     if (this.lastPhraseIntroKey === introKey) {
       return;
     }

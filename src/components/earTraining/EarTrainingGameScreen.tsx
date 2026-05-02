@@ -35,6 +35,7 @@ import {
   getCompletionDamage,
   getDisplayNoteName,
   getNextMeasureDelaySec,
+  getNextPhraseIndex,
   handleEarTrainingNoteInput,
   mapEarTrainingRankToLessonRank,
   resolveEarTrainingOutcome,
@@ -229,6 +230,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
   const [gameState, setGameState] = useState<EarTrainingGameState>('idle');
   const [phraseIndex, setPhraseIndex] = useState(0);
+  const [phraseRunId, setPhraseRunId] = useState(0);
   const [attempt, setAttempt] = useState<EarTrainingPhraseAttempt | null>(null);
   const [enemyHp, setEnemyHp] = useState(stage.enemy_hp);
   const [playerHp, setPlayerHp] = useState(stage.player_hp);
@@ -459,13 +461,15 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
 
       setGameState('phraseFail');
       setStatusText(copy.failAdvance);
+      clearTransitionTimer();
       transitionTimerRef.current = setTimeout(() => {
-        const wrappedIndex = (phraseIndexRef.current + 1) % phrases.length;
+        const wrappedIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
         startPhraseRef.current(wrappedIndex);
       }, 900);
     });
   }, [
     activeDamageConfig.fail,
+    clearTransitionTimer,
     copy,
     finishGameOver,
     phrases.length,
@@ -485,6 +489,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     clearTransitionTimer();
     setPhraseIndex(nextPhraseIndex);
     phraseIndexRef.current = nextPhraseIndex;
+    setPhraseRunId(current => current + 1);
     const nextAttempt = createPhraseAttempt(phrase);
     setAttempt(nextAttempt);
     setLastRank(null);
@@ -586,6 +591,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setPlayerHp(stage.player_hp);
     setTimeRemaining(stage.time_limit_sec);
     setPhraseIndex(0);
+    setPhraseRunId(0);
     setCountInValue(stage.count_in_beats);
     setBattleEffectCommand(null);
     pendingImpactHandlersRef.current.clear();
@@ -632,6 +638,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
   ]);
 
   const transitionToNextPhrase = useCallback((rank: EarTrainingRank, phrase: EarTrainingPhrase) => {
+    clearTransitionTimer();
     const delaySec = getNextMeasureDelaySec(
       audioRef.current?.currentTime ?? 0,
       Number(phrase.loop_duration_sec),
@@ -643,14 +650,17 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     setStatusText(copy.transitionNextBar(rank));
 
     transitionTimerRef.current = setTimeout(() => {
+      transitionTimerRef.current = null;
       stopPhraseAudio();
+      gameStateRef.current = 'transitionToNextPhrase';
       setGameState('transitionToNextPhrase');
       transitionTimerRef.current = setTimeout(() => {
-        const nextIndex = (phraseIndex + 1) % phrases.length;
-        startPhrase(nextIndex);
+        transitionTimerRef.current = null;
+        const nextIndex = getNextPhraseIndex(phraseIndexRef.current, phrases.length);
+        startPhraseRef.current(nextIndex);
       }, 420);
     }, delaySec * 1000);
-  }, [copy, phraseIndex, phrases.length, stage.loop_measures, startPhrase, stopPhraseAudio]);
+  }, [clearTransitionTimer, copy, phrases.length, stage.loop_measures, stopPhraseAudio]);
 
   const handleNoteInput = useCallback((note: number) => {
     const now = performance.now();
@@ -931,6 +941,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     enemyAvatarFlipX,
     playerAvatarUrl: EAR_TRAINING_PLAYER_AVATAR_URL,
     phraseIndex,
+    phraseRunId,
     totalPhrases: phrases.length,
     activeLoop,
     maxLoops: stage.max_loops_per_phrase,
@@ -970,6 +981,7 @@ const EarTrainingGameScreen: React.FC<EarTrainingGameScreenProps> = ({
     lastRank,
     lessonProgressText,
     phraseIndex,
+    phraseRunId,
     phraseIntroLine,
     phrases.length,
     playerHp,

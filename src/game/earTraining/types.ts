@@ -49,6 +49,7 @@ export interface EarTrainingBattleSnapshot {
   enemyAvatarFlipX: boolean;
   playerAvatarUrl: string;
   phraseIndex: number;
+  phraseRunId: number;
   totalPhrases: number;
   activeLoop: number;
   maxLoops: number;

@@ -85,6 +85,11 @@ enum EarTrainingEngine {
         )
     }
 
+    static func nextPhraseIndex(currentIndex: Int, totalPhrases: Int) -> Int {
+        guard totalPhrases > 0 else { return 0 }
+        return (currentIndex + 1) % totalPhrases
+    }
+
     static func calculateRank(missedNoteCounts: [Int: Int], rule: EarTrainingRankRule) -> EarTrainingRank {
         let missCount = missedNoteCounts.values.reduce(0, +)
         if missCount <= rule.perfectMaxMisses {

@@ -22,6 +22,7 @@ final class EarTrainingBattleController: ObservableObject {
     private static let inputCooldownMs: Double = 20
     private static let audioEndEpsilonSec: Double = 0.03
     private static let battleEffectDurationMs: Double = 1_600
+    private static let awesomeBattleEffectDurationMs: Double = 4_500
     private static let attackGaugeTargetLoops: Int = 6
     private static let zeroDamage = EarTrainingDamageConfig.zero
 
@@ -29,6 +30,7 @@ final class EarTrainingBattleController: ObservableObject {
 
     @Published private(set) var gameState: EarTrainingGameState = .idle
     @Published private(set) var phraseIndex: Int = 0
+    @Published private(set) var phraseRunId: Int = 0
     @Published private(set) var attempt: EarTrainingPhraseAttempt?
     @Published private(set) var enemyHp: Int
     @Published private(set) var playerHp: Int
@@ -433,10 +435,11 @@ final class EarTrainingBattleController: ObservableObject {
             lastEmittedEffectId = id
             scene?.runEffect(command)
         }
-        // タイムアウト後、未着弾のハンドラは破棄する (Web 同等の挙動)。
+        // 長尺の Awesome メテオは着弾が通常エフェクトより遅い。
+        let effectTimeoutMs = Self.battleEffectDurationMs(kind: kind, label: label, phraseNoteCount: phraseNoteCount)
         battleEffectClearTask?.cancel()
         battleEffectClearTask = Task { [weak self] in
-            try? await Task.sleep(nanoseconds: UInt64(Self.battleEffectDurationMs * 1_000_000))
+            try? await Task.sleep(nanoseconds: UInt64(effectTimeoutMs * 1_000_000))
             await MainActor.run {
                 self?.pendingImpactHandlers[id] = nil
             }
@@ -446,6 +449,16 @@ final class EarTrainingBattleController: ObservableObject {
 
     private func registerBattleEffectImpact(effectId: Int, handler: @escaping () -> Void) {
         pendingImpactHandlers[effectId] = handler
+    }
+
+    private static func battleEffectDurationMs(
+        kind: EarTrainingBattleEffectKind,
+        label: String?,
+        phraseNoteCount: Int?
+    ) -> Double {
+        let isAwesome = kind == .complete
+            && (label == "Awesome!" || (label == "Perfect" && (phraseNoteCount ?? 0) >= 6))
+        return isAwesome ? awesomeBattleEffectDurationMs : battleEffectDurationMs
     }
 
     // MARK: - Feedback flash
@@ -476,6 +489,7 @@ final class EarTrainingBattleController: ObservableObject {
         playerHp = stage.playerHp
         timeRemaining = stage.timeLimitSec
         phraseIndex = 0
+        phraseRunId = 0
         countInValue = stage.countInBeats
         pendingImpactHandlers.removeAll()
         enemyAttackGaugePercent = 0
@@ -550,6 +564,7 @@ final class EarTrainingBattleController: ObservableObject {
 
         let phrase = phrases[index]
         phraseIndex = index
+        phraseRunId += 1
         attempt = EarTrainingEngine.createPhraseAttempt(phrase)
         lastRank = nil
         activeLoop = 1
@@ -594,12 +609,13 @@ final class EarTrainingBattleController: ObservableObject {
             }
             self.gameState = .phraseFail
             self.statusText = self.copy.failAdvance
+            self.cancelTransitionTimer()
             self.transitionTimerTask = Task { [weak self] in
                 try? await Task.sleep(nanoseconds: 900_000_000)
                 if Task.isCancelled { return }
                 await MainActor.run {
                     guard let self else { return }
-                    let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
+                    let next = EarTrainingEngine.nextPhraseIndex(currentIndex: self.phraseIndex, totalPhrases: self.phrases.count)
                     self.startPhrase(at: next)
                 }
             }
@@ -607,6 +623,7 @@ final class EarTrainingBattleController: ObservableObject {
     }
 
     private func transitionToNextPhrase(rank: EarTrainingRank, phrase: EarTrainingPhraseDetail) {
+        cancelTransitionTimer()
         let delaySec = EarTrainingEngine.nextMeasureDelaySec(
             currentAudioTimeSec: audio.currentTimeSec,
             loopDurationSec: phrase.loopDurationSec,
@@ -623,12 +640,13 @@ final class EarTrainingBattleController: ObservableObject {
                 guard let self else { return }
                 self.audio.stopPhrase()
                 self.gameState = .transitionToNextPhrase
+                self.transitionTimerTask = nil
                 self.transitionTimerTask = Task { [weak self] in
                     try? await Task.sleep(nanoseconds: 420_000_000)
                     if Task.isCancelled { return }
                     await MainActor.run {
                         guard let self else { return }
-                        let next = (self.phraseIndex + 1) % max(1, self.phrases.count)
+                        let next = EarTrainingEngine.nextPhraseIndex(currentIndex: self.phraseIndex, totalPhrases: self.phrases.count)
                         self.startPhrase(at: next)
                     }
                 }
@@ -767,6 +785,7 @@ final class EarTrainingBattleController: ObservableObject {
             stageId: stage.id,
             stageTitle: stage.localizedTitle(isEnglishCopy ? .en : .ja),
             phraseIndex: phraseIndex,
+            phraseRunId: phraseRunId,
             totalPhrases: phrases.count,
             phraseIntroLine: phraseIntroLine,
             demoLoopActive: demoBubbleVisible && gameState == .playingPhrase,

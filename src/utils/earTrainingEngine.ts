@@ -73,6 +73,13 @@ export const createPhraseAttempt = (phrase: EarTrainingPhrase, audioTime = 0): E
   failed: false,
 });
 
+export const getNextPhraseIndex = (currentIndex: number, totalPhrases: number): number => {
+  if (totalPhrases <= 0) {
+    return 0;
+  }
+  return (currentIndex + 1) % totalPhrases;
+};
+
 export const calculateEarTrainingRank = (
   missedNoteCounts: Map<number, number>,
   rankRule: EarTrainingRankRule,
