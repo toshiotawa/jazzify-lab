@@ -3,7 +3,7 @@ import { useToast } from '@/stores/toastStore';
 import { useAuthStore } from '@/stores/authStore';
 import { UserProfile, fetchAllUsers, updateUserRank, setAdminFlag, USERS_CACHE_KEY } from '@/platform/supabaseAdmin';
 import { fetchUserLessonProgress, updateLessonProgress, unlockLesson, unlockBlock, LessonProgress, LESSON_PROGRESS_CACHE_KEY, updateLessonUnlockFlag } from '@/platform/supabaseLessonProgress';
-import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminUnlockCourse, COURSES_CACHE_KEY } from '@/platform/supabaseCourses';
+import { fetchCoursesWithDetails, fetchUserCourseUnlockStatus, adminUnlockCourse, clearCoursesListQueryCaches } from '@/platform/supabaseCourses';
 import { getSupabaseClient } from '@/platform/supabaseClient';
 import { Course, Lesson } from '@/types';
 import { FaEdit, FaLock, FaUnlock, FaCheck, FaLockOpen, FaTimes, FaEye, FaEyeSlash } from 'react-icons/fa';
@@ -31,7 +31,7 @@ const UserManager: React.FC = () => {
     try {
       const [usersData, coursesData] = await Promise.all([
         fetchAllUsers({ forceRefresh }),
-        fetchCoursesWithDetails({ forceRefresh, includeHidden: true })
+        fetchCoursesWithDetails({ forceRefresh, includeHidden: true, includeDeveloperCourses: true })
       ]);
       setUsers(usersData);
       setCourses(coursesData);
@@ -314,7 +314,7 @@ const UserManager: React.FC = () => {
     try {
       await adminUnlockCourse(selectedUser.id, courseId);
 
-      invalidateCacheKey(COURSES_CACHE_KEY());
+      clearCoursesListQueryCaches();
       if (selectedCourse) {
         invalidateCacheKey(LESSON_PROGRESS_CACHE_KEY(selectedCourse.id, selectedUser.id));
         await loadUserProgress(selectedUser.id, selectedCourse.id, true);

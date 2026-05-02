@@ -53,6 +53,24 @@ enum Config {
 
     static let iapProductID = "jp.jazzify.premium.monthly"
 
+    /// 開発者専用レッスンコースを一覧に含めるか（DEBUG では既定 true。Release では Info.plist の `IncludeDevLessonCourses` が true のときのみ true）
+    static var includeDeveloperLessonCourses: Bool {
+        #if DEBUG
+        let debugDefault = true
+        #else
+        let debugDefault = false
+        #endif
+        if let flag = Bundle.main.object(forInfoDictionaryKey: "IncludeDevLessonCourses") as? Bool {
+            return flag
+        }
+        if let raw = Bundle.main.object(forInfoDictionaryKey: "IncludeDevLessonCourses") as? String {
+            let upper = raw.uppercased()
+            if upper == "YES" || upper == "1" || upper == "TRUE" { return true }
+            if upper == "NO" || upper == "0" || upper == "FALSE" { return false }
+        }
+        return debugDefault
+    }
+
     static var appLocale: AppLocale {
         let preferred = Locale.preferredLanguages.first ?? "ja"
         if preferred.hasPrefix("ja") {

@@ -849,6 +849,8 @@ export interface Course {
   audience?: CourseAudience;
   /** レッスン一覧に表示するか（DB 既定 true。未設定は表示扱い） */
   is_visible?: boolean;
+  /** 開発者向けテストコース（本番クライアントでは一覧から除外） */
+  is_developer_only?: boolean;
   prerequisites?: CoursePrerequisite[];
 }
 

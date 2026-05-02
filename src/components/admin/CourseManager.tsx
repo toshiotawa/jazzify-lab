@@ -22,8 +22,10 @@ const DIFFICULTY_OPTIONS: { value: CourseDifficultyTier; label: string }[] = COU
   value => ({ value, label: `${COURSE_DIFFICULTY_LABELS[value].ja} (${COURSE_DIFFICULTY_LABELS[value].en})` }),
 );
 
-type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only' | 'difficulty_tier' | 'is_visible'> & {
+type CourseFormData = Pick<Course, 'title' | 'description' | 'premium_only' | 'difficulty_tier'> & {
   audience: CourseAudience;
+  is_visible: boolean;
+  is_developer_only: boolean;
 };
 
 export const CourseManager: React.FC = () => {
@@ -44,6 +46,7 @@ export const CourseManager: React.FC = () => {
       audience: 'both',
       difficulty_tier: 'beginner',
       is_visible: true,
+      is_developer_only: false,
     },
   });
   const dialogRef = useRef<HTMLDialogElement>(null);
@@ -56,7 +59,7 @@ export const CourseManager: React.FC = () => {
     setLoading(true);
     setError(null);
     try {
-      const data = await fetchCoursesWithDetails({ includeHidden: true });
+      const data = await fetchCoursesWithDetails({ includeHidden: true, includeDeveloperCourses: true });
       setCourses(data);
     } catch (error) {
       const errorMessage = error instanceof Error ? error.message : 'コースの読み込みに失敗しました。';
@@ -77,6 +80,7 @@ export const CourseManager: React.FC = () => {
       setValue('audience', course.audience ?? 'both');
       setValue('difficulty_tier', normalizeCourseDifficultyTier(course.difficulty_tier));
       setValue('is_visible', course.is_visible !== false);
+      setValue('is_developer_only', course.is_developer_only === true);
     } else {
       setSelectedCourse(null);
       reset({
@@ -86,6 +90,7 @@ export const CourseManager: React.FC = () => {
         audience: 'both',
         difficulty_tier: 'beginner',
         is_visible: true,
+        is_developer_only: false,
       });
     }
     dialogRef.current?.showModal();
@@ -117,6 +122,7 @@ export const CourseManager: React.FC = () => {
           difficulty_tier: tier,
           order_index: newOrderIndex,
           is_visible: formData.is_visible,
+          is_developer_only: formData.is_developer_only,
         });
         toast.success('新しいコースを追加しました。');
       }
@@ -257,17 +263,18 @@ export const CourseManager: React.FC = () => {
               <th>対象地域</th>
               <th>プレミアム限定</th>
               <th>一覧表示</th>
+              <th>開発者専用</th>
               <th className="text-right">アクション</th>
             </tr>
           </thead>
           <tbody>
             {loading ? (
               <tr>
-                <td colSpan={9} className="text-center">読み込み中...</td>
+                <td colSpan={10} className="text-center">読み込み中...</td>
               </tr>
             ) : error ? (
               <tr>
-                <td colSpan={9} className="text-center text-red-500">
+                <td colSpan={10} className="text-center text-red-500">
                   <div className="py-4">
                     <p className="mb-2">エラー: {error}</p>
                     <button className="btn btn-sm btn-primary" onClick={loadCourses}>
@@ -278,7 +285,7 @@ export const CourseManager: React.FC = () => {
               </tr>
             ) : courses.length === 0 ? (
               <tr>
-                <td colSpan={9} className="text-center text-gray-400">
+                <td colSpan={10} className="text-center text-gray-400">
                   コースがありません。新規コースを追加してください。
                 </td>
               </tr>
@@ -286,7 +293,7 @@ export const CourseManager: React.FC = () => {
               if (row.kind === 'header') {
                 return (
                   <tr key={`h-${row.tier}`} className="bg-slate-800/80">
-                    <td colSpan={9} className="font-semibold text-sm py-2">
+                    <td colSpan={10} className="font-semibold text-sm py-2">
                       {COURSE_DIFFICULTY_LABELS[row.tier].ja}（{COURSE_DIFFICULTY_LABELS[row.tier].en}）
                     </td>
                   </tr>
@@ -338,6 +345,7 @@ export const CourseManager: React.FC = () => {
                   </td>
                   <td>{course.premium_only ? '✔' : ''}</td>
                   <td>{course.is_visible !== false ? '✔' : '—'}</td>
+                  <td>{course.is_developer_only ? '✔' : '—'}</td>
                   <td className="text-right">
                     <button className="btn btn-ghost btn-sm" onClick={() => openDialog(course)}>
                       編集
@@ -349,7 +357,7 @@ export const CourseManager: React.FC = () => {
                 </tr>
                 {expandedCourses.has(course.id) && (
                   <tr>
-                    <td colSpan={9} className="p-0">
+                    <td colSpan={10} className="p-0">
                       <div className="p-4 bg-slate-800/50">
                         <h4 className="font-semibold mb-2">コース詳細</h4>
                         <p className="text-sm text-gray-400 mb-4">{course.description || '説明はありません。'}</p>
@@ -424,7 +432,13 @@ export const CourseManager: React.FC = () => {
             <div className="form-control">
               <label className="label cursor-pointer">
                 <span className="label-text">レッスン一覧に表示</span>
-                <input type="checkbox" {...register('is_visible', { valueAsBoolean: true })} className="toggle toggle-primary" />
+                <input type="checkbox" {...register('is_visible', { setValueAs: v => v === true || v === 'on' })} className="toggle toggle-primary" />
+              </label>
+            </div>
+            <div className="form-control">
+              <label className="label cursor-pointer">
+                <span className="label-text">開発者専用（本番アプリの一覧では非表示）</span>
+                <input type="checkbox" {...register('is_developer_only', { setValueAs: v => v === true || v === 'on' })} className="toggle toggle-primary" />
               </label>
             </div>
             <div className="modal-action">

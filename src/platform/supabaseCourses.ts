@@ -1,14 +1,25 @@
 import { getSupabaseClient, fetchWithCache, clearCacheByPattern, clearCacheByKey } from './supabaseClient';
 import { Course } from '@/types';
 import { resolveCourseAccess, type MembershipRank } from '@/utils/lessonAccess';
+import { shouldIncludeDeveloperLessonCourses } from '@/utils/environment';
 
-// コースキャッシュキー生成関数
-export const COURSES_CACHE_KEY = () => 'courses';
+const coursesDetailCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
+  `courses-detail-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
+
+const coursesSimpleCacheKey = (includeHidden: boolean, includeDeveloperCourses: boolean) =>
+  `courses-simple-${includeHidden ? 'ih' : 'vis'}-${includeDeveloperCourses ? 'idev' : 'nodev'}`;
+
+/** コース一覧取得系の fetchWithCache キーをまとめて無効化（管理操作後など） */
+export function clearCoursesListQueryCaches(): void {
+  clearCacheByPattern(/^courses-(detail|simple)-/);
+}
 
 export type FetchCoursesOptions = {
   forceRefresh?: boolean;
   /** true のとき非表示コースも含む（管理画面用） */
   includeHidden?: boolean;
+  /** true のとき is_developer_only コースも含む。省略時は shouldIncludeDeveloperLessonCourses() */
+  includeDeveloperCourses?: boolean;
 };
 
 /**
@@ -16,13 +27,17 @@ export type FetchCoursesOptions = {
  * @param {Object} options オプション
  * @param {boolean} options.forceRefresh キャッシュを無視して最新データを取得
  * @param {boolean} options.includeHidden 非表示コースを含める（管理画面）
+ * @param {boolean} options.includeDeveloperCourses 開発者専用コースを含める（省略時は環境に応じる）
  * @returns {Promise<Course[]>}
  */
 export async function fetchCoursesWithDetails({
   forceRefresh = false,
   includeHidden = false,
+  includeDeveloperCourses: includeDeveloperCoursesOption,
 }: FetchCoursesOptions = {}): Promise<Course[]> {
-  const cacheKey = includeHidden ? 'courses-include-hidden' : COURSES_CACHE_KEY();
+  const includeDeveloperCourses =
+    includeDeveloperCoursesOption ?? shouldIncludeDeveloperLessonCourses();
+  const cacheKey = coursesDetailCacheKey(includeHidden, includeDeveloperCourses);
 
   const buildCoursesQuery = () => {
     let q = getSupabaseClient()
@@ -49,6 +64,9 @@ export async function fetchCoursesWithDetails({
     if (!includeHidden) {
       q = q.eq('is_visible', true);
     }
+    if (!includeDeveloperCourses) {
+      q = q.eq('is_developer_only', false);
+    }
     return q;
   };
 
@@ -63,7 +81,7 @@ export async function fetchCoursesWithDetails({
 
     // 新しいデータでキャッシュを更新
     clearCacheByKey(cacheKey);
-    
+
     return data || [];
   }
 
@@ -83,11 +101,18 @@ export async function fetchCoursesWithDetails({
 /**
  * コース一覧を取得します（レッスン詳細なし・軽量版）
  * @param options.includeHidden 非表示コースを含める（管理画面）
+ * @param options.includeDeveloperCourses 開発者専用コースを含める（省略時は環境に応じる）
  */
 export async function fetchCoursesSimple({
   includeHidden = false,
-}: { includeHidden?: boolean } = {}): Promise<Course[]> {
-  const cacheKey = includeHidden ? 'courses-simple-include-hidden' : 'courses-simple';
+  includeDeveloperCourses: includeDeveloperCoursesOption,
+}: {
+  includeHidden?: boolean;
+  includeDeveloperCourses?: boolean;
+} = {}): Promise<Course[]> {
+  const includeDeveloperCourses =
+    includeDeveloperCoursesOption ?? shouldIncludeDeveloperLessonCourses();
+  const cacheKey = coursesSimpleCacheKey(includeHidden, includeDeveloperCourses);
   const { data, error } = await fetchWithCache(
     cacheKey,
     async () => {
@@ -97,6 +122,9 @@ export async function fetchCoursesSimple({
         .order('order_index', { ascending: true });
       if (!includeHidden) {
         q = q.eq('is_visible', true);
+      }
+      if (!includeDeveloperCourses) {
+        q = q.eq('is_developer_only', false);
       }
       return q;
     },
@@ -185,7 +213,10 @@ export async function fetchUserCompletedCourses(userId: string): Promise<string[
   try {
     // 全コースとユーザーのレッスン進捗を取得
     const [coursesData, progressData] = await Promise.all([
-      fetchCoursesWithDetails({ includeHidden: true }),
+      fetchCoursesWithDetails({
+        includeHidden: true,
+        includeDeveloperCourses: shouldIncludeDeveloperLessonCourses(),
+      }),
       getSupabaseClient()
         .from('user_lesson_progress')
         .select('course_id, lesson_id, completed')
@@ -261,6 +292,8 @@ export function canAccessCourse(
 export type FetchCourseByIdOptions = {
   /** true のとき非表示コースも取得（管理画面） */
   includeHidden?: boolean;
+  /** 省略時は shouldIncludeDeveloperLessonCourses() */
+  includeDeveloperCourses?: boolean;
 };
 
 /**
@@ -273,6 +306,8 @@ export async function fetchCourseById(
   options: FetchCourseByIdOptions = {},
 ): Promise<Course | null> {
   const includeHidden = options.includeHidden ?? false;
+  const includeDeveloperCourses =
+    options.includeDeveloperCourses ?? shouldIncludeDeveloperLessonCourses();
   let q = getSupabaseClient()
     .from('courses')
     .select(`
@@ -289,6 +324,9 @@ export async function fetchCourseById(
     .eq('id', id);
   if (!includeHidden) {
     q = q.eq('is_visible', true);
+  }
+  if (!includeDeveloperCourses) {
+    q = q.eq('is_developer_only', false);
   }
   const { data, error } = await q.maybeSingle();
 
@@ -433,6 +471,7 @@ export async function fetchTutorialProgress(): Promise<TutorialProgress | null> 
       .select('id, title')
       .eq('is_tutorial', true)
       .eq('is_visible', true)
+      .eq('is_developer_only', false)
       .order('order_index', { ascending: true })
       .limit(1)
       .maybeSingle(),

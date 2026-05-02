@@ -30,6 +30,14 @@ export const isDevelopment = (): boolean => {
   return getEnvironment() === 'development';
 };
 
+/** 開発者専用レッスンコースをクライアントに含めるか（Web） */
+export const shouldIncludeDeveloperLessonCourses = (): boolean => {
+  if (import.meta.env.VITE_INCLUDE_DEV_LESSON_COURSES === 'true') {
+    return true;
+  }
+  return isDevelopment();
+};
+
 // 環境に応じた設定値を返す
 export const getEnvConfig = () => {
   const env = getEnvironment();

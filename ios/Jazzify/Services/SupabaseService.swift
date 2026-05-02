@@ -178,10 +178,20 @@ final class SupabaseService: Sendable {
     // MARK: - Lessons
 
     func fetchCourses() async throws -> [Course] {
-        try await client
+        if Config.includeDeveloperLessonCourses {
+            return try await client
+                .from("courses")
+                .select()
+                .eq("is_visible", value: true)
+                .order("order_index")
+                .execute()
+                .value
+        }
+        return try await client
             .from("courses")
             .select()
             .eq("is_visible", value: true)
+            .eq("is_developer_only", value: false)
             .order("order_index")
             .execute()
             .value
@@ -322,6 +332,7 @@ final class SupabaseService: Sendable {
             .select()
             .eq("is_tutorial", value: true)
             .eq("is_visible", value: true)
+            .eq("is_developer_only", value: false)
             .order("order_index")
             .limit(1)
             .execute()
