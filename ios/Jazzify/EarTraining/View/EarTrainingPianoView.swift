@@ -2,64 +2,56 @@ import SwiftUI
 
 /// 耳コピバトル ゲーム画面の鍵盤。`SurvivalChordPadView` のレイアウト/インタラクションを踏襲しつつ、
 /// ヒント (緑グロー) は無効化し、押下時に `EarTrainingBattleController.handleNoteOn/Off` を呼ぶ。
+/// iOS 版は 36 鍵 (連続 36 音 = C2〜B4 / MIDI 36〜71) に固定し、従来の C4 付近中心より低音域をカバーする。
 struct EarTrainingPianoView: View {
     @ObservedObject var controller: EarTrainingBattleController
 
-    private let firstMidi: Int = 21
-    private let lastMidi: Int = 108
-    private let visibleWhiteKeys: CGFloat = 14
+    /// C2 (36) 〜 B4 (71) の 36 鍵。Salamander サンプラーの下限付近からメロディ域まで。
+    private let firstMidi: Int = 36
+    private let lastMidi: Int = 71
     private let keyboardHeight: CGFloat = 100
     private let blackKeyHeightRatio: CGFloat = 0.6
     private let blackKeyWidthRatio: CGFloat = 0.6
 
     var body: some View {
         GeometryReader { proxy in
-            let whiteKeyWidth = max(24, proxy.size.width / visibleWhiteKeys)
+            let whites = whiteMidiNotes
+            let whiteKeyWidth = proxy.size.width / CGFloat(max(whites.count, 1))
             let blackKeyWidth = whiteKeyWidth * blackKeyWidthRatio
             let blackKeyHeight = keyboardHeight * blackKeyHeightRatio
-            let whites = whiteMidiNotes
-            let totalWidth = CGFloat(whites.count) * whiteKeyWidth
+            let totalWidth = proxy.size.width
 
-            ScrollViewReader { scrollProxy in
-                ScrollView(.horizontal, showsIndicators: false) {
-                    ZStack(alignment: .topLeading) {
-                        HStack(spacing: 0) {
-                            ForEach(Array(whites.enumerated()), id: \.offset) { _, midi in
-                                EarTrainingPianoKeyButton(
-                                    midi: midi,
-                                    label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
-                                    isBlack: false,
-                                    width: whiteKeyWidth,
-                                    height: keyboardHeight,
-                                    onPress: { controller.handleNoteOn(midi: $0) },
-                                    onRelease: { controller.handleNoteOff(midi: $0) }
-                                )
-                                .id(midi)
-                            }
-                        }
-                        .frame(width: totalWidth, height: keyboardHeight)
-
-                        ForEach(blackKeyMidiNotes, id: \.self) { midi in
-                            let x = blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
-                            EarTrainingPianoKeyButton(
-                                midi: midi,
-                                label: "",
-                                isBlack: true,
-                                width: blackKeyWidth,
-                                height: blackKeyHeight,
-                                onPress: { controller.handleNoteOn(midi: $0) },
-                                onRelease: { controller.handleNoteOff(midi: $0) }
-                            )
-                            .offset(x: x - blackKeyWidth / 2, y: 0)
-                        }
+            ZStack(alignment: .topLeading) {
+                HStack(spacing: 0) {
+                    ForEach(Array(whites.enumerated()), id: \.offset) { _, midi in
+                        EarTrainingPianoKeyButton(
+                            midi: midi,
+                            label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
+                            isBlack: false,
+                            width: whiteKeyWidth,
+                            height: keyboardHeight,
+                            onPress: { controller.handleNoteOn(midi: $0) },
+                            onRelease: { controller.handleNoteOff(midi: $0) }
+                        )
                     }
-                    .frame(width: totalWidth, height: keyboardHeight)
                 }
-                .frame(height: keyboardHeight)
-                .onAppear {
-                    scrollProxy.scrollTo(60, anchor: .center)
+                .frame(width: totalWidth, height: keyboardHeight)
+
+                ForEach(blackKeyMidiNotes, id: \.self) { midi in
+                    let x = blackKeyCenterX(midi: midi, whiteKeyWidth: whiteKeyWidth)
+                    EarTrainingPianoKeyButton(
+                        midi: midi,
+                        label: "",
+                        isBlack: true,
+                        width: blackKeyWidth,
+                        height: blackKeyHeight,
+                        onPress: { controller.handleNoteOn(midi: $0) },
+                        onRelease: { controller.handleNoteOff(midi: $0) }
+                    )
+                    .offset(x: x - blackKeyWidth / 2, y: 0)
                 }
             }
+            .frame(width: totalWidth, height: keyboardHeight)
             .background(Color.black.opacity(0.55))
         }
         .frame(height: keyboardHeight)
