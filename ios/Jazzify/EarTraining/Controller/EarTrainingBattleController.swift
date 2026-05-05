@@ -47,6 +47,8 @@ final class EarTrainingBattleController: ObservableObject {
     @Published var practiceMode: Bool
     @Published var isMidiConnected: Bool = false
     @Published var isSettingsOpen: Bool = false
+    /// MIDI 入力で押下中の鍵（SwiftUI 鍵盤ハイライト用）。タッチ押下は各鍵のローカル状態と合成する。
+    @Published private(set) var midiHeldKeys: Set<Int> = []
 
     enum Feedback: String, Sendable {
         case correct
@@ -253,6 +255,15 @@ final class EarTrainingBattleController: ObservableObject {
         audio.onTimeUpdate = nil
         audio.onEnded = nil
         audio.stop()
+        midiHeldKeys.removeAll()
+    }
+
+    func registerMidiKeyDown(_ midi: Int) {
+        midiHeldKeys.insert(midi)
+    }
+
+    func registerMidiKeyUp(_ midi: Int) {
+        midiHeldKeys.remove(midi)
     }
 
     // MARK: - Public actions

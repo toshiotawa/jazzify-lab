@@ -171,8 +171,10 @@ struct SurvivalGameView: View {
                 guard let created else { return }
                 if isNoteOn {
                     created.handleNoteOn(note, velocity: velocity, playAudio: false)
+                    created.registerMidiKeyDown(note)
                 } else {
                     created.handleNoteOff(note, playAudio: false)
+                    created.registerMidiKeyUp(note)
                 }
             }
         }

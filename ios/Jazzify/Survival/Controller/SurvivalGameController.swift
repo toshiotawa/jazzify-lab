@@ -28,6 +28,8 @@ final class SurvivalGameController: ObservableObject {
     /// Web 版 `SurvivalGameScreen.getHintSlotIndex` と同様 A↔B を交互に切り替える。
     /// `runtime.hintMode` が false の場合は nil。
     @Published private(set) var currentHintSlotIndex: Int? = 0
+    /// MIDI 入力で押下中の鍵（SwiftUI 鍵盤ハイライト用）。タッチ押下は各鍵のローカル状態と合成する。
+    @Published private(set) var midiHeldKeys: Set<Int> = []
 
     /// アナログ入力 (仮想スティック) x,y は [-1, 1] 正規化
     var analogInput: CGVector = .zero
@@ -121,6 +123,15 @@ final class SurvivalGameController: ObservableObject {
 
     func stopAudio() {
         SurvivalGameAudio.shared.stop()
+        midiHeldKeys.removeAll()
+    }
+
+    func registerMidiKeyDown(_ midi: Int) {
+        midiHeldKeys.insert(midi)
+    }
+
+    func registerMidiKeyUp(_ midi: Int) {
+        midiHeldKeys.remove(midi)
     }
 
     func requestExit() {

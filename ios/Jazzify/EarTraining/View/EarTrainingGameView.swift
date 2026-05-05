@@ -125,8 +125,10 @@ struct EarTrainingGameView: View {
                     guard let createdController else { return }
                     if isNoteOn {
                         createdController.handleNoteOn(midi: note, velocity: velocity, playAudio: false)
+                        createdController.registerMidiKeyDown(note)
                     } else {
                         createdController.handleNoteOff(midi: note, playAudio: false)
+                        createdController.registerMidiKeyUp(note)
                     }
                 }
             }

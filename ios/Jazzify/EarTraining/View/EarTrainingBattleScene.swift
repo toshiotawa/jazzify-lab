@@ -77,11 +77,10 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     /// `drawBackground` の楽器レイアウト調整はここの定数のみで行う。
-    /// 正面舞台: ピアノ上ネオン／左端ベース／左後ろピアノ（プレイヤー側）／敵より右へドラム（床置き）。
+    /// 正面舞台: 左端ベース／左後ろピアノ（プレイヤー側）／敵より右へドラム（床置き）。
     /// 上中央コード帯と中央レーンは背景オブジェクトで埋めない。
     private enum JazzStagePropLayout {
         enum Asset {
-            static let neon = "ear-training-bg-jazz-neon"
             static let drumKit = "ear-training-bg-drum-kit"
             static let piano = "ear-training-bg-upright-piano"
             static let doubleBass = "ear-training-bg-double-bass"
@@ -92,7 +91,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             static let doubleBass: CGFloat = 2
             static let piano: CGFloat = 2.5
             static let drumKit: CGFloat = 3
-            static let neon: CGFloat = 4
             static let floorShadow: CGFloat = 6
         }
 
@@ -101,18 +99,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             static let instrumentTint = UIColor(red: 38 / 255, green: 30 / 255, blue: 28 / 255, alpha: 1)
             /// 強いほど背景に溶け込みやすくなる。
             static let instrumentBlendFactor: CGFloat = 0.68
-            static let neonTint = UIColor(red: 74 / 255, green: 60 / 255, blue: 55 / 255, alpha: 1)
-            static let neonBlendFactor: CGFloat = 0.48
-        }
-
-        enum Neon {
-            /// 上部帯・ピアノ列の上へ合わせる（水平は `CenterXF.piano` にアンカー上中央で重ねる）。
-            static let anchor = CGPoint(x: 0.5, y: 1)
-            static let widthFrac: CGFloat = 0.085
-            /// `CenterXF.piano` との水平オフセット（pt）。
-            static let horizontalOffsetFromPianoCenterPt: CGFloat = 2
-            /// 画面上端からの下げ幅（ステータス・タイマー行の直下付近）。
-            static let insetFromSceneTopPt: CGFloat = 64
         }
 
         enum DrumFloor {
@@ -130,7 +116,7 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
 
         enum CenterXF {
             static let doubleBass: CGFloat = 0.075
-            /// プレイヤーと被りにくいようやや右へ（ネオンはこの中心に追従）。
+            /// プレイヤーと被りにくいようやや右へ。
             static let piano: CGFloat = 0.352
         }
     }
@@ -793,11 +779,9 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
     }
 
     /// プロシージャル壁・床テクスチャの上に、透過ジャズ楽器レイヤーを重ねる。
-    private func addJazzStagePropSprites(width: CGFloat, height: CGFloat, floorY: CGFloat) {
+    private func addJazzStagePropSprites(width: CGFloat, height _: CGFloat, floorY: CGFloat) {
         let insTint = JazzStagePropLayout.Dim.instrumentTint
         let insBlend = JazzStagePropLayout.Dim.instrumentBlendFactor
-        let neonTint = JazzStagePropLayout.Dim.neonTint
-        let neonBlend = JazzStagePropLayout.Dim.neonBlendFactor
 
         let drumMaxW = max(1, floor(width * JazzStagePropLayout.DrumFloor.widthFrac))
         let drumHalfW = drumMaxW * 0.5
@@ -835,17 +819,6 @@ final class EarTrainingBattleScene: SKScene, EarTrainingBattleSceneHandle {
             zPosition: JazzStagePropLayout.Z.drumKit,
             tintColor: insTint,
             tintBlendFactor: insBlend
-        )
-        let neonPivotX = width * JazzStagePropLayout.CenterXF.piano + JazzStagePropLayout.Neon.horizontalOffsetFromPianoCenterPt
-        let neonTopY = height - JazzStagePropLayout.Neon.insetFromSceneTopPt
-        addStageBackgroundSpriteIfAvailable(
-            assetName: JazzStagePropLayout.Asset.neon,
-            maxWidth: width * JazzStagePropLayout.Neon.widthFrac,
-            anchor: JazzStagePropLayout.Neon.anchor,
-            position: CGPoint(x: neonPivotX, y: neonTopY),
-            zPosition: JazzStagePropLayout.Z.neon,
-            tintColor: neonTint,
-            tintBlendFactor: neonBlend
         )
     }
 

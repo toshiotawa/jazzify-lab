@@ -38,6 +38,7 @@ struct SurvivalChordPadView: View {
                                     label: SurvivalChordPadView.shouldLabelC(midi: midi) ? SurvivalChordPadView.midiLabel(midi) : "",
                                     isBlack: false,
                                     isHinted: hintMidis.contains(midi),
+                                    isMidiHeld: controller.midiHeldKeys.contains(midi),
                                     width: whiteKeyWidth,
                                     height: keyboardHeight,
                                     onPress: { controller.handleNoteOn($0) },
@@ -56,6 +57,7 @@ struct SurvivalChordPadView: View {
                                 label: "",
                                 isBlack: true,
                                 isHinted: hintMidis.contains(midi),
+                                isMidiHeld: controller.midiHeldKeys.contains(midi),
                                 width: blackKeyWidth,
                                 height: blackKeyHeight,
                                 onPress: { controller.handleNoteOn($0) },
@@ -126,6 +128,7 @@ private struct PianoKeyButton: View {
     let isBlack: Bool
     /// ヒント対象 pitch class に一致する場合 true。緑のグロー枠で強調表示する。
     let isHinted: Bool
+    let isMidiHeld: Bool
     let width: CGFloat
     let height: CGFloat
     let onPress: (Int) -> Void
@@ -173,20 +176,21 @@ private struct PianoKeyButton: View {
     }
 
     private var fillColor: Color {
+        let held = isPressing || isMidiHeld
         if isBlack {
             if isHinted {
-                return isPressing
+                return held
                     ? Color(red: 0.15, green: 0.55, blue: 0.25)
                     : Color(red: 0.10, green: 0.40, blue: 0.18)
             }
-            return isPressing ? Color(white: 0.35) : Color.black
+            return held ? Color(white: 0.35) : Color.black
         } else {
             if isHinted {
-                return isPressing
+                return held
                     ? Color(red: 0.55, green: 0.90, blue: 0.55)
                     : Color(red: 0.75, green: 1.0, blue: 0.75)
             }
-            return isPressing ? Color(white: 0.78) : Color.white
+            return held ? Color(white: 0.78) : Color.white
         }
     }
 }

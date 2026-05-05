@@ -28,6 +28,7 @@ struct EarTrainingPianoView: View {
                             midi: midi,
                             label: Self.shouldLabelC(midi: midi) ? Self.midiLabel(midi) : "",
                             isBlack: false,
+                            isMidiHeld: controller.midiHeldKeys.contains(midi),
                             width: whiteKeyWidth,
                             height: keyboardHeight,
                             onPress: { controller.handleNoteOn(midi: $0) },
@@ -43,6 +44,7 @@ struct EarTrainingPianoView: View {
                         midi: midi,
                         label: "",
                         isBlack: true,
+                        isMidiHeld: controller.midiHeldKeys.contains(midi),
                         width: blackKeyWidth,
                         height: blackKeyHeight,
                         onPress: { controller.handleNoteOn(midi: $0) },
@@ -95,6 +97,7 @@ private struct EarTrainingPianoKeyButton: View {
     let midi: Int
     let label: String
     let isBlack: Bool
+    let isMidiHeld: Bool
     let width: CGFloat
     let height: CGFloat
     let onPress: (Int) -> Void
@@ -137,9 +140,10 @@ private struct EarTrainingPianoKeyButton: View {
     }
 
     private var fillColor: Color {
+        let held = isPressing || isMidiHeld
         if isBlack {
-            return isPressing ? Color(white: 0.35) : Color.black
+            return held ? Color(white: 0.35) : Color.black
         }
-        return isPressing ? Color(white: 0.78) : Color.white
+        return held ? Color(white: 0.78) : Color.white
     }
 }

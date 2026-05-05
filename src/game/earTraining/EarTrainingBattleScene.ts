@@ -28,7 +28,7 @@ const AWESOME_MAGIC_CIRCLE_ALPHA = 0.68;
 
 type BattleEffectSpriteName = 'cloud' | 'fireRing' | 'fireball' | 'lightning' | 'meteor' | 'snowflake';
 type CharacterSide = 'player' | 'enemy';
-type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit' | 'neon';
+type JazzStagePropName = 'doubleBass' | 'piano' | 'drumKit';
 type PlayerAvatarPoseName =
   | 'correct3'
   | 'skill1'
@@ -89,11 +89,6 @@ const JAZZ_STAGE_PROP_ASSETS: Record<JazzStagePropName, JazzStagePropAsset> = {
     key: 'ear-training-bg-drum-kit',
     url: `${EFFECT_ASSET_PATH}bg-drum-kit.webp`,
     alpha: 0.84,
-  },
-  neon: {
-    key: 'ear-training-bg-jazz-neon',
-    url: `${EFFECT_ASSET_PATH}bg-jazz-neon.webp`,
-    alpha: 0.9,
   },
 };
 
@@ -563,7 +558,6 @@ export class EarTrainingBattleScene extends Phaser.Scene implements EarTrainingB
     const preferredDrumCenterX = width * 0.91;
     const drumCenterX = Math.min(Math.max(preferredDrumCenterX, Math.min(minimumCenterPastEnemy, drumMaxCenterX)), drumMaxCenterX);
     this.addStageBackgroundSprite('drumKit', drumCenterX, floorY, drumMaxWidth, 0.5, 1);
-    this.addStageBackgroundSprite('neon', width * 0.352 + 2, 64, width * 0.105, 0.5, 0);
   }
 
   private addStageBackgroundSprite(
