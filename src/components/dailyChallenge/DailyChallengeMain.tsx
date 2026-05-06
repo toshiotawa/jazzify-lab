@@ -154,7 +154,7 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
         return;
       }
 
-      // playModeは'challenge'で初期化するが、autoStart=falseなのでユーザーが選択するまでゲームは開始されない
+      // playModeは'challenge'で初期化するが、ユーザーが「挑戦」等で開始するまでゲームは始まらない
       setView({ type: 'playing', stage: toEngineStage(stage), difficulty, playMode: 'challenge' });
     };
 
@@ -309,7 +309,6 @@ const DailyChallengeMain: React.FC<DailyChallengeMainProps> = ({ iosDifficulty }
     <FantasyGameScreen
       key={`${view.difficulty}:${today}`}
       stage={view.stage}
-      autoStart={false}
       playMode={view.playMode}
       onPlayModeChange={(mode) => {
         // ユーザーがモードを選択したときにplayModeを更新

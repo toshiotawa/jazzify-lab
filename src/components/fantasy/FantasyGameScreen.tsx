@@ -3,7 +3,7 @@
  * UI/UX要件に従ったゲーム画面の実装
  */
 
-import React, { useState, useEffect, useCallback, useRef, useMemo, MutableRefObject } from 'react';
+import React, { useState, useEffect, useCallback, useRef, useMemo, useImperativeHandle, forwardRef, MutableRefObject } from 'react';
 import { cn } from '@/utils/cn';
 import { devLog } from '@/utils/logger';
 import { MIDIController, playNote, stopNote, initializeAudioSystem, updateGlobalVolume } from '@/utils/MidiController';
@@ -31,10 +31,13 @@ import { useGeoStore } from '@/stores/geoStore';
 import { FantasySoundManager } from '@/utils/FantasySoundManager';
 import { isIOSWebView } from '@/utils/iosbridge';
 
+/** 親が再マウント直後に同一ユーザージェスチャー内で `startGame` を呼ぶためのハンドル（iOS WKWebView 向け） */
+export interface FantasyGameScreenHandle {
+  beginStartGameFromUserGesture: (mode: FantasyPlayMode, speedMultiplier: number) => void;
+}
+
 interface FantasyGameScreenProps {
   stage: FantasyStage;
-  autoStart?: boolean;        // ★ 追加
-  autoStartSpeedMultiplier?: number; // ★ 追加: 自動開始時の速度倍率（progressionモード用）
   playMode: FantasyPlayMode;
   onPlayModeChange: (mode: FantasyPlayMode) => void;
   onSwitchToChallenge: () => void;
@@ -83,10 +86,8 @@ function saveSheetMusicHeight(staves: number, height: number): void {
   } catch { /* ignore */ }
 }
 
-const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
+const FantasyGameScreen = forwardRef<FantasyGameScreenHandle, FantasyGameScreenProps>(({
   stage,
-  autoStart = false, // ★ 追加
-  autoStartSpeedMultiplier = 1.0, // ★ 追加: 自動開始時の速度倍率
   playMode,
   onPlayModeChange,
   onSwitchToChallenge,
@@ -98,7 +99,7 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   fitAllKeys = false,
   uiMode = 'normal',
   timeLimitSeconds = 120,
-}) => {
+}, ref) => {
   const isDailyChallenge = uiMode === 'daily_challenge';
   // タイマーeffectが onGameComplete 変化で再起動しないよう、最新参照は ref で保持する
   const onGameCompleteRef = useRef<FantasyGameScreenProps['onGameComplete']>(onGameComplete);
@@ -1045,6 +1046,9 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     gameStateRef.current = gameState;
   }, [gameState]);
 
+  /** startGame より前に宣言（startGame 内で参照するため） */
+  const audioUnlockedRef = useRef(false);
+
   const buildInitStage = useCallback((
     speedMultiplier?: number
   ): FantasyStage => {
@@ -1066,7 +1070,11 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   ) => {
     bgmManager.ensureContextRunning();
     await bgmManager.ensureContextRunningAsync();
-    FantasySoundManager.unlock().catch(() => {});
+    try {
+      await FantasySoundManager.unlock();
+    } catch {
+      /* ignore */
+    }
     FantasySoundManager.ensureContextsRunning();
     audioUnlockedRef.current = true;
 
@@ -1146,6 +1154,17 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
     setIsGameReady(true);
   }, [buildInitStage, initializeGame, onPlayModeChange, isInitialized, stage.mode]);
 
+  const startGameForRefRef = useRef(startGame);
+  useEffect(() => {
+    startGameForRefRef.current = startGame;
+  }, [startGame]);
+
+  useImperativeHandle(ref, () => ({
+    beginStartGameFromUserGesture: (mode: FantasyPlayMode, speedMultiplier: number) => {
+      void startGameForRefRef.current(mode, speedMultiplier);
+    },
+  }));
+
   // デイリーチャレンジ: タイムリミットで終了
   useEffect(() => {
     if (!isDailyChallenge) return;
@@ -1182,7 +1201,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
   }, [isDailyChallenge, isReady, gameState.isGameActive, timeLimitSeconds, stopGame]);
   
   // MIDI/音声入力のハンドリング
-  const audioUnlockedRef = useRef(false);
   const handleNoteInputBridge = useCallback((note: number, source: 'mouse' | 'touch' | 'midi' = 'mouse') => {
     const inputTimestampMs = performance.now();
 
@@ -1536,7 +1554,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       return;
     }
     setGuideMidi(chord.notes as number[]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pixiRenderer, effectiveShowGuide, gameState.simultaneousMonsterCount, gameState.activeMonsters, gameState.currentChordTarget, gameState.isTaikoMode, gameState.currentNoteIndex, gameState.awaitingLoopStart]);
 
   // 正解済み鍵盤のハイライト更新（Singleモードのみ、赤色で保持）
@@ -1650,13 +1667,6 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       </div>
     );
   }, []);
-  
-  // ★ マウント時 autoStart なら即開始（速度倍率を考慮）
-  useEffect(() => {
-    if (autoStart) {
-      startGame(playMode, autoStartSpeedMultiplier);
-    }
-  }, [autoStart, playMode, autoStartSpeedMultiplier, startGame]);
 
   // ゲーム開始前画面（オーバーレイ表示中は表示しない）
   if (!overlay && !gameState.isCompleting && (!gameState.isGameActive || !gameState.currentChordTarget)) {
@@ -2395,6 +2405,8 @@ const FantasyGameScreen: React.FC<FantasyGameScreenProps> = ({
       )}
     </div>
   );
-};
+});
+
+FantasyGameScreen.displayName = 'FantasyGameScreen';
 
 export default FantasyGameScreen;

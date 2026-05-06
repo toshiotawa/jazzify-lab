@@ -83,14 +83,8 @@ const detectUserInteraction = (): Promise<void> => {
       }
     } catch {}
 
-    // iOS WebView: user already tapped native button to get here
-    try {
-      if (window.webkit?.messageHandlers?.gameCallback) {
-        userInteracted = true;
-        resolve();
-        return;
-      }
-    } catch {}
+    // iOS WKWebView: ネイティブのタップは Web のユーザー操作として扱われないため、
+    // ここで即時 true にすると AudioContext.resume が拒否され無音になる。実際の click/touchstart を待つ。
 
     pendingInteractionResolve = resolve;
 

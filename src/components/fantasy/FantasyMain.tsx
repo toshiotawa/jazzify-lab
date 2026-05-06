@@ -3,9 +3,10 @@
  * ルーティング管理とゲーム状態管理
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from 'react';
+import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
+import { flushSync } from 'react-dom';
 import FantasyStageSelect from './FantasyStageSelect';
-import FantasyGameScreen from './FantasyGameScreen';
+import FantasyGameScreen, { type FantasyGameScreenHandle } from './FantasyGameScreen';
 import { FantasyStage, type FantasyPlayMode } from './FantasyGameEngine';
 import { RepeatKeyChange } from './TaikoNoteSystem';
 import { useAuthStore } from '@/stores/authStore';
@@ -252,10 +253,7 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   // ▼▼▼ 追加 ▼▼▼
   // ゲームコンポーネントを強制的に再マウントさせるためのキー
   const [gameKey, setGameKey] = useState(0); 
-  // 再挑戦時の自動開始フラグ
-  const [pendingAutoStart, setPendingAutoStart] = useState(false);
-  // 再挑戦時の速度倍率（progressionモード用）
-  const [pendingSpeedMultiplier, setPendingSpeedMultiplier] = useState<number>(1.0);
+  const fantasyGameRef = useRef<FantasyGameScreenHandle>(null);
   // ▲▲▲ ここまで ▲▲▲
   
   // フリープラン・ゲストユーザーかどうかの確認
@@ -559,8 +557,6 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     setGameResult(null);
     setShowResult(false);
     setPlayMode('challenge');
-    setPendingAutoStart(false);
-    setPendingSpeedMultiplier(1.0);
     setGameKey(prevKey => prevKey + 1);
     setLessonClearResult(null);
     const tier = ((stage as any).tier as 'basic' | 'advanced' | 'phrases') || 'basic';
@@ -577,7 +573,6 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     playerHp: number,
     maxHp: number
   ) => {
-    setPendingAutoStart(false);
     
     // ランクを計算
     const rank = calculateFantasyRank(result, playerHp, maxHp);
@@ -808,8 +803,6 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
     setCurrentStage(null);
     setGameResult(null);
     setPlayMode('challenge');
-    setPendingAutoStart(false);
-    setPendingSpeedMultiplier(1.0);
   }, [isMissionMode, isLessonMode, lessonContext]);
   
   // ★ 追加: 次のステージに待機画面で遷移
@@ -1086,11 +1079,12 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
               )}
               <button
                 onClick={() => {
-                  setPlayMode('challenge');
-                  setShowResult(false);
-                  setGameKey(prevKey => prevKey + 1);
-                  setPendingAutoStart(true);
-                  setPendingSpeedMultiplier(1.0); // 再挑戦は通常速度
+                  flushSync(() => {
+                    setPlayMode('challenge');
+                    setShowResult(false);
+                    setGameKey(prevKey => prevKey + 1);
+                  });
+                  fantasyGameRef.current?.beginStartGameFromUserGesture('challenge', 1.0);
                 }}
                 className="w-full px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg font-medium transition-colors font-sans"
               >
@@ -1101,12 +1095,13 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
                 <ResultPracticeSettings
                   currentStage={currentStage}
                   isEnglishCopy={isEnglishCopy}
-                  onStartPractice={(speed, transposeOpts) => {
-                    setPlayMode('practice');
-                    setShowResult(false);
-                    setGameKey(prevKey => prevKey + 1);
-                    setPendingAutoStart(true);
-                    setPendingSpeedMultiplier(speed);
+                  onStartPractice={(speed, _transposeOpts) => {
+                    flushSync(() => {
+                      setPlayMode('practice');
+                      setShowResult(false);
+                      setGameKey(prevKey => prevKey + 1);
+                    });
+                    fantasyGameRef.current?.beginStartGameFromUserGesture('practice', speed);
                     // 移調設定はFantasyGameScreen側で処理（URLパラメータ経由ではなくprops経由）
                   }}
                 />
@@ -1114,10 +1109,12 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
                 /* singleモードの場合は従来の練習ボタン */
                 <button
                   onClick={() => {
-                    setPlayMode('practice');
-                    setShowResult(false);
-                    setGameKey(prevKey => prevKey + 1);
-                    setPendingAutoStart(true);
+                    flushSync(() => {
+                      setPlayMode('practice');
+                      setShowResult(false);
+                      setGameKey(prevKey => prevKey + 1);
+                    });
+                    fantasyGameRef.current?.beginStartGameFromUserGesture('practice', 1.0);
                   }}
                   className="w-full px-6 py-2 bg-white/10 hover:bg-white/20 rounded-lg font-medium transition-colors font-sans border border-white/20"
                 >
@@ -1146,19 +1143,17 @@ const FantasyMain: React.FC<FantasyMainProps> = ({ demoStage, initialStage }) =>
   if (currentStage) {
     return (
       <FantasyGameScreen
-        // ▼▼▼ 追加 ▼▼▼
-        key={gameKey} // keyプロパティを渡す
-        // ▲▲▲ ここまで ▲▲▲
+        ref={fantasyGameRef}
+        key={gameKey}
         stage={currentStage}
-        autoStart={pendingAutoStart}   // ★
-        autoStartSpeedMultiplier={pendingSpeedMultiplier} // ★ 速度倍率を渡す
         playMode={playMode}
         onPlayModeChange={setPlayMode}
         onSwitchToChallenge={() => {
-          setPlayMode('challenge');
-          setGameKey(prevKey => prevKey + 1);
-          setPendingAutoStart(true);
-          setPendingSpeedMultiplier(1.0); // 挑戦モードは通常速度
+          flushSync(() => {
+            setPlayMode('challenge');
+            setGameKey(prevKey => prevKey + 1);
+          });
+          fantasyGameRef.current?.beginStartGameFromUserGesture('challenge', 1.0);
         }}
         onGameComplete={handleGameComplete}
         onBackToStageSelect={handleBackToStageSelect}
